@@ -100,7 +100,7 @@
                     clearTimeout(timeoutId);
                 }
             }
-           return {
+            return {
                 async getTableData(table, { select = "*", filter = "" } = {}) {
                     let url = `/rest/v1/${table}?select=${encodeURIComponent(select)}`;
                     if (filter) {
@@ -217,7 +217,7 @@
                 RanKing: 'ranking', 'Reward Level': 'reward_level', Photos: 'photos'
             },
             users: { 'Employee_ID': 'employee_id', 'User name': 'username', 'Password ': 'password_hash', Role: 'role', 'Device ID': 'device_id', Permissions: 'permissions' },
-            fingerprint_logs: { Log_ID: 'log_id', Employee_ID: 'employee_id', Full_Name: 'full_name', Date: 'log_date', Shift_Start: 'shift_start', Shift_End: 'shift_end', Check_In: 'check_in', Check_Out: 'check_out', Attendance_Status: 'attendance_status', Late_Hours: 'late_hours', Early_Leave_Hours: 'early_leave_hours', OT_Amount: 'ot_amount' },
+            fingerprint_logs: { Log_ID: 'Log_ID', Employee_ID: 'Employee_ID', Full_Name: 'Full_Name', Date: 'Date', Shift_Start: 'Shift_Start', Shift_End: 'Shift_End', Check_In: 'Check_In', Check_Out: 'Check_Out', Attendance_Status: 'Attendance_Status', Late_Hours: 'Late_Hours', Early_Leave_Hours: 'Early_Leave_Hours', OT_Amount: 'OT_Amount' },
             announcements: { ID: 'announcement_id', Date: 'announcement_date', Type: 'type', Topic: 'topic', Photo: 'photo', Status: 'status' },
             departments: { Department_ID: 'department_id', Department_Name: 'department_name', Manager_ID: 'manager_id', 'Employees count': 'employees_count', Status: 'status' },
             leave_applications: { Id_Leave: 'leave_id', Employee_ID: 'employee_id', Prefix: 'prefix', First_Name: 'first_name', Last_Name: 'last_name', Department_ID: 'department_id', Position_ID: 'position_id', Contact: 'contact', 'Object ': 'object', 'Type ': 'leave_type', Start_Date: 'start_date', End_Date: 'end_date', Total_Days: 'total_days', 'Work Handover': 'work_handover', Signature: 'signature', Photo: 'photo' },
@@ -249,7 +249,7 @@
                 // The UI identifies User rows by Employee_ID (see getRecordId),
                 // so updates and deletes must use the same stable key.
                 users: 'employee_id',
-                fingerprint_logs: 'log_id',
+                fingerprint_logs: 'Log_ID',
                 announcements: 'announcement_id',
                 leave_applications: 'leave_id',
                 departments: 'department_id',
@@ -335,11 +335,11 @@
 
             if (method === 'getDashboardData') {
                 const [startDate, endDate] = args;
-                
+
                 // 1. สร้างเงื่อนไขกรองวันที่สำหรับตารางที่มีข้อมูลสะสมเยอะ (การลงเวลา และ การลางาน)
                 let logFilter = "";
                 let leaveFilter = "";
-                
+
                 if (startDate && endDate) {
                     logFilter = `log_date=gte.${startDate}&log_date=lte.${endDate}`;
                     leaveFilter = `start_date=gte.${startDate}&start_date=lte.${endDate}`;
@@ -377,7 +377,7 @@
                         recentCards: []
                     }
                 };
-            
+
             }
 
             if (method === 'saveData') {
@@ -415,15 +415,83 @@
             }
 
             if (method === 'getTodayAttendance') {
-                const empId = String(args[0] || '').trim();
+                const empId = String(args[0] || '').trim().toUpperCase();
+                const now = new Date();
+                const offset = now.getTimezoneOffset() * 60000;
+                const today = (new Date(now.getTime() - offset)).toISOString().slice(0, 10);
+                // Fetch all and filter client-side (avoid server-filter 400 errors)
                 const rows = await bridge.getTableData('fingerprint_logs', { select: '*' });
-                const today = new Date().toISOString().slice(0, 10);
-                const row = (rows || []).find(r => String(r.employee_id || '').trim() === empId && String(r.log_date || '').slice(0, 10) === today);
-                return { success: true, data: { checkIn: row?.check_in || '-', checkOut: row?.check_out || '-', status: row?.attendance_status || '-' } };
+                const row = (rows || []).find(r =>
+                    String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === empId &&
+                    String(r.Date || r.log_date || r.date || '').slice(0, 10) === today
+                );
+                if (!row) return { success: true, data: { checkIn: '-', checkOut: '-', status: '-' } };
+                const checkIn  = row.Check_In  ?? row.check_in  ?? '-';
+                const checkOut = row.Check_Out ?? row.check_out ?? '-';
+                const status   = row.Attendance_Status ?? row.attendance_status ?? row.status ?? '-';
+                return { success: true, data: { checkIn: checkIn || '-', checkOut: checkOut || '-', status: status || '-' } };
             }
 
             if (method === 'recordAttendance') {
-                return { success: true };
+                const [empId, scanType] = args;
+                const formattedEmpId = String(empId).trim().toUpperCase();
+
+                // Date/time (timezone-aware for Thailand UTC+7)
+                const now = new Date();
+                const offset = now.getTimezoneOffset() * 60000;
+                const todayStr = (new Date(now.getTime() - offset)).toISOString().slice(0, 10);
+                const timeStr  = now.toTimeString().slice(0, 5); // "HH:MM"
+
+                // Fetch all fingerprint_logs client-side (avoid URL filter 400 errors)
+                const allLogs = await bridge.getTableData('fingerprint_logs', { select: '*' });
+                const existingLog = (allLogs || []).find(r =>
+                    String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === formattedEmpId &&
+                    String(r.Date || r.log_date || r.date || '').slice(0, 10) === todayStr
+                ) || null;
+
+                if (existingLog) {
+                    // UPDATE existing row—use PascalCase columns (as seen in Supabase)
+                    const patch = {};
+                    if (scanType === 'IN') {
+                        patch['Check_In'] = timeStr;
+                        patch['Attendance_Status'] = 'Present';
+                    } else {
+                        patch['Check_Out'] = timeStr;
+                    }
+                    // Use Log_ID as primary key (PascalCase)
+                    const pkVal = existingLog['Log_ID'] || existingLog['log_id'] || existingLog['id'];
+                    const res = await bridge.updateRow('fingerprint_logs', 'Log_ID', pkVal, patch);
+                    return { success: true, data: res };
+                } else {
+                    // INSERT new row using PascalCase column names (matching Supabase schema)
+                    const logId = 'LOG-' + Date.now() + '-' + Math.random().toString(36).slice(2,7).toUpperCase();
+
+                    // Get staff full name
+                    let fullName = formattedEmpId;
+                    try {
+                        const staffList = await bridge.getTableData('staff', { select: '*' });
+                        const s = (staffList || []).find(r => String(r.employee_id || '').trim().toUpperCase() === formattedEmpId);
+                        if (s) fullName = `${s.first_name || ''} ${s.last_name || ''}`.trim() || formattedEmpId;
+                    } catch(e) { /* ignore */ }
+
+                    const newRow = {
+                        'Log_ID': logId,
+                        'Employee_ID': formattedEmpId,
+                        'Full_Name': fullName,
+                        'Date': todayStr,
+                        'Shift_Start': '09:00',
+                        'Shift_End': '17:00',
+                        'Check_In': scanType === 'IN' ? timeStr : '',
+                        'Check_Out': scanType === 'OUT' ? timeStr : '',
+                        'Attendance_Status': 'Present',
+                        'Late_Hours': '0',
+                        'Early_Leave_Hours': '0',
+                        'OT_Amount': '0'
+                    };
+
+                    const res = await bridge.insertRows('fingerprint_logs', [newRow]);
+                    return { success: true, data: res };
+                }
             }
 
             if (method === 'uploadImageToDrive') {
@@ -455,205 +523,7 @@
             console.log('Tailwind config skipped:', e.message);
         }
     </script>
-    <style>
-        body {
-            background-color: #f8fafc;
-            color: #334155;
-        }
-
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-
-        .leaflet-container {
-            z-index: 10 !important;
-            font-family: 'Prompt', sans-serif;
-        }
-
-        /* Custom Scrollbar for Light Theme */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: #f1f5f9;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 4px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
-        }
-
-        /* 📌 CSS สำหรับวาดเส้นแผนผังองค์กร (Org Chart Tree) */
-        .org-tree ul {
-            padding-top: 20px;
-            position: relative;
-            transition: all 0.5s;
-            display: flex;
-            justify-content: center;
-        }
-
-        .org-tree li {
-            float: left;
-            text-align: center;
-            list-style-type: none;
-            position: relative;
-            padding: 20px 5px 0 5px;
-            transition: all 0.5s;
-        }
-
-        .org-tree li::before,
-        .org-tree li::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            right: 50%;
-            border-top: 2px solid #cbd5e1;
-            width: 50%;
-            height: 20px;
-            z-index: 1;
-        }
-
-        .org-tree li::after {
-            right: auto;
-            left: 50%;
-            border-left: 2px solid #cbd5e1;
-        }
-
-        .org-tree li:only-child::after,
-        .org-tree li:only-child::before {
-            display: none;
-        }
-
-        .org-tree li:only-child {
-            padding-top: 0;
-        }
-
-        .org-tree li:first-child::before,
-        .org-tree li:last-child::after {
-            border: 0 none;
-        }
-
-        .org-tree li:last-child::before {
-            border-right: 2px solid #cbd5e1;
-            border-radius: 0 5px 0 0;
-        }
-
-        .org-tree li:first-child::after {
-            border-radius: 5px 0 0 0;
-        }
-
-        .org-tree ul ul::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 50%;
-            border-left: 2px solid #cbd5e1;
-            width: 0;
-            height: 20px;
-            z-index: 1;
-        }
-
-        /* Modern White Card utility */
-        .glass-card {
-            background: #ffffff;
-            border: 1px solid #f1f5f9;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-        }
-
-        @media print {
-            body {
-                background: white !important;
-                color: black !important;
-            }
-
-            #sidebar,
-            header,
-            #calendar-section,
-            .print-hide,
-            #toast-container,
-            #main-loading,
-            #login-screen,
-            #table-controls-wrapper>div:first-child,
-            #dashboard-extras-section {
-                display: none !important;
-            }
-
-            #app-layout {
-                display: block !important;
-            }
-
-            .flex-1 {
-                display: block !important;
-                padding: 0 !important;
-                margin: 0 !important;
-                overflow: visible !important;
-                height: auto !important;
-                background: white !important;
-            }
-
-            /* 📌 ป้องกันหน้า Dashboard มาโชว์แทรกตอน Print หน้าอื่น */
-            .page-section:not(.hidden) {
-                display: block !important;
-                max-width: 100% !important;
-                background: white !important;
-            }
-
-            .page-section.hidden {
-                display: none !important;
-            }
-
-            .glass-card {
-                background: white !important;
-                border: 1px solid #e5e7eb !important;
-                color: black !important;
-                box-shadow: none !important;
-            }
-
-            h2,
-            h3,
-            h4,
-            p,
-            span,
-            div {
-                color: black !important;
-            }
-
-            table {
-                width: 100% !important;
-                border-collapse: collapse !important;
-                page-break-inside: auto;
-            }
-
-            tr {
-                page-break-inside: avoid;
-                page-break-after: auto;
-            }
-
-            th,
-            td {
-                border: 1px solid #e5e7eb !important;
-                padding: 8px !important;
-                white-space: normal !important;
-                color: #000 !important;
-                background: white !important;
-            }
-
-            ::-webkit-scrollbar {
-                display: none;
-            }
-        }
-    </style>
+   
 </head>
 
 <body class="bg-gray-50 text-gray-800 overflow-hidden selection:bg-brandindigo selection:text-white">
@@ -745,7 +615,7 @@
 
         <aside id="sidebar"
             class="fixed inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 text-gray-600 flex flex-col transition-all duration-300 transform -translate-x-full md:relative md:translate-x-0 shadow-2xl md:shadow-none">
-            <div id="sidebar-header-content"
+            <div id="sidebar--content"
                 class="h-20 flex items-center justify-between px-6 border-b border-gray-100 transition-all duration-300">
                 <h1
                     class="text-xl font-bold text-gray-900 tracking-tight flex items-center overflow-hidden whitespace-nowrap">
@@ -944,30 +814,36 @@
         </aside>
 
         <!-- 📌 พื้นที่แสดงเนื้อหาหลัก -->
-        <div class="flex-1 flex flex-col h-screen relative w-full min-w-0 transition-all duration-300 bg-gray-50 overflow-hidden">
-        <header class="w-full h-20 bg-white/90 backdrop-blur-lg flex items-center justify-between px-4 md:px-6 lg:px-10 border-b border-gray-200 sticky top-0 z-50 shrink-0">
-                
-                <div class="flex items-center flex-1 min-w-0 pr-4">
-                    <button onclick="toggleSidebar()" class="mr-4 text-gray-500 hover:text-brandindigo focus:outline-none transition-colors shrink-0">
-                        <i class="fa-solid fa-bars-staggered text-xl md:text-2xl"></i>
-                    </button>
-                    <h2 id="page-title" class="text-xl md:text-2xl font-bold text-gray-900 tracking-tight truncate whitespace-nowrap">
-                        Dashboard
-                    </h2>
-                </div>
+      <div class="flex-1 flex flex-col h-screen relative w-full min-w-0 transition-all duration-300 bg-gray-50 overflow-hidden">
 
-                <div class="flex items-center gap-3 md:gap-4 shrink-0">
-                    <div class="hidden sm:block text-right">
-                        <p id="display-username" class="text-sm font-bold text-gray-800 leading-tight">Loading...</p>
-                        <p id="display-role" class="text-[11px] text-brandindigo font-bold uppercase tracking-wider leading-tight">Role</p>
-                    </div>
-                    <div class="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 text-gray-600 flex items-center justify-center text-sm font-bold cursor-pointer hover:bg-indigo-50 hover:text-brandindigo transition-colors shrink-0 shadow-sm">
-                        <i class="fa-regular fa-user"></i>
-                    </div>
-                </div>
+    <header
+        class="w-full h-20 bg-white/90 backdrop-blur-lg flex items-center justify-between px-4 md:px-6 lg:px-10 border-b border-gray-200 sticky top-0 z-50 shrink-0">
 
-            </header>
+        <div class="flex items-center flex-1 min-w-0 pr-4">
+            <button onclick="toggleSidebar()"
+                class="mr-4 text-gray-500 hover:text-brandindigo focus:outline-none transition-colors shrink-0">
+                <i class="fa-solid fa-bars-staggered text-xl md:text-2xl"></i>
+            </button>
+            <h2 id="page-title"
+                class="text-xl md:text-2xl font-bold text-gray-900 tracking-tight truncate whitespace-nowrap">
+                Dashboard
+            </h2>
+        </div>
 
+        <div class="flex items-center gap-3 md:gap-4 shrink-0">
+            <div class="hidden sm:block text-right">
+                <p id="display-username" class="text-sm font-bold text-gray-800 leading-tight">Loading...</p>
+                <p id="display-role"
+                    class="text-[11px] text-brandindigo font-bold uppercase tracking-wider leading-tight">Role
+                </p>
+            </div>
+            <div
+                class="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 text-gray-600 flex items-center justify-center text-sm font-bold cursor-pointer hover:bg-indigo-50 hover:text-brandindigo transition-colors shrink-0 shadow-sm">
+                <i class="fa-regular fa-user"></i>
+            </div>
+        </div>
+
+    </header>
             <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-8 lg:p-10 relative z-0">
 
                 <!-- 📌 ส่วนของหน้า Dashboard -->
@@ -1306,7 +1182,7 @@
 
                     <div id="table-controls-wrapper">
                         <div class="flex flex-col lg:flex-row justify-start mb-6 gap-4">
-                            
+
                             <div class="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
                                 <div id="table-search-wrapper" class="relative w-full sm:w-80">
                                     <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><i
@@ -1332,219 +1208,247 @@
                                     <i class="fa-solid fa-plus mr-2"></i> Add Record
                                 </button>
                             </div>
-                            
+
                         </div>
                     </div>
 
-                        <!-- 📌 ส่วนของปฏิทิน -->
-                        <div id="calendar-section" class="hidden mb-6 glass-card rounded-2xl p-5 lg:p-8 print-hide">
-                            <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-5">
-                                <h3 class="text-base font-bold text-gray-900 flex items-center gap-3 tracking-wide"><i
-                                        class="fa-regular fa-calendar-days text-brandindigo text-lg"></i> Attendance
-                                    Calendar</h3>
-                                <div class="flex items-center gap-3 w-full md:w-auto flex-wrap md:flex-nowrap">
+                    <!-- 📌 ส่วนของปฏิทิน -->
+                    <div id="calendar-section" class="hidden mb-6 glass-card rounded-2xl p-5 lg:p-8 print-hide">
+                        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-5">
+                            <h3 class="text-base font-bold text-gray-900 flex items-center gap-3 tracking-wide"><i
+                                    class="fa-regular fa-calendar-days text-brandindigo text-lg"></i> Attendance
+                                Calendar</h3>
+                            <div class="flex items-center gap-3 w-full md:w-auto flex-wrap md:flex-nowrap">
 
-                                    <select id="attendance-dept-filter"
-                                        onchange="renderTable(tableCache[currentSheet].data)"
-                                        class="admin-only hidden bg-white border border-gray-300 text-gray-900 font-medium text-sm rounded-xl focus:ring-brandindigo block p-2.5 w-full md:w-auto shadow-sm">
-                                        <option value="">All Departments</option>
-                                        <option value="Marketing">Marketing</option>
-                                        <option value="Project Management">Project Management</option>
-                                        <option value="Human Resources">Human Resources</option>
-                                    </select>
+                                <select id="attendance-dept-filter"
+                                    onchange="renderTable(tableCache[currentSheet].data)"
+                                    class="admin-only hidden bg-white border border-gray-300 text-gray-900 font-medium text-sm rounded-xl focus:ring-brandindigo block p-2.5 w-full md:w-auto shadow-sm">
+                                    <option value="">All Departments</option>
+                                    <option value="Marketing">Marketing</option>
+                                    <option value="Project Management">Project Management</option>
+                                    <option value="Human Resources">Human Resources</option>
+                                </select>
 
-                                    <input type="month" id="calendarMonth"
-                                        onchange="renderTable(tableCache[currentSheet].data)"
-                                        class="bg-white border border-gray-300 text-gray-900 font-medium text-sm rounded-xl focus:ring-brandindigo block p-2.5 w-full md:w-auto shadow-sm">
+                                <input type="month" id="calendarMonth"
+                                    onchange="renderTable(tableCache[currentSheet].data)"
+                                    class="bg-white border border-gray-300 text-gray-900 font-medium text-sm rounded-xl focus:ring-brandindigo block p-2.5 w-full md:w-auto shadow-sm">
 
-                                    <div class="relative w-full md:w-64">
-                                        <div
-                                            class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                                            <i class="fa-solid fa-user-magnifying-glass text-gray-400"></i>
-                                        </div>
-                                        <input type="text" id="calendarEmpId" placeholder="Search Emp ID/Name"
-                                            autocomplete="off"
-                                            class="bg-white border border-gray-300 text-gray-900 font-medium text-sm rounded-xl focus:ring-brandindigo block w-full pl-10 p-2.5 uppercase transition-all placeholder-gray-400 shadow-sm"
-                                            onfocus="showEmpDropdown()"
-                                            onkeyup="filterEmpDropdown(); renderTable(tableCache[currentSheet].data)"
-                                            onblur="hideEmpDropdownDelayed()">
-                                        <div id="emp-dropdown-list"
-                                            class="hidden absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto custom-scrollbar text-left py-1">
-                                        </div>
+                                <div class="relative w-full md:w-64">
+                                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                        <i class="fa-solid fa-user-magnifying-glass text-gray-400"></i>
                                     </div>
-
-                                    <button onclick="window.print()"
-                                        class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2 w-full md:w-auto shadow-sm hover:text-brandindigo">
-                                        <i class="fa-solid fa-print"></i> Export
-                                    </button>
-
+                                    <input type="text" id="calendarEmpId" placeholder="Search Emp ID/Name"
+                                        autocomplete="off"
+                                        class="bg-white border border-gray-300 text-gray-900 font-medium text-sm rounded-xl focus:ring-brandindigo block w-full pl-10 p-2.5 uppercase transition-all placeholder-gray-400 shadow-sm"
+                                        onfocus="showEmpDropdown()"
+                                        onkeyup="filterEmpDropdown(); renderTable(tableCache[currentSheet].data)"
+                                        onblur="hideEmpDropdownDelayed()">
+                                    <div id="emp-dropdown-list"
+                                        class="hidden absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto custom-scrollbar text-left py-1">
+                                    </div>
                                 </div>
-                            </div>
-                            <div
-                                class="grid grid-cols-7 text-center font-bold text-[11px] text-gray-500 uppercase tracking-widest mb-3">
-                                <div>Sun</div>
-                                <div>Mon</div>
-                                <div>Tue</div>
-                                <div>Wed</div>
-                                <div>Thu</div>
-                                <div>Fri</div>
-                                <div>Sat</div>
-                            </div>
-                            <div id="attendance-calendar-grid" class="grid grid-cols-7 gap-2 md:gap-3"></div>
-                            <div
-                                class="mt-6 flex flex-wrap items-center justify-center gap-6 text-xs text-gray-600 font-bold">
-                                <div class="flex items-center gap-2"><span
-                                        class="w-3 h-3 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></span>
-                                    Present</div>
-                                <div class="flex items-center gap-2"><span
-                                        class="w-3 h-3 rounded-full bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.5)]"></span>
-                                    Absent</div>
-                                <div class="flex items-center gap-2"><span
-                                        class="w-3 h-3 rounded-full bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]"></span>
-                                    On Leave</div>
-                                <div class="flex items-center gap-2"><span
-                                        class="w-3 h-3 rounded bg-gray-200 border border-gray-300"></span> Weekend</div>
+
+                                <button onclick="window.print()"
+                                    class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2 w-full md:w-auto shadow-sm hover:text-brandindigo">
+                                    <i class="fa-solid fa-print"></i> Export
+                                </button>
+
                             </div>
                         </div>
-
-                        <!-- 📌 ส่วนของกล่องสรุปผล -->
-                        <div id="table-summary" class="hidden grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                            <div
-                                class="glass-card rounded-2xl p-5 flex items-center justify-between border-l-4 border-l-red-500">
-                                <div>
-                                    <p class="text-[11px] text-gray-500 font-bold uppercase tracking-widest mb-1">Late
-                                        (Hrs)</p>
-                                    <h4 class="text-2xl font-bold text-red-500" id="filter-late">0</h4>
-                                </div>
-                                <i class="fa-regular fa-clock text-red-200 text-3xl hidden sm:block"></i>
-                            </div>
-                            <div
-                                class="glass-card rounded-2xl p-5 flex items-center justify-between border-l-4 border-l-amber-500">
-                                <div>
-                                    <p class="text-[11px] text-gray-500 font-bold uppercase tracking-widest mb-1">Early
-                                        (Hrs)</p>
-                                    <h4 class="text-2xl font-bold text-amber-500" id="filter-early">0</h4>
-                                </div>
-                                <i class="fa-solid fa-person-running text-amber-200 text-3xl hidden sm:block"></i>
-                            </div>
-                            <div
-                                class="glass-card rounded-2xl p-5 flex items-center justify-between border-l-4 border-l-gray-400">
-                                <div>
-                                    <p class="text-[11px] text-gray-500 font-bold uppercase tracking-widest mb-1">Absent
-                                    </p>
-                                    <h4 class="text-2xl font-bold text-gray-700" id="filter-absent">0</h4>
-                                </div>
-                                <i class="fa-solid fa-user-xmark text-gray-300 text-3xl hidden sm:block"></i>
-                            </div>
-                            <div
-                                class="glass-card rounded-2xl p-5 flex items-center justify-between border-l-4 border-l-emerald-500">
-                                <div>
-                                    <p class="text-[11px] text-gray-500 font-bold uppercase tracking-widest mb-1">OT
-                                        Amount</p>
-                                    <h4 class="text-2xl font-bold text-emerald-500" id="filter-ot">0</h4>
-                                </div>
-                                <i class="fa-solid fa-sack-dollar text-emerald-200 text-3xl hidden sm:block"></i>
-                            </div>
+                        <div
+                            class="grid grid-cols-7 text-center font-bold text-[11px] text-gray-500 uppercase tracking-widest mb-3">
+                            <div>Sun</div>
+                            <div>Mon</div>
+                            <div>Tue</div>
+                            <div>Wed</div>
+                            <div>Thu</div>
+                            <div>Fri</div>
+                            <div>Sat</div>
                         </div>
+                        <div id="attendance-calendar-grid" class="grid grid-cols-7 gap-2 md:gap-3"></div>
+                        <div
+                            class="mt-6 flex flex-wrap items-center justify-center gap-6 text-xs text-gray-600 font-bold">
+                            <div class="flex items-center gap-2"><span
+                                    class="w-3 h-3 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></span>
+                                Present</div>
+                            <div class="flex items-center gap-2"><span
+                                    class="w-3 h-3 rounded-full bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.5)]"></span>
+                                Absent</div>
+                            <div class="flex items-center gap-2"><span
+                                    class="w-3 h-3 rounded-full bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]"></span>
+                                On Leave</div>
+                            <div class="flex items-center gap-2"><span
+                                    class="w-3 h-3 rounded bg-gray-200 border border-gray-300"></span> Weekend</div>
+                        </div>
+                    </div>
 
-                        <div id="table-wrapper"
-                            class="glass-card rounded-2xl shadow-lg border border-gray-200 overflow-hidden transition-all duration-300">
-                            <div class="overflow-x-auto w-full max-h-[65vh] custom-scrollbar">
-                                <table class="w-full min-w-max text-sm text-left text-gray-700 whitespace-nowrap">
-                                    <thead
-                                        class="text-xs text-gray-500 uppercase tracking-widest bg-gray-50 sticky top-0 z-20 border-b border-gray-200 font-bold"
-                                        id="table-head"></thead>
-                                    <tbody id="table-body" class="divide-y divide-gray-100"></tbody>
-                                </table>
+                    <!-- 📌 ส่วนของกล่องสรุปผล -->
+                    <div id="table-summary" class="hidden grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div
+                            class="glass-card rounded-2xl p-5 flex items-center justify-between border-l-4 border-l-red-500">
+                            <div>
+                                <p class="text-[11px] text-gray-500 font-bold uppercase tracking-widest mb-1">Late
+                                    (Hrs)</p>
+                                <h4 class="text-2xl font-bold text-red-500" id="filter-late">0</h4>
                             </div>
+                            <i class="fa-regular fa-clock text-red-200 text-3xl hidden sm:block"></i>
                         </div>
+                        <div
+                            class="glass-card rounded-2xl p-5 flex items-center justify-between border-l-4 border-l-amber-500">
+                            <div>
+                                <p class="text-[11px] text-gray-500 font-bold uppercase tracking-widest mb-1">Early
+                                    (Hrs)</p>
+                                <h4 class="text-2xl font-bold text-amber-500" id="filter-early">0</h4>
+                            </div>
+                            <i class="fa-solid fa-person-running text-amber-200 text-3xl hidden sm:block"></i>
+                        </div>
+                        <div
+                            class="glass-card rounded-2xl p-5 flex items-center justify-between border-l-4 border-l-gray-400">
+                            <div>
+                                <p class="text-[11px] text-gray-500 font-bold uppercase tracking-widest mb-1">Absent
+                                </p>
+                                <h4 class="text-2xl font-bold text-gray-700" id="filter-absent">0</h4>
+                            </div>
+                            <i class="fa-solid fa-user-xmark text-gray-300 text-3xl hidden sm:block"></i>
+                        </div>
+                        <div
+                            class="glass-card rounded-2xl p-5 flex items-center justify-between border-l-4 border-l-emerald-500">
+                            <div>
+                                <p class="text-[11px] text-gray-500 font-bold uppercase tracking-widest mb-1">OT
+                                    Amount</p>
+                                <h4 class="text-2xl font-bold text-emerald-500" id="filter-ot">0</h4>
+                            </div>
+                            <i class="fa-solid fa-sack-dollar text-emerald-200 text-3xl hidden sm:block"></i>
+                        </div>
+                    </div>
 
-                        <div id="card-wrapper"
-                            class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-4 transition-all duration-300">
+                    <div id="table-wrapper"
+                        class="glass-card rounded-2xl shadow-lg border border-gray-200 overflow-hidden transition-all duration-300">
+                        <div class="overflow-x-auto w-full max-h-[65vh] custom-scrollbar">
+                            <table class="w-full min-w-max text-sm text-left text-gray-700 whitespace-nowrap">
+                                <thead
+                                    class="text-xs text-gray-500 uppercase tracking-widest bg-gray-50 sticky top-0 z-20 border-b border-gray-200 font-bold"
+                                    id="table-head"></thead>
+                                <tbody id="table-body" class="divide-y divide-gray-100"></tbody>
+                            </table>
                         </div>
+                    </div>
+
+                    <div id="card-wrapper"
+                        class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-4 transition-all duration-300">
                     </div>
                 </div>
 
-                <!-- 📌 ส่วนหน้าสแกนลงเวลา -->
-                        
-                  <div id="section-scan" class="page-section hidden w-full relative z-10 bg-gray-50/30">
-                    
-                    <div class="w-full flex justify-center py-6 px-4">
-                        
-                        <div class="w-full max-w-2xl flex flex-col items-center">
-                            
-                            <div class="relative mb-12 w-full">
-                                <div class="bg-gradient-to-r from-indigo-500 to-purple-500 rounded-[2rem] p-10 md:p-14 text-center text-white shadow-lg relative overflow-hidden w-full">
-                                    <p id="realtime-date" class="text-indigo-100 text-xs md:text-sm font-medium mb-3 relative z-10 tracking-[0.2em] uppercase">Loading Date...</p>
-                                    <h1 id="realtime-clock" class="text-6xl md:text-7xl font-bold tracking-tight mb-5 relative z-10 drop-shadow-sm" style="font-family: 'Arial Rounded MT Bold', 'Helvetica Rounded', Arial, sans-serif;">00:00:00</h1>
-                                    <div class="inline-flex items-center gap-2 bg-white/20 border border-white/20 px-5 py-2 rounded-full relative z-10 backdrop-blur-md">
-                                        <i class="fa-regular fa-clock text-white text-xs"></i>
-                                        <p class="text-white text-[10px] md:text-xs font-bold uppercase tracking-wider">Regular Shift • 09:00 - 17:00</p>
-                                    </div>
-                                </div>
+        <!-- 📌 ส่วนหน้าสแกนลงเวลา -->
 
-                                <div class="w-[85%] md:w-[75%] mx-auto -mt-8 relative z-20 bg-white rounded-2xl shadow-xl shadow-indigo-500/10 border border-gray-100 flex divide-x divide-gray-100">
-                                    <div class="flex-1 py-4 text-center">
-                                        <p class="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1 flex items-center justify-center gap-1.5"><i class="fa-solid fa-arrow-right-to-bracket text-emerald-500"></i>Check In</p>
-                                        <p id="display-checkin" class="font-bold text-gray-800 text-sm md:text-base">-</p>
-                                    </div>
-                                    <div class="flex-1 py-4 text-center">
-                                        <p class="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1 flex items-center justify-center gap-1.5"><i class="fa-solid fa-person-walking-arrow-right text-amber-500"></i>Check Out</p>
-                                        <p id="display-checkout" class="font-bold text-gray-800 text-sm md:text-base">-</p>
-                                    </div>
-                                    <div class="flex-1 py-4 text-center bg-gray-50/50 rounded-r-2xl">
-                                        <p class="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Status</p>
-                                        <p id="display-status" class="font-bold text-brandindigo text-xs md:text-sm mt-1">Loading...</p>
-                                    </div>
-                                </div>
+        <div id="section-scan" class="page-section hidden w-full relative z-10 bg-gray-50/30">
+
+            <div class="w-full flex justify-center py-6 px-4">
+
+                <div class="w-full max-w-2xl flex flex-col items-center">
+
+                    <div class="relative mb-12 w-full">
+                        <div
+                            class="bg-gradient-to-r from-indigo-500 to-purple-500 rounded-[2rem] p-10 md:p-14 text-center text-white shadow-lg relative overflow-hidden w-full">
+                            <p id="realtime-date"
+                                class="text-indigo-100 text-xs md:text-sm font-medium mb-3 relative z-10 tracking-[0.2em] uppercase">
+                                Loading Date...</p>
+                            <h1 id="realtime-clock"
+                                class="text-6xl md:text-7xl font-bold tracking-tight mb-5 relative z-10 drop-shadow-sm"
+                                style="font-family: 'Arial Rounded MT Bold', 'Helvetica Rounded', Arial, sans-serif;">
+                                00:00:00</h1>
+                            <div
+                                class="inline-flex items-center gap-2 bg-white/20 border border-white/20 px-5 py-2 rounded-full relative z-10 backdrop-blur-md">
+                                <i class="fa-regular fa-clock text-white text-xs"></i>
+                                <p class="text-white text-[10px] md:text-xs font-bold uppercase tracking-wider">Regular
+                                    Shift • 09:00 - 17:00</p>
                             </div>
+                        </div>
 
-                            <div class="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-gray-100 relative z-10 w-full">
-                                
-                                <div class="grid grid-cols-2 gap-4 mb-6">
-                                    <label class="cursor-pointer w-full group relative">
-                                        <input type="radio" name="scanType" value="IN" class="peer hidden" checked onchange="document.getElementById('manualEmpId').focus()">
-                                        <div class="px-3 py-4 md:py-5 rounded-2xl border-2 border-gray-100 peer-checked:border-emerald-400 peer-checked:bg-emerald-50/30 text-gray-400 peer-checked:text-emerald-500 font-bold transition-all flex flex-col items-center justify-center gap-2 hover:bg-gray-50 z-10 relative">
-                                            <i class="fa-solid fa-arrow-right-to-bracket text-xl md:text-2xl"></i>
-                                            <span class="tracking-widest uppercase text-[10px] md:text-xs">CHECK IN</span>
-                                        </div>
-                                    </label>
-                                    <label class="cursor-pointer w-full group relative">
-                                        <input type="radio" name="scanType" value="OUT" class="peer hidden" onchange="document.getElementById('manualEmpId').focus()">
-                                        <div class="px-3 py-4 md:py-5 rounded-2xl border-2 border-gray-100 peer-checked:border-amber-400 peer-checked:bg-amber-50/30 text-gray-400 peer-checked:text-amber-500 font-bold transition-all flex flex-col items-center justify-center gap-2 hover:bg-gray-50 z-10 relative">
-                                            <i class="fa-solid fa-person-walking-arrow-right text-xl md:text-2xl text-gray-400 peer-checked:text-amber-500"></i>
-                                            <span class="tracking-widest uppercase text-[10px] md:text-xs">CHECK OUT</span>
-                                        </div>
-                                    </label>
-                                </div>
-
-                                <div id="gps-status" class="bg-gray-50 rounded-2xl border border-gray-200 flex flex-col h-[280px] mb-6 relative overflow-hidden">
-                                    <div class="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100 shrink-0">
-                                        <p class="font-bold text-gray-700 text-[10px] md:text-xs flex items-center z-10">
-                                            <i class="fa-solid fa-location-crosshairs text-brandindigo mr-2 animate-pulse"></i>
-                                            <span id="gps-coords">Current Location: Lat 17.9611, Lng 102.6436</span>
-                                        </p>
-                                        <span class="text-[9px] bg-indigo-50 text-brandindigo px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-indigo-100">Live</span>
-                                    </div>
-                                    <div id="map" class="w-full flex-1 relative z-10"></div>
-                                </div>
-
-                                <form onsubmit="handleManualScan(event)" class="flex w-full rounded-2xl overflow-hidden border border-gray-200 focus-within:border-brandindigo focus-within:ring-4 focus-within:ring-indigo-50 transition-all bg-white p-1.5 shadow-sm mt-2">
-                                    <div class="pl-4 pr-3 flex items-center text-gray-400">
-                                        <i class="fa-regular fa-id-card text-lg"></i>
-                                    </div>
-                                    <input type="text" id="manualEmpId" placeholder="EMPLOYEE ID (E.G. EMP001)" required class="border-0 bg-transparent text-gray-900 focus:ring-0 block w-full p-2 uppercase text-xs md:text-sm font-bold tracking-widest placeholder-gray-400">
-                                    <button type="submit" id="btn-manual-save" class="bg-brandpurple hover:bg-purple-700 text-white px-6 md:px-8 py-2.5 rounded-xl font-bold text-xs md:text-sm whitespace-nowrap transition-all flex items-center gap-2">
-                                        Record <i class="fa-solid fa-check-circle text-white/80"></i>
-                                    </button>
-                                </form>
-
+                        <div
+                            class="w-[85%] md:w-[75%] mx-auto -mt-8 relative z-20 bg-white rounded-2xl shadow-xl shadow-indigo-500/10 border border-gray-100 flex divide-x divide-gray-100">
+                            <div class="flex-1 py-4 text-center">
+                                <p
+                                    class="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1 flex items-center justify-center gap-1.5">
+                                    <i class="fa-solid fa-arrow-right-to-bracket text-emerald-500"></i>Check In
+                                </p>
+                                <p id="display-checkin" class="font-bold text-gray-800 text-sm md:text-base">-</p>
+                            </div>
+                            <div class="flex-1 py-4 text-center">
+                                <p
+                                    class="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1 flex items-center justify-center gap-1.5">
+                                    <i class="fa-solid fa-person-walking-arrow-right text-amber-500"></i>Check Out
+                                </p>
+                                <p id="display-checkout" class="font-bold text-gray-800 text-sm md:text-base">-</p>
+                            </div>
+                            <div class="flex-1 py-4 text-center bg-gray-50/50 rounded-r-2xl">
+                                <p
+                                    class="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">
+                                    Status</p>
+                                <p id="display-status" class="font-bold text-brandindigo text-xs md:text-sm mt-1">
+                                    Loading...</p>
                             </div>
                         </div>
                     </div>
+
+                    <div
+                        class="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-gray-100 relative z-10 w-full">
+
+                        <div class="grid grid-cols-2 gap-4 mb-6">
+                            <label class="cursor-pointer w-full group relative">
+                                <input type="radio" name="scanType" value="IN" class="peer hidden" checked
+                                    onchange="document.getElementById('manualEmpId').focus()">
+                                <div
+                                    class="px-3 py-4 md:py-5 rounded-2xl border-2 border-gray-100 peer-checked:border-emerald-400 peer-checked:bg-emerald-50/30 text-gray-400 peer-checked:text-emerald-500 font-bold transition-all flex flex-col items-center justify-center gap-2 hover:bg-gray-50 z-10 relative">
+                                    <i class="fa-solid fa-arrow-right-to-bracket text-xl md:text-2xl"></i>
+                                    <span class="tracking-widest uppercase text-[10px] md:text-xs">CHECK IN</span>
+                                </div>
+                            </label>
+                            <label class="cursor-pointer w-full group relative">
+                                <input type="radio" name="scanType" value="OUT" class="peer hidden"
+                                    onchange="document.getElementById('manualEmpId').focus()">
+                                <div
+                                    class="px-3 py-4 md:py-5 rounded-2xl border-2 border-gray-100 peer-checked:border-amber-400 peer-checked:bg-amber-50/30 text-gray-400 peer-checked:text-amber-500 font-bold transition-all flex flex-col items-center justify-center gap-2 hover:bg-gray-50 z-10 relative">
+                                    <i
+                                        class="fa-solid fa-person-walking-arrow-right text-xl md:text-2xl text-gray-400 peer-checked:text-amber-500"></i>
+                                    <span class="tracking-widest uppercase text-[10px] md:text-xs">CHECK OUT</span>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div id="gps-status"
+                            class="bg-gray-50 rounded-2xl border border-gray-200 flex flex-col h-[280px] mb-6 relative overflow-hidden">
+                            <div
+                                class="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100 shrink-0">
+                                <p class="font-bold text-gray-700 text-[10px] md:text-xs flex items-center z-10">
+                                    <i class="fa-solid fa-location-crosshairs text-brandindigo mr-2 animate-pulse"></i>
+                                    <span id="gps-coords">Current Location: Lat 17.9611, Lng 102.6436</span>
+                                </p>
+                                <span
+                                    class="text-[9px] bg-indigo-50 text-brandindigo px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-indigo-100">Live</span>
+                            </div>
+                            <div id="map" class="w-full flex-1 relative z-10"></div>
+                        </div>
+
+                        <form onsubmit="handleManualScan(event)"
+                            class="flex w-full rounded-2xl overflow-hidden border border-gray-200 focus-within:border-brandindigo focus-within:ring-4 focus-within:ring-indigo-50 transition-all bg-white p-1.5 shadow-sm mt-2">
+                            <div class="pl-4 pr-3 flex items-center text-gray-400">
+                                <i class="fa-regular fa-id-card text-lg"></i>
+                            </div>
+                            <input type="text" id="manualEmpId" placeholder="EMPLOYEE ID (E.G. EMP001)" required
+                                class="border-0 bg-transparent text-gray-900 focus:ring-0 block w-full p-2 uppercase text-xs md:text-sm font-bold tracking-widest placeholder-gray-400">
+                            <button type="submit" id="btn-manual-save"
+                                class="bg-brandpurple hover:bg-purple-700 text-white px-6 md:px-8 py-2.5 rounded-xl font-bold text-xs md:text-sm whitespace-nowrap transition-all flex items-center gap-2">
+                                Record <i class="fa-solid fa-check-circle text-white/80"></i>
+                            </button>
+                        </form>
+
+                    </div>
                 </div>
-            </main>
+            </div>
         </div>
+        </main>
+    </div>
     </div>
 
     <!-- 📌 Modal Form -->
@@ -1575,34 +1479,49 @@
     </div>
     <!-- 📌 Modal Form -->
 
-<!-- 📌 Modal Asset -->
-    <div id="asset-modal" class="fixed inset-0 bg-gray-900/80 hidden z-[150] flex items-center justify-center pointer-events-auto p-4 backdrop-blur-sm opacity-0 transition-opacity duration-300">
-        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col md:flex-row transform scale-95 transition-transform duration-300 overflow-hidden relative">
-            
-            <button onclick="closeAssetDetail()" class="absolute top-4 right-4 text-gray-500 hover:text-red-500 bg-white/90 hover:bg-red-50 rounded-full w-10 h-10 flex items-center justify-center transition-colors z-20 shadow-md border border-gray-100">
+    <!-- 📌 Modal Asset -->
+    <div id="asset-modal"
+        class="fixed inset-0 bg-gray-900/80 hidden z-[150] flex items-center justify-center pointer-events-auto p-4 backdrop-blur-sm opacity-0 transition-opacity duration-300">
+        <div
+            class="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col md:flex-row transform scale-95 transition-transform duration-300 overflow-hidden relative">
+
+            <button onclick="closeAssetDetail()"
+                class="absolute top-4 right-4 text-gray-500 hover:text-red-500 bg-white/90 hover:bg-red-50 rounded-full w-10 h-10 flex items-center justify-center transition-colors z-20 shadow-md border border-gray-100">
                 <i class="fa-solid fa-xmark text-xl"></i>
             </button>
 
-            <div id="asset-modal-img-container" class="w-full md:w-1/2 bg-gray-100 flex items-center justify-center relative min-h-[250px] md:min-h-[500px] p-6">
-                <img id="asset-modal-img" src="" alt="Asset Image" class="w-full max-h-full object-contain rounded-xl shadow-sm">
+            <div id="asset-modal-img-container"
+                class="w-full md:w-1/2 bg-gray-100 flex items-center justify-center relative min-h-[250px] md:min-h-[500px] p-6">
+                <img id="asset-modal-img" src="" alt="Asset Image"
+                    class="w-full max-h-full object-contain rounded-xl shadow-sm">
             </div>
 
             <div class="w-full md:w-1/2 p-6 md:p-10 flex flex-col bg-white overflow-y-auto custom-scrollbar">
                 <div class="flex items-center gap-3 mb-4">
-                    <span id="asset-modal-status" class="px-3 py-1 bg-indigo-50 text-brandindigo text-[10px] font-bold uppercase tracking-widest rounded-lg border border-indigo-100">Status</span>
-                    <span id="asset-modal-date" class="text-xs text-gray-500 font-medium"><i class="fa-regular fa-calendar mr-1.5"></i>Date</span>
+                    <span id="asset-modal-status"
+                        class="px-3 py-1 bg-indigo-50 text-brandindigo text-[10px] font-bold uppercase tracking-widest rounded-lg border border-indigo-100">Status</span>
+                    <span id="asset-modal-date" class="text-xs text-gray-500 font-medium"><i
+                            class="fa-regular fa-calendar mr-1.5"></i>Date</span>
                 </div>
-                
-                <h3 id="asset-modal-name" class="text-lg md:text-xl font-bold text-gray-900 mb-6 whitespace-pre-line leading-relaxed">Asset Name...</h3>
-                
+
+                <h3 id="asset-modal-name"
+                    class="text-lg md:text-xl font-bold text-gray-900 mb-6 whitespace-pre-line leading-relaxed">Asset
+                    Name...</h3>
+
                 <div class="space-y-3 mb-6 bg-gray-50 p-5 rounded-2xl border border-gray-100 text-sm text-gray-600">
-                    <p class="flex items-start justify-between border-b border-gray-200 pb-2"><span class="text-gray-400">ລະຫັດພະນັກງານ:</span> <span id="asset-modal-emp" class="font-bold text-gray-800">-</span></p>
-                    <p class="flex items-start justify-between border-b border-gray-200 pb-2"><span class="text-gray-400">ໝາຍເລກຊັບສິນ:</span> <span id="asset-modal-id" class="font-bold text-gray-800">-</span></p>
-                    <p class="flex items-start justify-between pb-2"><span class="text-gray-400">ປະເພດ:</span> <span id="asset-modal-type" class="font-bold text-gray-800">-</span></p>
+                    <p class="flex items-start justify-between border-b border-gray-200 pb-2"><span
+                            class="text-gray-400">ລະຫັດພະນັກງານ:</span> <span id="asset-modal-emp"
+                            class="font-bold text-gray-800">-</span></p>
+                    <p class="flex items-start justify-between border-b border-gray-200 pb-2"><span
+                            class="text-gray-400">ໝາຍເລກຊັບສິນ:</span> <span id="asset-modal-id"
+                            class="font-bold text-gray-800">-</span></p>
+                    <p class="flex items-start justify-between pb-2"><span class="text-gray-400">ປະເພດ:</span> <span
+                            id="asset-modal-type" class="font-bold text-gray-800">-</span></p>
                 </div>
-                
+
                 <div class="mt-auto flex justify-end">
-                    <button onclick="closeAssetDetail()" class="px-8 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-sm transition-colors shadow-sm">
+                    <button onclick="closeAssetDetail()"
+                        class="px-8 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-sm transition-colors shadow-sm">
                         ປິດໜ້າຕ່າງ
                     </button>
                 </div>
@@ -1610,75 +1529,97 @@
         </div>
     </div>
 
- <!-- 📌 Popup (Modal) -->
-<div id="announcement-modal" class="fixed inset-0 bg-gray-900/80 hidden z-[150] flex items-center justify-center pointer-events-auto p-4 backdrop-blur-sm opacity-0 transition-opacity duration-300">
-    
-    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col md:flex-row transform scale-95 transition-transform duration-300 overflow-hidden relative">
-        
-        <button onclick="closeAnnouncementModal()" class="absolute top-4 right-4 text-gray-500 hover:text-red-500 bg-white/90 hover:bg-red-50 rounded-full w-10 h-10 flex items-center justify-center transition-colors z-20 shadow-md border border-gray-100">
-            <i class="fa-solid fa-xmark text-xl"></i>
-        </button>
+    <!-- 📌 Popup (Modal) -->
+    <div id="announcement-modal"
+        class="fixed inset-0 bg-gray-900/80 hidden z-[150] flex items-center justify-center pointer-events-auto p-4 backdrop-blur-sm opacity-0 transition-opacity duration-300">
 
-        <div id="announce-modal-img-container" class="w-full h-[40%] md:h-full md:w-1/2 bg-gray-100 shrink-0 relative overflow-hidden">
-            <img id="announce-modal-img" src="" alt="Announcement" class="w-full h-full object-contain bg-gray-900/5">
-        </div>
+        <div
+            class="bg-white rounded-3xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col md:flex-row transform scale-95 transition-transform duration-300 overflow-hidden relative">
 
-        <div class="w-full h-[60%] md:h-full md:w-1/2 flex flex-col bg-white min-h-0">
-            
-            <div class="px-6 pt-6 md:px-8 md:pt-8 pb-4 shrink-0">
-                <div class="flex items-center gap-3">
-                    <span id="announce-modal-type" class="px-3 py-1 bg-indigo-50 text-brandindigo text-[11px] font-bold uppercase tracking-widest rounded-lg border border-indigo-100">Type</span>
-                    <span id="announce-modal-date" class="text-xs text-gray-500 font-medium"><i class="fa-regular fa-calendar mr-1.5"></i>Date</span>
-                </div>
-            </div>
-            
-            <div class="flex-1 overflow-y-auto custom-scrollbar px-6 md:px-8 pb-4 min-h-0">
-                <p id="announce-modal-topic" class="text-sm md:text-base text-gray-700 whitespace-pre-line leading-relaxed font-medium">
-                    Topic Details...
-                </p>
-            </div>
-            
-            <div class="px-6 py-4 md:px-8 md:py-5 border-t border-gray-100 flex justify-end shrink-0 bg-white">
-                <button onclick="closeAnnouncementModal()" class="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-sm transition-colors shadow-sm">
-                    ปิดหน้าต่าง
-                </button>
-            </div>
-            
-        </div>
-    </div>
-</div>
-<!-- 📌 Popup (Modal) -->
-
-<!-- 📌 Popup training (Modal) -->
-<div id="training-modal" class="fixed inset-0 bg-gray-900/80 hidden z-[150] flex items-center justify-center pointer-events-auto p-4 backdrop-blur-sm opacity-0 transition-opacity duration-300">
-        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col md:flex-row transform scale-95 transition-transform duration-300 overflow-hidden relative">
-            
-            <button onclick="closeTrainingDetail()" class="absolute top-4 right-4 text-gray-500 hover:text-red-500 bg-white/90 hover:bg-red-50 rounded-full w-10 h-10 flex items-center justify-center transition-colors z-20 shadow-md border border-gray-100">
+            <button onclick="closeAnnouncementModal()"
+                class="absolute top-4 right-4 text-gray-500 hover:text-red-500 bg-white/90 hover:bg-red-50 rounded-full w-10 h-10 flex items-center justify-center transition-colors z-20 shadow-md border border-gray-100">
                 <i class="fa-solid fa-xmark text-xl"></i>
             </button>
 
-            <div id="train-modal-img-container" class="w-full md:w-1/2 bg-gray-100 flex items-center justify-center relative min-h-[250px] md:min-h-[500px]">
+            <div id="announce-modal-img-container"
+                class="w-full h-[40%] md:h-full md:w-1/2 bg-gray-100 shrink-0 relative overflow-hidden">
+                <img id="announce-modal-img" src="" alt="Announcement"
+                    class="w-full h-full object-contain bg-gray-900/5">
+            </div>
+
+            <div class="w-full h-[60%] md:h-full md:w-1/2 flex flex-col bg-white min-h-0">
+
+                <div class="px-6 pt-6 md:px-8 md:pt-8 pb-4 shrink-0">
+                    <div class="flex items-center gap-3">
+                        <span id="announce-modal-type"
+                            class="px-3 py-1 bg-indigo-50 text-brandindigo text-[11px] font-bold uppercase tracking-widest rounded-lg border border-indigo-100">Type</span>
+                        <span id="announce-modal-date" class="text-xs text-gray-500 font-medium"><i
+                                class="fa-regular fa-calendar mr-1.5"></i>Date</span>
+                    </div>
+                </div>
+
+                <div class="flex-1 overflow-y-auto custom-scrollbar px-6 md:px-8 pb-4 min-h-0">
+                    <p id="announce-modal-topic"
+                        class="text-sm md:text-base text-gray-700 whitespace-pre-line leading-relaxed font-medium">
+                        Topic Details...
+                    </p>
+                </div>
+
+                <div class="px-6 py-4 md:px-8 md:py-5 border-t border-gray-100 flex justify-end shrink-0 bg-white">
+                    <button onclick="closeAnnouncementModal()"
+                        class="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-sm transition-colors shadow-sm">
+                        ปิดหน้าต่าง
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    <!-- 📌 Popup (Modal) -->
+
+    <!-- 📌 Popup training (Modal) -->
+    <div id="training-modal"
+        class="fixed inset-0 bg-gray-900/80 hidden z-[150] flex items-center justify-center pointer-events-auto p-4 backdrop-blur-sm opacity-0 transition-opacity duration-300">
+        <div
+            class="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col md:flex-row transform scale-95 transition-transform duration-300 overflow-hidden relative">
+
+            <button onclick="closeTrainingDetail()"
+                class="absolute top-4 right-4 text-gray-500 hover:text-red-500 bg-white/90 hover:bg-red-50 rounded-full w-10 h-10 flex items-center justify-center transition-colors z-20 shadow-md border border-gray-100">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+
+            <div id="train-modal-img-container"
+                class="w-full md:w-1/2 bg-gray-100 flex items-center justify-center relative min-h-[250px] md:min-h-[500px]">
                 <img id="train-modal-img" src="" alt="Training Image" class="w-full h-full object-cover">
             </div>
 
             <div class="w-full md:w-1/2 p-6 md:p-10 flex flex-col bg-white overflow-y-auto custom-scrollbar">
                 <div class="flex items-center gap-3 mb-4">
-                    <span id="train-modal-status" class="px-3 py-1 bg-indigo-50 text-brandindigo text-[10px] font-bold uppercase tracking-widest rounded-lg border border-indigo-100">Status</span>
-                    <span id="train-modal-date" class="text-xs text-gray-500 font-medium"><i class="fa-regular fa-calendar mr-1.5"></i>Date</span>
+                    <span id="train-modal-status"
+                        class="px-3 py-1 bg-indigo-50 text-brandindigo text-[10px] font-bold uppercase tracking-widest rounded-lg border border-indigo-100">Status</span>
+                    <span id="train-modal-date" class="text-xs text-gray-500 font-medium"><i
+                            class="fa-regular fa-calendar mr-1.5"></i>Date</span>
                 </div>
-                
-                <h3 id="train-modal-topic" class="text-lg md:text-xl font-bold text-gray-900 mb-6 whitespace-pre-line leading-relaxed">Topic Details...</h3>
-                
+
+                <h3 id="train-modal-topic"
+                    class="text-lg md:text-xl font-bold text-gray-900 mb-6 whitespace-pre-line leading-relaxed">Topic
+                    Details...</h3>
+
                 <div class="space-y-3 mb-6 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                    <p class="text-sm text-gray-600 flex items-start"><i class="fa-solid fa-person-chalkboard mt-1 mr-3 text-gray-400 w-4"></i> <span id="train-modal-trainer" class="font-medium">-</span></p>
-                    <p class="text-sm text-gray-600 flex items-start"><i class="fa-solid fa-location-dot mt-1 mr-3 text-gray-400 w-4"></i> <span id="train-modal-location" class="font-medium">-</span></p>
+                    <p class="text-sm text-gray-600 flex items-start"><i
+                            class="fa-solid fa-person-chalkboard mt-1 mr-3 text-gray-400 w-4"></i> <span
+                            id="train-modal-trainer" class="font-medium">-</span></p>
+                    <p class="text-sm text-gray-600 flex items-start"><i
+                            class="fa-solid fa-location-dot mt-1 mr-3 text-gray-400 w-4"></i> <span
+                            id="train-modal-location" class="font-medium">-</span></p>
                 </div>
 
                 <div id="train-modal-links-container" class="grid grid-cols-1 gap-2 mt-auto">
-                    </div>
-                
+                </div>
+
                 <div class="mt-6 flex justify-end">
-                    <button onclick="closeTrainingDetail()" class="px-8 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-sm transition-colors shadow-sm">
+                    <button onclick="closeTrainingDetail()"
+                        class="px-8 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-sm transition-colors shadow-sm">
                         ปิดหน้าต่าง
                     </button>
                 </div>
@@ -1686,7 +1627,7 @@
         </div>
     </div>
     <!-- 📌 Popup training (Modal) -->
-    
+
 
     <!-- 📌 Custom Confirm Modal -->
     <div id="confirm-modal"
@@ -1832,7 +1773,7 @@
 
         </div>
     </div>
-    
+
 
     <!-- 📌 Script หลัก -->
     <script>
@@ -2359,22 +2300,22 @@
             }
 
             google.script.run
-            .withSuccessHandler(res => {
-                if (!res || !res.success) {
-                    if (statusEl) statusEl.innerText = 'Unable to load';
-                    showToast((res && res.message) || 'Unable to load attendance', 'error');
-                    return;
-                }
-                const data = res.data || {};
-                if (checkInEl) checkInEl.innerText = data.checkIn || '-';
-                if (checkOutEl) checkOutEl.innerText = data.checkOut || '-';
-                if (statusEl) statusEl.innerText = data.status || '-';
-            })
-            .withFailureHandler(err => {
-                if (statusEl) statusEl.innerText = 'Connection failed';
-                showToast('Connection failed: ' + err.message, 'error');
-            })
-            .getTodayAttendance(empId);
+                .withSuccessHandler(res => {
+                    if (!res || !res.success) {
+                        if (statusEl) statusEl.innerText = 'Unable to load';
+                        showToast((res && res.message) || 'Unable to load attendance', 'error');
+                        return;
+                    }
+                    const data = res.data || {};
+                    if (checkInEl) checkInEl.innerText = data.checkIn || '-';
+                    if (checkOutEl) checkOutEl.innerText = data.checkOut || '-';
+                    if (statusEl) statusEl.innerText = data.status || '-';
+                })
+                .withFailureHandler(err => {
+                    if (statusEl) statusEl.innerText = 'Connection failed';
+                    showToast('Connection failed: ' + err.message, 'error');
+                })
+                .getTodayAttendance(empId);
         }
 
         function toggleSubMenu(menuId, btnElement) {
@@ -3578,8 +3519,8 @@
 
             if (role !== 'Staff') return data;
 
-          
-          // 👇 🛠️ โค้ดที่แก้ใหม่: อนุญาตให้ Staff เห็นข้อมูลทั้งหมด
+
+            // 👇 🛠️ โค้ดที่แก้ใหม่: อนุญาตให้ Staff เห็นข้อมูลทั้งหมด
             if (currentSheet.includes('Ranting') || currentSheet.includes('Rating') || currentSheet === 'Announcements' || currentSheet === 'Training' || currentSheet === 'Asset_Tracking') {
                 return data;
             }
@@ -3640,7 +3581,7 @@
                             tableCache[sheetName] = { headers: cleanedHeaders, data: res.data || [] };
                             currentHeaders = cleanedHeaders;
                             rawData = filterDataForUser(res.data || []);
-                            
+
                             if (sheetName === 'Organization Structure ') {
                                 renderOrgChart(rawData);
                             } else {
@@ -4317,18 +4258,18 @@
 
             // 📌 เริ่มบล็อกที่แก้ใหม่: เพิ่ม Employee Rating ให้แสดงเป็นการ์ดพร้อมระบบดาว
             // 📌 เริ่มบล็อกการ์ดแสดงผล (Training / Asset / Employee Rating)
-           if (currentSheet === 'Training' || currentSheet === 'Asset_Tracking' || currentSheet === 'Announcements' || currentSheet.includes('Ranting') || currentSheet.includes('Rating')) {
+            if (currentSheet === 'Training' || currentSheet === 'Asset_Tracking' || currentSheet === 'Announcements' || currentSheet.includes('Ranting') || currentSheet.includes('Rating')) {
                 tableWrapper.classList.add('hidden');
                 cardWrapper.classList.remove('hidden');
                 cardWrapper.innerHTML = '';
                 summaryDiv.classList.add('hidden');
                 if (addDataBtn) addDataBtn.classList.remove('hidden');
-                
-               // 👇 แทรกโค้ดตรงนี้: ปิดปุ่ม Add Record ถ้าเป็น Staff
+
+                // 👇 แทรกโค้ดตรงนี้: ปิดปุ่ม Add Record ถ้าเป็น Staff
                 if ((currentSheet === 'Announcements' || currentSheet === 'Training' || currentSheet === 'Asset_Tracking') && role === 'Staff') {
                     if (addDataBtn) addDataBtn.classList.add('hidden');
                 }
-                
+
 
                 let isRatingPage = currentSheet.includes('Ranting') || currentSheet.includes('Rating');
 
@@ -4420,7 +4361,7 @@
                 }
 
                 let cardsHtml = '';
-// 👉 1. โหมดหน้าการ์ด Training (ดีไซน์ใหม่ 100% + คลิกดูรายละเอียดได้)
+                // 👉 1. โหมดหน้าการ์ด Training (ดีไซน์ใหม่ 100% + คลิกดูรายละเอียดได้)
                 if (currentSheet === 'Training') {
                     data.forEach(row => {
                         const isEmpty = currentHeaders.every(h => !row[h] || String(row[h]).trim() === '');
@@ -4428,10 +4369,10 @@
 
                         const rowId = getRecordId(row);
                         const encodedRow = encodeURIComponent(JSON.stringify(row)).replace(/'/g, "%27");
-                        
+
                         let title = getFuzzyValue(row, ['course', 'หลักสูตร', 'subject', 'หัวข้อ', 'name', 'ชื่อ', 'detail', 'รายละเอียด'], 1) || 'No Title';
                         let photoUrl = getFuzzyValue(row, ['photo', 'รูป', 'pic', 'image', 'รูปภาพ']);
-                        
+
                         // 🌐 ดึงข้อมูลลิงก์
                         let ytUrl = getFuzzyValue(row, ['youtube', 'yt', 'ยูทูป', 'video', 'วิดีโอ']);
                         let fbUrl = getFuzzyValue(row, ['facebook', 'fb', 'เฟสบุ๊ค', 'เพจ']);
@@ -4448,7 +4389,7 @@
                         let cardArr = [];
                         // พื้นหลังการ์ดสีขาว ขอบมน มีเงา คลิกได้
                         cardArr.push(`<div onclick="showTrainingDetail('${encodedRow}')" class="bg-white rounded-[1.5rem] shadow-sm border border-gray-100 overflow-hidden flex flex-col relative transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer group">`);
-                        
+
                         // ส่วนหัว (ปุ่ม Edit/Delete ซ้ายขวาตามรูป)
                         if (role !== 'Staff') {
                             cardArr.push('<div class="absolute top-3 right-3 flex space-x-2 z-10 bg-white/90 backdrop-blur-sm rounded-lg p-1.5" onclick="event.stopPropagation()">');
@@ -4494,55 +4435,82 @@
                         cardsHtml += cardArr.join('');
                     });
                 }
-                // 👉 1.1 โหมดหน้าการ์ด Asset (แยกออกมาเพื่อให้ Asset ทำงานได้เหมือนเดิม)
-              // 👉 1.1 โหมดหน้าการ์ด Asset (ดีไซน์ใหม่ 100% ภาษาลาวตามรูป + คลิกดูรายละเอียดได้)
+                // 👉 1.1 โหมดหน้าการ์ด Asset (ดีไซน์ใหม่ 100% ภาษาลาวตามรูป + แก้ปัญหา Base64 ทำหน้าเว็บพัง)
                 else if (currentSheet === 'Asset_Tracking') {
+
+                    // 🛠️ 1. สร้างฟังก์ชันตัวช่วย เพื่อหลีกเลี่ยงการยัดข้อความ Base64 ยาวๆ ลงไปใน HTML โดยตรง
+                    if (!window.showAssetFromId) {
+                        window.showAssetFromId = function (id) {
+                            const row = tableCache['Asset_Tracking'].data.find(r => String(getRecordId(r)) === String(id));
+                            if (row) showAssetDetail(encodeURIComponent(JSON.stringify(row)).replace(/'/g, "%27"));
+                        };
+                        window.editAssetFromId = function (id, event) {
+                            event.stopPropagation();
+                            const row = tableCache['Asset_Tracking'].data.find(r => String(getRecordId(r)) === String(id));
+                            if (row) openFormModal(encodeURIComponent(JSON.stringify(row)).replace(/'/g, "%27"));
+                        };
+                    }
+
                     data.forEach(row => {
                         const isEmpty = currentHeaders.every(h => !row[h] || String(row[h]).trim() === '');
                         if (isEmpty) return;
 
                         const rowId = getRecordId(row);
-                        const encodedRow = encodeURIComponent(JSON.stringify(row)).replace(/'/g, "%27");
-                        
-                        // อ่านข้อมูล (คุณทราบอยู่แล้วว่ามาจาก Column ไหนใน Sheet)
+
+                        // อ่านข้อมูล
                         let assetName = getFuzzyValue(row, ['asset', 'ทรัพย์สิน', 'name', 'ชื่อ'], 1) || 'No Title';
                         let employee = getFuzzyValue(row, ['employee', 'ผู้ถือครอง', 'ລະຫັດພະນັກງານ'], 3) || '-';
                         let dateVal = getFuzzyValue(row, ['date', 'วันที่', 'เวลา', 'issue', 'ວັນເລີ່ມໃຊ້ງານ'], 2) || '-';
                         let status = getFuzzyValue(row, ['status', 'สถานะ', 'ສະຖານະ']);
                         let photoUrl = getFuzzyValue(row, ['photo', 'รูป', 'pic', 'image', 'รูปภาพ']);
-                        
-                        // 🛠️ แปลงลิงก์ Google Drive ให้แสดงผลรูปภาพได้
-                        if (photoUrl && photoUrl.includes('drive.google.com')) {
-                            let fileId = '';
-                            if (photoUrl.includes('id=')) fileId = photoUrl.split('id=')[1].split('&')[0];
-                            else if (photoUrl.includes('/d/')) fileId = photoUrl.split('/d/')[1].split('/')[0];
-                            if (fileId) photoUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w800';
+
+                        // 🛠️ 2. คลีนข้อมูล Base64 (ลบช่องว่าง) และจัดการ Google Drive
+                        if (typeof photoUrl === 'string') {
+                            if (photoUrl.startsWith('data:image')) {
+                                photoUrl = photoUrl.replace(/[\r\n\t\s]+/g, ""); // ลบช่องว่างที่ทำให้การ์ดพังทิ้ง
+                            } else if (photoUrl.includes('drive.google.com')) {
+                                let fileId = '';
+                                if (photoUrl.includes('id=')) fileId = photoUrl.split('id=')[1].split('&')[0];
+                                else if (photoUrl.includes('/d/')) fileId = photoUrl.split('/d/')[1].split('/')[0];
+                                if (fileId) photoUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w800';
+                            }
+                        }
+
+                        // เตรียมรูปภาพเริ่มต้น (Fallback) กรณีไม่มีรูป หรือรูปพัง
+                        let safeTopic = encodeURIComponent(String(assetName).substring(0, 20));
+                        let fallbackImg = `https://ui-avatars.com/api/?background=f8fafc&color=94a3b8&size=800&font-size=0.1&name=${safeTopic}`;
+
+                        if (!photoUrl || photoUrl === '-' || String(photoUrl).trim() === '') {
+                            photoUrl = fallbackImg;
                         }
 
                         // ตรวจสอบสีสถานะ (Status Colors)
                         let statusLower = String(status).toLowerCase();
                         let statusColor = 'text-gray-600';
-                        if (statusLower.includes('complete') || statusLower.includes('กำลังใช้งาน') || statusLower.includes('ໃຊ້ງານ') || statusLower === 'active') { 
-                            statusColor = 'text-green-500'; 
+                        if (statusLower.includes('complete') || statusLower.includes('กำลังใช้งาน') || statusLower.includes('ໃຊ້ງານ') || statusLower === 'active') {
+                            statusColor = 'text-green-500';
                         }
-                        else if (statusLower.includes('cancel') || statusLower.includes('เพแล้ว') || statusLower.includes('ເພແລ້ວ') || statusLower.includes('เสีย') || statusLower.includes('inactive')) { 
-                            statusColor = 'text-red-500'; 
+                        else if (statusLower.includes('cancel') || statusLower.includes('เพแล้ว') || statusLower.includes('ເພແລ້ວ') || statusLower.includes('เสีย') || statusLower.includes('inactive')) {
+                            statusColor = 'text-red-500';
                         }
-                        else if (statusLower.includes('ongoing') || statusLower.includes('กำลังซ่อม') || statusLower.includes('ສ້ອມ') || statusLower.includes('ซ่อม')) { 
-                            statusColor = 'text-orange-500'; 
+                        else if (statusLower.includes('ongoing') || statusLower.includes('กำลังซ่อม') || statusLower.includes('ສ້ອມ') || statusLower.includes('ซ่อม')) {
+                            statusColor = 'text-orange-500';
                         }
 
                         let cardArr = [];
-                        cardArr.push(`<div onclick="showAssetDetail('${encodedRow}')" class="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden flex flex-col relative transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer group p-4 pb-0">`);
-                        
+
+                        // 🛠️ 3. ใช้ showAssetFromId ส่งแค่ ID สั้นๆ แทนการส่งข้อมูลทั้งก้อน
+                        cardArr.push(`<div onclick="showAssetFromId('${rowId}')" class="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden flex flex-col relative transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer group p-4 pb-0">`);
+
                         // Top Section (Status & Action Buttons)
                         cardArr.push('<div class="flex justify-between items-start mb-2">');
                         cardArr.push(`<div class="font-bold text-[13px] tracking-wide text-gray-800">ສະຖານະ: <span class="${statusColor}">${status || '-'}</span></div>`);
-                        
+
                         if (role !== 'Staff') {
                             cardArr.push('<div class="flex space-x-2 z-10 bg-white" onclick="event.stopPropagation()">');
-                            cardArr.push('<button onclick="openFormModal(\'', encodedRow, '\')" class="text-gray-400 hover:text-gray-800 transition-colors" title="Edit"><i class="fa-regular fa-pen-to-square text-[15px]"></i></button>');
-                            cardArr.push('<button onclick="deleteRecord(\'', rowId, '\')" class="text-gray-400 hover:text-red-500 transition-colors" title="Delete"><i class="fa-regular fa-trash-can text-[15px]"></i></button>');
+                            // 🛠️ 4. ใช้ editAssetFromId ส่งแค่ ID
+                            cardArr.push(`<button onclick="editAssetFromId('${rowId}', event)" class="text-gray-400 hover:text-gray-800 transition-colors" title="Edit"><i class="fa-regular fa-pen-to-square text-[15px]"></i></button>`);
+                            cardArr.push(`<button onclick="event.stopPropagation(); deleteRecord('${rowId}')" class="text-gray-400 hover:text-red-500 transition-colors" title="Delete"><i class="fa-regular fa-trash-can text-[15px]"></i></button>`);
                             cardArr.push('</div>');
                         } else {
                             cardArr.push('<div></div>');
@@ -4555,7 +4523,7 @@
                         cardArr.push(`<div>ລະຫັດພະນັກງານ: <span class="font-medium text-gray-800">${employee}</span></div>`);
                         cardArr.push(`<div>ໝາຍເລກ: <span class="font-medium text-gray-800">${rowId}</span></div>`);
                         cardArr.push('</div>');
-                        
+
                         cardArr.push('<div class="text-[11px] text-gray-600 text-right leading-tight space-y-0.5">');
                         cardArr.push('<div>ວັນເລີ່ມໃຊ້ງານ:</div>');
                         cardArr.push(`<div class="font-medium text-gray-800">${dateVal}</div>`);
@@ -4563,102 +4531,97 @@
                         cardArr.push('</div>');
 
                         // Image Section
-                        if (photoUrl && photoUrl !== '-' && photoUrl.trim() !== '') {
-                            cardArr.push('<div class="w-full mt-auto pb-4">');
-                            cardArr.push('<img src="', photoUrl, '" alt="Asset" class="w-full aspect-square object-cover rounded-[1rem] border border-gray-100" onerror="this.style.display=\'none\'">');
-                            cardArr.push('</div>');
-                        } else {
-                            cardArr.push('<div class="w-full aspect-square bg-gray-50 rounded-[1rem] flex items-center justify-center text-gray-300 mb-4 border border-gray-100"><i class="fa-solid fa-image text-4xl"></i></div>');
-                        }
+                        cardArr.push('<div class="w-full mt-auto pb-4">');
+                        // 🛠️ 5. เพิ่ม onerror ป้องกันรูปล้ม
+                        cardArr.push(`<img src="${photoUrl}" alt="Asset" class="w-full aspect-square object-cover rounded-[1rem] border border-gray-100" onerror="this.onerror=null; this.src='${fallbackImg}';">`);
+                        cardArr.push('</div>');
 
                         cardArr.push('</div>');
                         cardsHtml += cardArr.join('');
                     });
                 }
-                // 👉 1.1 โหมดหน้าการ์ด Asset (แยกออกมาเพื่อให้ Asset ทำงานได้เหมือนเดิม)
-                //---------------
-               
- // 👉 โหมดหน้าการ์ด Announcements (ตาม UI ใหม่ 100% รูปแบบโปสเตอร์ + คลีน Base64 + โชว์ Topic)
-else if (currentSheet === 'Announcements') {
-    
-    // สร้างฟังก์ชันตัวช่วยแยก เพื่อไม่ให้ Base64 ยาวๆ ทำหน้าเว็บพัง
-    if (!window.showAnnounceFromId) {
-        window.showAnnounceFromId = function(id) {
-            const row = tableCache['Announcements'].data.find(r => String(getRecordId(r)) === String(id));
-            if (row) showAnnouncementDetail(encodeURIComponent(JSON.stringify(row)).replace(/'/g, "%27"));
-        };
-        window.editAnnounceFromId = function(id, event) {
-            event.stopPropagation(); 
-            const row = tableCache['Announcements'].data.find(r => String(getRecordId(r)) === String(id));
-            if (row) openFormModal(encodeURIComponent(JSON.stringify(row)).replace(/'/g, "%27"));
-        };
-    }
 
-    data.forEach(row => {
-        const isEmpty = currentHeaders.every(h => !row[h] || String(row[h]).trim() === '');
-        if (isEmpty) return;
+                // 👉 โหมดหน้าการ์ด Announcements (ตาม UI ใหม่ 100% รูปแบบโปสเตอร์ + คลีน Base64 + โชว์ Topic)
+                else if (currentSheet === 'Announcements') {
 
-        const rowId = getRecordId(row);
-        
-        let topic = getFuzzyValue(row, ['topic', 'หัวข้อ', 'เรื่อง', 'รายละเอียด', 'detail']) || 'Announcement';
-        if (topic === '-') topic = 'Announcement';
-        let type = getFuzzyValue(row, ['type', 'ประเภท']) || 'General';
-        
-        // 🛠️ 1. ดึงข้อมูลรูปภาพ
-        let photoUrl = row['photo'] || row['Photo'] || getFuzzyValue(row, ['photo', 'รูป', 'pic', 'image', 'รูปภาพ']) || '';
-        
-        // 🛠️ 2. คลีนข้อมูล Base64 และจัดการ Google Drive
-        if (typeof photoUrl === 'string') {
-            if (photoUrl.startsWith('data:image')) {
-                photoUrl = photoUrl.replace(/[\r\n\t\s]+/g, ""); 
-            } else if (photoUrl.includes('drive.google.com')) {
-                let fileId = '';
-                if (photoUrl.includes('id=')) fileId = photoUrl.split('id=')[1].split('&')[0];
-                else if (photoUrl.includes('/d/')) fileId = photoUrl.split('/d/')[1].split('/')[0];
-                if (fileId) photoUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w800';
-            }
-        }
+                    // สร้างฟังก์ชันตัวช่วยแยก เพื่อไม่ให้ Base64 ยาวๆ ทำหน้าเว็บพัง
+                    if (!window.showAnnounceFromId) {
+                        window.showAnnounceFromId = function (id) {
+                            const row = tableCache['Announcements'].data.find(r => String(getRecordId(r)) === String(id));
+                            if (row) showAnnouncementDetail(encodeURIComponent(JSON.stringify(row)).replace(/'/g, "%27"));
+                        };
+                        window.editAnnounceFromId = function (id, event) {
+                            event.stopPropagation();
+                            const row = tableCache['Announcements'].data.find(r => String(getRecordId(r)) === String(id));
+                            if (row) openFormModal(encodeURIComponent(JSON.stringify(row)).replace(/'/g, "%27"));
+                        };
+                    }
 
-        // เตรียมรูปโปสเตอร์เริ่มต้น
-        let safeTopic = encodeURIComponent(String(topic).substring(0, 20));
-        let fallbackImg = `https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&size=800&font-size=0.1&name=${safeTopic}`;
+                    data.forEach(row => {
+                        const isEmpty = currentHeaders.every(h => !row[h] || String(row[h]).trim() === '');
+                        if (isEmpty) return;
 
-        if (!photoUrl || photoUrl === '-' || String(photoUrl).trim() === '') {
-            photoUrl = fallbackImg;
-        }
+                        const rowId = getRecordId(row);
 
-        let cardArr = [];
-        
-        cardArr.push(`<div onclick="showAnnounceFromId('${rowId}')" class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col relative transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer group">`);
-        
-        // 🌟 3. แถบด้านบน (แสดง Type, Topic และปุ่มจัดการ)
-        cardArr.push('<div class="flex justify-between items-start px-4 py-3 bg-white z-10 border-b border-gray-50 shrink-0 gap-2">');
-        
-        // ฝั่งซ้าย: โชว์ประเภท (Type) สีม่วงเล็กๆ และ หัวข้อ (Topic) ตัวหนา
-        cardArr.push('<div class="flex flex-col min-w-0">');
-        cardArr.push(`<span class="text-[10px] font-bold text-brandindigo uppercase tracking-widest mb-0.5" title="${type}">${type}</span>`);
-        cardArr.push(`<h3 class="text-sm font-bold text-gray-800 line-clamp-2 leading-snug" title="${String(topic).replace(/"/g, '&quot;')}">${topic}</h3>`);
-        cardArr.push('</div>');
+                        let topic = getFuzzyValue(row, ['topic', 'หัวข้อ', 'เรื่อง', 'รายละเอียด', 'detail']) || 'Announcement';
+                        if (topic === '-') topic = 'Announcement';
+                        let type = getFuzzyValue(row, ['type', 'ประเภท']) || 'General';
 
-        // ฝั่งขวา: ปุ่มจัดการ
-        if (role !== 'Staff') {
-            cardArr.push('<div class="flex space-x-2 shrink-0 mt-0.5">');
-            cardArr.push(`<button onclick="editAnnounceFromId('${rowId}', event)" class="text-gray-400 hover:text-brandindigo transition-colors" title="Edit"><i class="fa-regular fa-pen-to-square text-[15px]"></i></button>`);
-            cardArr.push(`<button onclick="event.stopPropagation(); deleteRecord('${rowId}')" class="text-gray-400 hover:text-red-500 transition-colors" title="Delete"><i class="fa-regular fa-trash-can text-[15px]"></i></button>`);
-            cardArr.push('</div>');
-        }
-        cardArr.push('</div>'); // ปิดแถบด้านบน
+                        // 🛠️ 1. ดึงข้อมูลรูปภาพ
+                        let photoUrl = row['photo'] || row['Photo'] || getFuzzyValue(row, ['photo', 'รูป', 'pic', 'image', 'รูปภาพ']) || '';
 
-        // พื้นที่แสดงรูปภาพ
-        cardArr.push('<div class="w-full aspect-[4/5] bg-gray-50 flex flex-col items-center justify-center p-3 relative">');
-        cardArr.push(`<img src="${photoUrl}" alt="Announcement" class="w-full h-full object-cover rounded-xl shadow-sm border border-gray-100" onerror="this.onerror=null; this.src='${fallbackImg}';">`);
-        cardArr.push('</div>'); 
-        
-        cardArr.push('</div>'); 
-        
-        cardsHtml += cardArr.join('');
-    });
-}
+                        // 🛠️ 2. คลีนข้อมูล Base64 และจัดการ Google Drive
+                        if (typeof photoUrl === 'string') {
+                            if (photoUrl.startsWith('data:image')) {
+                                photoUrl = photoUrl.replace(/[\r\n\t\s]+/g, "");
+                            } else if (photoUrl.includes('drive.google.com')) {
+                                let fileId = '';
+                                if (photoUrl.includes('id=')) fileId = photoUrl.split('id=')[1].split('&')[0];
+                                else if (photoUrl.includes('/d/')) fileId = photoUrl.split('/d/')[1].split('/')[0];
+                                if (fileId) photoUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w800';
+                            }
+                        }
+
+                        // เตรียมรูปโปสเตอร์เริ่มต้น
+                        let safeTopic = encodeURIComponent(String(topic).substring(0, 20));
+                        let fallbackImg = `https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&size=800&font-size=0.1&name=${safeTopic}`;
+
+                        if (!photoUrl || photoUrl === '-' || String(photoUrl).trim() === '') {
+                            photoUrl = fallbackImg;
+                        }
+
+                        let cardArr = [];
+
+                        cardArr.push(`<div onclick="showAnnounceFromId('${rowId}')" class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col relative transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer group">`);
+
+                        // 🌟 3. แถบด้านบน (แสดง Type, Topic และปุ่มจัดการ)
+                        cardArr.push('<div class="flex justify-between items-start px-4 py-3 bg-white z-10 border-b border-gray-50 shrink-0 gap-2">');
+
+                        // ฝั่งซ้าย: โชว์ประเภท (Type) สีม่วงเล็กๆ และ หัวข้อ (Topic) ตัวหนา
+                        cardArr.push('<div class="flex flex-col min-w-0">');
+                        cardArr.push(`<span class="text-[10px] font-bold text-brandindigo uppercase tracking-widest mb-0.5" title="${type}">${type}</span>`);
+                        cardArr.push(`<h3 class="text-sm font-bold text-gray-800 line-clamp-2 leading-snug" title="${String(topic).replace(/"/g, '&quot;')}">${topic}</h3>`);
+                        cardArr.push('</div>');
+
+                        // ฝั่งขวา: ปุ่มจัดการ
+                        if (role !== 'Staff') {
+                            cardArr.push('<div class="flex space-x-2 shrink-0 mt-0.5">');
+                            cardArr.push(`<button onclick="editAnnounceFromId('${rowId}', event)" class="text-gray-400 hover:text-brandindigo transition-colors" title="Edit"><i class="fa-regular fa-pen-to-square text-[15px]"></i></button>`);
+                            cardArr.push(`<button onclick="event.stopPropagation(); deleteRecord('${rowId}')" class="text-gray-400 hover:text-red-500 transition-colors" title="Delete"><i class="fa-regular fa-trash-can text-[15px]"></i></button>`);
+                            cardArr.push('</div>');
+                        }
+                        cardArr.push('</div>'); // ปิดแถบด้านบน
+
+                        // พื้นที่แสดงรูปภาพ
+                        cardArr.push('<div class="w-full aspect-[4/5] bg-gray-50 flex flex-col items-center justify-center p-3 relative">');
+                        cardArr.push(`<img src="${photoUrl}" alt="Announcement" class="w-full h-full object-cover rounded-xl shadow-sm border border-gray-100" onerror="this.onerror=null; this.src='${fallbackImg}';">`);
+                        cardArr.push('</div>');
+
+                        cardArr.push('</div>');
+
+                        cardsHtml += cardArr.join('');
+                    });
+                }
                 // 👉 2. โหมดหน้าการ์ด Employee Rating
                 else {
                     let empStats = {};
@@ -4764,7 +4727,7 @@ else if (currentSheet === 'Announcements') {
                             if (!isExist) allCategories.unshift(c);
                         });
 
-                       let skillsHtmlArray = [];
+                        let skillsHtmlArray = [];
                         allCategories.forEach(skillName => {
                             let catStars = emp.categoryScores[skillName] || 0;
                             let displayVal = catStars * 20;
@@ -4822,15 +4785,15 @@ else if (currentSheet === 'Announcements') {
                         }
                         let commentHtml = commentHtmlArray.join('');
 
-                       let cardArray = [];
+                        let cardArray = [];
                         // 1. ปรับกรอบการ์ดให้มนพอดีๆ (rounded-3xl) ขอบคลีนสะอาดตาขึ้น
                         cardArray.push('<div class="bg-white rounded-3xl hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group relative transform hover:-translate-y-1 border border-gray-200 w-full max-w-[360px] mx-auto pb-5">');
-                        
+
                         cardArray.push(adminActions);
-                        
+
                         // 2. ส่วนบน: ใช้สีจากดีไซน์เว็บ (brandindigo -> brandpurple) และลดความสูงลงให้ดูโมเดิร์น ไม่หนาเทอะทะ
                         cardArray.push('<div class="h-[100px] w-full bg-gradient-to-r from-brandindigo to-brandpurple relative z-0 shadow-sm"></div>');
-                        
+
                         // 3. รูปโปรไฟล์: ปรับขนาดและระยะเยื้องขึ้นบนให้ออกมาสมดุล ดูเป็นระเบียบเรียบร้อย
                         cardArray.push('<div class="relative -mt-[50px] flex justify-center z-10">');
                         cardArray.push('<div class="w-[100px] h-[100px] rounded-full border-4 border-white overflow-hidden bg-gray-50 shadow-md">');
@@ -4851,12 +4814,12 @@ else if (currentSheet === 'Announcements') {
                         cardArray.push('<div class="flex justify-center items-center mt-5 mb-5 bg-gray-50/50 py-2.5 mx-6 rounded-xl border border-gray-100" title="Overall Average Rating">');
                         cardArray.push(starsHtml);
                         cardArray.push('</div>');
-                        
+
                         // 6. หลอดคะแนน
                         cardArray.push('<div class="px-7 flex-1 flex flex-col justify-center">');
                         cardArray.push(skillsHtml);
                         cardArray.push('</div>');
-                        
+
                         // 7. กล่องคอมเมนต์
                         if (emp.latestComment !== '-') {
                             cardArray.push('<div class="px-6 mt-4">');
@@ -4865,7 +4828,7 @@ else if (currentSheet === 'Announcements') {
                             cardArray.push('</div></div>');
                         } else {
                             // ใส่ช่องว่างไว้ดัน layout ให้เท่ากันกรณีไม่มีคอมเมนต์
-                            cardArray.push('<div class="mt-4"></div>'); 
+                            cardArray.push('<div class="mt-4"></div>');
                         }
 
                         cardArray.push('</div>');
@@ -5030,82 +4993,62 @@ else if (currentSheet === 'Announcements') {
             return ['ตรงต่อเวลา', 'ทำยอดขายได้ดี', 'ช่วยเหลือเพื่อนร่วมงาน', 'บริการลูกค้าดี', 'ทำงานเป็นทีม', 'แก้ปัญหาได้ดี', 'ทำงานเกินเป้าหมาย', 'สร้างไอเดียใหม่', 'ไม่ขาดงาน', 'พนักงานดีเด่นประจำเดือน'];
         }
 
+        // 🛠️ 1. อัปเดตฟังก์ชันสร้างฟอร์มให้แข็งแรงขึ้น (รองรับกรณีฟอร์มเปล่า 100%)
         function renderEmployeeRatingForm(rowData = {}) {
-            currentHeaders = getEmployeeRatingHeaders();
-            const formFields = document.getElementById('form-fields');
-            const ratingId = getRatingFormValue(rowData, ['Ranting_Id', 'rating_id']) || '';
-            const empId = getRatingFormValue(rowData, ['Employees Id', 'employee_id', 'emp_id']) || '';
-            const empName = getRatingFormValue(rowData, ['Employees Name', 'employee_name', 'first_name', 'name']) || '';
-            const ratingDate = getRatingFormValue(rowData, ['Ranting Date', 'rating_date', 'date']) || new Date().toISOString().slice(0, 10);
-            const starPoint = parseInt(getRatingFormValue(rowData, ['Star Point', 'star_point', 'rating', 'score'])) || 0;
-            const category = getRatingFormValue(rowData, ['Category ', 'category']) || '';
-            const comment = getRatingFormValue(rowData, ['Comment', 'comment', 'remark']) || '';
-            const giveBy = getRatingFormValue(rowData, ['Give By', 'give_by']) || '';
-            const categoryOptions = getRatingCategories().map(c => `<option value="${c}" ${String(category) === c ? 'selected' : ''}>${c}</option>`).join('');
-            formFields.innerHTML = `
-                <input type="hidden" name="Ranting_Id" value="${String(ratingId).replace(/"/g, '&quot;')}">
-                <input type="hidden" name="Status" value="${getRatingFormValue(rowData, ['Status', 'status']) || 'Active'}">
-                <div class="col-span-1 sm:col-span-2 bg-indigo-50/60 p-5 rounded-2xl border border-indigo-100 mb-2">
-                    <p class="text-xs font-bold text-gray-500 mb-4 flex items-center tracking-widest uppercase"><i class="fa-solid fa-chart-pie mr-2 text-brandindigo"></i> LEAVE QUOTA BALANCE:<span id="leave-quota-display" class="ml-auto bg-white px-3 py-1 rounded-lg border border-gray-200 text-gray-900 shadow-sm">-</span></p>
-                    <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">EMPLOYEES ID <span class="text-brandindigo">*</span></label>
-                    <select id="rating-employee-select" name="Employees Id" required onchange="onRatingEmployeeSelected(this.value)" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
-                        <option value="${String(empId).replace(/"/g, '&quot;')}" selected>${empId ? empId : 'Loading staff...'}</option>
-                    </select>
-                </div>
-                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">EMPLOYEES NAME <span class="text-brandindigo">*</span></label><input id="rating-employee-name" type="text" name="Employees Name" value="${String(empName).replace(/"/g, '&quot;')}" required readonly placeholder="Enter Employees Name..." class="bg-gray-50 border border-gray-300 text-gray-600 text-sm rounded-xl block w-full p-3 shadow-sm"></div>
-                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">RANTING DATE <span class="text-brandindigo">*</span></label><input type="date" name="Ranting Date" value="${String(ratingDate).slice(0, 10)}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"></div>
-                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">STAR POINT <span class="text-brandindigo">*</span></label><div class="flex flex-col items-center justify-center bg-gray-50 p-4 rounded-xl border border-gray-200 min-h-[88px]"><div class="flex">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= starPoint ? 'fa-solid fa-star text-yellow-400' : 'fa-regular fa-star text-gray-300'} text-3xl cursor-pointer hover:scale-110 transition-transform mx-1" onclick="setFormStarRating(${i})" id="form-star-${i}"></i>`).join('')}</div><p id="form-star-text" class="mt-2 text-sm font-bold text-brandindigo">${starPoint > 0 ? starPoint + ' / 5' : 'คลิกเพื่อให้คะแนน'}</p></div><input type="hidden" name="Star Point" id="hidden-star-input" value="${starPoint || ''}" required></div>
-                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">CATEGORY <span class="text-brandindigo">*</span></label><select name="Category " required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"><option value="" disabled ${!category ? 'selected' : ''}>Enter Category ...</option>${categoryOptions}</select></div>
-                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">COMMENT <span class="text-brandindigo">*</span></label><input type="text" name="Comment" value="${String(comment).replace(/"/g, '&quot;')}" required placeholder="Enter Comment..." class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"></div>
-                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">GIVE BY <span class="text-brandindigo">*</span></label><select id="rating-give-by-select" name="Give By" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"><option value="${String(giveBy).replace(/"/g, '&quot;')}" selected>${giveBy ? giveBy : 'Loading evaluators...'}</option></select></div>`;
-            loadRatingStaffOptions(empId, giveBy);
-        }
+            try {
+                currentHeaders = getEmployeeRatingHeaders();
+                const formFields = document.getElementById('form-fields');
 
-        function loadRatingStaffOptions(selectedEmpId = '', selectedGiveBy = '') {
-            const applyOptions = (rows) => {
-                const empSelect = document.getElementById('rating-employee-select');
-                const giveSelect = document.getElementById('rating-give-by-select');
-                if (!empSelect || !giveSelect) return;
-                let empOptions = `<option value="" disabled ${!selectedEmpId ? 'selected' : ''}>Select Employee...</option>`;
-                let giveOptions = `<option value="" disabled ${!selectedGiveBy ? 'selected' : ''}>Select Evaluator...</option>`;
-                (rows || []).forEach(row => {
-                    const id = getFuzzyValue(row, ['employee_id', 'emp_id', 'employees id']);
-                    if (!id || id === '-') return;
-                    const first = getFuzzyValue(row, ['first_name', 'name', 'full_name']) || id;
-                    empOptions += `<option value="${String(id).replace(/"/g, '&quot;')}" ${String(selectedEmpId) === String(id) ? 'selected' : ''}>${id} - ${first}</option>`;
-                    giveOptions += `<option value="${String(first).replace(/"/g, '&quot;')}" ${String(selectedGiveBy) === String(first) ? 'selected' : ''}>${first}</option>`;
-                });
-                empSelect.innerHTML = empOptions;
-                giveSelect.innerHTML = giveOptions;
-                if (selectedEmpId) onRatingEmployeeSelected(selectedEmpId);
-            };
-            const staffCache = tableCache['staff'] || tableCache['Staff'];
-            if (staffCache && Array.isArray(staffCache.data) && staffCache.data.length) return applyOptions(staffCache.data);
-            google.script.run.withSuccessHandler(res => {
-                if (res && res.success && Array.isArray(res.data)) {
-                    tableCache['staff'] = { headers: res.headers || [], data: res.data };
-                    applyOptions(res.data);
-                }
-            }).getSheetData('staff');
-        }
+                // ดึงค่าอย่างปลอดภัย ป้องกัน Error
+                const ratingId = getRatingFormValue(rowData, ['Ranting_Id', 'rating_id']) || '';
+                const empId = getRatingFormValue(rowData, ['Employees Id', 'employee_id', 'emp_id']) || '';
+                const empName = getRatingFormValue(rowData, ['Employees Name', 'employee_name', 'first_name', 'name']) || '';
+                const ratingDate = getRatingFormValue(rowData, ['Ranting Date', 'rating_date', 'date']) || new Date().toISOString().slice(0, 10);
+                const starPoint = parseInt(getRatingFormValue(rowData, ['Star Point', 'star_point', 'rating', 'score'])) || 0;
+                const category = getRatingFormValue(rowData, ['Category ', 'category']) || '';
+                const comment = getRatingFormValue(rowData, ['Comment', 'comment', 'remark']) || '';
+                const giveBy = getRatingFormValue(rowData, ['Give By', 'give_by']) || '';
+                const status = getRatingFormValue(rowData, ['Status', 'status']) || 'Active';
 
-        function onRatingEmployeeSelected(empId) {
-            const row = findStaffRowById(empId);
-            const nameInput = document.getElementById('rating-employee-name');
-            if (!row) {
-                if (nameInput) nameInput.value = '';
-                return;
+                const categoryOptions = getRatingCategories().map(c => `<option value="${c}" ${String(category) === c ? 'selected' : ''}>${c}</option>`).join('');
+
+                formFields.innerHTML = `
+                    <input type="hidden" name="Ranting_Id" value="${String(ratingId).replace(/"/g, '&quot;')}">
+                    <input type="hidden" name="Status" value="${String(status).replace(/"/g, '&quot;')}">
+                    
+                    <div class="col-span-1 sm:col-span-2 bg-indigo-50/60 p-5 rounded-2xl border border-indigo-100 mb-2">
+                        <p class="text-xs font-bold text-gray-500 mb-4 flex items-center tracking-widest uppercase"><i class="fa-solid fa-chart-pie mr-2 text-brandindigo"></i> LEAVE QUOTA BALANCE:<span id="leave-quota-display" class="ml-auto bg-white px-3 py-1 rounded-lg border border-gray-200 text-gray-900 shadow-sm">-</span></p>
+                        <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">EMPLOYEES ID <span class="text-brandindigo">*</span></label>
+                        <select id="rating-employee-select" name="Employees Id" required onchange="onRatingEmployeeSelected(this.value)" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                            <option value="${String(empId).replace(/"/g, '&quot;')}" selected>${empId ? empId : 'Loading staff...'}</option>
+                        </select>
+                    </div>
+                    
+                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">EMPLOYEES NAME <span class="text-brandindigo">*</span></label><input id="rating-employee-name" type="text" name="Employees Name" value="${String(empName).replace(/"/g, '&quot;')}" required readonly placeholder="Enter Employees Name..." class="bg-gray-50 border border-gray-300 text-gray-600 text-sm rounded-xl block w-full p-3 shadow-sm"></div>
+                    
+                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">RANTING DATE <span class="text-brandindigo">*</span></label><input type="date" name="Ranting Date" value="${String(ratingDate).slice(0, 10)}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"></div>
+                    
+                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">STAR POINT <span class="text-brandindigo">*</span></label><div class="flex flex-col items-center justify-center bg-gray-50 p-4 rounded-xl border border-gray-200 min-h-[88px]"><div class="flex">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= starPoint ? 'fa-solid fa-star text-yellow-400' : 'fa-regular fa-star text-gray-300'} text-3xl cursor-pointer hover:scale-110 transition-transform mx-1" onclick="setFormStarRating(${i})" id="form-star-${i}"></i>`).join('')}</div><p id="form-star-text" class="mt-2 text-sm font-bold text-brandindigo">${starPoint > 0 ? starPoint + ' / 5' : 'คลิกเพื่อให้คะแนน'}</p></div><input type="hidden" name="Star Point" id="hidden-star-input" value="${starPoint || ''}" required></div>
+                    
+                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">CATEGORY <span class="text-brandindigo">*</span></label><select name="Category " required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"><option value="" disabled ${!category ? 'selected' : ''}>Enter Category ...</option>${categoryOptions}</select></div>
+                    
+                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">COMMENT <span class="text-brandindigo">*</span></label><input type="text" name="Comment" value="${String(comment).replace(/"/g, '&quot;')}" required placeholder="Enter Comment..." class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"></div>
+                    
+                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">GIVE BY <span class="text-brandindigo">*</span></label><select id="rating-give-by-select" name="Give By" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"><option value="${String(giveBy).replace(/"/g, '&quot;')}" selected>${giveBy ? giveBy : 'Loading evaluators...'}</option></select></div>
+                `;
+
+                loadRatingStaffOptions(empId, giveBy);
+            } catch (err) {
+                console.error("Error generating form:", err);
+                document.getElementById('form-fields').innerHTML = `<div class="col-span-full text-center text-red-500 font-bold p-4">เกิดข้อผิดพลาดในการสร้างฟอร์ม กรุณารีเฟรชหน้าเว็บ</div>`;
             }
-            const first = getFuzzyValue(row, ['first_name', 'name', 'full_name']) || empId;
-            const quota = getFuzzyValue(row, ['leave_quota', 'quota']);
-            if (nameInput) nameInput.value = first;
-            const quotaDisplay = document.getElementById('leave-quota-display');
-            if (quotaDisplay) quotaDisplay.textContent = quota && quota !== '-' ? quota : '-';
         }
 
+        // 🛠️ 2. อัปเดตฟังก์ชันเปิดหน้าต่าง ให้ป้องกัน Error ล่องหน
         function openFormModal(rowDataStr = null) {
             editingRecordId = null;
             let rowData = {};
+
             const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
             let role = 'Staff';
             let loggedInEmpId = '';
@@ -5118,10 +5061,16 @@ else if (currentSheet === 'Announcements') {
                 } catch (e) { }
             }
 
-            if (rowDataStr) {
-                rowData = JSON.parse(decodeURIComponent(rowDataStr));
-                editingRecordId = getRecordId(rowData);
-                document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-pen-to-square text-brandindigo mr-3"></i> Edit Record`;
+            // 🌟 เช็คว่าข้อมูลที่ส่งมาเป็นข้อความจริงๆ ป้องกันบั๊กปุ่มกดส่งค่าเพี้ยน
+            if (rowDataStr && typeof rowDataStr === 'string') {
+                try {
+                    rowData = JSON.parse(decodeURIComponent(rowDataStr));
+                    editingRecordId = getRecordId(rowData);
+                    document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-pen-to-square text-brandindigo mr-3"></i> Edit Record`;
+                } catch (err) {
+                    rowData = {}; // ถ้ารหัสพัง ให้สลับเป็นฟอร์มเพิ่มข้อมูลเปล่าๆ
+                    document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-plus text-brandindigo mr-3"></i> Add Record`;
+                }
             } else {
                 document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-plus text-brandindigo mr-3"></i> Add Record`;
             }
@@ -5130,11 +5079,14 @@ else if (currentSheet === 'Announcements') {
             formFields.innerHTML = '';
             currentHeaders = ensureHeadersForSheet(currentSheet, currentHeaders);
 
+            // วาดฟอร์มให้ดาวพนักงาน
             if (isEmployeeRatingSheet(currentSheet)) {
                 renderEmployeeRatingForm(rowData);
                 document.getElementById('form-modal').classList.remove('hidden');
                 return;
             }
+
+            // ... (โค้ดลูปสร้างฟอร์มของตารางอื่นๆ ปล่อยไว้เหมือนเดิมครับ ไม่ต้องไปยุ่งกับมัน)
 
             currentHeaders.forEach((h, index) => {
                 const lw = h.toLowerCase().trim();
@@ -5305,11 +5257,11 @@ else if (currentSheet === 'Announcements') {
                 }
 
                 if (lw === 'id' || lw === 'leave_id' || lw === 'log_id' || lw === 'asset_id' || lw === 'course_id' || (index === 0 && lw !== 'employee_id' && lw !== 'emp_id' && currentSheet.toLowerCase() !== 'staff' && currentSheet.toLowerCase() !== 'user')) {
-            formFields.insertAdjacentHTML('beforeend', `
+                    formFields.insertAdjacentHTML('beforeend', `
                 <input type="hidden" name="${h}" value="${safeVal}">
             `);
-            return;
-            }
+                    return;
+                }
                 if (index === 0 && (currentSheet.toLowerCase() === 'staff' || currentSheet.toLowerCase() === 'user')) {
                     if (!editingRecordId) {
                         formFields.insertAdjacentHTML('beforeend', `
@@ -5373,8 +5325,8 @@ else if (currentSheet === 'Announcements') {
                         </select></div>
                     `);
                 }
-               // 👇👇 เริ่มโค้ด: ช่อง TYPE (ประเภทการลา) แบบ Dropdown 👇👇
-              // 👉 1. เพิ่ม Dropdown สำหรับ TYPE ของ Announcements
+                // 👇👇 เริ่มโค้ด: ช่อง TYPE (ประเภทการลา) แบบ Dropdown 👇👇
+                // 👉 1. เพิ่ม Dropdown สำหรับ TYPE ของ Announcements
                 else if (lw === 'type' && currentSheet.toLowerCase() === 'announcements') {
                     formFields.insertAdjacentHTML('beforeend', `
                         <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
@@ -5575,9 +5527,9 @@ else if (currentSheet === 'Announcements') {
                         </div>
                     `);
                 }
-              
+
                 // จบส่วนปุ่มอัปโหลด
-                
+
 
                 // 👇👇👇 ก๊อปปี้โค้ดชุดนี้ ไปวางแทรกตรงนี้ได้เลยครับ 👇👇👇
                 else if (lw === 'category' || lw === 'หมวดหมู่') {
@@ -5599,9 +5551,9 @@ else if (currentSheet === 'Announcements') {
                     `);
                 }
                 // 👆👆👆 สิ้นสุดโค้ดที่ต้องก๊อปปี้ 👆👆👆
-                
-// 👇👇 เริ่มก๊อปปี้ตรงนี้: ทำให้ช่อง OBJECT กางเต็มหน้าจอและเป็น Textarea 👇👇
-             else if (lw === 'object' || lw === 'เหตุผล' || lw === 'reason') {
+
+                // 👇👇 เริ่มก๊อปปี้ตรงนี้: ทำให้ช่อง OBJECT กางเต็มหน้าจอและเป็น Textarea 👇👇
+                else if (lw === 'object' || lw === 'เหตุผล' || lw === 'reason') {
                     formFields.insertAdjacentHTML('beforeend', `
                         <div class="col-span-1 sm:col-span-2">
                             <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
@@ -6256,23 +6208,17 @@ else if (currentSheet === 'Announcements') {
         }
 
         function renderEmployeeRatingPageFromScratch(ratingRows) {
-    
-    // 👇👇 1. เพิ่มโค้ด 5 บรรทัดนี้ เพื่อดึงสิทธิ์การใช้งาน (Role) 👇👇
-    const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
-    let role = 'Staff';
-    if (sessionStr) {
-        try { role = JSON.parse(sessionStr).role || 'Staff'; } catch (e) { }
-    }
-    // 👆👆 สิ้นสุดโค้ดที่เพิ่ม 👆👆
+            const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+            let role = 'Staff';
+            if (sessionStr) {
+                try { role = JSON.parse(sessionStr).role || 'Staff'; } catch (e) { }
+            }
 
-    // โค้ดส่วนอื่นๆ คงไว้เหมือนเดิม (รวมถึงที่แก้เป็น card-wrapper ด้วยนะครับ)
-    const cardWrapper = document.getElementById('card-wrapper');
-    if (!cardWrapper) return;
-    
-    const staffCache = tableCache['staff'] || tableCache['Staff'];
-    const staffRows = staffCache && Array.isArray(staffCache.data) ? staffCache.data : [];
-    
-    // ... โค้ดส่วนอื่นๆ ด้านล่างเหมือนเดิมทั้งหมด ...
+            const cardWrapper = document.getElementById('card-wrapper');
+            if (!cardWrapper) return;
+
+            const staffCache = tableCache['staff'] || tableCache['Staff'];
+            const staffRows = staffCache && Array.isArray(staffCache.data) ? staffCache.data : [];
 
             if (!staffRows.length) {
                 cardWrapper.innerHTML = '<div class="col-span-full flex flex-col items-center justify-center py-20 text-gray-400 bg-gray-50 rounded-3xl border border-dashed border-gray-200"><i class="fa-solid fa-spinner fa-spin text-4xl mb-4 text-brandindigo"></i><p class="font-bold tracking-widest uppercase text-sm">Loading staff...</p></div>';
@@ -6289,20 +6235,54 @@ else if (currentSheet === 'Announcements') {
                 return;
             }
 
+            // --- 🛠️ 1. เพิ่มระบบดึงข้อมูลจาก ID ป้องกันการส่งข้อมูลยาวๆ ผ่านปุ่ม ---
+            if (!window.editRatingByRowId) {
+                window.editRatingByRowId = function (rowId, event) {
+                    if (event) event.stopPropagation();
+                    const rawData = tableCache[currentSheet] ? tableCache[currentSheet].data : [];
+                    const row = rawData.find(r => String(getRecordId(r)) === String(rowId));
+                    if (row) {
+                        openFormModal(encodeURIComponent(JSON.stringify(row)).replace(/'/g, "%27"));
+                    }
+                };
+                window.addRatingForEmpId = function (empId, empName, event) {
+                    if (event) event.stopPropagation();
+                    const template = {};
+                    (currentHeaders || []).forEach(h => {
+                        const key = String(h).toLowerCase().trim();
+                        template[h] = '';
+                        if (key === 'employees id' || key === 'employee_id' || key === 'emp_id') template[h] = empId;
+                        else if (key === 'employees name' || key === 'employee_name' || key === 'first_name' || key === 'name') template[h] = empName;
+                        else if (key === 'ranting date' || key === 'rating date' || key === 'date') template[h] = new Date().toISOString().slice(0, 10);
+                        else if (key === 'status') template[h] = 'Active';
+                        else if (key === 'give by' || key === 'give_by') {
+                            let sessionUser = {};
+                            try { sessionUser = JSON.parse(localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session') || '{}'); } catch (e) { }
+                            template[h] = sessionUser.username || sessionUser.empId || '';
+                        }
+                    });
+                    openFormModal(encodeURIComponent(JSON.stringify(template)).replace(/'/g, "%27"));
+                };
+            }
+            // --------------------------------------------------------
+
             const ratingByEmp = {};
             (ratingRows || []).forEach(row => {
                 const empId = String(getFuzzyValue(row, ['employees id', 'employee_id', 'emp_id'])).trim();
                 if (!empId || empId === '-') return;
                 const key = empId.toLowerCase();
                 const stars = Math.max(0, Math.min(5, parseFloat(getFuzzyValue(row, ['star point', 'star_point', 'rating', 'score'])) || 0));
-                if (!ratingByEmp[key]) ratingByEmp[key] = { total: 0, count: 0, latestComment: '', latestEncodedRow: '', latestRowId: '', categoryScores: {} };
+
+                if (!ratingByEmp[key]) ratingByEmp[key] = { total: 0, count: 0, latestComment: '', latestRowId: '', categoryScores: {} };
                 ratingByEmp[key].total += stars;
                 ratingByEmp[key].count += 1;
+
                 const category = getFuzzyValue(row, ['Category ', 'category']);
                 if (category && category !== '-') ratingByEmp[key].categoryScores[String(category).trim()] = stars;
+
                 const comment = getFuzzyValue(row, ['comment', 'review', 'remark']);
                 if (comment && comment !== '-') ratingByEmp[key].latestComment = comment;
-                ratingByEmp[key].latestEncodedRow = encodeURIComponent(JSON.stringify(row)).replace(/'/g, "%27");
+
                 ratingByEmp[key].latestRowId = getRecordId(row);
             });
 
@@ -6323,13 +6303,14 @@ else if (currentSheet === 'Announcements') {
                 const position = getFuzzyValue(staff, ['position_id', 'position']) || 'Staff';
                 const department = getFuzzyValue(staff, ['department_id', 'department']) || 'General';
                 const photo = normalizeRatingPhoto(getFuzzyValue(staff, ['photos', 'photo', 'profile', 'image', 'pic']), firstName);
-                const stat = ratingByEmp[empId.toLowerCase()] || { total: 0, count: 0, latestComment: '', latestEncodedRow: '', latestRowId: '', categoryScores: {} };
+                const stat = ratingByEmp[empId.toLowerCase()] || { total: 0, count: 0, latestComment: '', latestRowId: '', categoryScores: {} };
                 const avg = stat.count ? Math.round((stat.total / stat.count) * 10) / 10 : 0;
+
                 let starsHtml = '';
                 for (let i = 1; i <= 5; i++) {
                     starsHtml += i <= Math.round(avg) ? '<i class="fa-solid fa-star text-[#FACC15] text-2xl mx-1"></i>' : '<i class="fa-regular fa-star text-gray-200 text-2xl mx-1"></i>';
                 }
-                const addTemplate = buildRatingTemplateForStaff(empId, firstName);
+
                 const safeEmp = escapeHtml(empId);
                 const safeName = escapeHtml(firstName);
                 const safePosition = escapeHtml(position);
@@ -6337,22 +6318,31 @@ else if (currentSheet === 'Announcements') {
                 const safeComment = escapeHtml(stat.latestComment || 'ยังไม่มีคอมเมนต์');
                 const safeNameUrl = encodeURIComponent(firstName);
                 const safeNameJs = String(firstName).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+                // 🛠️ 2. ดึงค่า ID มาเตรียมไว้
                 const safeRowId = String(stat.latestRowId || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
                 const barsHtml = getRatingCategories().map(cat => {
                     const val = Math.max(0, Math.min(5, parseFloat(stat.categoryScores[cat]) || 0));
                     const pct = Math.round((val / 5) * 100);
                     return `<div class="flex items-center justify-between text-xs mb-3"><span class="w-[45%] ${pct ? 'text-gray-700 font-bold' : 'text-gray-400 font-medium'} truncate">${escapeHtml(cat)}</span><div class="w-[45%] h-1.5 bg-gray-100 flex-1 mx-3 overflow-hidden rounded-full shadow-inner"><div class="h-full ${pct ? 'bg-gradient-to-r from-brandindigo to-brandpurple' : 'bg-gray-200'} rounded-full" style="width:${pct}%"></div></div><span class="w-[10%] text-right text-gray-500 font-bold text-[10px]">${pct}%</span></div>`;
                 }).join('');
 
+                // 🛠️ 3. แก้ไขปุ่มกด ให้เรียกฟังก์ชันใหม่ที่ส่งไปแค่ ID
                 html += `
                     <div class="bg-white rounded-3xl hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group relative border border-gray-200 w-full max-w-[360px] mx-auto pb-5">
+                        
                         <div class="absolute top-3 right-3 flex gap-0.5 z-20 bg-white/95 backdrop-blur-md rounded-lg shadow-lg p-1 border border-gray-100 opacity-0 group-hover:opacity-100 transition-all duration-300">
                             <button onclick="showRatingHistory('${safeEmp}', '${safeNameJs}')" class="text-gray-500 hover:bg-blue-50 hover:text-blue-600 w-7 h-7 rounded-md flex items-center justify-center transition-colors" title="ประวัติการให้ดาว"><i class="fa-solid fa-clock-rotate-left text-[13px]"></i></button>
                             <button onclick="showEmpQRCode('${safeEmp}', '${safeNameUrl}')" class="text-gray-500 hover:bg-indigo-50 hover:text-brandindigo w-7 h-7 rounded-md flex items-center justify-center transition-colors" title="QR Code"><i class="fa-solid fa-qrcode text-[13px]"></i></button>
-                            <button onclick="openFormModal('${addTemplate}')" class="text-gray-500 hover:bg-emerald-50 hover:text-emerald-600 w-7 h-7 rounded-md flex items-center justify-center transition-colors" title="ให้ดาว"><i class="fa-solid fa-star text-[13px]"></i></button>
-                            ${stat.latestEncodedRow && role !== 'Staff' ? `<button onclick="openFormModal('${stat.latestEncodedRow}')" class="text-gray-500 hover:bg-indigo-50 hover:text-brandindigo w-7 h-7 rounded-md flex items-center justify-center transition-colors" title="แก้ไขคะแนนล่าสุด"><i class="fa-solid fa-pen-to-square text-[13px]"></i></button>` : ''}
-                            ${stat.latestRowId && role !== 'Staff' ? `<button onclick="deleteRecord('${safeRowId}')" class="text-gray-500 hover:bg-red-50 hover:text-red-600 w-7 h-7 rounded-md flex items-center justify-center transition-colors" title="ลบ"><i class="fa-solid fa-trash text-[13px]"></i></button>` : ''}
+                            
+                            <button onclick="addRatingForEmpId('${safeEmp}', '${safeNameJs}', event)" class="text-gray-500 hover:bg-emerald-50 hover:text-emerald-600 w-7 h-7 rounded-md flex items-center justify-center transition-colors" title="ให้ดาว"><i class="fa-solid fa-star text-[13px]"></i></button>
+                            
+                            ${stat.latestRowId && role !== 'Staff' ? `<button onclick="editRatingByRowId('${safeRowId}', event)" class="text-gray-500 hover:bg-indigo-50 hover:text-brandindigo w-7 h-7 rounded-md flex items-center justify-center transition-colors" title="แก้ไขคะแนนล่าสุด"><i class="fa-solid fa-pen-to-square text-[13px]"></i></button>` : ''}
+                            
+                            ${stat.latestRowId && role !== 'Staff' ? `<button onclick="event.stopPropagation(); deleteRecord('${safeRowId}')" class="text-gray-500 hover:bg-red-50 hover:text-red-600 w-7 h-7 rounded-md flex items-center justify-center transition-colors" title="ลบ"><i class="fa-solid fa-trash text-[13px]"></i></button>` : ''}
                         </div>
+
                         <div class="h-[100px] w-full bg-gradient-to-r from-brandindigo to-brandpurple"></div>
                         <div class="relative -mt-[50px] flex justify-center z-10">
                             <div class="w-[100px] h-[100px] rounded-full border-4 border-white overflow-hidden bg-gray-50 shadow-md">
@@ -6632,7 +6622,7 @@ else if (currentSheet === 'Announcements') {
             _startQRCamera();
         }
 
-                async function _startQRCamera() {
+        async function _startQRCamera() {
             const video = document.getElementById('qr-scanner-video');
             const statusText = document.getElementById('qr-scan-status-text');
             if (!video) return;
@@ -6660,7 +6650,7 @@ else if (currentSheet === 'Announcements') {
                         await video.play();
                         if (statusText) statusText.textContent = 'เล็งกล้องไปที่ QR Code ของพนักงาน';
                         _qrScannerAnimFrame = requestAnimationFrame(_tickQRScan);
-                    } catch(err) {
+                    } catch (err) {
                         if (statusText) statusText.textContent = 'แตะที่หน้าจอเพื่อเริ่มกล้อง';
                         video.onclick = async () => {
                             await video.play();
@@ -6671,11 +6661,11 @@ else if (currentSheet === 'Announcements') {
                 };
             } catch (err) {
                 console.warn('QR Camera error:', err); alert('Camera Error: ' + (err.message || err.name || err));
-                
+
                 if (statusText) {
                     statusText.innerHTML = '<i class="fa-solid fa-upload mr-2"></i>แตะเพื่ออัปโหลดรูป QR Code';
                     statusText.parentElement.classList.add('cursor-pointer', 'hover:bg-black/80', 'transition-colors');
-                    
+
                     let fileInput = document.getElementById('qr-fallback-upload');
                     if (!fileInput) {
                         fileInput = document.createElement('input');
@@ -6683,14 +6673,14 @@ else if (currentSheet === 'Announcements') {
                         fileInput.id = 'qr-fallback-upload';
                         fileInput.accept = 'image/*';
                         fileInput.className = 'hidden';
-                        
-                        fileInput.onchange = function(e) {
+
+                        fileInput.onchange = function (e) {
                             const file = e.target.files[0];
                             if (!file) return;
                             const reader = new FileReader();
-                            reader.onload = function(event) {
+                            reader.onload = function (event) {
                                 const img = new Image();
-                                img.onload = function() {
+                                img.onload = function () {
                                     const canvas = document.getElementById('qr-scanner-canvas');
                                     if (!canvas) return;
                                     canvas.width = img.width;
@@ -6715,10 +6705,10 @@ else if (currentSheet === 'Announcements') {
                     }
                     statusText.parentElement.onclick = () => fileInput.click();
                 }
-                
+
                 const dot = document.querySelector('#qr-scan-status .w-2');
                 if (dot) { dot.classList.remove('bg-emerald-400'); dot.classList.add('bg-amber-400'); }
-                
+
                 video.style.display = 'none';
                 const container = video.parentElement;
                 let fallbackUI = document.getElementById('qr-fallback-ui');
@@ -6880,7 +6870,7 @@ else if (currentSheet === 'Announcements') {
         // ==========================================
         function showTrainingDetail(encodedRow) {
             const row = JSON.parse(decodeURIComponent(encodedRow));
-            
+
             let topic = getFuzzyValue(row, ['course', 'หลักสูตร', 'subject', 'หัวข้อ', 'name', 'ชื่อ', 'detail', 'รายละเอียด'], 1) || '-';
             let photoUrl = getFuzzyValue(row, ['photo', 'รูป', 'pic', 'image', 'รูปภาพ']);
             let dateDetail = getFuzzyValue(row, ['date', 'วันที่', 'เวลา'], 2) || '-';
@@ -6942,13 +6932,13 @@ else if (currentSheet === 'Announcements') {
             modal.classList.add('opacity-0'); modalBox.classList.remove('scale-100'); modalBox.classList.add('scale-95');
             setTimeout(() => { modal.classList.add('hidden'); }, 300);
         }
-         // 📚 ฟังก์ชันสำหรับหน้าต่าง Popup การฝึกอบรม (Training)
-         // ==========================================
+        // 📚 ฟังก์ชันสำหรับหน้าต่าง Popup การฝึกอบรม (Training)
+        // ==========================================
         // 💻 ฟังก์ชันสำหรับหน้าต่าง Popup ทรัพย์สิน (Assets)
         // ==========================================
         function showAssetDetail(encodedRow) {
             const row = JSON.parse(decodeURIComponent(encodedRow));
-            
+
             let name = getFuzzyValue(row, ['asset', 'ทรัพย์สิน', 'name', 'ชื่อ'], 1) || '-';
             let photoUrl = getFuzzyValue(row, ['photo', 'รูป', 'pic', 'image', 'รูปภาพ']);
             let dateDetail = getFuzzyValue(row, ['date', 'วันที่', 'เวลา', 'issue', 'ວັນເລີ່ມໃຊ້ງານ'], 2) || '-';
@@ -6996,11 +6986,11 @@ else if (currentSheet === 'Announcements') {
             setTimeout(() => { modal.classList.add('hidden'); }, 300);
         }
 
-       // 📢 ฟังก์ชันสำหรับหน้าต่าง Popup ประกาศ (Announcements)
+        // 📢 ฟังก์ชันสำหรับหน้าต่าง Popup ประกาศ (Announcements)
         // ==========================================
         function showAnnouncementDetail(encodedRow) {
             const row = JSON.parse(decodeURIComponent(encodedRow));
-            
+
             let topic = getFuzzyValue(row, ['topic', 'หัวข้อ', 'เรื่อง', 'รายละเอียด', 'detail']) || '-';
             if (topic === '-') topic = 'Announcement'; // กันกรณีว่างเปล่า
             let type = getFuzzyValue(row, ['type', 'ประเภท']) || 'General';
@@ -7031,10 +7021,10 @@ else if (currentSheet === 'Announcements') {
 
             const imgEl = document.getElementById('announce-modal-img');
             const imgContainer = document.getElementById('announce-modal-img-container');
-            
+
             // ใส่รูปภาพ พร้อมระบบดักจับ Error ถ้าโหลดรูปไม่ขึ้นให้เปลี่ยนเป็นรูปสีฟ้า
             imgEl.src = photoUrl;
-            imgEl.onerror = function() {
+            imgEl.onerror = function () {
                 this.onerror = null;
                 this.src = fallbackImg;
             };
@@ -7062,7 +7052,7 @@ else if (currentSheet === 'Announcements') {
         function closeAnnouncementModal() {
             const modal = document.getElementById('announcement-modal');
             if (!modal) return;
-            
+
             const modalBox = modal.querySelector('div.bg-white');
 
             modal.classList.add('opacity-0');
@@ -7077,4 +7067,5 @@ else if (currentSheet === 'Announcements') {
         }
     </script>
 </body>
+
 </html>
