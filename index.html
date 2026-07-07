@@ -250,8 +250,8 @@
 
         function getKeyForTable(table) {
             return {
-                staff: 'Employee_ID',
-                users: 'Employee_ID',
+                staff: '"Employee_ID"',
+                users: '"Employee_ID"',
                 fingerprint_logs: 'Log_ID',
                 announcements: 'announcement_id',
                 leave_applications: 'leave_id',
@@ -1962,8 +1962,8 @@
         }
 
         const BRANCHES = [
-            { id: 'B1', name: 'HQ Branch (Main)', lat: 17.9604167, lng: 102.6424722, radius: 15 },
-            { id: 'B2', name: 'Branch 2', lat: 17.96075, lng: 102.6438056, radius: 50 }
+            { id: 'B1', name: 'HQ Branch (Main)', lat: 17.9604167, lng: 102.6424722, radius: 20 },
+            { id: 'B2', name: 'Branch 2', lat: 17.96075, lng: 102.6438056, radius: 150 }
         ];
 
         function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -4982,52 +4982,123 @@
         // 🛠️ 1. อัปเดตฟังก์ชันสร้างฟอร์มให้แข็งแรงขึ้น (รองรับกรณีฟอร์มเปล่า 100%)
         function renderEmployeeRatingForm(rowData = {}) {
             try {
-                currentHeaders = getEmployeeRatingHeaders();
+                // ดึงค่าอย่างปลอดภัย ป้องกัน Error พังหน้าจอ
+                const safeGet = (names) => {
+                    for (const name of names) {
+                        const found = Object.keys(rowData || {}).find(k => String(k).toLowerCase().trim() === String(name).toLowerCase().trim());
+                        if (found && rowData[found] !== undefined && rowData[found] !== null) return rowData[found];
+                    }
+                    return '';
+                };
+
+                const ratingId = safeGet(['Ranting_Id', 'rating_id']) || '';
+                const empId = safeGet(['Employees Id', 'employee_id', 'emp_id']) || '';
+                const empName = safeGet(['Employees Name', 'employee_name', 'first_name', 'name']) || '';
+                const ratingDate = safeGet(['Ranting Date', 'rating_date', 'date']) || new Date().toISOString().slice(0, 10);
+                const starPoint = parseInt(safeGet(['Star Point', 'star_point', 'rating', 'score'])) || 0;
+                const category = safeGet(['Category ', 'category']) || '';
+                const comment = safeGet(['Comment', 'comment', 'remark']) || '';
+                const giveBy = safeGet(['Give By', 'give_by']) || '';
+                const status = safeGet(['Status', 'status']) || 'Active';
+
+                const allCats = ['ตรงต่อเวลา', 'ทำยอดขายได้ดี', 'ช่วยเหลือเพื่อนร่วมงาน', 'บริการลูกค้าดี', 'ทำงานเป็นทีม', 'แก้ปัญหาได้ดี', 'ทำงานเกินเป้าหมาย', 'สร้างไอเดียใหม่', 'ไม่ขาดงาน', 'พนักงานดีเด่นประจำเดือน'];
+                const categoryOptions = allCats.map(c => `<option value="${c}" ${String(category) === c ? 'selected' : ''}>${c}</option>`).join('');
+
                 const formFields = document.getElementById('form-fields');
 
-                // ดึงค่าอย่างปลอดภัย ป้องกัน Error
-                const ratingId = getRatingFormValue(rowData, ['Ranting_Id', 'rating_id']) || '';
-                const empId = getRatingFormValue(rowData, ['Employees Id', 'employee_id', 'emp_id']) || '';
-                const empName = getRatingFormValue(rowData, ['Employees Name', 'employee_name', 'first_name', 'name']) || '';
-                const ratingDate = getRatingFormValue(rowData, ['Ranting Date', 'rating_date', 'date']) || new Date().toISOString().slice(0, 10);
-                const starPoint = parseInt(getRatingFormValue(rowData, ['Star Point', 'star_point', 'rating', 'score'])) || 0;
-                const category = getRatingFormValue(rowData, ['Category ', 'category']) || '';
-                const comment = getRatingFormValue(rowData, ['Comment', 'comment', 'remark']) || '';
-                const giveBy = getRatingFormValue(rowData, ['Give By', 'give_by']) || '';
-                const status = getRatingFormValue(rowData, ['Status', 'status']) || 'Active';
-
-                const categoryOptions = getRatingCategories().map(c => `<option value="${c}" ${String(category) === c ? 'selected' : ''}>${c}</option>`).join('');
-
+                // สร้างโครงสร้างฟอร์ม HTML
                 formFields.innerHTML = `
                     <input type="hidden" name="Ranting_Id" value="${String(ratingId).replace(/"/g, '&quot;')}">
                     <input type="hidden" name="Status" value="${String(status).replace(/"/g, '&quot;')}">
                     
                     <div class="col-span-1 sm:col-span-2 bg-indigo-50/60 p-5 rounded-2xl border border-indigo-100 mb-2">
-                        <p class="text-xs font-bold text-gray-500 mb-4 flex items-center tracking-widest uppercase"><i class="fa-solid fa-chart-pie mr-2 text-brandindigo"></i> LEAVE QUOTA BALANCE:<span id="leave-quota-display" class="ml-auto bg-white px-3 py-1 rounded-lg border border-gray-200 text-gray-900 shadow-sm">-</span></p>
-                        <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">EMPLOYEES ID <span class="text-brandindigo">*</span></label>
-                        <select id="rating-employee-select" name="Employees Id" required onchange="onRatingEmployeeSelected(this.value)" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                        <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">รหัสพนักงาน (EMPLOYEES ID) <span class="text-brandindigo">*</span></label>
+                        <select id="rating-employee-select" name="Employees Id" required onchange="if(typeof onRatingEmployeeSelected === 'function') onRatingEmployeeSelected(this.value)" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
                             <option value="${String(empId).replace(/"/g, '&quot;')}" selected>${empId ? empId : 'Loading staff...'}</option>
                         </select>
                     </div>
                     
-                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">EMPLOYEES NAME <span class="text-brandindigo">*</span></label><input id="rating-employee-name" type="text" name="Employees Name" value="${String(empName).replace(/"/g, '&quot;')}" required readonly placeholder="Enter Employees Name..." class="bg-gray-50 border border-gray-300 text-gray-600 text-sm rounded-xl block w-full p-3 shadow-sm"></div>
+                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">ชื่อพนักงาน (NAME) <span class="text-brandindigo">*</span></label><input id="rating-employee-name" type="text" name="Employees Name" value="${String(empName).replace(/"/g, '&quot;')}" required readonly class="bg-gray-50 border border-gray-300 text-gray-600 text-sm rounded-xl block w-full p-3 shadow-sm cursor-not-allowed"></div>
                     
-                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">RANTING DATE <span class="text-brandindigo">*</span></label><input type="date" name="Ranting Date" value="${String(ratingDate).slice(0, 10)}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"></div>
+                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">วันที่ประเมิน (DATE) <span class="text-brandindigo">*</span></label><input type="date" name="Ranting Date" value="${String(ratingDate).slice(0, 10)}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"></div>
                     
-                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">STAR POINT <span class="text-brandindigo">*</span></label><div class="flex flex-col items-center justify-center bg-gray-50 p-4 rounded-xl border border-gray-200 min-h-[88px]"><div class="flex">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= starPoint ? 'fa-solid fa-star text-yellow-400' : 'fa-regular fa-star text-gray-300'} text-3xl cursor-pointer hover:scale-110 transition-transform mx-1" onclick="setFormStarRating(${i})" id="form-star-${i}"></i>`).join('')}</div><p id="form-star-text" class="mt-2 text-sm font-bold text-brandindigo">${starPoint > 0 ? starPoint + ' / 5' : 'คลิกเพื่อให้คะแนน'}</p></div><input type="hidden" name="Star Point" id="hidden-star-input" value="${starPoint || ''}" required></div>
+                    <div class="col-span-1 sm:col-span-2"><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">คะแนนดาว (STAR POINT) <span class="text-brandindigo">*</span></label><div class="flex flex-col items-center justify-center bg-gray-50 p-4 rounded-xl border border-gray-200 min-h-[88px]"><div class="flex">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= starPoint ? 'fa-solid fa-star text-yellow-400' : 'fa-regular fa-star text-gray-300'} text-4xl cursor-pointer hover:scale-110 transition-transform mx-1" onclick="if(typeof setFormStarRating === 'function') setFormStarRating(${i})" id="form-star-${i}"></i>`).join('')}</div><p id="form-star-text" class="mt-2 text-sm font-bold text-brandindigo">${starPoint > 0 ? starPoint + ' / 5' : 'คลิกเพื่อให้คะแนน'}</p></div><input type="hidden" name="Star Point" id="hidden-star-input" value="${starPoint || ''}" required></div>
                     
-                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">CATEGORY <span class="text-brandindigo">*</span></label><select name="Category " required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"><option value="" disabled ${!category ? 'selected' : ''}>Enter Category ...</option>${categoryOptions}</select></div>
+                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">หมวดหมู่ (CATEGORY) <span class="text-brandindigo">*</span></label><select name="Category " required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"><option value="" disabled ${!category ? 'selected' : ''}>เลือกหมวดหมู่...</option>${categoryOptions}</select></div>
                     
-                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">COMMENT <span class="text-brandindigo">*</span></label><input type="text" name="Comment" value="${String(comment).replace(/"/g, '&quot;')}" required placeholder="Enter Comment..." class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"></div>
+                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">ข้อเสนอแนะ (COMMENT) <span class="text-brandindigo">*</span></label><input type="text" name="Comment" value="${String(comment).replace(/"/g, '&quot;')}" required placeholder="คำชมเชย / ข้อเสนอแนะ..." class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"></div>
                     
-                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">GIVE BY <span class="text-brandindigo">*</span></label><select id="rating-give-by-select" name="Give By" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"><option value="${String(giveBy).replace(/"/g, '&quot;')}" selected>${giveBy ? giveBy : 'Loading evaluators...'}</option></select></div>
+                    <div class="col-span-1 sm:col-span-2"><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">ผู้ประเมิน (GIVE BY) <span class="text-brandindigo">*</span></label><select id="rating-give-by-select" name="Give By" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"><option value="${String(giveBy).replace(/"/g, '&quot;')}" selected>${giveBy ? giveBy : 'Loading evaluators...'}</option></select></div>
                 `;
 
-                loadRatingStaffOptions(empId, giveBy);
+                // โหลดตัวเลือกพนักงานและผู้บริหารใส่ Dropdown ให้สมบูรณ์
+                if (typeof loadRatingStaffOptions === 'function') {
+                    loadRatingStaffOptions(empId, giveBy);
+                }
             } catch (err) {
                 console.error("Error generating form:", err);
-                document.getElementById('form-fields').innerHTML = `<div class="col-span-full text-center text-red-500 font-bold p-4">เกิดข้อผิดพลาดในการสร้างฟอร์ม กรุณารีเฟรชหน้าเว็บ</div>`;
+                // แสดงสาเหตุของ Error ให้ชัดเจนขึ้น
+                document.getElementById('form-fields').innerHTML = `<div class="col-span-full text-center p-4"><p class="text-red-500 font-bold mb-2">เกิดข้อผิดพลาดในการสร้างฟอร์ม</p><p class="text-xs text-gray-500">Error: ${err.message}</p></div>`;
             }
+        }
+        // ==========================================
+        // 🛠️ ฟังก์ชันตัวช่วยสำหรับฟอร์ม Rating (โหลดตัวเลือกพนักงาน และผู้ประเมิน)
+        // ==========================================
+        function loadRatingStaffOptions(selectedEmpId, selectedGiveBy) {
+            const staffCache = tableCache['staff'] || tableCache['Staff'];
+            if (staffCache && staffCache.data && staffCache.data.length > 0) {
+                populateRatingDropdowns(staffCache.data, selectedEmpId, selectedGiveBy);
+            } else {
+                google.script.run.withSuccessHandler(res => {
+                    if (res && res.success && res.data) {
+                        tableCache['staff'] = { headers: res.headers || [], data: res.data };
+                        populateRatingDropdowns(res.data, selectedEmpId, selectedGiveBy);
+                    }
+                }).getSheetData('staff');
+            }
+        }
+
+        function populateRatingDropdowns(staffData, selectedEmpId, selectedGiveBy) {
+            const empSelect = document.getElementById('rating-employee-select');
+            const giveBySelect = document.getElementById('rating-give-by-select');
+
+            let empOptions = `<option value="" disabled ${!selectedEmpId ? 'selected' : ''}>เลือกพนักงาน...</option>`;
+            let giveByOptions = `<option value="" disabled ${!selectedGiveBy ? 'selected' : ''}>เลือกผู้ประเมิน...</option>`;
+
+            let foundGiveBy = false;
+
+            staffData.forEach(row => {
+                // ตัวเลือก Employees ID
+                let eId = String(getFuzzyValue(row, ['employee_id', 'emp_id'])).toUpperCase().trim();
+                let name = getFuzzyValue(row, ['first_name', 'name', 'full_name', 'ชื่อ']);
+                let lastName = getFuzzyValue(row, ['last_name', 'นามสกุล']);
+                let fullName = name !== '-' ? (lastName !== '-' ? name + ' ' + lastName : name) : 'Unknown';
+
+                if (eId && eId !== '-') {
+                    empOptions += `<option value="${eId}" ${eId === selectedEmpId ? 'selected' : ''}>${eId} - ${fullName}</option>`;
+                }
+
+                // ตัวเลือก Give By (คัดเฉพาะผู้ประเมิน/หัวหน้า)
+                let posKey = Object.keys(row).find(k => ['position', 'position_id', 'ตำแหน่ง'].includes(k.toLowerCase().trim()));
+                let pos = posKey ? String(row[posKey]).toLowerCase() : '';
+
+                if (pos.includes('ceo') || pos.includes('coo') || pos.includes('manager') || pos.includes('head') || pos.includes('ผู้บริหาร') || pos.includes('admin') || pos.includes('pos-')) {
+                    let displayPos = row[posKey];
+                    giveByOptions += `<option value="${fullName}" ${fullName === selectedGiveBy ? 'selected' : ''}>${fullName} (${displayPos})</option>`;
+                    foundGiveBy = true;
+                }
+            });
+
+            if (!foundGiveBy) giveByOptions += `<option value="" disabled>ไม่พบรายชื่อผู้ประเมินในระบบ</option>`;
+
+            if (empSelect) empSelect.innerHTML = empOptions;
+            if (giveBySelect) giveBySelect.innerHTML = giveByOptions;
+
+            if (selectedEmpId) autoFillEmployeeData(selectedEmpId);
+        }
+
+        function onRatingEmployeeSelected(empId) {
+            if (empId) autoFillEmployeeData(empId);
         }
 
         // 🛠️ 2. อัปเดตฟังก์ชันเปิดหน้าต่าง ให้ป้องกัน Error ล่องหน
@@ -5047,14 +5118,24 @@
                 } catch (e) { }
             }
 
-            // 🌟 เช็คว่าข้อมูลที่ส่งมาเป็นข้อความจริงๆ ป้องกันบั๊กปุ่มกดส่งค่าเพี้ยน
+            // 🌟 ระบบตรวจสอบสถานะฟอร์ม (Add หรือ Edit)
             if (rowDataStr && typeof rowDataStr === 'string') {
                 try {
                     rowData = JSON.parse(decodeURIComponent(rowDataStr));
                     editingRecordId = getRecordId(rowData);
-                    document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-pen-to-square text-brandindigo mr-3"></i> Edit Record`;
+
+                    // 👉 เช็คว่าเป็นข้อมูลใหม่จากการแสกน QR หรือไม่ (ดูจาก Ranting_Id ที่เราจงใจตั้งให้เป็นค่าว่าง)
+                    let isNewFromQR = rowData['Ranting_Id'] === '' || rowData['rating_id'] === '';
+
+                    // ถ้ามี ID จริงๆ และไม่ใช่ข้อมูลจาก QR ให้เปิดโหมดแก้ไข
+                    if (editingRecordId && !isNewFromQR && String(editingRecordId).trim() !== '' && !String(editingRecordId).startsWith('NEW-')) {
+                        document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-pen-to-square text-brandindigo mr-3"></i> Edit Record`;
+                    } else {
+                        document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-plus text-brandindigo mr-3"></i> Add Record`;
+                        editingRecordId = null; // บังคับให้เป็นโหมด Add Record
+                    }
                 } catch (err) {
-                    rowData = {}; // ถ้ารหัสพัง ให้สลับเป็นฟอร์มเพิ่มข้อมูลเปล่าๆ
+                    rowData = {};
                     document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-plus text-brandindigo mr-3"></i> Add Record`;
                 }
             } else {
@@ -5064,7 +5145,6 @@
             const formFields = document.getElementById('form-fields');
             formFields.innerHTML = '';
             currentHeaders = ensureHeadersForSheet(currentSheet, currentHeaders);
-
             // วาดฟอร์มให้ดาวพนักงาน
             if (isEmployeeRatingSheet(currentSheet)) {
                 renderEmployeeRatingForm(rowData);
@@ -6765,73 +6845,58 @@
         function submitQRResult(empId) {
             if (!empId) { showToast('กรุณาระบุรหัสพนักงาน', 'error'); return; }
 
-            // ค้นหาพนักงานจาก cache
-            let staffSheetKey = Object.keys(tableCache).find(k =>
-                (k.toLowerCase().includes('staff') || k.toLowerCase() === 'staff') &&
-                !k.toLowerCase().includes('rating') && !k.toLowerCase().includes('ranting')
-            );
+            // หาชีทพนักงาน
+            let staffSheetKey = Object.keys(tableCache).find(k => (k.toLowerCase().includes('staff') || k.toLowerCase() === 'staff') && !k.toLowerCase().includes('rating') && !k.toLowerCase().includes('ranting'));
             if (!staffSheetKey && tableCache['staff']) staffSheetKey = 'staff';
             if (!staffSheetKey && tableCache['Staff']) staffSheetKey = 'Staff';
 
             const staffData = staffSheetKey && tableCache[staffSheetKey] ? tableCache[staffSheetKey].data : [];
-            const empRow = staffData.find(r =>
-                String(getFuzzyValue(r, ['employee_id', 'emp_id'])).toUpperCase().trim() === empId
-            );
+            const empRow = staffData.find(r => String(getFuzzyValue(r, ['employee_id', 'emp_id'])).toUpperCase().trim() === empId);
 
-            closeQRScanner();
+            if (typeof closeQRScanner === 'function') closeQRScanner();
 
             if (!empRow) {
                 showToast(`ไม่พบพนักงานรหัส "${empId}" ในระบบ`, 'error');
                 return;
             }
 
-            // สร้างข้อมูลสำหรับเปิดฟอร์มให้ดาว (เหมือนกดปุ่ม + บนการ์ด)
-            // ดึงข้อมูลพื้นฐานของพนักงานมาใส่ล่วงหน้าในฟอร์ม
             let ratingTemplate = {};
-            if (tableCache[currentSheet] && tableCache[currentSheet].data.length > 0) {
-                // หาแถวล่าสุดของพนักงานคนนี้ใน Rating sheet
-                let existingRows = tableCache[currentSheet].data.filter(r =>
-                    String(getFuzzyValue(r, ['employees id', 'emp_id', 'employee_id'])).toUpperCase().trim() === empId
-                );
+            let ratingData = tableCache['Employees Ranting ']?.data || tableCache['Employees Rating']?.data || tableCache['employees_rating']?.data || [];
+            let existingRows = ratingData.filter(r => String(getFuzzyValue(r, ['employees id', 'emp_id', 'employee_id'])).toUpperCase().trim() === empId);
 
-                // ใช้แถวล่าสุดเป็น template หรือสร้างใหม่จาก header
-                if (existingRows.length > 0) {
-                    ratingTemplate = Object.assign({}, existingRows[existingRows.length - 1]);
-                } else {
-                    currentHeaders.forEach(h => ratingTemplate[h] = '');
-                }
+            if (existingRows.length > 0) {
+                ratingTemplate = Object.assign({}, existingRows[existingRows.length - 1]);
 
-                // เคลียร์ฟิลด์ที่ต้องกรอกใหม่
-                const keysToClear = ['ranting_id', 'ranting id', 'rating_id', 'rating id', 'star point', 'star_point',
-                    'ดาว', 'rating', 'score', 'category', 'หมวดหมู่', 'comment', 'review',
-                    'ความคิดเห็น', 'ข้อเสนอแนะ', 'remark', 'date', 'วันที่', 'เดือน', 'ranting date', 'give by', 'give_by'];
-                Object.keys(ratingTemplate).forEach(k => {
-                    if (keysToClear.includes(k.toLowerCase().trim())) ratingTemplate[k] = '';
-                    if (k.toLowerCase().includes('id') && (k.toLowerCase().includes('ranting') || k.toLowerCase().includes('rating'))) ratingTemplate[k] = '';
-                });
-
-                // ใส่ข้อมูลพนักงานที่สแกนได้ล่วงหน้า
-                Object.keys(ratingTemplate).forEach(k => {
-                    const lk = k.toLowerCase().trim();
-                    if (lk === 'employees id' || lk === 'emp_id' || lk === 'employee_id') ratingTemplate[k] = empId;
-                    const nameVal = getFuzzyValue(empRow, ['first_name', 'name', 'full_name', 'ชื่อ']);
-                    if (lk === 'employees name' || lk === 'name' || lk === 'ชื่อ' || lk === 'full_name') ratingTemplate[k] = nameVal !== '-' ? nameVal : '';
-                    const posVal = getFuzzyValue(empRow, ['position', 'ตำแหน่ง', 'position_id']);
-                    if (lk === 'position' || lk === 'ตำแหน่ง' || lk === 'position_id') ratingTemplate[k] = posVal !== '-' ? posVal : '';
-                });
+                // 🛑 ลบ ID ทิ้งอย่างเด็ดขาด! เพื่อให้ระบบรู้ว่านี่คือการเพิ่มใหม่ (Add Record) ไม่ใช่การแก้ของเดิม
+                delete ratingTemplate.__db_id;
+                delete ratingTemplate.id;
             } else {
-                currentHeaders.forEach(h => {
-                    ratingTemplate[h] = '';
-                    const lk = h.toLowerCase().trim();
-                    if (lk === 'employees id' || lk === 'emp_id' || lk === 'employee_id') ratingTemplate[h] = empId;
-                    const nameVal = getFuzzyValue(empRow, ['first_name', 'name', 'full_name', 'ชื่อ']);
-                    if (lk === 'employees name' || lk === 'name' || lk === 'ชื่อ') ratingTemplate[h] = nameVal !== '-' ? nameVal : '';
-                });
+                let headers = tableCache['Employees Ranting ']?.headers || ['Ranting_Id', 'Employees Id', 'Employees Name', 'Ranting Date', 'Star Point', 'Category ', 'Comment', 'Give By', 'Status'];
+                headers.forEach(h => ratingTemplate[h] = '');
             }
 
+            // ล้างข้อมูลเก่าที่ต้องกรอกใหม่
+            const keysToClear = ['ranting_id', 'ranting id', 'rating_id', 'rating id', 'star point', 'star_point', 'ดาว', 'rating', 'score', 'category', 'หมวดหมู่', 'comment', 'review', 'ความคิดเห็น', 'ข้อเสนอแนะ', 'remark', 'date', 'วันที่', 'เดือน', 'ranting date', 'give by', 'give_by'];
+            Object.keys(ratingTemplate).forEach(k => {
+                if (keysToClear.includes(k.toLowerCase().trim())) ratingTemplate[k] = '';
+                if (k.toLowerCase().includes('id') && (k.toLowerCase().includes('ranting') || k.toLowerCase().includes('rating'))) ratingTemplate[k] = '';
+            });
+
+            // ใส่ชื่อและรหัสให้ตรงกับคนที่สแกน
+            Object.keys(ratingTemplate).forEach(k => {
+                const lk = k.toLowerCase().trim();
+                if (lk === 'employees id' || lk === 'emp_id' || lk === 'employee_id') ratingTemplate[k] = empId;
+                const nameVal = getFuzzyValue(empRow, ['first_name', 'name', 'full_name', 'ชื่อ']);
+                if (lk === 'employees name' || lk === 'name' || lk === 'ชื่อ' || lk === 'full_name') ratingTemplate[k] = nameVal !== '-' ? nameVal : '';
+            });
+
+            // ส่งข้อมูลไปเปิดฟอร์ม
             const encodedTemplate = encodeURIComponent(JSON.stringify(ratingTemplate));
             showToast(`✅ พบพนักงาน ${empId} — กรุณาประเมิน`, 'success');
-            setTimeout(() => openFormModal(encodedTemplate), 300);
+
+            setTimeout(() => {
+                if (typeof openFormModal === 'function') openFormModal(encodedTemplate);
+            }, 300);
         }
 
         function closeQRScanner() {
