@@ -4244,7 +4244,7 @@
 
             // 📌 เริ่มบล็อกที่แก้ใหม่: เพิ่ม Employee Rating ให้แสดงเป็นการ์ดพร้อมระบบดาว
             // 📌 เริ่มบล็อกการ์ดแสดงผล (Training / Asset / Employee Rating)
-            if (currentSheet === 'Training' || currentSheet === 'Asset_Tracking' || currentSheet === 'Announcements' || currentSheet.includes('Ranting') || currentSheet.includes('Rating')) {
+            if (currentSheet === 'Training' || currentSheet === 'Asset_Tracking' || currentSheet === 'Announcements' || currentSheet.includes('Ranting') || currentSheet.includes('Rating') || currentSheet.trim() === 'Policy') {
                 tableWrapper.classList.add('hidden');
                 cardWrapper.classList.remove('hidden');
                 cardWrapper.innerHTML = '';
@@ -4608,6 +4608,60 @@
                         cardsHtml += cardArr.join('');
                     });
                 }
+                // 👇👇 นำโค้ด Policy มาวางแทรกตรงนี้ (ก่อนหน้า Employee Rating) 👇👇
+
+                // 👉 โหมดหน้าการ์ด Policy (นโยบาย)
+                else if (currentSheet.trim() === 'Policy') {
+                    data.forEach(row => {
+                        const isEmpty = currentHeaders.every(h => !row[h] || String(row[h]).trim() === '');
+                        if (isEmpty) return;
+
+                        const rowId = getRecordId(row);
+                        const encodedRow = encodeURIComponent(JSON.stringify(row)).replace(/'/g, "%27");
+
+                        let topic = getFuzzyValue(row, ['head_name', 'หัวข้อ', 'ชื่อ']) || 'เอกสารนโยบาย / Policy';
+                        let fileUrl = getFuzzyValue(row, ['link', 'url', 'ไฟล์', 'document']) || '';
+
+                        // ถ้าเป็นลิงก์ Google Drive ให้ดึง Thumbnail
+                        if (fileUrl.includes('drive.google.com/file/d/')) {
+                            let fileId = fileUrl.split('/d/')[1].split('/')[0];
+                            fileUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1000';
+                        }
+
+                        let iconClass = fileUrl.toLowerCase().includes('.pdf') ? 'fa-file-pdf text-red-500' : 'fa-file-lines text-brandindigo';
+                        let cardArr = [];
+
+                        // 🌟 สร้างการ์ด เมื่อคลิกจะเรียกฟังก์ชัน showAttachmentPreview
+                        cardArr.push(`<div onclick="showAttachmentPreview('${fileUrl}', '${String(topic).replace(/"/g, '&quot;')}')" class="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden flex flex-col relative transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-brandindigo cursor-pointer group p-5">`);
+
+                        // 🌟 ปุ่มจัดการสำหรับ Admin
+                        if (role !== 'Staff') {
+                            cardArr.push('<div class="absolute top-4 right-4 flex space-x-2 z-10" onclick="event.stopPropagation()">');
+                            cardArr.push(`<button onclick="openFormModal('${encodedRow}')" class="text-gray-400 hover:text-brandindigo transition-colors bg-white rounded-full p-1.5 shadow-sm border border-gray-100" title="Edit"><i class="fa-regular fa-pen-to-square text-[14px]"></i></button>`);
+                            cardArr.push(`<button onclick="event.stopPropagation(); deleteRecord('${rowId}')" class="text-gray-400 hover:text-red-500 transition-colors bg-white rounded-full p-1.5 shadow-sm border border-gray-100" title="Delete"><i class="fa-regular fa-trash-can text-[14px]"></i></button>`);
+                            cardArr.push('</div>');
+                        }
+
+                        // 🌟 ดีไซน์ด้านในของการ์ด
+                        cardArr.push(`<div class="flex items-start gap-4 mt-2">`);
+                        cardArr.push(`<div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center shrink-0 border border-gray-100 group-hover:bg-indigo-50 group-hover:border-indigo-100 transition-colors">`);
+                        cardArr.push(`<i class="fa-solid ${iconClass} text-3xl"></i>`);
+                        cardArr.push(`</div>`);
+                        cardArr.push(`<div class="flex-1 min-w-0 pr-16">`);
+                        cardArr.push(`<h3 class="text-base font-bold text-gray-800 line-clamp-2 leading-snug group-hover:text-brandindigo transition-colors">${topic}</h3>`);
+                        cardArr.push(`<p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2 group-hover:text-brandindigo transition-colors flex items-center"><i class="fa-solid fa-book-open mr-1.5"></i> Read Policy</p>`);
+                        cardArr.push(`</div>`);
+                        cardArr.push(`</div>`);
+
+                        cardArr.push(`</div>`);
+                        cardsHtml += cardArr.join('');
+                    });
+                }
+
+                // 👆👆 สิ้นสุดโค้ด Policy 👆👆
+
+
+
                 // 👉 2. โหมดหน้าการ์ด Employee Rating
                 else {
                     let empStats = {};
@@ -4822,6 +4876,7 @@
                         cardsHtml += cardArray.join('');
                     });
                 }
+
 
                 cardWrapper.innerHTML = cardsHtml;
                 return;
@@ -5557,7 +5612,7 @@
                     `);
                 }
                 // 👇👇 โค้ดใหม่สำหรับเปลี่ยนช่อง PHOTO เป็นปุ่มอัปโหลดไฟล์ (รูป/PDF) แบบไม่บังคับ 👇👇
-                else if (lw === 'photo' || lw === 'document' || lw === 'ไฟล์แนบ' || lw === 'attachment') {
+                else if (lw === 'photo' || lw === 'document' || lw === 'ไฟล์แนบ' || lw === 'attachment' || (currentSheet.trim() === 'Policy' && lw === 'link')) {
                     formFields.insertAdjacentHTML('beforeend', `
                         <div class="col-span-1 sm:col-span-2">
                             <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-gray-400 font-normal ml-1" style="text-transform: none;">(ไม่บังคับ / Optional)</span></label>
