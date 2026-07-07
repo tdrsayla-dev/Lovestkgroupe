@@ -173,7 +173,7 @@
         };
 
         const SHEET_HEADERS = {
-            staff: ['Employee_ID', 'Prefix', 'First_Name', 'Last_Name', 'Birthday ', 'Tel', 'Email', 'Line', 'Department_ID', 'Position_ID', 'Hire_Date', 'Base_Salary', 'Daily_Rate_Formula', 'Leave_Quota', 'Status', 'Bank_Name', 'Bank_Account_No', 'RanKing', 'Reward Level', 'Photos'],
+            staff: ['Employee_ID', 'Prefix', 'First_Name', 'Last_Name', 'Birthday ', 'Tel', 'Email', 'Line', 'Department_ID', 'Position_ID', 'Hire_Date', 'Base_Salary', 'Daily_Rate_Formula', 'Leave_Quota', 'Status', 'RanKing', 'Reward Level', 'Photos'],
             users: ['Employee_ID', 'User name', 'Password ', 'Role', 'Device ID', 'Permissions'],
             fingerprint_logs: ['Log_ID', 'Employee_ID', 'Full_Name', 'Date', 'Shift_Start', 'Shift_End', 'Check_In', 'Check_Out', 'Attendance_Status', 'Late_Hours', 'Early_Leave_Hours', 'OT_Amount'],
             announcements: ['ID', 'Date', 'Type', 'Topic', 'Photo', 'Status'],
@@ -209,15 +209,20 @@
 
         const COL_MAP = {
             staff: {
-                Employee_ID: 'employee_id', Prefix: 'prefix', First_Name: 'first_name', Last_Name: 'last_name',
-                'Birthday ': 'birthday', Birthday: 'birthday', Tel: 'tel', Email: 'email', Line: 'line',
-                Department_ID: 'department_id', Position_ID: 'position_id', Hire_Date: 'hire_date',
-                Base_Salary: 'base_salary', Daily_Rate_Formula: 'daily_rate_formula', Leave_Quota: 'leave_quota',
-                Status: 'status', Bank_Name: 'bank_name', Bank_Account_No: 'bank_account_no',
-                RanKing: 'ranking', 'Reward Level': 'reward_level', Photos: 'photos'
+
+                Employee_ID: 'Employee_ID', Prefix: 'Prefix', First_Name: 'First_Name', Last_Name: 'Last_Name',
+                'Birthday ': 'Birthday', Birthday: 'Birthday', Tel: 'Tel', Email: 'Email', Line: 'Line',
+                Department_ID: 'Department_ID', Position_ID: 'Position_ID', Hire_Date: 'Hire_Date',
+                Base_Salary: 'Base_Salary', Daily_Rate_Formula: 'Daily_Rate_Formula', Leave_Quota: 'Leave_Quota',
+                Status: 'Status', Bank_Name: 'Bank_Name', Bank_Account_No: 'Bank_Account_No',
+                RanKing: 'RanKing', 'Reward Level': 'Reward Level', Photos: 'Photos'
+
+
+
+
             },
             users: { 'Employee_ID': 'employee_id', 'User name': 'username', 'Password ': 'password_hash', Role: 'role', 'Device ID': 'device_id', Permissions: 'permissions' },
-            fingerprint_logs: { Log_ID: 'Log_ID', Employee_ID: 'Employee_ID', Full_Name: 'Full_Name', Date: 'Date', Shift_Start: 'Shift_Start', Shift_End: 'Shift_End', Check_In: 'Check_In', Check_Out: 'Check_Out', Attendance_Status: 'Attendance_Status', Late_Hours: 'Late_Hours', Early_Leave_Hours: 'Early_Leave_Hours', OT_Amount: 'OT_Amount' },
+            fingerprint_logs: { Log_ID: 'log_id', Employee_ID: 'employee_id', Full_Name: 'full_name', Date: 'date', Shift_Start: 'shift_start', Shift_End: 'shift_end', Check_In: 'check_in', Check_Out: 'check_out', Attendance_Status: 'attendance_status', Late_Hours: 'late_hours', Early_Leave_Hours: 'early_leave_hours', OT_Amount: 'ot_amount' },
             announcements: { ID: 'announcement_id', Date: 'announcement_date', Type: 'type', Topic: 'topic', Photo: 'photo', Status: 'status' },
             departments: { Department_ID: 'department_id', Department_Name: 'department_name', Manager_ID: 'manager_id', 'Employees count': 'employees_count', Status: 'status' },
             leave_applications: { Id_Leave: 'leave_id', Employee_ID: 'employee_id', Prefix: 'prefix', First_Name: 'first_name', Last_Name: 'last_name', Department_ID: 'department_id', Position_ID: 'position_id', Contact: 'contact', 'Object ': 'object', 'Type ': 'leave_type', Start_Date: 'start_date', End_Date: 'end_date', Total_Days: 'total_days', 'Work Handover': 'work_handover', Signature: 'signature', Photo: 'photo' },
@@ -245,10 +250,8 @@
 
         function getKeyForTable(table) {
             return {
-                staff: 'employee_id',
-                // The UI identifies User rows by Employee_ID (see getRecordId),
-                // so updates and deletes must use the same stable key.
-                users: 'employee_id',
+                staff: 'Employee_ID',
+                users: 'Employee_ID',
                 fingerprint_logs: 'Log_ID',
                 announcements: 'announcement_id',
                 leave_applications: 'leave_id',
@@ -426,9 +429,9 @@
                     String(r.Date || r.log_date || r.date || '').slice(0, 10) === today
                 );
                 if (!row) return { success: true, data: { checkIn: '-', checkOut: '-', status: '-' } };
-                const checkIn  = row.Check_In  ?? row.check_in  ?? '-';
+                const checkIn = row.Check_In ?? row.check_in ?? '-';
                 const checkOut = row.Check_Out ?? row.check_out ?? '-';
-                const status   = row.Attendance_Status ?? row.attendance_status ?? row.status ?? '-';
+                const status = row.Attendance_Status ?? row.attendance_status ?? row.status ?? '-';
                 return { success: true, data: { checkIn: checkIn || '-', checkOut: checkOut || '-', status: status || '-' } };
             }
 
@@ -440,7 +443,7 @@
                 const now = new Date();
                 const offset = now.getTimezoneOffset() * 60000;
                 const todayStr = (new Date(now.getTime() - offset)).toISOString().slice(0, 10);
-                const timeStr  = now.toTimeString().slice(0, 5); // "HH:MM"
+                const timeStr = now.toTimeString().slice(0, 5); // "HH:MM"
 
                 // Fetch all fingerprint_logs client-side (avoid URL filter 400 errors)
                 const allLogs = await bridge.getTableData('fingerprint_logs', { select: '*' });
@@ -464,7 +467,7 @@
                     return { success: true, data: res };
                 } else {
                     // INSERT new row using PascalCase column names (matching Supabase schema)
-                    const logId = 'LOG-' + Date.now() + '-' + Math.random().toString(36).slice(2,7).toUpperCase();
+                    const logId = 'LOG-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
 
                     // Get staff full name
                     let fullName = formattedEmpId;
@@ -472,7 +475,7 @@
                         const staffList = await bridge.getTableData('staff', { select: '*' });
                         const s = (staffList || []).find(r => String(r.employee_id || '').trim().toUpperCase() === formattedEmpId);
                         if (s) fullName = `${s.first_name || ''} ${s.last_name || ''}`.trim() || formattedEmpId;
-                    } catch(e) { /* ignore */ }
+                    } catch (e) { /* ignore */ }
 
                     const newRow = {
                         'Log_ID': logId,
@@ -523,7 +526,7 @@
             console.log('Tailwind config skipped:', e.message);
         }
     </script>
-   
+
 </head>
 
 <body class="bg-gray-50 text-gray-800 overflow-hidden selection:bg-brandindigo selection:text-white">
@@ -814,296 +817,287 @@
         </aside>
 
         <!-- 📌 พื้นที่แสดงเนื้อหาหลัก -->
-      <div class="flex-1 flex flex-col h-screen relative w-full min-w-0 transition-all duration-300 bg-gray-50 overflow-hidden">
+        <div
+            class="flex-1 flex flex-col h-screen relative w-full min-w-0 transition-all duration-300 bg-gray-50 overflow-hidden">
 
-    <header
-        class="w-full h-20 bg-white/90 backdrop-blur-lg flex items-center justify-between px-4 md:px-6 lg:px-10 border-b border-gray-200 sticky top-0 z-50 shrink-0">
+            <header
+                class="w-full h-20 bg-white/90 backdrop-blur-lg flex items-center justify-between px-4 md:px-6 lg:px-10 border-b border-gray-200 sticky top-0 z-50 shrink-0">
 
-        <div class="flex items-center flex-1 min-w-0 pr-4">
-            <button onclick="toggleSidebar()"
-                class="mr-4 text-gray-500 hover:text-brandindigo focus:outline-none transition-colors shrink-0">
-                <i class="fa-solid fa-bars-staggered text-xl md:text-2xl"></i>
-            </button>
-            <h2 id="page-title"
-                class="text-xl md:text-2xl font-bold text-gray-900 tracking-tight truncate whitespace-nowrap">
-                Dashboard
-            </h2>
-        </div>
+                <div class="flex items-center flex-1 min-w-0 pr-4">
+                    <button onclick="toggleSidebar()"
+                        class="mr-4 text-gray-500 hover:text-brandindigo focus:outline-none transition-colors shrink-0">
+                        <i class="fa-solid fa-bars-staggered text-xl md:text-2xl"></i>
+                    </button>
+                    <h2 id="page-title"
+                        class="text-xl md:text-2xl font-bold text-gray-900 tracking-tight truncate whitespace-nowrap">
+                        Dashboard
+                    </h2>
+                </div>
 
-        <div class="flex items-center gap-3 md:gap-4 shrink-0">
-            <div class="hidden sm:block text-right">
-                <p id="display-username" class="text-sm font-bold text-gray-800 leading-tight">Loading...</p>
-                <p id="display-role"
-                    class="text-[11px] text-brandindigo font-bold uppercase tracking-wider leading-tight">Role
-                </p>
-            </div>
-            <div
-                class="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 text-gray-600 flex items-center justify-center text-sm font-bold cursor-pointer hover:bg-indigo-50 hover:text-brandindigo transition-colors shrink-0 shadow-sm">
-                <i class="fa-regular fa-user"></i>
-            </div>
-        </div>
-
-    </header>
-            <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-8 lg:p-10 relative z-0">
-
-                <!-- 📌 ส่วนของหน้า Dashboard -->
-                <div id="section-dashboard" class="page-section hidden max-w-7xl mx-auto relative z-10">
-
+                <div class="flex items-center gap-3 md:gap-4 shrink-0">
+                    <div class="hidden sm:block text-right">
+                        <p id="display-username" class="text-sm font-bold text-gray-800 leading-tight">Loading...</p>
+                        <p id="display-role"
+                            class="text-[11px] text-brandindigo font-bold uppercase tracking-wider leading-tight">Role
+                        </p>
+                    </div>
                     <div
-                        class="flex flex-col lg:flex-row justify-end items-center mb-8 gap-4 glass-card p-4 rounded-2xl">
-                        <div class="flex items-center space-x-3 w-full lg:w-auto overflow-x-auto relative">
-                            <label
-                                class="text-xs font-bold text-gray-500 uppercase tracking-widest hidden sm:block">Date
-                                Range</label>
-                            <input type="date" id="dashStartDate" onchange="loadDashboard()"
-                                class="bg-gray-50 border border-gray-200 text-gray-900 font-medium text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 transition-colors cursor-pointer">
-                            <span class="text-gray-400 font-bold">-</span>
-                            <input type="date" id="dashEndDate" onchange="loadDashboard()"
-                                class="bg-gray-50 border border-gray-200 text-gray-900 font-medium text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 transition-colors cursor-pointer">
-                            <button onclick="clearDashboardDateFilter()"
-                                class="bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold transition-colors shadow-sm flex items-center shrink-0 hover:text-brandindigo"
-                                title="Clear Filter">
-                                <i class="fa-solid fa-eraser sm:mr-2"></i> <span class="hidden sm:inline">Clear</span>
-                            </button>
-
-                            <!-- 📌 ตัวโหลดแบบ Inline สำหรับ Dashboard -->
-                            <div id="dash-inline-loader"
-                                class="hidden absolute -top-10 right-0 bg-indigo-50 text-brandindigo px-4 py-1.5 rounded-full text-xs font-bold border border-indigo-100 flex items-center animate-pulse z-10 shadow-sm">
-                                <i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Updating Data...
-                            </div>
-                        </div>
-                    </div>
-
-                    <h3 class="text-xl font-bold text-gray-900 mb-5 tracking-tight">Overview</h3>
-                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6 mb-10">
-                        <div
-                            class="glass-card rounded-2xl p-6 flex flex-col justify-between transition-transform hover:-translate-y-1 hover:border-indigo-200 hover:shadow-lg group">
-                            <div class="flex justify-between items-start mb-4">
-                                <div
-                                    class="w-12 h-12 rounded-2xl bg-indigo-50 text-brandindigo flex items-center justify-center group-hover:scale-110 transition-transform">
-                                    <i class="fa-solid fa-users text-xl"></i>
-                                </div>
-                            </div>
-                            <div>
-                                <h3 class="text-4xl font-bold text-gray-900 mb-1 tracking-tight" id="dash-staff">-</h3>
-                                <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Total Staff</p>
-                            </div>
-                        </div>
-                        <div
-                            class="glass-card rounded-2xl p-6 flex flex-col justify-between transition-transform hover:-translate-y-1 hover:border-purple-200 hover:shadow-lg group">
-                            <div class="flex justify-between items-start mb-4">
-                                <div
-                                    class="w-12 h-12 rounded-2xl bg-purple-50 text-brandpurple flex items-center justify-center group-hover:scale-110 transition-transform">
-                                    <i class="fa-solid fa-calendar-minus text-xl"></i>
-                                </div>
-                            </div>
-                            <div>
-                                <h3 class="text-4xl font-bold text-gray-900 mb-1 tracking-tight" id="dash-leaves">-</h3>
-                                <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Leaves</p>
-                            </div>
-                        </div>
-                        <div
-                            class="glass-card rounded-2xl p-6 flex flex-col justify-between transition-transform hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg group">
-                            <div class="flex justify-between items-start mb-4">
-                                <div
-                                    class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                    <i class="fa-solid fa-fingerprint text-xl"></i>
-                                </div>
-                            </div>
-                            <div>
-                                <h3 class="text-4xl font-bold text-gray-900 mb-1 tracking-tight" id="dash-logs">-</h3>
-                                <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Logs</p>
-                            </div>
-                        </div>
-                        <div
-                            class="glass-card rounded-2xl p-6 flex flex-col justify-between transition-transform hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg group">
-                            <div class="flex justify-between items-start mb-4">
-                                <div
-                                    class="w-12 h-12 rounded-2xl bg-blue-50 text-brandblue flex items-center justify-center group-hover:scale-110 transition-transform">
-                                    <i class="fa-solid fa-laptop text-xl"></i>
-                                </div>
-                            </div>
-                            <div>
-                                <h3 class="text-4xl font-bold text-gray-900 mb-1 tracking-tight" id="dash-assets">-</h3>
-                                <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Assets</p>
-                            </div>
-                        </div>
-                        <div
-                            class="glass-card rounded-2xl p-6 flex flex-col justify-between transition-transform hover:-translate-y-1 hover:border-teal-200 hover:shadow-lg group">
-                            <div class="flex justify-between items-start mb-4">
-                                <div
-                                    class="w-12 h-12 rounded-2xl bg-teal-50 text-teal-500 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                    <i class="fa-solid fa-chalkboard-user text-xl"></i>
-                                </div>
-                            </div>
-                            <div>
-                                <h3 class="text-4xl font-bold text-gray-900 mb-1 tracking-tight" id="dash-trainings">-
-                                </h3>
-                                <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Trainings</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <h3 class="text-xl font-bold text-gray-900 mb-5 tracking-tight">Attendance Summary</h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-10">
-                        <div class="glass-card rounded-2xl p-6 flex items-center border-l-4 border-red-500">
-                            <div
-                                class="w-14 h-14 rounded-full bg-red-50 text-red-500 flex items-center justify-center mr-5">
-                                <i class="fa-regular fa-clock text-2xl"></i>
-                            </div>
-                            <div>
-                                <p class="text-[11px] text-gray-500 font-bold uppercase tracking-widest mb-1">Late (Hrs)
-                                </p>
-                                <h3 class="text-2xl font-bold text-gray-900" id="dash-late">-</h3>
-                            </div>
-                        </div>
-                        <div class="glass-card rounded-2xl p-6 flex items-center border-l-4 border-amber-500">
-                            <div
-                                class="w-14 h-14 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center mr-5">
-                                <i class="fa-solid fa-person-running text-2xl"></i>
-                            </div>
-                            <div>
-                                <p class="text-[11px] text-gray-500 font-bold uppercase tracking-widest mb-1">Early
-                                    Leave (Hrs)</p>
-                                <h3 class="text-2xl font-bold text-gray-900" id="dash-early">-</h3>
-                            </div>
-                        </div>
-                        <div class="glass-card rounded-2xl p-6 flex items-center border-l-4 border-gray-400">
-                            <div
-                                class="w-14 h-14 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center mr-5">
-                                <i class="fa-solid fa-user-xmark text-2xl"></i>
-                            </div>
-                            <div>
-                                <p class="text-[11px] text-gray-500 font-bold uppercase tracking-widest mb-1">Absent</p>
-                                <h3 class="text-2xl font-bold text-gray-900" id="dash-absent">-</h3>
-                            </div>
-                        </div>
-                        <div class="glass-card rounded-2xl p-6 flex items-center border-l-4 border-emerald-500">
-                            <div
-                                class="w-14 h-14 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mr-5">
-                                <i class="fa-solid fa-sack-dollar text-2xl"></i>
-                            </div>
-                            <div>
-                                <p class="text-[11px] text-gray-500 font-bold uppercase tracking-widest mb-1">OT Amount
-                                </p>
-                                <h3 class="text-2xl font-bold text-gray-900" id="dash-ot">-</h3>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 📌 ส่วนเสริมที่เพิ่มใหม่: กราฟสถิติ & ประกาศ/กิจกรรม -->
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 mb-10 admin-only hidden"
-                        id="dashboard-extras-section">
-                        <!-- กราฟสถิติ -->
-                        <div class="glass-card rounded-2xl p-6 lg:col-span-2 flex flex-col shadow-sm">
-                            <h3 class="text-base font-bold text-gray-900 mb-6 flex items-center tracking-wide">
-                                <span class="w-2.5 h-2.5 rounded-full bg-brandindigo mr-3"></span> Avg Check-In Time
-                                (Top 5 Earliest vs Latest)
-                            </h3>
-                            <div class="relative w-full flex-1 min-h-[280px]">
-                                <canvas id="lateChart"></canvas>
-                            </div>
-                        </div>
-
-                        <!-- ประกาศ & กิจกรรม -->
-                        <div class="space-y-4 md:space-y-6 flex flex-col">
-                            <!-- Announcements -->
-                            <div
-                                class="bg-gradient-to-br from-brandindigo to-brandpurple border border-transparent rounded-2xl p-6 text-white relative overflow-hidden flex-1 shadow-lg shadow-indigo-500/20">
-                                <div
-                                    class="absolute -right-10 -top-10 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl">
-                                </div>
-
-                                <button onclick="navigate('table', 'Announcements', 'Announcements')"
-                                    class="absolute top-5 right-5 bg-white/20 hover:bg-white/30 text-white rounded-lg px-3 py-1.5 text-[10px] uppercase tracking-widest font-bold backdrop-blur-md border border-white/20 transition-colors z-20">
-                                    Edit
-                                </button>
-
-                                <h3
-                                    class="text-sm font-bold mb-5 flex items-center relative z-10 tracking-widest uppercase text-white drop-shadow-sm">
-                                    <i class="fa-solid fa-bullhorn text-yellow-300 mr-2.5 text-lg"></i> Announcements
-                                </h3>
-                                <div id="dashboard-announcements"
-                                    class="space-y-3 relative z-10 max-h-[180px] overflow-y-auto custom-scrollbar pr-2">
-                                    <p class="text-sm text-indigo-100 font-medium text-center py-4">Loading data...</p>
-                                </div>
-                            </div>
-
-                            <!-- Events / Birthdays -->
-                            <div class="glass-card rounded-2xl p-6 flex-1 shadow-sm">
-                                <h3
-                                    class="text-sm font-bold text-gray-900 mb-5 flex items-center tracking-widest uppercase">
-                                    <i class="fa-solid fa-cake-candles text-pink-500 mr-3 text-lg"></i> Birthdays
-                                </h3>
-                                <div id="dashboard-birthdays"
-                                    class="space-y-3 max-h-[160px] overflow-y-auto custom-scrollbar pr-2">
-                                    <p
-                                        class="text-xs text-gray-500 font-medium text-center py-6 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                                        Checking data...</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="dashboard-recent-cards-section" class="mt-8 mb-4 admin-only hidden">
-                        <h3 class="text-lg font-bold text-gray-900 mb-6 flex items-center tracking-tight">
-                            <span class="w-2.5 h-2.5 rounded-full bg-teal-400 mr-3"></span> Recent Trainings
-                        </h3>
-                        <div id="dash-recent-cards"
-                            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 transition-all duration-300">
-                        </div>
-                    </div>
-
-                    <div id="dashboard-pending-section" class="admin-only hidden mt-10">
-                        <h3 class="text-lg font-bold text-gray-900 mb-6 flex items-center tracking-tight">
-                            <span class="w-2.5 h-2.5 rounded-full bg-orange-500 mr-3"></span> Pending Approvals
-                        </h3>
-                        <div class="glass-card rounded-2xl overflow-hidden border border-gray-200 shadow-sm">
-                            <div class="overflow-x-auto w-full max-h-[45vh] custom-scrollbar">
-                                <table class="w-full min-w-max text-sm text-left text-gray-600 whitespace-nowrap">
-                                    <thead
-                                        class="text-xs text-gray-500 font-bold uppercase bg-gray-50 sticky top-0 z-20 border-b border-gray-200"
-                                        id="dash-pending-head"></thead>
-                                    <tbody id="dash-pending-body" class="divide-y divide-gray-100"></tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 📌 เพิ่มส่วนแสดงรายละเอียดคนขาด/ลางาน แยกเป็น 2 ส่วน (Absent & Leave) -->
-                    <div id="dashboard-absent-leave-section" class="admin-only hidden mt-10 gap-6">
-                        <!-- ❌ คนขาดงาน -->
-                        <div id="dash-absent-container" class="hidden flex-col w-full">
-                            <h3 class="text-lg font-bold text-gray-900 mb-6 flex items-center tracking-tight">
-                                <span class="w-2.5 h-2.5 rounded-full bg-red-500 mr-3"></span> Absent Details
-                            </h3>
-                            <div
-                                class="glass-card rounded-2xl overflow-hidden border border-gray-200 shadow-sm p-3 h-full">
-                                <div class="max-h-[250px] overflow-y-auto custom-scrollbar pr-2">
-                                    <ul id="dash-absent-list" class="divide-y divide-gray-100">
-                                        <!-- List items will be generated here -->
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- 📅 คนลางาน -->
-                        <div id="dash-leave-container" class="hidden flex-col w-full">
-                            <h3 class="text-lg font-bold text-gray-900 mb-6 flex items-center tracking-tight">
-                                <span class="w-2.5 h-2.5 rounded-full bg-yellow-400 mr-3"></span> On Leave Details
-                            </h3>
-                            <div
-                                class="glass-card rounded-2xl overflow-hidden border border-gray-200 shadow-sm p-3 h-full">
-                                <div class="max-h-[250px] overflow-y-auto custom-scrollbar pr-2">
-                                    <ul id="dash-leave-list" class="divide-y divide-gray-100">
-                                        <!-- List items will be generated here -->
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
+                        class="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 text-gray-600 flex items-center justify-center text-sm font-bold cursor-pointer hover:bg-indigo-50 hover:text-brandindigo transition-colors shrink-0 shadow-sm">
+                        <i class="fa-regular fa-user"></i>
                     </div>
                 </div>
 
+            </header>
+            <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-8 lg:p-10 relative z-0">
+
+                <!-- 📌 ส่วนของหน้า Dashboard -->
+                <div id="section-dashboard" class="page-section hidden max-w-7xl mx-auto relative z-10 space-y-6">
+
+                    <div class="bg-[#2d1b69] rounded-[2.5rem] p-6 md:p-10 shadow-2xl">
+
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
+                            <div>
+                                <h2
+                                    class="text-3xl md:text-4xl font-black text-white uppercase tracking-wider leading-none">
+                                    ABOUT THE<br>LOVE STK GROUPE</h2>
+                            </div>
+
+                            <div
+                                class="flex items-center gap-2 bg-white/95 p-1.5 rounded-xl shadow-md border border-gray-100">
+                                <input type="date" id="dashStartDate" onchange="loadDashboard()"
+                                    class="bg-transparent border-none text-gray-800 font-bold text-xs focus:ring-0 w-32 cursor-pointer outline-none">
+                                <span class="text-gray-300">-</span>
+                                <input type="date" id="dashEndDate" onchange="loadDashboard()"
+                                    class="bg-transparent border-none text-gray-800 font-bold text-xs focus:ring-0 w-32 cursor-pointer outline-none">
+                                <button onclick="clearDashboardDateFilter()"
+                                    class="bg-white hover:bg-gray-100 text-gray-700 rounded-lg px-4 py-2 text-xs font-black transition-colors shadow-sm"><i
+                                        class="fa-solid fa-eraser mr-1"></i> Clear</button>
+
+                                <div id="dash-inline-loader"
+                                    class="hidden absolute -top-10 right-0 bg-white text-[#2d1b69] px-4 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center animate-pulse z-10">
+                                    <i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Updating...
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                            <div
+                                class="bg-[#7c50ff] rounded-3xl p-5 text-white shadow-lg relative overflow-hidden h-[240px] flex flex-col border border-white/10">
+                                <div class="flex justify-between items-center mb-4">
+                                    <h3 class="font-black text-sm tracking-widest uppercase flex items-center"><i
+                                            class="fa-solid fa-bullhorn text-yellow-400 mr-2 text-lg"></i> Announcements
+                                    </h3>
+                                    <button onclick="navigate('table', 'Announcements', 'Announcements')"
+                                        class="bg-white/20 hover:bg-white/30 text-white rounded-full px-4 py-1.5 text-[10px] uppercase tracking-widest font-black backdrop-blur-md transition-colors border border-white/20">Edit</button>
+                                </div>
+                                <div id="dashboard-announcements"
+                                    class="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2">
+                                    <p class="text-sm text-white/70 font-medium text-center py-4">Loading data...</p>
+                                </div>
+                            </div>
+
+                            <div class="bg-white rounded-3xl p-5 shadow-lg h-[240px] flex flex-col">
+                                <h3
+                                    class="font-black text-sm text-gray-900 tracking-widest uppercase mb-4 flex items-center">
+                                    <i class="fa-solid fa-cake-candles text-pink-500 mr-2 text-lg"></i> Birthdays
+                                </h3>
+                                <div id="dashboard-birthdays"
+                                    class="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-3 flex flex-col items-center justify-center">
+                                    <p class="text-xs text-gray-500 font-medium">Checking data...</p>
+                                </div>
+                            </div>
+
+                            <div class="bg-white rounded-3xl p-5 shadow-lg h-[240px] flex flex-col">
+                                <div class="flex justify-between items-center mb-2">
+                                    <h3
+                                        class="font-black text-sm text-gray-900 tracking-widest uppercase flex items-center">
+                                        <i class="fa-regular fa-calendar-days text-[#7c50ff] mr-2 text-lg"></i> Calendar
+                                    </h3>
+                                    <div class="flex space-x-1">
+                                        <button onclick="changeDashMonth(-1)"
+                                            class="w-7 h-7 rounded-full bg-gray-50 hover:bg-indigo-50 flex items-center justify-center text-gray-500 hover:text-brandindigo transition-colors"><i
+                                                class="fa-solid fa-chevron-left text-[10px]"></i></button>
+                                        <button onclick="changeDashMonth(1)"
+                                            class="w-7 h-7 rounded-full bg-gray-50 hover:bg-indigo-50 flex items-center justify-center text-gray-500 hover:text-brandindigo transition-colors"><i
+                                                class="fa-solid fa-chevron-right text-[10px]"></i></button>
+                                    </div>
+                                </div>
+                                <div class="text-center mb-2">
+                                    <span id="dash-cal-month-year"
+                                        class="text-[11px] font-black text-[#7c50ff] uppercase tracking-widest">Loading...</span>
+                                </div>
+                                <div class="grid grid-cols-7 gap-1 text-center mb-1">
+                                    <div class="text-[9px] font-bold text-red-400">SU</div>
+                                    <div class="text-[9px] font-bold text-gray-400">MO</div>
+                                    <div class="text-[9px] font-bold text-gray-400">TU</div>
+                                    <div class="text-[9px] font-bold text-gray-400">WE</div>
+                                    <div class="text-[9px] font-bold text-gray-400">TH</div>
+                                    <div class="text-[9px] font-bold text-gray-400">FR</div>
+                                    <div class="text-[9px] font-bold text-gray-400">SA</div>
+                                </div>
+                                <div id="dash-mini-calendar-grid"
+                                    class="grid grid-cols-7 gap-1 text-center flex-1 content-start"></div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
+                            <div
+                                class="lg:col-span-5 bg-white rounded-3xl p-6 md:p-8 shadow-lg flex items-center justify-between">
+                                <div>
+                                    <h3
+                                        class="text-3xl lg:text-4xl font-black text-[#7c50ff] uppercase leading-none mb-2">
+                                        DAILY</h3>
+                                    <h4 class="text-xl lg:text-2xl font-black text-[#7c50ff]">Attendance Rate:</h4>
+                                </div>
+                                <div class="relative w-36 h-36 md:w-44 md:h-44 flex-shrink-0">
+                                    <canvas id="attendanceRateChart"></canvas>
+                                    <div class="absolute inset-0 flex items-center justify-center">
+                                        <span id="dash-attendance-percent"
+                                            class="text-3xl md:text-5xl font-black text-[#7c50ff]">0%</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div
+                                class="lg:col-span-7 bg-[#211252] border border-[#3e2786] rounded-3xl p-6 md:p-8 shadow-xl flex flex-col justify-center">
+                                <h3
+                                    class="text-center font-black text-xl text-white tracking-widest mb-6 uppercase flex items-center justify-center gap-3">
+                                    <i class="fa-solid fa-trophy text-yellow-400 text-2xl"></i> TOP Rating <i
+                                        class="fa-solid fa-trophy text-yellow-400 text-2xl"></i>
+                                </h3>
+                                <div id="dashboard-top-ratings" class="space-y-4 px-4">
+                                    <p class="text-sm text-white/50 font-medium text-center py-4">Loading ratings...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-[#3e2786] border border-[#5235aa] rounded-3xl p-6 shadow-xl mb-6">
+                            <h3
+                                class="text-center font-black text-white tracking-widest mb-6 uppercase text-base flex items-center justify-center gap-3">
+                                <i class="fa-solid fa-trophy text-yellow-400 text-xl"></i> EMPLOYEE OF THE MONTH
+                            </h3>
+                            <div class="relative w-full h-[180px]">
+                                <canvas id="employeeMonthChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div
+                            class="bg-white rounded-3xl shadow-xl flex flex-col lg:flex-row overflow-hidden border border-gray-100 divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
+                            <div class="flex-1 p-6 lg:p-8 grid grid-cols-5 gap-2 items-center">
+                                <div class="text-center">
+                                    <div
+                                        class="w-10 h-10 mx-auto text-[#7c50ff] text-2xl mb-2 flex items-center justify-center bg-indigo-50 rounded-full">
+                                        <i class="fa-solid fa-users"></i>
+                                    </div>
+                                    <h4 class="text-2xl font-black text-gray-900" id="dash-staff">-</h4>
+                                    <p class="text-[9px] text-gray-500 font-bold uppercase mt-1">Total Staff</p>
+                                </div>
+                                <div class="text-center">
+                                    <div
+                                        class="w-10 h-10 mx-auto text-purple-500 text-2xl mb-2 flex items-center justify-center bg-purple-50 rounded-full">
+                                        <i class="fa-solid fa-calendar-minus"></i>
+                                    </div>
+                                    <h4 class="text-2xl font-black text-gray-900" id="dash-leaves">-</h4>
+                                    <p class="text-[9px] text-gray-500 font-bold uppercase mt-1">Leaves</p>
+                                </div>
+                                <div class="text-center">
+                                    <div
+                                        class="w-10 h-10 mx-auto text-emerald-500 text-2xl mb-2 flex items-center justify-center bg-emerald-50 rounded-full">
+                                        <i class="fa-solid fa-chalkboard-user"></i>
+                                    </div>
+                                    <h4 class="text-2xl font-black text-gray-900" id="dash-trainings">-</h4>
+                                    <p class="text-[9px] text-gray-500 font-bold uppercase mt-1">Trainings</p>
+                                </div>
+                                <div class="text-center">
+                                    <div
+                                        class="w-10 h-10 mx-auto text-teal-500 text-2xl mb-2 flex items-center justify-center bg-teal-50 rounded-full">
+                                        <i class="fa-solid fa-fingerprint"></i>
+                                    </div>
+                                    <h4 class="text-2xl font-black text-gray-900" id="dash-logs">-</h4>
+                                    <p class="text-[9px] text-gray-500 font-bold uppercase mt-1">Logs</p>
+                                </div>
+                                <div class="text-center">
+                                    <div
+                                        class="w-10 h-10 mx-auto text-blue-500 text-2xl mb-2 flex items-center justify-center bg-blue-50 rounded-full">
+                                        <i class="fa-solid fa-laptop"></i>
+                                    </div>
+                                    <h4 class="text-2xl font-black text-gray-900" id="dash-assets">-</h4>
+                                    <p class="text-[9px] text-gray-500 font-bold uppercase mt-1">Assets</p>
+                                </div>
+                            </div>
+
+                            <div class="flex-1 p-6 lg:p-8 grid grid-cols-2 gap-y-8 gap-x-4 items-center">
+                                <div class="flex items-center gap-4 px-4">
+                                    <div
+                                        class="w-12 h-12 rounded-full bg-red-50 text-red-500 flex items-center justify-center">
+                                        <i class="fa-regular fa-clock text-xl"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest">Late
+                                            (Hrs)</p>
+                                        <h3 class="text-2xl font-black text-gray-900" id="dash-late">0</h3>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-4 px-4">
+                                    <div
+                                        class="w-12 h-12 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center">
+                                        <i class="fa-solid fa-user-xmark text-xl"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest">Absent
+                                        </p>
+                                        <h3 class="text-2xl font-black text-gray-900" id="dash-absent">0</h3>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-4 px-4">
+                                    <div
+                                        class="w-12 h-12 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center">
+                                        <i class="fa-solid fa-person-running text-xl"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest">Early
+                                            Leave (Hrs)</p>
+                                        <h3 class="text-2xl font-black text-gray-900" id="dash-early">0</h3>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-4 px-4">
+                                    <div
+                                        class="w-12 h-12 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center">
+                                        <i class="fa-solid fa-sack-dollar text-xl"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest">OT
+                                            Amount</p>
+                                        <h3 class="text-2xl font-black text-gray-900" id="dash-ot">0</h3>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                    <div id="dashboard-absent-leave-section"
+                        class="grid grid-cols-1 lg:grid-cols-2 gap-6 admin-only hidden">
+                        <div id="dash-absent-container"
+                            class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col h-[320px]">
+                            <h3 class="text-sm font-black text-gray-900 mb-4 flex items-center"><span
+                                    class="w-2.5 h-2.5 rounded-full bg-red-500 mr-2.5 shadow-sm"></span> Absent Details
+                            </h3>
+                            <ul id="dash-absent-list" class="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2">
+                            </ul>
+                        </div>
+                        <div id="dash-leave-container"
+                            class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col h-[320px]">
+                            <h3 class="text-sm font-black text-gray-900 mb-4 flex items-center"><span
+                                    class="w-2.5 h-2.5 rounded-full bg-yellow-400 mr-2.5 shadow-sm"></span> Leave
+                                Requests</h3>
+                            <ul id="dash-leave-list" class="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2">
+                            </ul>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- 📌 ส่วนของหน้า Dashboard -->
                 <!-- 👇 ส่วนหน้าจอ Digital Card (บัตรพนักงาน) 👇 -->
                 <div id="section-digital-card" class="page-section hidden max-w-5xl mx-auto relative z-10">
                     <div
@@ -1339,116 +1333,125 @@
                     </div>
                 </div>
 
-        <!-- 📌 ส่วนหน้าสแกนลงเวลา -->
+                <!-- 📌 ส่วนหน้าสแกนลงเวลา -->
 
-        <div id="section-scan" class="page-section hidden w-full relative z-10 bg-gray-50/30">
+                <div id="section-scan" class="page-section hidden w-full relative z-10 bg-gray-50/30">
 
-            <div class="w-full flex justify-center py-6 px-4">
+                    <div class="w-full flex justify-center py-6 px-4">
 
-                <div class="w-full max-w-2xl flex flex-col items-center">
+                        <div class="w-full max-w-2xl flex flex-col items-center">
 
-                    <div class="relative mb-12 w-full">
-                        <div
-                            class="bg-gradient-to-r from-indigo-500 to-purple-500 rounded-[2rem] p-10 md:p-14 text-center text-white shadow-lg relative overflow-hidden w-full">
-                            <p id="realtime-date"
-                                class="text-indigo-100 text-xs md:text-sm font-medium mb-3 relative z-10 tracking-[0.2em] uppercase">
-                                Loading Date...</p>
-                            <h1 id="realtime-clock"
-                                class="text-6xl md:text-7xl font-bold tracking-tight mb-5 relative z-10 drop-shadow-sm"
-                                style="font-family: 'Arial Rounded MT Bold', 'Helvetica Rounded', Arial, sans-serif;">
-                                00:00:00</h1>
-                            <div
-                                class="inline-flex items-center gap-2 bg-white/20 border border-white/20 px-5 py-2 rounded-full relative z-10 backdrop-blur-md">
-                                <i class="fa-regular fa-clock text-white text-xs"></i>
-                                <p class="text-white text-[10px] md:text-xs font-bold uppercase tracking-wider">Regular
-                                    Shift • 09:00 - 17:00</p>
-                            </div>
-                        </div>
-
-                        <div
-                            class="w-[85%] md:w-[75%] mx-auto -mt-8 relative z-20 bg-white rounded-2xl shadow-xl shadow-indigo-500/10 border border-gray-100 flex divide-x divide-gray-100">
-                            <div class="flex-1 py-4 text-center">
-                                <p
-                                    class="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1 flex items-center justify-center gap-1.5">
-                                    <i class="fa-solid fa-arrow-right-to-bracket text-emerald-500"></i>Check In
-                                </p>
-                                <p id="display-checkin" class="font-bold text-gray-800 text-sm md:text-base">-</p>
-                            </div>
-                            <div class="flex-1 py-4 text-center">
-                                <p
-                                    class="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1 flex items-center justify-center gap-1.5">
-                                    <i class="fa-solid fa-person-walking-arrow-right text-amber-500"></i>Check Out
-                                </p>
-                                <p id="display-checkout" class="font-bold text-gray-800 text-sm md:text-base">-</p>
-                            </div>
-                            <div class="flex-1 py-4 text-center bg-gray-50/50 rounded-r-2xl">
-                                <p
-                                    class="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">
-                                    Status</p>
-                                <p id="display-status" class="font-bold text-brandindigo text-xs md:text-sm mt-1">
-                                    Loading...</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div
-                        class="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-gray-100 relative z-10 w-full">
-
-                        <div class="grid grid-cols-2 gap-4 mb-6">
-                            <label class="cursor-pointer w-full group relative">
-                                <input type="radio" name="scanType" value="IN" class="peer hidden" checked
-                                    onchange="document.getElementById('manualEmpId').focus()">
+                            <div class="relative mb-12 w-full">
                                 <div
-                                    class="px-3 py-4 md:py-5 rounded-2xl border-2 border-gray-100 peer-checked:border-emerald-400 peer-checked:bg-emerald-50/30 text-gray-400 peer-checked:text-emerald-500 font-bold transition-all flex flex-col items-center justify-center gap-2 hover:bg-gray-50 z-10 relative">
-                                    <i class="fa-solid fa-arrow-right-to-bracket text-xl md:text-2xl"></i>
-                                    <span class="tracking-widest uppercase text-[10px] md:text-xs">CHECK IN</span>
+                                    class="bg-gradient-to-r from-indigo-500 to-purple-500 rounded-[2rem] p-10 md:p-14 text-center text-white shadow-lg relative overflow-hidden w-full">
+                                    <p id="realtime-date"
+                                        class="text-indigo-100 text-xs md:text-sm font-medium mb-3 relative z-10 tracking-[0.2em] uppercase">
+                                        Loading Date...</p>
+                                    <h1 id="realtime-clock"
+                                        class="text-6xl md:text-7xl font-bold tracking-tight mb-5 relative z-10 drop-shadow-sm"
+                                        style="font-family: 'Arial Rounded MT Bold', 'Helvetica Rounded', Arial, sans-serif;">
+                                        00:00:00</h1>
+                                    <div
+                                        class="inline-flex items-center gap-2 bg-white/20 border border-white/20 px-5 py-2 rounded-full relative z-10 backdrop-blur-md">
+                                        <i class="fa-regular fa-clock text-white text-xs"></i>
+                                        <p class="text-white text-[10px] md:text-xs font-bold uppercase tracking-wider">
+                                            Regular
+                                            Shift • 09:00 - 17:00</p>
+                                    </div>
                                 </div>
-                            </label>
-                            <label class="cursor-pointer w-full group relative">
-                                <input type="radio" name="scanType" value="OUT" class="peer hidden"
-                                    onchange="document.getElementById('manualEmpId').focus()">
+
                                 <div
-                                    class="px-3 py-4 md:py-5 rounded-2xl border-2 border-gray-100 peer-checked:border-amber-400 peer-checked:bg-amber-50/30 text-gray-400 peer-checked:text-amber-500 font-bold transition-all flex flex-col items-center justify-center gap-2 hover:bg-gray-50 z-10 relative">
-                                    <i
-                                        class="fa-solid fa-person-walking-arrow-right text-xl md:text-2xl text-gray-400 peer-checked:text-amber-500"></i>
-                                    <span class="tracking-widest uppercase text-[10px] md:text-xs">CHECK OUT</span>
+                                    class="w-[85%] md:w-[75%] mx-auto -mt-8 relative z-20 bg-white rounded-2xl shadow-xl shadow-indigo-500/10 border border-gray-100 flex divide-x divide-gray-100">
+                                    <div class="flex-1 py-4 text-center">
+                                        <p
+                                            class="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1 flex items-center justify-center gap-1.5">
+                                            <i class="fa-solid fa-arrow-right-to-bracket text-emerald-500"></i>Check In
+                                        </p>
+                                        <p id="display-checkin" class="font-bold text-gray-800 text-sm md:text-base">-
+                                        </p>
+                                    </div>
+                                    <div class="flex-1 py-4 text-center">
+                                        <p
+                                            class="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1 flex items-center justify-center gap-1.5">
+                                            <i class="fa-solid fa-person-walking-arrow-right text-amber-500"></i>Check
+                                            Out
+                                        </p>
+                                        <p id="display-checkout" class="font-bold text-gray-800 text-sm md:text-base">-
+                                        </p>
+                                    </div>
+                                    <div class="flex-1 py-4 text-center bg-gray-50/50 rounded-r-2xl">
+                                        <p
+                                            class="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">
+                                            Status</p>
+                                        <p id="display-status"
+                                            class="font-bold text-brandindigo text-xs md:text-sm mt-1">
+                                            Loading...</p>
+                                    </div>
                                 </div>
-                            </label>
-                        </div>
+                            </div>
 
-                        <div id="gps-status"
-                            class="bg-gray-50 rounded-2xl border border-gray-200 flex flex-col h-[280px] mb-6 relative overflow-hidden">
                             <div
-                                class="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100 shrink-0">
-                                <p class="font-bold text-gray-700 text-[10px] md:text-xs flex items-center z-10">
-                                    <i class="fa-solid fa-location-crosshairs text-brandindigo mr-2 animate-pulse"></i>
-                                    <span id="gps-coords">Current Location: Lat 17.9611, Lng 102.6436</span>
-                                </p>
-                                <span
-                                    class="text-[9px] bg-indigo-50 text-brandindigo px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-indigo-100">Live</span>
+                                class="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-gray-100 relative z-10 w-full">
+
+                                <div class="grid grid-cols-2 gap-4 mb-6">
+                                    <label class="cursor-pointer w-full group relative">
+                                        <input type="radio" name="scanType" value="IN" class="peer hidden" checked
+                                            onchange="document.getElementById('manualEmpId').focus()">
+                                        <div
+                                            class="px-3 py-4 md:py-5 rounded-2xl border-2 border-gray-100 peer-checked:border-emerald-400 peer-checked:bg-emerald-50/30 text-gray-400 peer-checked:text-emerald-500 font-bold transition-all flex flex-col items-center justify-center gap-2 hover:bg-gray-50 z-10 relative">
+                                            <i class="fa-solid fa-arrow-right-to-bracket text-xl md:text-2xl"></i>
+                                            <span class="tracking-widest uppercase text-[10px] md:text-xs">CHECK
+                                                IN</span>
+                                        </div>
+                                    </label>
+                                    <label class="cursor-pointer w-full group relative">
+                                        <input type="radio" name="scanType" value="OUT" class="peer hidden"
+                                            onchange="document.getElementById('manualEmpId').focus()">
+                                        <div
+                                            class="px-3 py-4 md:py-5 rounded-2xl border-2 border-gray-100 peer-checked:border-amber-400 peer-checked:bg-amber-50/30 text-gray-400 peer-checked:text-amber-500 font-bold transition-all flex flex-col items-center justify-center gap-2 hover:bg-gray-50 z-10 relative">
+                                            <i
+                                                class="fa-solid fa-person-walking-arrow-right text-xl md:text-2xl text-gray-400 peer-checked:text-amber-500"></i>
+                                            <span class="tracking-widest uppercase text-[10px] md:text-xs">CHECK
+                                                OUT</span>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <div id="gps-status"
+                                    class="bg-gray-50 rounded-2xl border border-gray-200 flex flex-col h-[280px] mb-6 relative overflow-hidden">
+                                    <div
+                                        class="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100 shrink-0">
+                                        <p
+                                            class="font-bold text-gray-700 text-[10px] md:text-xs flex items-center z-10">
+                                            <i
+                                                class="fa-solid fa-location-crosshairs text-brandindigo mr-2 animate-pulse"></i>
+                                            <span id="gps-coords">Current Location: Lat 17.9611, Lng 102.6436</span>
+                                        </p>
+                                        <span
+                                            class="text-[9px] bg-indigo-50 text-brandindigo px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-indigo-100">Live</span>
+                                    </div>
+                                    <div id="map" class="w-full flex-1 relative z-10"></div>
+                                </div>
+
+                                <form onsubmit="handleManualScan(event)"
+                                    class="flex w-full rounded-2xl overflow-hidden border border-gray-200 focus-within:border-brandindigo focus-within:ring-4 focus-within:ring-indigo-50 transition-all bg-white p-1.5 shadow-sm mt-2">
+                                    <div class="pl-4 pr-3 flex items-center text-gray-400">
+                                        <i class="fa-regular fa-id-card text-lg"></i>
+                                    </div>
+                                    <input type="text" id="manualEmpId" placeholder="EMPLOYEE ID (E.G. EMP001)" required
+                                        class="border-0 bg-transparent text-gray-900 focus:ring-0 block w-full p-2 uppercase text-xs md:text-sm font-bold tracking-widest placeholder-gray-400">
+                                    <button type="submit" id="btn-manual-save"
+                                        class="bg-brandpurple hover:bg-purple-700 text-white px-6 md:px-8 py-2.5 rounded-xl font-bold text-xs md:text-sm whitespace-nowrap transition-all flex items-center gap-2">
+                                        Record <i class="fa-solid fa-check-circle text-white/80"></i>
+                                    </button>
+                                </form>
+
                             </div>
-                            <div id="map" class="w-full flex-1 relative z-10"></div>
                         </div>
-
-                        <form onsubmit="handleManualScan(event)"
-                            class="flex w-full rounded-2xl overflow-hidden border border-gray-200 focus-within:border-brandindigo focus-within:ring-4 focus-within:ring-indigo-50 transition-all bg-white p-1.5 shadow-sm mt-2">
-                            <div class="pl-4 pr-3 flex items-center text-gray-400">
-                                <i class="fa-regular fa-id-card text-lg"></i>
-                            </div>
-                            <input type="text" id="manualEmpId" placeholder="EMPLOYEE ID (E.G. EMP001)" required
-                                class="border-0 bg-transparent text-gray-900 focus:ring-0 block w-full p-2 uppercase text-xs md:text-sm font-bold tracking-widest placeholder-gray-400">
-                            <button type="submit" id="btn-manual-save"
-                                class="bg-brandpurple hover:bg-purple-700 text-white px-6 md:px-8 py-2.5 rounded-xl font-bold text-xs md:text-sm whitespace-nowrap transition-all flex items-center gap-2">
-                                Record <i class="fa-solid fa-check-circle text-white/80"></i>
-                            </button>
-                        </form>
-
                     </div>
                 </div>
-            </div>
+            </main>
         </div>
-        </main>
-    </div>
     </div>
 
     <!-- 📌 Modal Form -->
@@ -1811,9 +1814,17 @@
                 let month = String(d.getMonth() + 1).padStart(2, '0');
                 let year = d.getFullYear();
                 let dateStr = `${day}/${month}/${year}`;
+                let dbDateStr = `${year}-${month}-${day}`; // 📌 รองรับรูปแบบวันที่จาก Database (YYYY-MM-DD)
 
-                let recordExists = rawData.find(r => r.Date === dateStr && String(r.Employee_ID || r.Emp_ID).trim() === targetEmpId);
+                let recordExists = rawData.find(r =>
+                    (r.Date === dateStr || r.Date === dbDateStr) &&
+                    String(r.Employee_ID || r.Emp_ID).trim() === targetEmpId
+                );
 
+                // 📌 ปรับ Format กลับให้แสดงผลในตารางสวยงามเป็น DD/MM/YYYY
+                if (recordExists && recordExists.Date === dbDateStr) {
+                    recordExists.Date = dateStr;
+                }
                 if (recordExists) {
                     completeList.push(recordExists);
                 } else {
@@ -1895,12 +1906,20 @@
             }
 
             for (let day = 1; day <= daysInMonth; day++) {
+
+
+                // 👇 เพิ่มตัวแปรที่ขาดหายไปตรงนี้ 👇
                 let currentDate = new Date(year, month - 1, day);
                 let dateStr = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+                let dbDateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-                let isWeekend = (currentDate.getDay() === 0); // 📌 เปลี่ยนให้มีแค่วันอาทิตย์ (0) ที่เป็นวันหยุด
-                let logFound = logs.find(l => l.Date === dateStr && String(l.Employee_ID || l.Emp_ID).trim() === targetEmpId);
-                let isPastOrToday = (currentDate <= today);
+                let isWeekend = currentDate.getDay() === 0; // วันหยุด (อาทิตย์)
+                let isPastOrToday = currentDate <= today;
+
+                let logFound = logs.find(r => r.Date === dateStr || r.Date === dbDateStr);
+                // 👆 สิ้นสุดส่วนที่เพิ่ม 👆
+
+
 
                 // 📌 ตรวจสอบว่าตรงกับวันที่ลางานหรือไม่
                 let isOnLeave = false;
@@ -2844,20 +2863,27 @@
         }
 
         function updateDashboardUI(data) {
-            document.getElementById('dash-staff').innerText = data.staff;
-            document.getElementById('dash-leaves').innerText = data.leaves;
-            document.getElementById('dash-logs').innerText = data.logs;
-            document.getElementById('dash-assets').innerText = data.assets !== undefined ? data.assets : '-';
-            document.getElementById('dash-trainings').innerText = data.trainings !== undefined ? data.trainings : '-';
-            document.getElementById('dash-late').innerText = data.lateHours;
-            document.getElementById('dash-early').innerText = data.earlyHours;
-            document.getElementById('dash-absent').innerText = data.absents;
-            if (document.getElementById('dash-overview-absent')) document.getElementById('dash-overview-absent').innerText = data.absents;
-            document.getElementById('dash-ot').innerText = new Intl.NumberFormat('th-TH').format(data.otAmount || 0);
+            // 🛡️ ฟังก์ชันตัวช่วยสำหรับใส่ค่า ป้องกัน Error ถ้าหากล่อง HTML ไม่เจอ
+            const safeSetText = (id, text) => {
+                const el = document.getElementById(id);
+                if (el) el.innerText = text;
+            };
 
-            renderDashboardPendingLeaves(data.pendingLeaves || []);
-            renderDashboardRecentCards(data.recentCards || []);
-            renderDashboardExtras();
+            safeSetText('dash-staff', data.staff || 0);
+            safeSetText('dash-leaves', data.leaves || 0);
+            safeSetText('dash-logs', data.logs || 0);
+            safeSetText('dash-assets', data.assets !== undefined ? data.assets : '-');
+            safeSetText('dash-trainings', data.trainings !== undefined ? data.trainings : '-');
+            safeSetText('dash-late', data.lateHours || 0);
+            safeSetText('dash-early', data.earlyHours || 0);
+            safeSetText('dash-absent', data.absents || 0);
+            safeSetText('dash-overview-absent', data.absents || 0);
+            safeSetText('dash-ot', new Intl.NumberFormat('th-TH').format(data.otAmount || 0));
+
+            // ตรวจสอบก่อนเรียกใช้งานฟังก์ชันตกแต่งหน้าจอ
+            if (typeof renderDashboardPendingLeaves === 'function') renderDashboardPendingLeaves(data.pendingLeaves || []);
+            if (typeof renderDashboardRecentCards === 'function') renderDashboardRecentCards(data.recentCards || []);
+            if (typeof renderDashboardExtras === 'function') renderDashboardExtras();
         }
 
         let lateChartInstance = null;
@@ -2874,9 +2900,10 @@
             let reqStaff = !tableCache['staff'];
             let reqLogs = !tableCache['Fingerprint_Logs'];
             let reqAnnounce = !tableCache['Announcements'];
-            let reqLeaves = !tableCache['Leave application']; // 📌 สั่งให้ระบบเช็คข้อมูลลางานด้วย
+            let reqLeaves = !tableCache['Leave application'];
+            let reqRatings = !tableCache['Employees Ranting ']; // 📌 เพิ่มตัวแปรเช็คการโหลด Rating
 
-            let pendingReq = (reqStaff ? 1 : 0) + (reqLogs ? 1 : 0) + (reqAnnounce ? 1 : 0) + (reqLeaves ? 1 : 0);
+            let pendingReq = (reqStaff ? 1 : 0) + (reqLogs ? 1 : 0) + (reqAnnounce ? 1 : 0) + (reqLeaves ? 1 : 0) + (reqRatings ? 1 : 0);
 
             if (pendingReq === 0) {
                 checkAndRenderCharts();
@@ -2905,13 +2932,20 @@
                     if (pendingReq === 0) executeRenderExtras();
                 }).getSheetData('Announcements');
             }
-            // 📌 เพิ่มคำสั่งโหลดตาราง Leave application อัตโนมัติหลังบ้าน
             if (reqLeaves) {
                 google.script.run.withSuccessHandler(res => {
                     if (res.success) tableCache['Leave application'] = { headers: (res.headers || []).map(String), data: res.data || [] };
                     pendingReq--;
                     if (pendingReq === 0) executeRenderExtras();
                 }).getSheetData('Leave application');
+            }
+            // 📌 เพิ่มคำสั่งโหลดตาราง Rating อัตโนมัติ เพื่อให้ Dashboard เอาไปคำนวณ Top 3 ได้
+            if (reqRatings) {
+                google.script.run.withSuccessHandler(res => {
+                    if (res.success) tableCache['Employees Ranting '] = { headers: (res.headers || []).map(String), data: res.data || [] };
+                    pendingReq--;
+                    if (pendingReq === 0) executeRenderExtras();
+                }).getSheetData('Employees Ranting ');
             }
         }
 
@@ -2992,8 +3026,10 @@
                 }
             });
 
-            if (activeStaffCount > 0) document.getElementById('dash-staff').innerText = activeStaffCount;
-            else document.getElementById('dash-staff').innerText = staffData.length;
+            // 🛡️ SAFE UPDATE FOR STAFF (ระบบเซฟตี้ ป้องกัน Error)
+            let staffCount = activeStaffCount > 0 ? activeStaffCount : staffData.length;
+            let staffEl = document.getElementById('dash-staff');
+            if (staffEl) staffEl.innerText = staffCount;
 
             const startDate = document.getElementById('dashStartDate') ? document.getElementById('dashStartDate').value : '';
             const endDate = document.getElementById('dashEndDate') ? document.getElementById('dashEndDate').value : '';
@@ -3075,16 +3111,14 @@
                 }
             });
 
-            // 📌 คำนวณจำนวนคนขาดงาน (Absent) สำหรับพนักงานทั้งหมดในองค์กร
+            // 📌 คำนวณจำนวนคนขาดงาน (Absent)
             let today = new Date();
             today.setHours(0, 0, 0, 0);
 
             let absentStart = sDateObj ? new Date(sDateObj) : new Date(today.getFullYear(), today.getMonth(), 1);
-            // 📌 ให้เช็คไปจนถึงสิ้นเดือน (หรือตามวันที่เลือก) เพื่อให้เห็นรายการลาล่วงหน้าในอนาคตด้วย
             let absentEnd = eDateObj ? new Date(eDateObj) : new Date(today.getFullYear(), today.getMonth() + 1, 0);
             if (absentStart > absentEnd) absentStart = new Date(absentEnd);
 
-            // 📌 กรองเอาเฉพาะการลาที่ "ได้รับอนุญาตแล้ว" เท่านั้น (Approve/HR/อนุมัติ) ตามที่สั่ง ห้ามนำ Reject หรือ Pending มาโชว์
             let approvedLeaves = leaveData.filter(r => {
                 let status = String(getFuzzyValue(r, ['signature', 'status', 'อนุมัติ'])).toLowerCase();
                 return status.includes('approve') || status.includes('hr') || status.includes('อนุมัติ') || status.includes('อนุญาต');
@@ -3094,7 +3128,7 @@
             let leaveListHTML = '';
             let absentDetailsCount = 0;
             let leaveDetailsCount = 0;
-            let processedLeaves = new Set(); // 📌 ป้องกันการแสดงรายการลาซ้ำหากลาต่อเนื่องหลายวัน
+            let processedLeaves = new Set();
 
             for (let dt = new Date(absentStart); dt <= absentEnd; dt.setDate(dt.getDate() + 1)) {
                 let dayOfWeek = dt.getDay();
@@ -3113,7 +3147,6 @@
                     let leaveTotal = '';
                     let leaveKey = '';
 
-                    // 1. ตรวจสอบสถานะการลา (เช็คแยกต่างหาก ไม่สนว่ามีการสแกนนิ้วหรือไม่ ดึงตามวันที่เลือกเลย)
                     for (let lv of approvedLeaves) {
                         let lvEmp = String(getFuzzyValue(lv, ['employee_id', 'emp_id'])).toUpperCase().trim();
                         if (lvEmp === empId) {
@@ -3127,7 +3160,7 @@
                                 leaveStart = lStartStr;
                                 leaveEnd = lEndStr;
                                 leaveTotal = getFuzzyValue(lv, ['total_days', 'รวม', 'จำนวนวัน']);
-                                leaveKey = empId + '_' + leaveStart + '_' + leaveEnd; // 📌 สร้าง Key ไว้เช็ครายการซ้ำ
+                                leaveKey = empId + '_' + leaveStart + '_' + leaveEnd;
                                 break;
                             }
                         }
@@ -3135,23 +3168,38 @@
 
                     if (isOnLeave) {
                         if (!processedLeaves.has(leaveKey)) {
-                            leaveListHTML += `<li class="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between text-sm hover:bg-gray-50 transition-colors px-4 rounded-xl gap-3">
-                                <div class="flex items-start sm:items-center">
-                                    <span class="w-2.5 h-2.5 rounded-full bg-yellow-400 mr-4 shadow-sm mt-1.5 sm:mt-0 flex-shrink-0"></span>
-                                    <div class="flex flex-col">
-                                        <span class="font-bold text-gray-900">${empName}</span>
-                                        <span class="text-[11px] text-gray-500 font-medium mt-1 tracking-wide"><i class="fa-regular fa-calendar mr-1"></i> Start_Date: ${leaveStart} <span class="mx-1.5 text-gray-300">|</span> End_Date: ${leaveEnd} <span class="mx-1.5 text-gray-300">|</span> Total_Days: <span class="text-gray-700 font-bold">${leaveTotal}</span></span>
+                            leaveListHTML += `<li class="flex items-center justify-between py-3 px-4 rounded-2xl border border-gray-100 bg-white hover:shadow-md transition-all shadow-sm mb-2">
+                                <div class="flex flex-col gap-1 w-full">
+                                    <div class="flex items-center justify-between w-full">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0"></span>
+                                            <span class="text-sm font-black text-gray-900">${empName}</span>
+                                        </div>
+                                        <span class="text-[9px] bg-yellow-50 text-yellow-600 px-2 py-1 rounded-md font-bold uppercase border border-yellow-200 tracking-widest">${leaveType || 'ON LEAVE'}</span>
+                                    </div>
+                                    <div class="flex items-center gap-2 pl-4 mt-1 text-[10px] text-gray-500 font-medium">
+                                        <i class="fa-regular fa-folder-open text-gray-300"></i>
+                                        <span>Start: ${leaveStart}</span>
+                                        <span class="text-gray-300">|</span>
+                                        <span>End: ${leaveEnd}</span>
+                                        <span class="text-gray-300">|</span>
+                                        <span>Total: <b>${leaveTotal}</b></span>
                                     </div>
                                 </div>
-                                <span class="text-[10px] bg-yellow-50 border border-yellow-200 text-yellow-600 px-3 py-1 rounded-lg font-bold uppercase tracking-wider self-start sm:self-auto whitespace-nowrap">${leaveType || 'On Leave'}</span>
                             </li>`;
                             leaveDetailsCount++;
                             processedLeaves.add(leaveKey);
                         }
                     } else if (!logsForDay.has(empId) && dt <= today) {
-                        // 2. ถ้าไม่ได้ลา และไม่ได้สแกนนิ้ว และเป็นวันที่ผ่านมาแล้วหรือวันนี้ ถือว่า ขาดงาน (Absent)
                         sumAbsent++;
-                        absentListHTML += `<li class="py-3 flex items-center justify-between text-sm hover:bg-gray-50 transition-colors px-4 rounded-xl"><div class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-red-400 mr-4 shadow-sm"></span><span class="font-medium text-gray-500 w-32 tracking-wide">Date: ${displayDateStr}</span> <span class="font-bold text-gray-900">${empName}</span></div><span class="text-[10px] bg-red-50 border border-red-200 text-red-500 px-3 py-1 rounded-lg font-bold uppercase tracking-wider">Absent</span></li>`;
+                        absentListHTML += `<li class="flex items-center justify-between py-3 px-4 rounded-2xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
+                                <div class="flex items-center gap-3">
+                                    <span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"></span>
+                                    <span class="text-xs text-gray-500 font-medium tracking-wide">Date: ${displayDateStr}</span>
+                                    <span class="text-sm font-black text-gray-900">${empName}</span>
+                                </div>
+                                <span class="text-[9px] bg-red-50 text-red-500 px-3 py-1 rounded-lg font-bold uppercase border border-red-100 tracking-widest">ABSENT</span>
+                            </li>`;
                         absentDetailsCount++;
                     }
                 });
@@ -3164,7 +3212,7 @@
             const leaveUl = document.getElementById('dash-leave-list');
 
             if (sectionContainer) {
-                sectionContainer.classList.remove('hidden'); // 📌 บังคับแสดงโครงกล่องเสมอ
+                sectionContainer.classList.remove('hidden');
                 sectionContainer.classList.add('grid', 'grid-cols-1', 'lg:grid-cols-2');
             }
 
@@ -3174,7 +3222,6 @@
                 if (absentDetailsCount > 0) {
                     absentUl.innerHTML = absentListHTML;
                 } else {
-                    // 📌 ถ้าไม่มีคนขาดงานเลย ให้โชว์ข้อความนี้แทนกล่องว่างๆ
                     absentUl.innerHTML = '<li class="py-8 text-center text-gray-400 text-xs font-medium border border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center"><i class="fa-solid fa-user-check text-2xl mb-2 text-gray-300"></i> No absent records found.</li>';
                 }
             }
@@ -3185,119 +3232,24 @@
                 if (leaveDetailsCount > 0) {
                     leaveUl.innerHTML = leaveListHTML;
                 } else {
-                    // 📌 ถ้าไม่มีคนลางานเลย ให้โชว์ข้อความนี้แทนกล่องว่างๆ
                     leaveUl.innerHTML = '<li class="py-8 text-center text-gray-400 text-xs font-medium border border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center"><i class="fa-solid fa-clipboard-check text-2xl mb-2 text-gray-300"></i> No leave records found.</li>';
                 }
             }
 
-            document.getElementById('dash-logs').innerText = validLogs;
-            document.getElementById('dash-late').innerText = (Math.round(sumLate * 100) / 100);
-            document.getElementById('dash-early').innerText = (Math.round(sumEarly * 100) / 100);
-            document.getElementById('dash-absent').innerText = sumAbsent;
-            if (document.getElementById('dash-overview-absent')) document.getElementById('dash-overview-absent').innerText = sumAbsent;
-            document.getElementById('dash-ot').innerText = new Intl.NumberFormat('th-TH').format(sumOT);
+            // 🛡️ SAFE UPDATE FOR STATS (ระบบเซฟตี้ ป้องกัน Error จอขาว 100%)
+            const safeUpdate = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+            safeUpdate('dash-logs', validLogs);
+            safeUpdate('dash-late', (Math.round(sumLate * 100) / 100));
+            safeUpdate('dash-early', (Math.round(sumEarly * 100) / 100));
+            safeUpdate('dash-absent', sumAbsent);
+            safeUpdate('dash-overview-absent', sumAbsent);
+            safeUpdate('dash-ot', new Intl.NumberFormat('th-TH').format(sumOT));
 
-            let checkInArray = [];
-            for (let eId in empAvgCheckIn) {
-                let avgMins = empAvgCheckIn[eId].totalMins / empAvgCheckIn[eId].count;
-                checkInArray.push({
-                    name: empAvgCheckIn[eId].name,
-                    avgHours: avgMins / 60
-                });
-            }
-            checkInArray.sort((a, b) => a.avgHours - b.avgHours);
+            // 🌟 สร้างกราฟวงกลมและ Top Rating จากโค้ดที่เราเตรียมไว้
+            if (typeof updateAttendanceRateChart === 'function') updateAttendanceRateChart(staffCount, validLogs);
+            if (typeof renderDashboardTopRatings === 'function') renderDashboardTopRatings();
 
-            let displayData = [];
-            let addedNames = new Set();
-
-            checkInArray.slice(0, 5).forEach(item => {
-                if (!addedNames.has(item.name)) {
-                    item.type = 'Earliest';
-                    displayData.push(item);
-                    addedNames.add(item.name);
-                }
-            });
-
-            let latestItems = checkInArray.slice().reverse();
-            for (let i = 0; i < latestItems.length; i++) {
-                if (displayData.length >= 10) break;
-                if (!addedNames.has(latestItems[i].name)) {
-                    latestItems[i].type = 'Latest';
-                    displayData.push(latestItems[i]);
-                    addedNames.add(latestItems[i].name);
-                }
-            }
-
-            displayData.sort((a, b) => a.avgHours - b.avgHours);
-
-            let labels = displayData.length > 0 ? displayData.map(d => d.name) : ['No Check-in Data'];
-            let data = displayData.length > 0 ? displayData.map(d => d.avgHours) : [0];
-            let bgColors = displayData.length > 0 ? displayData.map(d => d.type === 'Earliest' ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)') : ['#e2e8f0'];
-            let hoverColors = displayData.length > 0 ? displayData.map(d => d.type === 'Earliest' ? 'rgba(16, 185, 129, 1)' : 'rgba(239, 68, 68, 1)') : ['#cbd5e1'];
-
-            Chart.defaults.color = '#64748b';
-            Chart.defaults.font.family = 'Inter';
-
-            const ctx = document.getElementById('lateChart');
-            if (ctx) {
-                if (lateChartInstance) lateChartInstance.destroy();
-                lateChartInstance = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Avg Check-In Time',
-                            data: data,
-                            backgroundColor: bgColors,
-                            hoverBackgroundColor: hoverColors,
-                            borderRadius: 6,
-                            borderSkipped: false
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            y: {
-                                min: 6,
-                                grid: { color: '#e2e8f0' },
-                                border: { display: false },
-                                ticks: {
-                                    callback: function (value) {
-                                        let hrs = Math.floor(value);
-                                        let mins = Math.round((value - hrs) * 60);
-                                        return String(hrs).padStart(2, '0') + ':' + String(mins).padStart(2, '0');
-                                    }
-                                }
-                            },
-                            x: {
-                                grid: { display: false },
-                                border: { display: false }
-                            }
-                        },
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                                backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                                titleColor: '#fff',
-                                bodyColor: '#f8fafc',
-                                borderColor: '#e2e8f0',
-                                borderWidth: 0,
-                                padding: 10,
-                                cornerRadius: 8,
-                                callbacks: {
-                                    label: function (context) {
-                                        let hrs = Math.floor(context.raw);
-                                        let mins = Math.round((context.raw - hrs) * 60);
-                                        return ' Avg Check-In: ' + String(hrs).padStart(2, '0') + ':' + String(mins).padStart(2, '0');
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            }
-
+            // 🎂 BIRTHDAYS
             let targetDate = sDateObj ? sDateObj : new Date();
             let currentMonth = targetDate.getMonth() + 1;
             let birthdaysHtml = '';
@@ -3327,9 +3279,9 @@
                         let bdDisplay = `${d.getDate()} ${engMonths[d.getMonth()]}`;
 
                         birthdaysHtml += `
-                            <div class="flex items-center space-x-4 p-3 hover:bg-gray-50 rounded-xl transition-colors border border-transparent hover:border-gray-100 group">
+                            <div class="flex items-center space-x-4 p-3 hover:bg-gray-50 rounded-xl transition-colors border border-transparent hover:border-gray-100 group w-full">
                                 <img src="${pic}" class="w-10 h-10 rounded-full object-cover border border-gray-200 shadow-sm group-hover:border-pink-400 transition-colors" onerror="this.src='https://ui-avatars.com/api/?background=fce7f3&color=be185d&name=NA'">
-                                <div class="flex-1 min-w-0">
+                                <div class="flex-1 min-w-0 text-left">
                                     <p class="text-sm font-bold text-gray-900 leading-tight truncate" title="${name}">${name}</p>
                                     <p class="text-[11px] text-pink-500 font-bold mt-1 tracking-wider uppercase">${bdDisplay}</p>
                                 </div>
@@ -3345,6 +3297,7 @@
                 if (bdCount === 0) {
                     bdContainer.innerHTML = '<p class="text-xs text-gray-500 text-center py-6 bg-gray-50 rounded-xl border border-dashed border-gray-200 font-medium">No birthdays this month 🎉</p>';
                 } else {
+                    bdContainer.classList.remove('justify-center', 'items-center');
                     bdContainer.innerHTML = birthdaysHtml;
                 }
             }
@@ -3352,10 +3305,16 @@
 
         function renderDashboardRecentCards(cards) {
             const container = document.getElementById('dash-recent-cards');
+            const section = document.getElementById('dashboard-recent-cards-section');
+
+            // 👇 🛑 เพิ่มบรรทัดนี้ลงไป: ป้องกัน Error ถ้าหากหน้าจอไม่มีส่วนนี้
+            if (!container || !section) return;
+
             if (!cards || cards.length === 0) {
-                document.getElementById('dashboard-recent-cards-section').classList.add('hidden');
+                section.classList.add('hidden');
                 return;
             }
+            section.classList.remove('hidden');
             document.getElementById('dashboard-recent-cards-section').classList.remove('hidden');
 
             let html = '';
@@ -3403,6 +3362,9 @@
         function renderDashboardPendingLeaves(pendingData) {
             const tHead = document.getElementById('dash-pending-head');
             const tBody = document.getElementById('dash-pending-body');
+
+            // 👇 🛑 เพิ่มบรรทัดนี้ลงไป: ถ้าไม่เจอกล่องในหน้าจอ ให้หยุดทำงานเลย ไม่ต้อง Error
+            if (!tHead || !tBody) return;
 
             if (!pendingData || pendingData.length === 0) {
                 tHead.innerHTML = '';
@@ -4184,9 +4146,21 @@
                     data = fillMissingDays(empLogs, sDate, eDate, targetEmp);
 
                     data.forEach(row => {
-                        let late = parseFloat(row.Late_Hours !== undefined ? row.Late_Hours : getFuzzyValue(row, ['late_hours', 'มาช้า'])) || 0;
-                        let early = parseFloat(row.Early_Leave_Hours !== undefined ? row.Early_Leave_Hours : getFuzzyValue(row, ['early_leave_hours', 'กลับก่อน'])) || 0;
-                        let ot = parseFloat(row.OT_Amount !== undefined ? row.OT_Amount : getFuzzyValue(row, ['ot_amount', 'ยอดเงินโอที'])) || 0;
+                        let late = parseFloat(row.Late_Hours || row.late_hours || 0) || 0;
+                        let early = parseFloat(row.Early_Leave_Hours || row.early_leave_hours || 0) || 0;
+                        let ot = parseFloat(row.OT_Amount || row.ot_amount || 0) || 0;
+
+                        // 🤖 เพิ่มระบบคำนวณเวลา มาช้า/กลับก่อน อัตโนมัติจากเวลาที่สแกนเทียบกับเวลากะ
+                        if (late === 0 && row.Check_In && row.Check_In !== '-' && row.Shift_Start && row.Shift_Start !== '-') {
+                            let inMins = parseInt(String(row.Check_In).split(':')[0] || 0) * 60 + parseInt(String(row.Check_In).split(':')[1] || 0);
+                            let startMins = parseInt(String(row.Shift_Start).split(':')[0] || 0) * 60 + parseInt(String(row.Shift_Start).split(':')[1] || 0);
+                            if (inMins > startMins) late = (inMins - startMins) / 60; // แปลงเป็นชั่วโมง
+                        }
+                        if (early === 0 && row.Check_Out && row.Check_Out !== '-' && row.Shift_End && row.Shift_End !== '-') {
+                            let outMins = parseInt(String(row.Check_Out).split(':')[0] || 0) * 60 + parseInt(String(row.Check_Out).split(':')[1] || 0);
+                            let endMins = parseInt(String(row.Shift_End).split(':')[0] || 0) * 60 + parseInt(String(row.Shift_End).split(':')[1] || 0);
+                            if (outMins < endMins && outMins > 0) early = (endMins - outMins) / 60;
+                        }
 
                         sumLate += late;
                         sumEarly += early;
@@ -4199,10 +4173,22 @@
                     }
 
                     data.forEach(row => {
-                        let late = parseFloat(getFuzzyValue(row, ['late_hours', 'มาช้า'])) || 0;
-                        let early = parseFloat(getFuzzyValue(row, ['early_leave_hours', 'กลับก่อน'])) || 0;
-                        let ot = parseFloat(getFuzzyValue(row, ['ot_amount', 'ยอดเงินโอที'])) || 0;
+                        let late = parseFloat(row.Late_Hours || row.late_hours || 0) || 0;
+                        let early = parseFloat(row.Early_Leave_Hours || row.early_leave_hours || 0) || 0;
+                        let ot = parseFloat(row.OT_Amount || row.ot_amount || 0) || 0;
                         let status = String(getFuzzyValue(row, ['attendance_status', 'status'])).toLowerCase();
+
+                        // 🤖 ระบบคำนวณเวลาอัตโนมัติ
+                        if (late === 0 && row.Check_In && row.Check_In !== '-' && row.Shift_Start && row.Shift_Start !== '-') {
+                            let inMins = parseInt(String(row.Check_In).split(':')[0] || 0) * 60 + parseInt(String(row.Check_In).split(':')[1] || 0);
+                            let startMins = parseInt(String(row.Shift_Start).split(':')[0] || 0) * 60 + parseInt(String(row.Shift_Start).split(':')[1] || 0);
+                            if (inMins > startMins) late = (inMins - startMins) / 60;
+                        }
+                        if (early === 0 && row.Check_Out && row.Check_Out !== '-' && row.Shift_End && row.Shift_End !== '-') {
+                            let outMins = parseInt(String(row.Check_Out).split(':')[0] || 0) * 60 + parseInt(String(row.Check_Out).split(':')[1] || 0);
+                            let endMins = parseInt(String(row.Shift_End).split(':')[0] || 0) * 60 + parseInt(String(row.Shift_End).split(':')[1] || 0);
+                            if (outMins < endMins && outMins > 0) early = (endMins - outMins) / 60;
+                        }
 
                         sumLate += late;
                         sumEarly += early;
@@ -7065,6 +7051,61 @@
                 modal.classList.add('hidden');
             }, 300);
         }
+        // ==========================================
+        // 📅 Mini Calendar หน้า Dashboard
+        // ==========================================
+        let dashCalDate = new Date();
+
+        function renderDashMiniCalendar() {
+            const grid = document.getElementById('dash-mini-calendar-grid');
+            const monthYearLabel = document.getElementById('dash-cal-month-year');
+            if (!grid || !monthYearLabel) return; // ถ้าหากล่องไม่เจอให้หยุดทันที ป้องกัน Error
+
+            const year = dashCalDate.getFullYear();
+            const month = dashCalDate.getMonth();
+
+            const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+            if (monthYearLabel) monthYearLabel.innerText = `${monthNames[month]} ${year}`;
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            const today = new Date();
+            const isCurrentMonth = (today.getFullYear() === year && today.getMonth() === month);
+            const currentDay = today.getDate();
+
+            let html = '';
+
+            // สร้างช่องว่างสำหรับวันก่อนวันที่ 1
+            for (let i = 0; i < firstDay; i++) {
+                html += `<div class="aspect-square flex items-center justify-center text-[10px] text-transparent">0</div>`;
+            }
+
+            // สร้างตัวเลขวันที่
+            for (let d = 1; d <= daysInMonth; d++) {
+                let isToday = isCurrentMonth && d === currentDay;
+                let baseClasses = "aspect-square flex items-center justify-center text-[10px] font-bold rounded-full transition-all cursor-default ";
+
+                if (isToday) {
+                    baseClasses += "bg-brandindigo text-white shadow-md scale-110";
+                } else {
+                    baseClasses += "text-gray-600 hover:bg-indigo-50 hover:text-brandindigo cursor-pointer";
+                }
+
+                html += `<div class="${baseClasses}">${d}</div>`;
+            }
+
+            grid.innerHTML = html;
+        }
+
+        function changeDashMonth(offset) {
+            dashCalDate.setMonth(dashCalDate.getMonth() + offset);
+            renderDashMiniCalendar();
+        }
+
+        // สั่งให้ปฏิทินวาดตัวเองทันทีเมื่อโหลดโค้ดเสร็จ
+        renderDashMiniCalendar();
     </script>
 </body>
 
