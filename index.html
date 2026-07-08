@@ -340,17 +340,18 @@
                 const [startDate, endDate] = args;
 
                 // 1. สร้างเงื่อนไขกรองวันที่สำหรับตารางที่มีข้อมูลสะสมเยอะ (การลงเวลา และ การลางาน)
+
                 let logFilter = "";
                 let leaveFilter = "";
 
                 if (startDate && endDate) {
-                    logFilter = `log_date=gte.${startDate}&log_date=lte.${endDate}`;
+                    logFilter = `date=gte.${startDate}&date=lte.${endDate}`;
                     leaveFilter = `start_date=gte.${startDate}&start_date=lte.${endDate}`;
                 } else if (startDate) {
-                    logFilter = `log_date=gte.${startDate}`;
+                    logFilter = `date=gte.${startDate}`;
                     leaveFilter = `start_date=gte.${startDate}`;
                 } else if (endDate) {
-                    logFilter = `log_date=lte.${endDate}`;
+                    logFilter = `date=lte.${endDate}`;
                     leaveFilter = `start_date=lte.${endDate}`;
                 }
 
@@ -856,25 +857,21 @@
                     <div class="bg-[#2d1b69] rounded-[2.5rem] p-6 md:p-10 shadow-2xl">
 
                         <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
-                            <div>
-                                <h2
-                                    class="text-3xl md:text-4xl font-black text-white uppercase tracking-wider leading-none">
-                                    ABOUT THE<br>LOVE STK GROUPE</h2>
+                            <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
+                                <div>
+                                    <h2
+                                        class="text-3xl md:text-4xl font-black text-white uppercase tracking-wider leading-none">
+                                        ABOUT THE<br>LOVE STK GROUPE</h2>
+                                </div>
                             </div>
 
-                            <div
-                                class="flex items-center gap-2 bg-white/95 p-1.5 rounded-xl shadow-md border border-gray-100">
-                                <input type="date" id="dashStartDate" onchange="loadDashboard()"
-                                    class="bg-transparent border-none text-gray-800 font-bold text-xs focus:ring-0 w-32 cursor-pointer outline-none">
-                                <span class="text-gray-300">-</span>
-                                <input type="date" id="dashEndDate" onchange="loadDashboard()"
-                                    class="bg-transparent border-none text-gray-800 font-bold text-xs focus:ring-0 w-32 cursor-pointer outline-none">
-                                <button onclick="clearDashboardDateFilter()"
-                                    class="bg-white hover:bg-gray-100 text-gray-700 rounded-lg px-4 py-2 text-xs font-black transition-colors shadow-sm"><i
-                                        class="fa-solid fa-eraser mr-1"></i> Clear</button>
-
+                            <div class="flex items-center gap-2 relative">
+                                <button id="btn-clear-dash-date" onclick="clearDashboardDateFilter()"
+                                    class="hidden bg-white/95 hover:bg-gray-100 text-red-500 rounded-xl px-4 py-2 text-xs font-black transition-colors shadow-md border border-gray-100">
+                                    <i class="fa-solid fa-times mr-1"></i> ยกเลิกการเลือก
+                                </button>
                                 <div id="dash-inline-loader"
-                                    class="hidden absolute -top-10 right-0 bg-white text-[#2d1b69] px-4 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center animate-pulse z-10">
+                                    class="hidden absolute -top-10 right-0 bg-white text-[#2d1b69] px-4 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center animate-pulse z-10 whitespace-nowrap">
                                     <i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Updating...
                                 </div>
                             </div>
@@ -913,13 +910,20 @@
                                         class="font-black text-sm text-gray-900 tracking-widest uppercase flex items-center">
                                         <i class="fa-regular fa-calendar-days text-[#7c50ff] mr-2 text-lg"></i> Calendar
                                     </h3>
-                                    <div class="flex space-x-1">
-                                        <button onclick="changeDashMonth(-1)"
-                                            class="w-7 h-7 rounded-full bg-gray-50 hover:bg-indigo-50 flex items-center justify-center text-gray-500 hover:text-brandindigo transition-colors"><i
-                                                class="fa-solid fa-chevron-left text-[10px]"></i></button>
-                                        <button onclick="changeDashMonth(1)"
-                                            class="w-7 h-7 rounded-full bg-gray-50 hover:bg-indigo-50 flex items-center justify-center text-gray-500 hover:text-brandindigo transition-colors"><i
-                                                class="fa-solid fa-chevron-right text-[10px]"></i></button>
+                                    <div class="flex items-center space-x-2">
+                                        <button id="btn-clear-dash-date" onclick="clearDashboardDateFilter()"
+                                            class="hidden bg-red-50 hover:bg-red-100 text-red-500 rounded-md px-2.5 py-1 text-[10px] font-bold transition-colors border border-red-100">
+                                            <i class="fa-solid fa-times mr-1"></i> ยกเลิก
+                                        </button>
+
+                                        <div class="flex space-x-1">
+                                            <button onclick="changeDashMonth(-1)"
+                                                class="w-7 h-7 rounded-full bg-gray-50 hover:bg-indigo-50 flex items-center justify-center text-gray-500 hover:text-brandindigo transition-colors"><i
+                                                    class="fa-solid fa-chevron-left text-[10px]"></i></button>
+                                            <button onclick="changeDashMonth(1)"
+                                                class="w-7 h-7 rounded-full bg-gray-50 hover:bg-indigo-50 flex items-center justify-center text-gray-500 hover:text-brandindigo transition-colors"><i
+                                                    class="fa-solid fa-chevron-right text-[10px]"></i></button>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="text-center mb-2">
@@ -1076,23 +1080,47 @@
 
                     </div>
                     <div id="dashboard-absent-leave-section"
-                        class="grid grid-cols-1 lg:grid-cols-2 gap-6 admin-only hidden">
+                        class="grid grid-cols-1 lg:grid-cols-3 gap-6 admin-only hidden">
+
+                        <!-- ✅ การ์ดคนมาทำงาน -->
+                        <div id="dash-present-container"
+                            class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col h-[320px]">
+                            <h3 class="text-sm font-black text-gray-900 mb-4 flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm"></span>
+                                <i class="fa-solid fa-user-check text-emerald-500"></i>
+                                มาทำงานวันนี้
+                                <span id="dash-present-count-badge" class="ml-auto text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-full font-bold">0 คน</span>
+                            </h3>
+                            <ul id="dash-present-list" class="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-1.5">
+                            </ul>
+                        </div>
+
+                        <!-- ❌ การ์ดคนขาด -->
                         <div id="dash-absent-container"
                             class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col h-[320px]">
-                            <h3 class="text-sm font-black text-gray-900 mb-4 flex items-center"><span
-                                    class="w-2.5 h-2.5 rounded-full bg-red-500 mr-2.5 shadow-sm"></span> Absent Details
+                            <h3 class="text-sm font-black text-gray-900 mb-4 flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm"></span>
+                                <i class="fa-solid fa-user-xmark text-red-500"></i>
+                                Absent Details
+                                <span id="dash-absent-count-badge" class="ml-auto text-[10px] bg-red-50 text-red-500 border border-red-100 px-2 py-0.5 rounded-full font-bold">0 คน</span>
                             </h3>
                             <ul id="dash-absent-list" class="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2">
                             </ul>
                         </div>
+
+                        <!-- 📋 การ์ดใบลา -->
                         <div id="dash-leave-container"
                             class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col h-[320px]">
-                            <h3 class="text-sm font-black text-gray-900 mb-4 flex items-center"><span
-                                    class="w-2.5 h-2.5 rounded-full bg-yellow-400 mr-2.5 shadow-sm"></span> Leave
-                                Requests</h3>
+                            <h3 class="text-sm font-black text-gray-900 mb-4 flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-yellow-400 shadow-sm"></span>
+                                <i class="fa-solid fa-calendar-minus text-yellow-500"></i>
+                                Leave Requests
+                                <span id="dash-leave-count-badge" class="ml-auto text-[10px] bg-yellow-50 text-yellow-600 border border-yellow-200 px-2 py-0.5 rounded-full font-bold">0 คน</span>
+                            </h3>
                             <ul id="dash-leave-list" class="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2">
                             </ul>
                         </div>
+
                     </div>
 
                 </div>
@@ -2903,26 +2931,9 @@
          * ===================================================================== */
         function loadDashboard() {
             try {
-                const startDate = document.getElementById('dashStartDate') ? document.getElementById('dashStartDate').value : '';
-                const endDate = document.getElementById('dashEndDate') ? document.getElementById('dashEndDate').value : '';
-
-                if (dashboardCache && startDate === lastDashStartDate && endDate === lastDashEndDate) {
-                    updateDashboardUI(dashboardCache);
-                    google.script.run
-                        .withSuccessHandler(res => {
-                            try {
-                                if (res.success) {
-                                    dashboardCache = res.data;
-                                    updateDashboardUI(res.data);
-                                }
-                            } catch (eInner) {
-                                console.error("Error in loadDashboard cache success handler:", eInner);
-                                window.dispatchEvent(new ErrorEvent('error', { error: eInner, message: "Dashboard Cache Callback: " + eInner.message }));
-                            }
-                        })
-                        .getDashboardData(startDate, endDate);
-                    return;
-                }
+                // ดึงค่าจากตัวแปรปฏิทินที่ถูกจิ้มเลือก
+                const startDate = (typeof selectedDashDateStr !== 'undefined' && selectedDashDateStr) ? selectedDashDateStr : '';
+                const endDate = (typeof selectedDashDateStr !== 'undefined' && selectedDashDateStr) ? selectedDashDateStr : '';
 
                 lastDashStartDate = startDate;
                 lastDashEndDate = endDate;
@@ -2933,43 +2944,77 @@
                 const statIds = ['dash-staff', 'dash-leaves', 'dash-logs', 'dash-assets', 'dash-trainings', 'dash-late', 'dash-early', 'dash-absent', 'dash-ot', 'dash-overview-absent'];
                 statIds.forEach(id => {
                     let el = document.getElementById(id);
-                    if (el) {
-                        el.classList.add('opacity-30', 'scale-95', 'transition-all', 'duration-300');
-                    }
+                    if (el) el.classList.add('opacity-30', 'scale-95', 'transition-all', 'duration-300');
                 });
 
-                google.script.run
-                    .withSuccessHandler(res => {
-                        try {
-                            if (loader) loader.classList.add('hidden');
-                            statIds.forEach(id => {
-                                let el = document.getElementById(id);
-                                if (el) el.classList.remove('opacity-30', 'scale-95');
-                            });
+                // 🌟 ระบบใหม่: เลิกดึงข้อมูลผ่าน Network ซ้ำซ้อน (แก้ปัญหา Timeout 100%)
+                // เช็คว่ามีข้อมูลใน Cache ครบหรือยัง
+                let reqStaff = !tableCache['staff'];
+                let reqLogs = !tableCache['Fingerprint_Logs'];
+                let reqAnnounce = !tableCache['Announcements'];
+                let reqLeaves = !tableCache['Leave application'];
+                let reqRatings = !tableCache['Employees Ranting '];
 
-                            if (res.success) {
-                                dashboardCache = res.data;
-                                updateDashboardUI(res.data);
-                            } else showToast(res.message, 'error');
-                        } catch (eInner) {
-                            console.error("Error in loadDashboard success handler:", eInner);
-                            window.dispatchEvent(new ErrorEvent('error', { error: eInner, message: "Dashboard Callback: " + eInner.message }));
+                if (reqStaff || reqLogs || reqAnnounce || reqLeaves || reqRatings) {
+                    // ถ้ายังเพิ่งเข้าเว็บและโหลดยังไม่ครบ ให้สั่งโหลดแค่รอบเดียว
+                    renderDashboardExtras();
+                    let checkCount = 0;
+                    let checkInterval = setInterval(() => {
+                        let ready = tableCache['staff'] && tableCache['Fingerprint_Logs'] && tableCache['Leave application'];
+                        if (ready || checkCount > 30) {
+                            clearInterval(checkInterval);
+                            finishLoadDashboardUI();
                         }
-                    })
-                    .withFailureHandler(err => {
-                        if (loader) loader.classList.add('hidden');
-                        statIds.forEach(id => {
-                            let el = document.getElementById(id);
-                            if (el) el.classList.remove('opacity-30', 'scale-95');
-                        });
+                        checkCount++;
+                    }, 500);
+                } else {
+                    // ถ้ามี Cache ครบแล้ว กรองข้อมูลขึ้นหน้าจอได้ทันทีแบบไม่ต้องรอโหลด (เร็วมาก!)
+                    finishLoadDashboardUI();
+                }
 
-                        showToast('Connection failed: ' + err.message, 'error');
-                    })
-                    .getDashboardData(startDate, endDate);
             } catch (error) {
                 console.error("Error in loadDashboard:", error);
-                window.dispatchEvent(new ErrorEvent('error', { error: error, message: "loadDashboard: " + error.message }));
             }
+        }
+
+        // 🌟 ฟังก์ชันตัวช่วย: อัปเดตข้อมูลกราฟและตัวเลขทั้งหมดบนหน้าจอจาก Cache
+        function finishLoadDashboardUI() {
+            if (typeof checkAndRenderCharts === 'function') checkAndRenderCharts();
+            if (typeof renderDashboardTopRatings === 'function') renderDashboardTopRatings();
+            if (tableCache['Announcements'] && typeof renderAnnouncements === 'function') {
+                renderAnnouncements(tableCache['Announcements'].data);
+            }
+
+            const safeUpdate = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+
+            if (tableCache['Leave application']) {
+
+                let pending = tableCache['Leave application'].data.filter(r => String(r.status || r.signature || '').toLowerCase().includes('pending'));
+                if (typeof renderDashboardPendingLeaves === 'function') renderDashboardPendingLeaves(pending);
+            }
+            if (tableCache['Asset_Tracking']) {
+                safeUpdate('dash-assets', tableCache['Asset_Tracking'].data.length);
+            } else {
+                google.script.run.withSuccessHandler(res => {
+                    if (res.success) { tableCache['Asset_Tracking'] = { headers: res.headers, data: res.data }; safeUpdate('dash-assets', res.data.length); }
+                }).getSheetData('Asset_Tracking');
+            }
+            if (tableCache['Training']) {
+                safeUpdate('dash-trainings', tableCache['Training'].data.length);
+            } else {
+                google.script.run.withSuccessHandler(res => {
+                    if (res.success) { tableCache['Training'] = { headers: res.headers, data: res.data }; safeUpdate('dash-trainings', res.data.length); }
+                }).getSheetData('Training');
+            }
+
+            // ปิดกล่อง Loading และคืนความชัดให้ตัวเลข
+            const loader = document.getElementById('dash-inline-loader');
+            if (loader) loader.classList.add('hidden');
+            const statIds = ['dash-staff', 'dash-leaves', 'dash-logs', 'dash-assets', 'dash-trainings', 'dash-late', 'dash-early', 'dash-absent', 'dash-ot', 'dash-overview-absent'];
+            statIds.forEach(id => {
+                let el = document.getElementById(id);
+                if (el) el.classList.remove('opacity-30', 'scale-95');
+            });
         }
 
         function updateDashboardUI(data) {
@@ -3064,8 +3109,13 @@
             if (tableCache['Announcements'] && tableCache['Announcements'].data) {
                 renderAnnouncements(tableCache['Announcements'].data);
             } else {
-                document.getElementById('dashboard-announcements').innerHTML = '<p class="text-sm text-indigo-200 text-center py-4 font-medium">No announcements</p>';
+                const annEl = document.getElementById('dashboard-announcements');
+                if (annEl) annEl.innerHTML = '<p class="text-sm text-indigo-200 text-center py-4 font-medium">No announcements</p>';
             }
+            // 🏆 วาด Top Rating หลังจากข้อมูลทุกอย่างโหลดครบแล้ว
+            if (typeof renderDashboardTopRatings === 'function') renderDashboardTopRatings();
+            // 📊 วาด Employee of Month chart ด้วย
+            if (typeof renderEmployeeMonthChart === 'function') renderEmployeeMonthChart();
         }
 
         function renderAnnouncements(data) {
@@ -3125,243 +3175,239 @@
             let logData = tableCache['Fingerprint_Logs'].data;
             let leaveData = tableCache['Leave application'] ? tableCache['Leave application'].data : [];
 
-            let activeStaffCount = 0;
+            // 1. นับจำนวนพนักงานทั้งหมด
             let activeStaffIds = [];
+            let empNamesMapFull = {};
             staffData.forEach(s => {
                 let st = String(getFuzzyValue(s, ['status', 'สถานะ'])).toLowerCase();
                 let eId = String(getFuzzyValue(s, ['employee_id', 'emp_id'])).toUpperCase().trim();
+                let name = getFuzzyValue(s, ['first_name', 'name', 'full_name', 'ชื่อ']);
                 if (st.includes('active') || st === '-' || st === '') {
-                    activeStaffCount++;
-                    if (eId && eId !== '-') activeStaffIds.push(eId);
+                    if (eId && eId !== '-') {
+                        activeStaffIds.push(eId);
+                        empNamesMapFull[eId] = name !== '-' ? name : eId;
+                    }
                 }
             });
 
-            // 🛡️ SAFE UPDATE FOR STAFF (ระบบเซฟตี้ ป้องกัน Error)
-            let staffCount = activeStaffCount > 0 ? activeStaffCount : staffData.length;
+            let staffCount = activeStaffIds.length;
             let staffEl = document.getElementById('dash-staff');
             if (staffEl) staffEl.innerText = staffCount;
 
-            const startDate = document.getElementById('dashStartDate') ? document.getElementById('dashStartDate').value : '';
-            const endDate = document.getElementById('dashEndDate') ? document.getElementById('dashEndDate').value : '';
-            let sDateObj = startDate ? new Date(startDate) : null;
-            let eDateObj = endDate ? new Date(endDate) : null;
-            if (sDateObj) sDateObj.setHours(0, 0, 0, 0);
-            if (eDateObj) eDateObj.setHours(23, 59, 59, 999);
+            // 🌟 2. ระบุวันที่เป้าหมาย (จากที่คลิกในปฏิทิน ถ้าไม่ได้คลิกให้ใช้วันนี้)
+            const targetDateStr = (typeof selectedDashDateStr !== 'undefined' && selectedDashDateStr) ? selectedDashDateStr : new Date().toISOString().slice(0, 10);
+            const tDateObj = new Date(targetDateStr);
+            tDateObj.setHours(0, 0, 0, 0);
 
-            let empAvgCheckIn = {};
-            let empNamesMap = {};
-            let empNamesMapFull = {};
-            let sumLate = 0, sumEarly = 0, sumAbsent = 0, sumOT = 0, validLogs = 0;
+            let sumLate = 0, sumEarly = 0, sumOT = 0;
+            let presentSet = new Set(); // เก็บรายชื่อคนที่มาสแกน
 
-            staffData.forEach(s => {
-                let eId = String(getFuzzyValue(s, ['employee_id', 'emp_id'])).toUpperCase().trim();
-                let name = getFuzzyValue(s, ['first_name', 'name', 'full_name', 'ชื่อ']);
-                if (name !== '-') {
-                    empNamesMap[eId] = name.split(' ')[0];
-                    empNamesMapFull[eId] = name;
-                }
-            });
-
-            let logTracker = {};
-
+            // 🌟 3. คำนวณ มาทำงาน, สาย, กลับก่อน, โอที (เฉพาะวันนั้น)
             logData.forEach(l => {
                 let rDateStr = getFuzzyValue(l, ['date', 'วันที่']);
-                let isValidDate = true;
-                let d = null;
-                if (rDateStr && rDateStr !== '-') {
-                    d = new Date(rDateStr);
-                    if (isNaN(d.getTime())) {
-                        let parts = String(rDateStr).split(/[\/\-]/);
-                        if (parts.length === 3) {
-                            if (parts[2].length === 4) d = new Date(`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`);
-                            else if (parts[0].length === 4) d = new Date(`${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`);
+                if (!rDateStr || rDateStr === '-') return;
+
+                let d = new Date(rDateStr);
+                if (isNaN(d.getTime())) {
+                    let parts = String(rDateStr).split(/[\/\-]/);
+                    if (parts.length === 3) {
+                        if (parts[2].length === 4) d = new Date(`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`);
+                        else if (parts[0].length === 4) d = new Date(`${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`);
+                    }
+                }
+
+                if (d && !isNaN(d.getTime())) {
+                    d.setHours(0, 0, 0, 0);
+                    // ถ้าวันที่ตรงกับวันที่เลือกในปฏิทิน
+                    if (d.getTime() === tDateObj.getTime()) {
+                        let eId = String(getFuzzyValue(l, ['employee_id', 'emp_id'])).toUpperCase().trim();
+                        let status = String(getFuzzyValue(l, ['attendance_status', 'status', 'สถานะ'])).toLowerCase();
+
+                        if (!status.includes('missing') && !status.includes('absent') && !status.includes('ขาด')) {
+                            presentSet.add(eId); // นับคนที่มาสแกน (นับแค่คนละ 1 ครั้ง)
                         }
-                    }
-                    if (!isNaN(d?.getTime())) {
-                        d.setHours(12, 0, 0, 0);
-                        if (sDateObj && d < sDateObj) isValidDate = false;
-                        if (eDateObj && d > eDateObj) isValidDate = false;
-                    } else {
-                        isValidDate = false;
-                    }
-                } else {
-                    isValidDate = false;
-                }
 
-                if (isValidDate && d) {
-                    validLogs++;
-                    let eId = String(getFuzzyValue(l, ['employee_id', 'emp_id'])).toUpperCase().trim();
-                    let late = parseFloat(getFuzzyValue(l, ['late_hours', 'มาช้า'])) || 0;
-                    let early = parseFloat(getFuzzyValue(l, ['early_leave_hours', 'กลับก่อน'])) || 0;
-                    let ot = parseFloat(getFuzzyValue(l, ['ot_amount', 'ยอดเงินโอที'])) || 0;
-                    let status = String(getFuzzyValue(l, ['attendance_status', 'status', 'สถานะ'])).toLowerCase();
-
-                    sumLate += late;
-                    sumEarly += early;
-                    sumOT += ot;
-
-                    let dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                    if (!logTracker[dateKey]) logTracker[dateKey] = new Set();
-                    logTracker[dateKey].add(eId);
-
-                    if (status.includes('missing') || status.includes('absent') || status.includes('ขาด')) sumAbsent++;
-
-                    let checkInStr = String(getFuzzyValue(l, ['check_in', 'เวลาเข้า', 'in'])).toUpperCase();
-                    let timeMatch = checkInStr.match(/(\d{1,2}):(\d{1,2})/);
-                    if (timeMatch) {
-                        let hrs = parseInt(timeMatch[1], 10);
-                        let mins = parseInt(timeMatch[2], 10);
-                        if (checkInStr.includes('PM') && hrs < 12) hrs += 12;
-
-                        let totalMins = (hrs * 60) + mins;
-                        if (!empAvgCheckIn[eId]) empAvgCheckIn[eId] = { totalMins: 0, count: 0, name: empNamesMap[eId] || eId };
-                        empAvgCheckIn[eId].totalMins += totalMins;
-                        empAvgCheckIn[eId].count++;
+                        sumLate += parseFloat(getFuzzyValue(l, ['late_hours', 'มาช้า'])) || 0;
+                        sumEarly += parseFloat(getFuzzyValue(l, ['early_leave_hours', 'กลับก่อน'])) || 0;
+                        sumOT += parseFloat(getFuzzyValue(l, ['ot_amount', 'ยอดเงินโอที'])) || 0;
                     }
                 }
             });
 
-            // 📌 คำนวณจำนวนคนขาดงาน (Absent)
-            let today = new Date();
-            today.setHours(0, 0, 0, 0);
+            let presentCount = presentSet.size;
 
-            let absentStart = sDateObj ? new Date(sDateObj) : new Date(today.getFullYear(), today.getMonth(), 1);
-            let absentEnd = eDateObj ? new Date(eDateObj) : new Date(today.getFullYear(), today.getMonth() + 1, 0);
-            if (absentStart > absentEnd) absentStart = new Date(absentEnd);
-
-            let approvedLeaves = leaveData.filter(r => {
-                let status = String(getFuzzyValue(r, ['signature', 'status', 'อนุมัติ'])).toLowerCase();
-                return status.includes('approve') || status.includes('hr') || status.includes('อนุมัติ') || status.includes('อนุญาต');
-            });
-
+            // 🌟 4. คำนวณ ขาดงาน, ลางาน, และ คนมาทำงาน (เฉพาะวันนั้น)
+            let sumAbsent = 0;
             let absentListHTML = '';
             let leaveListHTML = '';
+            let presentListHTML = '';
             let absentDetailsCount = 0;
             let leaveDetailsCount = 0;
-            let processedLeaves = new Set();
+            let presentDetailsCount = 0;
 
-            for (let dt = new Date(absentStart); dt <= absentEnd; dt.setDate(dt.getDate() + 1)) {
-                let dayOfWeek = dt.getDay();
-                if (dayOfWeek === 0) continue;
-
-                let dateKey = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-                let displayDateStr = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`;
-                let logsForDay = logTracker[dateKey] || new Set();
-
-                activeStaffIds.forEach(empId => {
-                    let empName = empNamesMapFull[empId] || empId;
-                    let isOnLeave = false;
-                    let leaveType = '';
-                    let leaveStart = '';
-                    let leaveEnd = '';
-                    let leaveTotal = '';
-                    let leaveKey = '';
-
-                    for (let lv of approvedLeaves) {
-                        let lvEmp = String(getFuzzyValue(lv, ['employee_id', 'emp_id'])).toUpperCase().trim();
-                        if (lvEmp === empId) {
-                            let lStartStr = getFuzzyValue(lv, ['start_date', 'เริ่ม']);
-                            let lEndStr = getFuzzyValue(lv, ['end_date', 'สิ้นสุด']);
-                            let dStart = parseDateStr(lStartStr);
-                            let dEnd = parseDateStr(lEndStr);
-                            if (dStart && dEnd && dt >= dStart && dt <= dEnd) {
-                                isOnLeave = true;
-                                leaveType = getFuzzyValue(lv, ['type', 'ประเภท', 'ประเภทการลา']);
-                                leaveStart = lStartStr;
-                                leaveEnd = lEndStr;
-                                leaveTotal = getFuzzyValue(lv, ['total_days', 'รวม', 'จำนวนวัน']);
-                                leaveKey = empId + '_' + leaveStart + '_' + leaveEnd;
-                                break;
-                            }
-                        }
+            // ดึงใบลา ALL (ทุกสถานะ) สำหรับวันนั้น เพื่อแสดงสถานะอนุมัติ/ไม่อนุมัติ
+            let allLeavesForDay = [];
+            leaveData.forEach(r => {
+                let empId = String(getFuzzyValue(r, ['employee_id', 'emp_id'])).toUpperCase().trim();
+                let lStartStr = getFuzzyValue(r, ['start_date', 'เริ่ม']);
+                let lEndStr = getFuzzyValue(r, ['end_date', 'สิ้นสุด']);
+                let dStart = parseDateStr(lStartStr);
+                let dEnd = parseDateStr(lEndStr);
+                if (dStart && dEnd) {
+                    let ds = new Date(dStart); ds.setHours(0, 0, 0, 0);
+                    let de = new Date(dEnd); de.setHours(0, 0, 0, 0);
+                    let target = new Date(tDateObj); target.setHours(0, 0, 0, 0);
+                    if (target.getTime() >= ds.getTime() && target.getTime() <= de.getTime()) {
+                        allLeavesForDay.push({ ...r, _empId: empId });
                     }
+                }
+            });
 
-                    if (isOnLeave) {
-                        if (!processedLeaves.has(leaveKey)) {
-                            leaveListHTML += `<li class="flex items-center justify-between py-3 px-4 rounded-2xl border border-gray-100 bg-white hover:shadow-md transition-all shadow-sm mb-2">
-                                <div class="flex flex-col gap-1 w-full">
-                                    <div class="flex items-center justify-between w-full">
-                                        <div class="flex items-center gap-2">
-                                            <span class="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0"></span>
-                                            <span class="text-sm font-black text-gray-900">${empName}</span>
-                                        </div>
-                                        <span class="text-[9px] bg-yellow-50 text-yellow-600 px-2 py-1 rounded-md font-bold uppercase border border-yellow-200 tracking-widest">${leaveType || 'ON LEAVE'}</span>
-                                    </div>
-                                    <div class="flex items-center gap-2 pl-4 mt-1 text-[10px] text-gray-500 font-medium">
-                                        <i class="fa-regular fa-folder-open text-gray-300"></i>
-                                        <span>Start: ${leaveStart}</span>
-                                        <span class="text-gray-300">|</span>
-                                        <span>End: ${leaveEnd}</span>
-                                        <span class="text-gray-300">|</span>
-                                        <span>Total: <b>${leaveTotal}</b></span>
-                                    </div>
-                                </div>
-                            </li>`;
-                            leaveDetailsCount++;
-                            processedLeaves.add(leaveKey);
-                        }
-                    } else if (!logsForDay.has(empId) && dt <= today) {
+            let displayDateStr = `${String(tDateObj.getDate()).padStart(2, '0')}/${String(tDateObj.getMonth() + 1).padStart(2, '0')}/${tDateObj.getFullYear()}`;
+
+            // 🟢 สร้างรายการ Leave Requests (แสดงทุกใบลาที่มีในวันนั้น พร้อมสถานะ)
+            allLeavesForDay.forEach(lv => {
+                let empId = lv._empId;
+                let empName = empNamesMapFull[empId] || empId;
+                let leaveType = getFuzzyValue(lv, ['type', 'ประเภท', 'ประเภทการลา']) || 'Leave';
+                let rawStatus = String(getFuzzyValue(lv, ['signature', 'status', 'อนุมัติ', 'approval_status']) || '').toLowerCase();
+                let leaveStart = getFuzzyValue(lv, ['start_date', 'เริ่ม']);
+                let leaveEnd = getFuzzyValue(lv, ['end_date', 'สิ้นสุด']);
+
+                // กำหนด badge สถานะ
+                let statusBadge = '';
+                let dotColor = 'bg-gray-400';
+                if (rawStatus.includes('approve') || rawStatus.includes('hr') || rawStatus.includes('อนุมัติ') || rawStatus.includes('อนุญาต')) {
+                    statusBadge = `<span class="text-[9px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-md font-bold border border-emerald-200 tracking-widest uppercase flex items-center gap-1"><i class="fa-solid fa-check"></i> อนุมัติ</span>`;
+                    dotColor = 'bg-emerald-400';
+                } else if (rawStatus.includes('reject') || rawStatus.includes('ปฏิเสธ') || rawStatus.includes('ไม่อนุมัติ') || rawStatus.includes('denied')) {
+                    statusBadge = `<span class="text-[9px] bg-red-50 text-red-500 px-2 py-1 rounded-md font-bold border border-red-100 tracking-widest uppercase flex items-center gap-1"><i class="fa-solid fa-times"></i> ไม่อนุมัติ</span>`;
+                    dotColor = 'bg-red-400';
+                } else {
+                    statusBadge = `<span class="text-[9px] bg-amber-50 text-amber-500 px-2 py-1 rounded-md font-bold border border-amber-200 tracking-widest uppercase flex items-center gap-1"><i class="fa-solid fa-clock"></i> รอพิจารณา</span>`;
+                    dotColor = 'bg-amber-400';
+                }
+
+                leaveListHTML += `<li class="flex items-start justify-between py-2.5 px-3 rounded-xl border border-gray-100 bg-white hover:shadow-sm transition-all mb-1.5">
+                    <div class="flex flex-col gap-1 min-w-0 flex-1">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <span class="w-2 h-2 rounded-full ${dotColor} flex-shrink-0"></span>
+                                <span class="text-sm font-black text-gray-900 truncate">${empName}</span>
+                            </div>
+                            ${statusBadge}
+                        </div>
+                        <div class="flex items-center gap-2 pl-4 text-[10px] text-gray-400 font-medium flex-wrap">
+                            <span class="bg-gray-50 px-1.5 py-0.5 rounded text-[9px] font-bold text-gray-600 border border-gray-200">${leaveType}</span>
+                            <span>${leaveStart} – ${leaveEnd}</span>
+                        </div>
+                    </div>
+                </li>`;
+                leaveDetailsCount++;
+            });
+
+            activeStaffIds.forEach(empId => {
+                let empName = empNamesMapFull[empId] || empId;
+                let isOnLeave = allLeavesForDay.some(lv => {
+                    if (lv._empId !== empId) return false;
+                    let rawStatus = String(getFuzzyValue(lv, ['signature', 'status', 'อนุมัติ', 'approval_status']) || '').toLowerCase();
+                    return !rawStatus.includes('reject') && !rawStatus.includes('ปฏิเสธ') && !rawStatus.includes('ไม่อนุมัติ') && !rawStatus.includes('denied');
+                });
+
+                if (presentSet.has(empId)) {
+                    // 🟢 คนที่มาสแกน — หาข้อมูล check-in/out จาก logData
+                    let logEntry = logData.find(l => {
+                        let rDateStr = getFuzzyValue(l, ['date', 'วันที่']);
+                        let d = parseDateStr(rDateStr);
+                        if (!d) return false;
+                        d.setHours(0, 0, 0, 0);
+                        let empCheck = String(getFuzzyValue(l, ['employee_id', 'emp_id'])).toUpperCase().trim();
+                        return d.getTime() === tDateObj.getTime() && empCheck === empId;
+                    });
+                    let checkIn = logEntry ? (getFuzzyValue(logEntry, ['check_in', 'เวลาเข้า', 'checkin']) || '-') : '-';
+                    let checkOut = logEntry ? (getFuzzyValue(logEntry, ['check_out', 'เวลาออก', 'checkout']) || '-') : '-';
+                    let lateHrs = logEntry ? (parseFloat(getFuzzyValue(logEntry, ['late_hours', 'มาช้า'])) || 0) : 0;
+                    let lateTag = lateHrs > 0 ? `<span class="text-[9px] bg-orange-50 text-orange-500 px-1.5 py-0.5 rounded border border-orange-100 font-bold ml-1">สาย ${lateHrs}h</span>` : '';
+
+                    presentListHTML += `<li class="flex items-center justify-between py-2 px-3 rounded-xl hover:bg-emerald-50 transition-colors border border-transparent hover:border-emerald-100">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+                            <div class="min-w-0">
+                                <p class="text-sm font-black text-gray-900 leading-tight truncate">${empName} ${lateTag}</p>
+                                <p class="text-[10px] text-gray-400 font-medium mt-0.5">In: ${checkIn} &nbsp;|&nbsp; Out: ${checkOut}</p>
+                            </div>
+                        </div>
+                        <span class="text-[9px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-md font-bold border border-emerald-200 tracking-widest uppercase flex-shrink-0">มาทำงาน</span>
+                    </li>`;
+                    presentDetailsCount++;
+                } else if (!isOnLeave) {
+                    // 🔴 ไม่ลา และ ไม่ได้สแกนนิ้ว = ขาดงาน
+                    let todayObj = new Date();
+                    todayObj.setHours(0, 0, 0, 0);
+                    if (tDateObj <= todayObj && tDateObj.getDay() !== 0) {
                         sumAbsent++;
                         absentListHTML += `<li class="flex items-center justify-between py-3 px-4 rounded-2xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
                                 <div class="flex items-center gap-3">
                                     <span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"></span>
-                                    <span class="text-xs text-gray-500 font-medium tracking-wide">Date: ${displayDateStr}</span>
                                     <span class="text-sm font-black text-gray-900">${empName}</span>
                                 </div>
                                 <span class="text-[9px] bg-red-50 text-red-500 px-3 py-1 rounded-lg font-bold uppercase border border-red-100 tracking-widest">ABSENT</span>
                             </li>`;
                         absentDetailsCount++;
                     }
-                });
-            }
+                }
+            });
 
+            // 🌟 5. อัปเดต HTML หน้าจอ
             const sectionContainer = document.getElementById('dashboard-absent-leave-section');
-            const absentContainer = document.getElementById('dash-absent-container');
-            const leaveContainer = document.getElementById('dash-leave-container');
             const absentUl = document.getElementById('dash-absent-list');
             const leaveUl = document.getElementById('dash-leave-list');
+            const presentUl = document.getElementById('dash-present-list');
 
             if (sectionContainer) {
                 sectionContainer.classList.remove('hidden');
-                sectionContainer.classList.add('grid', 'grid-cols-1', 'lg:grid-cols-2');
+                sectionContainer.classList.add('grid', 'grid-cols-1', 'lg:grid-cols-3');
             }
 
-            if (absentContainer && absentUl) {
-                absentContainer.classList.remove('hidden');
-                absentContainer.classList.add('flex');
-                if (absentDetailsCount > 0) {
-                    absentUl.innerHTML = absentListHTML;
-                } else {
-                    absentUl.innerHTML = '<li class="py-8 text-center text-gray-400 text-xs font-medium border border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center"><i class="fa-solid fa-user-check text-2xl mb-2 text-gray-300"></i> No absent records found.</li>';
-                }
+            // อัปเดตการ์ดคนมาทำงาน
+            if (presentUl) {
+                if (presentDetailsCount > 0) presentUl.innerHTML = presentListHTML;
+                else presentUl.innerHTML = '<li class="py-8 text-center text-gray-400 text-xs font-medium border border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center"><i class="fa-solid fa-door-open text-2xl mb-2 text-gray-300"></i> ยังไม่มีผู้มาทำงาน</li>';
             }
+            const presentBadge = document.getElementById('dash-present-count-badge');
+            if (presentBadge) presentBadge.innerText = `${presentDetailsCount} คน`;
 
-            if (leaveContainer && leaveUl) {
-                leaveContainer.classList.remove('hidden');
-                leaveContainer.classList.add('flex');
-                if (leaveDetailsCount > 0) {
-                    leaveUl.innerHTML = leaveListHTML;
-                } else {
-                    leaveUl.innerHTML = '<li class="py-8 text-center text-gray-400 text-xs font-medium border border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center"><i class="fa-solid fa-clipboard-check text-2xl mb-2 text-gray-300"></i> No leave records found.</li>';
-                }
+            // อัปเดตการ์ดคนขาด
+            if (absentUl) {
+                if (absentDetailsCount > 0) absentUl.innerHTML = absentListHTML;
+                else absentUl.innerHTML = '<li class="py-8 text-center text-gray-400 text-xs font-medium border border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center"><i class="fa-solid fa-user-check text-2xl mb-2 text-gray-300"></i> ไม่มีคนขาดงาน 🎉</li>';
             }
+            const absentBadge = document.getElementById('dash-absent-count-badge');
+            if (absentBadge) absentBadge.innerText = `${absentDetailsCount} คน`;
 
-            // 🛡️ SAFE UPDATE FOR STATS (ระบบเซฟตี้ ป้องกัน Error จอขาว 100%)
+            // อัปเดตการ์ดใบลา
+            if (leaveUl) {
+                if (leaveDetailsCount > 0) leaveUl.innerHTML = leaveListHTML;
+                else leaveUl.innerHTML = '<li class="py-8 text-center text-gray-400 text-xs font-medium border border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center"><i class="fa-solid fa-clipboard-check text-2xl mb-2 text-gray-300"></i> No leave records found.</li>';
+            }
+            const leaveBadge = document.getElementById('dash-leave-count-badge');
+            if (leaveBadge) leaveBadge.innerText = `${leaveDetailsCount} คน`;
+
+            // 🌟 อัปเดตตัวเลขทั้งหมด
             const safeUpdate = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
-            safeUpdate('dash-logs', validLogs);
+            safeUpdate('dash-logs', presentCount); // อัปเดตช่องสแกนนิ้ว
             safeUpdate('dash-late', (Math.round(sumLate * 100) / 100));
             safeUpdate('dash-early', (Math.round(sumEarly * 100) / 100));
             safeUpdate('dash-absent', sumAbsent);
             safeUpdate('dash-overview-absent', sumAbsent);
             safeUpdate('dash-ot', new Intl.NumberFormat('th-TH').format(sumOT));
+            safeUpdate('dash-leaves', leaveDetailsCount);
 
-            // 🌟 สร้างกราฟวงกลมและ Top Rating จากโค้ดที่เราเตรียมไว้
-            if (typeof updateAttendanceRateChart === 'function') updateAttendanceRateChart(staffCount, validLogs);
-            if (typeof renderDashboardTopRatings === 'function') renderDashboardTopRatings();
+            // อัปเดตกราฟวงกลม
+            if (typeof updateAttendanceRateChart === 'function') updateAttendanceRateChart(staffCount, presentCount);
 
-            // 🎂 BIRTHDAYS
-            let targetDate = sDateObj ? sDateObj : new Date();
-            let currentMonth = targetDate.getMonth() + 1;
+            // 🎂 BIRTHDAYS (ปล่อยไว้เป็นรายเดือนเหมือนเดิม)
+            let currentMonth = tDateObj.getMonth() + 1;
             let birthdaysHtml = '';
             let bdCount = 0;
 
@@ -3411,6 +3457,352 @@
                     bdContainer.innerHTML = birthdaysHtml;
                 }
             }
+        }
+
+        /* =====================================================================
+         * 📊 กราฟวงกลม Daily Attendance Rate
+         * ===================================================================== */
+        function updateAttendanceRateChart(totalStaff, presentCount) {
+            const ctx = document.getElementById('attendanceRateChart');
+            const percentText = document.getElementById('dash-attendance-percent');
+
+            // คำนวณ %
+            let total = parseInt(totalStaff) || 0;
+            let present = parseInt(presentCount) || 0;
+            let percent = total > 0 ? Math.round((present / total) * 100) : 0;
+            if (percent > 100) percent = 100;
+
+            // อัปเดตตัวเลข
+            if (percentText) percentText.innerText = percent + '%';
+            if (!ctx) return;
+
+            // ล้างกราฟเก่าก่อนวาดใหม่
+            if (window.attChartInstance) {
+                window.attChartInstance.destroy();
+                window.attChartInstance = null;
+            }
+
+            let absent = Math.max(0, total - present);
+
+            try {
+                window.attChartInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['มาทำงาน', 'ขาด/ลา'],
+                        datasets: [{
+                            data: total > 0 ? [present, absent] : [0, 1],
+                            backgroundColor: total > 0 ? ['#7c50ff', '#e2e8f0'] : ['#e2e8f0', '#e2e8f0'],
+                            borderWidth: 0,
+                            cutout: '80%'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                        animation: { animateScale: true, animateRotate: true }
+                    }
+                });
+            } catch (e) { console.warn('Chart error:', e); }
+        }
+
+        /* =====================================================================
+         * 🏆 TOP Rating – ดึงจากหน้า Employee Rating เรียงตามดาวมากสุด
+         * ===================================================================== */
+        function renderDashboardTopRatings() {
+            const container = document.getElementById('dashboard-top-ratings');
+            if (!container) return;
+
+            // ถ้ายังไม่มีข้อมูลให้ดึงจาก Supabase ก่อน
+            if (!tableCache['Employees Ranting '] && !tableCache['employees_rating']) {
+                container.innerHTML = '<p class="text-sm text-white/50 text-center py-4"><i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังดึงข้อมูลคะแนนดาว...</p>';
+                google.script.run.withSuccessHandler(res => {
+                    if (res && res.success) {
+                        tableCache['Employees Ranting '] = { headers: res.headers || [], data: res.data || [] };
+                        renderDashboardTopRatings();
+                    } else {
+                        container.innerHTML = '<p class="text-sm text-white/50 text-center py-4">ไม่พบข้อมูลการประเมิน</p>';
+                    }
+                }).withFailureHandler(() => {
+                    container.innerHTML = '<p class="text-sm text-red-300 text-center py-4">โหลดข้อมูลไม่สำเร็จ</p>';
+                }).getSheetData('Employees Ranting ');
+                return;
+            }
+
+            let ratingData = (tableCache['Employees Ranting '] || tableCache['employees_rating'])?.data || [];
+
+            if (!ratingData.length) {
+                container.innerHTML = '<p class="text-sm text-white/50 text-center py-4">ยังไม่มีข้อมูลการประเมินดาว</p>';
+                return;
+            }
+
+            // รวมคะแนนของพนักงานแต่ละคน
+            let empStats = {};
+            ratingData.forEach(row => {
+                let empId = String(getFuzzyValue(row, ['Employees Id', 'employees id', 'emp_id', 'employee_id', 'Employees_Id'])).toUpperCase().trim();
+                if (!empId || empId === '-') return;
+
+                let name = getFuzzyValue(row, ['Employees Name', 'employees name', 'name', 'ชื่อ', 'full_name']) || empId;
+                let stars = parseFloat(getFuzzyValue(row, ['Star Point', 'star point', 'star_point', 'rating', 'score', 'ดาว'])) || 0;
+
+                if (!empStats[empId]) empStats[empId] = { id: empId, name: name, totalStars: 0, count: 0 };
+                empStats[empId].totalStars += stars;
+                empStats[empId].count += 1;
+            });
+
+            // จัดอันดับ: ค่าเฉลี่ยดาวสูงสุด → จำนวนรีวิวเยอะกว่า
+            let sorted = Object.values(empStats).map(e => ({
+                ...e, avg: e.count > 0 ? e.totalStars / e.count : 0
+            })).sort((a, b) => b.avg - a.avg || b.count - a.count);
+
+            let top3 = sorted.slice(0, 3);
+            if (!top3.length) {
+                container.innerHTML = '<p class="text-sm text-white/50 text-center py-4">ยังไม่มีข้อมูลการประเมินดาว</p>';
+                return;
+            }
+
+            const medals = [
+                '<i class="fa-solid fa-medal text-yellow-400 text-2xl drop-shadow-md"></i>',
+                '<i class="fa-solid fa-medal text-gray-300 text-xl drop-shadow-sm"></i>',
+                '<i class="fa-solid fa-medal text-amber-600 text-lg drop-shadow-sm"></i>'
+            ];
+            const starColors = ['text-yellow-400', 'text-gray-300', 'text-amber-500'];
+
+            let html = '';
+            top3.forEach((emp, i) => {
+                // พยายามดึงรูปโปรไฟล์จาก Staff cache
+                let picUrl = `https://ui-avatars.com/api/?background=ffffff&color=211252&name=${encodeURIComponent(emp.name)}&bold=true`;
+                let staffData = (tableCache['staff'] || tableCache['Staff'])?.data;
+                if (staffData) {
+                    let sRow = staffData.find(r => String(getFuzzyValue(r, ['employee_id', 'emp_id'])).toUpperCase().trim() === emp.id);
+                    if (sRow) {
+                        let photo = getFuzzyValue(sRow, ['Photos', 'photos', 'photo', 'profile', 'รูป', 'pic']);
+                        if (photo && photo !== '-') {
+                            if (photo.includes('drive.google.com')) {
+                                let fid = photo.includes('id=') ? photo.split('id=')[1].split('&')[0] :
+                                    (photo.includes('/d/') ? photo.split('/d/')[1].split('/')[0] : '');
+                                if (fid) photo = 'https://drive.google.com/thumbnail?id=' + fid + '&sz=w100';
+                            }
+                            picUrl = photo;
+                        }
+                    }
+                }
+
+                // วาดดาว
+                let starsHtml = '';
+                let fullStars = Math.floor(emp.avg);
+                let halfStar = (emp.avg - fullStars) >= 0.5;
+                for (let s = 0; s < 5; s++) {
+                    if (s < fullStars) starsHtml += `<i class="fa-solid fa-star ${starColors[i] || 'text-yellow-400'} text-xs"></i>`;
+                    else if (s === fullStars && halfStar) starsHtml += `<i class="fa-solid fa-star-half-stroke ${starColors[i] || 'text-yellow-400'} text-xs"></i>`;
+                    else starsHtml += `<i class="fa-regular fa-star text-white/20 text-xs"></i>`;
+                }
+
+                html += `
+                <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors mb-2 last:mb-0">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="w-8 flex-shrink-0 flex justify-center">${medals[i] || ''}</div>
+                        <img src="${picUrl}" class="w-10 h-10 rounded-full object-cover border-2 border-white/20 flex-shrink-0" onerror="this.src='https://ui-avatars.com/api/?background=ffffff&color=211252&name=${encodeURIComponent(emp.name)}'">
+                        <div class="min-w-0">
+                            <p class="text-sm font-bold text-white leading-tight truncate">${emp.name}</p>
+                            <p class="text-[10px] text-white/50 tracking-wider">${emp.id}</p>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-end flex-shrink-0 ml-2">
+                        <div class="flex items-center gap-0.5 mb-1">${starsHtml}</div>
+                        <span class="text-[10px] ${starColors[i] || 'text-yellow-400'} font-black">${emp.avg.toFixed(1)} ⭐</span>
+                        <span class="text-[9px] text-white/40">${emp.count} รีวิว</span>
+                    </div>
+                </div>`;
+            });
+
+            container.innerHTML = html;
+
+            // อัปเดต Bar chart "Employee of Month" ด้วย
+            if (typeof renderEmployeeMonthChart === 'function') renderEmployeeMonthChart();
+        }
+
+        /* =====================================================================
+         * 📊 Bar Chart – Employee of the Month (คำนวณจากสถิติเข้างาน: ไม่ขาด ไม่ลา ไม่สาย)
+         * ===================================================================== */
+        let employeeMonthChartInst = null;
+        function renderEmployeeMonthChart() {
+            const ctx = document.getElementById('employeeMonthChart');
+            if (!ctx) return;
+
+            if (!tableCache['staff'] || !tableCache['Fingerprint_Logs']) return;
+
+            let staffData = tableCache['staff'].data;
+            let logData = tableCache['Fingerprint_Logs'].data;
+            let leaveData = tableCache['Leave application'] ? tableCache['Leave application'].data : [];
+
+            // 1. ดึงรายชื่อพนักงานที่ Active
+            let activeStaff = [];
+            staffData.forEach(s => {
+                let st = String(getFuzzyValue(s, ['status', 'สถานะ'])).toLowerCase();
+                let eId = String(getFuzzyValue(s, ['employee_id', 'emp_id'])).toUpperCase().trim();
+                let name = getFuzzyValue(s, ['first_name', 'name', 'full_name', 'ชื่อ']);
+                if (st.includes('active') || st === '-' || st === '') {
+                    if (eId && eId !== '-') {
+                        activeStaff.push({ id: eId, name: name !== '-' ? name : eId });
+                    }
+                }
+            });
+
+            // 2. ระบุช่วงวันที่ของเดือนเป้าหมาย
+            const targetDateStr = (typeof selectedDashDateStr !== 'undefined' && selectedDashDateStr) ? selectedDashDateStr : new Date().toISOString().slice(0, 10);
+            const tDateObj = new Date(targetDateStr);
+            const targetYear = tDateObj.getFullYear();
+            const targetMonth = tDateObj.getMonth(); // 0-11
+
+            // 3. กรองข้อมูลการลาที่ได้รับการอนุมัติ
+            let approvedLeaves = leaveData.filter(r => {
+                let status = String(getFuzzyValue(r, ['signature', 'status', 'อนุมัติ'])).toLowerCase();
+                return status.includes('approve') || status.includes('hr') || status.includes('อนุมัติ') || status.includes('อนุญาต');
+            });
+
+            // 4. คำนวณวันทำงานในเดือนนั้น (ไม่นับวันอาทิตย์)
+            let lastDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+            let today = new Date();
+            // หากเป็นเดือนปัจจุบัน ให้ประเมินถึงแค่วันนี้
+            if (today.getFullYear() === targetYear && today.getMonth() === targetMonth) {
+                lastDay = today.getDate();
+            }
+
+            let evaluationDays = [];
+            for (let d = 1; d <= lastDay; d++) {
+                let date = new Date(targetYear, targetMonth, d);
+                if (date.getDay() !== 0) { // ยกเว้นวันอาทิตย์
+                    evaluationDays.push(date);
+                }
+            }
+
+            if (evaluationDays.length === 0) return;
+
+            // 5. Index ข้อมูลเพื่อการค้นหาที่รวดเร็ว (ป้องกันการเกิดลูปซ้อนลูปขนาดใหญ่)
+            let logLookup = {};
+            logData.forEach(l => {
+                let rDateStr = getFuzzyValue(l, ['date', 'วันที่']);
+                let dObj = parseDateStr(rDateStr);
+                if (dObj && dObj.getFullYear() === targetYear && dObj.getMonth() === targetMonth) {
+                    let empId = String(getFuzzyValue(l, ['employee_id', 'emp_id'])).toUpperCase().trim();
+                    let dateKey = dObj.toISOString().slice(0, 10);
+                    logLookup[`${empId}_${dateKey}`] = l;
+                }
+            });
+
+            let leaveLookup = {};
+            approvedLeaves.forEach(lv => {
+                let empId = String(getFuzzyValue(lv, ['employee_id', 'emp_id'])).toUpperCase().trim();
+                let lStartStr = getFuzzyValue(lv, ['start_date', 'เริ่ม']);
+                let lEndStr = getFuzzyValue(lv, ['end_date', 'สิ้นสุด']);
+                let dStart = parseDateStr(lStartStr);
+                let dEnd = parseDateStr(lEndStr);
+                if (dStart && dEnd) {
+                    let cur = new Date(dStart);
+                    while (cur <= dEnd) {
+                        if (cur.getFullYear() === targetYear && cur.getMonth() === targetMonth) {
+                            let dateKey = cur.toISOString().slice(0, 10);
+                            leaveLookup[`${empId}_${dateKey}`] = true;
+                        }
+                        cur.setDate(cur.getDate() + 1);
+                    }
+                }
+            });
+
+            // 6. คำนวณคะแนนพนักงานแต่ละคน
+            let sortedData = activeStaff.map(emp => {
+                let perfectDays = 0;
+                evaluationDays.forEach(date => {
+                    let dateKey = date.toISOString().slice(0, 10);
+                    let empId = emp.id;
+                    let logKey = `${empId}_${dateKey}`;
+                    let leaveKey = `${empId}_${dateKey}`;
+
+                    let hasLeave = leaveLookup[leaveKey] || false;
+                    let log = logLookup[logKey];
+
+                    // เงื่อนไข: ไม่ขาด (มี log), ไม่ลา (ไม่มี leave), ไม่สาย (late_hours <= 0)
+                    if (!hasLeave && log) {
+                        let status = String(getFuzzyValue(log, ['attendance_status', 'status', 'สถานะ'])).toLowerCase();
+                        let isAbsent = status.includes('missing') || status.includes('absent') || status.includes('ขาด');
+                        if (!isAbsent) {
+                            let lateHours = parseFloat(getFuzzyValue(log, ['late_hours', 'มาช้า'])) || 0;
+                            let earlyHours = parseFloat(getFuzzyValue(log, ['early_leave_hours', 'กลับก่อน'])) || 0;
+                            if (lateHours <= 0 && earlyHours <= 0) {
+                                perfectDays++;
+                            }
+                        }
+                    }
+                });
+
+                let attendanceRate = Math.round((perfectDays / evaluationDays.length) * 100);
+                return {
+                    id: emp.id,
+                    name: emp.name,
+                    rate: attendanceRate,
+                    perfect: perfectDays,
+                    total: evaluationDays.length
+                };
+            });
+
+            // เรียงลำดับจากเปอร์เซ็นต์เข้างานสูงสุด
+            sortedData.sort((a, b) => b.rate - a.rate || b.perfect - a.perfect);
+
+            // ดึงข้อมูล 10 คนแรก
+            let top10 = sortedData.slice(0, 10);
+            if (top10.length === 0) return;
+
+            if (employeeMonthChartInst) {
+                employeeMonthChartInst.destroy();
+                employeeMonthChartInst = null;
+            }
+
+            let labels = top10.map(d => `${d.id} (${d.rate}%)`);
+            let data = top10.map(d => d.rate);
+
+            employeeMonthChartInst = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        data,
+                        backgroundColor: '#ffffff',
+                        borderRadius: { topLeft: 8, topRight: 8 },
+                        barPercentage: 0.7,
+                        borderSkipped: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#ffffff', font: { size: 10, weight: 'bold' } },
+                            border: { color: '#ffffff', width: 2 }
+                        },
+                        y: {
+                            display: false,
+                            min: 0,
+                            max: 100
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            enabled: true,
+                            callbacks: {
+                                label: function(context) {
+                                    let emp = top10[context.dataIndex];
+                                    return ` อัตราเข้างานปกติ: ${emp.rate}% (${emp.perfect}/${emp.total} วัน)`;
+                                }
+                            }
+                        }
+                    },
+                    animation: { duration: 800 }
+                }
+            });
         }
 
         function renderDashboardRecentCards(cards) {
@@ -7410,26 +7802,25 @@
                 modal.classList.add('hidden');
             }, 300);
         }
-        // ==========================================
+
         // 📅 Mini Calendar หน้า Dashboard
         // ==========================================
         let dashCalDate = new Date();
+        let selectedDashDateStr = null; // ตัวแปรเก็บวันที่ที่คลิก
 
         function renderDashMiniCalendar() {
             const grid = document.getElementById('dash-mini-calendar-grid');
             const monthYearLabel = document.getElementById('dash-cal-month-year');
-            if (!grid || !monthYearLabel) return; // ถ้าหากล่องไม่เจอให้หยุดทันที ป้องกัน Error
+            if (!grid || !monthYearLabel) return;
 
             const year = dashCalDate.getFullYear();
             const month = dashCalDate.getMonth();
-
             const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
             if (monthYearLabel) monthYearLabel.innerText = `${monthNames[month]} ${year}`;
 
             const firstDay = new Date(year, month, 1).getDay();
             const daysInMonth = new Date(year, month + 1, 0).getDate();
-
             const today = new Date();
             const isCurrentMonth = (today.getFullYear() === year && today.getMonth() === month);
             const currentDay = today.getDate();
@@ -7441,20 +7832,25 @@
                 html += `<div class="aspect-square flex items-center justify-center text-[10px] text-transparent">0</div>`;
             }
 
-            // สร้างตัวเลขวันที่
+            // สร้างตัวเลขวันที่ที่กดคลิกได้
             for (let d = 1; d <= daysInMonth; d++) {
                 let isToday = isCurrentMonth && d === currentDay;
-                let baseClasses = "aspect-square flex items-center justify-center text-[10px] font-bold rounded-full transition-all cursor-default ";
+                let currentDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                let isSelected = (selectedDashDateStr === currentDateStr);
 
-                if (isToday) {
-                    baseClasses += "bg-brandindigo text-white shadow-md scale-110";
+                let baseClasses = "aspect-square flex items-center justify-center text-[10px] font-bold rounded-full transition-all cursor-pointer ";
+
+                if (isSelected) {
+                    baseClasses += "bg-brandpurple text-white shadow-lg scale-110 ring-2 ring-purple-200";
+                } else if (isToday) {
+                    baseClasses += "bg-brandindigo text-white shadow-md";
                 } else {
-                    baseClasses += "text-gray-600 hover:bg-indigo-50 hover:text-brandindigo cursor-pointer";
+                    baseClasses += "text-gray-600 hover:bg-indigo-50 hover:text-brandindigo";
                 }
 
-                html += `<div class="${baseClasses}">${d}</div>`;
+                // สั่งให้คลิกแล้วเรียกฟังก์ชัน selectDashDate
+                html += `<div class="${baseClasses}" onclick="selectDashDate('${currentDateStr}')">${d}</div>`;
             }
-
             grid.innerHTML = html;
         }
 
@@ -7463,11 +7859,38 @@
             renderDashMiniCalendar();
         }
 
+        // 🌟 ฟังก์ชันเมื่อคลิกวันที่บนปฏิทิน
+        function selectDashDate(dateStr) {
+            if (selectedDashDateStr === dateStr) {
+                // ถ้ากดซ้ำวันเดิม ให้ล้างค่า (ดูข้อมูลรวม)
+                clearDashboardDateFilter();
+            } else {
+                selectedDashDateStr = dateStr;
+                // โชว์ปุ่มยกเลิกการเลือก
+                let btnClear = document.getElementById('btn-clear-dash-date');
+                if (btnClear) btnClear.classList.remove('hidden');
+
+                renderDashMiniCalendar(); // วาดสีไฮไลท์
+                loadDashboard(); // สั่งให้ดึงข้อมูลวันนั้นทันที!
+            }
+        }
+
+        // 🌟 ฟังก์ชันล้างค่า (ดูข้อมูลแบบเดือน/ทั้งหมด)
+        function clearDashboardDateFilter() {
+            selectedDashDateStr = null;
+            let btnClear = document.getElementById('btn-clear-dash-date');
+            if (btnClear) btnClear.classList.add('hidden');
+
+            renderDashMiniCalendar();
+            loadDashboard();
+        }
+
+        renderDashMiniCalendar();
+
+
+
         // สั่งให้ปฏิทินวาดตัวเองทันทีเมื่อโหลดโค้ดเสร็จ
         renderDashMiniCalendar();
-        // ==========================================
-        // 📚 ฟังก์ชันสำหรับหน้าต่าง Popup นโยบาย (Policy)
-        // ==========================================
         // ==========================================
         // 📚 ฟังก์ชันสำหรับหน้าต่าง Popup นโยบาย (Policy)
         // ==========================================
