@@ -185,7 +185,7 @@
             organization_structure: ['OrgID', 'OrgCode', 'OrgName', 'ParentOrgID', 'ManagerEmployeeID', 'Description ', 'SortOrder', 'Status', 'CreatedDate'],
             reward_categories: ['Category_id', 'Category Name', 'Points', 'Description '],
             reward_points: ['point_id', 'Staff_Id', 'Date', 'Category ID', 'Points'],
-            documents: ['Id', 'Document Name', 'Document Types '],
+            documents: ['Id', 'Document Name', 'Document Types ', 'Photo'],
             employees_rating: ['Ranting_Id', 'Employees Id', 'Employees Name', 'Ranting Date', 'Star Point', 'Category ', 'Comment', 'Give By', 'Status'],
             kpi_records: ['KPI_Id', 'Staff_ID', 'Month ', 'KPI Score'],
             policy: ['Id', 'Head_Name', 'Link']
@@ -232,7 +232,7 @@
             organization_structure: { OrgID: 'org_id', OrgCode: 'org_code', OrgName: 'org_name', ParentOrgID: 'parent_org_id', ManagerEmployeeID: 'manager_employee_id', 'Description ': 'description', SortOrder: 'sort_order', Status: 'status', CreatedDate: 'created_date' },
             reward_categories: { Category_id: 'category_id', 'Category Name': 'category_name', Points: 'points', 'Description ': 'description' },
             reward_points: { point_id: 'point_id', Staff_Id: 'staff_id', Date: 'point_date', 'Category ID': 'category_id', Points: 'points' },
-            documents: { Id: 'document_id', 'Document Name': 'document_name', 'Document Types ': 'document_type' },
+            documents: { Id: 'document_id', 'Document Name': 'document_name', 'Document Types ': 'document_type', Photo: 'Photo' },
             employees_rating: { Ranting_Id: 'rating_id', 'Employees Id': 'employee_id', 'Employees Name': 'employee_name', 'Ranting Date': 'rating_date', 'Star Point': 'star_point', 'Category ': 'category', Comment: 'comment', 'Give By': 'give_by', Status: 'status' },
             kpi_records: { KPI_Id: 'kpi_id', Staff_ID: 'staff_id', 'Month ': 'month', 'KPI Score': 'kpi_score' },
             policy: { Id: 'policy_code', Head_Name: 'head_name', Link: 'link' }
@@ -1532,6 +1532,116 @@
         </div>
     </div>
 
+    <div id="policy-modal"
+        class="fixed inset-0 bg-gray-900/80 hidden z-[150] flex items-center justify-center pointer-events-auto p-4 backdrop-blur-sm opacity-0 transition-opacity duration-300">
+        <div
+            class="bg-white rounded-3xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col md:flex-row transform scale-95 transition-transform duration-300 overflow-hidden relative">
+
+            <button onclick="closePolicyModal()"
+                class="absolute top-4 right-4 text-gray-500 hover:text-red-500 bg-white/90 hover:bg-red-50 rounded-full w-10 h-10 flex items-center justify-center transition-colors z-20 shadow-md border border-gray-100">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+
+            <div id="policy-modal-img-container"
+                class="w-full h-[40%] md:h-full md:w-1/2 bg-gray-50 shrink-0 relative overflow-hidden flex items-center justify-center border-r border-gray-100">
+                <div class="absolute inset-0 flex items-center justify-center opacity-5"><i
+                        class="fa-solid fa-file-contract text-[10rem] text-brandindigo"></i></div>
+                <img id="policy-modal-img" src="" alt="Policy Cover" class="w-full h-full object-contain relative z-10">
+            </div>
+
+            <div class="w-full h-[60%] md:h-full md:w-1/2 flex flex-col bg-white min-h-0">
+                <div class="px-6 pt-8 md:px-10 md:pt-10 pb-6 shrink-0 border-b border-gray-50">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span
+                            class="px-3 py-1 bg-indigo-50 text-brandindigo text-[11px] font-bold uppercase tracking-widest rounded-lg border border-indigo-100"><i
+                                class="fa-solid fa-file-contract mr-1.5"></i> POLICY</span>
+                    </div>
+                    <h2 id="policy-modal-topic" class="text-2xl md:text-3xl font-bold text-gray-900 leading-tight">
+                        Policy Name...</h2>
+                </div>
+
+                <div
+                    class="flex-1 overflow-y-auto custom-scrollbar px-6 py-8 md:px-10 min-h-0 flex flex-col items-start">
+                    <div
+                        class="bg-gray-50 p-5 rounded-2xl border border-gray-100 w-full mb-6 text-sm text-gray-600 leading-relaxed">
+                        <p>เอกสารฉบับนี้เป็นนโยบายและระเบียบข้อบังคับที่สำคัญของบริษัท
+                            กรุณาเปิดอ่านเอกสารฉบับเต็มเพื่อทำความเข้าใจในรายละเอียด</p>
+                    </div>
+
+                    <button id="policy-modal-read-btn"
+                        class="bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg shadow-indigo-500/30 flex items-center gap-2 w-full justify-center md:w-auto">
+                        <i class="fa-solid fa-book-open"></i> เปิดอ่านเอกสารฉบับเต็ม
+                    </button>
+                </div>
+
+                <div class="px-6 py-4 md:px-8 md:py-5 border-t border-gray-100 flex justify-end shrink-0 bg-white">
+                    <button onclick="closePolicyModal()"
+                        class="px-8 py-3 bg-gray-100 hover:bg-gray-200 border border-transparent text-gray-700 font-bold rounded-xl text-sm transition-colors shadow-sm">
+                        ปิดหน้าต่าง
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 📌 Popup Documents (Modal) มีปุ่ม Download -->
+    <div id="document-modal"
+        class="fixed inset-0 bg-gray-900/80 hidden z-[150] flex items-center justify-center pointer-events-auto p-4 backdrop-blur-sm opacity-0 transition-opacity duration-300">
+        <div
+            class="bg-white rounded-3xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col md:flex-row transform scale-95 transition-transform duration-300 overflow-hidden relative">
+
+            <button onclick="closeDocumentModal()"
+                class="absolute top-4 right-4 text-gray-500 hover:text-red-500 bg-white/90 hover:bg-red-50 rounded-full w-10 h-10 flex items-center justify-center transition-colors z-20 shadow-md border border-gray-100">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+
+            <!-- ฝั่งซ้าย: รูปภาพ / ภาพหน้าปก -->
+            <div id="document-modal-img-container"
+                class="w-full h-[40%] md:h-full md:w-1/2 bg-gray-50 shrink-0 relative overflow-hidden flex items-center justify-center border-r border-gray-100">
+                <div class="absolute inset-0 flex items-center justify-center opacity-5"><i
+                        class="fa-solid fa-folder-open text-[10rem] text-brandindigo"></i></div>
+                <img id="document-modal-img" src="" alt="Document Cover"
+                    class="w-full h-full object-contain relative z-10">
+            </div>
+
+            <!-- ฝั่งขวา: รายละเอียด -->
+            <div class="w-full h-[60%] md:h-full md:w-1/2 flex flex-col bg-white min-h-0">
+                <div class="px-6 pt-8 md:px-10 md:pt-10 pb-6 shrink-0 border-b border-gray-50">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span id="document-modal-type"
+                            class="px-3 py-1 bg-indigo-50 text-brandindigo text-[11px] font-bold uppercase tracking-widest rounded-lg border border-indigo-100"><i
+                                class="fa-solid fa-file-lines mr-1.5"></i> DOCUMENT</span>
+                    </div>
+                    <h2 id="document-modal-topic" class="text-2xl md:text-3xl font-bold text-gray-900 leading-tight">
+                        Document Name...</h2>
+                </div>
+
+                <div
+                    class="flex-1 overflow-y-auto custom-scrollbar px-6 py-8 md:px-10 min-h-0 flex flex-col items-start gap-3">
+
+                    <!-- ปุ่มอ่านเอกสาร -->
+                    <button id="document-modal-read-btn"
+                        class="bg-white border-2 border-gray-200 hover:border-brandindigo text-gray-700 hover:text-brandindigo font-bold py-3.5 px-6 rounded-xl transition-all shadow-sm flex items-center gap-2 w-full justify-center md:justify-start">
+                        <i class="fa-solid fa-book-open"></i> เปิดอ่านเอกสารบนเบราว์เซอร์
+                    </button>
+
+                    <!-- ปุ่มดาวน์โหลด (สีหลัก) -->
+                    <button id="document-modal-download-btn"
+                        class="bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg shadow-indigo-500/30 flex items-center gap-2 w-full justify-center md:justify-start">
+                        <i class="fa-solid fa-cloud-arrow-down"></i> ดาวน์โหลดเอกสาร (Download)
+                    </button>
+
+                </div>
+
+                <div class="px-6 py-4 md:px-8 md:py-5 border-t border-gray-100 flex justify-end shrink-0 bg-white">
+                    <button onclick="closeDocumentModal()"
+                        class="px-8 py-3 bg-gray-100 hover:bg-gray-200 border border-transparent text-gray-700 font-bold rounded-xl text-sm transition-colors shadow-sm">
+                        ปิดหน้าต่าง
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
     <!-- 📌 Popup (Modal) -->
     <div id="announcement-modal"
         class="fixed inset-0 bg-gray-900/80 hidden z-[150] flex items-center justify-center pointer-events-auto p-4 backdrop-blur-sm opacity-0 transition-opacity duration-300">
@@ -3508,29 +3618,40 @@
          * - ดึงข้อมูลพนักงาน, การเข้างาน, ข้อมูลการลา ฯลฯ
          * ===================================================================== */
         function fetchData(sheetName, forceRefresh = false) {
-            document.getElementById('searchInput').value = '';
-            if (document.getElementById('tableStartDate')) document.getElementById('tableStartDate').value = '';
-            if (document.getElementById('tableEndDate')) document.getElementById('tableEndDate').value = '';
 
-            if (tableCache[sheetName] && !forceRefresh) {
-                currentHeaders = ensureHeadersForSheet(sheetName, tableCache[sheetName].headers);
-                tableCache[sheetName].headers = currentHeaders;
-                rawData = filterDataForUser(tableCache[sheetName].data);
+            // 👇👇 โค้ดที่วางแทรก เพื่อบังคับให้ดึงข้อมูล Staff มาวาดแผนผัง 👇👇
+            if (sheetName.trim() === 'Organization Structure') {
+                currentSheet = sheetName;
 
-                if (sheetName === 'Organization Structure ') renderOrgChart(rawData);
-                else renderTable(rawData);
+                document.getElementById('searchInput').value = '';
+                if (document.getElementById('tableStartDate')) document.getElementById('tableStartDate').value = '';
+                if (document.getElementById('tableEndDate')) document.getElementById('tableEndDate').value = '';
 
+                // ถ้ามีข้อมูลพนักงานโหลดไว้อยู่แล้ว ให้วาดได้เลย
+                if (tableCache['staff'] && !forceRefresh) {
+                    rawData = filterDataForUser(tableCache['staff'].data);
+                    renderOrgChart(rawData);
+                    return;
+                }
+
+                // ถ้ายังไม่มี ให้บังคับดึงข้อมูลตาราง "staff" แทน
+                toggleLoading(true, 'FETCHING ORG DATA...');
                 google.script.run
                     .withSuccessHandler(res => {
+                        toggleLoading(false);
                         if (res.success) {
-                            const cleanedHeaders = ensureHeadersForSheet(sheetName, res.headers);
-                            tableCache[sheetName] = { headers: cleanedHeaders, data: res.data || [] };
-                            currentHeaders = cleanedHeaders;
+                            tableCache['staff'] = { headers: res.headers || [], data: res.data || [] };
                             rawData = filterDataForUser(res.data || []);
-                            if (sheetName === 'Organization Structure ') renderOrgChart(rawData);
-                            else renderTable(rawData);
+                            renderOrgChart(rawData);
+                        } else {
+                            showToast(res.message, 'error');
                         }
-                    }).getSheetData(sheetName);
+                    })
+                    .withFailureHandler(err => {
+                        toggleLoading(false);
+                        showToast('Connection failed: ' + err.message, 'error');
+                    })
+                    .getSheetData('staff'); // บังคับดึงข้อมูลจากตารางพนักงาน
                 return;
             }
 
@@ -3847,212 +3968,200 @@
         }
 
         function createOrgCard(person) {
-            let picUrl = getFuzzyValue(person, ['profile', 'รูป', 'pic', 'image']);
-            let name = getFuzzyValue(person, ['name', 'ชื่อ', 'first_name', 'full_name', 'employee']);
-            if (!name || name === '-') name = getFuzzyValue(person, ['employee_id', 'emp_id', 'id']) || 'Unknown';
+            let picUrl = getFuzzyValue(person, ['photos', 'photo', 'profile', 'รูป', 'pic', 'image']);
+            let name = getFuzzyValue(person, ['first_name', 'name', 'ชื่อ', 'full_name', 'employee']);
+            let lastName = getFuzzyValue(person, ['last_name', 'นามสกุล']);
+            let fullName = name !== '-' ? (lastName !== '-' ? name + ' ' + lastName : name) : 'Unknown';
 
-            const encodedName = encodeURIComponent(name);
-            const bgColor = getRandomColor(name);
+            let empId = getFuzzyValue(person, ['employee_id', 'emp_id', 'id']) || '';
 
-            // 📌 ใช้การต่อ String ธรรมดาเพื่อป้องกันปัญหาจากการคัดลอกโค้ดแล้วเครื่องหมายหาย
-            const fallbackAvatar = 'https://ui-avatars.com/api/?background=' + bgColor + '&color=fff&name=' + encodedName + '&size=128&rounded=true&bold=true';
+            let cleanFullName = fullName;
+            if (empId && cleanFullName.toUpperCase().includes(empId.toUpperCase())) {
+                cleanFullName = cleanFullName.replace(new RegExp(empId, 'ig'), '').trim();
+                if (cleanFullName.startsWith('-')) cleanFullName = cleanFullName.substring(1).trim();
+            }
+
+            let displayName = empId && cleanFullName === 'Unknown' ? empId : (empId ? empId + '<br>' + cleanFullName : cleanFullName);
+
+            // 🌟 สร้างชุดสีแบบไดนามิก เพื่อให้ขอบวงกลมแต่ละคนมีสีแตกต่างกัน (เหมือนรูปต้นแบบ)
+            const colors = ['#0ea5e9', '#0d9488', '#16a34a', '#ea580c', '#c026d3', '#7c3aed', '#2563eb'];
+            let hash = 0;
+            for (let i = 0; i < cleanFullName.length; i++) {
+                hash = cleanFullName.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            let themeColor = colors[Math.abs(hash) % colors.length];
+
+            const encodedName = encodeURIComponent(cleanFullName);
+            const fallbackAvatar = `https://ui-avatars.com/api/?background=${themeColor.replace('#', '')}&color=ffffff&name=${encodedName}&size=100&bold=true`;
+
+            if (picUrl && picUrl.includes('drive.google.com')) {
+                let fileId = picUrl.includes('id=') ? picUrl.split('id=')[1].split('&')[0] : (picUrl.includes('/d/') ? picUrl.split('/d/')[1].split('/')[0] : '');
+                if (fileId) picUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w200';
+            }
 
             if (!picUrl || picUrl === '-' || picUrl.trim() === '') {
                 picUrl = fallbackAvatar;
             }
 
-            let position = getFuzzyValue(person, ['position', 'ตำแหน่ง']);
-            const rowId = getRecordId(person);
+            let position = getFuzzyValue(person, ['position', 'ตำแหน่ง', 'position_id']) || '-';
+            let dept = getFuzzyValue(person, ['department_name', 'department', 'แผนก', 'department_id']) || '';
+            let displayPos = position;
+            if (dept && dept !== '-' && !position.toLowerCase().includes(dept.toLowerCase())) {
+                displayPos = `${position} - ${dept}`;
+            }
 
+            const rowId = getRecordId(person);
             const encodedPerson = encodeURIComponent(JSON.stringify(person)).replace(/'/g, "%27");
 
             const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
             let role = 'Staff';
             if (sessionStr) { try { let s = JSON.parse(sessionStr); role = s.role || 'Staff'; } catch (e) { } }
 
-            // 📌 เปลี่ยนมาใช้การต่อข้อความด้วย + เพื่อความชัวร์ 100% ว่าโค้ดจะไม่พัง
-            let actionButtons = '';
-            if (role !== 'Staff') {
-                actionButtons = '<div class="absolute top-2 right-2 bg-white/90 backdrop-blur-md rounded-xl border border-gray-100 shadow-sm p-1 flex space-x-1 z-20">' +
-                    '<button onclick="openFormModal(\'' + encodedPerson + '\')" class="text-brandindigo hover:bg-indigo-50 w-7 h-7 rounded-lg flex items-center justify-center transition-colors" title="แก้ไข"><i class="fa-solid fa-pen-to-square text-xs"></i></button>' +
-                    '<button onclick="deleteRecord(\'' + rowId + '\')" class="text-red-500 hover:bg-red-50 w-7 h-7 rounded-lg flex items-center justify-center transition-colors" title="ลบ"><i class="fa-solid fa-trash text-xs"></i></button>' +
-                    '</div>';
-            }
+            // 🌟 ดีไซน์ใหม่: Infographic Circle (ขอบสีหนา, ไส้ในขาว, รูปโปรไฟล์เล็กๆ ตรงกลาง)
+            return `
+            <div class="inline-flex flex-col items-center group relative cursor-pointer mx-4 mt-2" onclick="showEmployeeProfile('${encodedPerson}')">
+                
+                ${role !== 'Staff' ? `
+                <div class="absolute -top-4 -right-4 bg-white rounded-lg shadow-md border border-gray-100 p-1 flex space-x-1 z-30 opacity-0 group-hover:opacity-100 transition-opacity" onclick="event.stopPropagation()">
+                    <button onclick="openFormModal('${encodedPerson}')" class="text-blue-600 hover:bg-blue-50 w-6 h-6 rounded-md flex items-center justify-center transition-colors"><i class="fa-solid fa-pen-to-square text-[10px]"></i></button>
+                    <button onclick="deleteRecord('${rowId}')" class="text-red-500 hover:bg-red-50 w-6 h-6 rounded-md flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-[10px]"></i></button>
+                </div>` : ''}
 
-            return '<div class="inline-block relative group">' +
-                '<div class="glass-card rounded-3xl p-6 w-52 mx-auto hover:shadow-xl hover:border-indigo-200 transition-all relative z-10 duration-300 transform group-hover:-translate-y-2 cursor-default">' +
-                actionButtons +
-                '<div class="w-20 h-20 mx-auto mb-4 rounded-full border-4 border-white shadow-md overflow-hidden group-hover:border-indigo-100 transition-colors">' +
-                '<img src="' + picUrl + '" alt="' + name + '" class="w-full h-full rounded-full object-cover bg-gray-50" onerror="this.onerror=null; this.src=\'' + fallbackAvatar + '\'">' +
-                '</div>' +
-                '<h3 class="font-bold text-gray-900 text-sm truncate mb-1" title="' + name + '">' + name + '</h3>' +
-                '<p class="text-[11px] text-brandindigo font-bold tracking-widest uppercase mb-5 truncate px-3 bg-indigo-50 rounded-full inline-block py-1" title="' + position + '">' + position + '</p>' +
-                '<button onclick="showEmployeeProfile(\'' + encodedPerson + '\')" class="block w-full py-2 px-4 bg-gray-50 hover:bg-gradient-to-r hover:from-brandindigo hover:to-brandpurple text-gray-600 hover:text-white font-bold text-[11px] uppercase tracking-wider rounded-xl border border-gray-200 hover:border-transparent transition-all shadow-sm">' +
-                '<i class="fa-regular fa-address-card mr-1.5"></i> Profile' +
-                '</button>' +
-                '</div>' +
-                '</div>';
+                <div class="absolute -top-2 left-1/2 transform -translate-x-1/2 w-2.5 h-2.5 rounded-full z-30" style="background-color: ${themeColor};"></div>
+
+                <div class="w-36 h-36 rounded-full p-[6px] z-20 relative shadow-[0_10px_20px_-5px_rgba(0,0,0,0.15)] group-hover:shadow-[0_15px_25px_-5px_rgba(0,0,0,0.25)] transition-all duration-300 group-hover:-translate-y-1" style="background: ${themeColor};">
+                    
+                    <div class="w-full h-full bg-white rounded-full flex flex-col items-center justify-center shadow-inner p-3 relative overflow-hidden">
+                        
+                        <div class="w-10 h-10 rounded-full border border-gray-100 mb-1.5 overflow-hidden shrink-0 bg-gray-50">
+                            <img src="${picUrl}" alt="${cleanFullName}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='${fallbackAvatar}'">
+                        </div>
+                        
+                        <h3 class="font-bold text-[10px] text-gray-800 leading-tight w-full text-center line-clamp-2" title="${displayName}">${displayName}</h3>
+                        
+                        <div class="w-4 h-[1px] my-1 opacity-60" style="background-color: ${themeColor};"></div>
+                        
+                        <p class="text-[8px] font-bold text-gray-500 uppercase tracking-widest truncate w-full text-center" title="${displayPos}">${displayPos}</p>
+                    </div>
+                </div>
+            </div>`;
         }
-
         /* =====================================================================
          * 📌 ส่วนที่ 16: ORGANIZATION CHART (ฟังก์ชันแผนผังองค์กร)
          * - สร้างและแสดงแผนผังโครงสร้างองค์กรจากข้อมูลพนักงาน
          * ===================================================================== */
         function renderOrgChart(data) {
-            const tableControls = document.getElementById('table-controls-wrapper');
             const orgWrapper = document.getElementById('org-chart-wrapper');
 
-            tableControls.classList.add('hidden');
+            // ปิดตารางอื่นๆ ทิ้ง
+            ['table-controls-wrapper', 'table-wrapper', 'card-wrapper', 'table-summary', 'calendar-section'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
             orgWrapper.classList.remove('hidden');
 
-            const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
-            let role = 'Staff';
-            if (sessionStr) { try { let s = JSON.parse(sessionStr); role = s.role || 'Staff'; } catch (e) { } }
-
-            let addBtnHtml = '';
-            if (role !== 'Staff') {
-                addBtnHtml = '<div class="sticky left-0 w-full h-0 overflow-visible z-50 print-hide">' +
-                    '<div class="absolute right-0 top-0 pr-2 pt-2">' +
-                    '<button onclick="openFormModal()" class="text-white bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-600 font-bold rounded-xl text-sm px-5 py-2.5 flex items-center justify-center shadow-lg shadow-indigo-500/30 transition-all transform hover:-translate-y-0.5">' +
-                    '<i class="fa-solid fa-user-plus mr-2"></i> เพิ่มคนในองค์กร' +
-                    '</button>' +
-                    '</div>' +
-                    '</div>';
-            }
-
             if (!data || data.length === 0) {
-                orgWrapper.innerHTML = addBtnHtml + '<div class="flex flex-col items-center justify-center py-20 text-gray-500 mt-10"><i class="fa-solid fa-sitemap text-5xl mb-4 text-gray-300"></i><p class="font-medium">No organizational data available.</p></div>';
+                orgWrapper.innerHTML = '<div class="flex flex-col items-center justify-center py-20 text-gray-500 mt-10"><i class="fa-solid fa-sitemap text-5xl mb-4 text-gray-300"></i><p class="font-medium">No organizational data available.</p></div>';
                 return;
             }
 
-            // 📌 1. คัดแยกประเภทพนักงานตามตำแหน่ง (Hierarchy)
-            let ceos = [];
-            let heads = [];
-            let generalStaffs = [];
+            // 🌟 1. จัดกลุ่มตำแหน่ง (แก้บั๊กพนักงานซ้ำ)
+            let ceos = [], clevels = [];
+            let depts = {}; // จัดกลุ่มระดับหัวหน้าและพนักงานตามแผนก
 
-            data.forEach(row => {
-                let pos = String(getFuzzyValue(row, ['position', 'ตำแหน่ง'])).toLowerCase();
-                if (pos.includes('ceo') || pos.includes('ผู้บริหาร') || pos.includes('pos-01')) {
-                    ceos.push(row);
-                } else if (pos.includes('head') || pos.includes('cfo') || pos.includes('coo') || pos.includes('หัวหน้า') || pos.includes('manager') || pos.includes('pos-02') || pos.includes('pos-03')) {
-                    heads.push(row);
+            data.forEach(emp => {
+                let status = String(getFuzzyValue(emp, ['status', 'สถานะ'])).toLowerCase();
+                if (status.includes('inactive') || status.includes('ลาออก') || status.includes('พ้นสภาพ')) return;
+
+                let pos = String(getFuzzyValue(emp, ['position', 'ตำแหน่ง', 'position_id'])).toLowerCase();
+                let dept = String(getFuzzyValue(emp, ['department_name', 'department', 'แผนก', 'department_id']) || 'General').toUpperCase().trim();
+
+                // CEO และ C-Level ให้อยู่รวมกันด้านบนสุด
+                if (pos.includes('ceo') || pos.includes('ประธาน') || pos.includes('md') || pos.includes('managing')) {
+                    ceos.push(emp);
+                } else if (pos.includes('cfo') || pos.includes('coo') || pos.includes('cto') || pos.includes('cmo') || pos.includes('director') || pos.includes('ผู้อำนวยการ') || pos.includes('ผู้บริหาร') || pos.includes('c-level')) {
+                    clevels.push(emp);
                 } else {
-                    generalStaffs.push(row);
+                    // แยกระดับล่างลงมาตามแผนก (Manager -> Head -> Staff)
+                    if (!depts[dept]) depts[dept] = { managers: [], heads: [], staffs: [] };
+                    if (pos.includes('manager') || pos.includes('ผู้จัดการ') || pos.includes('mgr')) {
+                        depts[dept].managers.push(emp);
+                    } else if (pos.includes('head') || pos.includes('หัวหน้า') || pos.includes('lead') || pos.includes('supervisor')) {
+                        depts[dept].heads.push(emp);
+                    } else {
+                        depts[dept].staffs.push(emp);
+                    }
                 }
             });
 
-            // 📌 2. ฟังก์ชันช่วยหาคำหลัก (Keyword) เพื่อใช้จัดกลุ่ม
-            // ตัวอย่าง: "Staff of PM" หรือ "Head of Departments PM" จะจับคำว่า "pm" เป็นคีย์เวิร์ด
-            function extractGroupKeyword(positionStr) {
-                if (!positionStr || positionStr === '-') return null;
-                const pos = String(positionStr).toLowerCase();
+            // 🌟 2. ประกอบร่างแผนผังจากล่างขึ้นบน
+            let deptBranchesHtml = '';
 
-                // ตรวจหาคำสั้นๆ ที่อยู่ท้ายข้อความหรือแยกเป็นคำๆ (เช่น "PM", "IT", "HR")
-                const tokens = pos.split(/[\s,()\-]+/);
+            // สร้างเส้นสายงานแยกตามแผนก
+            Object.keys(depts).sort().forEach(deptName => {
+                let d = depts[deptName];
+                let staffHtml = d.staffs.length > 0 ? `<ul><li><div class="flex justify-center gap-4">${d.staffs.map(e => createOrgCard(e)).join('')}</div></li></ul>` : '';
+                let headHtml = d.heads.length > 0 ? `<ul><li><div class="flex justify-center gap-4">${d.heads.map(e => createOrgCard(e)).join('')}</div>${staffHtml}</li></ul>` : staffHtml;
 
-                // คำที่เราอาจจะตั้งใจให้เป็นกลุ่มแผนก
-                const possibleGroups = ['pm', 'it', 'hr', 'marketing', 'sales', 'finance', 'operation'];
-
-                for (let token of tokens) {
-                    if (possibleGroups.includes(token)) {
-                        return token;
-                    }
+                let branchLi = '';
+                if (d.managers.length > 0) {
+                    branchLi = `<li><div class="flex justify-center gap-4">${d.managers.map(e => createOrgCard(e)).join('')}</div>${headHtml}</li>`;
+                } else if (d.heads.length > 0) {
+                    branchLi = `<li><div class="flex justify-center gap-4">${d.heads.map(e => createOrgCard(e)).join('')}</div>${staffHtml}</li>`;
+                } else if (d.staffs.length > 0) {
+                    branchLi = `<li><div class="flex justify-center gap-4">${d.staffs.map(e => createOrgCard(e)).join('')}</div></li>`;
                 }
-                return null;
-            }
-
-            // 📌 3. นำ Staff ไปจัดกลุ่มให้ Head แต่ละคน โดยดูจาก Keyword ในตำแหน่ง
-            let headStaffMapping = new Map(); // เก็บโครงสร้าง: Head -> Array ของ Staff
-            let unassignedStaffs = []; // Staff ที่หา Head ไม่เจอ
-
-            // สร้างกุญแจให้ Head แต่ละคน
-            heads.forEach(head => {
-                let pos = String(getFuzzyValue(head, ['position', 'ตำแหน่ง']));
-                let keyword = extractGroupKeyword(pos);
-                headStaffMapping.set(head, { keyword: keyword, staffs: [] });
+                deptBranchesHtml += branchLi;
             });
 
-            // กระจาย Staff เข้ากลุ่ม
-            generalStaffs.forEach(staff => {
-                let pos = String(getFuzzyValue(staff, ['position', 'ตำแหน่ง']));
-                let staffKeyword = extractGroupKeyword(pos);
+            let deptsUl = deptBranchesHtml ? `<ul>${deptBranchesHtml}</ul>` : '';
 
-                let assigned = false;
-
-                if (staffKeyword) {
-                    // ลองหา Head ที่มี Keyword ตรงกัน
-                    for (let [head, info] of headStaffMapping.entries()) {
-                        if (info.keyword === staffKeyword) {
-                            info.staffs.push(staff);
-                            assigned = true;
-                            break;
-                        }
-                    }
-                }
-
-                // ถ้าหาไม่เจอ หรือไม่มี Keyword ให้ตกไปอยู่ Unassigned (เดี๋ยวค่อยเอาไปเรียงรวมกันตอนท้าย)
-                if (!assigned) {
-                    unassignedStaffs.push(staff);
-                }
-            });
-
-            // 📌 4. เริ่มสร้าง HTML สำหรับแผนผัง (Org Chart)
-            let html = addBtnHtml + '<div class="org-tree w-full inline-block min-w-max pt-16"><ul>';
-
-            if (ceos.length > 0) {
-                // ระดับบนสุด (CEO)
-                if (ceos.length === 1) {
-                    html += '<li>' + createOrgCard(ceos[0]);
-                } else {
-                    // กรณีมี CEO หลายคน
-                    html += '<li><div class="inline-block relative"><div class="bg-gradient-to-r from-brandindigo to-brandpurple border border-transparent rounded-xl p-3 w-56 mx-auto z-10 relative shadow-lg shadow-indigo-500/20"><p class="text-[11px] font-bold text-white uppercase tracking-widest"><i class="fa-solid fa-building mr-2"></i> Board of Executives</p></div></div><ul>';
-                    ceos.forEach(ceo => html += '<li>' + createOrgCard(ceo) + '</li>');
-                    html += '</ul>'; // จบระดับ Board
-                }
-
-                // แตกกิ่งก้าน (ถ้ามี Head หรือ Staff)
-                if (heads.length > 0 || unassignedStaffs.length > 0) {
-                    html += '<ul>'; // เริ่มกิ่งใหม่ใต้ CEO
-
-                    // 4.1. แสดง Head แต่ละคน พร้อมลูกน้องของตัวเอง
-                    if (heads.length > 0) {
-                        for (let [head, info] of headStaffMapping.entries()) {
-                            html += '<li>' + createOrgCard(head);
-                            // ถ้า Head คนนี้มีลูกน้อง (Staff) ให้แตกกิ่งลงไปอีก
-                            if (info.staffs.length > 0) {
-                                html += '<ul>';
-                                info.staffs.forEach(s => html += '<li>' + createOrgCard(s) + '</li>');
-                                html += '</ul>';
-                            }
-                            html += '</li>';
-                        }
-                    }
-
-                    // 4.2. แสดง Staff ทั่วไปที่ไม่มีกลุ่ม หรือจัดกลุ่มไม่ได้ (Unassigned)
-                    if (unassignedStaffs.length > 0) {
-                        html += '<li><div class="inline-block relative"><div class="bg-gray-100 border border-gray-200 rounded-xl p-3 w-40 mx-auto z-10 relative shadow-sm"><p class="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Operations Team</p></div></div><ul>';
-                        unassignedStaffs.forEach(staff => html += '<li>' + createOrgCard(staff) + '</li>');
-                        html += '</ul></li>';
-                    }
-
-                    html += '</ul>'; // จบกิ่งก้าน
-                }
-
-                if (ceos.length === 1) {
-                    html += '</li>'; // ปิดกิ่ง CEO คนเดียว
-                } else {
-                    html += '</li>'; // ปิดกิ่ง Board of Executives
-                }
-
+            // ประกอบเข้ากับกลุ่มผู้บริหารด้านบน
+            let clevelHtml = '';
+            if (clevels.length > 0) {
+                // เอาผู้บริหารระดับ C-Level มัดรวมกันใน 1 โหนด (แก้บั๊กเส้นสายซ้ำซ้อน)
+                clevelHtml = `<ul><li><div class="flex justify-center gap-6 relative z-10">${clevels.map(e => createOrgCard(e)).join('')}</div>${deptsUl}</li></ul>`;
             } else {
-                // กรณีไม่มี CEO เลย ให้เรียงทุกคนแบบเส้นระนาบเดียวกัน (Flat)
-                html += '<li><div class="inline-block relative"><div class="bg-indigo-50 border border-indigo-100 rounded-xl p-3 w-48 mx-auto z-10 relative shadow-sm"><p class="text-[11px] font-bold text-brandindigo uppercase tracking-widest">All Employees</p></div></div><ul>';
-                data.forEach(person => html += '<li>' + createOrgCard(person) + '</li>');
-                html += '</ul></li>';
+                clevelHtml = deptsUl;
             }
 
-            html += '</ul></div>';
-            orgWrapper.innerHTML = html;
+            let finalHtml = '';
+            if (ceos.length > 0) {
+                // เอา CEO ทุกคนมัดรวมกันใน 1 โหนดสูงสุด
+                finalHtml = `<ul><li><div class="flex justify-center gap-6 relative z-10">${ceos.map(e => createOrgCard(e)).join('')}</div>${clevelHtml}</li></ul>`;
+            } else {
+                finalHtml = clevelHtml;
+            }
+
+            // 🌟 3. CSS ดีไซน์เส้นประสีน้ำเงินให้ตรงตามรูปเป๊ะๆ
+            // 🌟 3. CSS ดีไซน์เส้นตรงสีน้ำเงิน
+            // 🌟 3. CSS ดีไซน์เส้นตรงขอบมน (Rounded Lines) ให้เข้ากับ Infographic
+            let styles = `<style>
+                .org-tree * { margin: 0; padding: 0; box-sizing: border-box; }
+                .org-tree { display: flex; justify-content: center; width: 100%; overflow-x: auto; padding-bottom: 50px; }
+                .org-tree ul { padding-top: 25px; position: relative; transition: all 0.5s; display: flex; justify-content: center; white-space: nowrap; }
+                .org-tree li { float: left; text-align: center; list-style-type: none; position: relative; padding: 25px 5px 0 5px; transition: all 0.5s; }
+                
+                /* เส้นแนวนอนด้านบนของแต่ละโหนด (สีเทาฟ้าเพื่อให้จุดกลมเด่น) */
+                .org-tree li::before, .org-tree li::after { content: ''; position: absolute; top: 0; right: 50%; border-top: 1.5px solid #0284c7; width: 50%; height: 25px; }
+                .org-tree li::after { right: auto; left: 50%; border-left: 1.5px solid #0284c7; }
+                
+                /* ซ่อนเส้นถ้ามีแค่โหนดเดียว */
+                .org-tree li:only-child::after, .org-tree li:only-child::before { display: none; }
+                .org-tree li:only-child { padding-top: 0; }
+                
+                /* ลบเส้นส่วนเกินซ้ายขวาสุด */
+                .org-tree li:first-child::before, .org-tree li:last-child::after { border: 0 none; }
+                
+                /* โค้งมนตรงมุมเส้น เหมือนในภาพ */
+                .org-tree li:last-child::before { border-right: 1.5px solid #0284c7; border-radius: 0 8px 0 0; }
+                .org-tree li:first-child::after { border-radius: 8px 0 0 0; }
+                
+                /* เส้นแนวตั้งลากลงมาหากลุ่มลูก */
+                .org-tree ul ul::before { content: ''; position: absolute; top: 0; left: 50%; border-left: 1.5px solid #0284c7; width: 0; height: 25px; transform: translateX(-50%); }
+            </style>`;
+
+            orgWrapper.innerHTML = styles + '<div class="org-tree inline-block min-w-max pt-10">' + finalHtml + '</div>';
         }
 
         /* =====================================================================
@@ -4244,7 +4353,7 @@
 
             // 📌 เริ่มบล็อกที่แก้ใหม่: เพิ่ม Employee Rating ให้แสดงเป็นการ์ดพร้อมระบบดาว
             // 📌 เริ่มบล็อกการ์ดแสดงผล (Training / Asset / Employee Rating)
-            if (currentSheet === 'Training' || currentSheet === 'Asset_Tracking' || currentSheet === 'Announcements' || currentSheet.includes('Ranting') || currentSheet.includes('Rating') || currentSheet.trim() === 'Policy') {
+            if (currentSheet === 'Training' || currentSheet === 'Asset_Tracking' || currentSheet === 'Announcements' || currentSheet.includes('Ranting') || currentSheet.includes('Rating') || currentSheet.trim() === 'Policy' || currentSheet.trim() === 'Documents') {
                 tableWrapper.classList.add('hidden');
                 cardWrapper.classList.remove('hidden');
                 cardWrapper.innerHTML = '';
@@ -4611,6 +4720,8 @@
                 // 👇👇 นำโค้ด Policy มาวางแทรกตรงนี้ (ก่อนหน้า Employee Rating) 👇👇
 
                 // 👉 โหมดหน้าการ์ด Policy (นโยบาย)
+                // 👉 โหมดหน้าการ์ด Policy (นโยบาย) สไตล์เดียวกับ Assets
+                // 👉 โหมดหน้าการ์ด Policy (นโยบาย) สไตล์เดียวกับ Assets + รองรับโลโก้ PDF
                 else if (currentSheet.trim() === 'Policy') {
                     data.forEach(row => {
                         const isEmpty = currentHeaders.every(h => !row[h] || String(row[h]).trim() === '');
@@ -4621,6 +4732,13 @@
 
                         let topic = getFuzzyValue(row, ['head_name', 'หัวข้อ', 'ชื่อ']) || 'เอกสารนโยบาย / Policy';
                         let fileUrl = getFuzzyValue(row, ['link', 'url', 'ไฟล์', 'document']) || '';
+                        let originalUrl = fileUrl; // เก็บ URL ต้นฉบับไว้เช็คประเภทไฟล์
+
+                        // 🌟 เช็คว่าเป็นไฟล์ PDF หรือไม่
+                        let isPdf = false;
+                        if (typeof originalUrl === 'string') {
+                            isPdf = originalUrl.toLowerCase().includes('.pdf') || originalUrl.startsWith('data:application/pdf');
+                        }
 
                         // ถ้าเป็นลิงก์ Google Drive ให้ดึง Thumbnail
                         if (fileUrl.includes('drive.google.com/file/d/')) {
@@ -4628,30 +4746,54 @@
                             fileUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1000';
                         }
 
-                        let iconClass = fileUrl.toLowerCase().includes('.pdf') ? 'fa-file-pdf text-red-500' : 'fa-file-lines text-brandindigo';
-                        let cardArr = [];
+                        // เตรียมรูปภาพสำรอง (Fallback)
+                        let safeTopic = encodeURIComponent(String(topic).substring(0, 15));
+                        let fallbackImg = `https://ui-avatars.com/api/?background=f8fafc&color=4f46e5&size=800&font-size=0.1&name=${safeTopic}`;
 
-                        // 🌟 สร้างการ์ด เมื่อคลิกจะเรียกฟังก์ชัน showAttachmentPreview
-                        cardArr.push(`<div onclick="showAttachmentPreview('${fileUrl}', '${String(topic).replace(/"/g, '&quot;')}')" class="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden flex flex-col relative transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-brandindigo cursor-pointer group p-5">`);
-
-                        // 🌟 ปุ่มจัดการสำหรับ Admin
-                        if (role !== 'Staff') {
-                            cardArr.push('<div class="absolute top-4 right-4 flex space-x-2 z-10" onclick="event.stopPropagation()">');
-                            cardArr.push(`<button onclick="openFormModal('${encodedRow}')" class="text-gray-400 hover:text-brandindigo transition-colors bg-white rounded-full p-1.5 shadow-sm border border-gray-100" title="Edit"><i class="fa-regular fa-pen-to-square text-[14px]"></i></button>`);
-                            cardArr.push(`<button onclick="event.stopPropagation(); deleteRecord('${rowId}')" class="text-gray-400 hover:text-red-500 transition-colors bg-white rounded-full p-1.5 shadow-sm border border-gray-100" title="Delete"><i class="fa-regular fa-trash-can text-[14px]"></i></button>`);
-                            cardArr.push('</div>');
+                        if (!fileUrl || fileUrl === '-' || String(fileUrl).trim() === '') {
+                            fileUrl = fallbackImg;
                         }
 
-                        // 🌟 ดีไซน์ด้านในของการ์ด
-                        cardArr.push(`<div class="flex items-start gap-4 mt-2">`);
-                        cardArr.push(`<div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center shrink-0 border border-gray-100 group-hover:bg-indigo-50 group-hover:border-indigo-100 transition-colors">`);
-                        cardArr.push(`<i class="fa-solid ${iconClass} text-3xl"></i>`);
+                        let cardArr = [];
+
+                        // 🌟 สร้างการ์ด
+                        cardArr.push(`<div onclick="showPolicyDetail('${encodedRow}')" class="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden flex flex-col relative transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer group p-4 pb-0">`);
+
+                        // 🌟 Top Section
+                        cardArr.push('<div class="flex justify-between items-start mb-3">');
+                        cardArr.push(`<div class="font-bold text-[11px] tracking-widest text-brandindigo uppercase bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-100 flex items-center"><i class="fa-solid fa-file-contract mr-1.5"></i> Policy</div>`);
+
+                        if (role !== 'Staff') {
+                            cardArr.push('<div class="flex space-x-2 z-10 bg-white" onclick="event.stopPropagation()">');
+                            cardArr.push(`<button onclick="openFormModal('${encodedRow}')" class="text-gray-400 hover:text-gray-800 transition-colors" title="Edit"><i class="fa-regular fa-pen-to-square text-[15px]"></i></button>`);
+                            cardArr.push(`<button onclick="event.stopPropagation(); deleteRecord('${rowId}')" class="text-gray-400 hover:text-red-500 transition-colors" title="Delete"><i class="fa-regular fa-trash-can text-[15px]"></i></button>`);
+                            cardArr.push('</div>');
+                        } else {
+                            cardArr.push('<div></div>');
+                        }
+                        cardArr.push('</div>');
+
+                        // 🌟 Middle Section
+                        cardArr.push('<div class="mb-4 px-1">');
+                        cardArr.push(`<h3 class="text-sm font-bold text-gray-900 leading-snug line-clamp-2 group-hover:text-brandindigo transition-colors">${topic}</h3>`);
+                        cardArr.push('</div>');
+
+                        // 🌟 Image Section (แยกกรณี PDF และ รูปภาพ)
+                        cardArr.push('<div class="w-full mt-auto pb-4">');
+                        cardArr.push(`<div class="relative w-full aspect-square rounded-[1rem] overflow-hidden border border-gray-100 bg-gray-50 group-hover:shadow-md transition-all flex flex-col items-center justify-center">`);
+
+                        if (isPdf) {
+                            // ✅ ถ้าเป็น PDF ให้โชว์ไอคอนสีแดงใหญ่ๆ
+                            cardArr.push(`<i class="fa-solid fa-file-pdf text-[5rem] text-red-500 group-hover:scale-110 transition-transform mb-3"></i>`);
+                            cardArr.push(`<span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">PDF Document</span>`);
+                        } else {
+                            // ✅ ถ้าเป็นรูป ให้โชว์รูปปกติ
+                            cardArr.push(`<div class="absolute inset-0 flex items-center justify-center opacity-[0.03]"><i class="fa-solid fa-book-open text-[8rem] text-brandindigo"></i></div>`);
+                            cardArr.push(`<img src="${fileUrl}" alt="Policy Document" class="relative z-10 w-full h-full object-cover" onerror="this.onerror=null; this.src='${fallbackImg}';">`);
+                        }
+
                         cardArr.push(`</div>`);
-                        cardArr.push(`<div class="flex-1 min-w-0 pr-16">`);
-                        cardArr.push(`<h3 class="text-base font-bold text-gray-800 line-clamp-2 leading-snug group-hover:text-brandindigo transition-colors">${topic}</h3>`);
-                        cardArr.push(`<p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2 group-hover:text-brandindigo transition-colors flex items-center"><i class="fa-solid fa-book-open mr-1.5"></i> Read Policy</p>`);
-                        cardArr.push(`</div>`);
-                        cardArr.push(`</div>`);
+                        cardArr.push('</div>');
 
                         cardArr.push(`</div>`);
                         cardsHtml += cardArr.join('');
@@ -4660,7 +4802,85 @@
 
                 // 👆👆 สิ้นสุดโค้ด Policy 👆👆
 
+                // 👉 โหมดหน้าการ์ด Documents (เอกสาร) สไตล์ Announcements + PDF Logo
+                // 👉 โหมดหน้าการ์ด Documents (เอกสาร) สไตล์ Announcements + PDF Logo
+                else if (currentSheet.trim() === 'Documents') {
+                    data.forEach(row => {
+                        const isEmpty = currentHeaders.every(h => !row[h] || String(row[h]).trim() === '');
+                        if (isEmpty) return;
 
+                        const rowId = getRecordId(row);
+                        const encodedRow = encodeURIComponent(JSON.stringify(row)).replace(/'/g, "%27");
+
+                        let topic = getFuzzyValue(row, ['document_name', 'document name', 'ชื่อเอกสาร', 'หัวข้อ', 'ชื่อ']) || 'เอกสาร / Document';
+                        let docType = getFuzzyValue(row, ['document_types', 'document types ', 'ประเภท', 'type']) || 'General';
+
+                        // 🌟 ดึงข้อมูลไฟล์ (ดึงจากคอลัมน์ Photo โดยตรงด้วยเพื่อความชัวร์)
+                        let fileUrl = row['Photo'] || row['photo'] || getFuzzyValue(row, ['photo', 'file', 'link', 'url', 'ไฟล์', 'document', 'ไฟล์แนบ']) || '';
+
+                        // 🌟 คลีนข้อมูล Base64 (สำคัญมาก! ตัดช่องว่างทิ้งป้องกันรูปล้ม)
+                        if (typeof fileUrl === 'string' && fileUrl.startsWith('data:')) {
+                            fileUrl = fileUrl.replace(/[\r\n\t\s]+/g, "");
+                        }
+
+                        let originalUrl = fileUrl; // เก็บ URL ที่คลีนแล้วไว้
+
+                        // 🌟 เช็คว่าเป็นไฟล์ PDF หรือไม่
+                        let isPdf = false;
+                        if (typeof originalUrl === 'string') {
+                            isPdf = originalUrl.toLowerCase().includes('.pdf') || originalUrl.startsWith('data:application/pdf');
+                        }
+
+                        // ถ้าเป็นลิงก์ Google Drive ดึง Thumbnail
+                        if (fileUrl.includes('drive.google.com/file/d/')) {
+                            let fileId = fileUrl.split('/d/')[1].split('/')[0];
+                            fileUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1000';
+                        }
+
+                        let safeTopic = encodeURIComponent(String(topic).substring(0, 15));
+                        let fallbackImg = `https://ui-avatars.com/api/?background=f8fafc&color=4f46e5&size=800&font-size=0.1&name=${safeTopic}`;
+
+                        if (!fileUrl || fileUrl === '-' || String(fileUrl).trim() === '') {
+                            fileUrl = fallbackImg;
+                        }
+
+                        let cardArr = [];
+
+                        // 🌟 สร้างการ์ด เมื่อคลิกจะเรียก Pop-up
+                        cardArr.push(`<div onclick="showDocumentDetail('${encodedRow}')" class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col relative transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer group">`);
+
+                        // 🌟 แถบด้านบน (แสดง Type และ Topic)
+                        cardArr.push('<div class="flex justify-between items-start px-4 py-3 bg-white z-10 border-b border-gray-50 shrink-0 gap-2">');
+                        cardArr.push('<div class="flex flex-col min-w-0">');
+                        cardArr.push(`<span class="text-[10px] font-bold text-brandindigo uppercase tracking-widest mb-0.5" title="${docType}">${docType}</span>`);
+                        cardArr.push(`<h3 class="text-sm font-bold text-gray-800 line-clamp-2 leading-snug" title="${String(topic).replace(/"/g, '&quot;')}">${topic}</h3>`);
+                        cardArr.push('</div>');
+
+                        // ปุ่ม Edit / Delete สำหรับ Admin
+                        if (role !== 'Staff') {
+                            cardArr.push('<div class="flex space-x-2 shrink-0 mt-0.5" onclick="event.stopPropagation()">');
+                            cardArr.push(`<button onclick="openFormModal('${encodedRow}')" class="text-gray-400 hover:text-brandindigo transition-colors" title="Edit"><i class="fa-regular fa-pen-to-square text-[15px]"></i></button>`);
+                            cardArr.push(`<button onclick="deleteRecord('${rowId}')" class="text-gray-400 hover:text-red-500 transition-colors" title="Delete"><i class="fa-regular fa-trash-can text-[15px]"></i></button>`);
+                            cardArr.push('</div>');
+                        }
+                        cardArr.push('</div>');
+
+                        // 🌟 พื้นที่แสดงรูปภาพ หรือ โลโก้ PDF
+                        cardArr.push('<div class="w-full aspect-[4/5] bg-gray-50 flex flex-col items-center justify-center p-3 relative">');
+                        if (isPdf) {
+                            // ✅ ถ้าเป็น PDF ให้โชว์ไอคอนสีแดง
+                            cardArr.push(`<i class="fa-solid fa-file-pdf text-[5rem] text-red-500 group-hover:scale-110 transition-transform mb-3 drop-shadow-sm"></i>`);
+                            cardArr.push(`<span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest bg-white px-3 py-1 rounded-full shadow-sm border border-gray-100">PDF Document</span>`);
+                        } else {
+                            // ✅ ถ้าเป็นรูป ให้โชว์รูป
+                            cardArr.push(`<img src="${fileUrl}" alt="Document" class="w-full h-full object-cover rounded-xl shadow-sm border border-gray-100" onerror="this.onerror=null; this.src='${fallbackImg}';">`);
+                        }
+                        cardArr.push('</div>');
+                        cardArr.push('</div>');
+
+                        cardsHtml += cardArr.join('');
+                    });
+                }
 
                 // 👉 2. โหมดหน้าการ์ด Employee Rating
                 else {
@@ -5612,7 +5832,7 @@
                     `);
                 }
                 // 👇👇 โค้ดใหม่สำหรับเปลี่ยนช่อง PHOTO เป็นปุ่มอัปโหลดไฟล์ (รูป/PDF) แบบไม่บังคับ 👇👇
-                else if (lw === 'photo' || lw === 'document' || lw === 'ไฟล์แนบ' || lw === 'attachment' || (currentSheet.trim() === 'Policy' && lw === 'link')) {
+                else if (lw === 'photo' || lw === 'document' || lw === 'ไฟล์แนบ' || lw === 'attachment' || (currentSheet.trim() === 'Policy' && lw === 'link') || (currentSheet.trim() === 'Documents' && (lw === 'file' || lw === 'link' || lw === 'ไฟล์'))) {
                     formFields.insertAdjacentHTML('beforeend', `
                         <div class="col-span-1 sm:col-span-2">
                             <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-gray-400 font-normal ml-1" style="text-transform: none;">(ไม่บังคับ / Optional)</span></label>
@@ -5795,7 +6015,14 @@
                 } else if (v instanceof File) {
                     // ข้ามไฟล์ไปก่อน เราจะจัดการมันข้างล่าง
                 } else {
-                    if (v === 'สร้างอัตโนมัติ (Auto)' || v === 'Auto Generated') v = 'NEW-' + Date.now();
+                    if (v === 'สร้างอัตโนมัติ (Auto)' || v === 'Auto Generated') {
+                        if (currentSheet.toLowerCase().includes('department')) {
+                            // ถ้าเป็นแผนก สร้างรหัสสุ่ม 5 หลัก
+                            v = 'DEPT-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+                        } else {
+                            v = 'NEW-' + Date.now();
+                        }
+                    }
                     dataObj[k] = v;
                 }
             });
@@ -5866,15 +6093,27 @@
                     key === 'point_id' || key === 'ranting_id' || key === 'rating_id' || key === 'kpi_id';
             });
             if (businessIdCol && !String(dataObj[businessIdCol] || '').trim()) {
-                const prefix = currentSheet.toLowerCase().includes('department') ? 'DEPT' : 'NEW';
-                dataObj[businessIdCol] = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+                const isDept = currentSheet.toLowerCase().includes('department');
+                const prefix = isDept ? 'DEPT' : 'NEW';
+                const randomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+
+                if (isDept) {
+                    // รหัสแผนกสั้นๆ DEPT-XXXXX
+                    dataObj[businessIdCol] = `${prefix}-${randomCode}`;
+                } else {
+                    dataObj[businessIdCol] = `${prefix}-${Date.now()}-${randomCode}`;
+                }
             }
 
             if (!currentEditId) {
                 // 👇 ตรวจจับ Ranting_ID และคำว่า Auto Generated
                 const idCol = businessIdCol;
                 if (idCol && (!dataObj[idCol] || dataObj[idCol] === 'สร้างอัตโนมัติ (Auto)' || dataObj[idCol] === 'Auto Generated')) {
-                    dataObj[idCol] = 'NEW-' + new Date().getTime();
+                    if (currentSheet.toLowerCase().includes('department')) {
+                        dataObj[idCol] = 'DEPT-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+                    } else {
+                        dataObj[idCol] = 'NEW-' + new Date().getTime();
+                    }
                 }
                 rawData.unshift(dataObj);
             } else {
@@ -7226,6 +7465,195 @@
 
         // สั่งให้ปฏิทินวาดตัวเองทันทีเมื่อโหลดโค้ดเสร็จ
         renderDashMiniCalendar();
+        // ==========================================
+        // 📚 ฟังก์ชันสำหรับหน้าต่าง Popup นโยบาย (Policy)
+        // ==========================================
+        // ==========================================
+        // 📚 ฟังก์ชันสำหรับหน้าต่าง Popup นโยบาย (Policy)
+        // ==========================================
+        function showPolicyDetail(encodedRow) {
+            const row = JSON.parse(decodeURIComponent(encodedRow));
+
+            let topic = getFuzzyValue(row, ['head_name', 'หัวข้อ', 'ชื่อ']) || 'เอกสารนโยบาย / Policy';
+            let fileUrl = getFuzzyValue(row, ['link', 'url', 'ไฟล์', 'document']) || '';
+            let originalUrl = fileUrl; // เก็บ URL จริงไว้สำหรับปุ่ม "เปิดอ่านเอกสารฉบับเต็ม"
+
+            // 🌟 เช็คว่าเป็นไฟล์ PDF หรือไม่
+            let isPdf = false;
+            if (typeof originalUrl === 'string') {
+                isPdf = originalUrl.toLowerCase().includes('.pdf') || originalUrl.startsWith('data:application/pdf');
+            }
+
+            // ถ้าเป็นลิงก์ Google Drive ดึงภาพ Thumbnail
+            if (fileUrl.includes('drive.google.com/file/d/')) {
+                let fileId = fileUrl.split('/d/')[1].split('/')[0];
+                fileUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1000';
+            }
+
+            let safeTopic = encodeURIComponent(String(topic).substring(0, 15));
+            let fallbackImg = `https://ui-avatars.com/api/?background=f8fafc&color=4f46e5&size=800&font-size=0.1&name=${safeTopic}`;
+
+            if (!fileUrl || fileUrl === '-' || String(fileUrl).trim() === '') {
+                fileUrl = fallbackImg;
+            }
+
+            // 🌟 อัปเดตส่วนแสดงผลฝั่งซ้าย (โชว์รูป หรือ โลโก้ PDF)
+            const imgContainer = document.getElementById('policy-modal-img-container');
+            if (isPdf) {
+                // ถ้าเป็น PDF โชว์ไอคอน
+                imgContainer.innerHTML = `
+                    <div class="absolute inset-0 flex items-center justify-center opacity-5"><i class="fa-solid fa-file-contract text-[10rem] text-brandindigo"></i></div>
+                    <div class="relative z-10 flex flex-col items-center justify-center">
+                        <i class="fa-solid fa-file-pdf text-[8rem] text-red-500 mb-6 drop-shadow-md"></i>
+                        <span class="text-sm font-bold text-gray-500 uppercase tracking-widest bg-white px-4 py-1.5 rounded-full shadow-sm border border-gray-100">PDF Document</span>
+                    </div>`;
+            } else {
+                // ถ้าเป็นรูป โชว์รูป
+                imgContainer.innerHTML = `
+                    <div class="absolute inset-0 flex items-center justify-center opacity-5"><i class="fa-solid fa-file-contract text-[10rem] text-brandindigo"></i></div>
+                    <img id="policy-modal-img" src="${fileUrl}" alt="Policy Cover" class="w-full h-full object-contain relative z-10" onerror="this.onerror=null; this.src='${fallbackImg}';">
+                `;
+            }
+
+            // ใส่หัวข้อ
+            document.getElementById('policy-modal-topic').innerText = topic;
+
+            // ตั้งค่าปุ่มอ่านเอกสารฉบับเต็ม
+            const readBtn = document.getElementById('policy-modal-read-btn');
+            readBtn.onclick = function () {
+                showAttachmentPreview(originalUrl, topic);
+            };
+
+            // เปิดแสดง Modal
+            const modal = document.getElementById('policy-modal');
+            const modalBox = modal.querySelector('div.bg-white');
+
+            modal.classList.remove('hidden');
+            void modal.offsetWidth;
+            modal.classList.remove('opacity-0');
+            modalBox.classList.remove('scale-95');
+            modalBox.classList.add('scale-100');
+        }
+
+        function closePolicyModal() {
+            const modal = document.getElementById('policy-modal');
+            if (!modal) return;
+            const modalBox = modal.querySelector('div.bg-white');
+
+            modal.classList.add('opacity-0');
+            if (modalBox) {
+                modalBox.classList.remove('scale-100');
+                modalBox.classList.add('scale-95');
+            }
+
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+        // ==========================================
+        // 📚 ฟังก์ชันสำหรับหน้าต่าง Popup เอกสาร (Documents)
+        // ==========================================
+        // ==========================================
+        // 📚 ฟังก์ชันสำหรับหน้าต่าง Popup เอกสาร (Documents)
+        // ==========================================
+        function showDocumentDetail(encodedRow) {
+            const row = JSON.parse(decodeURIComponent(encodedRow));
+
+            let topic = getFuzzyValue(row, ['document_name', 'document name', 'ชื่อเอกสาร', 'หัวข้อ', 'ชื่อ']) || 'เอกสาร / Document';
+            let docType = getFuzzyValue(row, ['document_types', 'document types ', 'ประเภท', 'type']) || 'DOCUMENT';
+
+            // 🌟 ดึงข้อมูลไฟล์
+            let fileUrl = row['Photo'] || row['photo'] || getFuzzyValue(row, ['photo', 'file', 'link', 'url', 'ไฟล์', 'document', 'ไฟล์แนบ']) || '';
+
+            // 🌟 คลีนข้อมูล Base64
+            if (typeof fileUrl === 'string' && fileUrl.startsWith('data:')) {
+                fileUrl = fileUrl.replace(/[\r\n\t\s]+/g, "");
+            }
+
+            let originalUrl = fileUrl;
+
+            // 🌟 เช็คว่าเป็นไฟล์ PDF หรือไม่
+            let isPdf = false;
+            if (typeof originalUrl === 'string') {
+                isPdf = originalUrl.toLowerCase().includes('.pdf') || originalUrl.startsWith('data:application/pdf');
+            }
+
+            if (fileUrl.includes('drive.google.com/file/d/')) {
+                let fileId = fileUrl.split('/d/')[1].split('/')[0];
+                fileUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1000';
+            }
+
+            let safeTopic = encodeURIComponent(String(topic).substring(0, 15));
+            let fallbackImg = `https://ui-avatars.com/api/?background=f8fafc&color=4f46e5&size=800&font-size=0.1&name=${safeTopic}`;
+
+            if (!fileUrl || fileUrl === '-' || String(fileUrl).trim() === '') {
+                fileUrl = fallbackImg;
+            }
+
+            // 🌟 อัปเดตส่วนแสดงผลฝั่งซ้าย (โชว์รูป หรือ โลโก้ PDF)
+            const imgContainer = document.getElementById('document-modal-img-container');
+            if (isPdf) {
+                imgContainer.innerHTML = `
+                    <div class="absolute inset-0 flex items-center justify-center opacity-5"><i class="fa-solid fa-folder-open text-[10rem] text-brandindigo"></i></div>
+                    <div class="relative z-10 flex flex-col items-center justify-center">
+                        <i class="fa-solid fa-file-pdf text-[8rem] text-red-500 mb-6 drop-shadow-md"></i>
+                        <span class="text-sm font-bold text-gray-500 uppercase tracking-widest bg-white px-4 py-1.5 rounded-full shadow-sm border border-gray-100">PDF Document</span>
+                    </div>`;
+            } else {
+                imgContainer.innerHTML = `
+                    <div class="absolute inset-0 flex items-center justify-center opacity-5"><i class="fa-solid fa-folder-open text-[10rem] text-brandindigo"></i></div>
+                    <img id="document-modal-img" src="${fileUrl}" alt="Document Cover" class="w-full h-full object-contain relative z-10" onerror="this.onerror=null; this.src='${fallbackImg}';">
+                `;
+            }
+
+            // ใส่หัวข้อและประเภท
+            document.getElementById('document-modal-topic').innerText = topic;
+            document.getElementById('document-modal-type').innerHTML = `<i class="fa-solid fa-file-lines mr-1.5"></i> ${docType}`;
+
+            // 🎯 การทำงานของปุ่ม "อ่านเอกสาร"
+            const readBtn = document.getElementById('document-modal-read-btn');
+            readBtn.onclick = function () {
+                showAttachmentPreview(originalUrl, topic);
+            };
+
+            // 🎯 การทำงานของปุ่ม "ดาวน์โหลด"
+            const downloadBtn = document.getElementById('document-modal-download-btn');
+            downloadBtn.onclick = function () {
+                const a = document.createElement('a');
+                a.href = originalUrl;
+                a.download = topic; // พยายามบังคับตั้งชื่อไฟล์ตอนโหลด
+                a.target = '_blank';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            };
+
+            // เปิดแสดง Modal
+            const modal = document.getElementById('document-modal');
+            const modalBox = modal.querySelector('div.bg-white');
+
+            modal.classList.remove('hidden');
+            void modal.offsetWidth;
+            modal.classList.remove('opacity-0');
+            modalBox.classList.remove('scale-95');
+            modalBox.classList.add('scale-100');
+        }
+
+        function closeDocumentModal() {
+            const modal = document.getElementById('document-modal');
+            if (!modal) return;
+            const modalBox = modal.querySelector('div.bg-white');
+
+            modal.classList.add('opacity-0');
+            if (modalBox) {
+                modalBox.classList.remove('scale-100');
+                modalBox.classList.add('scale-95');
+            }
+
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
     </script>
 </body>
 
