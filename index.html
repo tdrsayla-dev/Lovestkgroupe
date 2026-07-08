@@ -6383,6 +6383,117 @@
         }
 
         /* =====================================================================
+         * 📌 ฟังก์ชัน autoFillEmployeeData: ดึงข้อมูล Leave Quota และคำนวณวันคงเหลือ
+         * - เรียกเมื่อผู้ใช้เลือกพนักงานในฟอร์มขอลา
+         * ===================================================================== */
+        function autoFillEmployeeData(empId) {
+            if (!empId) return;
+
+            const quotaDisplay = document.getElementById('leave-quota-display');
+            if (quotaDisplay) quotaDisplay.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-brandindigo"></i>';
+
+            // ดึง Leave_Quota จาก staff cache
+            const staffCache = tableCache['staff'] || tableCache['Staff'];
+            let quota = 0;
+            if (staffCache && staffCache.data) {
+                const staffRow = staffCache.data.find(r => {
+                    let eId = String(r.Employee_ID || r.employee_id || '').toUpperCase().trim();
+                    return eId === String(empId).toUpperCase().trim();
+                });
+                if (staffRow) {
+                    quota = parseInt(
+                        staffRow.Leave_Quota || staffRow.leave_quota ||
+                        staffRow['Leave_Quota'] || 0
+                    ) || 0;
+                }
+            }
+
+            // คำนวณวันที่ใช้ไปแล้วจาก leave_applications cache
+            const leaveCache = tableCache['Leave application'];
+            let usedDays = 0;
+            if (leaveCache && leaveCache.data) {
+                leaveCache.data.forEach(r => {
+                    let rEmpId = String(
+                        r.Employee_ID || r.employee_id || r['Employee_ID'] || ''
+                    ).toUpperCase().trim();
+                    if (rEmpId === String(empId).toUpperCase().trim()) {
+                        let days = parseFloat(
+                            r.Total_Days || r.total_days || r['Total_Days'] || 0
+                        ) || 0;
+                        usedDays += days;
+                    }
+                });
+            }
+
+            const remaining = quota - usedDays;
+
+            // กำหนด window variable เพื่อใช้ตรวจสอบตอน submit
+            window._currentLeaveQuota = quota;
+            window._currentLeaveUsed = usedDays;
+            window._currentLeaveRemaining = remaining;
+
+            // แสดงผลใน leave-quota-display
+            if (quotaDisplay) {
+                let colorClass = 'text-emerald-600';
+                let bgClass = 'bg-emerald-50 border-emerald-200';
+                let icon = 'fa-circle-check';
+
+                if (remaining <= 0) {
+                    colorClass = 'text-red-600';
+                    bgClass = 'bg-red-50 border-red-200';
+                    icon = 'fa-circle-xmark';
+                } else if (remaining <= 3) {
+                    colorClass = 'text-amber-600';
+                    bgClass = 'bg-amber-50 border-amber-200';
+                    icon = 'fa-circle-exclamation';
+                }
+
+                quotaDisplay.innerHTML = `
+                    <span class="inline-flex items-center gap-2 ${bgClass} border px-3 py-1 rounded-lg">
+                        <i class="fa-solid ${icon} ${colorClass}"></i>
+                        <span class="font-bold ${colorClass}">${remaining} วัน</span>
+                        <span class="text-gray-400 text-[10px] font-normal">(ใช้ ${usedDays}/${quota} วัน)</span>
+                    </span>
+                `;
+            }
+
+            // Auto-fill ข้อมูลพนักงานอื่นๆ ในฟอร์ม (ชื่อ, แผนก, ตำแหน่ง, เบอร์โทร)
+            if (staffCache && staffCache.data) {
+                const staffRow = staffCache.data.find(r => {
+                    let eId = String(r.Employee_ID || r.employee_id || '').toUpperCase().trim();
+                    return eId === String(empId).toUpperCase().trim();
+                });
+                if (staffRow) {
+                    const form = document.getElementById('dynamic-form');
+                    if (!form) return;
+
+                    // Map ชื่อ field ในฟอร์มกับข้อมูลจาก staff
+                    const fieldMap = {
+                        'Prefix': staffRow.Prefix || staffRow.prefix || '',
+                        'First_Name': staffRow.First_Name || staffRow.first_name || '',
+                        'Last_Name': staffRow.Last_Name || staffRow.last_name || '',
+                        'Department_ID': staffRow.Department_ID || staffRow.department_id || '',
+                        'Position_ID': staffRow.Position_ID || staffRow.position_id || '',
+                        'Contact': staffRow.Tel || staffRow.tel || staffRow.Phone || staffRow.phone || '',
+                        'prefix': staffRow.Prefix || staffRow.prefix || '',
+                        'first_name': staffRow.First_Name || staffRow.first_name || '',
+                        'last_name': staffRow.Last_Name || staffRow.last_name || '',
+                        'department_id': staffRow.Department_ID || staffRow.department_id || '',
+                        'position_id': staffRow.Position_ID || staffRow.position_id || '',
+                        'contact': staffRow.Tel || staffRow.tel || staffRow.Phone || staffRow.phone || ''
+                    };
+
+                    Object.entries(fieldMap).forEach(([fieldName, value]) => {
+                        const input = form.querySelector(`[name="${fieldName}"]`);
+                        if (input && !input.readOnly && value && value !== '-') {
+                            input.value = value;
+                        }
+                    });
+                }
+            }
+        }
+
+        /* =====================================================================
          * 📌 ส่วนที่ 19: FORM SUBMISSION (ฟังก์ชันส่งข้อมูลขึ้น Google Sheets)
          * - ส่งข้อมูลจากฟอร์มบันทึก, แก้ไข ไปยังเซิร์ฟเวอร์
          * ===================================================================== */
@@ -6468,6 +6579,35 @@
         // 📌 ฟังก์ชันย่อยสำหรับบันทึกข้อมูลหลัก หลังจากรูปอัปโหลดเสร็จแล้ว
 
         function executeSaveToSheet(dataObj, currentEditId) {
+            // 📌 ตรวจสอบ Leave Quota ก่อน Submit (เฉพาะตอน Add ใหม่ ไม่ใช่แก้ไข)
+            if (currentSheet === 'Leave application' && !currentEditId) {
+                // หาจำนวนวันที่ขอ
+                let requestedDays = 0;
+                for (let k in dataObj) {
+                    if (k.toLowerCase().includes('total') || k.toLowerCase().includes('days')) {
+                        requestedDays = parseFloat(dataObj[k]) || 0;
+                        break;
+                    }
+                }
+
+                const remaining = typeof window._currentLeaveRemaining !== 'undefined'
+                    ? window._currentLeaveRemaining
+                    : null;
+                const quota = typeof window._currentLeaveQuota !== 'undefined'
+                    ? window._currentLeaveQuota
+                    : null;
+
+                // บล็อกถ้าเกิน quota (และ quota > 0)
+                if (quota !== null && quota > 0 && requestedDays > remaining) {
+                    showToast(
+                        `⚠️ ไม่สามารถยื่นขอลาได้! วันที่ขอ (${requestedDays} วัน) เกินโควตาคงเหลือ (${remaining} วัน)`,
+                        'error'
+                    );
+                    toggleLoading(false);
+                    return;
+                }
+            }
+
             closeFormModal();
             if (currentSheet === 'Leave application' && !currentEditId) {
                 let sigKey = currentHeaders.find(h => h.toLowerCase().trim() === 'signature') || 'Signature';
