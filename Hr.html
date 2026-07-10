@@ -66,7 +66,7 @@
     <script>
         // Configure these before deploying the static page or replace them with your own env injection.
         window.SUPABASE_URL = window.SUPABASE_URL || 'https://qqyotianqcgpdzrfgjif.supabase.co';
-        window.SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'sb_publishable_CFxkUgMP9UAVw5Ft3qbqOA_O65MCVyd';
+        window.SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxeW90aWFucWNncGR6cmZnamlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwNDQ1MzcsImV4cCI6MjA5ODYyMDUzN30.6VlHbimuMkg0UtxCw2cbU5mN_c9zPmizNuzrL5tCtME';
         window.SUPABASE_REST_URL = window.SUPABASE_REST_URL || 'https://qqyotianqcgpdzrfgjif.supabase.co/rest/v1';
     </script>
     <script>
@@ -88,6 +88,10 @@
                         body: body ? JSON.stringify(body) : undefined,
                         signal: controller.signal,
                     });
+                    if (res.status === 521) {
+                        console.error('[Supabase Error] Project is paused/offline (Cloudflare 521). Please unpause/restore your Supabase project.');
+                        throw new Error('Supabase database is currently paused/offline. Please restore/unpause it in the Supabase Dashboard.');
+                    }
                     const text = await res.text();
                     let data = null;
                     try { data = text ? JSON.parse(text) : null; } catch (e) { data = text; }
@@ -143,6 +147,8 @@
             'fingerprint_logs': 'fingerprint_logs',
             'Announcements': 'announcements',
             'announcements': 'announcements',
+            'News': 'news',
+            'news': 'news',
             'Leave application': 'leave_applications',
             'leave_applications': 'leave_applications',
             'Department ': 'departments',
@@ -177,6 +183,7 @@
             users: ['Employee_ID', 'User name', 'Password ', 'Role', 'Device ID', 'Permissions'],
             fingerprint_logs: ['Log_ID', 'Employee_ID', 'Full_Name', 'Date', 'Shift_Start', 'Shift_End', 'Check_In', 'Check_Out', 'Attendance_Status', 'Late_Hours', 'Early_Leave_Hours', 'OT_Amount'],
             announcements: ['ID', 'Date', 'Type', 'Topic', 'Photo', 'Status'],
+            news: ['ID', 'Date', 'Type', 'Topic', 'Content', 'Photo', 'Status', 'Audience'],
             departments: ['Department_ID', 'Department_Name', 'Manager_ID', 'Employees count', 'Status'],
             leave_applications: ['Id_Leave', 'Employee_ID', 'Prefix', 'First_Name', 'Last_Name', 'Department_ID', 'Position_ID', 'Contact', 'Object ', 'Type ', 'Start_Date', 'End_Date', 'Total_Days', 'Work Handover', 'Signature', 'Photo'],
             asset_tracking: ['Asset_ID', 'Asset_Name', 'Employee_ID', 'Department_ID', 'Date_Started using', 'Date_Broken', 'Photo', 'Note', 'Status'],
@@ -224,6 +231,7 @@
             users: { 'Employee_ID': 'employee_id', 'User name': 'username', 'Password ': 'password_hash', Role: 'role', 'Device ID': 'device_id', Permissions: 'permissions' },
             fingerprint_logs: { Log_ID: 'log_id', Employee_ID: 'employee_id', Full_Name: 'full_name', Date: 'date', Shift_Start: 'shift_start', Shift_End: 'shift_end', Check_In: 'check_in', Check_Out: 'check_out', Attendance_Status: 'attendance_status', Late_Hours: 'late_hours', Early_Leave_Hours: 'early_leave_hours', OT_Amount: 'ot_amount' },
             announcements: { ID: 'announcement_id', Date: 'announcement_date', Type: 'type', Topic: 'topic', Photo: 'photo', Status: 'status' },
+            news: { ID: 'news_id', Date: 'news_date', Type: 'type', Topic: 'topic', Content: 'content', Photo: 'photo', Status: 'status', Audience: 'audience' },
             departments: { Department_ID: 'department_id', Department_Name: 'department_name', Manager_ID: 'manager_id', 'Employees count': 'employees_count', Status: 'status' },
             leave_applications: { Id_Leave: 'leave_id', Employee_ID: 'employee_id', Prefix: 'prefix', First_Name: 'first_name', Last_Name: 'last_name', Department_ID: 'department_id', Position_ID: 'position_id', Contact: 'contact', 'Object ': 'object', 'Type ': 'leave_type', Start_Date: 'start_date', End_Date: 'end_date', Total_Days: 'total_days', 'Work Handover': 'work_handover', Signature: 'signature', Photo: 'photo' },
             asset_tracking: { Asset_ID: 'asset_id', Asset_Name: 'asset_name', Employee_ID: 'employee_id', Department_ID: 'department_id', 'Date_Started using': 'date_started_using', Date_Broken: 'date_broken', Photo: 'photo', Note: 'note', Status: 'status' },
@@ -254,6 +262,7 @@
                 users: '"Employee_ID"',
                 fingerprint_logs: 'Log_ID',
                 announcements: 'announcement_id',
+                news: 'news_id',
                 leave_applications: 'leave_id',
                 departments: 'department_id',
                 asset_tracking: 'asset_id',
@@ -324,7 +333,7 @@
                 const user = Array.isArray(rows) ? rows.find(r => String(r.username || '').trim() === String(username).trim()) : null;
                 if (!user) return { success: false, message: 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง' };
                 if (String(user.password_hash || '').trim() !== String(password).trim()) return { success: false, message: 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง' };
-                return { success: true, role: user.role || 'Staff', empId: user.employee_id || '', permissions: user.permissions || [] };
+                return { success: true, role: user.role || 'Staff', empId: user.employee_id || user.Employee_ID || '', permissions: user.permissions || [] };
             }
 
             if (method === 'getSheetData') {
@@ -409,6 +418,47 @@
                 return { success: true, data: res };
             }
 
+            if (method === 'getCompanyProfile') {
+                const [infoRows, subRows] = await Promise.all([
+                    bridge.getTableData('company_info', { select: '*' }),
+                    bridge.getTableData('subsidiaries', { select: '*' })
+                ]);
+                if (Array.isArray(subRows)) {
+                    subRows.sort((a, b) => Number(a.sort_order || 99) - Number(b.sort_order || 99));
+                }
+                return { success: true, info: infoRows, subsidiaries: subRows };
+            }
+
+            if (method === 'saveCompanyProfile') {
+                const [infoUpdates, subUpdates, deletedSubIds] = args;
+                if (Array.isArray(infoUpdates)) {
+                    for (const row of infoUpdates) {
+                        const updated = await bridge.updateRow('company_info', 'key', row.key, { value: row.value });
+                        if (!Array.isArray(updated) || updated.length === 0) {
+                            // Key doesn't exist yet (e.g. 'careers'), insert it
+                            await bridge.insertRows('company_info', [{ key: row.key, value: row.value }]);
+                        }
+                    }
+                }
+                if (Array.isArray(subUpdates) && subUpdates.length > 0) {
+                    const rowsToUpsert = subUpdates.map(row => ({
+                        id: row.id,
+                        name: row.name,
+                        title: row.title,
+                        description: row.description,
+                        emoji: row.emoji,
+                        sort_order: Number(row.sort_order || 99)
+                    }));
+                    await bridge.insertRows('subsidiaries', rowsToUpsert);
+                }
+                if (Array.isArray(deletedSubIds) && deletedSubIds.length > 0) {
+                    for (const id of deletedSubIds) {
+                        await bridge.deleteRow('subsidiaries', 'id', id);
+                    }
+                }
+                return { success: true };
+            }
+
             if (method === 'deleteRecordData') {
                 const [sheetName, recordId] = args;
                 const table = TABLE_MAP[sheetName] || sheetName;
@@ -446,56 +496,79 @@
                 const todayStr = (new Date(now.getTime() - offset)).toISOString().slice(0, 10);
                 const timeStr = now.toTimeString().slice(0, 5); // "HH:MM"
 
-                // Fetch all fingerprint_logs client-side (avoid URL filter 400 errors)
+                // Fetch today's log for this employee
                 const allLogs = await bridge.getTableData('fingerprint_logs', { select: '*' });
                 const existingLog = (allLogs || []).find(r =>
                     String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === formattedEmpId &&
                     String(r.Date || r.log_date || r.date || '').slice(0, 10) === todayStr
                 ) || null;
 
-                if (existingLog) {
-                    // UPDATE existing row—use PascalCase columns (as seen in Supabase)
-                    const patch = {};
-                    if (scanType === 'IN') {
-                        patch['Check_In'] = timeStr;
-                        patch['Attendance_Status'] = 'Present';
-                    } else {
-                        patch['Check_Out'] = timeStr;
+                // ── กฎ: CHECK-IN ──────────────────────────────────────────
+                if (scanType === 'IN') {
+                    // ห้าม Check-IN ซ้ำในวันเดียวกัน
+                    if (existingLog && (existingLog['Check_In'] || existingLog['check_in'])) {
+                        const existingTime = existingLog['Check_In'] || existingLog['check_in'];
+                        return { success: false, message: `⚠️ คุณได้ Check-In แล้วในวันนี้ เวลา ${existingTime} น. (1 ครั้ง/วัน เท่านั้น)` };
                     }
-                    // Use Log_ID as primary key (PascalCase)
+
+                    if (existingLog) {
+                        // มี record แต่ยังไม่ได้ check-in (กรณีพิเศษ) — update
+                        const pkVal = existingLog['Log_ID'] || existingLog['log_id'] || existingLog['id'];
+                        const res = await bridge.updateRow('fingerprint_logs', 'Log_ID', pkVal, {
+                            'Check_In': timeStr,
+                            'Attendance_Status': 'Present'
+                        });
+                        return { success: true, data: res };
+                    } else {
+                        // INSERT new row
+                        const logId = 'LOG-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
+                        let fullName = formattedEmpId;
+                        try {
+                            const staffList = await bridge.getTableData('staff', { select: '*' });
+                            const s = (staffList || []).find(r => String(r.employee_id || '').trim().toUpperCase() === formattedEmpId);
+                            if (s) fullName = `${s.first_name || ''} ${s.last_name || ''}`.trim() || formattedEmpId;
+                        } catch (e) { /* ignore */ }
+
+                        const newRow = {
+                            'Log_ID': logId,
+                            'Employee_ID': formattedEmpId,
+                            'Full_Name': fullName,
+                            'Date': todayStr,
+                            'Shift_Start': '09:00',
+                            'Shift_End': '17:00',
+                            'Check_In': timeStr,
+                            'Check_Out': '',
+                            'Attendance_Status': 'Present',
+                            'Late_Hours': '0',
+                            'Early_Leave_Hours': '0',
+                            'OT_Amount': '0'
+                        };
+                        const res = await bridge.insertRows('fingerprint_logs', [newRow]);
+                        return { success: true, data: res };
+                    }
+                }
+
+                // ── กฎ: CHECK-OUT ─────────────────────────────────────────
+                if (scanType === 'OUT') {
+                    // ต้องมี Check-In ก่อน
+                    if (!existingLog || !(existingLog['Check_In'] || existingLog['check_in'])) {
+                        return { success: false, message: `⚠️ ยังไม่ได้ Check-In ในวันนี้ กรุณา Check-In ก่อน` };
+                    }
+                    // ห้าม Check-Out ซ้ำ
+                    if (existingLog['Check_Out'] || existingLog['check_out']) {
+                        const existingTime = existingLog['Check_Out'] || existingLog['check_out'];
+                        return { success: false, message: `⚠️ คุณได้ Check-Out แล้วในวันนี้ เวลา ${existingTime} น.` };
+                    }
+
+                    // UPDATE — บันทึก Check-Out
                     const pkVal = existingLog['Log_ID'] || existingLog['log_id'] || existingLog['id'];
-                    const res = await bridge.updateRow('fingerprint_logs', 'Log_ID', pkVal, patch);
-                    return { success: true, data: res };
-                } else {
-                    // INSERT new row using PascalCase column names (matching Supabase schema)
-                    const logId = 'LOG-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
-
-                    // Get staff full name
-                    let fullName = formattedEmpId;
-                    try {
-                        const staffList = await bridge.getTableData('staff', { select: '*' });
-                        const s = (staffList || []).find(r => String(r.employee_id || '').trim().toUpperCase() === formattedEmpId);
-                        if (s) fullName = `${s.first_name || ''} ${s.last_name || ''}`.trim() || formattedEmpId;
-                    } catch (e) { /* ignore */ }
-
-                    const newRow = {
-                        'Log_ID': logId,
-                        'Employee_ID': formattedEmpId,
-                        'Full_Name': fullName,
-                        'Date': todayStr,
-                        'Shift_Start': '09:00',
-                        'Shift_End': '17:00',
-                        'Check_In': scanType === 'IN' ? timeStr : '',
-                        'Check_Out': scanType === 'OUT' ? timeStr : '',
-                        'Attendance_Status': 'Present',
-                        'Late_Hours': '0',
-                        'Early_Leave_Hours': '0',
-                        'OT_Amount': '0'
-                    };
-
-                    const res = await bridge.insertRows('fingerprint_logs', [newRow]);
+                    const res = await bridge.updateRow('fingerprint_logs', 'Log_ID', pkVal, {
+                        'Check_Out': timeStr
+                    });
                     return { success: true, data: res };
                 }
+
+                return { success: false, message: 'Invalid scan type.' };
             }
 
             if (method === 'uploadImageToDrive') {
@@ -641,6 +714,14 @@
                 <p class="sidebar-text text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-2">Main
                     Menu</p>
 
+                <button onclick="navigate('staff-dashboard', 'My Dashboard')" title="My Dashboard"
+                    class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all overflow-hidden group"
+                    data-page="staff-dashboard">
+                    <i
+                        class="fa-solid fa-gauge-high w-5 text-[15px] flex-shrink-0 text-center transition-colors group-hover:text-brandindigo"></i>
+                    <span
+                        class="sidebar-text ml-3 text-sm whitespace-nowrap transition-opacity duration-200 font-medium">My Dashboard</span>
+                </button>
                 <button onclick="navigate('dashboard', 'Dashboard')" title="Dashboard"
                     class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all admin-only hidden overflow-hidden group"
                     data-page="dashboard">
@@ -768,6 +849,13 @@
                                     class="w-1.5 h-1.5 rounded-full bg-gray-300 mr-3 group-hover:bg-brandindigo transition-colors"></span><span
                                     class="sidebar-text whitespace-nowrap">Announcements</span>
                             </button>
+                            <button onclick="navigate('table', 'News', 'News')"
+                                class="nav-btn w-full flex items-center px-3 py-2 rounded-lg transition-all text-sm hover:text-brandindigo hover:bg-indigo-50 group font-medium"
+                                data-page="News">
+                                <span
+                                    class="w-1.5 h-1.5 rounded-full bg-gray-300 mr-3 group-hover:bg-brandindigo transition-colors"></span><span
+                                    class="sidebar-text whitespace-nowrap">News (ข่าวสาร)</span>
+                            </button>
                             <button onclick="navigate('table', 'Documents', 'Documents ')"
                                 class="nav-btn w-full flex items-center px-3 py-2 rounded-lg transition-all text-sm hover:text-brandindigo hover:bg-indigo-50 group font-medium"
                                 data-page="Documents ">
@@ -802,6 +890,13 @@
                                 <span
                                     class="w-1.5 h-1.5 rounded-full bg-gray-300 mr-3 group-hover:bg-brandindigo transition-colors"></span><span
                                     class="sidebar-text whitespace-nowrap">Users</span>
+                            </button>
+                            <button onclick="navigate('company-settings', 'ตั้งค่าหน้าเว็บหลัก')"
+                                class="nav-btn w-full flex items-center px-3 py-2 rounded-lg transition-all text-sm hover:text-brandindigo hover:bg-indigo-50 group font-medium"
+                                data-page="company-settings">
+                                <span
+                                    class="w-1.5 h-1.5 rounded-full bg-gray-300 mr-3 group-hover:bg-brandindigo transition-colors"></span><span
+                                    class="sidebar-text whitespace-nowrap">Web Info Settings</span>
                             </button>
                         </div>
                     </div>
@@ -850,6 +945,108 @@
 
             </header>
             <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-8 lg:p-10 relative z-0">
+
+                <!-- 📌 ส่วนของหน้า Staff Dashboard -->
+                <div id="section-staff-dashboard" class="page-section hidden max-w-7xl mx-auto relative z-10 space-y-6">
+                    <!-- Banner -->
+                    <div class="bg-gradient-to-r from-brandindigo to-brandpurple rounded-[2.5rem] p-6 md:p-10 text-white shadow-xl relative overflow-hidden">
+                        <div class="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
+                        <div class="relative z-10">
+                            <h2 class="text-2xl md:text-3xl font-extrabold mb-1">สวัสดี, <span id="staff-welcome-name">พนักงาน</span> 👋</h2>
+                            <p class="text-sm text-indigo-100 font-medium">ยินดีต้อนรับเข้าสู่ระบบจัดการข้อมูลพนักงาน Love STK Groupe</p>
+                        </div>
+                    </div>
+
+                    <!-- Stats Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <!-- Stat 1: Today Attendance -->
+                        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-indigo-50 text-brandindigo flex items-center justify-center text-xl shrink-0">
+                                <i class="fa-solid fa-clock-rotate-left"></i>
+                            </div>
+                            <div>
+                                <span class="text-xs text-gray-500 font-bold block mb-1">เวลาเข้า/ออกวันนี้</span>
+                                <span id="staff-today-time" class="text-lg font-black text-gray-900">- / -</span>
+                            </div>
+                        </div>
+
+                        <!-- Stat 2: Leave Quota -->
+                        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl shrink-0">
+                                <i class="fa-solid fa-calendar-check"></i>
+                            </div>
+                            <div>
+                                <span class="text-xs text-gray-500 font-bold block mb-1">โควตาวันลาคงเหลือ</span>
+                                <span id="staff-leave-quota" class="text-lg font-black text-gray-900">- วัน</span>
+                            </div>
+                        </div>
+
+                        <!-- Stat 3: Reward Points -->
+                        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center text-xl shrink-0">
+                                <i class="fa-solid fa-award"></i>
+                            </div>
+                            <div>
+                                <span class="text-xs text-gray-500 font-bold block mb-1">ระดับของรางวัล</span>
+                                <span id="staff-reward-points" class="text-lg font-black text-gray-900">-</span>
+                            </div>
+                        </div>
+
+                        <!-- Stat 4: Ranking -->
+                        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center text-xl shrink-0">
+                                <i class="fa-solid fa-ranking-star"></i>
+                            </div>
+                            <div>
+                                <span class="text-xs text-gray-500 font-bold block mb-1">ระดับตำแหน่งงาน</span>
+                                <span id="staff-rank" class="text-lg font-black text-gray-900">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Grid -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Column 1: My Recent Leaves (2/3 width) -->
+                        <div class="lg:col-span-2 bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col min-h-[350px]">
+                            <div class="flex justify-between items-center mb-6">
+                                <h3 class="font-extrabold text-gray-900 text-base flex items-center gap-2">
+                                    <i class="fa-solid fa-calendar-day text-brandindigo"></i> รายการลางานล่าสุดของฉัน
+                                </h3>
+                                <button onclick="navigate('table', 'Leave Requests', 'Leave application')" class="text-xs font-bold text-brandindigo hover:underline">
+                                    ขออนุมัติลา <i class="fa-solid fa-angle-right"></i>
+                                </button>
+                            </div>
+                            <div class="flex-1 overflow-x-auto custom-scrollbar">
+                                <table class="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr class="border-b border-gray-100 text-xs font-bold text-gray-500 uppercase">
+                                            <th class="pb-3 font-semibold">ประเภท</th>
+                                            <th class="pb-3 font-semibold">เริ่มวันที่</th>
+                                            <th class="pb-3 font-semibold">ถึงวันที่</th>
+                                            <th class="pb-3 font-semibold text-center">รวม (วัน)</th>
+                                            <th class="pb-3 font-semibold text-right">สถานะ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="staff-leaves-tbody" class="divide-y divide-gray-50 text-sm text-gray-700">
+                                        <tr>
+                                            <td colspan="5" class="py-10 text-center text-gray-400">กำลังโหลดข้อมูล...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Column 2: Latest Announcements (1/3 width) -->
+                        <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col min-h-[350px]">
+                            <h3 class="font-extrabold text-gray-900 text-base mb-6 flex items-center gap-2">
+                                <i class="fa-solid fa-bullhorn text-brandpurple"></i> ประกาศและข่าวสารในองค์กร
+                            </h3>
+                            <div id="staff-announcements-container" class="flex-1 space-y-4 overflow-y-auto custom-scrollbar pr-1">
+                                <p class="text-sm text-gray-400 text-center py-10">กำลังโหลดประกาศ...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- 📌 ส่วนของหน้า Dashboard -->
                 <div id="section-dashboard" class="page-section hidden max-w-7xl mx-auto relative z-10 space-y-6">
@@ -1203,6 +1400,176 @@
 
                 <!-- 👆 จบหน้าจอ Digital Card 👆 -->
 
+                <!-- 👇 ส่วนหน้าจอแก้ไขข้อมูลหน้าหลัก (Company Settings) 👇 -->
+                <div id="section-company-settings" class="page-section hidden max-w-5xl mx-auto relative z-10 space-y-6">
+                    <div class="glass-card p-6 rounded-2xl bg-white shadow-sm border border-gray-200">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-gray-100 pb-4 gap-4">
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900"><i class="fa-solid fa-earth-americas text-brandindigo mr-2"></i>แก้ไขข้อมูลหน้าแรก (index.html)</h3>
+                                <p class="text-xs text-gray-500 mt-1">จัดการข้อความเกี่ยวกับบริษัท วิสัยทัศน์ พันธกิจ และข้อมูลบริษัทในเครือ</p>
+                            </div>
+                            <button onclick="saveCompanySettings()" class="w-full sm:w-auto bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-600 text-white font-bold rounded-xl text-sm px-6 py-2.5 shadow-md flex items-center justify-center transition-all">
+                                <i class="fa-solid fa-floppy-disk mr-2"></i>บันทึกทั้งหมด
+                            </button>
+                        </div>
+
+                        <!-- ส่วนที่ 1: ข้อมูลบริษัททั่วไป -->
+                        <div class="space-y-6">
+                            <h4 class="text-sm font-bold text-brandindigo uppercase tracking-wider border-b border-indigo-50 pb-2"><i class="fa-solid fa-circle-info mr-1.5"></i>ข้อมูลทั่วไป & วิสัยทัศน์ (General Info & Vision)</h4>
+                            <div class="grid grid-cols-1 gap-4">
+                                <div class="space-y-1">
+                                    <label class="text-xs font-bold text-gray-600">ชื่อหัวข้อเกี่ยวกับเรา (About Title)</label>
+                                    <input type="text" id="comp-about-title" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-xl p-2.5 focus:ring-brandindigo focus:border-brandindigo">
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-xs font-bold text-gray-600">คำอธิบายเกี่ยวกับเรา (About Description)</label>
+                                    <textarea id="comp-about-desc" rows="3" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-xl p-2.5 focus:ring-brandindigo focus:border-brandindigo"></textarea>
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-1">
+                                <label class="text-xs font-bold text-gray-600">วิสัยทัศน์ (Vision)</label>
+                                <textarea id="comp-vision" rows="2" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-xl p-2.5 focus:ring-brandindigo focus:border-brandindigo"></textarea>
+                            </div>
+
+                            <div class="space-y-1">
+                                <label class="text-xs font-bold text-gray-600">ค่านิยมหลัก (Core Values)</label>
+                                <textarea id="comp-values" rows="2" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-xl p-2.5 focus:ring-brandindigo focus:border-brandindigo"></textarea>
+                            </div>
+
+                            <!-- โลโก้บริษัท (Company Logo) -->
+                            <div class="space-y-1 mt-6">
+                                <label class="text-xs font-bold text-gray-600">โลโก้บริษัท (Company Logo)</label>
+                                <div class="flex flex-col sm:flex-row items-center gap-6 p-4 border border-dashed border-gray-300 rounded-2xl bg-gray-50/50">
+                                    <div class="relative w-24 h-24 rounded-xl border border-gray-200 bg-white flex items-center justify-center overflow-hidden shadow-inner flex-shrink-0">
+                                        <img id="comp-logo-preview" src="" alt="Logo Preview" class="w-full h-full object-contain p-2 hidden" />
+                                        <div id="comp-logo-placeholder" class="text-gray-400 text-xs font-bold uppercase tracking-wider text-center p-2">No Logo</div>
+                                    </div>
+                                    <div class="space-y-2 text-center sm:text-left w-full">
+                                        <p class="text-xs text-gray-500">รองรับรูปภาพประเภท PNG, JPG, GIF หรือ SVG ขนาดแนะนำ 1:1 หรือแนวนอน</p>
+                                        <div class="flex flex-wrap gap-2 justify-center sm:justify-start">
+                                            <button type="button" onclick="document.getElementById('comp-logo-file').click()" class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-bold py-2 px-4 rounded-xl shadow-sm transition-colors">
+                                                <i class="fa-solid fa-upload mr-1.5"></i>อัปโหลดโลโก้ใหม่
+                                            </button>
+                                            <button type="button" onclick="clearCompanyLogo()" class="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold py-2 px-4 rounded-xl transition-colors">
+                                                <i class="fa-solid fa-trash-can mr-1.5"></i>ลบโลโก้
+                                            </button>
+                                        </div>
+                                        <input type="file" id="comp-logo-file" accept="image/*" class="hidden" onchange="previewCompanyLogo(this)" />
+                                        <input type="hidden" id="comp-logo-url" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- คำอธิบายกลุ่มธุรกิจในเครือ (Subsidiaries Section Description) -->
+                            <div class="space-y-1 mt-6">
+                                <label class="text-xs font-bold text-gray-600">คำอธิบายกลุ่มธุรกิจในเครือ (Subsidiaries Section Description)</label>
+                                <textarea id="comp-subsidiaries-desc" rows="2" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-xl p-2.5 focus:ring-brandindigo focus:border-brandindigo" placeholder="อธิบายรายละเอียดกลุ่มธุรกิจหลัก..."></textarea>
+                            </div>
+
+                            <h4 class="text-sm font-bold text-brandindigo uppercase tracking-wider border-b border-indigo-50 pb-2 mt-6"><i class="fa-solid fa-bullseye mr-1.5"></i>พันธกิจ (Missions)</h4>
+                            <div class="space-y-4">
+                                <div class="space-y-1">
+                                    <label class="text-xs font-bold text-gray-600">พันธกิจหลัก 1: การแพทย์ชะลอวัย (Mastering Longevity)</label>
+                                    <input type="text" id="comp-mission-mastering" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-xl p-2.5 focus:ring-brandindigo focus:border-brandindigo">
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-xs font-bold text-gray-600">พันธกิจหลัก 2: นวัตกรรมสุขภาพ (Commanding Innovation)</label>
+                                    <input type="text" id="comp-mission-commanding" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-xl p-2.5 focus:ring-brandindigo focus:border-brandindigo">
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-xs font-bold text-gray-600">พันธกิจหลัก 3: เครือข่ายทางการแพทย์ (Unifying Alliances)</label>
+                                    <input type="text" id="comp-mission-unifying" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-xl p-2.5 focus:ring-brandindigo focus:border-brandindigo">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ส่วนที่ 2: บริษัทในเครือ -->
+                        <div class="mt-8 space-y-6">
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-indigo-50 pb-2">
+                                <h4 class="text-sm font-bold text-brandindigo uppercase tracking-wider"><i class="fa-solid fa-sitemap mr-1.5"></i>บริษัทในเครือ (Subsidiaries)</h4>
+                                <button type="button" onclick="addNewSubsidiaryCard()" class="bg-indigo-50 hover:bg-indigo-100 text-brandindigo text-xs font-bold py-2 px-4 rounded-xl transition-all shadow-sm flex items-center gap-1.5">
+                                    <i class="fa-solid fa-plus"></i>เพิ่มบริษัทใหม่
+                                </button>
+                            </div>
+                            <div id="subsidiaries-list-container" class="space-y-6">
+                                <!-- Dynamic subsidiaries render here -->
+                            </div>
+                        </div>
+
+                        <!-- ส่วนที่ 3: ตำแหน่งงานที่เปิดรับ (Career Positions) -->
+                        <div class="mt-8 space-y-6">
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-indigo-50 pb-2">
+                                <h4 class="text-sm font-bold text-brandindigo uppercase tracking-wider"><i class="fa-solid fa-briefcase mr-1.5"></i>ตำแหน่งงานที่เปิดรับ (Career Positions)</h4>
+                                <button type="button" onclick="addNewJobPositionCard()" class="bg-indigo-50 hover:bg-indigo-100 text-brandindigo text-xs font-bold py-2 px-4 rounded-xl transition-all shadow-sm flex items-center gap-1.5">
+                                    <i class="fa-solid fa-plus"></i>เพิ่มตำแหน่งงาน
+                                </button>
+                            </div>
+                            <div id="jobs-list-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <!-- Dynamic job cards render here -->
+                            </div>
+                        </div>
+
+                        <!-- ส่วนที่ 4: ข้อมูลติดต่อ (Contact Info) -->
+                        <div class="mt-8 space-y-6">
+                            <div class="border-b border-indigo-50 pb-2">
+                                <h4 class="text-sm font-bold text-brandindigo uppercase tracking-wider"><i class="fa-solid fa-address-card mr-1.5"></i>ข้อมูลติดต่อ (Contact Info)</h4>
+                                <p class="text-xs text-gray-400 mt-1">ข้อมูลที่แสดงในส่วน "ติดต่อเรา" ของหน้าเว็บหลัก</p>
+                            </div>
+                            <div class="grid grid-cols-1 gap-4">
+                                <div class="space-y-1">
+                                    <label class="text-xs font-bold text-gray-600"><i class="fa-solid fa-map-marker-alt mr-1 text-indigo-400"></i>ที่อยู่ (Address)</label>
+                                    <textarea id="comp-address" rows="2" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-xl p-2.5 focus:ring-brandindigo focus:border-brandindigo" placeholder="เช่น 123 ถนนสุขุมวิท กรุงเทพมหานคร 10110"></textarea>
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div class="space-y-1">
+                                        <label class="text-xs font-bold text-gray-600"><i class="fab fa-facebook-f mr-1 text-blue-500"></i>Facebook URL</label>
+                                        <input type="url" id="comp-facebook" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-xl p-2.5 focus:ring-brandindigo focus:border-brandindigo" placeholder="https://facebook.com/...">
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="text-xs font-bold text-gray-600"><i class="fab fa-instagram mr-1 text-pink-500"></i>Instagram URL</label>
+                                        <input type="url" id="comp-instagram" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-xl p-2.5 focus:ring-brandindigo focus:border-brandindigo" placeholder="https://instagram.com/...">
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="text-xs font-bold text-gray-600"><i class="fab fa-line mr-1 text-green-500"></i>Line URL / ID</label>
+                                        <input type="text" id="comp-line" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-xl p-2.5 focus:ring-brandindigo focus:border-brandindigo" placeholder="https://line.me/ti/p/... หรือ @lineid">
+                                    </div>
+                                </div>
+
+                                <!-- Map Location -->
+                                <div class="p-4 rounded-xl bg-indigo-50/60 border border-indigo-100 space-y-3">
+                                    <div class="flex items-center gap-2">
+                                        <i class="fa-solid fa-map-location-dot text-brandindigo"></i>
+                                        <span class="text-xs font-bold text-brandindigo uppercase tracking-wider">ตำแหน่งแผนที่ (Map Pin Location)</span>
+                                    </div>
+                                    <p class="text-xs text-gray-500">หาพิกัดได้จาก <a href="https://www.google.com/maps" target="_blank" class="text-brandindigo underline font-semibold">Google Maps</a> → คลิกขวาที่ตำแหน่ง → คัดลอกพิกัด</p>
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <div class="space-y-1">
+                                            <label class="text-xs font-bold text-gray-600">Latitude (ละติจูด)</label>
+                                            <input type="number" step="any" id="comp-map-lat" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-xl p-2.5 focus:ring-brandindigo focus:border-brandindigo" placeholder="เช่น 13.7563">
+                                        </div>
+                                        <div class="space-y-1">
+                                            <label class="text-xs font-bold text-gray-600">Longitude (ลองจิจูด)</label>
+                                            <input type="number" step="any" id="comp-map-lng" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-xl p-2.5 focus:ring-brandindigo focus:border-brandindigo" placeholder="เช่น 100.5018">
+                                        </div>
+                                        <div class="space-y-1">
+                                            <label class="text-xs font-bold text-gray-600">ชื่อ Popup บนแผนที่</label>
+                                            <input type="text" id="comp-map-label" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-xl p-2.5 focus:ring-brandindigo focus:border-brandindigo" placeholder="เช่น Love STK Groupe">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end mt-8 border-t border-gray-100 pt-4">
+                            <button onclick="saveCompanySettings()" class="w-full sm:w-auto bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-600 text-white font-bold rounded-xl text-sm px-8 py-3 shadow-md flex items-center justify-center transition-all">
+                                <i class="fa-solid fa-floppy-disk mr-2"></i>บันทึกข้อมูลทั้งหมด
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <!-- 👆 จบหน้าจอแก้ไขข้อมูลหน้าหลัก 👆 -->
+
                 <!-- 📌 ส่วนหน้าจอแสดงตารางข้อมูลทั่วไป -->
                 <div id="section-table" class="page-section hidden max-w-full relative z-10">
 
@@ -1450,6 +1817,7 @@
                                         </div>
                                     </label>
                                 </div>
+                                <span id="scan-status-note" class=""></span>
 
                                 <div id="gps-status"
                                     class="bg-gray-50 rounded-2xl border border-gray-200 flex flex-col h-[280px] mb-6 relative overflow-hidden">
@@ -1474,7 +1842,7 @@
                                     </div>
                                     <input type="text" id="manualEmpId" placeholder="EMPLOYEE ID (E.G. EMP001)" required
                                         class="border-0 bg-transparent text-gray-900 focus:ring-0 block w-full p-2 uppercase text-xs md:text-sm font-bold tracking-widest placeholder-gray-400">
-                                    <button type="submit" id="btn-manual-save"
+                                    <button type="submit" id="scan-submit-btn"
                                         class="bg-brandpurple hover:bg-purple-700 text-white px-6 md:px-8 py-2.5 rounded-xl font-bold text-xs md:text-sm whitespace-nowrap transition-all flex items-center gap-2">
                                         Record <i class="fa-solid fa-check-circle text-white/80"></i>
                                     </button>
@@ -1706,6 +2074,7 @@
                 </div>
 
                 <div class="flex-1 overflow-y-auto custom-scrollbar px-6 md:px-8 pb-4 min-h-0">
+                    <h3 id="announce-modal-title" class="text-xl font-bold text-gray-900 mb-3 hidden">Title</h3>
                     <p id="announce-modal-topic"
                         class="text-sm md:text-base text-gray-700 whitespace-pre-line leading-relaxed font-medium">
                         Topic Details...
@@ -2473,6 +2842,43 @@
                     if (checkInEl) checkInEl.innerText = data.checkIn || '-';
                     if (checkOutEl) checkOutEl.innerText = data.checkOut || '-';
                     if (statusEl) statusEl.innerText = data.status || '-';
+
+                    // ── อัปเดต Radio Buttons ตามสถานะวันนี้ ──────────────────
+                    const radioIn  = document.querySelector('input[name="scanType"][value="IN"]');
+                    const radioOut = document.querySelector('input[name="scanType"][value="OUT"]');
+                    const scanBtn  = document.getElementById('scan-submit-btn') || document.querySelector('button[onclick*="handleManualScan"]');
+                    const scanNote = document.getElementById('scan-status-note');
+
+                    const hasIn  = data.checkIn  && data.checkIn  !== '-';
+                    const hasOut = data.checkOut && data.checkOut !== '-';
+
+                    if (radioIn && radioOut) {
+                        if (!hasIn && !hasOut) {
+                            // ยังไม่ได้ Check-In เลย → บังคับให้เลือก IN เท่านั้น
+                            radioIn.checked  = true;
+                            radioIn.disabled  = false;
+                            radioOut.disabled = true;
+                            if (scanNote) { scanNote.textContent = ''; scanNote.className = ''; }
+                        } else if (hasIn && !hasOut) {
+                            // Check-In แล้ว รอ Check-Out → บังคับ OUT
+                            radioOut.checked = true;
+                            radioIn.disabled  = true;
+                            radioOut.disabled = false;
+                            if (scanNote) {
+                                scanNote.textContent = '✅ Check-In แล้วเวลา ' + data.checkIn + ' น. — กรุณา Check-Out';
+                                scanNote.className = 'text-xs font-semibold text-emerald-600 mt-1 block';
+                            }
+                        } else if (hasIn && hasOut) {
+                            // Check-In + Check-Out แล้ว → ล็อกทั้งคู่
+                            radioIn.disabled  = true;
+                            radioOut.disabled = true;
+                            if (scanBtn) scanBtn.disabled = true;
+                            if (scanNote) {
+                                scanNote.textContent = '🔒 บันทึกครบแล้ววันนี้ (IN: ' + data.checkIn + ' / OUT: ' + data.checkOut + ')';
+                                scanNote.className = 'text-xs font-semibold text-indigo-600 mt-1 block';
+                            }
+                        }
+                    }
                 })
                 .withFailureHandler(err => {
                     if (statusEl) statusEl.innerText = 'Connection failed';
@@ -2511,7 +2917,7 @@
                 const roleStr = String(role).toLowerCase();
                 const isAdmin = roleStr.includes('admin') || roleStr.includes('manager');
                 const allowedMenus = permissions ? String(permissions).split(',').map(m => m.trim().toLowerCase()) : [];
-                const publicMenus = ['scan'];
+                const publicMenus = ['scan', 'staff-dashboard'];
 
                 document.querySelectorAll('.nav-btn').forEach(btn => {
                     let pageId = String(btn.getAttribute('data-page')).toLowerCase().trim();
@@ -2578,7 +2984,7 @@
                 applyRolePermissions(role, permissions);
 
                 let roleLower = String(role).toLowerCase();
-                if (roleLower === 'staff') navigate('scan', 'Time Tracking');
+                if (roleLower === 'staff') navigate('staff-dashboard', 'My Dashboard');
                 else navigate('dashboard', 'Dashboard');
             } catch (error) {
                 console.error("Error in showApp:", error);
@@ -2631,13 +3037,12 @@
         }
 
         function logout() {
+            // ลบข้อมูล Session การล็อกอินเดิมออก
             localStorage.removeItem('hr_user_session');
             sessionStorage.removeItem('hr_user_session');
-            document.getElementById('app-layout').style.display = 'none';
-            document.getElementById('login-screen').style.display = 'flex';
-            document.getElementById('login-username').value = '';
-            document.getElementById('login-password').value = '';
-            showToast('Logged out successfully', 'success');
+
+            // สั่งให้กระโดดกลับไปยังหน้าแรกของเว็บไซต์ทันที
+            window.location.href = 'index.html';
         }
 
         let isDesktopSidebarCollapsed = false;
@@ -2845,7 +3250,7 @@
                 const targetPage = String(sheetName || pageId).toLowerCase().trim();
                 const isAdmin = roleStr.includes('admin') || roleStr.includes('manager');
                 const allowedMenus = permissions ? String(permissions).split(',').map(m => m.trim().toLowerCase()) : [];
-                const publicMenus = ['scan', 'dashboard'];
+                const publicMenus = ['scan', 'dashboard', 'staff-dashboard'];
 
                 // เช็คว่า User คนนี้มีสิทธิ์เข้าหน้านี้หรือไม่
                 if (!isAdmin && !publicMenus.includes(targetPage)) {
@@ -2894,6 +3299,8 @@
 
                 if (pageId === 'dashboard') { loadDashboard(); }
                 else if (pageId === 'digital-card') { loadDigitalCard(); }
+                else if (pageId === 'company-settings') { loadCompanySettings(); }
+                else if (pageId === 'staff-dashboard') { loadStaffDashboard(); }
                 else if (pageId === 'table') {
                     if (sheetName === 'Fingerprint_Logs') {
                         let calMonthInput = document.getElementById('calendarMonth');
@@ -2929,6 +3336,169 @@
             document.getElementById('dashStartDate').value = '';
             document.getElementById('dashEndDate').value = '';
             loadDashboard();
+        }
+
+        async function loadStaffDashboard() {
+            try {
+                const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+                if (!sessionStr) return;
+                const session = JSON.parse(sessionStr);
+                const empId = String(session.empId || session.username || '').trim().toUpperCase();
+                
+                if (!empId) return;
+
+                // 1. ดึงข้อมูลพนักงาน (Staff Details)
+                google.script.run.withSuccessHandler(res => {
+                    if (res && res.success) {
+                        const staffMember = (res.data || []).find(r => String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === empId);
+                        if (staffMember) {
+                            const firstName = staffMember.First_Name || staffMember.first_name || '';
+                            const lastName = staffMember.Last_Name || staffMember.last_name || '';
+                            const fullName = `${firstName} ${lastName}`.trim() || empId;
+                            
+                            const welcomeEl = document.getElementById('staff-welcome-name');
+                            const quotaEl = document.getElementById('staff-leave-quota');
+                            const rankEl = document.getElementById('staff-rank');
+                            const rewardEl = document.getElementById('staff-reward-points');
+                            
+                            if (welcomeEl) welcomeEl.innerText = fullName;
+                            if (quotaEl) quotaEl.innerText = (staffMember.Leave_Quota || '-') + ' วัน';
+                            if (rankEl) rankEl.innerText = staffMember.Position_ID || staffMember.position_id || '-';
+                            if (rewardEl) rewardEl.innerText = staffMember['Reward Level'] || staffMember.reward_level || '-';
+                        }
+                    }
+                }).getSheetData('staff');
+
+                // 2. ดึงเวลาเข้างานวันนี้ (Today's Attendance)
+                const now = new Date();
+                const offset = now.getTimezoneOffset() * 60000;
+                const todayStr = (new Date(now.getTime() - offset)).toISOString().slice(0, 10);
+                
+                google.script.run.withSuccessHandler(res => {
+                    if (res && res.success) {
+                        const todayLog = (res.data || []).find(r => {
+                            const rEmp = String(r.Employee_ID || r.employee_id || '').trim().toUpperCase();
+                            if (rEmp !== empId) return false;
+                            const rDate = String(r.Date || r.date || '').trim();
+                            if (!rDate) return false;
+                            
+                            // Match exact YYYY-MM-DD
+                            if (rDate.slice(0, 10) === todayStr) return true;
+                            
+                            // Match DD/MM/YYYY format
+                            const parts = todayStr.split('-');
+                            const thFormat = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                            if (rDate.includes(thFormat)) return true;
+                            
+                            // Match via Date object
+                            const parsed = parseDateStr(rDate);
+                            if (parsed && parsed.toISOString().slice(0, 10) === todayStr) return true;
+                            
+                            return false;
+                        });
+                        const timeEl = document.getElementById('staff-today-time');
+                        if (timeEl) {
+                            if (todayLog) {
+                                const inTime = todayLog.Check_In || todayLog.check_in || '-';
+                                const outTime = todayLog.Check_Out || todayLog.check_out || '-';
+                                timeEl.innerText = `${inTime} / ${outTime}`;
+                            } else {
+                                timeEl.innerText = '- / -';
+                            }
+                        }
+                    }
+                }).getSheetData('Fingerprint_Logs');
+
+                // 3. ดึงประวัติการลา (Leave Applications)
+                google.script.run.withSuccessHandler(res => {
+                    if (res && res.success) {
+                        const myLeaves = (res.data || [])
+                            .filter(r => String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === empId)
+                            .sort((a, b) => {
+                                const dateA = parseDateStr(a.Start_Date || a.start_date);
+                                const dateB = parseDateStr(b.Start_Date || b.start_date);
+                                if (dateA && dateB) return dateB - dateA;
+                                return 0;
+                            })
+                            .slice(0, 5);
+
+                        const leavesTbody = document.getElementById('staff-leaves-tbody');
+                        if (leavesTbody) {
+                            if (myLeaves.length > 0) {
+                                leavesTbody.innerHTML = myLeaves.map(r => {
+                                    const type = r['Type '] || r.Type || r.leave_type || 'ลาอื่นๆ';
+                                    const start = r.Start_Date || r.start_date || '';
+                                    const end = r.End_Date || r.end_date || '';
+                                    const total = r.Total_Days || r.total_days || '-';
+                                    const status = r.Status || r.status || 'Pending';
+                                    
+                                    let statusClass = 'text-amber-500 bg-amber-50';
+                                    if (String(status).toLowerCase().includes('approve') || String(status).toLowerCase().includes('อนุมัติ')) statusClass = 'text-emerald-500 bg-emerald-50';
+                                    else if (String(status).toLowerCase().includes('reject') || String(status).toLowerCase().includes('ปฏิเสธ')) statusClass = 'text-rose-500 bg-rose-50';
+
+                                    return `
+                                        <tr>
+                                            <td class="py-3 font-semibold">${type}</td>
+                                            <td class="py-3">${start}</td>
+                                            <td class="py-3">${end}</td>
+                                            <td class="py-3 text-center">${total}</td>
+                                            <td class="py-3 text-right">
+                                                <span class="inline-block px-2.5 py-1 text-xs font-bold rounded-full ${statusClass}">${status}</span>
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('');
+                            } else {
+                                leavesTbody.innerHTML = `<tr><td colspan="5" class="py-10 text-center text-gray-400">ไม่มีประวัติการลางาน</td></tr>`;
+                            }
+                        }
+                    }
+                }).getSheetData('Leave application');
+
+                // 4. ดึงประกาศล่าสุด (Latest Announcements)
+                google.script.run.withSuccessHandler(res => {
+                    if (res && res.success) {
+                        const activeAnns = (res.data || [])
+                            .filter(r => {
+                                const status = String(r.Status || r.status || '').toLowerCase().trim();
+                                return status === 'active' || status === '-' || status === '';
+                            })
+                            .sort((a, b) => {
+                                const dateA = parseDateStr(a.Date || a.date);
+                                const dateB = parseDateStr(b.Date || b.date);
+                                if (dateA && dateB) return dateB - dateA;
+                                return 0;
+                            })
+                            .slice(0, 3);
+
+                        const annContainer = document.getElementById('staff-announcements-container');
+                        if (annContainer) {
+                            if (activeAnns.length > 0) {
+                                annContainer.innerHTML = activeAnns.map(r => {
+                                    const topic = r.Topic || r.topic || 'ประกาศ';
+                                    const type = r.Type || r.type || 'ประกาศ';
+                                    const parsedDate = parseDateStr(r.Date || r.date);
+                                    const dateStr = parsedDate ? parsedDate.toLocaleDateString('th-TH', { month: 'short', day: 'numeric' }) : '';
+                                    
+                                    return `
+                                        <div class="p-4 rounded-xl bg-gray-50 border border-gray-100 hover:bg-indigo-50/30 hover:border-indigo-100/50 transition-all">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="inline-block px-2 py-0.5 text-[10px] font-bold bg-indigo-50 text-brandindigo rounded-md">${type}</span>
+                                                <span class="text-xs text-gray-400 font-medium">${dateStr}</span>
+                                            </div>
+                                            <h4 class="text-sm font-bold text-gray-800 line-clamp-2">${topic}</h4>
+                                        </div>
+                                    `;
+                                }).join('');
+                            } else {
+                                annContainer.innerHTML = `<p class="text-sm text-gray-400 text-center py-10">ไม่มีประกาศใหม่</p>`;
+                            }
+                        }
+                    }
+                }).getSheetData('Announcements');
+            } catch (e) {
+                console.warn('[StaffDashboard]', e);
+            }
         }
 
         /* =====================================================================
@@ -3991,7 +4561,7 @@
 
 
             // 👇 🛠️ โค้ดที่แก้ใหม่: อนุญาตให้ Staff เห็นข้อมูลทั้งหมด
-            if (currentSheet.includes('Ranting') || currentSheet.includes('Rating') || currentSheet === 'Announcements' || currentSheet === 'Training' || currentSheet === 'Asset_Tracking') {
+            if (currentSheet.includes('Ranting') || currentSheet.includes('Rating') || currentSheet === 'Announcements' || currentSheet === 'News' || currentSheet === 'Training' || currentSheet === 'Asset_Tracking') {
                 return data;
             }
 
@@ -4751,7 +5321,7 @@
 
             // 📌 เริ่มบล็อกที่แก้ใหม่: เพิ่ม Employee Rating ให้แสดงเป็นการ์ดพร้อมระบบดาว
             // 📌 เริ่มบล็อกการ์ดแสดงผล (Training / Asset / Employee Rating)
-            if (currentSheet === 'Training' || currentSheet === 'Asset_Tracking' || currentSheet === 'Announcements' || currentSheet.includes('Ranting') || currentSheet.includes('Rating') || currentSheet.trim() === 'Policy' || currentSheet.trim() === 'Documents') {
+            if (currentSheet === 'Training' || currentSheet === 'Asset_Tracking' || currentSheet === 'Announcements' || currentSheet === 'News' || currentSheet.includes('Ranting') || currentSheet.includes('Rating') || currentSheet.trim() === 'Policy' || currentSheet.trim() === 'Documents') {
                 tableWrapper.classList.add('hidden');
                 cardWrapper.classList.remove('hidden');
                 cardWrapper.innerHTML = '';
@@ -4759,7 +5329,7 @@
                 if (addDataBtn) addDataBtn.classList.remove('hidden');
 
                 // 👇 แทรกโค้ดตรงนี้: ปิดปุ่ม Add Record ถ้าเป็น Staff
-                if ((currentSheet === 'Announcements' || currentSheet === 'Training' || currentSheet === 'Asset_Tracking') && role === 'Staff') {
+                if ((currentSheet === 'Announcements' || currentSheet === 'News' || currentSheet === 'Training' || currentSheet === 'Asset_Tracking') && role === 'Staff') {
                     if (addDataBtn) addDataBtn.classList.add('hidden');
                 }
 
@@ -5108,6 +5678,91 @@
                         // พื้นที่แสดงรูปภาพ
                         cardArr.push('<div class="w-full aspect-[4/5] bg-gray-50 flex flex-col items-center justify-center p-3 relative">');
                         cardArr.push(`<img src="${photoUrl}" alt="Announcement" class="w-full h-full object-cover rounded-xl shadow-sm border border-gray-100" onerror="this.onerror=null; this.src='${fallbackImg}';">`);
+                        cardArr.push('</div>');
+
+                        cardArr.push('</div>');
+
+                        cardsHtml += cardArr.join('');
+                    });
+                }
+                // 👉 โหมดหน้าการ์ด News (ข่าวสาร)
+                else if (currentSheet === 'News') {
+                    if (!window.showNewsFromId) {
+                        window.showNewsFromId = function (id) {
+                            const row = tableCache['News'].data.find(r => String(getRecordId(r)) === String(id));
+                            if (row) showNewsDetail(encodeURIComponent(JSON.stringify(row)).replace(/'/g, "%27"));
+                        };
+                        window.editNewsFromId = function (id, event) {
+                            event.stopPropagation();
+                            const row = tableCache['News'].data.find(r => String(getRecordId(r)) === String(id));
+                            if (row) openFormModal(encodeURIComponent(JSON.stringify(row)).replace(/'/g, "%27"));
+                        };
+                    }
+
+                    data.forEach(row => {
+                        const isEmpty = currentHeaders.every(h => !row[h] || String(row[h]).trim() === '');
+                        if (isEmpty) return;
+
+                        const rowId = getRecordId(row);
+
+                        let topic = getFuzzyValue(row, ['topic', 'หัวข้อ', 'เรื่อง']) || 'News Title';
+                        let content = getFuzzyValue(row, ['content', 'รายละเอียด', 'เนื้อหา']) || '';
+                        let type = getFuzzyValue(row, ['type', 'ประเภท']) || 'General';
+                        let audience = getFuzzyValue(row, ['audience', 'เป้าหมาย', 'กลุ่มผู้ฟัง']) || 'Public';
+
+                        // 🛠️ 1. ดึงข้อมูลรูปภาพ
+                        let photoUrl = row['photo'] || row['Photo'] || getFuzzyValue(row, ['photo', 'รูป', 'pic', 'image', 'รูปภาพ']) || '';
+
+                        // 🛠️ 2. คลีนข้อมูล Base64 และจัดการ Google Drive
+                        if (typeof photoUrl === 'string') {
+                            if (photoUrl.startsWith('data:image')) {
+                                photoUrl = photoUrl.replace(/[\r\n\t\s]+/g, "");
+                            } else if (photoUrl.includes('drive.google.com')) {
+                                let fileId = '';
+                                if (photoUrl.includes('id=')) fileId = photoUrl.split('id=')[1].split('&')[0];
+                                else if (photoUrl.includes('/d/')) fileId = photoUrl.split('/d/')[1].split('/')[0];
+                                if (fileId) photoUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w800';
+                            }
+                        }
+
+                        // เตรียมรูปโปสเตอร์เริ่มต้น
+                        let safeTopic = encodeURIComponent(String(topic).substring(0, 20));
+                        let fallbackImg = `https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&size=800&font-size=0.1&name=${safeTopic}`;
+
+                        if (!photoUrl || photoUrl === '-' || String(photoUrl).trim() === '') {
+                            photoUrl = fallbackImg;
+                        }
+
+                        let cardArr = [];
+
+                        cardArr.push(`<div onclick="showNewsFromId('${rowId}')" class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col relative transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer group">`);
+
+                        // 🌟 3. แถบด้านบน (แสดง Type, Topic, Audience และปุ่มจัดการ)
+                        cardArr.push('<div class="flex justify-between items-start px-4 py-3 bg-white z-10 border-b border-gray-50 shrink-0 gap-2">');
+
+                        // ฝั่งซ้าย: โชว์ประเภท (Type) สีฟ้า/ม่วง และกลุ่มเป้าหมาย (Audience)
+                        cardArr.push('<div class="flex flex-col min-w-0">');
+                        const audColor = String(audience).toLowerCase() === 'public' ? 'text-green-600 bg-green-50' : 'text-amber-600 bg-amber-50';
+                        const audText = String(audience).toLowerCase() === 'public' ? 'Public (สาธารณะ)' : 'Internal (ภายใน)';
+                        cardArr.push(`<div class="flex items-center gap-1.5 mb-1 flex-wrap">`);
+                        cardArr.push(`<span class="text-[9px] font-extrabold text-brandindigo uppercase tracking-wider bg-indigo-50 px-1.5 py-0.5 rounded" title="${type}">${type}</span>`);
+                        cardArr.push(`<span class="text-[9px] font-extrabold ${audColor} uppercase tracking-wider px-1.5 py-0.5 rounded" title="${audText}">${audText}</span>`);
+                        cardArr.push(`</div>`);
+                        cardArr.push(`<h3 class="text-sm font-bold text-gray-800 line-clamp-2 leading-snug" title="${String(topic).replace(/"/g, '&quot;')}">${topic}</h3>`);
+                        cardArr.push('</div>');
+
+                        // ฝั่งขวา: ปุ่มจัดการ
+                        if (role !== 'Staff') {
+                            cardArr.push('<div class="flex space-x-2 shrink-0 mt-0.5">');
+                            cardArr.push(`<button onclick="editNewsFromId('${rowId}', event)" class="text-gray-400 hover:text-brandindigo transition-colors" title="Edit"><i class="fa-regular fa-pen-to-square text-[15px]"></i></button>`);
+                            cardArr.push(`<button onclick="event.stopPropagation(); deleteRecord('${rowId}')" class="text-gray-400 hover:text-red-500 transition-colors" title="Delete"><i class="fa-regular fa-trash-can text-[15px]"></i></button>`);
+                            cardArr.push('</div>');
+                        }
+                        cardArr.push('</div>'); // ปิดแถบด้านบน
+
+                        // พื้นที่แสดงรูปภาพ
+                        cardArr.push('<div class="w-full aspect-[4/5] bg-gray-50 flex flex-col items-center justify-center p-3 relative">');
+                        cardArr.push(`<img src="${photoUrl}" alt="News Image" class="w-full h-full object-cover rounded-xl shadow-sm border border-gray-100" onerror="this.onerror=null; this.src='${fallbackImg}';">`);
                         cardArr.push('</div>');
 
                         cardArr.push('</div>');
@@ -6079,6 +6734,29 @@
                         </select></div>
                     `);
                 }
+                // 👉 1.2 เพิ่ม Dropdown สำหรับ TYPE ของ News
+                else if (lw === 'type' && currentSheet.toLowerCase() === 'news') {
+                    formFields.insertAdjacentHTML('beforeend', `
+                        <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
+                        <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                            <option value="" disabled ${!val ? 'selected' : ''}>เลือกประเภทข่าวสาร...</option>
+                            <option value="กิจกรรม" ${val === 'กิจกรรม' ? 'selected' : ''}>กิจกรรม (Activities)</option>
+                            <option value="บริการ" ${val === 'บริการ' ? 'selected' : ''}>บริการ (Services)</option>
+                            <option value="สินค้าใหม่" ${val === 'สินค้าใหม่' ? 'selected' : ''}>สินค้าใหม่ (New Products)</option>
+                            <option value="ทั่วไป" ${val === 'ทั่วไป' ? 'selected' : ''}>ทั่วไป (General)</option>
+                        </select></div>
+                    `);
+                }
+                // 👉 1.3 เพิ่ม Dropdown สำหรับ AUDIENCE (กลุ่มเป้าหมาย) ของ News
+                else if (lw === 'audience' || lw === 'กลุ่มเป้าหมาย' || lw === 'เป้าหมาย') {
+                    formFields.insertAdjacentHTML('beforeend', `
+                        <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
+                        <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                            <option value="Public" ${val === 'Public' ? 'selected' : ''}>Public (เผยแพร่สาธารณะ)</option>
+                            <option value="Internal" ${val === 'Internal' ? 'selected' : ''}>Internal (ภายในองค์กรเท่านั้น)</option>
+                        </select></div>
+                    `);
+                }
                 // 👉 2. เปลี่ยนช่อง TOPIC ให้เป็นกล่องข้อความกว้างๆ (Textarea)
                 else if ((lw === 'topic' || lw === 'detail' || lw === 'รายละเอียด') && currentSheet.toLowerCase() === 'announcements') {
                     formFields.insertAdjacentHTML('beforeend', `
@@ -6294,7 +6972,7 @@
                 // 👆👆👆 สิ้นสุดโค้ดที่ต้องก๊อปปี้ 👆👆👆
 
                 // 👇👇 เริ่มก๊อปปี้ตรงนี้: ทำให้ช่อง OBJECT กางเต็มหน้าจอและเป็น Textarea 👇👇
-                else if (lw === 'object' || lw === 'เหตุผล' || lw === 'reason') {
+                else if (lw === 'object' || lw === 'เหตุผล' || lw === 'reason' || lw === 'content' || lw === 'รายละเอียด' || lw === 'เนื้อหา') {
                     formFields.insertAdjacentHTML('beforeend', `
                         <div class="col-span-1 sm:col-span-2">
                             <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
@@ -7050,6 +7728,573 @@
             document.getElementById('card-phone').innerText = empData['PHONE'] || '-';
             document.getElementById('card-email').innerText = empData['EMAIL'] || '-';
             document.getElementById('card-line').innerText = empData['LINE_ID'] || '-';
+        }
+
+        /* =====================================================================
+         * 📌 ส่วนที่ 22: COMPANY SETTINGS (ระบบแก้ไขข้อมูลหน้าแรก)
+         * ===================================================================== */
+        let deletedSubsidiaries = [];
+
+        function loadCompanySettings() {
+            toggleLoading(true, 'LOADING COMPANY INFO...');
+            google.script.run.withSuccessHandler(res => {
+                toggleLoading(false);
+                if (res.success) {
+                    deletedSubsidiaries = [];
+                    const infoMap = {};
+                    if (Array.isArray(res.info)) {
+                        res.info.forEach(row => {
+                            infoMap[row.key] = row.value;
+                        });
+                    }
+                    
+                    document.getElementById('comp-about-title').value = infoMap['about_title'] || '';
+                    document.getElementById('comp-about-desc').value = infoMap['about_desc'] || '';
+                    document.getElementById('comp-vision').value = infoMap['vision'] || '';
+                    document.getElementById('comp-values').value = infoMap['values_desc'] || '';
+                    document.getElementById('comp-subsidiaries-desc').value = infoMap['subsidiaries_desc'] || '';
+                    document.getElementById('comp-mission-mastering').value = infoMap['mission_mastering'] || '';
+                    document.getElementById('comp-mission-commanding').value = infoMap['mission_commanding'] || '';
+                    document.getElementById('comp-mission-unifying').value = infoMap['mission_unifying'] || '';
+                    
+                    // Logo loading logic
+                    const logoUrl = infoMap['company_logo'] || '';
+                    const preview = document.getElementById('comp-logo-preview');
+                    const placeholder = document.getElementById('comp-logo-placeholder');
+                    const urlInput = document.getElementById('comp-logo-url');
+                    
+                    urlInput.value = logoUrl;
+                    if (logoUrl && logoUrl.trim() !== '') {
+                        preview.src = logoUrl;
+                        preview.classList.remove('hidden');
+                        placeholder.classList.add('hidden');
+                    } else {
+                        preview.src = '';
+                        preview.classList.add('hidden');
+                        placeholder.classList.remove('hidden');
+                    }
+                    
+                    renderSubsidiariesSettingsList(res.subsidiaries || []);
+
+                    // Load Careers/Jobs list
+                    let jobs = [];
+                    try {
+                        jobs = JSON.parse(infoMap['careers'] || '[]');
+                    } catch(e) {
+                        console.error('Failed to parse careers JSON', e);
+                    }
+                    renderJobsSettingsList(jobs);
+
+                    // Load Contact Info fields
+                    document.getElementById('comp-address').value   = infoMap['contact_address']   || '';
+                    document.getElementById('comp-facebook').value  = infoMap['contact_facebook']  || '';
+                    document.getElementById('comp-instagram').value = infoMap['contact_instagram'] || '';
+                    document.getElementById('comp-line').value      = infoMap['contact_line']      || '';
+
+                    // Load Map Location fields
+                    document.getElementById('comp-map-lat').value   = infoMap['map_lat']   || '';
+                    document.getElementById('comp-map-lng').value   = infoMap['map_lng']   || '';
+                    document.getElementById('comp-map-label').value = infoMap['map_label'] || '';
+
+                } else {
+                    showToast(res.message || 'Failed to load company profile data', 'error');
+                }
+            }).getCompanyProfile();
+        }
+
+        function previewCompanyLogo(input) {
+            const file = input.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById('comp-logo-preview');
+                    const placeholder = document.getElementById('comp-logo-placeholder');
+                    const urlInput = document.getElementById('comp-logo-url');
+                    
+                    preview.src = e.target.result;
+                    preview.classList.remove('hidden');
+                    placeholder.classList.add('hidden');
+                    urlInput.value = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function clearCompanyLogo() {
+            const preview = document.getElementById('comp-logo-preview');
+            const placeholder = document.getElementById('comp-logo-placeholder');
+            const urlInput = document.getElementById('comp-logo-url');
+            const fileInput = document.getElementById('comp-logo-file');
+            
+            preview.src = '';
+            preview.classList.add('hidden');
+            placeholder.classList.remove('hidden');
+            urlInput.value = '';
+            fileInput.value = '';
+        }
+
+        function triggerSubLogoUpload(subId) {
+            const input = document.getElementById(`sub-file-${subId}`);
+            if (input) input.click();
+        }
+
+        function previewSubLogo(subId, input) {
+            const file = input.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const card = document.querySelector(`[data-sub-id="${subId}"]`);
+                    if (card) {
+                        const preview = card.querySelector('.sub-logo-preview');
+                        const placeholder = card.querySelector('.sub-logo-placeholder');
+                        const valInput = document.getElementById(`sub-val-${subId}`);
+                        
+                        preview.src = e.target.result;
+                        preview.style.display = 'block';
+                        placeholder.style.display = 'none';
+                        valInput.value = e.target.result;
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function clearSubLogo(subId) {
+            const card = document.querySelector(`[data-sub-id="${subId}"]`);
+            if (card) {
+                const preview = card.querySelector('.sub-logo-preview');
+                const placeholder = card.querySelector('.sub-logo-placeholder');
+                const valInput = document.getElementById(`sub-val-${subId}`);
+                const fileInput = document.getElementById(`sub-file-${subId}`);
+                
+                preview.src = '';
+                preview.style.display = 'none';
+                placeholder.innerHTML = '🏢';
+                placeholder.style.display = 'block';
+                valInput.value = '🏢';
+                fileInput.value = '';
+            }
+        }
+
+        function renderSubsidiariesSettingsList(subsList) {
+            const container = document.getElementById('subsidiaries-list-container');
+            if (!container) return;
+            
+            if (!subsList || subsList.length === 0) {
+                container.innerHTML = `<p class="text-gray-500 text-sm text-center py-4">ไม่มีข้อมูลบริษัทในเครือ</p>`;
+                return;
+            }
+            
+            container.innerHTML = subsList.map((sub, i) => {
+                const isUrl = sub.emoji && (sub.emoji.startsWith('http') || sub.emoji.startsWith('data:image'));
+                return `
+                <div class="p-5 border border-gray-200 rounded-xl space-y-4 bg-gray-50/50 shadow-inner hover:border-indigo-200 transition-all" data-sub-id="${sub.id}">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-gray-100 pb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold px-2 py-1 bg-brandindigo/10 text-brandindigo rounded-md uppercase tracking-wider">${sub.id}</span>
+                            <span class="text-sm font-bold text-gray-700">ลำดับ:</span>
+                            <input type="number" class="w-16 bg-white border border-gray-300 text-gray-900 text-sm rounded-lg p-1 text-center font-bold sub-sort-order" value="${sub.sort_order || (i+1)}">
+                        </div>
+                        
+                        <!-- Logo Upload controls for Subsidiary -->
+                        <div class="flex items-center gap-3 w-full sm:w-auto">
+                            <div class="relative w-12 h-12 rounded-lg border border-gray-200 bg-white flex items-center justify-center overflow-hidden shadow-inner flex-shrink-0">
+                                <img class="w-full h-full object-contain p-1 sub-logo-preview" src="${isUrl ? sub.emoji : ''}" style="${isUrl ? '' : 'display:none;'}" />
+                                <div class="text-gray-400 text-xs font-bold uppercase tracking-wider text-center p-1 sub-logo-placeholder" style="${isUrl ? 'display:none;' : ''}">${sub.emoji || '🏢'}</div>
+                            </div>
+                            <div class="flex flex-col gap-1 w-full sm:w-auto">
+                                <div class="flex gap-2">
+                                    <button type="button" onclick="triggerSubLogoUpload('${sub.id}')" class="bg-white border border-gray-300 hover:bg-gray-50 text-[10px] font-bold py-1 px-2.5 rounded-lg shadow-sm transition-colors text-gray-700">
+                                        <i class="fa-solid fa-upload mr-1"></i>อัปโหลดโลโก้
+                                    </button>
+                                    <button type="button" onclick="clearSubLogo('${sub.id}')" class="bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-bold py-1 px-2.5 rounded-lg transition-colors">
+                                        <i class="fa-solid fa-trash-can mr-1"></i>ลบ
+                                    </button>
+                                </div>
+                                <input type="file" id="sub-file-${sub.id}" accept="image/*" class="hidden" onchange="previewSubLogo('${sub.id}', this)" />
+                                <input type="text" class="w-full sm:w-64 bg-white border border-gray-300 text-gray-900 text-xs rounded-lg p-1 px-2 sub-emoji" value="${sub.emoji || '🏢'}" id="sub-val-${sub.id}">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-gray-600">ชื่อบริษัท (Name)</label>
+                            <input type="text" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-lg p-2 sub-name" value="${sub.name || ''}">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-gray-600">สโลแกน / หัวข้อย่อย (Title)</label>
+                            <input type="text" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-lg p-2 sub-title" value="${sub.title || ''}">
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-1">
+                        <label class="text-xs font-bold text-gray-600">คำอธิบายรายละเอียด (Description)</label>
+                        <textarea rows="3" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-lg p-2 sub-desc">${sub.description || ''}</textarea>
+                    </div>
+                    
+                    <div class="flex justify-end pt-1 border-t border-gray-100/50">
+                        <button type="button" onclick="deleteSubsidiaryCard('${sub.id}')" class="text-red-500 hover:text-red-700 text-xs font-bold flex items-center gap-1.5 transition-colors">
+                            <i class="fa-solid fa-trash-can"></i> ลบข้อมูลบริษัทนี้
+                        </button>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function renderJobsSettingsList(jobsList) {
+            const container = document.getElementById('jobs-list-container');
+            if (!container) return;
+
+            if (!jobsList || jobsList.length === 0) {
+                container.innerHTML = `<p class="text-gray-500 text-sm text-center py-4 col-span-2">ไม่มีข้อมูลตำแหน่งงานที่เปิดรับ</p>`;
+                return;
+            }
+
+            container.innerHTML = jobsList.map((job, i) => {
+                const tempId = `JOB-${i}-${Date.now()}`;
+                return `
+                <div class="p-4 border border-gray-200 rounded-xl space-y-3 bg-gray-50/50 hover:border-indigo-200 transition-all relative" data-job-id="${tempId}">
+                    <div class="flex justify-between items-center border-b border-gray-100 pb-2">
+                        <span class="text-xs font-bold text-gray-500"><i class="fa-solid fa-briefcase mr-1"></i> ตำแหน่งงาน #${i+1}</span>
+                        <button type="button" onclick="removeJobPositionCard('${tempId}')" class="text-red-500 hover:text-red-700 text-xs font-bold flex items-center gap-1 transition-colors">
+                            <i class="fa-solid fa-trash-can"></i> ลบ
+                        </button>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="space-y-1">
+                            <label class="text-[11px] font-bold text-gray-500">ชื่อตำแหน่ง (Job Title)</label>
+                            <input type="text" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-lg p-2 job-title" value="${escapeHtml(job.title || '')}" placeholder="เช่น นักพัฒนาซอฟต์แวร์">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="space-y-1">
+                                <label class="text-[11px] font-bold text-gray-500">แผนก (Department)</label>
+                                <input type="text" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-lg p-2 job-dept" value="${escapeHtml(job.dept || '')}" placeholder="เช่น แผนกเทคโนโลยี">
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-[11px] font-bold text-gray-500">จำนวนที่เปิดรับ (Badge)</label>
+                                <input type="text" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-lg p-2 job-badge" value="${escapeHtml(job.badge || '')}" placeholder="เช่น 2 อัตรา">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function addNewJobPositionCard() {
+            const container = document.getElementById('jobs-list-container');
+            if (!container) return;
+
+            const emptyPlaceholder = container.querySelector('p.text-gray-500');
+            if (emptyPlaceholder) emptyPlaceholder.remove();
+
+            const tempId = `JOB-NEW-${Date.now()}`;
+            const count = container.querySelectorAll('[data-job-id]').length + 1;
+
+            const cardHtml = `
+            <div class="p-4 border border-dashed border-indigo-300 rounded-xl space-y-3 bg-indigo-50/10 hover:border-indigo-400 transition-all relative" data-job-id="${tempId}">
+                <div class="flex justify-between items-center border-b border-gray-100 pb-2">
+                    <span class="text-xs font-bold text-brandindigo"><i class="fa-solid fa-briefcase mr-1"></i> ตำแหน่งงาน #${count} (ใหม่)</span>
+                    <button type="button" onclick="removeJobPositionCard('${tempId}')" class="text-red-500 hover:text-red-700 text-xs font-bold flex items-center gap-1 transition-colors">
+                        <i class="fa-solid fa-trash-can"></i> ลบ
+                    </button>
+                </div>
+                <div class="space-y-2">
+                    <div class="space-y-1">
+                        <label class="text-[11px] font-bold text-gray-500">ชื่อตำแหน่ง (Job Title)</label>
+                        <input type="text" class="w-full bg-white border border-indigo-200 text-gray-900 text-sm rounded-lg p-2 job-title" value="" placeholder="เช่น นักพัฒนาซอฟต์แวร์">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="space-y-1">
+                            <label class="text-[11px] font-bold text-gray-500">แผนก (Department)</label>
+                            <input type="text" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-lg p-2 job-dept" value="" placeholder="เช่น แผนกเทคโนโลยี">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[11px] font-bold text-gray-500">จำนวนที่เปิดรับ (Badge)</label>
+                            <input type="text" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-lg p-2 job-badge" value="" placeholder="เช่น 2 อัตรา">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            `;
+            container.insertAdjacentHTML('beforeend', cardHtml);
+        }
+
+        function removeJobPositionCard(tempId) {
+            const card = document.querySelector(`[data-job-id="${tempId}"]`);
+            if (card) {
+                card.remove();
+                const container = document.getElementById('jobs-list-container');
+                if (container && container.querySelectorAll('[data-job-id]').length === 0) {
+                    container.innerHTML = `<p class="text-gray-500 text-sm text-center py-4 col-span-2">ไม่มีข้อมูลตำแหน่งงานที่เปิดรับ</p>`;
+                }
+            }
+        }
+
+        function addNewSubsidiaryCard() {
+            const container = document.getElementById('subsidiaries-list-container');
+            if (!container) return;
+            
+            // Remove empty list placeholder if it exists
+            const emptyPlaceholder = container.querySelector('p.text-gray-500');
+            if (emptyPlaceholder) {
+                emptyPlaceholder.remove();
+            }
+
+            const tempId = `LSTK-TEMP-${Date.now()}`;
+            const count = container.querySelectorAll('[data-sub-id]').length + 1;
+            
+            const cardHtml = `
+            <div class="p-5 border border-dashed border-indigo-300 rounded-xl space-y-4 bg-indigo-50/20 shadow-inner hover:border-indigo-400 transition-all animate-pulse-once" data-sub-id="${tempId}">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-gray-100 pb-3">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-xs font-bold text-gray-600">รหัสอ้างอิง (ID):</span>
+                            <input type="text" class="w-36 bg-white border border-indigo-200 text-brandindigo text-xs font-bold rounded-lg p-1.5 uppercase tracking-wider sub-id-input" placeholder="LSTK-XXXX" value="">
+                        </div>
+                        <span class="text-sm font-bold text-gray-700">ลำดับ:</span>
+                        <input type="number" class="w-16 bg-white border border-gray-300 text-gray-900 text-sm rounded-lg p-1 text-center font-bold sub-sort-order" value="${count}">
+                        <span class="text-xs text-red-500 font-bold ml-2">(บริษัทใหม่)</span>
+                    </div>
+                    
+                    <!-- Logo Upload controls for Subsidiary -->
+                    <div class="flex items-center gap-3 w-full sm:w-auto">
+                        <div class="relative w-12 h-12 rounded-lg border border-gray-200 bg-white flex items-center justify-center overflow-hidden shadow-inner flex-shrink-0">
+                            <img class="w-full h-full object-contain p-1 sub-logo-preview" src="" style="display:none;" />
+                            <div class="text-gray-400 text-xs font-bold uppercase tracking-wider text-center p-1 sub-logo-placeholder">🏢</div>
+                        </div>
+                        <div class="flex flex-col gap-1 w-full sm:w-auto">
+                            <div class="flex gap-2">
+                                <button type="button" onclick="triggerSubLogoUpload('${tempId}')" class="bg-white border border-gray-300 hover:bg-gray-50 text-[10px] font-bold py-1 px-2.5 rounded-lg shadow-sm transition-colors text-gray-700">
+                                    <i class="fa-solid fa-upload mr-1"></i>อัปโหลดโลโก้
+                                </button>
+                                <button type="button" onclick="clearSubLogo('${tempId}')" class="bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-bold py-1 px-2.5 rounded-lg transition-colors">
+                                    <i class="fa-solid fa-trash-can mr-1"></i>ลบ
+                                </button>
+                            </div>
+                            <input type="file" id="sub-file-${tempId}" accept="image/*" class="hidden" onchange="previewSubLogo('${tempId}', this)" />
+                            <input type="text" class="w-full sm:w-64 bg-white border border-gray-300 text-gray-900 text-xs rounded-lg p-1 px-2 sub-emoji" value="🏢" id="sub-val-${tempId}">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-1">
+                        <label class="text-xs font-bold text-gray-600">ชื่อบริษัท (Name) <span class="text-red-500">*</span></label>
+                        <input type="text" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-lg p-2 sub-name" placeholder="ชื่อบริษัทเต็ม..." value="">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-bold text-gray-600">สโลแกน / หัวข้อย่อย (Title)</label>
+                        <input type="text" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-lg p-2 sub-title" placeholder="เช่น HEALTH CENTER..." value="">
+                    </div>
+                </div>
+                
+                <div class="space-y-1">
+                    <label class="text-xs font-bold text-gray-600">คำอธิบายรายละเอียด (Description)</label>
+                    <textarea rows="3" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-lg p-2 sub-desc" placeholder="คำอธิบายสั้นๆ ของธุรกิจย่อยนี้..."></textarea>
+                </div>
+                
+                <div class="flex justify-end pt-1">
+                    <button type="button" onclick="removeUnsavedSubCard('${tempId}')" class="text-red-500 hover:text-red-700 text-xs font-bold flex items-center gap-1">
+                        <i class="fa-solid fa-xmark"></i> ยกเลิกบริษัทย่อยนี้
+                    </button>
+                </div>
+            </div>
+            `;
+            
+            container.insertAdjacentHTML('beforeend', cardHtml);
+            
+            const newCard = container.querySelector(`[data-sub-id="${tempId}"]`);
+            if (newCard) {
+                newCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        function removeUnsavedSubCard(tempId) {
+            const card = document.querySelector(`[data-sub-id="${tempId}"]`);
+            if (card) {
+                card.remove();
+                
+                const container = document.getElementById('subsidiaries-list-container');
+                if (container && container.querySelectorAll('[data-sub-id]').length === 0) {
+                    container.innerHTML = `<p class="text-gray-500 text-sm text-center py-4">ไม่มีข้อมูลบริษัทในเครือ</p>`;
+                }
+            }
+        }
+
+        function deleteSubsidiaryCard(subId) {
+            showConfirmModal(
+                'ยืนยันการลบบริษัท',
+                `คุณแน่ใจหรือไม่ว่าต้องการลบบริษัท <b>${subId}</b>?<br><span class="text-[11px] text-red-500 mt-2 block uppercase tracking-widest font-medium">การลบนี้จะมีผลถาวรหลังจากคลิก "บันทึกทั้งหมด"</span>`,
+                () => {
+                    deletedSubsidiaries.push(subId);
+                    const card = document.querySelector(`[data-sub-id="${subId}"]`);
+                    if (card) {
+                        card.remove();
+                    }
+                    const container = document.getElementById('subsidiaries-list-container');
+                    if (container && container.querySelectorAll('[data-sub-id]').length === 0) {
+                        container.innerHTML = `<p class="text-gray-500 text-sm text-center py-4">ไม่มีข้อมูลบริษัทในเครือ</p>`;
+                    }
+                }
+            );
+        }
+
+        function saveCompanySettings() {
+            toggleLoading(true, 'SAVING COMPANY INFO...');
+            
+            const logoValue = document.getElementById('comp-logo-url').value;
+
+            // Gather Careers/Jobs inputs
+            const jobsUpdates = [];
+            const jobCards = document.querySelectorAll('[data-job-id]');
+            jobCards.forEach(card => {
+                const title = card.querySelector('.job-title').value.trim();
+                const dept = card.querySelector('.job-dept').value.trim();
+                const badge = card.querySelector('.job-badge').value.trim();
+                if (title) {
+                    jobsUpdates.push({ title, dept, badge });
+                }
+            });
+
+            const doSave = (finalLogoUrl, finalSubUpdates) => {
+                const infoUpdates = [
+                    { key: 'about_title', value: document.getElementById('comp-about-title').value },
+                    { key: 'about_desc', value: document.getElementById('comp-about-desc').value },
+                    { key: 'vision', value: document.getElementById('comp-vision').value },
+                    { key: 'values_desc', value: document.getElementById('comp-values').value },
+                    { key: 'subsidiaries_desc', value: document.getElementById('comp-subsidiaries-desc').value },
+                    { key: 'mission_mastering', value: document.getElementById('comp-mission-mastering').value },
+                    { key: 'mission_commanding', value: document.getElementById('comp-mission-commanding').value },
+                    { key: 'mission_unifying', value: document.getElementById('comp-mission-unifying').value },
+                    { key: 'company_logo', value: finalLogoUrl },
+                    { key: 'careers', value: JSON.stringify(jobsUpdates) },
+                    { key: 'contact_address',   value: document.getElementById('comp-address').value },
+                    { key: 'contact_facebook',  value: document.getElementById('comp-facebook').value },
+                    { key: 'contact_instagram', value: document.getElementById('comp-instagram').value },
+                    { key: 'contact_line',      value: document.getElementById('comp-line').value },
+                    { key: 'map_lat',           value: document.getElementById('comp-map-lat').value },
+                    { key: 'map_lng',           value: document.getElementById('comp-map-lng').value },
+                    { key: 'map_label',         value: document.getElementById('comp-map-label').value }
+                ];
+                
+                google.script.run.withSuccessHandler(res => {
+                    toggleLoading(false);
+                    if (res.success) {
+                        showToast('บันทึกข้อมูลบริษัทสำเร็จแล้ว!', 'success');
+                        loadCompanySettings(); // Reload to refresh list with actual IDs
+                    } else {
+                        showToast(res.message || 'บันทึกข้อมูลไม่สำเร็จ', 'error');
+                    }
+                }).saveCompanyProfile(infoUpdates, finalSubUpdates, deletedSubsidiaries);
+            };
+
+            // 1. Gather all inputs & validate
+            const subUpdatesRaw = [];
+            const subCards = document.querySelectorAll('[data-sub-id]');
+            let hasError = false;
+            
+            subCards.forEach(card => {
+                if (hasError) return;
+                
+                let id = card.getAttribute('data-sub-id');
+                const idInput = card.querySelector('.sub-id-input');
+                if (idInput) {
+                    id = idInput.value.trim().toUpperCase();
+                    if (!id) {
+                        showToast('กรุณาระบุ รหัสอ้างอิง (ID) สำหรับบริษัทใหม่', 'warning');
+                        idInput.focus();
+                        hasError = true;
+                        return;
+                    }
+                    if (id.startsWith('LSTK-TEMP-')) {
+                        showToast('รหัสอ้างอิง (ID) ไม่สามารถขึ้นต้นด้วย LSTK-TEMP-', 'warning');
+                        idInput.focus();
+                        hasError = true;
+                        return;
+                    }
+                }
+                
+                const name = card.querySelector('.sub-name').value.trim();
+                if (!name) {
+                    showToast('กรุณาระบุ ชื่อบริษัท', 'warning');
+                    card.querySelector('.sub-name').focus();
+                    hasError = true;
+                    return;
+                }
+                
+                const title = card.querySelector('.sub-title').value;
+                const description = card.querySelector('.sub-desc').value;
+                const emoji = card.querySelector('.sub-emoji').value;
+                const sort_order = Number(card.querySelector('.sub-sort-order').value || 99);
+                
+                subUpdatesRaw.push({ id, name, title, description, emoji, sort_order });
+            });
+            
+            if (hasError) {
+                toggleLoading(false);
+                return;
+            }
+
+            // 2. Identify what needs to be uploaded
+            const uploadPromises = [];
+
+            // A. Check main logo
+            let mainLogoPromise;
+            if (logoValue && logoValue.startsWith('data:image')) {
+                const fileInput = document.getElementById('comp-logo-file');
+                const file = fileInput.files[0];
+                const fileName = file ? file.name : 'logo.png';
+                mainLogoPromise = new Promise((resolve, reject) => {
+                    google.script.run.withSuccessHandler(res => {
+                        if (res.success) resolve(res.url);
+                        else reject(new Error(res.message));
+                    }).withFailureHandler(reject).uploadImageToDrive(logoValue, fileName);
+                });
+            } else {
+                mainLogoPromise = Promise.resolve(logoValue);
+            }
+            uploadPromises.push(mainLogoPromise);
+
+            // B. Check subsidiaries logos
+            subUpdatesRaw.forEach((sub, index) => {
+                let subLogoPromise;
+                if (sub.emoji && sub.emoji.startsWith('data:image')) {
+                    const fileInput = document.getElementById(`sub-file-${sub.id}`) || document.getElementById(`sub-file-${subCards[index].getAttribute('data-sub-id')}`);
+                    const file = fileInput ? fileInput.files[0] : null;
+                    const fileName = file ? file.name : `${sub.id}-logo.png`;
+                    subLogoPromise = new Promise((resolve, reject) => {
+                        google.script.run.withSuccessHandler(res => {
+                            if (res.success) resolve({ index, url: res.url });
+                            else reject(new Error(res.message));
+                        }).withFailureHandler(reject).uploadImageToDrive(sub.emoji, fileName);
+                    });
+                } else {
+                    subLogoPromise = Promise.resolve({ index, url: sub.emoji });
+                }
+                uploadPromises.push(subLogoPromise);
+            });
+
+            // 3. Run all uploads in parallel
+            Promise.all(uploadPromises)
+                .then(results => {
+                    const finalMainLogoUrl = results[0];
+                    const subResults = results.slice(1);
+                    
+                    // Map uploaded URLs back to subUpdatesRaw
+                    subResults.forEach(item => {
+                        subUpdatesRaw[item.index].emoji = item.url;
+                    });
+
+                    // Proceed to save
+                    doSave(finalMainLogoUrl, subUpdatesRaw);
+                })
+                .catch(err => {
+                    toggleLoading(false);
+                    showToast('อัปโหลดไฟล์ล้มเหลว: ' + err.message, 'error');
+                });
         }
 
         // 📌 ฟังก์ชันจัดการคลิกดาวในฟอร์ม (เอาไปวางไว้ล่างสุดของสคริปต์)
@@ -7919,7 +9164,75 @@
             imgContainer.classList.add('flex');
 
             // ใส่ข้อความ
+            const titleEl = document.getElementById('announce-modal-title');
+            if (titleEl) titleEl.classList.add('hidden');
+
             document.getElementById('announce-modal-topic').innerText = topic;
+            document.getElementById('announce-modal-type').innerText = type;
+            document.getElementById('announce-modal-date').innerHTML = `<i class="fa-regular fa-calendar mr-1.5"></i>${date}`;
+
+            // แสดง Modal
+            const modal = document.getElementById('announcement-modal');
+            const modalBox = modal.querySelector('div.bg-white');
+
+            modal.classList.remove('hidden');
+            void modal.offsetWidth;
+            modal.classList.remove('opacity-0');
+            modalBox.classList.remove('scale-95');
+            modalBox.classList.add('scale-100');
+        }
+
+        // 📢 ฟังก์ชันสำหรับหน้าต่าง Popup ข่าวสาร (News)
+        function showNewsDetail(encodedRow) {
+            const row = JSON.parse(decodeURIComponent(encodedRow));
+
+            let topic = getFuzzyValue(row, ['topic', 'หัวข้อ', 'เรื่อง']) || '-';
+            let content = getFuzzyValue(row, ['content', 'รายละเอียด', 'เนื้อหา']) || '-';
+            let type = getFuzzyValue(row, ['type', 'ประเภท']) || 'General';
+            let date = getFuzzyValue(row, ['date', 'วันที่']) || '-';
+
+            // 🛠️ 1. ดึงข้อมูลรูปภาพ
+            let photoUrl = row['photo'] || row['Photo'] || getFuzzyValue(row, ['photo', 'รูป', 'pic', 'image', 'รูปภาพ']) || '';
+
+            // 🛠️ 2. คลีนข้อมูล Base64 และจัดการ Google Drive
+            if (typeof photoUrl === 'string') {
+                if (photoUrl.startsWith('data:image')) {
+                    photoUrl = photoUrl.replace(/[\r\n\t\s]+/g, ""); // คลีน Base64
+                } else if (photoUrl.includes('drive.google.com')) {
+                    let fileId = '';
+                    if (photoUrl.includes('id=')) fileId = photoUrl.split('id=')[1].split('&')[0];
+                    else if (photoUrl.includes('/d/')) fileId = photoUrl.split('/d/')[1].split('/')[0];
+                    if (fileId) photoUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1000';
+                }
+            }
+
+            // 🌟 3. เตรียมรูปโปสเตอร์เริ่มต้น (Fallback)
+            let safeTopic = encodeURIComponent(String(topic).substring(0, 20));
+            let fallbackImg = `https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&size=800&font-size=0.1&name=${safeTopic}`;
+
+            if (!photoUrl || photoUrl === '-' || String(photoUrl).trim() === '') {
+                photoUrl = fallbackImg;
+            }
+
+            const imgEl = document.getElementById('announce-modal-img');
+            const imgContainer = document.getElementById('announce-modal-img-container');
+
+            imgEl.src = photoUrl;
+            imgEl.onerror = function () {
+                this.onerror = null;
+                this.src = fallbackImg;
+            };
+
+            imgContainer.classList.remove('hidden');
+            imgContainer.classList.add('flex');
+
+            // ใส่ข้อความข่าวสาร
+            const titleEl = document.getElementById('announce-modal-title');
+            if (titleEl) {
+                titleEl.innerText = topic;
+                titleEl.classList.remove('hidden');
+            }
+            document.getElementById('announce-modal-topic').innerText = content;
             document.getElementById('announce-modal-type').innerText = type;
             document.getElementById('announce-modal-date').innerHTML = `<i class="fa-regular fa-calendar mr-1.5"></i>${date}`;
 
