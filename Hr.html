@@ -5898,6 +5898,7 @@
                 }, 100);
 
                 if (isRatingPage) {
+                    if (totalCountDiv) totalCountDiv.classList.add('hidden');
                     renderEmployeeRatingPageFromScratch(data || []);
                     return;
                 }
@@ -6847,7 +6848,10 @@
                 const status = safeGet(['Status', 'status']) || 'Active';
 
                 const allCats = ['ตรงต่อเวลา', 'ทำยอดขายได้ดี', 'ช่วยเหลือเพื่อนร่วมงาน', 'บริการลูกค้าดี', 'ทำงานเป็นทีม', 'แก้ปัญหาได้ดี', 'ทำงานเกินเป้าหมาย', 'สร้างไอเดียใหม่', 'ไม่ขาดงาน', 'พนักงานดีเด่นประจำเดือน'];
-                const categoryOptions = allCats.map(c => `<option value="${c}" ${String(category) === c ? 'selected' : ''}>${c}</option>`).join('');
+                const categoryTagsHtml = allCats.map(c => {
+                    const escaped = String(c).replace(/'/g, "\\'");
+                    return `<span class="cursor-pointer text-[11px] px-2.5 py-1 rounded-full bg-white text-gray-700 hover:bg-brandindigo hover:text-white transition-all font-medium border border-gray-200 shadow-sm" onclick="document.getElementById('rating-category-input').value='${escaped}'">${c}</span>`;
+                }).join('');
 
                 const formFields = document.getElementById('form-fields');
 
@@ -6869,13 +6873,15 @@
                     
                     <div class="col-span-1 sm:col-span-2"><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">คะแนนดาว (STAR POINT) <span class="text-brandindigo">*</span></label><div class="flex flex-col items-center justify-center bg-gray-50 p-4 rounded-xl border border-gray-200 min-h-[88px]"><div class="flex">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= starPoint ? 'fa-solid fa-star text-yellow-400' : 'fa-regular fa-star text-gray-300'} text-4xl cursor-pointer hover:scale-110 transition-transform mx-1" onclick="if(typeof setFormStarRating === 'function') setFormStarRating(${i})" id="form-star-${i}"></i>`).join('')}</div><p id="form-star-text" class="mt-2 text-sm font-bold text-brandindigo">${starPoint > 0 ? starPoint + ' / 5' : 'คลิกเพื่อให้คะแนน'}</p></div><input type="hidden" name="Star Point" id="hidden-star-input" value="${starPoint || ''}" required></div>
                     
-                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">หมวดหมู่ (CATEGORY) <span class="text-brandindigo">*</span></label>
-                    <input type="text" name="Category " list="rating-cat-list" value="${String(category).replace(/"/g, '&quot;')}" required
-                        class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"
-                        placeholder="เลือกหรือพิมพ์หมวดหมู่...">
-                    <datalist id="rating-cat-list">
-                        ${allCats.map(c => `<option value="${c}">`).join('')}
-                    </datalist></div>
+                    <div>
+                        <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">หมวดหมู่ (CATEGORY) <span class="text-brandindigo">*</span></label>
+                        <input type="text" id="rating-category-input" name="Category " value="${String(category).replace(/"/g, '&quot;')}" required
+                            class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"
+                            placeholder="พิมพ์หมวดหมู่ หรือกดเลือกจากแถบด้านล่าง...">
+                        <div class="mt-2 flex flex-wrap gap-1.5 max-h-[85px] overflow-y-auto p-1 bg-gray-50 rounded-xl border border-gray-100">
+                            ${categoryTagsHtml}
+                        </div>
+                    </div>
                     
                     <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">ข้อเสนอแนะ (COMMENT) <span class="text-brandindigo">*</span></label><input type="text" name="Comment" value="${String(comment).replace(/"/g, '&quot;')}" required placeholder="คำชมเชย / ข้อเสนอแนะ..." class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"></div>
                     
@@ -6933,7 +6939,13 @@
                 let posKey = Object.keys(row).find(k => ['position', 'position_id', 'ตำแหน่ง'].includes(k.toLowerCase().trim()));
                 let pos = posKey ? String(row[posKey]).toLowerCase() : '';
 
-                if (pos.includes('ceo') || pos.includes('coo') || pos.includes('manager') || pos.includes('head') || pos.includes('ผู้บริหาร') || pos.includes('admin')) {
+                let isManager = pos.includes('ceo') || pos.includes('сео') || 
+                                pos.includes('coo') || pos.includes('соо') || 
+                                pos.includes('cfo') || pos.includes('сfо') || pos.includes('cfо') ||
+                                pos.includes('manager') || pos.includes('head') || 
+                                pos.includes('ผู้บริหาร') || pos.includes('admin') || 
+                                pos.includes('director') || pos.includes('ผู้อำนวยการ');
+                if (isManager) {
                     let displayPos = posKey ? row[posKey] : '';
                     giveByManagerOptions += `<option value="${fullName}" ${fullName === selectedGiveBy ? 'selected' : ''}>${fullName}${displayPos ? ' (' + displayPos + ')' : ''}</option>`;
                     foundGiveBy = true;
@@ -7457,7 +7469,13 @@
                                 let posKey = Object.keys(row).find(k => ['position', 'position_id', 'ตำแหน่ง'].includes(k.toLowerCase().trim()));
                                 let pos = posKey ? String(row[posKey]).toLowerCase() : '';
 
-                                if (pos.includes('ceo') || pos.includes('coo') || pos.includes('manager') || pos.includes('head') || pos.includes('ผู้บริหาร') || pos.includes('cfо')) {
+                                let isManager = pos.includes('ceo') || pos.includes('сео') || 
+                                                pos.includes('coo') || pos.includes('соо') || 
+                                                pos.includes('cfo') || pos.includes('сfо') || pos.includes('cfо') ||
+                                                pos.includes('manager') || pos.includes('head') || 
+                                                pos.includes('ผู้บริหาร') || pos.includes('admin') || 
+                                                pos.includes('director') || pos.includes('ผู้อำนวยการ');
+                                if (isManager) {
                                     let nameKey = Object.keys(row).find(k => ['name', 'full_name', 'first_name', 'ชื่อ'].includes(k.toLowerCase().trim()));
                                     let lastKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'last_name');
                                     let name = nameKey ? row[nameKey] : '';
@@ -7560,24 +7578,23 @@
 
                 // 👇👇👇 ก๊อปปี้โค้ดชุดนี้ ไปวางแทรกตรงนี้ได้เลยครับ 👇👇👇
                 else if (lw === 'category' || lw === 'หมวดหมู่') {
-                    const catId = 'datalist-category-' + Date.now();
+                    const uniqueInputId = 'gen-category-input-' + Date.now();
+                    const allCats = ['ตรงต่อเวลา', 'ทำยอดขายได้ดี', 'ช่วยเหลือเพื่อนร่วมงาน', 'บริการลูกค้าดี', 'ทำงานเป็นทีม', 'แก้ปัญหาได้ดี', 'ทำงานเกินเป้าหมาย', 'สร้างไอเดียใหม่', 'ไม่ขาดงาน', 'พนักงานดีเด่นประจำเดือน'];
+                    const tagsHtml = allCats.map(c => {
+                        const escaped = String(c).replace(/'/g, "\\'");
+                        return `<span class="cursor-pointer text-[11px] px-2.5 py-1 rounded-full bg-white text-gray-700 hover:bg-brandindigo hover:text-white transition-all font-medium border border-gray-200 shadow-sm" onclick="document.getElementById('${uniqueInputId}').value='${escaped}'">${c}</span>`;
+                    }).join('');
+
                     formFields.insertAdjacentHTML('beforeend', `
-                        <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
-                        <input type="text" name="${h}" list="${catId}" value="${safeVal}" required
-                            class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"
-                            placeholder="เลือกหรือพิมพ์หมวดหมู่...">
-                        <datalist id="${catId}">
-                            <option value="ตรงต่อเวลา">
-                            <option value="ทำยอดขายได้ดี">
-                            <option value="ช่วยเหลือเพื่อนร่วมงาน">
-                            <option value="บริการลูกค้าดี">
-                            <option value="ทำงานเป็นทีม">
-                            <option value="แก้ปัญหาได้ดี">
-                            <option value="ทำงานเกินเป้าหมาย">
-                            <option value="สร้างไอเดียใหม่">
-                            <option value="ไม่ขาดงาน">
-                            <option value="พนักงานดีเด่นประจำเดือน">
-                        </datalist></div>
+                        <div>
+                            <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
+                            <input type="text" id="${uniqueInputId}" name="${h}" value="${safeVal}" required
+                                class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"
+                                placeholder="พิมพ์หมวดหมู่ หรือกดเลือกจากแถบด้านล่าง...">
+                            <div class="mt-2 flex flex-wrap gap-1.5 max-h-[85px] overflow-y-auto p-1 bg-gray-50 rounded-xl border border-gray-100">
+                                ${tagsHtml}
+                            </div>
+                        </div>
                     `);
                 }
                 // 👆👆👆 สิ้นสุดโค้ดที่ต้องก๊อปปี้ 👆👆👆
