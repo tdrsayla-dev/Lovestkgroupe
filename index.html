@@ -2259,9 +2259,33 @@
     const SUPABASE_URL = 'https://qqyotianqcgpdzrfgjif.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxeW90aWFucWNncGR6cmZnamlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwNDQ1MzcsImV4cCI6MjA5ODYyMDUzN30.6VlHbimuMkg0UtxCw2cbU5mN_c9zPmizNuzrL5tCtME';
 
+    const apiCache = {};
+
+    function escapeHtml(value) {
+      return String(value === undefined || value === null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     async function supabaseFetch(table, params = '') {
+      let finalParams = params;
+      if (table === 'company_info') {
+        finalParams = '&limit=200';
+      } else if (table === 'staff') {
+        finalParams = '&limit=1000';
+      }
+
+      const cacheKey = `${table}?${finalParams}`;
+      if (apiCache[cacheKey]) {
+        console.log('[Supabase Cache] Returning cached rows for:', cacheKey);
+        return apiCache[cacheKey];
+      }
+
       try {
-        const url = `${SUPABASE_URL}/rest/v1/${table}?select=*${params}`;
+        const url = `${SUPABASE_URL}/rest/v1/${table}?select=*${finalParams}`;
         console.log('[Supabase] Fetching:', url);
         const res = await fetch(url, {
           headers: {
@@ -2280,6 +2304,7 @@
         }
         const data = await res.json();
         console.log('[Supabase] Rows from', table, ':', data.length, data);
+        apiCache[cacheKey] = data;
         return data;
       } catch (e) {
         console.warn('[Supabase]', e.message);
@@ -2427,12 +2452,12 @@
       window._newsCarouselCenterIdx = centerIdx;
 
       return ordered.map((row, i) => {
-        const topic  = row.topic  || row.Topic || row.title || 'ข่าวสารจากองค์กร';
+        const topic  = escapeHtml(row.topic  || row.Topic || row.title || 'ข่าวสารจากองค์กร');
         const date   = row.news_date || row.Date || row.date || '';
-        const type   = row.type   || row.Type  || 'ทั่วไป';
+        const type   = escapeHtml(row.type   || row.Type  || 'ทั่วไป');
         const photo  = row.photo  || row.Photo || '';
-        const emoji  = row.emoji  || '📢';
-        const color  = typeColors[type] || typeColors['ทั่วไป'];
+        const emoji  = escapeHtml(row.emoji  || '📢');
+        const color  = typeColors[row.type || row.Type || 'ทั่วไป'] || typeColors['ทั่วไป'];
 
         let dateStr = '';
         if (date) {
@@ -2441,6 +2466,7 @@
             if (dateStr.includes('Invalid')) dateStr = date;
           } catch(e) { dateStr = date; }
         }
+        dateStr = escapeHtml(dateStr);
 
         const imgHTML = (photo && photo !== '-' && photo.trim())
           ? `<img src="${photo}" alt="${topic}" class="news-img-el" onerror="this.parentElement.innerHTML='${emoji}'" />`
@@ -2618,11 +2644,11 @@
           ${imgHtml}
           <div class="news-modal-body-content">
             <div class="news-modal-meta">
-              <span class="news-type-badge" style="${colorStyle}">${type}</span>
-              ${dateStr ? `<div class="news-date"><i class="fas fa-calendar-alt" style="margin-right:0.35rem;opacity:0.6"></i>${dateStr}</div>` : ''}
+              <span class="news-type-badge" style="${colorStyle}">${escapeHtml(type)}</span>
+              ${dateStr ? `<div class="news-date"><i class="fas fa-calendar-alt" style="margin-right:0.35rem;opacity:0.6"></i>${escapeHtml(dateStr)}</div>` : ''}
             </div>
-            <h2 class="news-modal-title">${topic}</h2>
-            <div class="news-modal-text">${content}</div>
+            <h2 class="news-modal-title">${escapeHtml(topic)}</h2>
+            <div class="news-modal-text">${escapeHtml(content).replace(/\n/g, '<br/>')}</div>
           </div>
         `;
         
@@ -3125,9 +3151,9 @@
         }
         careersContainer.innerHTML = careersList.map(job => `
           <div class="position-chip">
-            <div class="position-title">${job.title || ''}</div>
-            <div class="position-dept">${job.dept || ''}</div>
-            <div class="position-badge">${job.badge || ''}</div>
+            <div class="position-title">${escapeHtml(job.title || '')}</div>
+            <div class="position-dept">${escapeHtml(job.dept || '')}</div>
+            <div class="position-badge">${escapeHtml(job.badge || '')}</div>
           </div>
         `).join('');
       }
