@@ -2251,7 +2251,19 @@
       history.scrollRestoration = 'manual'; // disable browser scroll restore
     }
     window.scrollTo(0, 0); // instant scroll to top immediately
-    window.addEventListener('load', () => window.scrollTo(0, 0));
+    window.addEventListener('load', () => {
+      window.scrollTo(0, 0);
+      if (window.location.hash) {
+        history.replaceState(null, null, window.location.pathname + window.location.search);
+      }
+    });
+
+    // ซ่อน / เคลียร์ Hash (เช่น #contact) บนแถบ URL ทันทีที่มีการกดลิงก์นำทาง
+    window.addEventListener('hashchange', () => {
+      setTimeout(() => {
+        history.replaceState(null, null, window.location.pathname + window.location.search);
+      }, 50);
+    });
 
     // =========================================
     // SUPABASE CONFIG
