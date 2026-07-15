@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Love STK Groupe — ร่วมสร้างอนาคตไปด้วยกัน</title>
+  <title>Love STK Groupe</title>
   <meta name="description"
     content="Love STK Groupe — องค์กรที่มุ่งมั่นสร้างคุณค่าให้กับสังคม ด้วยทีมงานมืออาชีพและนวัตกรรมที่ไม่หยุดยั้ง" />
 
@@ -205,9 +205,11 @@
       .services-grid {
         grid-template-columns: repeat(2, 1fr);
       }
+
       .news-track {
         padding: 24px 80px 40px;
       }
+
       .career-positions {
         grid-template-columns: repeat(2, 1fr);
       }
@@ -239,7 +241,7 @@
         min-height: auto;
         padding-bottom: 4rem;
       }
-      
+
       .hero-content {
         padding: 2rem 1rem;
       }
@@ -263,14 +265,17 @@
         padding: 16px 0 32px;
         scroll-padding-inline: calc(50% - 140px);
       }
+
       .news-card {
         flex: 0 0 280px;
       }
+
       .news-track::before,
       .news-track::after {
         flex: 0 0 calc(50% - 140px);
         min-width: calc(50% - 140px);
       }
+
       .news-nav-btn {
         width: 38px;
         height: 38px;
@@ -692,6 +697,7 @@
       align-items: center;
       min-height: 120px;
     }
+
     .about-big-icon-emoji {
       background: var(--gradient-main);
       -webkit-background-clip: text;
@@ -882,8 +888,13 @@
     }
 
     @keyframes rotate-track {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
     }
 
     /* Central Logo */
@@ -994,6 +1005,7 @@
       left: calc(50% - 55px);
       flex-direction: column;
     }
+
     .node-pharmacy .node-text-box {
       bottom: 125px;
       text-align: center;
@@ -1005,6 +1017,7 @@
       top: calc(50% - 74px - 55px);
       left: calc(50% + 228px - 55px);
     }
+
     .node-showroom .node-text-box {
       left: 125px;
       text-align: left;
@@ -1016,6 +1029,7 @@
       top: calc(50% + 194px - 55px);
       left: calc(50% + 141px - 55px);
     }
+
     .node-travel .node-text-box {
       left: 125px;
       text-align: left;
@@ -1028,6 +1042,7 @@
       left: calc(50% - 141px - 55px);
       flex-direction: row-reverse;
     }
+
     .node-wellness .node-text-box {
       right: 125px;
       text-align: right;
@@ -1040,6 +1055,7 @@
       left: calc(50% - 228px - 55px);
       flex-direction: row-reverse;
     }
+
     .node-clinic .node-text-box {
       right: 125px;
       text-align: right;
@@ -1054,9 +1070,11 @@
         gap: 1.5rem;
         padding: 1.5rem 0;
       }
+
       .circle-track {
         display: none;
       }
+
       .circle-center {
         position: relative;
         margin: 0 auto 1.5rem;
@@ -1065,10 +1083,12 @@
         width: 200px;
         height: 200px;
       }
+
       .circle-center .center-logo-svg {
         width: 80px;
         height: 80px;
       }
+
       .sub-node {
         position: relative !important;
         top: auto !important;
@@ -1084,6 +1104,7 @@
         align-items: center;
         margin: 0 auto;
       }
+
       .node-logo-card {
         width: 85px;
         height: 85px;
@@ -1091,6 +1112,7 @@
         border-radius: 18px;
         padding: 0.4rem;
       }
+
       .node-text-box {
         position: relative !important;
         top: auto !important;
@@ -1176,7 +1198,7 @@
        ANNOUNCEMENTS — CAROUSEL
     ========================================= */
     #news {
-      background: linear-gradient(180deg, transparent 0%, rgba(30,53,153,0.04) 50%, transparent 100%);
+      background: linear-gradient(180deg, transparent 0%, rgba(30, 53, 153, 0.04) 50%, transparent 100%);
       overflow: hidden;
     }
 
@@ -1197,9 +1219,19 @@
       cursor: grab;
       -webkit-overflow-scrolling: touch;
     }
-    .news-track::-webkit-scrollbar { display: none; }
-    .news-track { scrollbar-width: none; }
-    .news-track.dragging { cursor: grabbing; scroll-behavior: auto; }
+
+    .news-track::-webkit-scrollbar {
+      display: none;
+    }
+
+    .news-track {
+      scrollbar-width: none;
+    }
+
+    .news-track.dragging {
+      cursor: grabbing;
+      scroll-behavior: auto;
+    }
 
     /* Centering spacers */
     .news-track::before,
@@ -1218,22 +1250,29 @@
       border-radius: 24px;
       overflow: hidden;
       cursor: pointer;
-      transition: transform 0.4s cubic-bezier(.25,.8,.25,1),
-                  box-shadow 0.4s ease,
-                  opacity 0.4s ease;
+      transition: transform 0.4s cubic-bezier(.25, .8, .25, 1),
+        box-shadow 0.4s ease,
+        opacity 0.4s ease;
       opacity: 0.6;
       transform: scale(0.88);
       will-change: transform;
       user-select: none;
     }
+
     .news-card.active {
       opacity: 1;
       transform: scale(1);
-      box-shadow: 0 32px 80px rgba(30,53,153,0.35), 0 0 0 1px rgba(30,53,153,0.3);
-      border-color: rgba(30,53,153,0.5);
+      box-shadow: 0 32px 80px rgba(30, 53, 153, 0.35), 0 0 0 1px rgba(30, 53, 153, 0.3);
+      border-color: rgba(30, 53, 153, 0.5);
     }
-    .news-card:hover { opacity: 0.85; }
-    .news-card.active:hover { opacity: 1; }
+
+    .news-card:hover {
+      opacity: 0.85;
+    }
+
+    .news-card.active:hover {
+      opacity: 1;
+    }
 
     /* Image */
     .news-img {
@@ -1247,23 +1286,30 @@
       font-size: 3.5rem;
       position: relative;
     }
+
     .news-img::after {
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.55) 100%);
+      background: linear-gradient(to bottom, transparent 50%, rgba(0, 0, 0, 0.55) 100%);
       pointer-events: none;
     }
+
     .news-img-el {
       width: 100%;
       height: 100%;
       object-fit: cover;
       transition: transform 0.5s ease;
     }
-    .news-card.active .news-img-el { transform: scale(1.04); }
+
+    .news-card.active .news-img-el {
+      transform: scale(1.04);
+    }
 
     /* Body */
-    .news-body { padding: 1.4rem 1.6rem 1.8rem; }
+    .news-body {
+      padding: 1.4rem 1.6rem 1.8rem;
+    }
 
     .news-type-badge {
       display: inline-block;
@@ -1275,11 +1321,13 @@
       letter-spacing: 0.06em;
       margin-bottom: 0.75rem;
     }
+
     .news-date {
       font-size: 0.77rem;
       color: var(--text-muted);
       margin-bottom: 0.5rem;
     }
+
     .news-title {
       font-size: 1rem;
       font-weight: 700;
@@ -1290,6 +1338,7 @@
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
+
     .news-read-more {
       display: inline-flex;
       align-items: center;
@@ -1301,7 +1350,10 @@
       opacity: 0;
       transition: opacity 0.3s;
     }
-    .news-card.active .news-read-more { opacity: 1; }
+
+    .news-card.active .news-read-more {
+      opacity: 1;
+    }
 
     /* Navigation arrows */
     .news-nav-btn {
@@ -1323,13 +1375,20 @@
       transition: all 0.25s;
       backdrop-filter: blur(10px);
     }
+
     .news-nav-btn:hover {
       background: var(--primary);
       border-color: var(--primary);
-      box-shadow: 0 0 20px rgba(30,53,153,0.5);
+      box-shadow: 0 0 20px rgba(30, 53, 153, 0.5);
     }
-    .news-nav-prev { left: 12px; }
-    .news-nav-next { right: 12px; }
+
+    .news-nav-prev {
+      left: 12px;
+    }
+
+    .news-nav-next {
+      right: 12px;
+    }
 
     /* Dots */
     .news-dots {
@@ -1339,13 +1398,16 @@
       margin-top: 4px;
       padding-bottom: 8px;
     }
+
     .news-dot {
-      width: 8px; height: 8px;
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
       background: var(--border);
       cursor: pointer;
       transition: all 0.3s;
     }
+
     .news-dot.active {
       width: 28px;
       border-radius: 4px;
@@ -1357,6 +1419,7 @@
       padding: 4rem;
       color: var(--text-muted);
     }
+
     .news-spinner {
       width: 40px;
       height: 40px;
@@ -1391,12 +1454,12 @@
       pointer-events: none;
       transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    
+
     .news-modal.open {
       opacity: 1;
       pointer-events: auto;
     }
-    
+
     .news-modal-overlay {
       position: absolute;
       top: 0;
@@ -1407,7 +1470,7 @@
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
     }
-    
+
     .news-modal-content {
       position: relative;
       background: rgba(20, 20, 30, 0.85);
@@ -1424,11 +1487,11 @@
       scrollbar-width: thin;
       scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
     }
-    
+
     .news-modal.open .news-modal-content {
       transform: translateY(0) scale(1);
     }
-    
+
     .news-modal-close {
       position: absolute;
       top: 1.25rem;
@@ -1447,25 +1510,25 @@
       transition: all 0.2s;
       z-index: 10;
     }
-    
+
     .news-modal-close:hover {
       background: rgba(255, 255, 255, 0.15);
       transform: rotate(90deg);
     }
-    
+
     .news-modal-img-container {
       width: 100%;
       height: 320px;
       overflow: hidden;
       position: relative;
     }
-    
+
     .news-modal-img {
       width: 100%;
       height: 100%;
       object-fit: cover;
     }
-    
+
     .news-modal-img-fallback {
       width: 100%;
       height: 100%;
@@ -1475,11 +1538,11 @@
       background: var(--gradient-card);
       font-size: 5rem;
     }
-    
+
     .news-modal-body-content {
       padding: 2rem;
     }
-    
+
     .news-modal-meta {
       display: flex;
       align-items: center;
@@ -1487,7 +1550,7 @@
       margin-bottom: 1rem;
       flex-wrap: wrap;
     }
-    
+
     .news-modal-title {
       font-size: 1.75rem;
       font-weight: 800;
@@ -1495,7 +1558,7 @@
       color: var(--text-primary);
       margin-bottom: 1.25rem;
     }
-    
+
     .news-modal-text {
       font-size: 1.05rem;
       line-height: 1.7;
@@ -1957,9 +2020,11 @@
         <div class="about-visual reveal">
           <div class="about-visual-inner">
             <div class="about-big-icon about-big-icon-emoji" id="about-logo-container">🏢</div>
-            <h3 style="font-size:1.5rem;font-weight:700;margin-bottom:0.5rem;position:relative;z-index:1" id="about-card-title">Love STK
+            <h3 style="font-size:1.5rem;font-weight:700;margin-bottom:0.5rem;position:relative;z-index:1"
+              id="about-card-title">Love STK
               Groupe</h3>
-            <p style="color:var(--text-secondary);font-size:0.9rem;font-weight:300;position:relative;z-index:1" id="about-card-desc">
+            <p style="color:var(--text-secondary);font-size:0.9rem;font-weight:300;position:relative;z-index:1"
+              id="about-card-desc">
               องค์กรที่เชื่อมั่นในคุณค่าของความรัก ความสามัคคี และการเติบโตร่วมกัน
             </p>
 
@@ -2011,7 +2076,8 @@
               <div class="mv-icon amber"><i class="fas fa-heart"></i></div>
               <div>
                 <div class="mv-label">ค่านิยมหลัก</div>
-                <div class="mv-text" id="values-desc">Love · Team · Knowledge — ความรัก ความร่วมมือ และการเรียนรู้ที่ไม่หยุดยั้ง คือรากฐานของทุกสิ่งที่เราทำ</div>
+                <div class="mv-text" id="values-desc">Love · Team · Knowledge — ความรัก ความร่วมมือ
+                  และการเรียนรู้ที่ไม่หยุดยั้ง คือรากฐานของทุกสิ่งที่เราทำ</div>
               </div>
             </div>
           </div>
@@ -2027,7 +2093,8 @@
         <div class="section-badge" style="margin:0 auto 1rem"><i class="fas fa-briefcase"></i> กลุ่มธุรกิจในเครือ</div>
         <h2 class="section-title">ธุรกิจในเครือ LOVE STK GROUPE</h2>
         <p class="section-desc" style="margin:0 auto" id="services-desc">
-          บริษัททุกกลุ่มในเครือ LOVE STK GROUPE เป็นเครือบริษัทที่เกี่ยวกับธุรกิจกลุ่มสุขภาพ และสินค้าที่ไม่ทำลายสิ่งแวดล้อม โดยในเครือประกอบไปด้วย 5 บริษัทย่อยดังนี้
+          บริษัททุกกลุ่มในเครือ LOVE STK GROUPE เป็นเครือบริษัทที่เกี่ยวกับธุรกิจกลุ่มสุขภาพ
+          และสินค้าที่ไม่ทำลายสิ่งแวดล้อม โดยในเครือประกอบไปด้วย 5 บริษัทย่อยดังนี้
         </p>
       </div>
 
@@ -2421,7 +2488,7 @@
           headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
         });
         if (res.ok) rows = await res.json();
-      } catch(e) { console.warn('[Supabase news]', e.message); }
+      } catch (e) { console.warn('[Supabase news]', e.message); }
 
       // Filter: hide only explicitly Internal
       const publicRows = (rows || []).filter(r =>
@@ -2435,20 +2502,20 @@
 
     function buildNewsCards(items) {
       const typeColors = {
-        'ประกาศ':   'background:rgba(30,53,153,0.3);color:#6c80f5',
-        'ข่าวสาร':   'background:rgba(6,182,212,0.2);color:#22d3ee',
-        'กิจกรรม':   'background:rgba(38,16,117,0.3);color:#8d78f7',
+        'ประกาศ': 'background:rgba(30,53,153,0.3);color:#6c80f5',
+        'ข่าวสาร': 'background:rgba(6,182,212,0.2);color:#22d3ee',
+        'กิจกรรม': 'background:rgba(38,16,117,0.3);color:#8d78f7',
         'สินค้าใหม่': 'background:rgba(217,119,6,0.2);color:#fbbf24',
-        'บริการ':   'background:rgba(16,185,129,0.2);color:#34d399',
-        'ทั่วไป':   'background:rgba(100,116,139,0.2);color:#94a3b8',
+        'บริการ': 'background:rgba(16,185,129,0.2);color:#34d399',
+        'ทั่วไป': 'background:rgba(100,116,139,0.2);color:#94a3b8',
       };
 
       // Fallback items
       if (!items) {
         items = (window.COMPANY_DATA && window.COMPANY_DATA.news) || [
-          { type:'กิจกรรม', topic:'งาน Company Outing ประจำปี 2026', news_date:'2026-07-01', emoji:'🎉' },
-          { type:'ข่าวสาร', topic:'การปรับเวลาทำงานช่วงฤดูร้อน',      news_date:'2026-06-15', emoji:'📋' },
-          { type:'ทั่วไป',  topic:'พนักงานดีเด่นประจำไตรมาส 2',       news_date:'2026-06-01', emoji:'🏆' },
+          { type: 'กิจกรรม', topic: 'งาน Company Outing ประจำปี 2026', news_date: '2026-07-01', emoji: '🎉' },
+          { type: 'ข่าวสาร', topic: 'การปรับเวลาทำงานช่วงฤดูร้อน', news_date: '2026-06-15', emoji: '📋' },
+          { type: 'ทั่วไป', topic: 'พนักงานดีเด่นประจำไตรมาส 2', news_date: '2026-06-01', emoji: '🏆' },
         ];
       }
 
@@ -2464,19 +2531,19 @@
       window._newsCarouselCenterIdx = centerIdx;
 
       return ordered.map((row, i) => {
-        const topic  = escapeHtml(row.topic  || row.Topic || row.title || 'ข่าวสารจากองค์กร');
-        const date   = row.news_date || row.Date || row.date || '';
-        const type   = escapeHtml(row.type   || row.Type  || 'ทั่วไป');
-        const photo  = row.photo  || row.Photo || '';
-        const emoji  = escapeHtml(row.emoji  || '📢');
-        const color  = typeColors[row.type || row.Type || 'ทั่วไป'] || typeColors['ทั่วไป'];
+        const topic = escapeHtml(row.topic || row.Topic || row.title || 'ข่าวสารจากองค์กร');
+        const date = row.news_date || row.Date || row.date || '';
+        const type = escapeHtml(row.type || row.Type || 'ทั่วไป');
+        const photo = row.photo || row.Photo || '';
+        const emoji = escapeHtml(row.emoji || '📢');
+        const color = typeColors[row.type || row.Type || 'ทั่วไป'] || typeColors['ทั่วไป'];
 
         let dateStr = '';
         if (date) {
           try {
-            dateStr = new Date(date).toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' });
+            dateStr = new Date(date).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
             if (dateStr.includes('Invalid')) dateStr = date;
-          } catch(e) { dateStr = date; }
+          } catch (e) { dateStr = date; }
         }
         dateStr = escapeHtml(dateStr);
 
@@ -2504,8 +2571,8 @@
     // NEWS CAROUSEL CONTROLLER
     // =========================================
     function initNewsCarousel() {
-      const track   = document.getElementById('news-grid');
-      const dotsEl  = document.getElementById('news-dots');
+      const track = document.getElementById('news-grid');
+      const dotsEl = document.getElementById('news-dots');
       if (!track) return;
 
       const cards = Array.from(track.querySelectorAll('.news-card'));
@@ -2518,7 +2585,7 @@
       // Build dots
       if (dotsEl) {
         dotsEl.innerHTML = cards.map((_, i) =>
-          `<div class="news-dot${i===0?' active':''}" onclick="newsGoTo(${i})"></div>`
+          `<div class="news-dot${i === 0 ? ' active' : ''}" onclick="newsGoTo(${i})"></div>`
         ).join('');
       }
 
@@ -2555,7 +2622,7 @@
           if (closest !== currentIdx) {
             currentIdx = closest;
             cards.forEach((c, i) => c.classList.toggle('active', i === currentIdx));
-            if (dotsEl) dotsEl.querySelectorAll('.news-dot').forEach((d,i) =>
+            if (dotsEl) dotsEl.querySelectorAll('.news-dot').forEach((d, i) =>
               d.classList.toggle('active', i === currentIdx));
           }
         }, 80);
@@ -2609,14 +2676,14 @@
         const row = JSON.parse(decodeURIComponent(rowJsonEncoded));
         const modal = document.getElementById('news-modal');
         const body = document.getElementById('news-modal-body');
-        
+
         const topic = row.topic || row.Topic || 'ข่าวสารจากองค์กร';
         const date = row.news_date || row.Date || '';
         const type = row.type || row.Type || 'ทั่วไป';
         const photo = row.photo || row.Photo || '';
         const emoji = row.emoji || '📢';
         const content = row.content || row.Content || 'ไม่มีรายละเอียดเพิ่มเติม';
-        
+
         let dateStr = '';
         if (date) {
           try {
@@ -2626,7 +2693,7 @@
             dateStr = date;
           }
         }
-        
+
         const typeColors = {
           'ประกาศ': 'background:rgba(30,53,153,0.3);color:#6c80f5',
           'ข่าวสาร': 'background:rgba(6,182,212,0.2);color:#22d3ee',
@@ -2636,7 +2703,7 @@
           'ทั่วไป': 'background:rgba(100,116,139,0.2);color:#94a3b8',
         };
         const colorStyle = typeColors[type] || typeColors['ทั่วไป'];
-        
+
         let imgHtml = '';
         if (photo && photo !== '-' && photo.trim() !== '') {
           imgHtml = `
@@ -2651,7 +2718,7 @@
             </div>
           `;
         }
-        
+
         body.innerHTML = `
           ${imgHtml}
           <div class="news-modal-body-content">
@@ -2663,7 +2730,7 @@
             <div class="news-modal-text">${escapeHtml(content).replace(/\n/g, '<br/>')}</div>
           </div>
         `;
-        
+
         modal.style.display = 'flex';
         // Force reflow
         modal.offsetHeight;
@@ -2673,7 +2740,7 @@
         console.error('Failed to open news modal:', e);
       }
     }
-    
+
     function closeNewsModal() {
       const modal = document.getElementById('news-modal');
       if (modal) {
@@ -2694,42 +2761,42 @@
       const org = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 
       if (org) {
-        const phone   = org.phone_number || org['Phone Number'] || '—';
-        const email   = org.email   || org.Email   || '—';
+        const phone = org.phone_number || org['Phone Number'] || '—';
+        const email = org.email || org.Email || '—';
         const website = org.website || org.Website || '—';
-        document.getElementById('org-phone').textContent   = phone;
-        document.getElementById('org-email').textContent   = email;
+        document.getElementById('org-phone').textContent = phone;
+        document.getElementById('org-email').textContent = email;
         document.getElementById('org-website').textContent = website;
       } else {
-        document.getElementById('org-phone').textContent   = '02-XXX-XXXX';
-        document.getElementById('org-email').textContent   = 'info@lovestkgroupe.com';
+        document.getElementById('org-phone').textContent = '02-XXX-XXXX';
+        document.getElementById('org-email').textContent = 'info@lovestkgroupe.com';
         document.getElementById('org-website').textContent = 'www.lovestkgroupe.com';
       }
 
       // Load address + social links from company_info table
       try {
         const infoRows = await supabaseFetch('company_info', '&limit=200');
-        const infoMap  = {};
+        const infoMap = {};
         if (Array.isArray(infoRows)) {
           infoRows.forEach(r => { if (r.key) infoMap[r.key] = r.value || ''; });
         }
 
-        const address   = infoMap['contact_address']   || 'Love STK Groupe\nกรุงเทพมหานคร, ประเทศไทย';
-        const fbUrl     = infoMap['contact_facebook']  || '';
-        const igUrl     = infoMap['contact_instagram'] || '';
-        const lineUrl   = infoMap['contact_line']      || '';
+        const address = infoMap['contact_address'] || 'Love STK Groupe\nกรุงเทพมหานคร, ประเทศไทย';
+        const fbUrl = infoMap['contact_facebook'] || '';
+        const igUrl = infoMap['contact_instagram'] || '';
+        const lineUrl = infoMap['contact_line'] || '';
 
         // Address — show line breaks as <br>
         document.getElementById('org-address').innerHTML = address.replace(/\n/g, '<br/>');
 
         // Social links — update href, hide button if empty
-        const fbEl   = document.getElementById('org-facebook');
-        const igEl   = document.getElementById('org-instagram');
+        const fbEl = document.getElementById('org-facebook');
+        const igEl = document.getElementById('org-instagram');
         const lineEl = document.getElementById('org-line');
-        if (fbEl)   { fbUrl   ? fbEl.href   = fbUrl   : fbEl.style.display   = 'none'; }
-        if (igEl)   { igUrl   ? igEl.href   = igUrl   : igEl.style.display   = 'none'; }
+        if (fbEl) { fbUrl ? fbEl.href = fbUrl : fbEl.style.display = 'none'; }
+        if (igEl) { igUrl ? igEl.href = igUrl : igEl.style.display = 'none'; }
         if (lineEl) { lineUrl ? lineEl.href = lineUrl : lineEl.style.display = 'none'; }
-      } catch(e) {
+      } catch (e) {
         console.warn('Could not load contact info from company_info:', e);
         document.getElementById('org-address').innerHTML = 'Love STK Groupe<br/>กรุงเทพมหานคร, ประเทศไทย';
       }
@@ -2836,22 +2903,22 @@
     // =========================================
     async function initMap() {
       // Load custom coordinates from Supabase (fallback to Bangkok)
-      let lat   = 13.7563;
-      let lng   = 100.5018;
+      let lat = 13.7563;
+      let lng = 100.5018;
       let label = 'Love STK Groupe';
       let subLabel = 'กรุงเทพมหานคร, ประเทศไทย';
 
       try {
         const infoRows = await supabaseFetch('company_info', '&limit=200');
-        const infoMap  = {};
+        const infoMap = {};
         if (Array.isArray(infoRows)) {
           infoRows.forEach(r => { if (r.key) infoMap[r.key] = r.value || ''; });
         }
-        if (infoMap['map_lat']   && !isNaN(parseFloat(infoMap['map_lat'])))   lat   = parseFloat(infoMap['map_lat']);
-        if (infoMap['map_lng']   && !isNaN(parseFloat(infoMap['map_lng'])))   lng   = parseFloat(infoMap['map_lng']);
-        if (infoMap['map_label'] && infoMap['map_label'].trim())               label = infoMap['map_label'].trim();
-        if (infoMap['contact_address'] && infoMap['contact_address'].trim())   subLabel = infoMap['contact_address'].replace(/\n/g, ' ');
-      } catch(e) {
+        if (infoMap['map_lat'] && !isNaN(parseFloat(infoMap['map_lat']))) lat = parseFloat(infoMap['map_lat']);
+        if (infoMap['map_lng'] && !isNaN(parseFloat(infoMap['map_lng']))) lng = parseFloat(infoMap['map_lng']);
+        if (infoMap['map_label'] && infoMap['map_label'].trim()) label = infoMap['map_label'].trim();
+        if (infoMap['contact_address'] && infoMap['contact_address'].trim()) subLabel = infoMap['contact_address'].replace(/\n/g, ' ');
+      } catch (e) {
         console.warn('Could not load map coords from Supabase, using defaults:', e);
       }
 
@@ -2889,7 +2956,7 @@
     async function loadCompanyProfile() {
       // 1. Load initial fallback from company.js (window.COMPANY_DATA)
       const data = window.COMPANY_DATA || {};
-      
+
       // Bind to UI immediately using fallback
       bindCompanyProfileUI(data);
 
@@ -2931,7 +2998,7 @@
             } else if (key === 'careers') {
               try {
                 onlineData.careers = JSON.parse(val);
-              } catch(e) {
+              } catch (e) {
                 console.warn('Failed to parse careers JSON', e);
               }
             }
