@@ -1928,7 +1928,7 @@
       <li><a href="#career" onclick="closeMobileMenu()"><i class="fas fa-user-tie mr-2"></i> ร่วมงานกับเรา</a></li>
       <li><a href="#contact" onclick="closeMobileMenu()"><i class="fas fa-envelope mr-2"></i> ติดต่อเรา</a></li>
       <li style="margin-top:1rem">
-        <a href="Hr.html" style="background:var(--gradient-main);text-align:center;border-radius:12px;">
+        <a href="Hr.html" onclick="goToHr(event)" style="background:var(--gradient-main);text-align:center;border-radius:12px;">
           <i class="fas fa-sign-in-alt"></i> เข้าสู่ระบบ HR
         </a>
       </li>
@@ -2302,7 +2302,7 @@
           <a href="#services">บริการ</a>
           <a href="#career">ร่วมงาน</a>
           <a href="#contact">ติดต่อ</a>
-          <a href="Hr.html" style="color:var(--primary-light)">ระบบ HR</a>
+          <a href="Hr.html" onclick="goToHr(event)" style="color:var(--primary-light)">ระบบ HR</a>
         </div>
       </div>
     </div>
@@ -2311,6 +2311,18 @@
   <!-- ===== JAVASCRIPT ===== -->
   <script src="company.js"></script>
   <script>
+    function goToHr(e) {
+      if (e) e.preventDefault();
+      let loc = window.location.pathname;
+      if (loc.endsWith('index.html')) {
+        loc = loc.substring(0, loc.length - 10);
+      }
+      if (!loc.endsWith('/')) {
+        loc += '/';
+      }
+      window.location.pathname = loc + 'Hr.html';
+    }
+
     // ─────────────────────────────────────────
     // SCROLL GUARD — always start at top of page
     // ─────────────────────────────────────────
