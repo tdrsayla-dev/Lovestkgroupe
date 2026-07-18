@@ -69,7 +69,13 @@
     </script>
 
     <!-- Load Configuration -->
-    <script src="config.js"></script>
+    <script>
+        (function() {
+            var path = window.location.pathname.toLowerCase();
+            var src = (path.includes('/hr/') || path.includes('/hr')) ? 'config.js' : 'Hr/config.js';
+            document.write('<script src="' + src + '"><\/script>');
+        })();
+    </script>
 
     <script>
 
