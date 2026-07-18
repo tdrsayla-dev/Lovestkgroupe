@@ -1,5 +1,3 @@
-// Configuration variables for Supabase connection
-// WARNING: Do not commit this file with production credentials to public repositories!
 const CONFIG = {
     SUPABASE_URL: "https://qqyotianqcgpdzrfgjif.supabase.co",
     SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxeW90aWFucWNncGR6cmZnamlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwNDQ1MzcsImV4cCI6MjA5ODYyMDUzN30.6VlHbimuMkg0UtxCw2cbU5mN_c9zPmizNuzrL5tCtME"
