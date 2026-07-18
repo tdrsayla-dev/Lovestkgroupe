@@ -93,8 +93,8 @@ function showApp() {
 function handleLogin(e) {
     try {
         e.preventDefault();
-        const email = document.getElementById('login-email').value;
-        const pass = document.getElementById('login-password').value;
+        const email = String(document.getElementById('login-email').value || '').toLowerCase().trim();
+        const pass = String(document.getElementById('login-password').value || '').trim();
         const remember = document.getElementById('remember-me').checked;
 
         // ตรวจสอบรูปแบบอีเมล

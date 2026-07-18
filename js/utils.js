@@ -378,6 +378,20 @@ function toggleLoading(show, text = 'PROCESSING...') {
 
 function showToast(msg, type = 'success') {
     const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    // Prevent duplicate toasts with the same message
+    const existing = Array.from(container.children).find(t => {
+        const txt = t.querySelector('.ml-4');
+        return txt && txt.textContent.trim() === String(msg).trim();
+    });
+    if (existing) return;
+
+    // Limit to maximum of 3 toasts
+    while (container.children.length >= 3) {
+        container.removeChild(container.firstChild);
+    }
+
     const toast = document.createElement('div');
     const color = type === 'success' ? 'bg-white border-gray-100 text-gray-800' : 'bg-white border-red-100 text-gray-800';
     const iconColor = type === 'success' ? 'text-emerald-500 bg-emerald-50' : 'text-red-500 bg-red-50';
