@@ -69,12 +69,9 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script>
-        // Configure these before deploying the static page or replace them with your own env injection.
-        window.SUPABASE_URL = window.SUPABASE_URL || 'https://qqyotianqcgpdzrfgjif.supabase.co';
-        window.SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxeW90aWFucWNncGR6cmZnamlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwNDQ1MzcsImV4cCI6MjA5ODYyMDUzN30.6VlHbimuMkg0UtxCw2cbU5mN_c9zPmizNuzrL5tCtME';
-        window.SUPABASE_REST_URL = window.SUPABASE_REST_URL || 'https://qqyotianqcgpdzrfgjif.supabase.co/rest/v1';
-    </script>
+    <!-- Load Configuration -->
+    <script src="config.js"></script>
+    <link rel="stylesheet" href="style.css">
     <script>
         function createSupabaseBridge({ url, anonKey, accessToken = null }) {
             const base = String(url || '').replace(/\/$/, '');
@@ -176,6 +173,8 @@
             'Documents ': 'documents',
             'documents': 'documents',
             'Employees Ranting ': 'employees_rating',
+            'Employees Ranting': 'employees_rating',
+            'Employees Rating': 'employees_rating',
             'employees_rating': 'employees_rating',
             'KPI Records ': 'kpi_records',
             'kpi_records': 'kpi_records',
@@ -189,7 +188,7 @@
         };
 
         const SHEET_HEADERS = {
-            staff: ['Employee_ID', 'Prefix', 'First_Name', 'Last_Name', 'Birthday ', 'Tel', 'Email', 'Line', 'Department_ID', 'Position_ID', 'Hire_Date', 'Base_Salary', 'Daily_Rate_Formula', 'Leave_Quota', 'Status', 'RanKing', 'Reward Level', 'Photos'],
+            staff: ['Employee_ID', 'Prefix', 'First_Name', 'Last_Name', 'Birthday ', 'Tel', 'Email', 'Line', 'Department_ID', 'Position_ID', 'Hire_Date', 'Base_Salary', 'Daily_Rate_Formula', 'Leave_Quota', 'Status', 'RanKing', 'Reward Level', 'Photos', 'Is Evaluator'],
             users: ['Employee_ID', 'Email', 'Password ', 'Role', 'Device ID', 'Permissions'],
             fingerprint_logs: ['Log_ID', 'Employee_ID', 'Full_Name', 'Date', 'Shift_Start', 'Shift_End', 'Check_In', 'Check_Out', 'Attendance_Status', 'Late_Hours', 'Early_Leave_Hours', 'OT_Amount'],
             announcements: ['ID', 'Date', 'Type', 'Topic', 'Photo', 'Status'],
@@ -233,11 +232,7 @@
                 Department_ID: 'Department_ID', Position_ID: 'Position_ID', Hire_Date: 'Hire_Date',
                 Base_Salary: 'Base_Salary', Daily_Rate_Formula: 'Daily_Rate_Formula', Leave_Quota: 'Leave_Quota',
                 Status: 'Status', Bank_Name: 'Bank_Name', Bank_Account_No: 'Bank_Account_No',
-                RanKing: 'RanKing', 'Reward Level': 'Reward Level', Photos: 'Photos'
-
-
-
-
+                RanKing: 'RanKing', 'Reward Level': 'Reward Level', Photos: 'Photos', 'Is Evaluator': 'is_evaluator'
             },
             users: { 'Employee_ID': 'employee_id', 'Email': 'username', 'Password ': 'password_hash', Role: 'role', 'Device ID': 'device_id', Permissions: 'permissions' },
             fingerprint_logs: { Log_ID: 'log_id', Employee_ID: 'employee_id', Full_Name: 'full_name', Date: 'date', Shift_Start: 'shift_start', Shift_End: 'shift_end', Check_In: 'check_in', Check_Out: 'check_out', Attendance_Status: 'attendance_status', Late_Hours: 'late_hours', Early_Leave_Hours: 'early_leave_hours', OT_Amount: 'ot_amount' },
@@ -263,7 +258,11 @@
             const out = {};
             Object.keys(dataObj || {}).forEach(k => {
                 const mapped = map[k] || k;
-                out[mapped] = dataObj[k];
+                let val = dataObj[k];
+                if (mapped === 'is_evaluator') {
+                    val = String(val).toLowerCase() === 'true' || val === true;
+                }
+                out[mapped] = val;
             });
             return out;
         }
@@ -934,70 +933,6 @@
         <p id="loading-text" class="text-indigo-600 font-bold text-sm tracking-widest uppercase">AUTHORIZING...</p>
     </div>
 
-    <!-- 📌 ล็อกอิน -->
-    <div id="login-screen"
-        style="display:flex; position:fixed; inset:0; z-index:100; align-items:center; justify-content:center; background-color:#f8fafc;">
-        <div
-            class="glass-card p-10 rounded-3xl shadow-2xl w-full max-w-sm border border-gray-100 relative overflow-hidden">
-            <!-- Decorative blur element -->
-            <div class="absolute -top-20 -right-20 w-40 h-40 bg-brandpurple opacity-10 rounded-full blur-3xl"></div>
-
-            <div class="text-center mb-8 relative z-10 flex flex-col items-center">
-                <div
-                    class="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-br from-brandindigo to-brandpurple text-white mb-4 shadow-lg shadow-indigo-500/30 transform -rotate-3 hover:rotate-0 transition-all duration-300">
-                    <i
-                        class="fa-solid fa-building-user text-4xl transform rotate-3 group-hover:rotate-0 transition-all duration-300"></i>
-                </div>
-                <h2 class="text-3xl font-bold text-gray-900 tracking-tight">HR System</h2>
-                <p class="text-sm text-gray-500 mt-1 font-medium">HR Management Portal</p>
-            </div>
-            <form onsubmit="handleLogin(event)" class="relative z-10">
-                <div class="mb-5 relative">
-                    <label class="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Email
-                        Address</label>
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <i class="fa-regular fa-envelope text-gray-400"></i>
-                        </div>
-                        <input type="email" id="login-email" required
-                            class="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo transition-all placeholder-gray-400 font-medium"
-                            placeholder="Enter your email">
-                    </div>
-                </div>
-                <div class="mb-6 relative">
-                    <label
-                        class="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Password</label>
-                    <div class="relative flex items-center">
-                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <i class="fa-solid fa-lock text-gray-400"></i>
-                        </div>
-                        <input type="password" id="login-password" required
-                            class="w-full pl-11 pr-12 py-3 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo transition-all placeholder-gray-400 font-medium"
-                            placeholder="••••••••">
-                        <button type="button"
-                            onclick="const p=document.getElementById('login-password'); p.type=p.type==='password'?'text':'password'; this.innerHTML=p.type==='password'?'<i class=\'fa-regular fa-eye text-gray-400 hover:text-brandindigo transition-colors\'></i>':'<i class=\'fa-regular fa-eye-slash text-brandindigo\'></i>';"
-                            class="absolute inset-y-0 right-0 pr-4 flex items-center focus:outline-none">
-                            <i class="fa-regular fa-eye text-gray-400 hover:text-brandindigo transition-colors"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="flex items-center justify-between mb-8">
-                    <label class="flex items-center cursor-pointer group">
-                        <input type="checkbox" id="remember-me"
-                            class="w-4 h-4 bg-gray-50 border-gray-300 rounded focus:ring-brandindigo text-brandindigo">
-                        <span
-                            class="ml-2 text-sm text-gray-500 group-hover:text-gray-700 font-medium transition-colors">Remember
-                            me</span>
-                    </label>
-                </div>
-                <button type="submit"
-                    class="w-full bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-indigo-500/30 transform hover:-translate-y-0.5">
-                    Sign In <i class="fa-solid fa-arrow-right ml-2"></i>
-                </button>
-            </form>
-        </div>
-    </div>
-
     <!-- 📌 โครงสร้างแอปพลิเคชันหลัก -->
     <div id="app-layout" style="display:none; height:100vh; width:100%;" class="h-screen w-full flex">
 
@@ -1130,9 +1065,9 @@
                                     class="w-1.5 h-1.5 rounded-full bg-gray-300 mr-3 group-hover:bg-brandindigo transition-colors"></span><span
                                     class="sidebar-text whitespace-nowrap">Organization</span>
                             </button>
-                            <button onclick="navigate('table', 'Employee Rating', 'Employees Ranting ')"
+                            <button onclick="navigate('table', 'Employee Rating', 'Employees Ranting')"
                                 class="nav-btn w-full flex items-center px-3 py-2 rounded-lg transition-all text-sm hover:text-brandindigo hover:bg-indigo-50 group font-medium"
-                                data-page="Employees Ranting ">
+                                data-page="Employees Ranting">
                                 <span
                                     class="w-1.5 h-1.5 rounded-full bg-gray-300 mr-3 group-hover:bg-brandindigo transition-colors"></span><span
                                     class="sidebar-text whitespace-nowrap">STK WOW</span>
@@ -1471,7 +1406,7 @@
                                 </div>
                             </div>
 
-                            <div class="bg-white rounded-3xl p-5 shadow-lg h-[240px] flex flex-col">
+                            <div class="bg-white rounded-3xl p-5 shadow-lg min-h-[280px] flex flex-col">
                                 <div class="flex justify-between items-center mb-2">
                                     <h3
                                         class="font-black text-sm text-gray-900 tracking-widest uppercase flex items-center">
@@ -2873,8 +2808,18 @@
     </div>
 
 
-    <!-- 📌 Script หลัก -->
-    <script src="function.js"></script>
+    <!-- 📌 Script หลัก (แบ่งย่อยเพื่อประสิทธิภาพและความปลอดภัย) -->
+    <script src="js/utils.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/navigation.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/organization.js"></script>
+    <script src="js/employees.js"></script>
+    <script src="js/tables.js"></script>
+    <script src="js/forms.js"></script>
+    <script src="js/features.js"></script>
+
 </body>
 
 </html>
