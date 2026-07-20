@@ -158,7 +158,13 @@ function renderTable(data) {
     } else {
         summaryDiv.classList.add('hidden');
         if (calSec) calSec.classList.add('hidden');
-        if (addDataBtn) addDataBtn.classList.remove('hidden');
+        if (addDataBtn) {
+            if (role === 'Staff' && currentSheet !== 'Leave application' && currentSheet !== 'Budget_Requests' && currentSheet !== 'Budget Request') {
+                addDataBtn.classList.add('hidden');
+            } else {
+                addDataBtn.classList.remove('hidden');
+            }
+        }
         if (searchWrapper) searchWrapper.classList.remove('hidden');
     }
 
@@ -218,7 +224,7 @@ function renderTable(data) {
         summaryDiv.classList.add('hidden');
         if (addDataBtn) addDataBtn.classList.remove('hidden');
 
-        if ((currentSheet === 'Announcements' || currentSheet === 'News' || currentSheet === 'Training' || currentSheet === 'Asset_Tracking') && role === 'Staff') {
+        if ((currentSheet === 'Announcements' || currentSheet === 'News' || currentSheet === 'Training' || currentSheet === 'Asset_Tracking' || currentSheet.trim() === 'Documents' || currentSheet.trim() === 'Policy') && role === 'Staff') {
             if (addDataBtn) addDataBtn.classList.add('hidden');
         }
 
@@ -247,7 +253,7 @@ function renderTable(data) {
                 qrBtn.className = 'text-white bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 font-bold px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center w-full md:w-auto';
                 qrBtn.innerHTML = '<i class="fa-solid fa-camera mr-2"></i>สแกน QR ให้ดาว';
                 qrBtn.onclick = typeof openQRScanner === 'function' ? openQRScanner : function () {
-                    showToast('ฟังก์ชันแสกน QR ยังไม่พร้อมใช้งาน', 'error');
+                    showToast(t('qr_not_ready') || 'QR function not ready', 'error');
                 };
 
                 addDataBtn.classList.add('w-full', 'md:w-auto');
@@ -304,7 +310,8 @@ function renderTable(data) {
         }
 
         if (!currentHeaders.length || data.length === 0) {
-            cardWrapper.innerHTML = '<div class="col-span-full flex flex-col items-center justify-center py-20 text-gray-400 bg-gray-50 rounded-3xl border border-dashed border-gray-200"><i class="fa-regular fa-folder-open text-6xl mb-4 text-gray-300"></i><p class="font-bold tracking-widest uppercase text-sm">No records found</p></div>';
+            let noRecordsTxt = window.t ? window.t('no_records') : 'No records found';
+            cardWrapper.innerHTML = '<div class="col-span-full flex flex-col items-center justify-center py-20 text-gray-400 bg-gray-50 rounded-3xl border border-dashed border-gray-200"><i class="fa-regular fa-folder-open text-6xl mb-4 text-gray-300"></i><p class="font-bold tracking-widest uppercase text-sm">' + noRecordsTxt + '</p></div>';
             return;
         }
 
@@ -355,12 +362,12 @@ function renderTable(data) {
 
                 let targetUrl = '';
                 let linkIcon = 'fa-link';
-                let linkText = 'เอกสารประกอบการเรียน';
+                let linkText = t('learning_doc') || 'Document';
                 let btnColor = 'text-brandindigo bg-indigo-50 hover:bg-indigo-100';
 
                 if (generalUrl && generalUrl !== '-' && generalUrl.trim() !== '') { targetUrl = generalUrl; }
-                else if (ytUrl && ytUrl !== '-' && ytUrl.trim() !== '') { targetUrl = ytUrl; linkIcon = 'fa-youtube'; linkText = 'เรียนผ่าน YouTube'; btnColor = 'text-red-600 bg-red-50 hover:bg-red-100'; }
-                else if (fbUrl && fbUrl !== '-' && fbUrl.trim() !== '') { targetUrl = fbUrl; linkIcon = 'fa-facebook'; linkText = 'ดูผ่าน Facebook'; btnColor = 'text-blue-600 bg-blue-50 hover:bg-blue-100'; }
+                else if (ytUrl && ytUrl !== '-' && ytUrl.trim() !== '') { targetUrl = ytUrl; linkIcon = 'fa-youtube'; linkText = t('learn_youtube') || 'Learn via YouTube'; btnColor = 'text-red-600 bg-red-50 hover:bg-red-100'; }
+                else if (fbUrl && fbUrl !== '-' && fbUrl.trim() !== '') { targetUrl = fbUrl; linkIcon = 'fa-facebook'; linkText = t('watch_fb') || 'Watch via Facebook'; btnColor = 'text-blue-600 bg-blue-50 hover:bg-blue-100'; }
 
                 if (targetUrl) {
                     cardArr.push(`<div class="w-full px-5 pb-5" onclick="event.stopPropagation()">`);
@@ -455,8 +462,8 @@ function renderTable(data) {
 
                 cardArr.push('<div class="flex justify-between items-end mb-3">');
                 cardArr.push('<div class="text-[11px] text-gray-600 leading-tight space-y-0.5">');
-                cardArr.push(`<div>ระหัสพนักงาน: <span class="font-medium text-gray-800">${escapeHtml(employee)}</span></div>`);
-                cardArr.push(`<div>หมายเลข: <span class="font-medium text-gray-800">${escapeHtml(rowId)}</span></div>`);
+                cardArr.push(`<div>${t('emp_id_label') || 'Employee ID:'} <span class="font-medium text-gray-800">${escapeHtml(employee)}</span></div>`);
+                cardArr.push(`<div>${t('asset_number_label') || 'Asset Number:'} <span class="font-medium text-gray-800">${escapeHtml(rowId)}</span></div>`);
                 cardArr.push('</div>');
 
                 cardArr.push('<div class="text-[11px] text-gray-600 text-right leading-tight space-y-0.5">');
@@ -770,7 +777,8 @@ function renderTable(data) {
     }
 
     if (!currentHeaders.length) {
-        tBody.innerHTML = '<tr><td colspan="100%" class="text-center py-12 text-gray-400 font-bold tracking-widest uppercase">NO DATA FOUND</td></tr>';
+        let noDataTxt = window.t ? window.t('no_data') : 'NO DATA FOUND';
+        tBody.innerHTML = '<tr><td colspan="100%" class="text-center py-12 text-gray-400 font-bold tracking-widest uppercase">' + noDataTxt + '</td></tr>';
         return;
     }
 
@@ -778,9 +786,13 @@ function renderTable(data) {
     currentHeaders.forEach(h => {
         const isPhotoColumn = /^(photo|photos|profile|pic|image)$/i.test(String(h).trim());
         let displayH = (currentSheet.toLowerCase() === 'user' && (h.toLowerCase().trim() === 'user name' || h.toLowerCase().trim() === 'username')) ? 'EMAIL' : h;
-        trHead += `<th class="px-6 py-4 whitespace-nowrap font-bold tracking-widest text-gray-500 ${isPhotoColumn ? 'w-28 text-center' : ''}">${displayH}</th>`;
+        let translatedH = window.t ? window.t(displayH) : displayH;
+        trHead += `<th class="px-6 py-4 whitespace-nowrap font-bold tracking-widest text-gray-500 ${isPhotoColumn ? 'w-28 text-center' : ''}" data-i18n-th="${displayH}">${translatedH}</th>`;
     });
-    if (role !== 'Staff') trHead += `<th class="px-6 py-4 whitespace-nowrap text-center sticky right-0 bg-gray-50 z-10 shadow-[-10px_0_15px_-5px_rgba(0,0,0,0.05)] border-l border-gray-200 print-hide text-gray-500 font-bold tracking-widest">Action</th>`;
+    if (role !== 'Staff') {
+        let actionTxt = window.t ? window.t('Action') : 'Action';
+        trHead += `<th class="px-6 py-4 whitespace-nowrap text-center sticky right-0 bg-gray-50 z-10 shadow-[-10px_0_15px_-5px_rgba(0,0,0,0.05)] border-l border-gray-200 print-hide text-gray-500 font-bold tracking-widest">${actionTxt}</th>`;
+    }
     trHead += `</tr>`;
     tHead.innerHTML = trHead;
 
@@ -1033,7 +1045,7 @@ function renderEmployeeRatingPageFromScratch(ratingRows) {
         const safeName = escapeHtml(firstName);
         const safePosition = escapeHtml(position);
         const safeDept = escapeHtml(department);
-        const safeComment = escapeHtml(stat.latestComment || 'ยังไม่มีคอมเมนต์');
+        const safeComment = escapeHtml(stat.latestComment || (t('no_comment') || 'No comments yet'));
         const safeNameUrl = encodeURIComponent(firstName);
         const safeNameJs = String(firstName).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 

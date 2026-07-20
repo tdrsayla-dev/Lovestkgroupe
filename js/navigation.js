@@ -26,7 +26,37 @@ function navigate(pageId, title, sheetName = '') {
             }
         }
 
-        document.getElementById('page-title').innerText = title;
+        const titleToKey = {
+            'My Dashboard': 'menu_my_dashboard',
+            'Dashboard': 'menu_dashboard',
+            'Time Tracking': 'menu_time_tracking',
+            'Leave Requests': 'menu_leave_requests',
+            'Budget Requests': 'menu_budget_requests',
+            'Attendance Logs': 'menu_attendance_logs',
+            'Staff Directory': 'menu_staff_directory',
+            'Digital Card': 'menu_digital_card',
+            'Organization': 'menu_organization',
+            'Employee Rating': 'menu_stk_wow',
+            'KPI Records': 'menu_kpi',
+            'Org Structure': 'menu_org_struct',
+            'Department': 'menu_department',
+            'Assets': 'menu_assets',
+            'Announcements': 'menu_announcements',
+            'News': 'menu_news',
+            'Documents': 'menu_documents',
+            'Training': 'menu_training',
+            'Orientation': 'menu_orientation',
+            'Policy': 'menu_policy',
+            'Users': 'menu_users',
+            'ตั้งค่าหน้าเว็บหลัก': 'menu_web_settings'
+        };
+        const key = titleToKey[title] || title;
+        const titleEl = document.getElementById('page-title');
+        if (titleEl) {
+            titleEl.setAttribute('data-i18n', key);
+            titleEl.innerText = typeof window.t === 'function' ? window.t(key) : title;
+        }
+
         currentSheet = sheetName;
 
         document.querySelectorAll('.page-section').forEach(el => el.classList.add('hidden'));
@@ -99,8 +129,12 @@ function filterDashboardItems() {
 }
 
 function clearDashboardDateFilter() {
-    document.getElementById('dashStartDate').value = '';
-    document.getElementById('dashEndDate').value = '';
+    dashCalStartDateStr = null;
+    dashCalEndDateStr = null;
+    
+    const clearBtns = document.querySelectorAll('#btn-clear-dash-date');
+    clearBtns.forEach(btn => btn.classList.add('hidden'));
+
     loadDashboard();
 }
 

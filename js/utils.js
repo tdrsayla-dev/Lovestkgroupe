@@ -67,7 +67,7 @@ function fillMissingDays(rawData, startDateStr, endDateStr, targetEmpId) {
             let isWeekend = (dayOfWeek === 0); // 📌 เปลี่ยนให้มีแค่วันอาทิตย์ (0) ที่เป็นวันหยุด
             let isPastOrToday = (d <= today);
 
-            let statusLabel = isWeekend ? "วันหยุด" : (isPastOrToday ? "ABSENT" : "ยังไม่ถึง");
+            let statusLabel = isWeekend ? (t('holiday') || "Holiday") : (isPastOrToday ? (t('absent') || "ABSENT") : (t('not_yet_arrived') || "Not yet"));
 
             // 📌 ตรวจสอบว่าตรงกับวันที่ลางานหรือไม่
             let isOnLeave = false;
@@ -460,7 +460,7 @@ function closeImagePreview() {
 
 function showAttachmentPreview(source, title = 'Attachment') {
     if (!source || String(source).trim() === '' || String(source).trim() === '-') {
-        showToast('ไม่พบไฟล์แนบสำหรับรายการนี้', 'error');
+        showToast(t('no_attachment') || 'No attachment found for this item', 'error');
         return;
     }
 

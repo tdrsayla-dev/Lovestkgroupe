@@ -76,8 +76,37 @@ function showApp() {
 
         const displayUser = document.getElementById('display-username');
         const displayRole = document.getElementById('display-role');
+        const displayProfilePic = document.getElementById('display-profile-pic');
+        const displayProfileIcon = document.getElementById('display-profile-icon');
+        
         if (displayUser) displayUser.innerText = username || 'Unknown';
         if (displayRole) displayRole.innerText = role;
+
+        // Fetch profile pic from staff or users if empId exists
+        if (empId) {
+            google.script.run.withSuccessHandler(res => {
+                try {
+                    let picUrl = null;
+                    if (res && Array.isArray(res) && res.length > 0) {
+                        const row = res[0];
+                        picUrl = row.Photos || row.photos || row.photo || row.profile || row.pic || row.image || null;
+                    }
+                    if (picUrl && displayProfilePic && String(picUrl).trim() !== '-') {
+                        displayProfilePic.src = picUrl;
+                        displayProfilePic.classList.remove('hidden');
+                        if (displayProfileIcon) displayProfileIcon.classList.add('hidden');
+                    } else if (displayProfilePic && username) {
+                        displayProfilePic.src = `https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=${encodeURIComponent(username)}`;
+                        displayProfilePic.classList.remove('hidden');
+                        if (displayProfileIcon) displayProfileIcon.classList.add('hidden');
+                    }
+                } catch(e) {}
+            }).getSheetData('staff', `Employee_ID=eq.${empId}`);
+        } else if (displayProfilePic && username) {
+            displayProfilePic.src = `https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=${encodeURIComponent(username)}`;
+            displayProfilePic.classList.remove('hidden');
+            if (displayProfileIcon) displayProfileIcon.classList.add('hidden');
+        }
 
         applyRolePermissions(role, permissions);
 
@@ -145,6 +174,214 @@ function logout() {
 
     // สั่งให้กระโดดกลับไปยังหน้าแรกของเว็บไซต์ทันที
     window.location.href = 'login.html';
+}
+
+function openChangePasswordModal() {
+    const modal = document.getElementById('change-password-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        
+        // Populate user info
+        const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+        if (sessionStr) {
+            try {
+                const sessionData = JSON.parse(sessionStr);
+                const displayUser = document.getElementById('cp-display-username');
+                const displayEmail = document.getElementById('cp-display-email');
+                if (displayUser) displayUser.innerText = sessionData.username || 'Unknown';
+                if (displayEmail) displayEmail.innerText = sessionData.email || '';
+            } catch(e) {}
+        }
+    }
+}
+
+function closeChangePasswordModal() {
+    const modal = document.getElementById('change-password-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+function submitChangePassword(e) {
+    e.preventDefault();
+    const oldPass = document.getElementById('old-password').value;
+    const newPass = document.getElementById('new-password').value;
+    const confirmPass = document.getElementById('confirm-new-password').value;
+    
+    if (newPass !== confirmPass) {
+        showToast(t('password_mismatch') || 'Passwords do not match', 'error');
+        return;
+    }
+    
+    const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+    if (!sessionStr) return;
+    const sessionData = JSON.parse(sessionStr);
+    const email = sessionData.username || sessionData.email;
+    
+    toggleLoading(true, 'Updating Password...');
+    google.script.run
+        .withSuccessHandler(res => {
+            toggleLoading(false);
+            if (res && res.success) {
+                showToast(t('password_updated') || 'Password updated successfully', 'success');
+                closeChangePasswordModal();
+                document.getElementById('form-change-password').reset();
+            } else {
+                showToast(res ? res.message : 'Error updating password', 'error');
+            }
+        })
+        .withFailureHandler(err => {
+            toggleLoading(false);
+            showToast('Connection failed: ' + err.message, 'error');
+        })
+        .changeUserPassword(email, oldPass, newPass);
+}
+
+function openMyProfileModal() {
+    const modal = document.getElementById('my-profile-modal');
+    if (!modal) return;
+    
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    
+    // Fetch user data
+    const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+    if (!sessionStr) return;
+    const sessionData = JSON.parse(sessionStr);
+    const empId = sessionData.empId;
+    
+    if (!empId) return;
+    
+    toggleLoading(true, 'Loading Profile...');
+    google.script.run
+        .withSuccessHandler(res => {
+            toggleLoading(false);
+            if (res && res.success && res.data && res.data.length > 0) {
+                const profile = res.data.find(r => String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === String(empId).trim().toUpperCase());
+                if (profile) {
+                    document.getElementById('my-profile-firstname').value = profile.First_Name || '';
+                    document.getElementById('my-profile-lastname').value = profile.Last_Name || '';
+                document.getElementById('my-profile-birthday').value = profile.Birthday || profile.Birthday_ || profile['Birthday '] || '';
+                document.getElementById('my-profile-tel').value = profile.Tel || '';
+                document.getElementById('my-profile-email').value = profile.Email || '';
+                document.getElementById('my-profile-line').value = profile.Line || '';
+                document.getElementById('my-profile-bankname').value = profile.Bank_Name || '';
+                document.getElementById('my-profile-bankaccountname').value = profile.Bank_Account_Name || '';
+                document.getElementById('my-profile-bankaccountno').value = profile.Bank_Account_No || '';
+                document.getElementById('my-profile-photo-url').value = profile.Photos || '';
+                if(profile.Photos && profile.Photos !== '-') {
+                    document.getElementById('my-profile-photo-preview').src = profile.Photos;
+                }
+                } // End if (profile)
+            }
+        })
+        .withFailureHandler(err => {
+            toggleLoading(false);
+            showToast('Failed to load profile', 'error');
+        })
+        .getSheetData('staff', { select: 'First_Name,Last_Name,Birthday,Tel,Email,Line,Bank_Name,Bank_Account_Name,Bank_Account_No,Photos', filter: `Employee_ID=eq.${empId}` });
+}
+
+function closeMyProfileModal() {
+    const modal = document.getElementById('my-profile-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+function submitMyProfile(e) {
+    e.preventDefault();
+    
+    const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+    if (!sessionStr) return;
+    const sessionData = JSON.parse(sessionStr);
+    const empId = sessionData.empId;
+    
+    if (!empId) return;
+    
+    const payload = {
+        'First_Name': document.getElementById('my-profile-firstname').value,
+        'Last_Name': document.getElementById('my-profile-lastname').value,
+        'Birthday ': document.getElementById('my-profile-birthday').value,
+        'Tel': document.getElementById('my-profile-tel').value,
+        'Email': document.getElementById('my-profile-email').value,
+        'Line': document.getElementById('my-profile-line').value,
+        'Bank_Name': document.getElementById('my-profile-bankname').value,
+        'Bank_Account_Name': document.getElementById('my-profile-bankaccountname').value,
+        'Bank_Account_No': document.getElementById('my-profile-bankaccountno').value,
+        'Photos': document.getElementById('my-profile-photo-url').value
+    };
+    
+    toggleLoading(true, 'Updating Profile...');
+    
+    // Handle photo upload if a new file is selected
+    const fileInput = document.getElementById('my-profile-photo-file');
+    if (fileInput && fileInput.files.length > 0) {
+        let file = fileInput.files[0];
+        if (typeof compressImageFile === 'function') {
+            compressImageFile(file, 480, 0.72).then(function (base64Data) {
+                google.script.run.withSuccessHandler(function (url) {
+                    payload['Photos'] = url;
+                    doSubmitMyProfile(empId, payload, sessionData);
+                }).withFailureHandler(function (err) {
+                    toggleLoading(false);
+                    showToast('Failed to upload image: ' + err.message, 'error');
+                }).uploadImageToDrive(base64Data, file.name);
+            }).catch(function (err) {
+                toggleLoading(false);
+                showToast('Image compression error: ' + err.message, 'error');
+            });
+            return; // Wait for upload
+        } else {
+            // Fallback if compressImageFile is not available
+            let reader = new FileReader();
+            reader.onload = function(e) {
+                let base64Data = e.target.result;
+                google.script.run.withSuccessHandler(function (url) {
+                    payload['Photos'] = url;
+                    doSubmitMyProfile(empId, payload, sessionData);
+                }).withFailureHandler(function (err) {
+                    toggleLoading(false);
+                    showToast('Failed to upload image: ' + err.message, 'error');
+                }).uploadImageToDrive(base64Data, file.name);
+            };
+            reader.readAsDataURL(file);
+            return;
+        }
+    }
+    
+    doSubmitMyProfile(empId, payload, sessionData);
+}
+
+function doSubmitMyProfile(empId, payload, sessionData) {
+    google.script.run
+        .withSuccessHandler(res => {
+            toggleLoading(false);
+            if (res && res.success) {
+                showToast(t('profile_updated') || 'Profile updated successfully', 'success');
+                
+                // Update local session if email changed
+                const newEmail = document.getElementById('my-profile-email').value;
+                if (newEmail && newEmail !== sessionData.email) {
+                    sessionData.email = newEmail;
+                    sessionData.username = newEmail;
+                    if (localStorage.getItem('hr_user_session')) localStorage.setItem('hr_user_session', JSON.stringify(sessionData));
+                    if (sessionStorage.getItem('hr_user_session')) sessionStorage.setItem('hr_user_session', JSON.stringify(sessionData));
+                }
+                
+                closeMyProfileModal();
+            } else {
+                showToast(res ? res.message : 'Error updating profile', 'error');
+            }
+        })
+        .withFailureHandler(err => {
+            toggleLoading(false);
+            showToast('Connection failed: ' + err.message, 'error');
+        })
+        .updateMyProfile(empId, payload);
 }
 
 /* =====================================================================

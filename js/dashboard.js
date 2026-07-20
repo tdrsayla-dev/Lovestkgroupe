@@ -352,13 +352,13 @@ function checkAndRenderCharts() {
         let statusBadge = '';
         let dotColor = 'bg-gray-400';
         if (rawStatus.includes('approve') || rawStatus.includes('hr') || rawStatus.includes('อนุมัติ') || rawStatus.includes('อนุญาต')) {
-            statusBadge = `<span class="text-[9px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-md font-bold border border-emerald-200 tracking-widest uppercase flex items-center gap-1"><i class="fa-solid fa-check"></i> อนุมัติ</span>`;
+            statusBadge = `<span class="text-[9px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-md font-bold border border-emerald-200 tracking-widest uppercase flex items-center gap-1"><i class="fa-solid fa-check"></i> ${t('status_approved')}</span>`;
             dotColor = 'bg-emerald-400';
         } else if (rawStatus.includes('reject') || rawStatus.includes('ปฏิเสธ') || rawStatus.includes('ไม่อนุมัติ') || rawStatus.includes('denied')) {
-            statusBadge = `<span class="text-[9px] bg-red-50 text-red-500 px-2 py-1 rounded-md font-bold border border-red-100 tracking-widest uppercase flex items-center gap-1"><i class="fa-solid fa-times"></i> ไม่อนุมัติ</span>`;
+            statusBadge = `<span class="text-[9px] bg-red-50 text-red-500 px-2 py-1 rounded-md font-bold border border-red-100 tracking-widest uppercase flex items-center gap-1"><i class="fa-solid fa-times"></i> ${t('status_rejected')}</span>`;
             dotColor = 'bg-red-400';
         } else {
-            statusBadge = `<span class="text-[9px] bg-amber-50 text-amber-500 px-2 py-1 rounded-md font-bold border border-amber-200 tracking-widest uppercase flex items-center gap-1"><i class="fa-solid fa-clock"></i> รอพิจารณา</span>`;
+            statusBadge = `<span class="text-[9px] bg-amber-50 text-amber-500 px-2 py-1 rounded-md font-bold border border-amber-200 tracking-widest uppercase flex items-center gap-1"><i class="fa-solid fa-clock"></i> ${t('status_pending')}</span>`;
             dotColor = 'bg-amber-400';
         }
 
@@ -400,7 +400,7 @@ function checkAndRenderCharts() {
             let checkIn = logEntry ? (getFuzzyValue(logEntry, ['check_in', 'เวลาเข้า', 'checkin']) || '-') : '-';
             let checkOut = logEntry ? (getFuzzyValue(logEntry, ['check_out', 'เวลาออก', 'checkout']) || '-') : '-';
             let lateHrs = logEntry ? (parseFloat(getFuzzyValue(logEntry, ['late_hours', 'มาช้า'])) || 0) : 0;
-            let lateTag = lateHrs > 0 ? `<span class="text-[9px] bg-orange-50 text-orange-500 px-1.5 py-0.5 rounded border border-orange-100 font-bold ml-1">สาย ${lateHrs}h</span>` : '';
+            let lateTag = lateHrs > 0 ? `<span class="text-[9px] bg-orange-50 text-orange-500 px-1.5 py-0.5 rounded border border-orange-100 font-bold ml-1">${t('status_late')} ${lateHrs}h</span>` : '';
 
             presentListHTML += `<li class="flex items-center justify-between py-2 px-3 rounded-xl hover:bg-emerald-50 transition-colors border border-transparent hover:border-emerald-100">
                         <div class="flex items-center gap-2.5 min-w-0">
@@ -410,7 +410,9 @@ function checkAndRenderCharts() {
                                 <p class="text-[10px] text-gray-400 font-medium mt-0.5">In: ${checkIn} &nbsp;|&nbsp; Out: ${checkOut}</p>
                             </div>
                         </div>
-                        <span class="text-[9px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-md font-bold border border-emerald-200 tracking-widest uppercase flex-shrink-0">มาทำงาน</span>
+                        <div class="flex items-center space-x-3">
+                            <span class="text-[9px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-md font-bold border border-emerald-200 tracking-widest uppercase flex-shrink-0">${t('status_present')}</span>
+                        </div>
                     </li>`;
             presentDetailsCount++;
         } else if (!isOnLeave) {
@@ -423,7 +425,7 @@ function checkAndRenderCharts() {
                                     <span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"></span>
                                     <span class="text-sm font-black text-gray-900">${empName}</span>
                                 </div>
-                                <span class="text-[9px] bg-red-50 text-red-500 px-3 py-1 rounded-lg font-bold uppercase border border-red-100 tracking-widest">ABSENT</span>
+                                <span class="text-[9px] bg-red-50 text-red-500 px-3 py-1 rounded-lg font-bold uppercase border border-red-100 tracking-widest">${t('status_absent')}</span>
                             </li>`;
                 absentDetailsCount++;
             }
@@ -442,24 +444,24 @@ function checkAndRenderCharts() {
 
     if (presentUl) {
         if (presentDetailsCount > 0) presentUl.innerHTML = presentListHTML;
-        else presentUl.innerHTML = '<li class="py-8 text-center text-gray-400 text-xs font-medium border border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center"><i class="fa-solid fa-door-open text-2xl mb-2 text-gray-300"></i> ยังไม่มีผู้มาทำงาน</li>';
+        else presentUl.innerHTML = `<li class="py-8 text-center text-gray-400 text-xs font-medium border border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center"><i class="fa-solid fa-door-open text-2xl mb-2 text-gray-300"></i> ${t('no_present_staff')}</li>`;
     }
     const presentBadge = document.getElementById('dash-present-count-badge');
-    if (presentBadge) presentBadge.innerText = `${presentDetailsCount} คน`;
+    if (presentBadge) presentBadge.innerText = `${presentDetailsCount} ${t('people_unit')}`;
 
     if (absentUl) {
         if (absentDetailsCount > 0) absentUl.innerHTML = absentListHTML;
-        else absentUl.innerHTML = '<li class="py-8 text-center text-gray-400 text-xs font-medium border border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center"><i class="fa-solid fa-user-check text-2xl mb-2 text-gray-300"></i> ไม่มีคนขาดงาน 🎉</li>';
+        else absentUl.innerHTML = `<li class="py-8 text-center text-gray-400 text-xs font-medium border border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center"><i class="fa-solid fa-user-check text-2xl mb-2 text-gray-300"></i> ${t('no_absent_staff')} 🎉</li>`;
     }
     const absentBadge = document.getElementById('dash-absent-count-badge');
-    if (absentBadge) absentBadge.innerText = `${absentDetailsCount} คน`;
+    if (absentBadge) absentBadge.innerText = `${absentDetailsCount} ${t('people_unit')}`;
 
     if (leaveUl) {
         if (leaveDetailsCount > 0) leaveUl.innerHTML = leaveListHTML;
-        else leaveUl.innerHTML = '<li class="py-8 text-center text-gray-400 text-xs font-medium border border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center"><i class="fa-solid fa-clipboard-check text-2xl mb-2 text-gray-300"></i> No leave records found.</li>';
+        else leaveUl.innerHTML = `<li class="py-8 text-center text-gray-400 text-xs font-medium border border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center"><i class="fa-solid fa-clipboard-check text-2xl mb-2 text-gray-300"></i> ${t('no_leave_records')}</li>`;
     }
     const leaveBadge = document.getElementById('dash-leave-count-badge');
-    if (leaveBadge) leaveBadge.innerText = `${leaveDetailsCount} คน`;
+    if (leaveBadge) leaveBadge.innerText = `${leaveDetailsCount} ${t('people_unit')}`;
 
     const safeUpdate = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
     safeUpdate('dash-logs', presentCount);
@@ -516,7 +518,7 @@ function checkAndRenderCharts() {
     const bdContainer = document.getElementById('dashboard-birthdays');
     if (bdContainer) {
         if (bdCount === 0) {
-            bdContainer.innerHTML = '<p class="text-xs text-gray-500 text-center py-6 bg-gray-50 rounded-xl border border-dashed border-gray-200 font-medium">No birthdays this month 🎉</p>';
+            bdContainer.innerHTML = `<p class="text-xs text-gray-500 text-center py-6 bg-gray-50 rounded-xl border border-dashed border-gray-200 font-medium">${t('no_birthdays')}</p>`;
         } else {
             bdContainer.classList.remove('justify-center', 'items-center');
             bdContainer.innerHTML = birthdaysHtml;
@@ -547,7 +549,7 @@ function updateAttendanceRateChart(totalStaff, presentCount) {
         window.attChartInstance = new Chart(ctx, {
             type: 'doughnut',
             data: {
-                labels: ['มาทำงาน', 'ขาด/ลา'],
+                labels: [t('status_present'), t('status_absent_leave')],
                 datasets: [{
                     data: total > 0 ? [present, absent] : [0, 1],
                     backgroundColor: total > 0 ? ['#7c50ff', '#e2e8f0'] : ['#e2e8f0', '#e2e8f0'],
@@ -570,7 +572,7 @@ function renderDashboardTopRatings() {
     if (!container) return;
 
     if (!tableCache['Employees Ranting '] && !tableCache['Employees Ranting'] && !tableCache['Employees Rating'] && !tableCache['employees_rating']) {
-        container.innerHTML = '<p class="text-sm text-white/50 text-center py-4"><i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังดึงข้อมูลคะแนนดาว...</p>';
+        container.innerHTML = `<p class="text-sm text-white/50 text-center py-4"><i class="fa-solid fa-spinner fa-spin mr-2"></i>${t('loading_star_data')}</p>`;
         google.script.run.withSuccessHandler(res => {
             if (res && res.success) {
                 const cleaned = { headers: res.headers || [], data: res.data || [] };
@@ -580,10 +582,10 @@ function renderDashboardTopRatings() {
                 tableCache['employees_rating'] = cleaned;
                 renderDashboardTopRatings();
             } else {
-                container.innerHTML = '<p class="text-sm text-white/50 text-center py-4">ไม่พบข้อมูลการประเมิน</p>';
+                container.innerHTML = `<p class="text-sm text-white/50 text-center py-4">${t('no_evaluation_data')}</p>`;
             }
         }).withFailureHandler(() => {
-            container.innerHTML = '<p class="text-sm text-red-300 text-center py-4">โหลดข้อมูลไม่สำเร็จ</p>';
+            container.innerHTML = `<p class="text-sm text-red-300 text-center py-4">${t('load_data_failed')}</p>`;
         }).getSheetData('Employees Ranting ');
         return;
     }
@@ -591,7 +593,7 @@ function renderDashboardTopRatings() {
     let ratingData = (tableCache['Employees Ranting '] || tableCache['Employees Ranting'] || tableCache['Employees Rating'] || tableCache['employees_rating'])?.data || [];
 
     if (!ratingData.length) {
-        container.innerHTML = '<p class="text-sm text-white/50 text-center py-4">ยังไม่มีข้อมูลการประเมินดาว</p>';
+        container.innerHTML = `<p class="text-sm text-white/50 text-center py-4">${t('no_star_eval_data')}</p>`;
         return;
     }
 
@@ -1021,7 +1023,7 @@ function filterDataForUser(data) {
 
     if (role !== 'Staff') return data;
 
-    if (currentSheet.includes('Ranting') || currentSheet.includes('Rating') || currentSheet === 'Announcements' || currentSheet === 'News' || currentSheet === 'Training' || currentSheet === 'Asset_Tracking') {
+    if (currentSheet.includes('Ranting') || currentSheet.includes('Rating') || currentSheet === 'Announcements' || currentSheet === 'News' || currentSheet === 'Training' || currentSheet === 'Asset_Tracking' || currentSheet.trim() === 'Documents') {
         return data;
     }
 
