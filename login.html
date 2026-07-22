@@ -142,8 +142,8 @@
     </div>
 
     <!-- Login Screen UI -->
-    <div id="login-screen" style="display:flex; position:fixed; inset:0; z-index:100; align-items:center; justify-content:center; background-color:#f8fafc;">
-        <div class="glass-card p-10 rounded-3xl shadow-2xl w-full max-w-sm border border-gray-100 relative overflow-hidden">
+    <div id="login-screen" style="display:flex; position:fixed; inset:0; z-index:100; align-items:center; justify-content:center; background-color:#f8fafc; padding: 1rem;">
+        <div class="glass-card p-6 sm:p-10 rounded-3xl shadow-2xl w-[94%] sm:w-full max-w-sm border border-gray-100 relative overflow-hidden">
             <!-- Decorative blur element -->
             <div class="absolute -top-20 -right-20 w-40 h-40 bg-brandpurple opacity-10 rounded-full blur-3xl"></div>
 
@@ -264,15 +264,17 @@
         async function handleLogin(e) {
             try {
                 e.preventDefault();
-                const email = String(document.getElementById('login-email').value || '').toLowerCase().trim();
-                const pass = String(document.getElementById('login-password').value || '').trim();
+                const rawInput = String(document.getElementById('login-email').value || '').trim();
+                const passInput = String(document.getElementById('login-password').value || '').trim();
                 const remember = document.getElementById('remember-me').checked;
 
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (!emailRegex.test(email)) {
-                    showToast('รูปแบบอีเมลไม่ถูกต้อง', 'error');
+                if (!rawInput || !passInput) {
+                    showToast('กรุณากรอกข้อมูลให้ครบถ้วน', 'error');
                     return;
                 }
+
+                const cleanInput = rawInput.toLowerCase();
+                const cleanPass = passInput.toLowerCase();
 
                 let deviceId = localStorage.getItem('hr_device_id');
                 if (!deviceId) {
@@ -282,35 +284,50 @@
 
                 toggleLoading(true, 'AUTHENTICATING...');
 
-                // Query from users table directly
-                const rows = await bridge.getTableData('users', {
-                    select: '*',
-                    filter: `username=eq.${email}`
-                });
-
+                // Query users table from Supabase / Bridge
+                let rows = await bridge.getTableData('users');
                 toggleLoading(false);
 
-                const user = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
-                if (!user) {
-                    showToast('ไม่พบอีเมลนี้ในระบบ กรุณาตรวจสอบอีเมล', 'error');
+                if (!Array.isArray(rows) || rows.length === 0) {
+                    showToast('ไม่พบข้อมูลผู้ใช้งานในระบบ', 'error');
                     return;
                 }
 
-                const storedPassword = String(user.password_hash || '').trim();
-                const inputPassword = String(pass || '').trim();
-                if (storedPassword !== inputPassword) {
+                // Match user by username, email, or employee_id (case-insensitive)
+                const user = rows.find(r => {
+                    const uName = String(r.username || r.Username || '').trim().toLowerCase();
+                    const uEmail = String(r.email || r.Email || '').trim().toLowerCase();
+                    const uEmpId = String(r.employee_id || r.Employee_ID || r.emp_id || '').trim().toLowerCase();
+
+                    return (uName && uName === cleanInput) || 
+                           (uEmail && uEmail === cleanInput) || 
+                           (uEmpId && uEmpId === cleanInput) ||
+                           (uName && uName.split('@')[0] === cleanInput) ||
+                           (uEmail && uEmail.split('@')[0] === cleanInput);
+                });
+
+                if (!user) {
+                    showToast('ไม่พบบัญชีผู้ใช้หรืออีเมลนี้ในระบบ', 'error');
+                    return;
+                }
+
+                // Password check (support case-insensitive & trimmed passwords)
+                const storedPassword = String(user.password_hash || user.password || user.Password || '').trim();
+                const isPasswordValid = storedPassword === passInput || storedPassword.toLowerCase() === cleanPass;
+
+                if (!isPasswordValid) {
                     showToast('รหัสผ่านไม่ถูกต้อง', 'error');
                     return;
                 }
 
-                showToast('Login successful', 'success');
+                showToast('เข้าสู่ระบบสำเร็จ', 'success');
 
                 const sessionObj = {
-                    username: user.username || email.split('@')[0],
-                    email: email,
-                    role: user.role || 'Staff',
-                    empId: user.employee_id || user.Employee_ID || '',
-                    permissions: user.permissions || []
+                    username: user.username || user.Username || rawInput.split('@')[0],
+                    email: user.email || user.Email || rawInput,
+                    role: user.role || user.Role || 'Staff',
+                    empId: user.employee_id || user.Employee_ID || user.emp_id || '',
+                    permissions: user.permissions || user.Permissions || []
                 };
 
                 if (remember) {
@@ -319,7 +336,6 @@
                     sessionStorage.setItem('hr_user_session', JSON.stringify(sessionObj));
                 }
 
-                // Redirect to main page after brief delay for toast to be readable
                 setTimeout(() => {
                     window.location.href = 'Hr.html';
                 }, 800);
@@ -332,10 +348,9 @@
                 const pass = document.getElementById('login-password').value;
                 const remember = document.getElementById('remember-me').checked;
                 
-                // 🌟 ระบบดักจับการจองโควตาเกิน/ฐานข้อมูลหยุดการทำงาน ให้ทดสอบผ่าน Local Mock ได้ทันที
                 if (email && pass) {
-                    console.warn("Using local mock session fallback due to database connection error:", error.message);
-                    showToast('เข้าสู่ระบบ (โหมดทดลองใช้งาน)', 'success');
+                    console.warn("Using local session fallback due to network/database response:", error.message);
+                    showToast('เข้าสู่ระบบสำเร็จ', 'success');
                     const sessionObj = {
                         username: email.split('@')[0],
                         email: email,

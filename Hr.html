@@ -235,7 +235,7 @@
                 RanKing: 'RanKing', 'Reward Level': 'Reward Level', Photos: 'Photos', 'Is Evaluator': 'is_evaluator'
             },
             users: { 'Employee_ID': 'employee_id', 'Email': 'username', 'Password ': 'password_hash', Role: 'role', 'Device ID': 'device_id', Permissions: 'permissions' },
-            fingerprint_logs: { Log_ID: 'log_id', Employee_ID: 'employee_id', Full_Name: 'full_name', Date: 'date', Shift_Start: 'shift_start', Shift_End: 'shift_end', Check_In: 'check_in', Check_Out: 'check_out', Attendance_Status: 'attendance_status', Late_Hours: 'late_hours', Early_Leave_Hours: 'early_leave_hours', OT_Amount: 'ot_amount' },
+            fingerprint_logs: { Log_ID: 'Log_ID', Employee_ID: 'Employee_ID', Full_Name: 'Full_Name', Date: 'Date', Shift_Start: 'Shift_Start', Shift_End: 'Shift_End', Check_In: 'Check_In', Check_Out: 'Check_Out', Attendance_Status: 'Attendance_Status', Late_Hours: 'Late_Hours', Early_Leave_Hours: 'Early_Leave_Hours', OT_Amount: 'OT_Amount' },
             announcements: { ID: 'announcement_id', Date: 'announcement_date', Type: 'type', Topic: 'topic', Photo: 'photo', Status: 'status' },
             news: { ID: 'news_id', Date: 'news_date', Type: 'type', Topic: 'topic', Content: 'content', Photo: 'photo', Status: 'status', Audience: 'audience' },
             departments: { Department_ID: 'department_id', Department_Name: 'department_name', Manager_ID: 'manager_id', 'Employees count': 'employees_count', Status: 'status' },
@@ -477,18 +477,25 @@
                 // 🛠️ เลือกเฉพาะคอลัมน์ที่ใช้จริงแทน '*' — โดยเฉพาะ staff และ leave_applications
                 // ที่มีคอลัมน์ base64 ขนาดใหญ่ (Photos / Signature / Photo) ซึ่ง Dashboard ไม่ได้ใช้แสดงผล
                 // asset_tracking / training ใช้แค่ .length (นับจำนวน) จึงขอแค่คอลัมน์ id มาพอ
-                const [staffRows, logRows, leaveRows, assetRows, trainingRows] = await Promise.all([
+                let logRows = [];
+                try {
+                    logRows = await bridge.getTableData('fingerprint_logs', {
+                        select: '*',
+                        filter: logFilter ? logFilter.replace(/date=/g, 'Date=') : undefined
+                    });
+                } catch (e) {
+                    try {
+                        logRows = await bridge.getTableData('fingerprint_logs', { select: '*', filter: logFilter });
+                    } catch (e2) {
+                        logRows = await bridge.getTableData('fingerprint_logs', { select: '*' });
+                    }
+                }
+
+                const [staffRows, leaveRows, assetRows, trainingRows] = await Promise.all([
                     bridge.getTableData('staff', { select: 'Employee_ID' }),
-                    bridge.getTableData('fingerprint_logs', {
-                        select: 'employee_id,late_hours,early_leave_hours,attendance_status,ot_amount',
-                        filter: logFilter
-                    }),
-                    bridge.getTableData('leave_applications', {
-                        select: 'leave_id,employee_id,prefix,first_name,last_name,department_id,position_id,contact,object,leave_type,start_date,end_date,total_days,work_handover,status',
-                        filter: leaveFilter
-                    }),
-                    bridge.getTableData('asset_tracking', { select: 'asset_id' }),
-                    bridge.getTableData('training', { select: 'course_id' }),
+                    bridge.getTableData('leave_applications', { select: '*' }).catch(() => []),
+                    bridge.getTableData('asset_tracking', { select: '*' }).catch(() => []),
+                    bridge.getTableData('training', { select: '*' }).catch(() => [])
                 ]);
 
                 // 3. ประมวลผลและส่งกลับให้หน้าเว็บ
@@ -767,12 +774,18 @@
                 let rows;
                 try {
                     rows = await bridge.getTableData('fingerprint_logs', {
-                        select: 'employee_id,date,check_in,check_out,attendance_status',
-                        filter: `employee_id=eq.${encodeURIComponent(empId)}&date=eq.${today}`
+                        select: '*',
+                        filter: `Employee_ID=eq.${encodeURIComponent(empId)}&Date=eq.${today}`
                     });
                 } catch (filterErr) {
-                    console.warn('[getTodayAttendance] server filter failed, falling back to full fetch:', filterErr);
-                    rows = await bridge.getTableData('fingerprint_logs', { select: '*' });
+                    try {
+                        rows = await bridge.getTableData('fingerprint_logs', {
+                            select: '*',
+                            filter: `employee_id=eq.${encodeURIComponent(empId)}&date=eq.${today}`
+                        });
+                    } catch (e) {
+                        rows = await bridge.getTableData('fingerprint_logs', { select: '*' });
+                    }
                 }
                 const row = (rows || []).find(r =>
                     String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === empId &&
@@ -796,16 +809,21 @@
                 const timeStr = now.toTimeString().slice(0, 5); // "HH:MM"
 
                 // Fetch today's log for this employee
-                // 🛠️ กรองที่ server เหมือนกับ getTodayAttendance ด้านบน (มี fallback ถ้า filter พลาด)
                 let allLogs;
                 try {
                     allLogs = await bridge.getTableData('fingerprint_logs', {
                         select: '*',
-                        filter: `employee_id=eq.${encodeURIComponent(formattedEmpId)}&date=eq.${todayStr}`
+                        filter: `Employee_ID=eq.${encodeURIComponent(formattedEmpId)}&Date=eq.${todayStr}`
                     });
                 } catch (filterErr) {
-                    console.warn('[recordAttendance] server filter failed, falling back to full fetch:', filterErr);
-                    allLogs = await bridge.getTableData('fingerprint_logs', { select: '*' });
+                    try {
+                        allLogs = await bridge.getTableData('fingerprint_logs', {
+                            select: '*',
+                            filter: `employee_id=eq.${encodeURIComponent(formattedEmpId)}&date=eq.${todayStr}`
+                        });
+                    } catch (e) {
+                        allLogs = await bridge.getTableData('fingerprint_logs', { select: '*' });
+                    }
                 }
                 const existingLog = (allLogs || []).find(r =>
                     String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === formattedEmpId &&
@@ -887,6 +905,26 @@
                 }
 
                 return { success: false, message: 'Invalid scan type.' };
+            }
+
+            if (method === 'updateStaffProfile' || method === 'updateMyProfile') {
+                const [empId, payload] = args;
+                const formattedEmpId = String(empId || '').trim().toUpperCase();
+                try {
+                    let updated = await bridge.updateRow('staff', 'employee_id', formattedEmpId, payload);
+                    if (!updated || (Array.isArray(updated) && updated.length === 0)) {
+                        updated = await bridge.updateRow('staff', 'Employee_ID', formattedEmpId, payload);
+                    }
+                    if (tableCache['staff'] && Array.isArray(tableCache['staff'].data)) {
+                        const idx = tableCache['staff'].data.findIndex(r => String(r.employee_id || r.Employee_ID || '').trim().toUpperCase() === formattedEmpId);
+                        if (idx !== -1) {
+                            Object.assign(tableCache['staff'].data[idx], payload);
+                        }
+                    }
+                    return { success: true, data: updated };
+                } catch (e) {
+                    return { success: false, message: e.message };
+                }
             }
 
             if (method === 'uploadImageToDrive') {
@@ -2061,7 +2099,7 @@
                                     <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><i
                                             class="fa-solid fa-search text-gray-400"></i></div>
                                     <input type="text" id="searchInput" onkeyup="filterData()"
-                                        placeholder="Search records..."
+                                        placeholder="Search records..." data-i18n-placeholder="search_placeholder"
                                         class="bg-white border border-gray-300 text-gray-900 font-medium text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full pl-11 p-3 transition-all placeholder-gray-400 shadow-sm">
                                 </div>
                             </div>
@@ -2069,7 +2107,7 @@
                             <div class="flex items-center gap-2 w-full lg:w-auto">
                                 <button id="btn-add-record" onclick="openFormModal()"
                                     class="w-full sm:w-auto text-white bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-600 font-bold rounded-xl text-sm px-6 py-3 flex items-center justify-center shadow-lg shadow-indigo-500/30 transition-all transform hover:-translate-y-0.5 shrink-0">
-                                    <i class="fa-solid fa-plus mr-2"></i> Add Record
+                                    <i class="fa-solid fa-plus mr-2"></i> <span data-i18n="add_record">Add Record</span>
                                 </button>
                             </div>
 
@@ -2080,8 +2118,7 @@
                     <div id="calendar-section" class="hidden mb-6 glass-card rounded-2xl p-5 lg:p-8 print-hide">
                         <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-5">
                             <h3 class="text-base font-bold text-gray-900 flex items-center gap-3 tracking-wide"><i
-                                    class="fa-regular fa-calendar-days text-brandindigo text-lg"></i> Attendance
-                                Calendar</h3>
+                                    class="fa-regular fa-calendar-days text-brandindigo text-lg"></i> <span data-i18n="attendance_calendar">Attendance Calendar</span></h3>
                             <div class="flex items-center gap-3 w-full md:w-auto flex-wrap md:flex-nowrap">
 
                                 <select id="attendance-dept-filter"
@@ -2101,7 +2138,7 @@
                                     <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                                         <i class="fa-solid fa-user-magnifying-glass text-gray-400"></i>
                                     </div>
-                                    <input type="text" id="calendarEmpId" placeholder="Search Emp ID/Name"
+                                    <input type="text" id="calendarEmpId" placeholder="Search Emp ID/Name" data-i18n-placeholder="search_emp_id"
                                         autocomplete="off"
                                         class="bg-white border border-gray-300 text-gray-900 font-medium text-sm rounded-xl focus:ring-brandindigo block w-full pl-10 p-2.5 uppercase transition-all placeholder-gray-400 shadow-sm"
                                         onfocus="showEmpDropdown()"
@@ -2114,35 +2151,35 @@
 
                                 <button onclick="window.print()"
                                     class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2 w-full md:w-auto shadow-sm hover:text-brandindigo">
-                                    <i class="fa-solid fa-print"></i> Export
+                                    <i class="fa-solid fa-print"></i> <span data-i18n="btn_export">Export</span>
                                 </button>
 
                             </div>
                         </div>
                         <div
                             class="grid grid-cols-7 text-center font-bold text-[11px] text-gray-500 uppercase tracking-widest mb-3">
-                            <div>Sun</div>
-                            <div>Mon</div>
-                            <div>Tue</div>
-                            <div>Wed</div>
-                            <div>Thu</div>
-                            <div>Fri</div>
-                            <div>Sat</div>
+                            <div data-i18n="sun">Sun</div>
+                            <div data-i18n="mon">Mon</div>
+                            <div data-i18n="tue">Tue</div>
+                            <div data-i18n="wed">Wed</div>
+                            <div data-i18n="thu">Thu</div>
+                            <div data-i18n="fri">Fri</div>
+                            <div data-i18n="sat">Sat</div>
                         </div>
                         <div id="attendance-calendar-grid" class="grid grid-cols-7 gap-2 md:gap-3"></div>
                         <div
                             class="mt-6 flex flex-wrap items-center justify-center gap-6 text-xs text-gray-600 font-bold">
                             <div class="flex items-center gap-2"><span
                                     class="w-3 h-3 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></span>
-                                Present</div>
+                                <span data-i18n="status_present">Present</span></div>
                             <div class="flex items-center gap-2"><span
                                     class="w-3 h-3 rounded-full bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.5)]"></span>
-                                Absent</div>
+                                <span data-i18n="status_absent">Absent</span></div>
                             <div class="flex items-center gap-2"><span
                                     class="w-3 h-3 rounded-full bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]"></span>
-                                On Leave</div>
+                                <span data-i18n="status_absent_leave">On Leave</span></div>
                             <div class="flex items-center gap-2"><span
-                                    class="w-3 h-3 rounded bg-gray-200 border border-gray-300"></span> Weekend</div>
+                                    class="w-3 h-3 rounded bg-gray-200 border border-gray-300"></span> <span data-i18n="weekend">Weekend</span></div>
                         </div>
                     </div>
 
@@ -2338,27 +2375,27 @@
 
     <!-- 📌 Modal Form -->
     <div id="form-modal"
-        class="fixed inset-0 bg-gray-900/60 hidden z-50 flex items-center justify-center pointer-events-auto p-4 backdrop-blur-sm">
+        class="fixed inset-0 bg-gray-900/60 hidden z-50 flex items-center justify-center pointer-events-auto p-2 sm:p-4 backdrop-blur-sm">
         <div
-            class="bg-white border border-gray-200 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] transform transition-all overflow-hidden">
-            <div class="flex justify-between items-center p-6 border-b border-gray-100 bg-gray-50/50">
-                <h3 class="text-lg font-bold text-gray-900 flex items-center tracking-tight" id="modal-title"><i
-                        class="fa-solid fa-pen-to-square text-brandindigo mr-3"></i> Add Record</h3>
+            class="bg-white border border-gray-200 rounded-2xl shadow-2xl w-[96%] sm:w-full max-w-2xl flex flex-col max-h-[92vh] transform transition-all overflow-hidden">
+            <div class="flex justify-between items-center p-4 sm:p-6 border-b border-gray-100 bg-gray-50/50">
+                <h3 class="text-base sm:text-lg font-bold text-gray-900 flex items-center tracking-tight" id="modal-title"><i
+                        class="fa-solid fa-pen-to-square text-brandindigo mr-3"></i> <span data-i18n="add_record">Add Record</span></h3>
                 <button onclick="closeFormModal()"
                     class="text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-lg p-2 transition-colors"><i
                         class="fa-solid fa-xmark text-lg w-5 h-5 flex items-center justify-center"></i></button>
             </div>
-            <div class="p-6 md:p-8 overflow-y-auto w-full custom-scrollbar">
+            <div class="p-4 sm:p-6 md:p-8 overflow-y-auto w-full custom-scrollbar">
                 <form id="dynamic-form" onsubmit="submitData(event)">
-                    <div id="form-fields" class="grid grid-cols-1 sm:grid-cols-2 gap-6"></div>
+                    <div id="form-fields" class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6"></div>
                 </form>
             </div>
-            <div class="flex items-center p-5 border-t border-gray-100 justify-end space-x-4 bg-gray-50/80">
+            <div class="flex flex-col-reverse sm:flex-row items-stretch sm:items-center p-4 sm:p-5 border-t border-gray-100 justify-end gap-2 sm:gap-4 space-x-0 sm:space-x-4 bg-gray-50/80">
                 <button onclick="closeFormModal()" type="button"
-                    class="px-6 py-2.5 bg-white border border-gray-300 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">Cancel</button>
+                    class="w-full sm:w-auto px-6 py-2.5 bg-white border border-gray-300 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm text-center"><span data-i18n="btn_cancel">Cancel</span></button>
                 <button type="submit" form="dynamic-form"
-                    class="px-6 py-2.5 bg-gradient-to-r from-brandindigo to-brandpurple text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-500/20 transition-transform hover:-translate-y-0.5 flex items-center"><i
-                        class="fa-solid fa-cloud-arrow-up mr-2"></i> Save Data</button>
+                    class="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-brandindigo to-brandpurple text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-500/20 transition-transform hover:-translate-y-0.5 flex items-center justify-center"><i
+                        class="fa-solid fa-cloud-arrow-up mr-2"></i> <span data-i18n="save_data">Save Data</span></button>
             </div>
         </div>
     </div>
@@ -2459,7 +2496,7 @@
                 <div class="px-6 py-4 md:px-8 md:py-5 border-t border-gray-100 flex justify-end shrink-0 bg-white">
                     <button onclick="closePolicyModal()"
                         class="px-8 py-3 bg-gray-100 hover:bg-gray-200 border border-transparent text-gray-700 font-bold rounded-xl text-sm transition-colors shadow-sm">
-                        ปิดหน้าต่าง
+                        <span data-i18n="btn_close">ปิดหน้าต่าง</span>
                     </button>
                 </div>
             </div>
@@ -2518,7 +2555,7 @@
                 <div class="px-6 py-4 md:px-8 md:py-5 border-t border-gray-100 flex justify-end shrink-0 bg-white">
                     <button onclick="closeDocumentModal()"
                         class="px-8 py-3 bg-gray-100 hover:bg-gray-200 border border-transparent text-gray-700 font-bold rounded-xl text-sm transition-colors shadow-sm">
-                        ปิดหน้าต่าง
+                        <span data-i18n="btn_close">ปิดหน้าต่าง</span>
                     </button>
                 </div>
             </div>
@@ -2564,7 +2601,7 @@
                 <div class="px-6 py-4 md:px-8 md:py-5 border-t border-gray-100 flex justify-end shrink-0 bg-white">
                     <button onclick="closeAnnouncementModal()"
                         class="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-sm transition-colors shadow-sm">
-                        ปิดหน้าต่าง
+                        <span data-i18n="btn_close">ปิดหน้าต่าง</span>
                     </button>
                 </div>
 
@@ -2616,7 +2653,7 @@
                 <div class="mt-6 flex justify-end">
                     <button onclick="closeTrainingDetail()"
                         class="px-8 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-sm transition-colors shadow-sm">
-                        ปิดหน้าต่าง
+                        <span data-i18n="btn_close">ปิดหน้าต่าง</span>
                     </button>
                 </div>
             </div>
@@ -2955,10 +2992,10 @@
 
     <!-- 📌 My Profile Modal -->
     <div id="my-profile-modal"
-        class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
-        <div class="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in-up">
+        class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-3 sm:p-4">
+        <div class="bg-white rounded-3xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-fade-in-up">
             <div
-                class="bg-gradient-to-r from-brandindigo to-brandpurple p-5 flex justify-between items-center text-white relative overflow-hidden">
+                class="bg-gradient-to-r from-brandindigo to-brandpurple p-4 sm:p-5 flex justify-between items-center text-white relative overflow-hidden shrink-0">
                 <div
                     class="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-xl -translate-y-1/2 translate-x-1/3 pointer-events-none">
                 </div>
@@ -2969,75 +3006,77 @@
                 </button>
             </div>
 
-            <form id="form-my-profile" onsubmit="submitMyProfile(event)" class="p-6 space-y-4">
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="FIRST_NAME">First Name</label>
-                        <input type="text" id="my-profile-firstname" required
-                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="LAST_NAME">Last Name</label>
-                        <input type="text" id="my-profile-lastname" required
-                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="birthday">Birthday</label>
-                        <input type="date" id="my-profile-birthday" required
-                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="tel">Phone</label>
-                        <input type="text" id="my-profile-tel"
-                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all"
-                            placeholder="020...">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="email">Email</label>
-                        <input type="email" id="my-profile-email" required
-                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all"
-                            placeholder="email@example.com">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="line_id">Line ID</label>
-                        <input type="text" id="my-profile-line"
-                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all"
-                            placeholder="Line ID">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Bank Name</label>
-                        <input type="text" id="my-profile-bankname"
-                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all"
-                            placeholder="Bank Name">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Bank Account Name</label>
-                        <input type="text" id="my-profile-bankaccountname"
-                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all"
-                            placeholder="Account Name">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Bank Account No</label>
-                        <input type="text" id="my-profile-bankaccountno"
-                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all"
-                            placeholder="Account Number">
-                    </div>
-                    <div class="sm:col-span-2">
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Profile Photo</label>
-                        <div class="flex items-center gap-4">
-                            <div class="w-16 h-16 rounded-full overflow-hidden border border-gray-200 bg-gray-50 shrink-0">
-                                <img id="my-profile-photo-preview" src="https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=User" class="w-full h-full object-cover">
+            <form id="form-my-profile" onsubmit="submitMyProfile(event)" class="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div class="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="FIRST_NAME">First Name</label>
+                            <input type="text" id="my-profile-firstname" required
+                                class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="LAST_NAME">Last Name</label>
+                            <input type="text" id="my-profile-lastname" required
+                                class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="birthday">Birthday</label>
+                            <input type="date" id="my-profile-birthday" required
+                                class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="tel">Phone</label>
+                            <input type="text" id="my-profile-tel"
+                                class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all"
+                                placeholder="020...">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="email">Email</label>
+                            <input type="email" id="my-profile-email" required
+                                class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all"
+                                placeholder="email@example.com">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="line_id">Line ID</label>
+                            <input type="text" id="my-profile-line"
+                                class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all"
+                                placeholder="Line ID">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="bank_name">Bank Name</label>
+                            <input type="text" id="my-profile-bankname"
+                                class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all"
+                                placeholder="Bank Name" data-i18n-placeholder="enter_bank_name">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="bank_account_name">Bank Account Name</label>
+                            <input type="text" id="my-profile-bankaccountname"
+                                class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all"
+                                placeholder="Account Name" data-i18n-placeholder="enter_account_name">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="bank_account_no">Bank Account No</label>
+                            <input type="text" id="my-profile-bankaccountno"
+                                class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all"
+                                placeholder="Account Number" data-i18n-placeholder="enter_account_number">
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="photo_label">Profile Photo</label>
+                            <div class="flex items-center gap-4">
+                                <div class="w-16 h-16 rounded-full overflow-hidden border border-gray-200 bg-gray-50 shrink-0">
+                                    <img id="my-profile-photo-preview" src="https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=User" class="w-full h-full object-cover">
+                                </div>
+                                <input type="file" id="my-profile-photo-file" accept="image/*"
+                                    class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-white file:text-brandindigo hover:file:bg-indigo-100 transition-colors border border-dashed border-indigo-200 rounded-xl p-2 bg-white"
+                                    onchange="if(this.files[0]){ let r = new FileReader(); r.onload=e=>document.getElementById('my-profile-photo-preview').src=e.target.result; r.readAsDataURL(this.files[0]); }">
+                                <input type="hidden" id="my-profile-photo-url">
                             </div>
-                            <input type="file" id="my-profile-photo-file" accept="image/*"
-                                class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-white file:text-brandindigo hover:file:bg-indigo-100 transition-colors border border-dashed border-indigo-200 rounded-xl p-2 bg-white"
-                                onchange="if(this.files[0]){ let r = new FileReader(); r.onload=e=>document.getElementById('my-profile-photo-preview').src=e.target.result; r.readAsDataURL(this.files[0]); }">
-                            <input type="hidden" id="my-profile-photo-url">
                         </div>
                     </div>
                 </div>
-                <div class="pt-4 flex justify-end gap-2">
+                <div class="p-4 bg-gray-50/90 border-t border-gray-100 flex justify-end gap-2 shrink-0">
                     <button type="button" onclick="closeMyProfileModal()"
-                        class="px-5 py-2.5 bg-gray-100 text-gray-700 hover:bg-gray-200 font-bold rounded-xl text-sm transition-all"
+                        class="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 font-bold rounded-xl text-sm transition-all shadow-sm"
                         data-i18n="cancel">Cancel</button>
                     <button type="submit"
                         class="text-white bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-700 font-bold rounded-xl text-sm px-6 py-2.5 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 flex items-center">
