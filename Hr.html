@@ -257,6 +257,9 @@
             const map = COL_MAP[table] || {};
             const out = {};
             Object.keys(dataObj || {}).forEach(k => {
+                if (Object.keys(map).length > 0 && !map[k]) {
+                    return;
+                }
                 const mapped = map[k] || k;
                 let val = dataObj[k];
                 if (mapped === 'is_evaluator') {
