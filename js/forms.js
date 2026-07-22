@@ -6,6 +6,128 @@
  * 📌 ส่วนที่ 18: DATA ENTRY FORM (ฟังก์ชันฟอร์มเพิ่ม/แก้ไขข้อมูล)
  * - เปิดฟอร์มเพื่อกรอกข้อมูลหรือแก้ไขข้อมูลพนักงาน/การเข้างาน/ตารางกะ ฯลฯ
  * ===================================================================== */
+/* =====================================================================
+ * 📌 Helper i18n & Validation Functions
+ * ===================================================================== */
+function getFieldI18nKey(h) {
+    if (!h) return '';
+    const lw = String(h).trim().toLowerCase().replace(/[\s_]+/g, '');
+    if (lw === 'employeeid' || lw === 'empid' || lw === 'employeesid' || lw === 'id') return 'employee_id_label';
+    if (lw === 'prefix') return 'prefix_label';
+    if (lw === 'firstname' || lw === 'first') return 'first_name_label';
+    if (lw === 'lastname' || lw === 'last') return 'last_name_label';
+    if (lw === 'departmentid' || lw === 'department') return 'department_label';
+    if (lw === 'positionid' || lw === 'position') return 'position_label';
+    if (lw === 'contact' || lw === 'phone' || lw === 'tel') return 'contact_label';
+    if (lw === 'email') return 'email_label';
+    if (lw === 'role') return 'role_label';
+    if (lw === 'status') return 'status_label';
+    if (lw === 'basesalary' || lw === 'salary') return 'base_salary_label';
+    if (lw === 'dailyrateformula' || lw === 'dailyrate') return 'daily_rate_label';
+    if (lw === 'isevaluator' || lw === 'evaluator') return 'is_evaluator_label';
+    if (lw.includes('start') && lw.includes('date')) return 'start_date_label';
+    if (lw.includes('end') && lw.includes('date')) return 'end_date_label';
+    if (lw.includes('total') || lw.includes('days')) return 'total_days_label';
+    if (lw.includes('handover') || lw.includes('work')) return 'work_handover_label';
+    if (lw === 'object' || lw === 'reason') return 'reason_label';
+    if (lw === 'type') return 'type_label';
+    if (lw === 'category') return 'category_label';
+    if (lw === 'comment' || lw === 'remark') return 'comment_label';
+    if (lw === 'giveby') return 'give_by_label';
+    if (lw === 'starpoint' || lw === 'score') return 'star_point_label';
+    if (lw.includes('rating') && lw.includes('date')) return 'rating_date_label';
+    if (lw === 'audience') return 'audience_label';
+    if (lw === 'format') return 'format_label';
+    if (lw === 'photo' || lw === 'profile' || lw === 'attachment') return 'photo_label';
+    if (lw === 'permissions') return 'permissions_label';
+    return String(h).trim();
+}
+
+function getFieldLabel(h) {
+    const key = getFieldI18nKey(h);
+    if (typeof t === 'function') {
+        const val = t(key);
+        if (val && val !== key) return val;
+    }
+    return h;
+}
+
+function getFieldPlaceholderKey(h) {
+    if (!h) return 'enter_details';
+    const lw = String(h).trim().toLowerCase().replace(/[\s_]+/g, '');
+    if (lw === 'employeeid' || lw === 'empid' || lw === 'employeesid') return 'enter_employee_id';
+    if (lw === 'firstname') return 'enter_first_name';
+    if (lw === 'lastname') return 'enter_last_name';
+    if (lw === 'email') return 'enter_email';
+    if (lw === 'comment' || lw === 'remark') return 'enter_comment';
+    if (lw === 'prefix') return 'select_prefix';
+    if (lw === 'positionid' || lw === 'position') return 'select_position';
+    if (lw === 'departmentid' || lw === 'department') return 'select_department';
+    if (lw === 'role') return 'select_role';
+    if (lw === 'status') return 'select_status';
+    if (lw === 'format') return 'select_format';
+    if (lw === 'giveby') return 'select_evaluator';
+    return 'enter_details';
+}
+
+function getFieldPlaceholder(h) {
+    const key = getFieldPlaceholderKey(h);
+    if (typeof t === 'function') {
+        const val = t(key);
+        if (val && val !== key) return val;
+    }
+    const label = getFieldLabel(h);
+    const lang = typeof getCurrentLanguage === 'function' ? getCurrentLanguage() : 'la';
+    if (lang === 'la') {
+        return 'ປ້ອນ' + label + '...';
+    }
+    return 'Enter ' + label + '...';
+}
+
+function checkDuplicateEmployeeId(inputEl) {
+    if (!inputEl) return false;
+    const val = inputEl.value.trim();
+    const isEditing = Boolean(editingRecordId);
+    let container = inputEl.parentElement;
+    let warningEl = container.querySelector('#emp-id-duplicate-alert');
+
+    if (!warningEl) {
+        warningEl = document.createElement('div');
+        warningEl.id = 'emp-id-duplicate-alert';
+        container.appendChild(warningEl);
+    }
+
+    if (!val || isEditing) {
+        warningEl.innerHTML = '';
+        inputEl.classList.remove('border-red-500', 'bg-red-50', 'border-emerald-500', 'bg-emerald-50');
+        return false;
+    }
+
+    let staffRows = (tableCache['staff'] && tableCache['staff'].data) || rawData || [];
+    let userRows = (tableCache['user'] && tableCache['user'].data) || [];
+    let allRows = [...staffRows, ...userRows];
+
+    const targetUpper = val.toUpperCase();
+    const isDuplicate = allRows.some(r => {
+        let eId = getFuzzyValue(r, ['employee_id', 'emp_id', 'employees id', 'staff_id', 'id', 'username']);
+        return eId && String(eId).trim().toUpperCase() === targetUpper;
+    });
+
+    if (isDuplicate) {
+        inputEl.classList.add('border-red-500', 'bg-red-50');
+        inputEl.classList.remove('border-emerald-500', 'bg-emerald-50');
+        warningEl.className = 'mt-2 text-xs font-bold flex items-center gap-1.5 p-2.5 bg-red-50 text-red-600 rounded-xl border border-red-200 shadow-sm';
+        warningEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-red-500 text-sm"></i> <span data-i18n="emp_id_exists">${t('emp_id_exists')}</span> (${val})`;
+        return true;
+    } else {
+        inputEl.classList.remove('border-red-500', 'bg-red-50');
+        inputEl.classList.add('border-emerald-500', 'bg-emerald-50');
+        warningEl.className = 'mt-2 text-xs font-bold flex items-center gap-1.5 p-2.5 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-200 shadow-sm';
+        warningEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500 text-sm"></i> <span data-i18n="emp_id_available">${t('emp_id_available')}</span>`;
+        return false;
+    }
+}
+
 function getRatingFormValue(rowData, names) {
     for (const name of names) {
         const found = Object.keys(rowData || {}).find(k => String(k).toLowerCase().trim() === String(name).toLowerCase().trim());
@@ -58,20 +180,20 @@ function renderEmployeeRatingForm(rowData = {}) {
                     <input type="hidden" name="Status" value="${String(status).replace(/"/g, '&quot;')}">
                     
                     <div class="col-span-1 sm:col-span-2 bg-indigo-50/60 p-5 rounded-2xl border border-indigo-100 mb-2">
-                        <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">รหัสพนักงาน (EMPLOYEES ID) <span class="text-brandindigo">*</span></label>
+                        <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="employee_id_label">${t('employee_id_label')}</span> <span class="text-brandindigo">*</span></label>
                         <select id="rating-employee-select" name="Employees Id" required onchange="if(typeof onRatingEmployeeSelected === 'function') onRatingEmployeeSelected(this.value)" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
-                            <option value="${String(empId).replace(/"/g, '&quot;')}" selected>${empId ? empId : 'Loading staff...'}</option>
+                            <option value="${String(empId).replace(/"/g, '&quot;')}" selected>${empId ? empId : t('loading')}</option>
                         </select>
                     </div>
                     
-                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">ชื่อพนักงาน (NAME) <span class="text-brandindigo">*</span></label><input id="rating-employee-name" type="text" name="Employees Name" value="${String(empName).replace(/"/g, '&quot;')}" required readonly class="bg-gray-50 border border-gray-300 text-gray-600 text-sm rounded-xl block w-full p-3 shadow-sm cursor-not-allowed"></div>
+                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="first_name_label">${t('first_name_label')}</span> <span class="text-brandindigo">*</span></label><input id="rating-employee-name" type="text" name="Employees Name" value="${String(empName).replace(/"/g, '&quot;')}" required readonly class="bg-gray-50 border border-gray-300 text-gray-600 text-sm rounded-xl block w-full p-3 shadow-sm cursor-not-allowed"></div>
                     
-                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">วันที่ประเมิน (DATE) <span class="text-brandindigo">*</span></label><input type="date" name="Ranting Date" value="${String(ratingDate).slice(0, 10)}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"></div>
+                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="rating_date_label">${t('rating_date_label')}</span> <span class="text-brandindigo">*</span></label><input type="date" name="Ranting Date" value="${String(ratingDate).slice(0, 10)}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"></div>
                     
-                    <div class="col-span-1 sm:col-span-2"><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">คะแนนดาว (STAR POINT) <span class="text-brandindigo">*</span></label><div class="flex flex-col items-center justify-center bg-gray-50 p-4 rounded-xl border border-gray-200 min-h-[88px]"><div class="flex">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= starPoint ? 'fa-solid fa-star text-yellow-400' : 'fa-regular fa-star text-gray-300'} text-4xl cursor-pointer hover:scale-110 transition-transform mx-1" onclick="if(typeof setFormStarRating === 'function') setFormStarRating(${i})" id="form-star-${i}"></i>`).join('')}</div><p id="form-star-text" class="mt-2 text-sm font-bold text-brandindigo">${starPoint > 0 ? starPoint + ' / 5' : 'คลิกเพื่อให้คะแนน'}</p></div><input type="hidden" name="Star Point" id="hidden-star-input" value="${starPoint || ''}" required></div>
+                    <div class="col-span-1 sm:col-span-2"><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="star_point_label">${t('star_point_label')}</span> <span class="text-brandindigo">*</span></label><div class="flex flex-col items-center justify-center bg-gray-50 p-4 rounded-xl border border-gray-200 min-h-[88px]"><div class="flex">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= starPoint ? 'fa-solid fa-star text-yellow-400' : 'fa-regular fa-star text-gray-300'} text-4xl cursor-pointer hover:scale-110 transition-transform mx-1" onclick="if(typeof setFormStarRating === 'function') setFormStarRating(${i})" id="form-star-${i}"></i>`).join('')}</div><p id="form-star-text" class="mt-2 text-sm font-bold text-brandindigo" data-i18n="${starPoint > 0 ? '' : 'click_to_rate'}">${starPoint > 0 ? starPoint + ' / 5' : t('click_to_rate')}</p></div><input type="hidden" name="Star Point" id="hidden-star-input" value="${starPoint || ''}" required></div>
                     
                     <div>
-                        <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">หมวดหมู่ (CATEGORY) <span class="text-brandindigo">*</span></label>
+                        <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="category_label">${t('category_label')}</span> <span class="text-brandindigo">*</span></label>
                         <input type="text" id="rating-category-input" name="Category " value="${String(category).replace(/"/g, '&quot;')}" required
                             class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"
                             placeholder="พิมพ์หมวดหมู่ หรือกดเลือกจากแถบด้านล่าง...">
@@ -80,9 +202,9 @@ function renderEmployeeRatingForm(rowData = {}) {
                         </div>
                     </div>
                     
-                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">ข้อเสนอแนะ (COMMENT) <span class="text-brandindigo">*</span></label><input type="text" name="Comment" value="${String(comment).replace(/"/g, '&quot;')}" required placeholder="คำชมเชย / ข้อเสนอแนะ..." class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"></div>
+                    <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="comment_label">${t('comment_label')}</span> <span class="text-brandindigo">*</span></label><input type="text" name="Comment" value="${String(comment).replace(/"/g, '&quot;')}" required placeholder="${t('enter_comment')}" data-i18n-placeholder="enter_comment" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"></div>
                     
-                    <div class="col-span-1 sm:col-span-2"><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">ผู้ประเมิน (GIVE BY) <span class="text-brandindigo">*</span></label><select id="rating-give-by-select" name="Give By" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"><option value="${String(giveBy).replace(/"/g, '&quot;')}" selected>${giveBy ? giveBy : 'Loading evaluators...'}</option></select></div>
+                    <div class="col-span-1 sm:col-span-2"><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="give_by_label">${t('give_by_label')}</span> <span class="text-brandindigo">*</span></label><select id="rating-give-by-select" name="Give By" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"><option value="${String(giveBy).replace(/"/g, '&quot;')}" selected>${giveBy ? giveBy : t('loading')}</option></select></div>
                 `;
         console.log("[renderEmployeeRatingForm] HTML set. Calling loadRatingStaffOptions");
 
@@ -172,6 +294,75 @@ function onRatingEmployeeSelected(empId) {
     if (empId) autoFillEmployeeData(empId);
 }
 
+function populateUserEmailDatalist() {
+    const datalist = document.getElementById('staff-emails-list');
+    if (!datalist) return;
+
+    const buildOptions = (staffData) => {
+        let options = '';
+        (staffData || []).forEach(r => {
+            const email = String(r.Email || r.email || r.Username || r.username || '').trim();
+            const empId = String(r.Employee_ID || r.employee_id || r.emp_id || '').trim();
+            const fName = String(r.First_Name || r.first_name || r.name || '').trim();
+            const lName = String(r.Last_Name || r.last_name || '').trim();
+            const fullName = `${fName} ${lName}`.trim() || empId;
+            if (email && email !== '-') {
+                options += `<option value="${email}">${fullName} (${empId})</option>`;
+            }
+        });
+        datalist.innerHTML = options;
+    };
+
+    if (tableCache['staff'] && tableCache['staff'].data && tableCache['staff'].data.length > 0) {
+        buildOptions(tableCache['staff'].data);
+    } else {
+        google.script.run.withSuccessHandler(res => {
+            if (res && res.success && res.data) {
+                tableCache['staff'] = { headers: res.headers || [], data: res.data };
+                buildOptions(res.data);
+            }
+        }).getSheetData('staff');
+    }
+}
+
+function autoFillUserEmpIdByEmail(emailVal) {
+    if (currentSheet.toLowerCase() !== 'user') return;
+    const cleanEmail = String(emailVal || '').trim().toLowerCase();
+    if (!cleanEmail) return;
+
+    const empIdInput = document.getElementById('user-emp-id-input') || document.querySelector('#dynamic-form input[name="Employee_ID"], #dynamic-form input[name="employee_id"]');
+    if (!empIdInput) return;
+
+    const lookupAndSet = (staffData) => {
+        const match = (staffData || []).find(r => {
+            const rEmail = String(r.Email || r.email || r.Username || r.username || '').trim().toLowerCase();
+            return rEmail === cleanEmail;
+        });
+        if (match) {
+            const matchedEmpId = String(match.Employee_ID || match.employee_id || match.emp_id || '').trim();
+            if (matchedEmpId) {
+                empIdInput.value = matchedEmpId;
+                if (typeof checkDuplicateEmployeeId === 'function') {
+                    checkDuplicateEmployeeId(empIdInput);
+                }
+                empIdInput.classList.add('bg-indigo-50', 'border-brandindigo');
+                setTimeout(() => empIdInput.classList.remove('bg-indigo-50', 'border-brandindigo'), 1200);
+            }
+        }
+    };
+
+    if (tableCache['staff'] && tableCache['staff'].data && tableCache['staff'].data.length > 0) {
+        lookupAndSet(tableCache['staff'].data);
+    } else {
+        google.script.run.withSuccessHandler(res => {
+            if (res && res.success && res.data) {
+                tableCache['staff'] = { headers: res.headers || [], data: res.data };
+                lookupAndSet(res.data);
+            }
+        }).getSheetData('staff');
+    }
+}
+
 function openFormModal(rowDataStr = null) {
     editingRecordId = null;
     let rowData = {};
@@ -196,17 +387,17 @@ function openFormModal(rowDataStr = null) {
             let isNewFromQR = rowData['Ranting_Id'] === '' || rowData['rating_id'] === '';
 
             if (editingRecordId && !isNewFromQR && String(editingRecordId).trim() !== '' && !String(editingRecordId).startsWith('NEW-')) {
-                document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-pen-to-square text-brandindigo mr-3"></i> Edit Record`;
+                document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-pen-to-square text-brandindigo mr-3"></i> <span data-i18n="edit_record">${t('edit_record')}</span>`;
             } else {
-                document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-plus text-brandindigo mr-3"></i> Add Record`;
+                document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-plus text-brandindigo mr-3"></i> <span data-i18n="add_record">${t('add_record')}</span>`;
                 editingRecordId = null;
             }
         } catch (err) {
             rowData = {};
-            document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-plus text-brandindigo mr-3"></i> Add Record`;
+            document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-plus text-brandindigo mr-3"></i> <span data-i18n="add_record">${t('add_record')}</span>`;
         }
     } else {
-        document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-plus text-brandindigo mr-3"></i> Add Record`;
+        document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-plus text-brandindigo mr-3"></i> <span data-i18n="add_record">${t('add_record')}</span>`;
     }
 
     const formFields = document.getElementById('form-fields');
@@ -255,16 +446,17 @@ function openFormModal(rowDataStr = null) {
                 { id: 'Department ', name: 'Department (แผนก)' },
                 { id: 'Asset_Tracking', name: 'Assets (ทรัพย์สิน)' },
                 { id: 'Announcements', name: 'Announcements (ประกาศ)' },
+                { id: 'News', name: 'News & PR (ข่าวสาร)' },
                 { id: 'Documents ', name: 'Documents (เอกสาร)' },
                 { id: 'Training', name: 'Training (การฝึกอบรม)' },
-                { id: 'Orentation ', name: 'Orientation (ปฐมนิเทศ)' },
+                { id: 'orientation', name: 'Orientation (ปฐมนิเทศ)' },
                 { id: 'Policy ', name: 'Policy (นโยบาย)' },
                 { id: 'user', name: 'Users Management (จัดการผู้ใช้งาน)' },
                 { id: 'Employees Ranting', name: 'Employee Rating (ประเมินพนักงาน)' },
                 { id: 'KPI Records ', name: 'KPI Records (บันทึก KPI)' }
             ];
 
-            let checkedValues = val ? val.split(',').map(v => String(v).trim().toLowerCase()) : [];
+            let checkedValues = typeof parsePermissionsList === 'function' ? parsePermissionsList(val) : (val ? val.split(',').map(v => String(v).trim().toLowerCase()) : []);
 
             let checkboxesHtml = `
                         <div class="col-span-1 sm:col-span-2 bg-indigo-50/30 p-5 rounded-2xl border border-indigo-100 mt-2 mb-2">
@@ -272,7 +464,7 @@ function openFormModal(rowDataStr = null) {
                             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto custom-scrollbar p-3 bg-white rounded-xl border border-gray-200 shadow-inner">`;
 
             allMenus.forEach(menu => {
-                let isChecked = checkedValues.includes(String(menu.id).toLowerCase()) ? 'checked' : '';
+                let isChecked = (typeof isMenuPermissionChecked === 'function' ? isMenuPermissionChecked(menu.id, checkedValues) : checkedValues.includes(String(menu.id).toLowerCase())) ? 'checked' : '';
                 checkboxesHtml += `
                             <label class="flex items-center space-x-3 cursor-pointer group hover:bg-indigo-50 p-2.5 rounded-lg transition-colors border border-transparent hover:border-indigo-100">
                                 <input type="checkbox" name="${h}" value="${menu.id}" class="w-5 h-5 rounded border-gray-300 text-brandindigo focus:ring-brandindigo transition-colors shadow-sm" ${isChecked}> 
@@ -331,9 +523,9 @@ function openFormModal(rowDataStr = null) {
             formFields.insertAdjacentHTML('beforeend', `
                         <div class="col-span-1 sm:col-span-2 bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100 mb-2 relative overflow-hidden">
                             ${showQuota ? `<p class="text-xs font-bold text-gray-500 mb-4 flex items-center tracking-widest uppercase"><i class="fa-solid fa-chart-pie mr-2 text-brandindigo"></i> Leave Quota Balance: <span id="leave-quota-display" class="ml-auto bg-white px-3 py-1 rounded-lg border border-gray-200 text-gray-900 shadow-sm">Loading...</span></p>` : ''}
-                            <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
+                            <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="employee_id_label">${t('employee_id_label')}</span> <span class="text-brandindigo">*</span></label>
                             <select id="${selectId}" name="${h}" required onchange="autoFillEmployeeData(this.value)" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
-                                <option value="${safeVal}" selected>${safeVal ? safeVal : 'Loading staff data...'}</option>
+                                <option value="${safeVal}" selected data-i18n="${safeVal ? '' : 'loading'}">${safeVal ? safeVal : t('loading')}</option>
                             </select>
                         </div>
                     `);
@@ -347,7 +539,7 @@ function openFormModal(rowDataStr = null) {
                     let options = '';
 
                     if (role !== 'Staff') {
-                        options = `<option value="" disabled ${!val ? 'selected' : ''}>Select Employee...</option>`;
+                        options = `<option value="" disabled ${!val ? 'selected' : ''} data-i18n="select_employee">${t('select_employee')}</option>`;
                     }
 
                     let actualMatchedEmpId = '';
@@ -449,15 +641,25 @@ function openFormModal(rowDataStr = null) {
         if (lw === 'email' && currentSheet.toLowerCase() === 'user') {
             formFields.insertAdjacentHTML('beforeend', `
                                 <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">EMAIL <span class="text-brandindigo">*</span></label>
-                                <input type="email" name="${h}" value="${safeVal}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm" placeholder="Enter email address..."></div>
+                                <input type="email" id="user-email-input" name="${h}" value="${safeVal}" required list="staff-emails-list" oninput="autoFillUserEmpIdByEmail(this.value)" onchange="autoFillUserEmpIdByEmail(this.value)" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm" placeholder="Enter or select staff email...">
+                                <datalist id="staff-emails-list"></datalist>
+                                </div>
                             `);
+            setTimeout(() => populateUserEmailDatalist(), 50);
             return;
         }
         if (index === 0 && (currentSheet.toLowerCase() === 'staff' || currentSheet.toLowerCase() === 'user')) {
+            const labelText = getFieldLabel(h);
             formFields.insertAdjacentHTML('beforeend', `
-                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
-                                <input type="text" name="${h}" value="${val}" required placeholder="Enter ${h}..." class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"></div>
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="${lw === 'employee_id' || lw === 'emp_id' ? 'employee_id_label' : h}">${labelText}</span> <span class="text-brandindigo">*</span></label>
+                                <input type="text" id="user-emp-id-input" name="${h}" value="${val}" required oninput="checkDuplicateEmployeeId(this)" onblur="checkDuplicateEmployeeId(this)" placeholder="${t('enter_employee_id')}" data-i18n-placeholder="enter_employee_id" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                                <div id="emp-id-duplicate-alert"></div>
+                                </div>
                             `);
+            if (val) setTimeout(() => {
+                const inputEl = document.querySelector(`#dynamic-form input[name="${h.replace(/"/g, '\\"')}"]`);
+                if (inputEl) checkDuplicateEmployeeId(inputEl);
+            }, 100);
             return;
         }
 
@@ -487,19 +689,19 @@ function openFormModal(rowDataStr = null) {
 
         if (lw === 'status' && currentSheet.toLowerCase() === 'staff') {
             formFields.insertAdjacentHTML('beforeend', `
-                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h}</label>
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="status_label">${t('status_label')}</span></label>
                                 <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
-                                    <option value="Active" ${val === 'Active' ? 'selected' : ''}>Active</option>
-                                    <option value="On Leave" ${val === 'On Leave' ? 'selected' : ''}>On Leave</option>
-                                    <option value="Inactive" ${val === 'Inactive' ? 'selected' : ''}>Inactive</option>
+                                    <option value="Active" ${val === 'Active' ? 'selected' : ''} data-i18n="status_present">${t('status_present')}</option>
+                                    <option value="On Leave" ${val === 'On Leave' ? 'selected' : ''} data-i18n="status_absent_leave">${t('status_absent_leave')}</option>
+                                    <option value="Inactive" ${val === 'Inactive' ? 'selected' : ''} data-i18n="status_absent">${t('status_absent')}</option>
                                 </select></div>
                             `);
         }
         else if (lw === 'prefix' && currentSheet.toLowerCase() === 'staff') {
             formFields.insertAdjacentHTML('beforeend', `
-                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="prefix_label">${t('prefix_label')}</span> <span class="text-brandindigo">*</span></label>
                                 <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
-                                    <option value="" disabled ${!val ? 'selected' : ''}>Select Prefix...</option>
+                                    <option value="" disabled ${!val ? 'selected' : ''} data-i18n="select_prefix">${t('select_prefix')}</option>
                                     <option value="Mr" ${val === 'Mr' ? 'selected' : ''}>Mr</option>
                                     <option value="Mrs" ${val === 'Mrs' ? 'selected' : ''}>Mrs</option>
                                     <option value="Miss" ${val === 'Miss' ? 'selected' : ''}>Miss</option>
@@ -515,8 +717,8 @@ function openFormModal(rowDataStr = null) {
             formFields.insertAdjacentHTML('beforeend', `
                                 <div class="col-span-1 sm:col-span-2 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 flex items-center justify-between">
                                     <div class="min-w-0 pr-4">
-                                        <label class="block text-sm font-bold text-gray-700">สิทธิ์ผู้ประเมิน (Is Evaluator)</label>
-                                        <p class="text-xs text-gray-500 font-medium mt-1">เปิดสวิตช์หากต้องการอนุญาตให้พนักงานคนนี้ประเมิน/ให้ดาวเพื่อนร่วมงานได้</p>
+                                        <label class="block text-sm font-bold text-gray-700" data-i18n="is_evaluator_label">${t('is_evaluator_label')}</label>
+                                        <p class="text-xs text-gray-500 font-medium mt-1" data-i18n="is_evaluator_desc">${t('is_evaluator_desc')}</p>
                                     </div>
                                     <label class="relative inline-flex items-center cursor-pointer select-none">
                                         <input type="checkbox" name="${h}" value="true" ${isChecked ? 'checked' : ''} class="sr-only peer">
@@ -527,9 +729,9 @@ function openFormModal(rowDataStr = null) {
         }
         else if (lw === 'type' && currentSheet.toLowerCase() === 'announcements') {
             formFields.insertAdjacentHTML('beforeend', `
-                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="type_label">${t('type_label')}</span> <span class="text-brandindigo">*</span></label>
                                 <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
-                                    <option value="" disabled ${!val ? 'selected' : ''}>เลือกประเภทประกาศ...</option>
+                                    <option value="" disabled ${!val ? 'selected' : ''} data-i18n="select_announcement_type">${t('select_announcement_type')}</option>
                                     <option value="Company" ${val === 'Company' ? 'selected' : ''}>Company (ประกาศบริษัท)</option>
                                     <option value="Meetings" ${val === 'Meetings' ? 'selected' : ''}>Meetings (นัดประชุม)</option>
                                     <option value="Events" ${val === 'Events' ? 'selected' : ''}>Events (กิจกรรม)</option>
@@ -539,9 +741,9 @@ function openFormModal(rowDataStr = null) {
         }
         else if (lw === 'type' && currentSheet.toLowerCase() === 'news') {
             formFields.insertAdjacentHTML('beforeend', `
-                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="type_label">${t('type_label')}</span> <span class="text-brandindigo">*</span></label>
                                 <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
-                                    <option value="" disabled ${!val ? 'selected' : ''}>เลือกประเภทข่าวสาร...</option>
+                                    <option value="" disabled ${!val ? 'selected' : ''} data-i18n="select_news_type">${t('select_news_type')}</option>
                                     <option value="กิจกรรม" ${val === 'กิจกรรม' ? 'selected' : ''}>กิจกรรม (Activities)</option>
                                     <option value="บริการ" ${val === 'บริการ' ? 'selected' : ''}>บริการ (Services)</option>
                                     <option value="สินค้าใหม่" ${val === 'สินค้าใหม่' ? 'selected' : ''}>สินค้าใหม่ (New Products)</option>
@@ -551,7 +753,7 @@ function openFormModal(rowDataStr = null) {
         }
         else if (lw === 'audience' || lw === 'กลุ่มเป้าหมาย' || lw === 'เป้าหมาย') {
             formFields.insertAdjacentHTML('beforeend', `
-                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="audience_label">${t('audience_label')}</span> <span class="text-brandindigo">*</span></label>
                                 <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
                                     <option value="Public" ${val === 'Public' ? 'selected' : ''}>Public (เผยแพร่สาธารณะ)</option>
                                     <option value="Internal" ${val === 'Internal' ? 'selected' : ''}>Internal (ภายในองค์กรเท่านั้น)</option>
@@ -560,15 +762,15 @@ function openFormModal(rowDataStr = null) {
         }
         else if ((lw === 'topic' || lw === 'detail' || lw === 'รายละเอียด') && currentSheet.toLowerCase() === 'announcements') {
             formFields.insertAdjacentHTML('beforeend', `
-                                <div class="col-span-1 sm:col-span-2"><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
+                                <div class="col-span-1 sm:col-span-2"><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="reason_label">${t('reason_label')}</span> <span class="text-brandindigo">*</span></label>
                                 <textarea name="${h}" required rows="4" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm" placeholder="พิมพ์รายละเอียดประกาศ...">${safeDisplayVal}</textarea></div>
                             `);
         }
         else if (lw === 'status' && currentSheet.toLowerCase() === 'training') {
             formFields.insertAdjacentHTML('beforeend', `
-                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="status_label">${t('status_label')}</span> <span class="text-brandindigo">*</span></label>
                                 <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
-                                    <option value="" disabled ${!val ? 'selected' : ''}>Select Status...</option>
+                                    <option value="" disabled ${!val ? 'selected' : ''} data-i18n="select_status">${t('select_status')}</option>
                                     <option value="Upcoming" ${String(val).toLowerCase().includes('upcoming') ? 'selected' : ''}>Upcoming</option>
                                     <option value="Ongoing" ${String(val).toLowerCase().includes('ongoing') ? 'selected' : ''}>Ongoing</option>
                                     <option value="Completed" ${String(val).toLowerCase().includes('complete') ? 'selected' : ''}>Completed</option>
@@ -578,18 +780,18 @@ function openFormModal(rowDataStr = null) {
         }
         else if (lw === 'status') {
             formFields.insertAdjacentHTML('beforeend', `
-                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h}</label>
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="status_label">${t('status_label')}</span></label>
                                 <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
-                                    <option value="Active" ${val === 'Active' || !val ? 'selected' : ''}>Active</option>
-                                    <option value="Inactive" ${val === 'Inactive' ? 'selected' : ''}>Inactive</option>
+                                    <option value="Active" ${val === 'Active' || !val ? 'selected' : ''} data-i18n="status_present">${t('status_present')}</option>
+                                    <option value="Inactive" ${val === 'Inactive' ? 'selected' : ''} data-i18n="status_absent">${t('status_absent')}</option>
                                 </select></div>
                             `);
         }
         else if (lw === 'format' || lw === 'รูปแบบ') {
             formFields.insertAdjacentHTML('beforeend', `
-                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="format_label">${t('format_label')}</span> <span class="text-brandindigo">*</span></label>
                                 <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
-                                    <option value="" disabled ${!val ? 'selected' : ''}>Select Format...</option>
+                                    <option value="" disabled ${!val ? 'selected' : ''} data-i18n="select_format">${t('select_format')}</option>
                                     <option value="Online" ${val === 'Online' ? 'selected' : ''}>Online</option>
                                     <option value="In-Company" ${val === 'In-Company' ? 'selected' : ''}>In-Company</option>
                                     <option value="Public Training" ${val === 'Public Training' ? 'selected' : ''}>Public Training</option>
@@ -598,9 +800,9 @@ function openFormModal(rowDataStr = null) {
         }
         else if ((lw === 'position_id' || lw === 'position') && currentSheet.toLowerCase() === 'staff') {
             formFields.insertAdjacentHTML('beforeend', `
-                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="position_label">${t('position_label')}</span> <span class="text-brandindigo">*</span></label>
                                 <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
-                                    <option value="" disabled ${!val ? 'selected' : ''}>Select Position...</option>
+                                    <option value="" disabled ${!val ? 'selected' : ''} data-i18n="select_position">${t('select_position')}</option>
                                     <option value="CEO" ${val === 'CEO' ? 'selected' : ''}>CEO</option>
                                     <option value="COO" ${val === 'COO' ? 'selected' : ''}>COO</option>
                                     <option value="CFO" ${val === 'CFO' ? 'selected' : ''}>CFO</option>
@@ -614,16 +816,16 @@ function openFormModal(rowDataStr = null) {
         else if (lw === 'department_id' && currentSheet.toLowerCase() === 'staff') {
             const selectId = 'dropdown-' + lw;
             formFields.insertAdjacentHTML('beforeend', `
-                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="department_label">${t('department_label')}</span> <span class="text-brandindigo">*</span></label>
                                 <select id="${selectId}" name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
-                                    <option value="${safeDisplayVal}" selected>${safeDisplayVal ? safeDisplayVal : 'Loading data...'}</option>
+                                    <option value="${safeDisplayVal}" selected data-i18n="${safeDisplayVal ? '' : 'loading'}">${safeDisplayVal ? safeDisplayVal : t('loading')}</option>
                                 </select></div>
                             `);
 
             google.script.run.withSuccessHandler(res => {
                 const selectEl = document.getElementById(selectId);
                 if (selectEl && res.success && res.data && res.data.length > 0) {
-                    let options = `<option value="" disabled ${!val ? 'selected' : ''}>Select Department...</option>`;
+                    let options = `<option value="" disabled ${!val ? 'selected' : ''} data-i18n="select_department">${t('select_department')}</option>`;
                     res.data.forEach(row => {
                         let keyId = Object.keys(row).find(k => k.toLowerCase().trim() === 'department_id') || Object.keys(row)[0];
                         let keyName = Object.keys(row).find(k => k.toLowerCase().trim() === 'department_name') || Object.keys(row)[1];
@@ -641,16 +843,16 @@ function openFormModal(rowDataStr = null) {
         else if (lw === 'give by' || lw === 'give_by') {
             const selectId = 'dropdown-' + lw.replace(/\s+/g, '-');
             formFields.insertAdjacentHTML('beforeend', `
-                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="give_by_label">${t('give_by_label')}</span> <span class="text-brandindigo">*</span></label>
                                 <select id="${selectId}" name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
-                                    <option value="${safeVal}" selected>${safeVal ? safeVal : 'Loading evaluators...'}</option>
+                                    <option value="${safeVal}" selected data-i18n="${safeVal ? '' : 'loading'}">${safeVal ? safeVal : t('loading')}</option>
                                 </select></div>
                             `);
 
             var populateGiveBy = function (res) {
                 const selectEl = document.getElementById(selectId);
                 if (selectEl && res.success && res.data && res.data.length > 0) {
-                    let options = `<option value="" disabled ${!val ? 'selected' : ''}>Select Evaluator...</option>`;
+                    let options = `<option value="" disabled ${!val ? 'selected' : ''} data-i18n="select_evaluator">${t('select_evaluator')}</option>`;
                     let foundAny = false;
 
                     res.data.forEach(row => {
@@ -710,7 +912,7 @@ function openFormModal(rowDataStr = null) {
 
             formFields.insertAdjacentHTML('beforeend', `
                                 <div>
-                                    <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
+                                    <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="star_point_label">${t('star_point_label')}</span> <span class="text-brandindigo">*</span></label>
                                     <div class="flex flex-col items-center justify-center bg-gray-50 p-4 rounded-xl border border-gray-200">
                                         <div class="flex">${starsHtml}</div>
                                         <p id="form-star-text" class="mt-2 text-sm font-bold text-brandindigo">${currentRating > 0 ? currentRating + ' / 5' : 'คลิกเพื่อให้คะแนน'}</p>
@@ -720,9 +922,11 @@ function openFormModal(rowDataStr = null) {
                             `);
         }
         else if (lw === 'photo' || lw === 'document' || lw === 'ไฟล์แนบ' || lw === 'attachment' || (currentSheet.trim() === 'Policy' && lw === 'link') || (currentSheet.trim() === 'Documents' && (lw === 'file' || lw === 'link' || lw === 'ไฟล์'))) {
+            const labelKey = getFieldI18nKey(h);
+            const labelText = getFieldLabel(h);
             formFields.insertAdjacentHTML('beforeend', `
                                 <div class="col-span-1 sm:col-span-2">
-                                    <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-gray-400 font-normal ml-1" style="text-transform: none;">(ไม่บังคับ / Optional)</span></label>
+                                    <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="${labelKey}">${labelText}</span> <span class="text-gray-400 font-normal ml-1" style="text-transform: none;">(Optional)</span></label>
                                     <div class="flex items-center bg-white border border-gray-300 rounded-xl p-1.5 shadow-sm focus-within:border-brandindigo focus-within:ring-1 focus-within:ring-brandindigo transition-all">
                                         <div class="w-10 h-10 bg-indigo-50 text-brandindigo rounded-lg flex items-center justify-center shrink-0 mr-3">
                                             <i class="fa-solid fa-file-arrow-up text-lg"></i>
@@ -738,9 +942,11 @@ function openFormModal(rowDataStr = null) {
                             `);
         }
         else if (lw === 'profile' || lw === 'รูป' || lw === 'pic' || lw === 'image' || lw === 'photos' || lw === 'photo') {
+            const labelKey = getFieldI18nKey(h);
+            const labelText = getFieldLabel(h);
             formFields.insertAdjacentHTML('beforeend', `
                                 <div class="col-span-1 sm:col-span-2 bg-indigo-50/30 p-4 rounded-xl border border-indigo-100">
-                                    <label class="block mb-3 text-xs font-bold text-gray-700 uppercase tracking-wider">${h}</label>
+                                    <label class="block mb-3 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="${labelKey}">${labelText}</span></label>
                                     <div class="flex items-center space-x-4">
                                         <div class="w-16 h-16 rounded-full border border-gray-200 overflow-hidden bg-white shrink-0 shadow-sm">
                                             <img id="preview-profile-img" src="${safeVal && safeVal !== '-' ? safeVal : 'https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=Pic'}" class="w-full h-full object-cover">
@@ -763,7 +969,7 @@ function openFormModal(rowDataStr = null) {
 
             formFields.insertAdjacentHTML('beforeend', `
                                 <div>
-                                    <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
+                                    <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="category_label">${t('category_label')}</span> <span class="text-brandindigo">*</span></label>
                                     <input type="text" id="${uniqueInputId}" name="${h}" value="${safeVal}" required
                                         class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"
                                         placeholder="พิมพ์หมวดหมู่ หรือกดเลือกจากแถบด้านล่าง...">
@@ -774,10 +980,14 @@ function openFormModal(rowDataStr = null) {
                             `);
         }
         else if (lw === 'object' || lw === 'เหตุผล' || lw === 'reason' || lw === 'content' || lw === 'รายละเอียด' || lw === 'เนื้อหา') {
+            const labelKey = getFieldI18nKey(h);
+            const labelText = getFieldLabel(h);
+            const placeholderKey = getFieldPlaceholderKey(h);
+            const placeholderText = getFieldPlaceholder(h);
             formFields.insertAdjacentHTML('beforeend', `
                                 <div class="col-span-1 sm:col-span-2">
-                                    <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
-                                    <textarea name="${h}" required rows="4" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm resize-y" placeholder="ระบุเหตุผล / Enter ${h}...">${safeDisplayVal}</textarea>
+                                    <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="${labelKey}">${labelText}</span> <span class="text-brandindigo">*</span></label>
+                                    <textarea name="${h}" required rows="4" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm resize-y" placeholder="${placeholderText}" data-i18n-placeholder="${placeholderKey}">${safeDisplayVal}</textarea>
                                 </div>
                             `);
         }
@@ -791,9 +1001,14 @@ function openFormModal(rowDataStr = null) {
                 colSpan = 'col-span-1 sm:col-span-2';
             }
 
+            const labelKey = getFieldI18nKey(h);
+            const labelText = getFieldLabel(h);
+            const placeholderKey = getFieldPlaceholderKey(h);
+            const placeholderText = getFieldPlaceholder(h);
+
             formFields.insertAdjacentHTML('beforeend', `
-                                <div class="${colSpan}"><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} ${isOptional ? '<span class="text-gray-400 font-normal ml-1">(Optional)</span>' : '<span class="text-brandindigo">*</span>'}</label>
-                                <input type="${inputType}" name="${h}" value="${safeDisplayVal}" ${requiredAttr} class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm" placeholder="Enter ${h}..."></div>
+                                <div class="${colSpan}"><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="${labelKey}">${labelText}</span> ${isOptional ? '<span class="text-gray-400 font-normal ml-1">(Optional)</span>' : '<span class="text-brandindigo">*</span>'}</label>
+                                <input type="${inputType}" name="${h}" value="${safeDisplayVal}" ${requiredAttr} class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm" placeholder="${placeholderText}" data-i18n-placeholder="${placeholderKey}"></div>
                             `);
         }
     });
@@ -852,6 +1067,7 @@ function openFormModal(rowDataStr = null) {
         }, 50);
     }
 
+    if (typeof updateDOMTranslations === 'function') updateDOMTranslations();
     document.getElementById('form-modal').classList.remove('hidden');
 }
 
@@ -979,6 +1195,31 @@ function submitData(e) {
 }
 
 function executeSaveToSheet(dataObj, currentEditId) {
+    if (!currentEditId && (currentSheet.toLowerCase() === 'staff' || currentSheet.toLowerCase() === 'user')) {
+        let empIdVal = getFuzzyValue(dataObj, ['employee_id', 'emp_id', 'employees id', 'staff_id', 'id', 'username']);
+        if (empIdVal) {
+            const targetUpper = String(empIdVal).trim().toUpperCase();
+            let staffRows = (tableCache['staff'] && tableCache['staff'].data) || rawData || [];
+            let userRows = (tableCache['user'] && tableCache['user'].data) || [];
+            let allRows = [...staffRows, ...userRows];
+            const isDup = allRows.some(r => {
+                let eId = getFuzzyValue(r, ['employee_id', 'emp_id', 'employees id', 'staff_id', 'id', 'username']);
+                return eId && String(eId).trim().toUpperCase() === targetUpper;
+            });
+
+            if (isDup) {
+                toggleLoading(false);
+                showToast(t('emp_id_exists') || `⚠️ ລະຫັດພະນັກງານນີ້ມີຢູ່ໃນລະບົບແລ້ວ! (${empIdVal})`, 'error');
+                const empIdInput = document.querySelector('#dynamic-form input[name="Employee_ID"], #dynamic-form input[name="emp_id"], #dynamic-form input[name="User_ID"]');
+                if (empIdInput) {
+                    checkDuplicateEmployeeId(empIdInput);
+                    empIdInput.focus();
+                }
+                return;
+            }
+        }
+    }
+
     if (currentSheet === 'Leave application' && !currentEditId) {
         let requestedDays = 0;
         for (let k in dataObj) {

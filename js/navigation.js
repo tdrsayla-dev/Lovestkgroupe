@@ -15,12 +15,13 @@ function navigate(pageId, title, sheetName = '') {
         const roleStr = String(role).toLowerCase();
         const targetPage = String(sheetName || pageId).toLowerCase().trim();
         const isAdmin = roleStr.includes('admin') || roleStr.includes('manager');
-        const allowedMenus = permissions ? String(permissions).split(',').map(m => m.trim().toLowerCase()) : [];
+        const allowedMenus = typeof parsePermissionsList === 'function' ? parsePermissionsList(permissions) : (permissions ? String(permissions).split(',').map(m => m.trim().toLowerCase()) : []);
         const publicMenus = ['scan', 'dashboard', 'staff-dashboard'];
 
         // เช็คว่า User คนนี้มีสิทธิ์เข้าหน้านี้หรือไม่
         if (!isAdmin && !publicMenus.includes(targetPage)) {
-            if (!allowedMenus.includes(targetPage)) {
+            const isAllowed = allowedMenus.includes('all') || (typeof isMenuPermissionChecked === 'function' ? isMenuPermissionChecked(targetPage, allowedMenus) : allowedMenus.includes(targetPage));
+            if (!isAllowed) {
                 showToast('Access denied. You do not have permission to view this page.', 'error');
                 return;
             }

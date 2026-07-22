@@ -11,6 +11,43 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
+function parsePermissionsList(val) {
+    if (!val) return [];
+    if (Array.isArray(val)) {
+        return val.map(v => String(v).trim().toLowerCase()).filter(Boolean);
+    }
+    let str = String(val).trim();
+    if (str.startsWith('[') && str.endsWith(']')) {
+        try {
+            let parsed = JSON.parse(str);
+            if (Array.isArray(parsed)) {
+                return parsed.map(v => String(v).trim().toLowerCase()).filter(Boolean);
+            }
+        } catch (e) { }
+    }
+    // Remove brackets and quotes
+    str = str.replace(/[\[\]"']/g, '');
+    return str.split(',').map(v => String(v).trim().toLowerCase()).filter(Boolean);
+}
+
+function isMenuPermissionChecked(menuId, checkedList) {
+    if (!checkedList || checkedList.length === 0) return false;
+    if (checkedList.includes('all')) return true;
+
+    const norm = (str) => String(str || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+    const target = norm(menuId);
+
+    return checkedList.some(item => {
+        const itemNorm = norm(item);
+        if (target === itemNorm) return true;
+
+        // Alias & typo handling
+        if ((target.includes('orientat') || target.includes('orentat')) && (itemNorm.includes('orientat') || itemNorm.includes('orentat'))) return true;
+        if ((target.includes('ranting') || target.includes('rating')) && (itemNorm.includes('ranting') || itemNorm.includes('rating'))) return true;
+        return false;
+    });
+}
+
 // URL CLEANER — ลบ .html ออกจากช่องที่อยู่เบราว์เซอร์อัตโนมัติ
 if (window.location.protocol !== 'file:' && window.location.pathname.endsWith('.html')) {
     const cleanPath = window.location.pathname.replace(/\.html$/, '');

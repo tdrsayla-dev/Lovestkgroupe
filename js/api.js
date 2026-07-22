@@ -83,14 +83,107 @@ function fetchData(sheetName, forceRefresh = false) {
 }
 
 function filterData() {
-    const keyword = document.getElementById('searchInput').value.toLowerCase();
+    const inputEl = document.getElementById('searchInput');
+    const keyword = inputEl ? inputEl.value.toLowerCase().trim() : '';
     const startDateStr = document.getElementById('tableStartDate') ? document.getElementById('tableStartDate').value : '';
     const endDateStr = document.getElementById('tableEndDate') ? document.getElementById('tableEndDate').value : '';
 
     let filtered = rawData;
 
     if (keyword) {
-        filtered = filtered.filter(row => Object.values(row).some(v => String(v).toLowerCase().includes(keyword)));
+        const terms = keyword.split(/\s+/).filter(Boolean);
+        const matched = [];
+
+        filtered.forEach(row => {
+            let idValues = [];
+            let nameValues = [];
+            let emailValues = [];
+            let posValues = [];
+            let deptValues = [];
+            let allValues = [];
+
+            let firstName = '';
+            let lastName = '';
+
+            Object.keys(row).forEach(key => {
+                const kLower = String(key).toLowerCase().trim();
+                const val = String(row[key] || '').trim();
+                if (!val || val === '-') return;
+
+                allValues.push(val.toLowerCase());
+
+                // Detect ID fields
+                if (kLower.includes('id') || kLower.includes('code') || kLower.includes('ระหัส') || kLower.includes('ລະຫັດ')) {
+                    idValues.push(val.toLowerCase());
+                }
+
+                // Detect First Name & Last Name
+                if (kLower.includes('first_name') || kLower === 'name' || kLower.includes('ชื่อ') || kLower.includes('ຊື່')) {
+                    firstName = val;
+                    nameValues.push(val.toLowerCase());
+                }
+                if (kLower.includes('last_name') || kLower.includes('นามสกุล') || kLower.includes('ນາມສະກຸນ')) {
+                    lastName = val;
+                    nameValues.push(val.toLowerCase());
+                }
+                if (kLower.includes('full_name') || kLower.includes('title') || kLower.includes('topic') || kLower.includes('head_name') || kLower.includes('employee_name')) {
+                    nameValues.push(val.toLowerCase());
+                }
+
+                // Detect Email / Username / Contact fields
+                if (kLower.includes('email') || kLower.includes('username') || kLower.includes('contact') || kLower.includes('อีเมล') || kLower.includes('ອີເມວ')) {
+                    emailValues.push(val.toLowerCase());
+                }
+
+                // Detect Position / Department fields
+                if (kLower.includes('position') || kLower.includes('ตำแหน่ง')) {
+                    posValues.push(val.toLowerCase());
+                }
+                if (kLower.includes('department') || kLower.includes('แผนก')) {
+                    deptValues.push(val.toLowerCase());
+                }
+            });
+
+            // Combine First + Last Name for full name searching
+            if (firstName || lastName) {
+                const combinedFullName = `${firstName} ${lastName}`.trim().toLowerCase();
+                nameValues.push(combinedFullName);
+            }
+
+            const targetedHaystack = [
+                ...idValues,
+                ...nameValues,
+                ...emailValues,
+                ...posValues,
+                ...deptValues
+            ].join(' ');
+
+            // Use targeted search haystack so background/hidden metadata fields won't cause false positives
+            const searchHaystack = targetedHaystack.trim() ? targetedHaystack : allValues.join(' ');
+
+            const isMatch = terms.every(term => searchHaystack.includes(term));
+            if (isMatch) {
+                let score = 0;
+                const cleanInput = keyword.toLowerCase().trim();
+                if (idValues.some(v => v === cleanInput) || nameValues.some(v => v === cleanInput)) {
+                    score += 100;
+                } else if (idValues.some(v => v.startsWith(cleanInput)) || nameValues.some(v => v.startsWith(cleanInput))) {
+                    score += 50;
+                } else {
+                    score += 10;
+                }
+                matched.push({ row, score });
+            }
+        });
+
+        matched.sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            let nameA = (typeof getFuzzyValue === 'function' ? getFuzzyValue(a.row, ['first_name', 'name', 'full_name', 'employee_id', 'emp_id']) : '') || '';
+            let nameB = (typeof getFuzzyValue === 'function' ? getFuzzyValue(b.row, ['first_name', 'name', 'full_name', 'employee_id', 'emp_id']) : '') || '';
+            return String(nameA).localeCompare(String(nameB), undefined, { numeric: true, sensitivity: 'base' });
+        });
+
+        filtered = matched.map(m => m.row);
     }
 
     if (startDateStr || endDateStr) {

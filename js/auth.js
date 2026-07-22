@@ -10,12 +10,13 @@ function applyRolePermissions(role, permissions = '') {
     try {
         const roleStr = String(role).toLowerCase();
         const isAdmin = roleStr.includes('admin') || roleStr.includes('manager');
-        const allowedMenus = permissions ? String(permissions).split(',').map(m => m.trim().toLowerCase()) : [];
+        const allowedMenus = typeof parsePermissionsList === 'function' ? parsePermissionsList(permissions) : (permissions ? String(permissions).split(',').map(m => m.trim().toLowerCase()) : []);
         const publicMenus = ['scan', 'staff-dashboard'];
 
         document.querySelectorAll('.nav-btn').forEach(btn => {
             let pageId = String(btn.getAttribute('data-page')).toLowerCase().trim();
-            if (isAdmin || allowedMenus.includes(pageId) || publicMenus.includes(pageId) || (pageId === 'dashboard' && roleStr !== 'staff')) {
+            const isAllowed = isAdmin || allowedMenus.includes('all') || (typeof isMenuPermissionChecked === 'function' ? isMenuPermissionChecked(pageId, allowedMenus) : allowedMenus.includes(pageId)) || publicMenus.includes(pageId) || (pageId === 'dashboard' && roleStr !== 'staff');
+            if (isAllowed) {
                 btn.classList.remove('hidden'); btn.classList.add('flex');
             } else {
                 btn.classList.add('hidden'); btn.classList.remove('flex');
@@ -245,6 +246,7 @@ function openMyProfileModal() {
     
     modal.classList.remove('hidden');
     modal.classList.add('flex');
+    if (typeof updateDOMTranslations === 'function') updateDOMTranslations();
     
     // Fetch user data
     const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');

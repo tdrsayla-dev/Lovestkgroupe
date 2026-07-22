@@ -798,14 +798,23 @@ function renderTable(data) {
 
     let htmlRows = '';
 
-    if (currentSheet === 'Fingerprint_Logs') {
-        data.sort((a, b) => {
-            let rA = a.Date; let rB = b.Date;
-            if (!rA || !rB) return 0;
-            let pA = String(rA).split('/'); let dA = new Date(pA[2], pA[1] - 1, pA[0]);
-            let pB = String(rB).split('/'); let dB = new Date(pB[2], pB[1] - 1, pB[0]);
-            return dB - dA;
-        });
+    if (data && data.length > 0) {
+        if (currentSheet === 'Fingerprint_Logs') {
+            data.sort((a, b) => {
+                let rA = a.Date; let rB = b.Date;
+                if (!rA || !rB) return 0;
+                let pA = String(rA).split('/'); let dA = new Date(pA[2], pA[1] - 1, pA[0]);
+                let pB = String(rB).split('/'); let dB = new Date(pB[2], pB[1] - 1, pB[0]);
+                return dB - dA;
+            });
+        } else {
+            // Sort A-Z by Employee ID or Name
+            data.sort((a, b) => {
+                let valA = (typeof getFuzzyValue === 'function' ? getFuzzyValue(a, ['employee_id', 'emp_id', 'first_name', 'name', 'full_name', 'id']) : '') || Object.values(a)[0] || '';
+                let valB = (typeof getFuzzyValue === 'function' ? getFuzzyValue(b, ['employee_id', 'emp_id', 'first_name', 'name', 'full_name', 'id']) : '') || Object.values(b)[0] || '';
+                return String(valA).localeCompare(String(valB), undefined, { numeric: true, sensitivity: 'base' });
+            });
+        }
     }
 
     data.forEach(row => {
@@ -1012,7 +1021,7 @@ function renderEmployeeRatingPageFromScratch(ratingRows) {
         ratingByEmp[key].latestRowId = getRecordId(row);
     });
 
-    const visibleStaff = staffRows.filter(row => {
+    let visibleStaff = staffRows.filter(row => {
         const empId = String(getFuzzyValue(row, ['employee_id', 'emp_id', 'employees id']) || '').trim().toUpperCase();
         if (!empId || empId === '-') return false;
         if (role === 'Staff') {
@@ -1021,8 +1030,44 @@ function renderEmployeeRatingPageFromScratch(ratingRows) {
         return true;
     });
 
+    const searchInput = document.getElementById('searchInput');
+    const keyword = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+    if (keyword) {
+        const terms = keyword.split(/\s+/).filter(Boolean);
+        const matched = [];
+
+        visibleStaff.forEach(staff => {
+            const empId = String(getFuzzyValue(staff, ['employee_id', 'emp_id', 'employees id']) || '').trim().toLowerCase();
+            const fName = String(getFuzzyValue(staff, ['first_name', 'name', 'full_name']) || '').trim().toLowerCase();
+            const lName = String(getFuzzyValue(staff, ['last_name', 'นามสกุล']) || '').trim().toLowerCase();
+            const fullName = `${fName} ${lName}`.trim().toLowerCase();
+            const email = String(getFuzzyValue(staff, ['email', 'contact']) || '').trim().toLowerCase();
+            const position = String(getFuzzyValue(staff, ['position_id', 'position']) || '').trim().toLowerCase();
+            const department = String(getFuzzyValue(staff, ['department_id', 'department']) || '').trim().toLowerCase();
+
+            const searchHaystack = `${empId} ${fName} ${lName} ${fullName} ${email} ${position} ${department}`;
+
+            const isMatch = terms.every(term => searchHaystack.includes(term));
+            if (isMatch) {
+                let score = 0;
+                if (empId === keyword || fName === keyword || fullName === keyword) {
+                    score += 100;
+                } else if (fullName.startsWith(keyword) || fName.startsWith(keyword) || empId.startsWith(keyword)) {
+                    score += 50;
+                } else {
+                    score += 10;
+                }
+                matched.push({ staff, score });
+            }
+        });
+
+        matched.sort((a, b) => b.score - a.score);
+        visibleStaff = matched.map(m => m.staff);
+    }
+
     if (!visibleStaff.length) {
-        cardWrapper.innerHTML = '<div class="col-span-full flex flex-col items-center justify-center py-20 text-gray-400 bg-gray-50 rounded-3xl border border-dashed border-gray-200"><i class="fa-regular fa-folder-open text-6xl mb-4 text-gray-300"></i><p class="font-bold tracking-widest uppercase text-sm">No staff found</p></div>';
+        cardWrapper.innerHTML = '<div class="col-span-full flex flex-col items-center justify-center py-20 text-gray-400 bg-gray-50 rounded-3xl border border-dashed border-gray-200"><i class="fa-regular fa-folder-open text-6xl mb-4 text-gray-300"></i><p class="font-bold tracking-widest uppercase text-sm">ไม่พบพนักงานที่ค้นหา</p></div>';
         return;
     }
 
