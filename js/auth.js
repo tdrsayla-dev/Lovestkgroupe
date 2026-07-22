@@ -283,7 +283,7 @@ function openMyProfileModal() {
             toggleLoading(false);
             showToast('Failed to load profile', 'error');
         })
-        .getSheetData('staff', { select: 'First_Name,Last_Name,Birthday,Tel,Email,Line,Bank_Name,Bank_Account_Name,Bank_Account_No,Photos', filter: `Employee_ID=eq.${empId}` });
+        .getSheetData('staff', { select: 'First_Name,Last_Name,Birthday,Tel,Email,Line,Bank_Name,Bank_Account_No,Photos', filter: `Employee_ID=eq.${empId}` });
 }
 
 function closeMyProfileModal() {
@@ -312,7 +312,6 @@ function submitMyProfile(e) {
         'Email': document.getElementById('my-profile-email').value,
         'Line': document.getElementById('my-profile-line').value,
         'Bank_Name': document.getElementById('my-profile-bankname').value,
-        'Bank_Account_Name': document.getElementById('my-profile-bankaccountname').value,
         'Bank_Account_No': document.getElementById('my-profile-bankaccountno').value,
         'Photos': document.getElementById('my-profile-photo-url').value
     };
