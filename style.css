@@ -74,3 +74,70 @@
 .bg-\[\#7c50ff\] .custom-scrollbar {
     scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
 }
+
+/* 📌 Mobile Responsive & Touch Optimizations (All Screen Sizes) */
+@media (max-width: 640px) {
+    /* Form & Input adjustments for touch screens */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="date"],
+    input[type="number"],
+    select,
+    textarea {
+        font-size: 14px !important;
+        padding-top: 10px !important;
+        padding-bottom: 10px !important;
+    }
+
+    /* Modal responsiveness */
+    #form-modal > div,
+    #asset-modal > div,
+    #policy-modal > div,
+    #bill-modal > div {
+        max-height: 94vh !important;
+        border-radius: 1rem !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+
+    /* Table responsive overflow */
+    #table-wrapper {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Stack filter controls on narrow screens */
+    #table-controls-wrapper {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 0.75rem !important;
+    }
+
+    /* Modal footer buttons */
+    #form-modal button[type="submit"],
+    #form-modal button[type="button"] {
+        width: 100% !important;
+    }
+}
+
+@media (max-width: 480px) {
+    /* Extra small phone screens (320px - 480px) */
+    body {
+        font-size: 13px !important;
+    }
+
+    .glass-card {
+        padding: 1.25rem !important;
+    }
+
+    #modal-title {
+        font-size: 1rem !important;
+    }
+
+    /* Ensure warning alert badges don't overflow */
+    #emp-id-duplicate-alert {
+        font-size: 11px !important;
+        padding: 6px 10px !important;
+    }
+}

@@ -11,9 +11,7 @@
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap"
-    rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Noto+Sans+Lao:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
@@ -1927,6 +1925,11 @@
       <li><a href="#news" onclick="closeMobileMenu()"><i class="fas fa-newspaper mr-2"></i> ข่าวสาร</a></li>
       <li><a href="#career" onclick="closeMobileMenu()"><i class="fas fa-user-tie mr-2"></i> ร่วมงานกับเรา</a></li>
       <li><a href="#contact" onclick="closeMobileMenu()"><i class="fas fa-envelope mr-2"></i> ติดต่อเรา</a></li>
+      <li style="margin-top:1rem; display: flex; justify-content: center; gap: 0.5rem;">
+        <a href="#" onclick="changeLanguage('th')" style="padding: 0.5rem; flex: 1; text-align: center; border: 1px solid var(--border); border-radius: 8px;">TH</a>
+        <a href="#" onclick="changeLanguage('lo')" style="padding: 0.5rem; flex: 1; text-align: center; border: 1px solid var(--border); border-radius: 8px;">LA</a>
+        <a href="#" onclick="changeLanguage('en')" style="padding: 0.5rem; flex: 1; text-align: center; border: 1px solid var(--border); border-radius: 8px;">EN</a>
+      </li>
       <li style="margin-top:1rem">
         <a href="Hr.html" onclick="goToHr(event)" style="background:var(--gradient-main);text-align:center;border-radius:12px;">
           <i class="fas fa-sign-in-alt"></i> เข้าสู่ระบบ HR
@@ -1950,6 +1953,13 @@
         <li><a href="#news">ข่าวสาร</a></li>
         <li><a href="#career">ร่วมงานกับเรา</a></li>
         <li><a href="#contact">ติดต่อเรา</a></li>
+        <li class="lang-selector" style="display: flex; gap: 0.5rem; margin-left: 1rem;">
+          <a href="#" onclick="changeLanguage('th')" title="Thai">TH</a>
+          <span style="color: var(--text-muted)">|</span>
+          <a href="#" onclick="changeLanguage('lo')" title="Lao">LA</a>
+          <span style="color: var(--text-muted)">|</span>
+          <a href="#" onclick="changeLanguage('en')" title="English">EN</a>
+        </li>
       </ul>
 
       <button class="hamburger" id="hamburger" onclick="openMobileMenu()" aria-label="เมนู">
@@ -2323,6 +2333,9 @@
       window.location.pathname = loc + 'Hr.html';
     }
 
+    </script>
+    <script src="js/i18n.js"></script>
+    <script>
     // ─────────────────────────────────────────
     // SCROLL GUARD — always start at top of page
     // ─────────────────────────────────────────
