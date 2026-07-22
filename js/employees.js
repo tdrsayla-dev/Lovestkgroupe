@@ -769,6 +769,14 @@ function submitQRResult(empId) {
     const encodedTemplate = encodeURIComponent(JSON.stringify(ratingTemplate));
     showToast(`✅ พบพนักงาน ${empId} — กรุณาประเมิน`, 'success');
 
+    // ✅ ตั้ง currentSheet และ currentHeaders ให้ตรงกับ Rating Sheet
+    // เพื่อให้ openFormModal รู้ว่าต้องแสดงฟอร์มให้ดาว ไม่ว่าจะอยู่หน้าไหน
+    const ratingSheetKey = Object.keys(tableCache).find(k =>
+        k.toLowerCase().includes('ranting') || k.toLowerCase().includes('rating')
+    ) || 'Employees Ranting ';
+    currentSheet = ratingSheetKey;
+    currentHeaders = tableCache[ratingSheetKey]?.headers || getEmployeeRatingHeaders();
+
     setTimeout(() => {
         if (typeof openFormModal === 'function') openFormModal(encodedTemplate);
     }, 300);

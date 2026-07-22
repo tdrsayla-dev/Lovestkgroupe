@@ -808,10 +808,17 @@ function renderTable(data) {
                 return dB - dA;
             });
         } else {
-            // Sort A-Z by Employee ID or Name
+            // Sort by Employee_ID (natural alphanumeric: A001, A002... DMC001... MT001...)
             data.sort((a, b) => {
-                let valA = (typeof getFuzzyValue === 'function' ? getFuzzyValue(a, ['employee_id', 'emp_id', 'first_name', 'name', 'full_name', 'id']) : '') || Object.values(a)[0] || '';
-                let valB = (typeof getFuzzyValue === 'function' ? getFuzzyValue(b, ['employee_id', 'emp_id', 'first_name', 'name', 'full_name', 'id']) : '') || Object.values(b)[0] || '';
+                let empIdA = (typeof getFuzzyValue === 'function' ? getFuzzyValue(a, ['employee_id', 'emp_id', 'employees id', 'id']) : '') || '';
+                let empIdB = (typeof getFuzzyValue === 'function' ? getFuzzyValue(b, ['employee_id', 'emp_id', 'employees id', 'id']) : '') || '';
+
+                if (empIdA && empIdB && empIdA !== '-' && empIdB !== '-') {
+                    return String(empIdA).localeCompare(String(empIdB), undefined, { numeric: true, sensitivity: 'base' });
+                }
+
+                let valA = empIdA || (typeof getFuzzyValue === 'function' ? getFuzzyValue(a, ['first_name', 'name', 'full_name', 'email']) : '') || Object.values(a)[0] || '';
+                let valB = empIdB || (typeof getFuzzyValue === 'function' ? getFuzzyValue(b, ['first_name', 'name', 'full_name', 'email']) : '') || Object.values(b)[0] || '';
                 return String(valA).localeCompare(String(valB), undefined, { numeric: true, sensitivity: 'base' });
             });
         }

@@ -178,8 +178,13 @@ function filterData() {
 
         matched.sort((a, b) => {
             if (b.score !== a.score) return b.score - a.score;
-            let nameA = (typeof getFuzzyValue === 'function' ? getFuzzyValue(a.row, ['first_name', 'name', 'full_name', 'employee_id', 'emp_id']) : '') || '';
-            let nameB = (typeof getFuzzyValue === 'function' ? getFuzzyValue(b.row, ['first_name', 'name', 'full_name', 'employee_id', 'emp_id']) : '') || '';
+            let empIdA = (typeof getFuzzyValue === 'function' ? getFuzzyValue(a.row, ['employee_id', 'emp_id', 'employees id']) : '') || '';
+            let empIdB = (typeof getFuzzyValue === 'function' ? getFuzzyValue(b.row, ['employee_id', 'emp_id', 'employees id']) : '') || '';
+            if (empIdA && empIdB && empIdA !== '-' && empIdB !== '-') {
+                return String(empIdA).localeCompare(String(empIdB), undefined, { numeric: true, sensitivity: 'base' });
+            }
+            let nameA = (typeof getFuzzyValue === 'function' ? getFuzzyValue(a.row, ['first_name', 'name', 'full_name', 'email']) : '') || '';
+            let nameB = (typeof getFuzzyValue === 'function' ? getFuzzyValue(b.row, ['first_name', 'name', 'full_name', 'email']) : '') || '';
             return String(nameA).localeCompare(String(nameB), undefined, { numeric: true, sensitivity: 'base' });
         });
 
