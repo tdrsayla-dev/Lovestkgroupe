@@ -11,7 +11,7 @@
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Noto+Sans+Lao:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Kanit:wght@300;400;500;600;700&family=Prompt:wght@300;400;500;600;700&family=Noto+Sans+Lao:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
@@ -57,7 +57,7 @@
     }
 
     body {
-      font-family: 'Prompt', 'Inter', sans-serif;
+      font-family: 'Sukhumvit Set', 'IBM Plex Sans Thai', 'Prompt', 'Kanit', 'Noto Sans Lao', sans-serif;
       background-color: var(--dark);
       color: var(--text-primary);
       line-height: 1.7;
@@ -114,90 +114,62 @@
       padding: 0 2rem;
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: center;
     }
 
     .nav-logo {
       display: none;
-      align-items: center;
-      gap: 0.75rem;
-      text-decoration: none;
-    }
-
-    .nav-logo-icon {
-      width: 36px;
-      height: 36px;
-      background: var(--gradient-main);
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.1rem;
-    }
-
-    .nav-logo-text {
-      font-size: 1.1rem;
-      font-weight: 700;
-      background: var(--gradient-main);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
     }
 
     .nav-links {
       display: flex;
       align-items: center;
-      gap: 2.8rem;
+      justify-content: center;
+      gap: 2.2rem;
       list-style: none;
+      margin: 0;
+      padding: 0;
     }
 
     .nav-links a {
-      color: var(--text-secondary);
+      color: #f59e0b;
       text-decoration: none;
-      font-size: 0.95rem;
-      font-weight: 400;
+      font-size: 0.98rem;
+      font-weight: 600;
       transition: all 0.2s;
     }
 
     .nav-links a:hover {
-      color: var(--text-primary);
+      color: #fbbf24;
+      text-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
     }
 
-    .btn-hr-login {
-      display: none;
+    .btn-hr-system-login {
+      display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.6rem 1.4rem;
-      background: var(--gradient-main);
-      color: white !important;
+      justify-content: center;
+      gap: 0.75rem;
+      padding: 1.1rem 2.8rem;
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      color: #0b0f19 !important;
       text-decoration: none;
       border-radius: 50px;
-      font-size: 0.875rem;
-      font-weight: 600;
-      transition: all 0.3s;
+      font-size: 1.1rem;
+      font-weight: 800;
+      box-shadow: 0 10px 30px rgba(245, 158, 11, 0.4);
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .btn-hr-system-login:hover {
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: 0 15px 40px rgba(245, 158, 11, 0.6);
+      background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
     }
 
     .hamburger {
-      display: none;
-      flex-direction: column;
-      gap: 5px;
-      cursor: pointer;
-      padding: 5px;
-      background: none;
-      border: none;
-      outline: none;
+      display: none !important;
     }
-
-    .hamburger span {
-      display: block;
-      width: 25px;
-      height: 2px;
-      background: var(--text-primary);
-      border-radius: 2px;
-      transition: all 0.3s;
-    }
-
-
 
     @media (max-width: 991px) {
       .services-grid {
@@ -215,23 +187,27 @@
 
     @media (max-width: 768px) {
       #navbar {
-        padding: 1.5rem 0;
+        padding: 1.2rem 0;
       }
 
       .nav-container {
-        justify-content: space-between;
+        justify-content: center;
+        padding: 0 1rem;
       }
 
       .nav-links {
-        display: none;
+        display: flex !important;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.8rem 1.2rem;
       }
 
-      .nav-logo {
-        display: flex;
+      .nav-links a {
+        font-size: 0.88rem;
       }
 
       .hamburger {
-        display: flex;
+        display: none !important;
       }
 
       #hero {
@@ -340,34 +316,35 @@
       inset: 0;
       pointer-events: none;
       overflow: hidden;
-      z-index: 1;
+      z-index: 2;
     }
 
     /* Animated particles */
     .particle {
       position: absolute;
       border-radius: 50%;
-      animation: float-particle linear infinite;
-      opacity: 0;
+      animation: float-particle ease-in-out infinite;
+      will-change: transform, opacity;
+      pointer-events: none;
     }
 
     @keyframes float-particle {
       0% {
         opacity: 0;
-        transform: translateY(0) scale(0);
+        transform: translateY(0) translateX(0) scale(0.4);
       }
-
-      15% {
-        opacity: 0.5;
+      20% {
+        opacity: 0.9;
       }
-
-      85% {
-        opacity: 0.5;
+      50% {
+        transform: translateY(-55vh) translateX(35px) scale(1.3);
       }
-
+      80% {
+        opacity: 0.9;
+      }
       100% {
         opacity: 0;
-        transform: translateY(-80vh) scale(1);
+        transform: translateY(-115vh) translateX(-30px) scale(0.5);
       }
     }
 
@@ -411,7 +388,7 @@
     }
 
     .hero-title .gradient-text {
-      background: linear-gradient(135deg, #6c80f5 0%, #1E3599 50%, #261075 100%);
+      background: linear-gradient(135deg, #ff8c00 0%, #f97316 50%, #ea580c 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
@@ -586,9 +563,9 @@
       display: inline-flex;
       align-items: center;
       gap: 0.5rem;
-      background: rgba(30, 53, 153, 0.25);
-      border: 1px solid rgba(30, 53, 153, 0.25);
-      color: var(--primary-light);
+      background: rgba(249, 115, 22, 0.18);
+      border: 1px solid rgba(249, 115, 22, 0.35);
+      color: #fb923c;
       padding: 0.35rem 1.2rem;
       border-radius: 50px;
       font-size: 0.8rem;
@@ -1871,151 +1848,258 @@
     }
 
     /* =========================================
-       ANIMATIONS
+       ANIMATIONS — PREMIUM ANIMATED WEBSITE
     ========================================= */
-    @keyframes fadeInDown {
-      from {
-        opacity: 0;
-        transform: translateY(-20px);
-      }
 
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+    /* ── Base Entrance Keyframes ── */
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translateY(-30px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
 
     @keyframes fadeInUp {
-      from {
-        opacity: 0;
-        transform: translateY(30px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; transform: translateY(40px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
 
+    @keyframes fadeInLeft {
+      from { opacity: 0; transform: translateX(-50px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes fadeInRight {
+      from { opacity: 0; transform: translateX(50px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes scaleIn {
+      from { opacity: 0; transform: scale(0.85); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes zoomBounce {
+      0%   { opacity: 0; transform: scale(0.6); }
+      60%  { opacity: 1; transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+
+    /* ── Hero Shimmer on gradient text ── */
+    @keyframes shimmer {
+      0%   { background-position: -200% center; }
+      100% { background-position: 200% center; }
+    }
+
+    .hero-title .gradient-text {
+      background-size: 200% auto;
+      animation: shimmer 4s linear infinite, fadeInUp 0.8s ease 0.1s both;
+    }
+
+    /* ── Floating / Breathing glow behind hero ── */
+    @keyframes breathe-glow {
+      0%, 100% { opacity: 0.3; transform: scale(1); }
+      50%      { opacity: 0.6; transform: scale(1.15); }
+    }
+
+    .hero-bg::after {
+      content: '';
+      position: absolute;
+      top: 30%;
+      left: 50%;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(249,115,22,0.12) 0%, transparent 70%);
+      transform: translate(-50%, -50%);
+      animation: breathe-glow 6s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    /* ── Scroll-triggered reveal classes ── */
     .reveal {
       opacity: 0;
-      transform: translateY(30px);
-      transition: opacity 0.7s ease, transform 0.7s ease;
+      transform: translateY(40px);
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .reveal.visible {
       opacity: 1;
       transform: translateY(0);
     }
+
+    .reveal-left {
+      opacity: 0;
+      transform: translateX(-50px);
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .reveal-left.visible {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .reveal-right {
+      opacity: 0;
+      transform: translateX(50px);
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .reveal-right.visible {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .reveal-scale {
+      opacity: 0;
+      transform: scale(0.85);
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .reveal-scale.visible {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    /* ── Section badge pulse glow ── */
+    @keyframes badge-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.35); }
+      50%      { box-shadow: 0 0 18px 4px rgba(249, 115, 22, 0.15); }
+    }
+
+    .section-badge {
+      animation: badge-pulse 3s ease-in-out infinite;
+    }
+
+    /* ── Glass card tilt / shine on hover ── */
+    .glass-card, .mv-card, .service-card {
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .glass-card:hover, .mv-card:hover, .service-card:hover {
+      transform: translateY(-6px) rotateX(2deg);
+      box-shadow: 0 25px 60px rgba(249, 115, 22, 0.12),
+                  0 0 0 1px rgba(249, 115, 22, 0.15);
+    }
+
+    /* ── Animated gradient border on about card ── */
+    @keyframes gradient-border-spin {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .about-visual-inner {
+      position: relative;
+    }
+
+    .about-visual-inner::after {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: 25px;
+      padding: 1px;
+      background: linear-gradient(270deg, #f97316, #1E3599, #261075, #f97316);
+      background-size: 300% 300%;
+      animation: gradient-border-spin 6s ease infinite;
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Team card hover float ── */
+    .team-card {
+      transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+                  box-shadow 0.5s ease;
+    }
+
+    .team-card:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3),
+                  0 0 20px rgba(249, 115, 22, 0.1);
+    }
+
+    /* ── News card slide-in on hover ── */
+    .news-card {
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                  box-shadow 0.4s ease;
+    }
+
+    .news-card:hover {
+      transform: translateY(-8px) scale(1.02);
+    }
+
+    /* ── Navbar smooth entrance ── */
+    #navbar {
+      animation: fadeInDown 0.6s ease both;
+    }
+
+    /* ── Counter number animation ── */
+    @keyframes countUp {
+      from { opacity: 0; transform: translateY(15px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Orbit ring pulsing ── */
+    @keyframes orbit-pulse {
+      0%, 100% { opacity: 0.15; }
+      50%      { opacity: 0.35; }
+    }
+
+    /* ── Smooth section fade ── */
+    section {
+      animation: none;
+    }
+
+    /* ── Footer entrance ── */
+    footer {
+      position: relative;
+    }
+
+    /* ── Reduced motion for accessibility ── */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
   </style>
 </head>
 
 <body>
 
-  <!-- ===== MOBILE OVERLAY ===== -->
-  <div class="mobile-overlay" id="mobileOverlay" onclick="closeMobileMenu()"></div>
-
-  <!-- ===== MOBILE MENU ===== -->
-  <nav class="mobile-menu" id="mobileMenu">
-    <button class="mobile-close" onclick="closeMobileMenu()"><i class="fas fa-times"></i></button>
-    <ul>
-      <li><a href="#about" onclick="closeMobileMenu()"><i class="fas fa-building mr-2"></i> เกี่ยวกับเรา</a></li>
-      <li><a href="#services" onclick="closeMobileMenu()"><i class="fas fa-briefcase mr-2"></i> บริการ</a></li>
-      <li><a href="#team" onclick="closeMobileMenu()"><i class="fas fa-users mr-2"></i> ทีมงาน</a></li>
-      <li><a href="#news" onclick="closeMobileMenu()"><i class="fas fa-newspaper mr-2"></i> ข่าวสาร</a></li>
-      <li><a href="#career" onclick="closeMobileMenu()"><i class="fas fa-user-tie mr-2"></i> ร่วมงานกับเรา</a></li>
-      <li><a href="#contact" onclick="closeMobileMenu()"><i class="fas fa-envelope mr-2"></i> ติดต่อเรา</a></li>
-      <li style="margin-top:1rem; display: flex; justify-content: center; gap: 0.5rem;">
-        <a href="#" onclick="changeLanguage('th')" style="padding: 0.5rem; flex: 1; text-align: center; border: 1px solid var(--border); border-radius: 8px;">TH</a>
-        <a href="#" onclick="changeLanguage('lo')" style="padding: 0.5rem; flex: 1; text-align: center; border: 1px solid var(--border); border-radius: 8px;">LA</a>
-        <a href="#" onclick="changeLanguage('en')" style="padding: 0.5rem; flex: 1; text-align: center; border: 1px solid var(--border); border-radius: 8px;">EN</a>
-      </li>
-      <li style="margin-top:1rem">
-        <a href="Hr.html" onclick="goToHr(event)" style="background:var(--gradient-main);text-align:center;border-radius:12px;">
-          <i class="fas fa-sign-in-alt"></i> เข้าสู่ระบบ HR
-        </a>
-      </li>
-    </ul>
-  </nav>
-
   <!-- ===== NAVBAR ===== -->
   <header id="navbar">
     <div class="nav-container">
-      <a href="#" class="nav-logo" style="display: flex; align-items: center; gap: 0.5rem;">
-        <img id="nav-logo-img" src="" alt="Logo" style="height: 40px; display: none; object-fit: contain;" />
-        <span id="nav-logo-text" class="nav-logo-text">Love STK Groupe</span>
-      </a>
-
       <ul class="nav-links">
-        <li><a href="#about">เกี่ยวกับเรา</a></li>
+        <li><a href="#hero">หน้าแรก</a></li>
         <li><a href="#services">บริการ</a></li>
-        <li><a href="#team">ทีมงาน</a></li>
+        <li><a href="#about">เกี่ยวกับเรา</a></li>
         <li><a href="#news">ข่าวสาร</a></li>
-        <li><a href="#career">ร่วมงานกับเรา</a></li>
-        <li><a href="#contact">ติดต่อเรา</a></li>
-        <li class="lang-selector" style="display: flex; gap: 0.5rem; margin-left: 1rem;">
-          <a href="#" onclick="changeLanguage('th')" title="Thai">TH</a>
-          <span style="color: var(--text-muted)">|</span>
-          <a href="#" onclick="changeLanguage('lo')" title="Lao">LA</a>
-          <span style="color: var(--text-muted)">|</span>
-          <a href="#" onclick="changeLanguage('en')" title="English">EN</a>
-        </li>
+        <li><a href="#career">ร่วมงาน</a></li>
+        <li><a href="#team">ทีมงาน</a></li>
+        <li><a href="#footer-section" onclick="event.preventDefault(); document.querySelector('footer').scrollIntoView({behavior:'smooth'})">ติดต่อเรา</a></li>
       </ul>
-
-      <button class="hamburger" id="hamburger" onclick="openMobileMenu()" aria-label="เมนู">
-        <span></span><span></span><span></span>
-      </button>
     </div>
   </header>
 
   <!-- ===== HERO ===== -->
-  <section id="hero">
+  <section id="hero" style="min-height: 80vh; display: flex; align-items: center; justify-content: center;">
     <div class="hero-bg"></div>
     <div class="hero-grid-lines"></div>
-    <div id="particles-container"></div>
+    <canvas id="hero-particles-canvas" style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2;"></canvas>
 
     <div class="hero-content">
-      <div class="hero-brand">STK GROUPE</div>
-
-      <h1 class="hero-title">
+      <h1 class="hero-title" style="margin-bottom: 0;">
         ร่วมสร้าง<span class="gradient-text">อนาคต</span><br />
         ไปด้วยกัน
       </h1>
-
-      <p class="hero-subtitle">
-        องค์กรที่เชื่อในพลังของคนทุกคน — เราสร้างสรรค์นวัตกรรม<br />ด้วยหัวใจและความมุ่งมั่นที่ไม่หยุดยั้ง
-      </p>
-
-      <div class="hero-actions">
-        <a href="#about" class="btn-primary">
-          <i class="fas fa-arrow-down"></i>
-          รู้จักเรามากขึ้น
-        </a>
-        <a href="#contact" class="btn-outline">
-          <i class="fas fa-envelope"></i>
-          ติดต่อเรา
-        </a>
-      </div>
-
-      <div class="hero-stats">
-        <div class="hero-stat">
-          <span class="hero-stat-number" id="stat-employees">—</span>
-          <span class="hero-stat-label">พนักงาน</span>
-        </div>
-        <div class="hero-stat">
-          <span class="hero-stat-number" id="stat-years">10+</span>
-          <span class="hero-stat-label">ปีแห่งประสบการณ์</span>
-        </div>
-        <div class="hero-stat">
-          <span class="hero-stat-number" id="stat-dept">—</span>
-          <span class="hero-stat-label">แผนก</span>
-        </div>
-        <div class="hero-stat">
-          <span class="hero-stat-number">100%</span>
-          <span class="hero-stat-label">ความพึงพอใจ</span>
-        </div>
-        <div class="hero-bottom-line"></div>
-      </div>
     </div>
 
     <div class="hero-scroll-indicator" onclick="document.getElementById('about').scrollIntoView({behavior: 'smooth'})">
@@ -2038,21 +2122,7 @@
               องค์กรที่เชื่อมั่นในคุณค่าของความรัก ความสามัคคี และการเติบโตร่วมกัน
             </p>
 
-            <div
-              style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:2rem;position:relative;z-index:1">
-              <div
-                style="background:rgba(30,53,153,0.15);border:1px solid rgba(30,53,153,0.25);border-radius:12px;padding:1rem;text-align:center">
-                <div
-                  style="font-size:1.8rem;font-weight:800;background:var(--gradient-main);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text"
-                  id="about-emp-count">—</div>
-                <div style="font-size:0.78rem;color:var(--text-muted)">พนักงาน</div>
-              </div>
-              <div
-                style="background:rgba(38,16,117,0.15);border:1px solid rgba(38,16,117,0.25);border-radius:12px;padding:1rem;text-align:center">
-                <div style="font-size:1.8rem;font-weight:800;color:#8d78f7" id="about-dept-count">—</div>
-                <div style="font-size:0.78rem;color:var(--text-muted)">แผนก</div>
-              </div>
-            </div>
+
           </div>
         </div>
 
@@ -2188,7 +2258,7 @@
     <div class="container">
       <div class="career-banner reveal">
         <div class="career-banner-title">
-          💼 ร่วมเป็นส่วนหนึ่งของ<span
+          ร่วมเป็นส่วนหนึ่งของ<span
             style="background:linear-gradient(135deg,#fff,rgba(255,255,255,0.7));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">
             Love STK Groupe</span>
         </div>
@@ -2224,97 +2294,65 @@
 
 
 
-  <!-- ===== CONTACT ===== -->
-  <section id="contact">
-    <div class="container">
-      <div class="section-header reveal">
-        <div class="section-badge"><i class="fas fa-envelope"></i> ติดต่อเรา</div>
-        <h2 class="section-title">พูดคุยกับเรา</h2>
-        <p class="section-desc">
-          ไม่ว่าจะเป็นคำถาม ข้อเสนอแนะ หรือความร่วมมือทางธุรกิจ เราพร้อมรับฟังเสมอ
-        </p>
-      </div>
+  <!-- ===== FOOTER ===== -->
+  <footer style="background: #f5a800; color: #0f172a; padding: 0; border-top: none;">
+    <!-- Main footer content -->
+    <div style="padding: 2.5rem 0;">
+      <div class="container">
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1.5fr; gap: 3rem; align-items: start;">
 
-      <div class="contact-grid">
-        <div class="reveal">
-          <div class="contact-info-item">
-            <div class="contact-icon"><i class="fas fa-map-marker-alt"></i></div>
-            <div>
-              <div class="contact-label">ที่อยู่</div>
-              <div class="contact-value" id="org-address">กำลังโหลด...</div>
-            </div>
-          </div>
-          <div class="contact-info-item">
-            <div class="contact-icon"><i class="fas fa-phone"></i></div>
-            <div>
-              <div class="contact-label">โทรศัพท์</div>
-              <div class="contact-value" id="org-phone">กำลังโหลด...</div>
-            </div>
-          </div>
-          <div class="contact-info-item">
-            <div class="contact-icon"><i class="fas fa-envelope"></i></div>
-            <div>
-              <div class="contact-label">อีเมล</div>
-              <div class="contact-value" id="org-email">กำลังโหลด...</div>
-            </div>
-          </div>
-          <div class="contact-info-item">
-            <div class="contact-icon"><i class="fas fa-globe"></i></div>
-            <div>
-              <div class="contact-label">เว็บไซต์</div>
-              <div class="contact-value" id="org-website">กำลังโหลด...</div>
+          <!-- Left: ติดต่อเรา -->
+          <div>
+            <h3 style="font-size: 1.1rem; font-weight: 800; color: #0f172a; margin-bottom: 1.2rem; text-transform: uppercase; letter-spacing: 0.04em;">ติดต่อเรา</h3>
+            <div style="display: flex; flex-direction: column; gap: 0.55rem; font-size: 0.92rem; color: #1a1a1a; font-weight: 500; line-height: 1.6;">
+              <div style="display: flex; gap: 0.5rem;">
+                <span style="font-weight: 700; min-width: 56px;">ที่อยู่:</span>
+                <span id="org-address-footer">Vientiane Laos PDR</span>
+              </div>
+              <div style="display: flex; gap: 0.5rem;">
+                <span style="font-weight: 700; min-width: 56px;">Email:</span>
+                <span id="org-email-footer">Vientiane@lstk.com</span>
+              </div>
+              <div style="display: flex; gap: 0.5rem;">
+                <span style="font-weight: 700; min-width: 56px;">Tel:</span>
+                <span id="org-phone-footer">+856 20 59 495 614</span>
+              </div>
             </div>
           </div>
 
-          <div style="display:flex;gap:1rem;margin-top:1.5rem">
-            <a id="org-facebook" href="#"
-              style="width:44px;height:44px;border-radius:12px;background:rgba(30,53,153,0.15);border:1px solid rgba(30,53,153,0.25);display:flex;align-items:center;justify-content:center;color:var(--primary-light);text-decoration:none;transition:all 0.2s"
-              onmouseover="this.style.background='rgba(30,53,153,0.3)'"
-              onmouseout="this.style.background='rgba(30,53,153,0.15)'" target="_blank" rel="noopener">
-              <i class="fab fa-facebook-f"></i>
-            </a>
-            <a id="org-instagram" href="#"
-              style="width:44px;height:44px;border-radius:12px;background:rgba(38,16,117,0.15);border:1px solid rgba(38,16,117,0.25);display:flex;align-items:center;justify-content:center;color:#8d78f7;text-decoration:none;transition:all 0.2s"
-              onmouseover="this.style.background='rgba(38,16,117,0.3)'"
-              onmouseout="this.style.background='rgba(38,16,117,0.15)'" target="_blank" rel="noopener">
-              <i class="fab fa-instagram"></i>
-            </a>
-            <a id="org-line" href="#"
-              style="width:44px;height:44px;border-radius:12px;background:rgba(16,45,117,0.15);border:1px solid rgba(16,45,117,0.25);display:flex;align-items:center;justify-content:center;color:#4dabf7;text-decoration:none;transition:all 0.2s"
-              onmouseover="this.style.background='rgba(16,45,117,0.3)'"
-              onmouseout="this.style.background='rgba(16,45,117,0.15)'" target="_blank" rel="noopener">
-              <i class="fab fa-line"></i>
-            </a>
+          <!-- Middle: ระบบ (System links) -->
+          <div>
+            <h3 style="font-size: 1.1rem; font-weight: 800; color: #0f172a; margin-bottom: 1.2rem; text-transform: uppercase; letter-spacing: 0.04em;">ระบบ</h3>
+            <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.55rem;">
+              <li>
+                <a href="#" style="color: #1a1a1a; text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: color 0.2s;"
+                   onmouseover="this.style.color='#7c3aed'" onmouseout="this.style.color='#1a1a1a'">
+                  System Clinic
+                </a>
+              </li>
+              <li>
+                <a href="Hr.html" onclick="goToHr(event)" style="color: #1a1a1a; text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: color 0.2s;"
+                   onmouseover="this.style.color='#7c3aed'" onmouseout="this.style.color='#1a1a1a'">
+                  System Human Resources
+                </a>
+              </li>
+            </ul>
           </div>
-        </div>
 
-        <div class="reveal" style="transition-delay:0.15s">
-          <div class="map-wrapper">
-            <div id="map"></div>
+          <!-- Right: Map -->
+          <div>
+            <div style="border-radius: 8px; overflow: hidden; height: 200px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
+              <div id="footer-map" style="width: 100%; height: 100%;"></div>
+            </div>
           </div>
+
         </div>
       </div>
     </div>
-  </section>
 
-  <!-- ===== FOOTER ===== -->
-  <footer>
-    <div class="container">
-      <div class="footer-content">
-        <div>
-          <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem">
-            <span style="font-weight:700;font-size:0.95rem">Love STK Groupe</span>
-          </div>
-          <p class="footer-copy">© 2026 Love STK Groupe. สงวนลิขสิทธิ์ทุกประการ</p>
-        </div>
-        <div class="footer-links">
-          <a href="#about">เกี่ยวกับเรา</a>
-          <a href="#services">บริการ</a>
-          <a href="#career">ร่วมงาน</a>
-          <a href="#contact">ติดต่อ</a>
-          <a href="Hr.html" onclick="goToHr(event)" style="color:var(--primary-light)">ระบบ HR</a>
-        </div>
-      </div>
+    <!-- Thin dark bottom bar (copyright) -->
+    <div style="background: #111111; color: rgba(255,255,255,0.45); padding: 0.9rem 1rem; text-align: center; font-size: 0.78rem; letter-spacing: 0.02em;">
+      © 2026 Love STK Groupe. All Rights Reserved.
     </div>
   </footer>
 
@@ -2477,13 +2515,37 @@
     // UTILITY: FUZZY VALUE GETTER
     // =========================================
     function getFuzzyValue(row, searchKeys, defaultIndex = null) {
-      for (let k in row) {
-        let lwK = k.toLowerCase().trim();
-        for (let searchKey of searchKeys) {
-          if (lwK.includes(searchKey.toLowerCase())) return row[k];
+      if (!row || typeof row !== 'object') return defaultIndex !== null ? '-' : '';
+
+      for (let searchKey of searchKeys) {
+        const target = String(searchKey).toLowerCase().trim();
+        for (let k in row) {
+          if (String(k).toLowerCase().trim() === target) {
+            const val = row[k];
+            if (val !== undefined && val !== null && val !== '') return val;
+          }
         }
       }
-      if (defaultIndex !== null && Object.keys(row).length > defaultIndex) return Object.values(row)[defaultIndex];
+
+      for (let searchKey of searchKeys) {
+        const target = String(searchKey).toLowerCase().trim();
+        if (target === 'id') continue;
+        for (let k in row) {
+          const lwK = String(k).toLowerCase().trim();
+          if (lwK.includes(target)) {
+            const val = row[k];
+            if (val !== undefined && val !== null && val !== '') return val;
+          }
+        }
+      }
+
+      if (searchKeys.includes('id') && row['id'] !== undefined && row['id'] !== null && row['id'] !== '') {
+        return row['id'];
+      }
+
+      if (defaultIndex !== null && Object.keys(row).length > defaultIndex) {
+        return Object.values(row)[defaultIndex];
+      }
       return '-';
     }
 
@@ -2692,7 +2754,6 @@
       }));
     }
 
-
     // =========================================
     // NEWS MODAL FUNCTIONS
     // =========================================
@@ -2781,24 +2842,28 @@
     // LOAD ORG INFO FROM SUPABASE
     // =========================================
     async function loadOrgInfo() {
-      // Load phone / email / website from organization table
-      const rows = await supabaseFetch('organization', '&limit=1');
-      const org = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+      try {
+        const rows = await supabaseFetch('organization', '&limit=1');
+        const org = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+        let phone = '+856 20 5555 8888';
+        let email = 'info@lovestkgroupe.com';
+        let website = 'www.lovestkgroupe.com';
 
-      if (org) {
-        const phone = org.phone_number || org['Phone Number'] || '—';
-        const email = org.email || org.Email || '—';
-        const website = org.website || org.Website || '—';
-        document.getElementById('org-phone').textContent = phone;
-        document.getElementById('org-email').textContent = email;
-        document.getElementById('org-website').textContent = website;
-      } else {
-        document.getElementById('org-phone').textContent = '02-XXX-XXXX';
-        document.getElementById('org-email').textContent = 'info@lovestkgroupe.com';
-        document.getElementById('org-website').textContent = 'www.lovestkgroupe.com';
+        if (org) {
+          phone = org.phone_number || org.phone || org['Phone Number'] || phone;
+          email = org.email || org.Email || email;
+          website = org.website || org.Website || website;
+        }
+
+        if (document.getElementById('org-phone')) document.getElementById('org-phone').textContent = phone;
+        if (document.getElementById('org-phone-footer')) document.getElementById('org-phone-footer').textContent = phone;
+        if (document.getElementById('org-email')) document.getElementById('org-email').textContent = email;
+        if (document.getElementById('org-email-footer')) document.getElementById('org-email-footer').textContent = email;
+        if (document.getElementById('org-website')) document.getElementById('org-website').textContent = website;
+      } catch (e) {
+        console.warn('Could not load org info:', e);
       }
 
-      // Load address + social links from company_info table
       try {
         const infoRows = await supabaseFetch('company_info', '&limit=200');
         const infoMap = {};
@@ -2806,15 +2871,14 @@
           infoRows.forEach(r => { if (r.key) infoMap[r.key] = r.value || ''; });
         }
 
-        const address = infoMap['contact_address'] || 'Love STK Groupe\nกรุงเทพมหานคร, ประเทศไทย';
+        const address = infoMap['contact_address'] || 'อาคาร Love STK Groupe\nกรุงเทพมหานคร, ประเทศไทย';
         const fbUrl = infoMap['contact_facebook'] || '';
         const igUrl = infoMap['contact_instagram'] || '';
         const lineUrl = infoMap['contact_line'] || '';
 
-        // Address — show line breaks as <br>
-        document.getElementById('org-address').innerHTML = address.replace(/\n/g, '<br/>');
+        if (document.getElementById('org-address')) document.getElementById('org-address').innerHTML = address.replace(/\n/g, '<br/>');
+        if (document.getElementById('org-address-footer')) document.getElementById('org-address-footer').innerHTML = address.replace(/\n/g, '<br/>');
 
-        // Social links — update href, hide button if empty
         const fbEl = document.getElementById('org-facebook');
         const igEl = document.getElementById('org-instagram');
         const lineEl = document.getElementById('org-line');
@@ -2823,13 +2887,9 @@
         if (lineEl) { lineUrl ? lineEl.href = lineUrl : lineEl.style.display = 'none'; }
       } catch (e) {
         console.warn('Could not load contact info from company_info:', e);
-        document.getElementById('org-address').innerHTML = 'Love STK Groupe<br/>กรุงเทพมหานคร, ประเทศไทย';
       }
     }
 
-    // =========================================
-    // LOAD STAFF & DEPT COUNTS
-    // =========================================
     async function loadStats() {
       const [staff, depts] = await Promise.all([
         supabaseFetch('staff', '&limit=1000'),
@@ -2840,19 +2900,13 @@
       const deptCount = Array.isArray(depts) ? depts.length : 0;
 
       if (empCount > 0) {
-        document.getElementById('stat-employees').textContent = empCount + '+';
-        document.getElementById('about-emp-count').textContent = empCount;
-      } else {
-        document.getElementById('stat-employees').textContent = '21+';
-        document.getElementById('about-emp-count').textContent = '21+';
+        if (document.getElementById('stat-employees')) document.getElementById('stat-employees').textContent = empCount + '+';
+        if (document.getElementById('about-emp-count')) document.getElementById('about-emp-count').textContent = empCount;
       }
 
       if (deptCount > 0) {
-        document.getElementById('stat-dept').textContent = deptCount;
-        document.getElementById('about-dept-count').textContent = deptCount;
-      } else {
-        document.getElementById('stat-dept').textContent = '4';
-        document.getElementById('about-dept-count').textContent = '4';
+        if (document.getElementById('stat-dept')) document.getElementById('stat-dept').textContent = deptCount;
+        if (document.getElementById('about-dept-count')) document.getElementById('about-dept-count').textContent = deptCount;
       }
     }
 
@@ -2948,30 +3002,32 @@
       }
 
       try {
-        const map = L.map('map').setView([lat, lng], 15);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-          attribution: '&copy; OpenStreetMap &copy; CARTO',
-          maxZoom: 19
-        }).addTo(map);
+        const mapEl = document.getElementById('footer-map') || document.getElementById('map');
+        if (mapEl) {
+          const map = L.map(mapEl.id).setView([lat, lng], 15);
+          L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
+            maxZoom: 19
+          }).addTo(map);
 
-        const customIcon = L.divIcon({
-          className: '',
-          html: '<div style="width:40px;height:40px;background:linear-gradient(135deg,#1E3599,#261075);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;box-shadow:0 4px 20px rgba(30, 53, 153, 0.6)">💙</div>',
-          iconSize: [40, 40],
-          iconAnchor: [20, 40],
-        });
+          const customIcon = L.divIcon({
+            className: '',
+            html: '<div style="width:40px;height:40px;background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;box-shadow:0 4px 20px rgba(245, 158, 11, 0.6)">🏢</div>',
+            iconSize: [40, 40],
+            iconAnchor: [20, 40],
+          });
 
-        L.marker([lat, lng], { icon: customIcon })
-          .addTo(map)
-          .bindPopup(`
-            <div style="font-family:'Prompt',sans-serif;text-align:center;padding:0.5rem">
-              <strong>${label}</strong><br/>
-              <span style="font-size:0.8rem;color:#666">${subLabel}</span>
-            </div>
-          `, { maxWidth: 200 });
+          L.marker([lat, lng], { icon: customIcon })
+            .addTo(map)
+            .bindPopup(`
+              <div style="font-family:'Prompt',sans-serif;text-align:center;padding:0.5rem">
+                <strong>${label}</strong><br/>
+                <span style="font-size:0.8rem;color:#666">${subLabel}</span>
+              </div>
+            `, { maxWidth: 200 });
+        }
       } catch (e) {
-        document.getElementById('map').innerHTML =
-          '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-muted);flex-direction:column;gap:0.5rem"><i class="fas fa-map-marker-alt" style="font-size:2rem;color:var(--primary-light)"></i><span>กรุงเทพมหานคร</span></div>';
+        console.warn('Map init failed:', e);
       }
     }
 
@@ -3275,6 +3331,215 @@
       loadStats();
       loadTeam();
       initMap();
+
+      // ═══════════════════════════════════════════
+      // PREMIUM ANIMATION ENGINE
+      // ═══════════════════════════════════════════
+
+      // ── 1. Enhanced IntersectionObserver with staggered reveals ──
+      const revealObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry, idx) => {
+          if (entry.isIntersecting) {
+            const el = entry.target;
+            const delay = el.dataset.delay || (idx * 80);
+            setTimeout(() => el.classList.add('visible'), delay);
+            revealObserver.unobserve(el);
+          }
+        });
+      }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+
+      document.querySelectorAll('.reveal, .reveal-left, .reveal-right, .reveal-scale').forEach((el, i) => {
+        if (!el.dataset.delay) el.dataset.delay = i * 60;
+        revealObserver.observe(el);
+      });
+
+      // ── 2. Parallax hero on scroll ──
+      const heroEl = document.getElementById('hero');
+      const heroBg = document.querySelector('.hero-bg');
+      const heroContent = document.querySelector('.hero-content');
+
+      window.addEventListener('scroll', () => {
+        const scrollY = window.scrollY;
+        if (heroEl && scrollY < window.innerHeight * 1.2) {
+          const ratio = scrollY / window.innerHeight;
+          if (heroBg) heroBg.style.transform = `translateY(${scrollY * 0.35}px)`;
+          if (heroContent) {
+            heroContent.style.transform = `translateY(${scrollY * 0.15}px)`;
+            heroContent.style.opacity = Math.max(0, 1 - ratio * 1.1);
+          }
+        }
+      }, { passive: true });
+
+      // ── 3. High-Performance Canvas Particle System (Gold, Sky Blue, White) ──
+      const canvas = document.getElementById('hero-particles-canvas');
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        let width = canvas.width = canvas.offsetWidth || window.innerWidth;
+        let height = canvas.height = canvas.offsetHeight || window.innerHeight;
+
+        window.addEventListener('resize', () => {
+          width = canvas.width = canvas.offsetWidth || window.innerWidth;
+          height = canvas.height = canvas.offsetHeight || window.innerHeight;
+        });
+
+        // 3 Specified colors: Gold (สีทอง), Sky Blue (สีฟ้า), White (สีขาว)
+        const particleColors = [
+          { r: 245, g: 158, b: 11 },  // Gold (สีทอง)
+          { r: 251, g: 191, b: 36 },  // Light Gold (สีทองสว่าง)
+          { r: 56,  g: 189, b: 248 }, // Sky Blue (สีฟ้า)
+          { r: 6,   g: 182, b: 212 }, // Cyan Blue (สีฟ้าเรืองแสง)
+          { r: 255, g: 255, b: 255 }  // White (สีขาว)
+        ];
+
+        const numParticles = 28;
+        const particles = [];
+
+        for (let i = 0; i < numParticles; i++) {
+          particles.push({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            radius: Math.random() * 1.8 + 1.0, // Subtle sizes: 1.0px to 2.8px
+            speedY: Math.random() * 0.5 + 0.2, // Very gentle upward drift
+            swaySpeed: Math.random() * 0.015 + 0.005,
+            swayAmp: Math.random() * 1.2 + 0.3,
+            swayOffset: Math.random() * Math.PI * 2,
+            color: particleColors[Math.floor(Math.random() * particleColors.length)],
+            baseAlpha: Math.random() * 0.25 + 0.15 // Soft subtle opacity: 0.15 to 0.40
+          });
+        }
+
+        function renderParticles() {
+          ctx.clearRect(0, 0, width, height);
+
+          particles.forEach(p => {
+            p.y -= p.speedY;
+            p.swayOffset += p.swaySpeed;
+            p.x += Math.sin(p.swayOffset) * p.swayAmp * 0.4;
+
+            // Fade out smoothly as particle reaches top 25% of height
+            let currentAlpha = p.baseAlpha;
+            const topFadeZone = height * 0.25;
+            const bottomFadeZone = height * 0.85;
+
+            if (p.y < topFadeZone) {
+              currentAlpha = p.baseAlpha * Math.max(0, p.y / topFadeZone);
+            } else if (p.y > bottomFadeZone) {
+              currentAlpha = p.baseAlpha * Math.max(0, (height - p.y) / (height - bottomFadeZone));
+            }
+
+            // Reset to bottom when particle floats past top edge
+            if (p.y < -15) {
+              p.y = height + 10;
+              p.x = Math.random() * width;
+              p.speedY = Math.random() * 0.5 + 0.2;
+            }
+
+            if (p.x < 0) p.x = width;
+            if (p.x > width) p.x = 0;
+
+            // Draw soft glowing particle
+            ctx.save();
+            ctx.shadowBlur = p.radius * 2.0;
+            ctx.shadowColor = `rgba(${p.color.r}, ${p.color.g}, ${p.color.b}, ${currentAlpha * 0.7})`;
+            ctx.fillStyle = `rgba(${p.color.r}, ${p.color.g}, ${p.color.b}, ${currentAlpha})`;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          });
+
+          requestAnimationFrame(renderParticles);
+        }
+
+        renderParticles();
+      }
+
+      // ── 4. Smooth counter animation for stats ──
+      function animateCounters() {
+        document.querySelectorAll('.hero-stat-number, [id*="count"]').forEach(el => {
+          const text = el.textContent.trim();
+          const match = text.match(/^(\d+)/);
+          if (!match) return;
+          const target = parseInt(match[1]);
+          const suffix = text.replace(/^\d+/, '');
+          let current = 0;
+          const duration = 2000;
+          const step = Math.ceil(target / (duration / 16));
+          const timer = setInterval(() => {
+            current = Math.min(current + step, target);
+            el.textContent = current + suffix;
+            if (current >= target) clearInterval(timer);
+          }, 16);
+        });
+      }
+
+      // Trigger counter when hero is visible
+      const counterObserver = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+          if (e.isIntersecting) {
+            animateCounters();
+            counterObserver.unobserve(e.target);
+          }
+        });
+      }, { threshold: 0.3 });
+      if (heroEl) counterObserver.observe(heroEl);
+
+      // ── 5. Mouse-follow glow effect on hero ──
+      if (heroEl) {
+        heroEl.addEventListener('mousemove', (e) => {
+          const rect = heroEl.getBoundingClientRect();
+          const x = ((e.clientX - rect.left) / rect.width) * 100;
+          const y = ((e.clientY - rect.top) / rect.height) * 100;
+          heroEl.style.setProperty('--mouse-x', x + '%');
+          heroEl.style.setProperty('--mouse-y', y + '%');
+          if (heroBg) {
+            heroBg.style.background = `
+              radial-gradient(circle 400px at ${x}% ${y}%, rgba(249,115,22,0.08) 0%, transparent 60%),
+              radial-gradient(circle at 15% 20%, rgba(30,53,153,0.15) 0%, transparent 45%),
+              radial-gradient(circle at 85% 75%, rgba(38,16,117,0.18) 0%, transparent 45%),
+              var(--dark)
+            `;
+          }
+        });
+      }
+
+      // ── 6. Stagger child animations for cards ──
+      document.querySelectorAll('.mv-cards, .services-grid, #team-grid, .career-positions').forEach(container => {
+        const staggerObserver = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              const children = entry.target.children;
+              Array.from(children).forEach((child, i) => {
+                child.style.opacity = '0';
+                child.style.transform = 'translateY(30px)';
+                child.style.transition = `opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${i * 120}ms, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${i * 120}ms`;
+                requestAnimationFrame(() => {
+                  child.style.opacity = '1';
+                  child.style.transform = 'translateY(0)';
+                });
+              });
+              staggerObserver.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.15 });
+        staggerObserver.observe(container);
+      });
+
+      // ── 7. Smooth navbar scroll effect ──
+      let lastScroll = 0;
+      const navbar = document.getElementById('navbar');
+      window.addEventListener('scroll', () => {
+        const currentScroll = window.scrollY;
+        if (navbar) {
+          if (currentScroll > 80) {
+            navbar.classList.add('scrolled');
+          } else {
+            navbar.classList.remove('scrolled');
+          }
+        }
+        lastScroll = currentScroll;
+      }, { passive: true });
+
     });
   </script>
 

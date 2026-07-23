@@ -1,3 +1,7 @@
+body {
+    font-family: 'Sukhumvit Set', 'Prompt', 'Inter', 'Kanit', 'Noto Sans Lao', sans-serif !important;
+}
+
 .hidden-important {
     display: none !important;
 }
