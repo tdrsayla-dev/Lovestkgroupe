@@ -1157,3 +1157,752 @@ function renderEmployeeRatingPageFromScratch(ratingRows) {
     });
     cardWrapper.innerHTML = html;
 }
+
+/* =====================================================================
+ * 📌 ส่วนที่ 18: DATA EXPORT ENGINE (Export Excel & Export PDF Functions)
+ * ===================================================================== */
+let pendingExportType = null;
+let pendingExportSheet = null;
+
+function getActiveTableExportData() {
+    let dataToExport = [];
+    if (typeof filteredData !== 'undefined' && Array.isArray(filteredData) && filteredData.length > 0) {
+        dataToExport = [...filteredData];
+    } else if (tableCache[currentSheet] && Array.isArray(tableCache[currentSheet].data) && tableCache[currentSheet].data.length > 0) {
+        dataToExport = [...tableCache[currentSheet].data];
+    } else if (typeof rawData !== 'undefined' && Array.isArray(rawData) && rawData.length > 0) {
+        dataToExport = [...rawData];
+    }
+
+    let empIdFilter = '';
+    const calEmpInput = document.getElementById('calendarEmpId');
+    const searchInput = document.getElementById('searchInput');
+
+    if (calEmpInput && calEmpInput.value.trim()) {
+        empIdFilter = calEmpInput.value.trim().toUpperCase();
+    } else if (searchInput && searchInput.value.trim() && (currentSheet === 'Fingerprint_Logs' || currentSheet === 'Attendance_Logs')) {
+        empIdFilter = searchInput.value.trim().toUpperCase();
+    }
+
+    let calMonthInput = document.getElementById('calendarMonth');
+    let tYear = new Date().getFullYear();
+    let tMonth = new Date().getMonth() + 1;
+    if (calMonthInput && calMonthInput.value.trim()) {
+        const mp = calMonthInput.value.trim().split('-');
+        if (mp.length === 2) {
+            tYear = parseInt(mp[0], 10);
+            tMonth = parseInt(mp[1], 10);
+        }
+    }
+
+    if (currentSheet === 'Fingerprint_Logs' || currentSheet === 'Attendance_Logs') {
+        let sDate = `${tYear}-${String(tMonth).padStart(2, '0')}-01`;
+        let eDateObj = new Date(tYear, tMonth, 0);
+        let eDate = `${tYear}-${String(tMonth).padStart(2, '0')}-${String(eDateObj.getDate()).padStart(2, '0')}`;
+
+        if (empIdFilter) {
+            let empLogs = dataToExport.filter(r => {
+                const rEmp = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').trim().toUpperCase();
+                return rEmp === empIdFilter || rEmp.includes(empIdFilter);
+            });
+
+            if (typeof fillMissingDays === 'function') {
+                dataToExport = fillMissingDays(empLogs, sDate, eDate, empIdFilter);
+            } else {
+                dataToExport = empLogs;
+            }
+        } else {
+            // ALL EMPLOYEES: Run fillMissingDays for every employee to ensure complete datasets
+            let empIdSet = new Set();
+            dataToExport.forEach(r => {
+                const rEmp = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').trim().toUpperCase();
+                if (rEmp) empIdSet.add(rEmp);
+            });
+
+            if (tableCache['staff'] && Array.isArray(tableCache['staff'].data)) {
+                tableCache['staff'].data.forEach(s => {
+                    const sEmp = String(s.employee_id || s.emp_id || s.Employee_ID || '').trim().toUpperCase();
+                    if (sEmp) empIdSet.add(sEmp);
+                });
+            }
+
+            let allEmpFilledLogs = [];
+            const empList = Array.from(empIdSet).sort();
+
+            empList.forEach(empId => {
+                let empLogs = dataToExport.filter(r => {
+                    const rEmp = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').trim().toUpperCase();
+                    return rEmp === empId;
+                });
+
+                if (typeof fillMissingDays === 'function') {
+                    const filled = fillMissingDays(empLogs, sDate, eDate, empId);
+                    allEmpFilledLogs.push(...filled);
+                } else {
+                    allEmpFilledLogs.push(...empLogs);
+                }
+            });
+
+            if (allEmpFilledLogs.length > 0) {
+                dataToExport = allEmpFilledLogs;
+            }
+        }
+    } else if (empIdFilter) {
+        dataToExport = dataToExport.filter(r => {
+            const rEmp = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').trim().toUpperCase();
+            return rEmp === empIdFilter || rEmp.includes(empIdFilter);
+        });
+    }
+
+    // Sort FIRST by Employee_ID (grouped sequentially per staff), SECOND by Date
+    dataToExport.sort((a, b) => {
+        const empA = String(a.Employee_ID || a.employee_id || a.Emp_ID || '').trim().toUpperCase();
+        const empB = String(b.Employee_ID || b.employee_id || b.Emp_ID || '').trim().toUpperCase();
+
+        if (empA !== empB) {
+            return empA.localeCompare(empB, undefined, { numeric: true, sensitivity: 'base' });
+        }
+
+        let dateA = String(a.Date || a.date || '');
+        let dateB = String(b.Date || b.date || '');
+
+        if (dateA.includes('/')) {
+            const p = dateA.split('/');
+            if (p.length === 3) dateA = `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+        }
+        if (dateB.includes('/')) {
+            const p = dateB.split('/');
+            if (p.length === 3) dateB = `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+        }
+
+        return dateA.localeCompare(dateB);
+    });
+
+    return dataToExport;
+}
+
+function calculateAttendanceSummary(data) {
+    let totalLateHrs = 0;
+    let totalEarlyHrs = 0;
+    let totalAbsentDays = 0;
+    let totalOT = 0;
+
+    let today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    data.forEach(row => {
+        let late = parseFloat(getFuzzyValue(row, ['Late_Hours', 'late_hours', 'late_hrs']) || 0) || 0;
+        let early = parseFloat(getFuzzyValue(row, ['Early_Leave_Hours', 'early_leave_hours', 'early_hrs']) || 0) || 0;
+        let ot = parseFloat(getFuzzyValue(row, ['OT_Amount', 'ot_amount', 'ot']) || 0) || 0;
+
+        let status = String(getFuzzyValue(row, ['Attendance_Status', 'attendance_status', 'Status', 'status']) || '').toLowerCase();
+
+        let checkIn = getFuzzyValue(row, ['Check_In', 'check_in', 'in']);
+        let checkOut = getFuzzyValue(row, ['Check_Out', 'check_out', 'out']);
+        let shiftStart = getFuzzyValue(row, ['Shift_Start', 'shift_start', 'start']);
+        let shiftEnd = getFuzzyValue(row, ['Shift_End', 'shift_end', 'end']);
+        let rawDateStr = getFuzzyValue(row, ['Date', 'date', 'วันที่']);
+
+        let rowDate = (typeof parseDateStr === 'function') ? parseDateStr(rawDateStr) : null;
+        let isPastOrToday = rowDate ? (rowDate <= today) : true;
+
+        if (late === 0 && checkIn && checkIn !== '-' && shiftStart && shiftStart !== '-') {
+            let inMins = parseInt(String(checkIn).split(':')[0] || 0) * 60 + parseInt(String(checkIn).split(':')[1] || 0);
+            let startMins = parseInt(String(shiftStart).split(':')[0] || 0) * 60 + parseInt(String(shiftStart).split(':')[1] || 0);
+            if (inMins > startMins) late = (inMins - startMins) / 60;
+        }
+
+        if (early === 0 && checkOut && checkOut !== '-' && shiftEnd && shiftEnd !== '-') {
+            let outMins = parseInt(String(checkOut).split(':')[0] || 0) * 60 + parseInt(String(checkOut).split(':')[1] || 0);
+            let endMins = parseInt(String(shiftEnd).split(':')[0] || 0) * 60 + parseInt(String(shiftEnd).split(':')[1] || 0);
+            if (outMins < endMins && outMins > 0) early = (endMins - outMins) / 60;
+        }
+
+        totalLateHrs += late;
+        totalEarlyHrs += early;
+        totalOT += ot;
+
+        if (status.includes('absent') || status.includes('missing') || status.includes('ขาด')) {
+            totalAbsentDays++;
+        }
+    });
+
+    const lateMinsTotal = Math.round(totalLateHrs * 60);
+    const earlyMinsTotal = Math.round(totalEarlyHrs * 60);
+
+    const lateFormatted = `${(Math.round(totalLateHrs * 100) / 100)} ชม. (${lateMinsTotal} นาที)`;
+    const earlyFormatted = `${(Math.round(totalEarlyHrs * 100) / 100)} ชม. (${earlyMinsTotal} นาที)`;
+
+    return {
+        lateHrs: Math.round(totalLateHrs * 100) / 100,
+        lateMins: lateMinsTotal,
+        lateFormatted,
+        earlyHrs: Math.round(totalEarlyHrs * 100) / 100,
+        earlyMins: earlyMinsTotal,
+        earlyFormatted,
+        absentDays: totalAbsentDays,
+        otTotal: totalOT
+    };
+}
+
+function exportToExcel(targetSheetName = null) {
+    openExportPreviewModal('EXCEL', targetSheetName);
+}
+
+function exportToPDF(targetSheetName = null) {
+    openExportPreviewModal('PDF', targetSheetName);
+}
+
+function openExportPreviewModal(type, targetSheetName = null) {
+    pendingExportType = type;
+    pendingExportSheet = targetSheetName || currentSheet || 'Attendance_Logs';
+    const data = getActiveTableExportData();
+
+    if (!data || data.length === 0) {
+        showToast('ไม่พบข้อมูลสำหรับส่งออก (No data to export)', 'error');
+        return;
+    }
+
+    const modal = document.getElementById('export-preview-modal');
+    if (!modal) {
+        if (type === 'PDF') performPDFExport(pendingExportSheet, data);
+        else performExcelExport(pendingExportSheet, data);
+        return;
+    }
+
+    const badgeContainer = document.getElementById('export-modal-badge');
+    const formatText = document.getElementById('export-format-text');
+    const scopeText = document.getElementById('export-scope-text');
+    const periodText = document.getElementById('export-period-text');
+    const countText = document.getElementById('export-count-text');
+    const summaryBox = document.getElementById('export-summary-preview-box');
+
+    if (type === 'PDF') {
+        badgeContainer.innerHTML = `<span class="bg-rose-50 text-rose-700 border border-rose-200 px-3 py-1 rounded-full font-bold text-xs flex items-center gap-1.5"><i class="fa-solid fa-file-pdf"></i> PDF Document (.pdf)</span>`;
+        formatText.innerText = 'PDF Document (.pdf)';
+    } else {
+        badgeContainer.innerHTML = `<span class="bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-full font-bold text-xs flex items-center gap-1.5"><i class="fa-solid fa-file-excel"></i> Excel Spreadsheet (.xlsx)</span>`;
+        formatText.innerText = 'Excel Spreadsheet (.xlsx)';
+    }
+
+    let empFilterStr = 'พนักงานทั้งหมด (All Staff)';
+    const calEmpInput = document.getElementById('calendarEmpId');
+    const searchInput = document.getElementById('searchInput');
+
+    if (calEmpInput && calEmpInput.value.trim()) {
+        empFilterStr = `พนักงานเฉพาะราย: ${calEmpInput.value.trim().toUpperCase()}`;
+    } else if (searchInput && searchInput.value.trim() && currentSheet === 'Fingerprint_Logs') {
+        empFilterStr = `พนักงานเฉพาะราย: ${searchInput.value.trim().toUpperCase()}`;
+    }
+
+    scopeText.innerText = empFilterStr;
+
+    let monthFilterStr = 'ทั้งหมด (All Period)';
+    const calMonthInput = document.getElementById('calendarMonth');
+    if (calMonthInput && calMonthInput.value.trim()) {
+        monthFilterStr = calMonthInput.value.trim();
+    }
+    periodText.innerText = monthFilterStr;
+    countText.innerText = `${data.length} รายการ`;
+
+    // Render Live Table Preview of Attendance Logs in Modal
+    const thead = document.getElementById('export-preview-thead');
+    const tbody = document.getElementById('export-preview-tbody');
+    const showingCount = document.getElementById('export-preview-showing-count');
+
+    if (thead && tbody && data.length > 0) {
+        const headers = currentHeaders || Object.keys(data[0]);
+        const cleanHeaders = headers.filter(h => {
+            const lw = String(h).toLowerCase().trim();
+            return lw !== 'signature' && lw !== 'photos' && lw !== 'photo' && lw !== 'profile' && !lw.startsWith('__') && lw !== 'action' && lw !== 'จัดกา' && lw !== 'จัดการ';
+        });
+
+        thead.innerHTML = cleanHeaders.map(h => `<th class="p-2.5 uppercase tracking-wider text-[10.5px] border-b border-indigo-800">${h}</th>`).join('');
+
+        const previewRows = data.slice(0, 15);
+        if (showingCount) {
+            showingCount.innerText = data.length > 15 ? `แสดงตัวอย่าง 15 จาก ${data.length} รายการ` : `แสดงทั้งหมด ${data.length} รายการ`;
+        }
+
+        tbody.innerHTML = previewRows.map((row, idx) => {
+            const bg = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50';
+            const tds = cleanHeaders.map(h => {
+                let val = row[h];
+                if (val === undefined || val === null) val = '-';
+                let strVal = String(val);
+                let badgeClass = '';
+
+                if (h === 'Attendance_Status' || h === 'attendance_status' || h === 'Status') {
+                    const upper = strVal.toUpperCase();
+                    if (upper.includes('PRESENT')) badgeClass = 'text-green-600 font-bold bg-green-50 px-2 py-0.5 rounded-full border border-green-200';
+                    else if (upper.includes('LATE')) badgeClass = 'text-red-600 font-bold bg-red-50 px-2 py-0.5 rounded-full border border-red-200';
+                    else if (upper.includes('ABSENT')) badgeClass = 'text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200';
+                    else if (upper.includes('LEAVE')) badgeClass = 'text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200';
+                    else if (upper.includes('OFF')) badgeClass = 'text-gray-500 font-bold bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200';
+                }
+
+                return `<td class="p-2.5 text-[11px] whitespace-nowrap"><span class="${badgeClass}">${strVal}</span></td>`;
+            }).join('');
+
+            return `<tr class="${bg} hover:bg-indigo-50/30 transition-colors">${tds}</tr>`;
+        }).join('');
+    }
+
+    const isAttendance = (pendingExportSheet === 'Fingerprint_Logs' || currentSheet === 'Fingerprint_Logs');
+    if (isAttendance && summaryBox) {
+        const summary = calculateAttendanceSummary(data);
+        summaryBox.innerHTML = `
+            <div class="bg-red-50 border border-red-100 p-2 rounded-xl">
+                <div class="text-[10px] text-red-600 font-bold">มาสายรวม</div>
+                <div class="text-xs font-extrabold text-red-800">${summary.lateFormatted}</div>
+            </div>
+            <div class="bg-orange-50 border border-orange-100 p-2 rounded-xl">
+                <div class="text-[10px] text-orange-600 font-bold">กลับก่อนรวม</div>
+                <div class="text-xs font-extrabold text-orange-800">${summary.earlyFormatted}</div>
+            </div>
+            <div class="bg-green-50 border border-green-100 p-2 rounded-xl">
+                <div class="text-[10px] text-green-600 font-bold">ขาดงาน</div>
+                <div class="text-xs font-extrabold text-green-800">${summary.absentDays} วัน</div>
+            </div>
+            <div class="bg-blue-50 border border-blue-100 p-2 rounded-xl">
+                <div class="text-[10px] text-blue-600 font-bold">OT รวม</div>
+                <div class="text-xs font-extrabold text-blue-800">${summary.otTotal.toLocaleString()}</div>
+            </div>
+        `;
+        summaryBox.classList.remove('hidden');
+    } else if (summaryBox) {
+        summaryBox.innerHTML = '';
+        summaryBox.classList.add('hidden');
+    }
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeExportPreviewModal() {
+    const modal = document.getElementById('export-preview-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+function executeConfirmedExport() {
+    closeExportPreviewModal();
+    const data = getActiveTableExportData();
+    if (pendingExportType === 'PDF') {
+        performPDFExport(pendingExportSheet, data);
+    } else {
+        performExcelExport(pendingExportSheet, data);
+    }
+}
+
+function buildPDFReportHtml(data, sheetName) {
+    const isAttendance = (sheetName === 'Fingerprint_Logs' || currentSheet === 'Fingerprint_Logs');
+
+    let monthFilterStr = 'ทั้งหมด (All Period)';
+    const calendarMonthInput = document.getElementById('calendarMonth');
+    if (calendarMonthInput && calendarMonthInput.value.trim()) {
+        monthFilterStr = calendarMonthInput.value.trim();
+    }
+
+    const todayStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+
+    const headers = currentHeaders || (data.length > 0 ? Object.keys(data[0]) : []);
+    const cleanHeaders = headers.filter(h => {
+        const lw = String(h).toLowerCase().trim();
+        return lw !== 'signature' && lw !== 'photos' && lw !== 'photo' && lw !== 'profile' && !lw.startsWith('__') && lw !== 'action' && lw !== 'จัดกา' && lw !== 'จัดการ';
+    });
+
+    let thHtml = cleanHeaders.map(h => `<th style="padding: 8px 7px; border: 1px solid #cbd5e1; font-size: 10px; font-weight: 700; text-transform: uppercase; text-align: left;">${h}</th>`).join('');
+
+    // Group data by Employee_ID
+    let empGroups = {};
+    if (isAttendance) {
+        data.forEach(row => {
+            const empId = String(row.Employee_ID || row.employee_id || row.Emp_ID || 'UNASSIGNED').trim().toUpperCase();
+            if (!empGroups[empId]) empGroups[empId] = [];
+            empGroups[empId].push(row);
+        });
+    }
+
+    const empKeys = Object.keys(empGroups);
+    let mainContentHtml = '';
+
+    if (isAttendance && empKeys.length > 0) {
+        mainContentHtml = empKeys.map((empId, eIdx) => {
+            const empRows = empGroups[empId];
+            const empSummary = calculateAttendanceSummary(empRows);
+            const empName = empRows[0]?.Full_Name || empRows[0]?.full_name || empId;
+
+            let trsHtml = empRows.map((row, idx) => {
+                const bg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+                let tds = cleanHeaders.map(h => {
+                    let val = row[h];
+                    if (val === undefined || val === null) val = '-';
+                    let strVal = String(val);
+                    let styleExtra = '';
+
+                    if (h === 'Attendance_Status' || h === 'attendance_status' || h === 'Status') {
+                        const upper = strVal.toUpperCase();
+                        if (upper.includes('PRESENT')) styleExtra = 'color: #16a34a; font-weight: bold;';
+                        else if (upper.includes('LATE')) styleExtra = 'color: #dc2626; font-weight: bold;';
+                        else if (upper.includes('ABSENT')) styleExtra = 'color: #ef4444; font-weight: bold;';
+                        else if (upper.includes('LEAVE')) styleExtra = 'color: #eab308; font-weight: bold;';
+                        else if (upper.includes('OFF')) styleExtra = 'color: #6b7280; font-weight: bold;';
+                    }
+
+                    return `<td style="padding: 6px 7px; border: 1px solid #e2e8f0; font-size: 10px; ${styleExtra}">${strVal}</td>`;
+                }).join('');
+
+                return `<tr style="background: ${bg};">${tds}</tr>`;
+            }).join('');
+
+            const pageBreakStyle = empKeys.length > 1 && eIdx < empKeys.length - 1 ? 'page-break-after: always; margin-bottom: 24px;' : 'margin-bottom: 20px;';
+
+            return `
+            <div style="${pageBreakStyle}">
+                <div style="background: #eef2ff; border: 1.5px solid #c7d2fe; border-radius: 10px; padding: 8px 14px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-size: 12.5px; font-weight: 800; color: #3730a3;">
+                        👤 พนักงาน (Employee): <span style="color: #4f46e5;">${empId} - ${empName}</span>
+                    </div>
+                    <div style="font-size: 10.5px; font-weight: 700; color: #4338ca;">
+                        จำนวน: ${empRows.length} รายการ
+                    </div>
+                </div>
+
+                <!-- Individual Employee Summary Cards -->
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px;">
+                    <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 7px 9px; text-align: center;">
+                        <div style="font-size: 9.5px; color: #dc2626; font-weight: 700; text-transform: uppercase;">⏰ มาสายรวม (Late)</div>
+                        <div style="font-size: 13px; font-weight: 800; color: #991b1b; margin-top: 2px;">${empSummary.lateFormatted}</div>
+                    </div>
+                    <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 7px 9px; text-align: center;">
+                        <div style="font-size: 9.5px; color: #ea580c; font-weight: 700; text-transform: uppercase;">🏃 กลับก่อนรวม (Early)</div>
+                        <div style="font-size: 13px; font-weight: 800; color: #9a3412; margin-top: 2px;">${empSummary.earlyFormatted}</div>
+                    </div>
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 7px 9px; text-align: center;">
+                        <div style="font-size: 9.5px; color: #16a34a; font-weight: 700; text-transform: uppercase;">❌ ขาดงานรวม (Absent)</div>
+                        <div style="font-size: 13px; font-weight: 800; color: #166534; margin-top: 2px;">${empSummary.absentDays} วัน</div>
+                    </div>
+                    <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 7px 9px; text-align: center;">
+                        <div style="font-size: 9.5px; color: #2563eb; font-weight: 700; text-transform: uppercase;">💰 OT รวม (OT Amount)</div>
+                        <div style="font-size: 13px; font-weight: 800; color: #1e40af; margin-top: 2px;">${empSummary.otTotal.toLocaleString()}</div>
+                    </div>
+                </div>
+
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #3730a3; color: #ffffff;">
+                            ${thHtml}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${trsHtml}
+                    </tbody>
+                </table>
+            </div>`;
+        }).join('');
+    } else {
+        let trsHtml = data.map((row, idx) => {
+            const bg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+            let tds = cleanHeaders.map(h => `<td style="padding: 6px 7px; border: 1px solid #e2e8f0; font-size: 10px;">${row[h] || '-'}</td>`).join('');
+            return `<tr style="background: ${bg};">${tds}</tr>`;
+        }).join('');
+
+        mainContentHtml = `
+        <table style="width: 100%; border-collapse: collapse; margin-top: 6px;">
+            <thead>
+                <tr style="background: #3730a3; color: #ffffff;">
+                    ${thHtml}
+                </tr>
+            </thead>
+            <tbody>
+                ${trsHtml}
+            </tbody>
+        </table>`;
+    }
+
+    let globalScopeStr = empKeys.length === 1 ? `พนักงาน: ${empKeys[0]}` : `พนักงานทั้งหมด (${empKeys.length} คน)`;
+
+    return `
+    <div style="padding: 16px 20px; font-family: 'Prompt', 'Inter', sans-serif; color: #1e293b; background: #ffffff;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #4f46e5; padding-bottom: 10px; margin-bottom: 14px;">
+            <div>
+                <h1 style="font-size: 18px; font-weight: 800; color: #3730a3; margin: 0; letter-spacing: -0.5px;">LOVE STK GROUPE</h1>
+                <p style="font-size: 11px; font-weight: 600; color: #64748b; margin: 2px 0 0 0;">รายงานสรุปประวัติการลงเวลาทำงานรายบุคคล (Individual Attendance & Performance Report)</p>
+            </div>
+            <div style="text-align: right; font-size: 10px; color: #475569; line-height: 1.4;">
+                <div><strong>วันที่พิมพ์:</strong> ${todayStr}</div>
+                <div><strong>ขอบเขตรายงาน:</strong> ${globalScopeStr}</div>
+                <div><strong>งวดประจำเดือน:</strong> ${monthFilterStr}</div>
+            </div>
+        </div>
+
+        ${mainContentHtml}
+
+        <div style="margin-top: 24px; display: flex; justify-content: space-between; padding: 0 40px; font-size: 10px; color: #64748b; page-break-inside: avoid;">
+            <div style="text-align: center; width: 170px;">
+                <div style="border-bottom: 1px solid #94a3b8; height: 32px; margin-bottom: 4px;"></div>
+                <div>ลงชื่อ พนักงาน (Employee)</div>
+            </div>
+            <div style="text-align: center; width: 170px;">
+                <div style="border-bottom: 1px solid #94a3b8; height: 32px; margin-bottom: 4px;"></div>
+                <div>ลงชื่อ เจ้าหน้าที่ HR (HR Officer)</div>
+            </div>
+        </div>
+    </div>`;
+}
+
+function performExcelExport(targetSheetName = null, data = null) {
+    const sheetName = targetSheetName || pendingExportSheet || currentSheet || 'Data_Export';
+    const exportData = data || getActiveTableExportData();
+
+    if (!exportData || exportData.length === 0) {
+        showToast('ไม่พบข้อมูลสำหรับส่งออก (No data to export)', 'error');
+        return;
+    }
+
+    const isAttendance = (sheetName === 'Fingerprint_Logs' || currentSheet === 'Fingerprint_Logs');
+
+    const headers = currentHeaders || (exportData.length > 0 ? Object.keys(exportData[0]) : []);
+    const cleanHeaders = headers.filter(h => {
+        const lw = String(h).toLowerCase().trim();
+        return lw !== 'signature' && lw !== 'photos' && lw !== 'photo' && lw !== 'profile' && !lw.startsWith('__') && lw !== 'action' && lw !== 'จัดกา' && lw !== 'จัดการ';
+    });
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const filename = `${sheetName}_Report_${dateStr}.xlsx`;
+
+    if (typeof XLSX !== 'undefined') {
+        try {
+            const worksheet = XLSX.utils.json_to_sheet([], { header: cleanHeaders });
+
+            if (isAttendance) {
+                let aoaData = [
+                    [`LOVE STK GROUPE - รายงานสรุปประวัติการลงเวลาทำงานรายบุคคล`],
+                    [`วันที่พิมพ์: ${new Date().toLocaleDateString('th-TH')}`],
+                    []
+                ];
+
+                let empGroups = {};
+                exportData.forEach(row => {
+                    const empId = String(row.Employee_ID || row.employee_id || row.Emp_ID || 'UNASSIGNED').trim().toUpperCase();
+                    if (!empGroups[empId]) empGroups[empId] = [];
+                    empGroups[empId].push(row);
+                });
+
+                Object.keys(empGroups).forEach((empId) => {
+                    const empRows = empGroups[empId];
+                    const empSummary = calculateAttendanceSummary(empRows);
+                    const empName = empRows[0]?.Full_Name || empRows[0]?.full_name || empId;
+
+                    aoaData.push([`=== พนักงาน (Employee): ${empId} - ${empName} (${empRows.length} รายการ) ===`]);
+                    aoaData.push([`สรุปผล: มาสายรวม: ${empSummary.lateFormatted} | กลับก่อนรวม: ${empSummary.earlyFormatted} | ขาดงานรวม: ${empSummary.absentDays} วัน | OT รวม: ${empSummary.otTotal.toLocaleString()}`]);
+                    aoaData.push(cleanHeaders);
+
+                    empRows.forEach(row => {
+                        let rowVals = cleanHeaders.map(h => String(row[h] === undefined || row[h] === null ? '' : row[h]));
+                        aoaData.push(rowVals);
+                    });
+
+                    aoaData.push([]);
+                });
+
+                XLSX.utils.sheet_add_aoa(worksheet, aoaData, { origin: 'A1' });
+            } else {
+                const exportRows = exportData.map(row => {
+                    const item = {};
+                    cleanHeaders.forEach(h => {
+                        let val = row[h];
+                        if (val === undefined || val === null) val = '';
+                        item[h] = String(val);
+                    });
+                    return item;
+                });
+                XLSX.utils.sheet_add_json(worksheet, exportRows, { origin: 'A1', header: cleanHeaders });
+            }
+
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, sheetName.substring(0, 30));
+            XLSX.writeFile(workbook, filename);
+            showToast(`ส่งออกไฟล์ Excel สำเร็จ! (${filename})`, 'success');
+            return;
+        } catch (err) {
+            console.warn('[SheetJS export failed, falling back to CSV]', err);
+        }
+    }
+
+    try {
+        let csvContent = '\uFEFF';
+
+        if (isAttendance) {
+            csvContent += `"LOVE STK GROUPE - รายงานสรุปประวัติการลงเวลาทำงานรายบุคคล"\n\n`;
+
+            let empGroups = {};
+            exportData.forEach(row => {
+                const empId = String(row.Employee_ID || row.employee_id || row.Emp_ID || 'UNASSIGNED').trim().toUpperCase();
+                if (!empGroups[empId]) empGroups[empId] = [];
+                empGroups[empId].push(row);
+            });
+
+            Object.keys(empGroups).forEach((empId) => {
+                const empRows = empGroups[empId];
+                const empSummary = calculateAttendanceSummary(empRows);
+                const empName = empRows[0]?.Full_Name || empRows[0]?.full_name || empId;
+
+                csvContent += `"=== พนักงาน (Employee): ${empId} - ${empName} (${empRows.length} รายการ) ==="\n`;
+                csvContent += `"สรุปผล: มาสายรวม: ${empSummary.lateFormatted} | กลับก่อนรวม: ${empSummary.earlyFormatted} | ขาดงานรวม: ${empSummary.absentDays} วัน | OT รวม: ${empSummary.otTotal.toLocaleString()}"\n`;
+                csvContent += cleanHeaders.map(h => `"${String(h).replace(/"/g, '""')}"`).join(',') + '\n';
+
+                empRows.forEach(row => {
+                    const line = cleanHeaders.map(h => {
+                        const val = String(row[h] === undefined || row[h] === null ? '' : row[h]).replace(/"/g, '""');
+                        return `"${val}"`;
+                    }).join(',');
+                    csvContent += line + '\n';
+                });
+                csvContent += '\n';
+            });
+        } else {
+            csvContent += cleanHeaders.map(h => `"${String(h).replace(/"/g, '""')}"`).join(',') + '\n';
+
+            exportData.forEach(row => {
+                const line = cleanHeaders.map(h => {
+                    const val = String(row[h] === undefined || row[h] === null ? '' : row[h]).replace(/"/g, '""');
+                    return `"${val}"`;
+                }).join(',');
+                csvContent += line + '\n';
+            });
+        }
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename.replace('.xlsx', '.csv'));
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast(`ส่งออกไฟล์ข้อมูลสำเร็จ! (${filename.replace('.xlsx', '.csv')})`, 'success');
+    } catch (e) {
+        showToast('เกิดข้อผิดพลาดในการส่งออกไฟล์: ' + e.message, 'error');
+    }
+}
+
+function performPDFExport(targetSheetName = null, data = null) {
+    const sheetName = targetSheetName || pendingExportSheet || currentSheet || 'Attendance_Logs';
+    const exportData = data || getActiveTableExportData();
+
+    if (!exportData || exportData.length === 0) {
+        showToast('ไม่พบข้อมูลสำหรับส่งออก PDF (No data to export)', 'error');
+        return;
+    }
+
+    toggleLoading(true, 'กำลังสร้างไฟล์ PDF...');
+
+    const exportContainer = document.createElement('div');
+    exportContainer.id = 'pdf-export-render-wrapper';
+    exportContainer.style.position = 'fixed';
+    exportContainer.style.top = '0';
+    exportContainer.style.left = '0';
+    exportContainer.style.width = '1050px';
+    exportContainer.style.zIndex = '99999';
+    exportContainer.style.background = '#ffffff';
+    exportContainer.style.boxShadow = '0 25px 50px -12px rgba(0, 0, 0, 0.25)';
+
+    exportContainer.innerHTML = buildPDFReportHtml(exportData, sheetName);
+    document.body.appendChild(exportContainer);
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const filename = `${sheetName}_Report_${dateStr}.pdf`;
+
+    setTimeout(() => {
+        if (typeof html2pdf !== 'undefined') {
+            try {
+                const opt = {
+                    margin:       [6, 6, 6, 6],
+                    filename:     filename,
+                    image:        { type: 'jpeg', quality: 0.98 },
+                    html2canvas:  { scale: 2, useCORS: true, logging: false, width: 1050, windowWidth: 1050 },
+                    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
+                };
+                html2pdf().set(opt).from(exportContainer).save().then(() => {
+                    toggleLoading(false);
+                    if (document.body.contains(exportContainer)) document.body.removeChild(exportContainer);
+                    showToast('ส่งออกรายงาน PDF สำเร็จ!', 'success');
+                }).catch(err => {
+                    console.error('[html2pdf error]', err);
+                    toggleLoading(false);
+                    if (document.body.contains(exportContainer)) document.body.removeChild(exportContainer);
+                    window.print();
+                });
+            } catch (e) {
+                toggleLoading(false);
+                if (document.body.contains(exportContainer)) document.body.removeChild(exportContainer);
+            }
+        } else {
+            toggleLoading(false);
+            printAttendanceReport();
+        }
+    }, 150);
+}
+
+/* =====================================================================
+ * 📌 Dedicated Print Report Engine (iframe isolation - zero blank page)
+ * ===================================================================== */
+function printAttendanceReport() {
+    const data = getActiveTableExportData();
+    if (!data || data.length === 0) {
+        showToast('ไม่พบข้อมูลสำหรับพิมพ์ (No data to print)', 'error');
+        return;
+    }
+
+    const sheetName = currentSheet || 'Attendance_Logs';
+    const reportHtml = buildPDFReportHtml(data, sheetName);
+
+    let printFrame = document.getElementById('print-iframe');
+    if (printFrame && document.body.contains(printFrame)) {
+        document.body.removeChild(printFrame);
+    }
+
+    printFrame = document.createElement('iframe');
+    printFrame.id = 'print-iframe';
+    printFrame.style.position = 'fixed';
+    printFrame.style.right = '0';
+    printFrame.style.bottom = '0';
+    printFrame.style.width = '0';
+    printFrame.style.height = '0';
+    printFrame.style.border = '0';
+    document.body.appendChild(printFrame);
+
+    const doc = printFrame.contentWindow.document;
+    doc.open();
+    doc.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>HRSYS - Attendance Report</title>
+            <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;600;700&display=swap" rel="stylesheet">
+            <style>
+                @page { size: A4 landscape; margin: 8mm; }
+                body { margin: 0; padding: 0; font-family: 'Prompt', 'Inter', sans-serif; background: #fff; color: #1e293b; }
+                table { width: 100%; border-collapse: collapse; page-break-inside: auto; margin-top: 6px; }
+                tr { page-break-inside: avoid; page-break-after: auto; }
+                th, td { border: 1px solid #cbd5e1; padding: 6px 8px; font-size: 10.5px; }
+                th { background-color: #3730a3 !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            </style>
+        </head>
+        <body>
+            ${reportHtml}
+        </body>
+        </html>
+    `);
+    doc.close();
+
+    setTimeout(() => {
+        printFrame.contentWindow.focus();
+        printFrame.contentWindow.print();
+    }, 250);
+}

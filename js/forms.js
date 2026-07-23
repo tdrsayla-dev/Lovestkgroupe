@@ -7,6 +7,68 @@
  * - เปิดฟอร์มเพื่อกรอกข้อมูลหรือแก้ไขข้อมูลพนักงาน/การเข้างาน/ตารางกะ ฯลฯ
  * ===================================================================== */
 /* =====================================================================
+ * 📌 Attendance Auto-Calculation Helper
+ * ===================================================================== */
+function autoCalculateAttendanceTimes() {
+    const form = document.getElementById('record-form');
+    if (!form) return;
+
+    const getVal = (names) => {
+        for (let n of names) {
+            let el = form.querySelector(`[name="${n}"]`);
+            if (el) return el;
+        }
+        return null;
+    };
+
+    const inEl = getVal(['Check_In', 'check_in']);
+    const outEl = getVal(['Check_Out', 'check_out']);
+    const startEl = getVal(['Shift_Start', 'shift_start']);
+    const endEl = getVal(['Shift_End', 'shift_end']);
+    const lateEl = getVal(['Late_Hours', 'late_hours']);
+    const earlyEl = getVal(['Early_Leave_Hours', 'early_leave_hours']);
+    const statusEl = getVal(['Attendance_Status', 'attendance_status']);
+
+    const parseMins = (timeStr) => {
+        if (!timeStr || !timeStr.includes(':')) return null;
+        const p = timeStr.trim().split(':');
+        const h = parseInt(p[0], 10);
+        const m = parseInt(p[1], 10);
+        if (isNaN(h) || isNaN(m)) return null;
+        return h * 60 + m;
+    };
+
+    const inMins = inEl ? parseMins(inEl.value) : null;
+    const outMins = outEl ? parseMins(outEl.value) : null;
+    const startMins = startEl ? parseMins(startEl.value) : null;
+    const endMins = endEl ? parseMins(endEl.value) : null;
+
+    if (inMins !== null && startMins !== null && lateEl) {
+        if (inMins > startMins) {
+            const diffHrs = Math.round(((inMins - startMins) / 60) * 100) / 100;
+            lateEl.value = diffHrs;
+            if (statusEl && statusEl.value !== 'LATE' && statusEl.value !== 'ON LEAVE' && statusEl.value !== 'OFF') {
+                statusEl.value = 'LATE';
+            }
+        } else {
+            lateEl.value = '0';
+            if (statusEl && statusEl.value === 'LATE') {
+                statusEl.value = 'PRESENT';
+            }
+        }
+    }
+
+    if (outMins !== null && endMins !== null && earlyEl) {
+        if (outMins < endMins && outMins > 0) {
+            const diffHrs = Math.round(((endMins - outMins) / 60) * 100) / 100;
+            earlyEl.value = diffHrs;
+        } else {
+            earlyEl.value = '0';
+        }
+    }
+}
+
+/* =====================================================================
  * 📌 Helper i18n & Validation Functions
  * ===================================================================== */
 function getFieldI18nKey(h) {
@@ -383,6 +445,7 @@ function openFormModal(rowDataStr = null) {
         try {
             rowData = JSON.parse(decodeURIComponent(rowDataStr));
             editingRecordId = getRecordId(rowData);
+            if (editingRecordId === '-') editingRecordId = null;
 
             let isNewFromQR = rowData['Ranting_Id'] === '' || rowData['rating_id'] === '';
 
@@ -663,25 +726,76 @@ function openFormModal(rowDataStr = null) {
             return;
         }
 
+/* =====================================================================
+ * 📌 Date Formatting Helper for ISO Dates (YYYY-MM-DD)
+ * ===================================================================== */
+function formatToIsoDate(val) {
+    if (!val || val === '-' || val === 'null' || val === 'undefined') return '';
+    const str = String(val).trim();
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
+    if (str.includes('/')) {
+        const parts = str.split('/');
+        if (parts.length === 3) {
+            let day = parts[0].padStart(2, '0');
+            let month = parts[1].padStart(2, '0');
+            let year = parts[2];
+            if (year.length === 4) return `${year}-${month}-${day}`;
+        }
+    }
+
+    if (str.includes('-')) {
+        const parts = str.split('-');
+        if (parts.length === 3) {
+            if (parts[0].length === 4) {
+                return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+            } else if (parts[2].length === 4) {
+                return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            }
+        }
+    }
+
+    if (str.includes('T')) return str.split('T')[0];
+    return str;
+}
+
+function openAttendanceEditModalByDate(empId, dateStr) {
+    if (!empId || !dateStr) return;
+    
+    currentSheet = 'Fingerprint_Logs';
+    const logs = (tableCache['Fingerprint_Logs'] && Array.isArray(tableCache['Fingerprint_Logs'].data)) ? tableCache['Fingerprint_Logs'].data : [];
+    const targetDateIso = formatToIsoDate(dateStr);
+
+    let rowIndex = logs.findIndex(r => {
+        let rEmp = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').toUpperCase().trim();
+        let rDateIso = formatToIsoDate(r.Date || r.date || '');
+        return rEmp === empId.toUpperCase().trim() && rDateIso === targetDateIso;
+    });
+
+    if (rowIndex >= 0) {
+        openFormModal(rowIndex);
+    } else {
+        openFormModal(null);
+        setTimeout(() => {
+            const form = document.getElementById('record-form');
+            if (form) {
+                const empEl = form.querySelector('[name="Employee_ID"], [name="employee_id"]');
+                const dateEl = form.querySelector('[name="Date"], [name="date"]');
+                if (empEl) empEl.value = empId;
+                if (dateEl) dateEl.value = targetDateIso;
+                if (typeof autoCalculateAttendanceTimes === 'function') {
+                    autoCalculateAttendanceTimes();
+                }
+            }
+        }, 120);
+    }
+}
+
         const isDate = lw.includes('date') || lw.includes('birthday') || lw.includes('วันเกิด');
         let displayVal = val;
         if (isDate && val && val !== '-') {
-            let d = new Date(val);
-            if (!isNaN(d.getTime())) {
-                let year = d.getFullYear();
-                let month = String(d.getMonth() + 1).padStart(2, '0');
-                let day = String(d.getDate()).padStart(2, '0');
-                displayVal = `${year}-${month}-${day}`;
-            } else {
-                let parts = String(val).split(/[\/\-]/);
-                if (parts.length === 3) {
-                    if (parts[2].length === 4) {
-                        displayVal = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                    } else if (parts[0].length === 4) {
-                        displayVal = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-                    }
-                }
-            }
+            displayVal = formatToIsoDate(val);
         }
         const safeDisplayVal = String(displayVal).replace(/"/g, '&quot;');
         const isOptional = (lw === 'adjusted_status' || lw === 'reference_leave_id' || lw === 'device id' || lw.includes('link') || lw.includes('url') || lw.includes('ลิงก์') || lw.includes('youtube') || lw.includes('facebook') || lw.includes('participant') || lw.includes('ผู้เข้าร่วม'));
@@ -777,6 +891,57 @@ function openFormModal(rowDataStr = null) {
                                     <option value="Cancelled" ${String(val).toLowerCase().includes('cancel') ? 'selected' : ''}>Cancelled</option>
                                 </select></div>
                             `);
+        }
+        else if ((lw === 'log_id' || lw === 'log id') && (currentSheet.toLowerCase().includes('log') || currentSheet.toLowerCase().includes('fingerprint'))) {
+            let autoId = safeDisplayVal;
+            if (!autoId || autoId === '-' || autoId === 'undefined' || autoId === 'null') {
+                const randomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+                autoId = `LOG-${Date.now()}-${randomCode}`;
+            }
+            const labelKey = getFieldI18nKey(h);
+            const labelText = getFieldLabel(h);
+            formFields.insertAdjacentHTML('beforeend', `
+                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="${labelKey}">${labelText}</span> <span class="text-xs text-brandindigo font-bold ml-1">(Auto Generated)</span></label>
+                <input type="text" name="${h}" value="${autoId}" readonly required class="bg-gray-100 border border-gray-300 text-gray-700 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 font-mono font-bold transition-colors shadow-sm cursor-not-allowed"></div>
+            `);
+        }
+        else if ((lw === 'attendance_status' || lw === 'attendance status') && (currentSheet.toLowerCase().includes('log') || currentSheet.toLowerCase().includes('fingerprint'))) {
+            const valUpper = String(val || '').toUpperCase();
+            formFields.insertAdjacentHTML('beforeend', `
+                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="attendance_status">Attendance Status</span> <span class="text-brandindigo">*</span></label>
+                <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 font-bold transition-colors shadow-sm">
+                    <option value="PRESENT" ${valUpper.includes('PRESENT') || valUpper.includes('มาทำงาน') || valUpper.includes('ปกติ') ? 'selected' : ''}>PRESENT (มาทำงาน / ปกติ)</option>
+                    <option value="LATE" ${valUpper.includes('LATE') || valUpper.includes('สาย') ? 'selected' : ''}>LATE (มาสาย)</option>
+                    <option value="ABSENT" ${valUpper.includes('ABSENT') || valUpper.includes('ขาด') ? 'selected' : ''}>ABSENT (ขาดงาน)</option>
+                    <option value="ON LEAVE" ${valUpper.includes('LEAVE') || valUpper.includes('ลา') ? 'selected' : ''}>ON LEAVE (ลากิจ/ลาป่วย)</option>
+                    <option value="OFF" ${valUpper.includes('OFF') || valUpper.includes('หยุด') || valUpper.includes('HOLIDAY') ? 'selected' : ''}>OFF (วันหยุด)</option>
+                </select></div>
+            `);
+        }
+        else if ((lw === 'check_in' || lw === 'check_out' || lw === 'shift_start' || lw === 'shift_end') && (currentSheet.toLowerCase().includes('log') || currentSheet.toLowerCase().includes('fingerprint'))) {
+            let defaultTime = safeDisplayVal;
+            if (!defaultTime || defaultTime === '-' || defaultTime === 'undefined') {
+                if (lw === 'shift_start') defaultTime = '09:00';
+                else if (lw === 'shift_end') defaultTime = '17:00';
+                else if (lw === 'check_in') defaultTime = '08:58';
+                else if (lw === 'check_out') defaultTime = '17:00';
+            }
+            const labelKey = getFieldI18nKey(h);
+            const labelText = getFieldLabel(h);
+            formFields.insertAdjacentHTML('beforeend', `
+                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="${labelKey}">${labelText}</span> <span class="text-brandindigo">*</span></label>
+                <input type="text" name="${h}" value="${defaultTime}" oninput="autoCalculateAttendanceTimes()" required placeholder="e.g. 09:00" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 font-semibold transition-colors shadow-sm"></div>
+            `);
+        }
+        else if ((lw === 'late_hours' || lw === 'early_leave_hours' || lw === 'ot_amount') && (currentSheet.toLowerCase().includes('log') || currentSheet.toLowerCase().includes('fingerprint'))) {
+            let defaultNum = safeDisplayVal;
+            if (!defaultNum || defaultNum === '-' || defaultNum === 'undefined') defaultNum = '0';
+            const labelKey = getFieldI18nKey(h);
+            const labelText = getFieldLabel(h);
+            formFields.insertAdjacentHTML('beforeend', `
+                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="${labelKey}">${labelText}</span></label>
+                <input type="text" name="${h}" value="${defaultNum}" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 font-semibold transition-colors shadow-sm"></div>
+            `);
         }
         else if (lw === 'status') {
             formFields.insertAdjacentHTML('beforeend', `
@@ -1013,6 +1178,9 @@ function openFormModal(rowDataStr = null) {
         }
     });
 
+    if (currentSheet.toLowerCase().includes('log') || currentSheet.toLowerCase().includes('fingerprint')) {
+        setTimeout(autoCalculateAttendanceTimes, 100);
+    }
     if (currentSheet.toLowerCase().includes('leave')) {
         setTimeout(() => {
             const form = document.getElementById('dynamic-form');
@@ -1195,6 +1363,9 @@ function submitData(e) {
 }
 
 function executeSaveToSheet(dataObj, currentEditId) {
+    if (currentEditId === '-' || currentEditId === 'NEW-' || String(currentEditId || '').trim() === '') {
+        currentEditId = null;
+    }
     if (!currentEditId && (currentSheet.toLowerCase() === 'staff' || currentSheet.toLowerCase() === 'user')) {
         let empIdVal = getFuzzyValue(dataObj, ['employee_id', 'emp_id', 'employees id', 'staff_id', 'id', 'username']);
         if (empIdVal) {

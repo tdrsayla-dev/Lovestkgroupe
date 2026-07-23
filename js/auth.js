@@ -88,12 +88,17 @@ function showApp() {
             google.script.run.withSuccessHandler(res => {
                 try {
                     let picUrl = null;
-                    if (res && Array.isArray(res) && res.length > 0) {
-                        const row = res[0];
+                    const staffList = (res && res.data && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : []);
+                    const row = staffList.find(r => String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === String(empId).trim().toUpperCase());
+                    if (row) {
                         picUrl = row.Photos || row.photos || row.photo || row.profile || row.pic || row.image || null;
                     }
-                    if (picUrl && displayProfilePic && String(picUrl).trim() !== '-') {
+                    if (picUrl && displayProfilePic && String(picUrl).trim() !== '-' && String(picUrl).trim() !== '[object Object]') {
                         displayProfilePic.src = picUrl;
+                        displayProfilePic.onerror = function () {
+                            this.classList.add('hidden');
+                            if (displayProfileIcon) displayProfileIcon.classList.remove('hidden');
+                        };
                         displayProfilePic.classList.remove('hidden');
                         if (displayProfileIcon) displayProfileIcon.classList.add('hidden');
                     } else if (displayProfilePic && username) {
@@ -102,7 +107,7 @@ function showApp() {
                         if (displayProfileIcon) displayProfileIcon.classList.add('hidden');
                     }
                 } catch(e) {}
-            }).getSheetData('staff', `Employee_ID=eq.${empId}`);
+            }).getSheetData('staff');
         } else if (displayProfilePic && username) {
             displayProfilePic.src = `https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=${encodeURIComponent(username)}`;
             displayProfilePic.classList.remove('hidden');
@@ -269,12 +274,19 @@ function openMyProfileModal() {
                 document.getElementById('my-profile-tel').value = profile.Tel || '';
                 document.getElementById('my-profile-email').value = profile.Email || '';
                 document.getElementById('my-profile-line').value = profile.Line || '';
-                document.getElementById('my-profile-bankname').value = profile.Bank_Name || '';
-                document.getElementById('my-profile-bankaccountname').value = profile.Bank_Account_Name || '';
-                document.getElementById('my-profile-bankaccountno').value = profile.Bank_Account_No || '';
-                document.getElementById('my-profile-photo-url').value = profile.Photos || '';
-                if(profile.Photos && profile.Photos !== '-') {
-                    document.getElementById('my-profile-photo-preview').src = profile.Photos;
+                document.getElementById('my-profile-bankname').value = profile.Bank_Name || profile.bank_name || '';
+                document.getElementById('my-profile-bankaccountname').value = profile.Bank_Account_Name || profile.bank_account_name || '';
+                document.getElementById('my-profile-bankaccountno').value = profile.Bank_Account_No || profile.bank_account_no || '';
+                const photoVal = profile.Photos || profile.photos || '';
+                if (photoVal && photoVal !== '-' && photoVal !== '[object Object]') {
+                    document.getElementById('my-profile-photo-preview').src = photoVal;
+                    const displayProfilePic = document.getElementById('display-profile-pic');
+                    const displayProfileIcon = document.getElementById('display-profile-icon');
+                    if (displayProfilePic) {
+                        displayProfilePic.src = photoVal;
+                        displayProfilePic.classList.remove('hidden');
+                        if (displayProfileIcon) displayProfileIcon.classList.add('hidden');
+                    }
                 }
                 } // End if (profile)
             }
@@ -283,7 +295,7 @@ function openMyProfileModal() {
             toggleLoading(false);
             showToast('Failed to load profile', 'error');
         })
-        .getSheetData('staff', { select: 'First_Name,Last_Name,Birthday,Tel,Email,Line,Bank_Name,Bank_Account_No,Photos', filter: `Employee_ID=eq.${empId}` });
+        .getSheetData('staff', { select: '*', filter: `Employee_ID=eq.${empId}` });
 }
 
 function closeMyProfileModal() {
@@ -312,6 +324,7 @@ function submitMyProfile(e) {
         'Email': document.getElementById('my-profile-email').value,
         'Line': document.getElementById('my-profile-line').value,
         'Bank_Name': document.getElementById('my-profile-bankname').value,
+        'Bank_Account_Name': document.getElementById('my-profile-bankaccountname').value,
         'Bank_Account_No': document.getElementById('my-profile-bankaccountno').value,
         'Photos': document.getElementById('my-profile-photo-url').value
     };
@@ -322,18 +335,30 @@ function submitMyProfile(e) {
     const fileInput = document.getElementById('my-profile-photo-file');
     if (fileInput && fileInput.files.length > 0) {
         let file = fileInput.files[0];
+        const handlePhotoSuccess = function (resOrUrl) {
+            const imgUrl = (typeof resOrUrl === 'object' && resOrUrl !== null && resOrUrl.url) ? resOrUrl.url : resOrUrl;
+            if (imgUrl && typeof imgUrl === 'string') {
+                payload['Photos'] = imgUrl;
+                document.getElementById('my-profile-photo-url').value = imgUrl;
+                const previewImg = document.getElementById('my-profile-photo-preview');
+                if (previewImg) previewImg.src = imgUrl;
+            }
+            doSubmitMyProfile(empId, payload, sessionData);
+        };
+        const handlePhotoFailure = function (err) {
+            toggleLoading(false);
+            showToast('Failed to upload image: ' + (err ? err.message || err : 'Error'), 'error');
+        };
+
         if (typeof compressImageFile === 'function') {
             compressImageFile(file, 480, 0.72).then(function (base64Data) {
-                google.script.run.withSuccessHandler(function (url) {
-                    payload['Photos'] = url;
-                    doSubmitMyProfile(empId, payload, sessionData);
-                }).withFailureHandler(function (err) {
-                    toggleLoading(false);
-                    showToast('Failed to upload image: ' + err.message, 'error');
-                }).uploadImageToDrive(base64Data, file.name);
+                google.script.run
+                    .withSuccessHandler(handlePhotoSuccess)
+                    .withFailureHandler(handlePhotoFailure)
+                    .uploadImageToDrive(base64Data, file.name);
             }).catch(function (err) {
                 toggleLoading(false);
-                showToast('Image compression error: ' + err.message, 'error');
+                showToast('Image compression error: ' + (err ? err.message || err : 'Error'), 'error');
             });
             return; // Wait for upload
         } else {
@@ -341,13 +366,10 @@ function submitMyProfile(e) {
             let reader = new FileReader();
             reader.onload = function(e) {
                 let base64Data = e.target.result;
-                google.script.run.withSuccessHandler(function (url) {
-                    payload['Photos'] = url;
-                    doSubmitMyProfile(empId, payload, sessionData);
-                }).withFailureHandler(function (err) {
-                    toggleLoading(false);
-                    showToast('Failed to upload image: ' + err.message, 'error');
-                }).uploadImageToDrive(base64Data, file.name);
+                google.script.run
+                    .withSuccessHandler(handlePhotoSuccess)
+                    .withFailureHandler(handlePhotoFailure)
+                    .uploadImageToDrive(base64Data, file.name);
             };
             reader.readAsDataURL(file);
             return;
@@ -364,6 +386,18 @@ function doSubmitMyProfile(empId, payload, sessionData) {
             if (res && res.success) {
                 showToast(t('profile_updated') || 'Profile updated successfully', 'success');
                 
+                // Update top-right navbar profile picture immediately
+                const updatedPhoto = payload.Photos;
+                if (updatedPhoto && updatedPhoto !== '-' && updatedPhoto !== '[object Object]') {
+                    const displayProfilePic = document.getElementById('display-profile-pic');
+                    const displayProfileIcon = document.getElementById('display-profile-icon');
+                    if (displayProfilePic) {
+                        displayProfilePic.src = updatedPhoto;
+                        displayProfilePic.classList.remove('hidden');
+                        if (displayProfileIcon) displayProfileIcon.classList.add('hidden');
+                    }
+                }
+
                 // Update local session if email changed
                 const newEmail = document.getElementById('my-profile-email').value;
                 if (newEmail && newEmail !== sessionData.email) {

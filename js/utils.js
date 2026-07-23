@@ -86,19 +86,22 @@ function fillMissingDays(rawData, startDateStr, endDateStr, targetEmpId) {
         let month = String(d.getMonth() + 1).padStart(2, '0');
         let year = d.getFullYear();
         let dateStr = `${day}/${month}/${year}`;
-        let dbDateStr = `${year}-${month}-${day}`; // 📌 รองรับรูปแบบวันที่จาก Database (YYYY-MM-DD)
+        let dbDateStr = `${year}-${month}-${day}`;
 
-        let recordExists = rawData.find(r =>
-            (r.Date === dateStr || r.Date === dbDateStr) &&
-            String(r.Employee_ID || r.Emp_ID).trim() === targetEmpId
-        );
+        let recordExists = rawData.find(r => {
+            let rEmp = String(r.Employee_ID || r.Employee_Id || r.employee_id || r.Emp_ID || '').toUpperCase().trim();
+            if (rEmp !== targetEmpId.toUpperCase().trim()) return false;
+            let rDate = String(r.Date || r.date || '').trim();
+            if (rDate === dateStr || rDate === dbDateStr || rDate.startsWith(dbDateStr)) return true;
+            let parsedRDate = parseDateStr(rDate);
+            if (parsedRDate && parsedRDate.getFullYear() === year && (parsedRDate.getMonth() + 1) === Number(month) && parsedRDate.getDate() === Number(day)) return true;
+            return false;
+        });
 
-        // 📌 ปรับ Format กลับให้แสดงผลในตารางสวยงามเป็น DD/MM/YYYY
-        if (recordExists && recordExists.Date === dbDateStr) {
-            recordExists.Date = dateStr;
-        }
         if (recordExists) {
-            completeList.push(recordExists);
+            let copy = Object.assign({}, recordExists);
+            copy.Date = dateStr;
+            completeList.push(copy);
         } else {
             let dayOfWeek = d.getDay();
             let isWeekend = (dayOfWeek === 0); // 📌 เปลี่ยนให้มีแค่วันอาทิตย์ (0) ที่เป็นวันหยุด
@@ -199,26 +202,26 @@ function renderAttendanceCalendar(year, month, logs, targetEmpId) {
             }
         }
 
-        let boxClass = "h-10 sm:h-12 rounded-xl flex items-center justify-center text-xs font-bold relative transition-all border ";
+        let boxClass = "h-10 sm:h-12 rounded-xl flex items-center justify-center text-xs font-bold relative transition-all border cursor-pointer hover:scale-105 active:scale-95 shadow-sm ";
         let innerHtml = `<span>${day}</span>`;
 
         if (logFound) {
-            boxClass += "bg-emerald-50 border-emerald-200 text-emerald-600";
+            boxClass += "bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100";
             innerHtml += `<span class="absolute bottom-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-sm"></span>`;
         } else if (isOnLeave) {
-            boxClass += "bg-yellow-50 border-yellow-200 text-yellow-600";
+            boxClass += "bg-yellow-50 border-yellow-200 text-yellow-600 hover:bg-yellow-100";
             innerHtml = `<div class="w-7 h-7 flex items-center justify-center rounded-full bg-yellow-400 text-white shadow-md">${day}</div>`;
         } else if (isWeekend) {
-            boxClass += "bg-gray-100 border-gray-200 text-gray-400";
+            boxClass += "bg-gray-100 border-gray-200 text-gray-400 hover:bg-gray-200";
         } else if (isPastOrToday) {
-            boxClass += "bg-red-50 border-red-200 text-red-500";
+            boxClass += "bg-red-50 border-red-200 text-red-500 hover:bg-red-100";
             innerHtml = `<div class="w-7 h-7 flex items-center justify-center rounded-full bg-red-500 text-white shadow-md">${day}</div>`;
             absentCount++;
         } else {
-            boxClass += "bg-white border-dashed border-gray-200 text-gray-400";
+            boxClass += "bg-white border-dashed border-gray-200 text-gray-400 hover:bg-indigo-50";
         }
 
-        calDiv.innerHTML += `<div class="${boxClass}">${innerHtml}</div>`;
+        calDiv.innerHTML += `<div onclick="openAttendanceEditModalByDate('${targetEmpId}', '${dbDateStr}')" class="${boxClass}" title="Click to edit ${dateStr}">${innerHtml}</div>`;
     }
     return absentCount;
 }
