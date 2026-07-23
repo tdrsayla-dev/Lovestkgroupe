@@ -1385,14 +1385,28 @@ function executeSaveToSheet(dataObj, currentEditId) {
         currentEditId = null;
     }
     if (!currentEditId && (currentSheet.toLowerCase() === 'staff' || currentSheet.toLowerCase() === 'user')) {
-        let empIdVal = getFuzzyValue(dataObj, ['employee_id', 'emp_id', 'employees id', 'staff_id', 'id', 'username']);
+        let empIdVal = dataObj.employee_id || dataObj.Employee_ID || dataObj['employees id'] || dataObj['Employees Id'] || dataObj.emp_id || dataObj.staff_id || dataObj.username || dataObj.Username;
         if (empIdVal) {
             const targetUpper = String(empIdVal).trim().toUpperCase();
-            let staffRows = (tableCache['staff'] && tableCache['staff'].data) || rawData || [];
-            let userRows = (tableCache['user'] && tableCache['user'].data) || [];
-            let allRows = [...staffRows, ...userRows];
-            const isDup = allRows.some(r => {
-                let eId = getFuzzyValue(r, ['employee_id', 'emp_id', 'employees id', 'staff_id', 'id', 'username']);
+            let rowsToCheck = [];
+            const sheet = currentSheet.toLowerCase();
+
+            if (sheet === 'user') {
+                // For User login accounts, check duplicate ONLY within user table!
+                rowsToCheck = (tableCache['user'] && tableCache['user'].data) || [];
+                if (rowsToCheck.length === 0 && Array.isArray(rawData) && typeof activeTable === 'string' && activeTable.toLowerCase() === 'user') {
+                    rowsToCheck = rawData;
+                }
+            } else if (sheet === 'staff') {
+                // For Staff directory, check duplicate ONLY within staff table!
+                rowsToCheck = (tableCache['staff'] && tableCache['staff'].data) || [];
+                if (rowsToCheck.length === 0 && Array.isArray(rawData) && typeof activeTable === 'string' && activeTable.toLowerCase() === 'staff') {
+                    rowsToCheck = rawData;
+                }
+            }
+
+            const isDup = rowsToCheck.some(r => {
+                let eId = r.employee_id || r.Employee_ID || r['employees id'] || r['Employees Id'] || r.emp_id || r.staff_id || r.username || r.Username;
                 return eId && String(eId).trim().toUpperCase() === targetUpper;
             });
 
