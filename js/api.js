@@ -274,12 +274,41 @@ function changeApprovalStatus(id, columnName, selectElement) {
 }
 
 function getFuzzyValue(row, searchKeys, defaultIndex = null) {
-    for (let k in row) {
-        let lwK = k.toLowerCase().trim();
-        for (let searchKey of searchKeys) {
-            if (lwK.includes(searchKey.toLowerCase())) return row[k];
+    if (!row || typeof row !== 'object') {
+        return defaultIndex !== null ? '-' : '';
+    }
+
+    // Pass 1: Look for exact key match first in searchKeys order
+    for (let searchKey of searchKeys) {
+        const target = String(searchKey).toLowerCase().trim();
+        for (let k in row) {
+            if (String(k).toLowerCase().trim() === target) {
+                const val = row[k];
+                if (val !== undefined && val !== null && val !== '') return val;
+            }
         }
     }
-    if (defaultIndex !== null && Object.keys(row).length > defaultIndex) return Object.values(row)[defaultIndex];
+
+    // Pass 2: Look for partial match, but skip short generic key 'id' to avoid matching 'position_id', 'department_id', etc.
+    for (let searchKey of searchKeys) {
+        const target = String(searchKey).toLowerCase().trim();
+        if (target === 'id') continue;
+        for (let k in row) {
+            const lwK = String(k).toLowerCase().trim();
+            if (lwK.includes(target)) {
+                const val = row[k];
+                if (val !== undefined && val !== null && val !== '') return val;
+            }
+        }
+    }
+
+    // Pass 3: Fallback for explicit primary key 'id'
+    if (searchKeys.includes('id') && row['id'] !== undefined && row['id'] !== null && row['id'] !== '') {
+        return row['id'];
+    }
+
+    if (defaultIndex !== null && Object.keys(row).length > defaultIndex) {
+        return Object.values(row)[defaultIndex];
+    }
     return '-';
 }

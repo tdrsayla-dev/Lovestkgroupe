@@ -165,13 +165,31 @@ function checkDuplicateEmployeeId(inputEl) {
         return false;
     }
 
-    let staffRows = (tableCache['staff'] && tableCache['staff'].data) || rawData || [];
-    let userRows = (tableCache['user'] && tableCache['user'].data) || [];
-    let allRows = [...staffRows, ...userRows];
+    let rowsToCheck = [];
+    const sheet = typeof currentSheet === 'string' ? currentSheet.toLowerCase() : '';
+
+    if (sheet === 'user') {
+        // When adding/editing a User login account, check duplicate ONLY within existing USER accounts!
+        rowsToCheck = (tableCache['user'] && tableCache['user'].data) || [];
+        if (rowsToCheck.length === 0 && Array.isArray(rawData) && typeof activeTable === 'string' && activeTable.toLowerCase() === 'user') {
+            rowsToCheck = rawData;
+        }
+    } else if (sheet === 'staff') {
+        // When adding a new Staff member, check duplicate in staff table
+        rowsToCheck = (tableCache['staff'] && tableCache['staff'].data) || [];
+        if (rowsToCheck.length === 0 && Array.isArray(rawData) && typeof activeTable === 'string' && activeTable.toLowerCase() === 'staff') {
+            rowsToCheck = rawData;
+        }
+    } else {
+        let staffRows = (tableCache['staff'] && tableCache['staff'].data) || [];
+        let userRows = (tableCache['user'] && tableCache['user'].data) || [];
+        rowsToCheck = [...staffRows, ...userRows];
+    }
 
     const targetUpper = val.toUpperCase();
-    const isDuplicate = allRows.some(r => {
-        let eId = getFuzzyValue(r, ['employee_id', 'emp_id', 'employees id', 'staff_id', 'id', 'username']);
+    const isDuplicate = rowsToCheck.some(r => {
+        // ONLY check employee code fields, NEVER match position_id, department_id, or row primary key id!
+        let eId = r.employee_id || r.Employee_ID || r['employees id'] || r['Employees Id'] || r.emp_id || r.staff_id || r.username || r.Username;
         return eId && String(eId).trim().toUpperCase() === targetUpper;
     });
 
