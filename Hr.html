@@ -69,6 +69,8 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <!-- Load Configuration -->
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
@@ -188,7 +190,7 @@
         };
 
         const SHEET_HEADERS = {
-            staff: ['Employee_ID', 'Prefix', 'First_Name', 'Last_Name', 'Birthday ', 'Tel', 'Email', 'Line', 'Department_ID', 'Position_ID', 'Hire_Date', 'Base_Salary', 'Daily_Rate_Formula', 'Leave_Quota', 'Status', 'RanKing', 'Reward Level', 'Photos', 'Is Evaluator'],
+            staff: ['Employee_ID', 'Prefix', 'First_Name', 'Last_Name', 'Birthday ', 'Tel', 'Email', 'Line', 'Bank_Name', 'Bank_Account_Name', 'Bank_Account_No', 'Department_ID', 'Position_ID', 'Hire_Date', 'Base_Salary', 'Daily_Rate_Formula', 'Leave_Quota', 'Status', 'RanKing', 'Reward Level', 'Photos', 'Is Evaluator'],
             users: ['Employee_ID', 'Email', 'Password ', 'Role', 'Device ID', 'Permissions'],
             fingerprint_logs: ['Log_ID', 'Employee_ID', 'Full_Name', 'Date', 'Shift_Start', 'Shift_End', 'Check_In', 'Check_Out', 'Attendance_Status', 'Late_Hours', 'Early_Leave_Hours', 'OT_Amount'],
             announcements: ['ID', 'Date', 'Type', 'Topic', 'Photo', 'Status'],
@@ -216,7 +218,9 @@
             const out = {};
             headers.forEach(h => {
                 const dbKey = map[h] || reverse[h] || h;
-                out[h] = row?.[dbKey] ?? row?.[h] ?? '';
+                const dbKeyLower = String(dbKey).toLowerCase();
+                const hLower = String(h).toLowerCase();
+                out[h] = row?.[dbKey] ?? row?.[dbKeyLower] ?? row?.[h] ?? row?.[hLower] ?? '';
             });
             // Keep Supabase's UUID as an internal row locator. It is not part of
             // currentHeaders, so it is neither displayed nor submitted as form data.
@@ -231,7 +235,7 @@
                 'Birthday ': 'Birthday', Birthday: 'Birthday', Tel: 'Tel', Email: 'Email', Line: 'Line',
                 Department_ID: 'Department_ID', Position_ID: 'Position_ID', Hire_Date: 'Hire_Date',
                 Base_Salary: 'Base_Salary', Daily_Rate_Formula: 'Daily_Rate_Formula', Leave_Quota: 'Leave_Quota',
-                Status: 'Status', Bank_Name: 'Bank_Name', Bank_Account_No: 'Bank_Account_No',
+                Status: 'Status', Bank_Name: 'Bank_Name', Bank_Account_Name: 'Bank_Account_Name', Bank_Account_No: 'Bank_Account_No',
                 RanKing: 'RanKing', 'Reward Level': 'Reward Level', Photos: 'Photos', 'Is Evaluator': 'is_evaluator'
             },
             users: { 'Employee_ID': 'employee_id', 'Email': 'username', 'Password ': 'password_hash', Role: 'role', 'Device ID': 'device_id', Permissions: 'permissions' },
@@ -423,7 +427,18 @@
                 try {
                     // map payload to DB keys
                     const dbPayload = toPayload('staff', payload);
-                    const res = await bridge.updateRow('staff', 'Employee_ID', empId, dbPayload);
+                    let res;
+                    try {
+                        res = await bridge.updateRow('staff', 'Employee_ID', empId, dbPayload);
+                    } catch (updateErr) {
+                        if (updateErr && updateErr.message && updateErr.message.includes('Bank_Account_Name')) {
+                            delete dbPayload['Bank_Account_Name'];
+                            delete dbPayload['bank_account_name'];
+                            res = await bridge.updateRow('staff', 'Employee_ID', empId, dbPayload);
+                        } else {
+                            throw updateErr;
+                        }
+                    }
 
                     // Also update users table email if it changed
                     if (payload.Email) {
@@ -566,6 +581,56 @@
                 }
                 // ───────────────────────────────────────────────────
 
+                // ── ระบบเซฟ/อัปเดตประวัติการลงเวลา (Fingerprint Logs Upsert Handler) ──
+                if (table === 'fingerprint_logs') {
+                    let rawDate = payload.Date || payload.date;
+                    if (rawDate && String(rawDate).includes('/')) {
+                        let parts = String(rawDate).split('/');
+                        if (parts.length === 3 && parts[2].length === 4) {
+                            rawDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                        }
+                    }
+
+                    const cleanPayload = {};
+                    Object.keys(payload).forEach(k => {
+                        cleanPayload[k] = payload[k];
+                    });
+
+                    let logId = cleanPayload.Log_ID || cleanPayload.log_id;
+                    if (!logId || logId === '-' || logId === 'null') {
+                        const randomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+                        logId = `LOG-${Date.now()}-${randomCode}`;
+                    }
+                    cleanPayload.Log_ID = logId;
+                    if (rawDate) cleanPayload.Date = rawDate;
+
+                    const empId = cleanPayload.Employee_ID || cleanPayload.employee_id;
+
+                    if (empId && rawDate) {
+                        try {
+                            const allLogs = await bridge.getTableData('fingerprint_logs', { select: '*' });
+                            const targetEmpUpper = String(empId).trim().toUpperCase();
+                            const matched = (allLogs || []).find(r => {
+                                const rEmp = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').trim().toUpperCase();
+                                const rDate = String(r.Date || r.date || '').trim();
+                                return rEmp === targetEmpUpper && (rDate === rawDate || rDate === cleanPayload.Date);
+                            });
+
+                            if (matched) {
+                                const targetPk = matched.Log_ID || matched.log_id || matched.id;
+                                cleanPayload.Log_ID = targetPk;
+                                const updated = await bridge.updateRow('fingerprint_logs', getKeyForTable('fingerprint_logs'), targetPk, cleanPayload);
+                                return { success: true, data: updated };
+                            }
+                        } catch (upsertErr) {
+                            console.warn('[fingerprint_logs upsert check fallback]', upsertErr);
+                        }
+                    }
+
+                    const inserted = await bridge.insertRows('fingerprint_logs', [cleanPayload]);
+                    return { success: true, data: inserted };
+                }
+
                 const res = await bridge.insertRows(table, [payload]);
                 return { success: true, data: res };
             }
@@ -656,9 +721,63 @@
                 }
                 // ──────────────────────────────────────────────────────────────
 
-                const res = await bridge.updateRow(table, key, recordId, payload);
-                if (!Array.isArray(res) || res.length === 0) {
-                    throw new Error(`No matching record found for ${key}: ${recordId}`);
+                if (table === 'fingerprint_logs') {
+                    let rawDate = payload.Date || payload.date;
+                    if (rawDate && String(rawDate).includes('/')) {
+                        let parts = String(rawDate).split('/');
+                        if (parts.length === 3 && parts[2].length === 4) {
+                            rawDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                        }
+                    }
+
+                    const cleanPayload = {};
+                    Object.keys(payload).forEach(k => {
+                        cleanPayload[k] = payload[k];
+                    });
+
+                    let logId = cleanPayload.Log_ID || cleanPayload.log_id;
+                    if (!logId || logId === '-' || logId === 'null') {
+                        const randomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+                        logId = `LOG-${Date.now()}-${randomCode}`;
+                    }
+                    cleanPayload.Log_ID = logId;
+                    if (rawDate) cleanPayload.Date = rawDate;
+
+                    const empId = cleanPayload.Employee_ID || cleanPayload.employee_id;
+
+                    if (empId && rawDate) {
+                        try {
+                            const allLogs = await bridge.getTableData('fingerprint_logs', { select: '*' });
+                            const targetEmpUpper = String(empId).trim().toUpperCase();
+                            const matched = (allLogs || []).find(r => {
+                                const rEmp = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').trim().toUpperCase();
+                                const rDate = String(r.Date || r.date || '').trim();
+                                return rEmp === targetEmpUpper && (rDate === rawDate || rDate === cleanPayload.Date);
+                            });
+
+                            if (matched) {
+                                const targetPk = matched.Log_ID || matched.log_id || matched.id;
+                                cleanPayload.Log_ID = targetPk;
+                                const updated = await bridge.updateRow('fingerprint_logs', getKeyForTable('fingerprint_logs'), targetPk, cleanPayload);
+                                return { success: true, data: updated };
+                            }
+                        } catch (upsertErr) {
+                            console.warn('[fingerprint_logs upsert check fallback]', upsertErr);
+                        }
+                    }
+
+                    const inserted = await bridge.insertRows('fingerprint_logs', [cleanPayload]);
+                    return { success: true, data: inserted };
+                }
+
+                let res;
+                try {
+                    res = await bridge.updateRow(table, key, recordId, payload);
+                    if (!Array.isArray(res) || res.length === 0) {
+                        throw new Error(`No matching record found for ${key}: ${recordId}`);
+                    }
+                } catch (updateErr) {
+                    throw updateErr;
                 }
                 return { success: true, data: res };
             }
@@ -961,11 +1080,39 @@
     </script>
     <style>
         @media print {
-            body>*:not(#bill-modal) {
+            aside, #top-navbar, .print-hide, #toast-container, #main-loading, #table-controls-wrapper button, #calendar-section button {
                 display: none !important;
             }
+            body {
+                background: white !important;
+                color: black !important;
+                overflow: visible !important;
+            }
+            main, #section-table, #table-wrapper, #calendar-section {
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: visible !important;
+            }
+            #table-wrapper table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+            }
+            #table-wrapper th, #table-wrapper td {
+                border: 1px solid #e5e7eb !important;
+                padding: 6px 10px !important;
+                font-size: 11px !important;
+            }
 
-            #bill-modal {
+            #pdf-export-render-wrapper {
+                position: static !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                display: block !important;
+            }
+
+            #bill-modal:not(.hidden) {
                 position: absolute !important;
                 left: 0 !important;
                 top: 0 !important;
@@ -979,7 +1126,7 @@
                 overflow: visible !important;
             }
 
-            #bill-modal>div {
+            #bill-modal:not(.hidden)>div {
                 box-shadow: none !important;
                 border: none !important;
                 border-radius: 0 !important;
@@ -989,10 +1136,6 @@
                 margin: 0 !important;
                 transform: none !important;
                 background: white !important;
-            }
-
-            .print-hide {
-                display: none !important;
             }
         }
     </style>
@@ -2107,7 +2250,7 @@
                                 </div>
                             </div>
 
-                            <div class="flex items-center gap-2 w-full lg:w-auto">
+                            <div class="flex items-center gap-2.5 w-full lg:w-auto flex-wrap sm:flex-nowrap justify-end ml-auto">
                                 <button id="btn-add-record" onclick="openFormModal()"
                                     class="w-full sm:w-auto text-white bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-600 font-bold rounded-xl text-sm px-6 py-3 flex items-center justify-center shadow-lg shadow-indigo-500/30 transition-all transform hover:-translate-y-0.5 shrink-0">
                                     <i class="fa-solid fa-plus mr-2"></i> <span data-i18n="add_record">Add Record</span>
@@ -2118,11 +2261,11 @@
                     </div>
 
                     <!-- 📌 ส่วนของปฏิทิน -->
-                    <div id="calendar-section" class="hidden mb-6 glass-card rounded-2xl p-5 lg:p-8 print-hide">
+                    <div id="calendar-section" class="hidden mb-6 glass-card rounded-2xl p-5 lg:p-8">
                         <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-5">
                             <h3 class="text-base font-bold text-gray-900 flex items-center gap-3 tracking-wide"><i
-                                    class="fa-regular fa-calendar-days text-brandindigo text-lg"></i> <span data-i18n="attendance_calendar">Attendance Calendar</span></h3>
-                            <div class="flex items-center gap-3 w-full md:w-auto flex-wrap md:flex-nowrap">
+                                     class="fa-regular fa-calendar-days text-brandindigo text-lg"></i> <span data-i18n="attendance_calendar">Attendance Calendar</span></h3>
+                            <div class="flex items-center gap-2.5 w-full md:w-auto flex-wrap md:flex-nowrap">
 
                                 <select id="attendance-dept-filter"
                                     onchange="renderTable(tableCache[currentSheet].data)"
@@ -2152,9 +2295,17 @@
                                     </div>
                                 </div>
 
-                                <button onclick="window.print()"
-                                    class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2 w-full md:w-auto shadow-sm hover:text-brandindigo">
-                                    <i class="fa-solid fa-print"></i> <span data-i18n="btn_export">Export</span>
+                                <button onclick="exportToExcel('Fingerprint_Logs')" title="Export Excel"
+                                    class="bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm">
+                                    <i class="fa-solid fa-file-excel text-emerald-600 text-sm"></i> <span>Excel</span>
+                                </button>
+                                <button onclick="exportToPDF('Fingerprint_Logs')" title="Export PDF"
+                                    class="bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm">
+                                    <i class="fa-solid fa-file-pdf text-rose-600 text-sm"></i> <span>PDF</span>
+                                </button>
+                                <button onclick="printAttendanceReport()" title="Print"
+                                    class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm hover:text-brandindigo">
+                                    <i class="fa-solid fa-print text-sm"></i> <span>Print</span>
                                 </button>
 
                             </div>
@@ -3090,6 +3241,75 @@
         </div>
     </div>
 
+
+    <!-- 📌 Export Preview & Confirmation Modal -->
+    <div id="export-preview-modal" class="fixed inset-0 bg-gray-900/60 z-[99999] hidden items-center justify-center backdrop-blur-sm p-4 print-hide">
+        <div class="bg-white rounded-3xl shadow-2xl border border-gray-100 w-full max-w-2xl overflow-hidden transform transition-all animate-fade-in max-h-[90vh] flex flex-col">
+            <div class="bg-gradient-to-r from-brandindigo to-brandpurple px-6 py-4 text-white flex justify-between items-center shrink-0">
+                <h3 class="font-bold text-base flex items-center gap-2">
+                    <i class="fa-solid fa-file-export text-lg"></i>
+                    <span>ตัวอย่างและยืนยันการส่งออกข้อมูล (Export Preview)</span>
+                </h3>
+                <button onclick="closeExportPreviewModal()" class="text-white/80 hover:text-white text-xl font-bold w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors">&times;</button>
+            </div>
+            <div class="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+                <div id="export-modal-badge" class="flex items-center gap-2"></div>
+                
+                <div class="bg-gray-50 p-4 rounded-2xl border border-gray-200/80 space-y-2 text-xs sm:text-sm">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-500 font-medium">รูปแบบไฟล์ (Format):</span>
+                        <span id="export-format-text" class="font-bold text-gray-900"></span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-500 font-medium">ขอบเขตข้อมูล (Target Scope):</span>
+                        <span id="export-scope-text" class="font-bold text-brandindigo"></span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-500 font-medium">งวดประจำเดือน (Period):</span>
+                        <span id="export-period-text" class="font-bold text-gray-900"></span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-500 font-medium">จำนวนรายการ (Total Records):</span>
+                        <span id="export-count-text" class="font-bold text-gray-900"></span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-500 font-medium">การเรียงลำดับ (Sort Order):</span>
+                        <span class="font-bold text-emerald-600">เรียงตามวันที่ & รหัสพนักงาน</span>
+                    </div>
+                </div>
+
+                <!-- Live Attendance Details Table Preview -->
+                <div>
+                    <div class="flex justify-between items-center mb-1.5">
+                        <span class="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                            <i class="fa-solid fa-table text-brandindigo"></i> ตารางรายละเอียดการเข้างาน (Attendance Details Table)
+                        </span>
+                        <span id="export-preview-showing-count" class="text-[11px] text-gray-400 font-medium"></span>
+                    </div>
+                    <div class="border border-gray-200 rounded-2xl overflow-x-auto max-h-56 custom-scrollbar bg-white shadow-inner">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead class="bg-indigo-900 text-white font-bold sticky top-0 z-10">
+                                <tr id="export-preview-thead"></tr>
+                            </thead>
+                            <tbody id="export-preview-tbody" class="divide-y divide-gray-100 text-gray-700"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Summary Stats Box Preview -->
+                <div id="export-summary-preview-box" class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs"></div>
+            </div>
+            
+            <div class="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3 shrink-0">
+                <button onclick="closeExportPreviewModal()" class="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-50 transition-colors">
+                    ยกเลิก (Cancel)
+                </button>
+                <button id="btn-confirm-export-action" onclick="executeConfirmedExport()" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-600 text-white font-bold text-xs shadow-md transition-all flex items-center gap-2">
+                    <i class="fa-solid fa-download"></i> <span>ยืนยันส่งออกไฟล์ (Confirm Export)</span>
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- 📌 Script หลัก (แบ่งย่อยเพื่อประสิทธิภาพและความปลอดภัย) -->
     <script src="js/i18n.js"></script>
