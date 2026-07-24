@@ -30,18 +30,18 @@
       --primary-dark: #102D75;
       --secondary: #261075;
       --accent: #3b82f6;
-      --dark: #050714;
-      --dark-card: #080c20;
-      --dark-card2: #0d122f;
+      --dark: #07214a;
+      --dark-card: rgba(255, 255, 255, 0.06);
+      --dark-card2: rgba(255, 255, 255, 0.1);
       --text-primary: #f1f5f9;
-      --text-secondary: rgba(255, 255, 255, 0.6);
-      --text-muted: rgba(255, 255, 255, 0.45);
-      --border: rgba(30, 53, 153, 0.25);
-      --glass: rgba(255, 255, 255, 0.03);
-      --glass-hover: rgba(255, 255, 255, 0.07);
+      --text-secondary: rgba(255, 255, 255, 0.75);
+      --text-muted: rgba(255, 255, 255, 0.55);
+      --border: rgba(255, 255, 255, 0.15);
+      --glass: rgba(255, 255, 255, 0.05);
+      --glass-hover: rgba(255, 255, 255, 0.1);
       --gradient-main: linear-gradient(135deg, #1E3599 0%, #261075 100%);
-      --gradient-card: linear-gradient(135deg, rgba(30, 53, 153, 0.12) 0%, rgba(38, 16, 117, 0.06) 100%);
-      --shadow-glow: 0 0 35px rgba(30, 53, 153, 0.45);
+      --gradient-card: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+      --shadow-glow: 0 0 35px rgba(96, 165, 250, 0.35);
     }
 
     *,
@@ -58,10 +58,12 @@
 
     body {
       font-family: 'Sukhumvit Set', 'IBM Plex Sans Thai', 'Prompt', 'Kanit', 'Noto Sans Lao', sans-serif;
-      background-color: var(--dark);
+      background: linear-gradient(180deg, #092c63 0%, #07214a 50%, #092c63 100%) fixed;
+      background-attachment: fixed;
       color: var(--text-primary);
       line-height: 1.7;
       overflow-x: hidden;
+      min-height: 100vh;
     }
 
     /* Utility Helpers */
@@ -77,11 +79,11 @@
     }
 
     ::-webkit-scrollbar-track {
-      background: var(--dark);
+      background: #07214a;
     }
 
     ::-webkit-scrollbar-thumb {
-      background: var(--primary);
+      background: var(--primary-light);
       border-radius: 3px;
     }
 
@@ -100,12 +102,12 @@
 
     #navbar.scrolled {
       position: fixed;
-      background: rgba(5, 7, 20, 0.95);
+      background: rgba(9, 44, 99, 0.95);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
       padding: 1.2rem 0;
-      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
     }
 
     .nav-container {
@@ -132,7 +134,7 @@
     }
 
     .nav-links a {
-      color: #f59e0b;
+      color: #ffffff;
       text-decoration: none;
       font-size: 0.98rem;
       font-weight: 600;
@@ -140,8 +142,8 @@
     }
 
     .nav-links a:hover {
-      color: #fbbf24;
-      text-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+      color: #60a5fa;
+      text-shadow: 0 0 10px rgba(96, 165, 250, 0.6);
     }
 
     .btn-hr-system-login {
@@ -176,8 +178,8 @@
         grid-template-columns: repeat(2, 1fr);
       }
 
-      .news-track {
-        padding: 24px 80px 40px;
+      .subsidiaries-wrapper {
+        margin-top: 2rem !important;
       }
 
       .career-positions {
@@ -187,23 +189,46 @@
 
     @media (max-width: 768px) {
       #navbar {
-        padding: 1.2rem 0;
+        position: fixed !important;
+        top: 0;
+        left: 0;
+        right: 0;
+        background: rgba(9, 44, 99, 0.95) !important;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        padding: 0.6rem 0.5rem !important;
+        z-index: 10000;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
       }
 
       .nav-container {
         justify-content: center;
-        padding: 0 1rem;
+        padding: 0 0.5rem;
       }
 
       .nav-links {
         display: flex !important;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 0.8rem 1.2rem;
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+        gap: 0.35rem 0.6rem !important;
       }
 
       .nav-links a {
-        font-size: 0.88rem;
+        font-size: 0.8rem !important;
+        font-weight: 600 !important;
+        padding: 0.3rem 0.65rem !important;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: #ffffff !important;
+        display: inline-block;
+      }
+
+      .nav-links a:hover,
+      .nav-links a:focus {
+        background: var(--primary-light);
+        color: #ffffff !important;
       }
 
       .hamburger {
@@ -211,23 +236,28 @@
       }
 
       #hero {
-        padding-top: 5rem;
+        padding-top: 6.5rem;
         min-height: auto;
-        padding-bottom: 4rem;
+        padding-bottom: 3.5rem;
       }
 
       .hero-content {
-        padding: 2rem 1rem;
+        padding: 1.5rem 1rem;
+      }
+
+      .hero-title {
+        font-size: 2.2rem !important;
+        line-height: 1.35 !important;
       }
 
       .hero-stats {
-        gap: 2rem;
-        margin-top: 3.5rem;
+        gap: 1.5rem;
+        margin-top: 2.5rem;
       }
 
       .about-grid {
         grid-template-columns: 1fr;
-        gap: 2.5rem;
+        gap: 2rem;
       }
 
       .services-grid {
@@ -235,25 +265,55 @@
         gap: 1.25rem;
       }
 
-      .news-track {
-        padding: 16px 0 32px;
-        scroll-padding-inline: calc(50% - 140px);
+      /* 📌 MOBILE VERTICAL SCROLL FLOW (NO SIDE SLIDER) */
+      .news-carousel-wrapper {
+        margin-top: 1.5rem;
       }
 
-      .news-card {
-        flex: 0 0 280px;
+      .news-track {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 1.5rem !important;
+        padding: 1rem 0.5rem 2rem !important;
+        overflow-x: visible !important;
+        scroll-snap-type: none !important;
+        width: 100% !important;
+        max-width: 550px;
+        margin: 0 auto;
       }
 
       .news-track::before,
       .news-track::after {
-        flex: 0 0 calc(50% - 140px);
-        min-width: calc(50% - 140px);
+        display: none !important;
       }
 
-      .news-nav-btn {
-        width: 38px;
-        height: 38px;
-        font-size: 0.9rem;
+      .news-card {
+        flex: 0 0 100% !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        opacity: 1 !important;
+        transform: none !important;
+        scroll-snap-align: none !important;
+        box-shadow: 0 12px 35px rgba(0, 0, 0, 0.25) !important;
+      }
+
+      .news-card .news-read-more {
+        opacity: 1 !important;
+      }
+
+      .news-nav-btn,
+      .news-dots {
+        display: none !important;
+      }
+
+      .team-grid {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .team-card {
+        max-width: 100% !important;
+        width: 100% !important;
       }
 
       .career-positions {
@@ -261,13 +321,20 @@
         gap: 1rem;
       }
 
-      .contact-grid {
-        grid-template-columns: 1fr;
-        gap: 2.5rem;
+      .footer-grid {
+        grid-template-columns: 1fr !important;
+        gap: 2rem !important;
+        text-align: center;
+      }
+
+      .footer-grid > div {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
       }
 
       section {
-        padding: 4.5rem 0;
+        padding: 3.5rem 0;
       }
 
       .container {
@@ -275,18 +342,7 @@
       }
 
       .career-banner {
-        padding: 2.5rem 1.5rem;
-      }
-
-      .hr-cta {
-        margin: 0 1rem;
-        padding: 2.5rem 1.5rem;
-      }
-
-      .footer-content {
-        flex-direction: column;
-        text-align: center;
-        gap: 1.5rem;
+        padding: 2rem 1.25rem;
       }
     }
 
@@ -306,9 +362,8 @@
     .hero-bg {
       position: absolute;
       inset: 0;
-      background: radial-gradient(circle at 15% 20%, rgba(30, 53, 153, 0.15) 0%, transparent 45%),
-        radial-gradient(circle at 85% 75%, rgba(38, 16, 117, 0.18) 0%, transparent 45%),
-        var(--dark);
+      background: radial-gradient(circle at 85% 65%, rgba(2, 132, 199, 0.25) 0%, transparent 60%),
+        radial-gradient(circle at 15% 20%, rgba(30, 53, 153, 0.2) 0%, transparent 50%);
     }
 
     #particles-container {
@@ -1103,7 +1158,7 @@
        TEAM
     ========================================= */
     #team {
-      background: var(--dark);
+      background: transparent;
     }
 
     .team-grid {
@@ -2295,63 +2350,56 @@
 
 
   <!-- ===== FOOTER ===== -->
-  <footer style="background: #f5a800; color: #0f172a; padding: 0; border-top: none;">
+  <footer style="background: rgba(0, 0, 0, 0.15); color: #ffffff; padding: 0; border-top: 1px solid rgba(255,255,255,0.12);">
     <!-- Main footer content -->
     <div style="padding: 2.5rem 0;">
       <div class="container">
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1.5fr; gap: 3rem; align-items: start;">
+        <div class="footer-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: start;">
 
           <!-- Left: ติดต่อเรา -->
           <div>
-            <h3 style="font-size: 1.1rem; font-weight: 800; color: #0f172a; margin-bottom: 1.2rem; text-transform: uppercase; letter-spacing: 0.04em;">ติดต่อเรา</h3>
-            <div style="display: flex; flex-direction: column; gap: 0.55rem; font-size: 0.92rem; color: #1a1a1a; font-weight: 500; line-height: 1.6;">
+            <h3 style="font-size: 1.1rem; font-weight: 800; color: #ffffff; margin-bottom: 1.2rem; text-transform: uppercase; letter-spacing: 0.04em;">ติดต่อเรา</h3>
+            <div style="display: flex; flex-direction: column; gap: 0.55rem; font-size: 0.92rem; color: rgba(255, 255, 255, 0.85); font-weight: 500; line-height: 1.6;">
               <div style="display: flex; gap: 0.5rem;">
-                <span style="font-weight: 700; min-width: 56px;">ที่อยู่:</span>
+                <span style="font-weight: 700; min-width: 56px; color: #60a5fa;">ที่อยู่:</span>
                 <span id="org-address-footer">Vientiane Laos PDR</span>
               </div>
               <div style="display: flex; gap: 0.5rem;">
-                <span style="font-weight: 700; min-width: 56px;">Email:</span>
+                <span style="font-weight: 700; min-width: 56px; color: #60a5fa;">Email:</span>
                 <span id="org-email-footer">Vientiane@lstk.com</span>
               </div>
               <div style="display: flex; gap: 0.5rem;">
-                <span style="font-weight: 700; min-width: 56px;">Tel:</span>
+                <span style="font-weight: 700; min-width: 56px; color: #60a5fa;">Tel:</span>
                 <span id="org-phone-footer">+856 20 59 495 614</span>
               </div>
             </div>
           </div>
 
-          <!-- Middle: ระบบ (System links) -->
+          <!-- Right: ระบบ (System links) -->
           <div>
-            <h3 style="font-size: 1.1rem; font-weight: 800; color: #0f172a; margin-bottom: 1.2rem; text-transform: uppercase; letter-spacing: 0.04em;">ระบบ</h3>
+            <h3 style="font-size: 1.1rem; font-weight: 800; color: #ffffff; margin-bottom: 1.2rem; text-transform: uppercase; letter-spacing: 0.04em;">ระบบ</h3>
             <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.55rem;">
               <li>
-                <a href="#" style="color: #1a1a1a; text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: color 0.2s;"
-                   onmouseover="this.style.color='#7c3aed'" onmouseout="this.style.color='#1a1a1a'">
+                <a href="#" style="color: rgba(255, 255, 255, 0.85); text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: color 0.2s;"
+                   onmouseover="this.style.color='#60a5fa'" onmouseout="this.style.color='rgba(255, 255, 255, 0.85)'">
                   System Clinic
                 </a>
               </li>
               <li>
-                <a href="Hr.html" onclick="goToHr(event)" style="color: #1a1a1a; text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: color 0.2s;"
-                   onmouseover="this.style.color='#7c3aed'" onmouseout="this.style.color='#1a1a1a'">
+                <a href="Hr.html" onclick="goToHr(event)" style="color: rgba(255, 255, 255, 0.85); text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: color 0.2s;"
+                   onmouseover="this.style.color='#60a5fa'" onmouseout="this.style.color='rgba(255, 255, 255, 0.85)'">
                   System Human Resources
                 </a>
               </li>
             </ul>
           </div>
 
-          <!-- Right: Map -->
-          <div>
-            <div style="border-radius: 8px; overflow: hidden; height: 200px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
-              <div id="footer-map" style="width: 100%; height: 100%;"></div>
-            </div>
-          </div>
-
         </div>
       </div>
     </div>
 
-    <!-- Thin dark bottom bar (copyright) -->
-    <div style="background: #111111; color: rgba(255,255,255,0.45); padding: 0.9rem 1rem; text-align: center; font-size: 0.78rem; letter-spacing: 0.02em;">
+    <!-- Thin bottom bar (copyright) -->
+    <div style="background: rgba(0, 0, 0, 0.25); color: rgba(255,255,255,0.6); padding: 0.9rem 1rem; text-align: center; font-size: 0.78rem; letter-spacing: 0.02em; border-top: 1px solid rgba(255,255,255,0.08);">
       © 2026 Love STK Groupe. All Rights Reserved.
     </div>
   </footer>
@@ -2676,8 +2724,19 @@
         ).join('');
       }
 
+      // Mobile check: On mobile screens, activate all cards and disable horizontal auto-scroll
+      if (window.innerWidth <= 768) {
+        cards.forEach(c => c.classList.add('active'));
+      } else {
+        setActive(currentIdx);
+      }
+
       // Set active card
       function setActive(idx) {
+        if (window.innerWidth <= 768) {
+          cards.forEach(c => c.classList.add('active'));
+          return;
+        }
         currentIdx = Math.max(0, Math.min(idx, cards.length - 1));
         cards.forEach((c, i) => c.classList.toggle('active', i === currentIdx));
         // Sync dots
