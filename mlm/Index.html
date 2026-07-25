@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบแดชบอร์ด (Dashboard) - LOVE STK GROUPE</title>
+  <!-- Standalone & GAS Libraries -->
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
+    body { font-family: 'Inter', 'IBM Plex Sans Thai', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; }
+  </style>
+  <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+  <!-- ✅ Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <!-- ✅ STK Supabase Config -->
+  <script>
+    // =====================================================================
+    // STK GROUPE - Supabase Config (MLM / Sales System Phase 2.3)
+    // =====================================================================
+    window.SUPABASE_URL      = 'https://qqyotianqcgpdzrfgjif.supabase.co';
+    window.SUPABASE_ANON_KEY = 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
+    window.SUPABASE_REST_URL = window.SUPABASE_URL + '/rest/v1';
+    window.SUPABASE_HEADERS  = {
+      'Content-Type' : 'application/json',
+      'apikey'       : window.SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + window.SUPABASE_ANON_KEY,
+      'Prefer'       : 'return=representation'
+    };
+    // Initialize Supabase client (available globally as window.supabaseClient)
+    if (typeof supabase !== 'undefined') {
+      window.supabaseClient = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+      console.log('%c✅ Supabase Connected!', 'color:green;font-weight:bold', window.SUPABASE_URL);
+    }
+    // ---- REST Helper Functions ----
+    async function supabaseSelect(table, query) {
+      var url = window.SUPABASE_REST_URL + '/' + table + (query ? '?' + query : '');
+      var res = await fetch(url, { method: 'GET', headers: window.SUPABASE_HEADERS });
+      if (!res.ok) { var t = await res.text(); throw new Error('SELECT ' + table + ': ' + res.status + ' ' + t); }
+      return res.json();
+    }
+    async function supabaseInsert(table, data) {
+      var res = await fetch(window.SUPABASE_REST_URL + '/' + table, { method: 'POST', headers: window.SUPABASE_HEADERS, body: JSON.stringify(data) });
+      if (!res.ok) { var t = await res.text(); throw new Error('INSERT ' + table + ': ' + res.status + ' ' + t); }
+      return res.json();
+    }
+    async function supabaseUpdate(table, id, data) {
+      var res = await fetch(window.SUPABASE_REST_URL + '/' + table + '?id=eq.' + encodeURIComponent(id), { method: 'PATCH', headers: window.SUPABASE_HEADERS, body: JSON.stringify(data) });
+      if (!res.ok) { var t = await res.text(); throw new Error('UPDATE ' + table + ': ' + res.status + ' ' + t); }
+      return res.json();
+    }
+    async function supabaseDelete(table, id) {
+      var h = Object.assign({}, window.SUPABASE_HEADERS, { 'Prefer': 'return=minimal' });
+      var res = await fetch(window.SUPABASE_REST_URL + '/' + table + '?id=eq.' + encodeURIComponent(id), { method: 'DELETE', headers: h });
+      if (!res.ok) { var t = await res.text(); throw new Error('DELETE ' + table + ': ' + res.status + ' ' + t); }
+      return true;
+    }
+    async function supabaseUpsert(table, data) {
+      var h = Object.assign({}, window.SUPABASE_HEADERS, { 'Prefer': 'resolution=merge-duplicates,return=representation' });
+      var res = await fetch(window.SUPABASE_REST_URL + '/' + table, { method: 'POST', headers: h, body: JSON.stringify(data) });
+      if (!res.ok) { var t = await res.text(); throw new Error('UPSERT ' + table + ': ' + res.status + ' ' + t); }
+      return res.json();
+    }
+  </script>
+  <script src="CommonComponents.js"></script>
+  <script>
+    window.addEventListener('DOMContentLoaded', function() {
+      setTimeout(function() {
+        var loader = document.getElementById('initial-loader');
+        if (loader) loader.style.display = 'none';
+      }, 600);
+    });
+  </script>
+  <!-- <?!= include('Includes'); ?> -->
+</head>
+<body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
+
+  <div id="initial-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999;">
+    <div style="width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 24px;"></div>
+    <style>@keyframes initial-spin { to { transform: rotate(360deg); } }</style>
+    <h2 style="font-size: 1.75rem; font-weight: 800; color: #1e40af; margin: 0; letter-spacing: -0.025em;">LOVE <span style="color: #475569;">STK GROUPE</span></h2>
+    <p style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 8px;">กำลังโหลดระบบจัดการข้อมูล...</p>
+  </div>
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect, useRef, useCallback } = React;
+
+    const fallbackCustomerTypes = window.fallbackCustomerTypes || [
+       { id: 'T001', name: 'ลูกค้าใหม่', status: 'ใช้งาน' },
+       { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'ใช้งาน' }
+    ];
+    const fallbackProductsList = window.fallbackProductsList || ['SESAMIN', 'APPLE', 'KING_GOLD'];
+
+    /* <?!= include('CommonComponents'); ?> */
+
+
+    // ==========================================
+    // 📌 Dashboard View Component
+    // ==========================================
+    const DashboardView = ({ sales, members, customers, isAdmin, activeCustomerTypes, businessTeams, initialTargetHistory }) => {
+        const todayStr = getLocalISODate();
+        const firstDayOfMonthStr = `${todayStr.substring(0, 7)}-01`;
+        const [dashStartDate, setDashStartDate] = useState(firstDayOfMonthStr);
+        const [dashEndDate, setDashEndDate] = useState(todayStr);
+        const [dashboardTarget, setDashboardTarget] = useState(4000);
+
+        const [targetHistory, setTargetHistory] = useState(initialTargetHistory || []);
+        const [showTargetHistoryModal, setShowTargetHistoryModal] = useState(false);
+        const [targetHistorySearch, setTargetHistorySearch] = useState('');
+        const [targetHistoryFilterStart, setTargetHistoryFilterStart] = useState('');
+        const [targetHistoryFilterEnd, setTargetHistoryFilterEnd] = useState('');
+        const globalTargetDebounceRef = useRef(null);
+        const memberTargetDebounceRef = useRef({});
+
+        useEffect(() => {
+            if (Array.isArray(initialTargetHistory) && initialTargetHistory.length > 0) {
+                setTargetHistory(initialTargetHistory);
+            }
+        }, [initialTargetHistory]);
+
+        const recordTargetHistory = (targetVal, type = 'เป้าหมายรวมทุกคน', memberId = 'ALL', notes = '') => {
+            const num = Number(targetVal) || 0;
+            if (num <= 0) return;
+
+            const nowDate = getLocalISODate();
+            const nowTime = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+            const newLogObj = {
+                id: 'TGT-' + Date.now(),
+                date: nowDate + ' ' + nowTime,
+                period: nowDate.substring(0, 7),
+                targetValue: num,
+                targetType: type,
+                memberId: memberId,
+                setBy: 'ผู้ดูแลระบบ (Admin)',
+                notes: notes || (type === 'เป้าหมายรวมทุกคน' ? 'ตั้งเป้าหมายรวมทุกคน' : `ตั้งเป้าหมายรายบุคคล: ${memberId}`)
+            };
+
+            setTargetHistory(prev => [newLogObj, ...(prev || [])]);
+
+            if (typeof google !== 'undefined' && google.script) {
+                google.script.run
+                    .withSuccessHandler(resStr => {
+                        try {
+                            const res = JSON.parse(resStr);
+                            if (res.status === 'success' && res.record) {
+                                setTargetHistory(prev => prev.map(item => item.id === newLogObj.id ? res.record : item));
+                            }
+                        } catch(e) {}
+                    })
+                    .saveTargetHistory(num, type, memberId, 'ผู้ดูแลระบบ (Admin)', notes);
+            }
+        };
+
+        const [globalIndividualTarget, setGlobalIndividualTarget] = useState(() => {
+            try {
+                const saved = localStorage.getItem('stk_global_individual_target');
+                if (saved && !isNaN(saved)) return Number(saved);
+            } catch(e) {}
+            return 200;
+        });
+
+        const [customMemberTargets, setCustomMemberTargets] = useState(() => {
+            try {
+                const saved = localStorage.getItem('stk_custom_member_targets');
+                if (saved) return JSON.parse(saved);
+            } catch(e) {}
+            return {};
+        });
+
+        const handleGlobalIndividualTargetChange = (val) => {
+            setGlobalIndividualTarget(val);
+            const num = Number(val);
+            if (val !== '' && !isNaN(num) && num > 0) {
+                try { localStorage.setItem('stk_global_individual_target', num); } catch(e) {}
+                setCustomMemberTargets({});
+                try { localStorage.removeItem('stk_custom_member_targets'); } catch(e) {}
+                // Debounce: บันทึกประวัติเฉพาะตอนหยุดพิมพ์ 800ms
+                if (globalTargetDebounceRef.current) clearTimeout(globalTargetDebounceRef.current);
+                globalTargetDebounceRef.current = setTimeout(() => {
+                    recordTargetHistory(num, 'เป้าหมายรวมทุกคน', 'ALL', 'ปรับเป้าหมายทุกคนในครั้งเดียว');
+                }, 800);
+            }
+        };
+
+        const handleUpdateMemberTarget = (memberId, targetVal) => {
+            const num = Math.max(1, Number(targetVal) || 1);
+            setCustomMemberTargets(prev => {
+                const updated = { ...prev, [memberId]: num };
+                try { localStorage.setItem('stk_custom_member_targets', JSON.stringify(updated)); } catch(e) {}
+                return updated;
+            });
+            // Debounce per member: บันทึกเฉพาะตอนหยุดพิมพ์ 800ms
+            if (memberTargetDebounceRef.current[memberId]) clearTimeout(memberTargetDebounceRef.current[memberId]);
+            memberTargetDebounceRef.current[memberId] = setTimeout(() => {
+                recordTargetHistory(num, 'เป้าหมายรายบุคคล', memberId, `ตั้งเป้าหมายรายบุคคล (${memberId})`);
+            }, 800);
+        };
+
+        // แก้ไขให้เริ่มต้นเป็น firstDayOfMonthStr จะได้เห็นข้อมูลตอนเทสต์ง่ายขึ้น
+        const [dailyTopSalesStartDate, setDailyTopSalesStartDate] = useState(firstDayOfMonthStr);
+        const [dailyTopSalesEndDate, setDailyTopSalesEndDate] = useState(todayStr);
+
+        const activeBusinessTeams = useMemo(() => {
+            if (Array.isArray(businessTeams) && businessTeams.length > 0) {
+                return businessTeams.filter(t => t && t.status !== 'ปิดใช้งาน' && t.status !== 'Disabled');
+            }
+            return [
+                { id: 'T001', name: 'Marketing', status: 'ใช้งาน' },
+                { id: 'T002', name: 'Center', status: 'ใช้งาน' }
+            ];
+        }, [businessTeams]);
+
+        const activeTeamMembers = useMemo(() => {
+            const disabledTeamKeys = new Set(
+                (businessTeams || [])
+                    .filter(t => t && (t.status === 'ปิดใช้งาน' || t.status === 'Disabled'))
+                    .map(t => [t.id, t.name, String(t.id || '').toUpperCase(), String(t.name || '').toUpperCase()])
+                    .flat()
+            );
+
+            return (members || []).filter(m => {
+                if (!m) return false;
+                const memTeam = String(m.team || '').trim().toUpperCase();
+                if (memTeam && disabledTeamKeys.has(memTeam)) return false;
+                return true;
+            });
+        }, [members, businessTeams]);
+
+        const teamStats = useMemo(() => {
+          const teamSalesMap = {};
+          activeBusinessTeams.forEach(t => {
+              teamSalesMap[t.id] = 0;
+              teamSalesMap[t.name] = 0;
+          });
+
+          let mTargetData = {};
+          activeTeamMembers.forEach(m => { 
+              if (m && m.id) { 
+                  const targetVal = customMemberTargets[m.id] !== undefined ? customMemberTargets[m.id] : (Number(globalIndividualTarget) || 200);
+                  mTargetData[m.id] = { id: m.id, name: m.name, team: m.team || '', actual: 0, target: targetVal }; 
+              } 
+          });
+
+          const filteredSales = (sales || []).filter(s => s && (s.date || '') >= dashStartDate && (s.date || '') <= dashEndDate);
+          filteredSales.forEach(s => {
+             const fullBoxes = parseInt(s['ยอดรวมชิ้นทั้งหมด'] || 0, 10);
+             if (fullBoxes === 0) return;
+             const mem = (members || []).find(m => m && m.id === s.memberId);
+             if (mem) {
+                 const memTeam = String(mem.team || '').trim();
+                 activeBusinessTeams.forEach(bt => {
+                     if (
+                         memTeam === bt.id || 
+                         memTeam.toLowerCase() === bt.name.toLowerCase() ||
+                         (bt.name.toLowerCase().includes('marketing') && (memTeam === 'Team A' || memTeam === 'Marketing')) ||
+                         (bt.name.toLowerCase().includes('center') && (memTeam === 'Team B' || memTeam === 'Center'))
+                     ) {
+                         teamSalesMap[bt.id] = (teamSalesMap[bt.id] || 0) + fullBoxes;
+                     }
+                 });
+                 if (mTargetData[mem.id]) mTargetData[mem.id].actual += fullBoxes;
+             }
+          });
+
+          const palette = [
+              { text: "text-blue-400", stroke: "#3b82f6", glow: "rgba(59,130,246,0.6)", bg: "bg-blue-600/20", border: "border-blue-500/40", hoverBg: "group-hover:bg-blue-600" },
+              { text: "text-rose-500", stroke: "#f43f5e", glow: "rgba(244,63,94,0.6)", bg: "bg-rose-600/20", border: "border-rose-500/40", hoverBg: "group-hover:bg-rose-600" },
+              { text: "text-amber-400", stroke: "#f59e0b", glow: "rgba(245,158,11,0.6)", bg: "bg-amber-600/20", border: "border-amber-500/40", hoverBg: "group-hover:bg-amber-600" },
+              { text: "text-emerald-400", stroke: "#10b981", glow: "rgba(16,185,129,0.6)", bg: "bg-emerald-600/20", border: "border-emerald-500/40", hoverBg: "group-hover:bg-emerald-600" },
+              { text: "text-purple-400", stroke: "#8b5cf6", glow: "rgba(139,92,246,0.6)", bg: "bg-purple-600/20", border: "border-purple-500/40", hoverBg: "group-hover:bg-purple-600" },
+              { text: "text-cyan-400", stroke: "#06b6d4", glow: "rgba(6,182,212,0.6)", bg: "bg-cyan-600/20", border: "border-cyan-500/40", hoverBg: "group-hover:bg-cyan-600" }
+          ];
+
+          const teamsList = activeBusinessTeams.map((bt, index) => ({
+              id: bt.id,
+              name: bt.name,
+              totalSales: teamSalesMap[bt.id] || teamSalesMap[bt.name] || 0,
+              style: palette[index % palette.length]
+          }));
+
+          return { teamsList, memberTargetData: Object.values(mTargetData).sort((a, b) => b.actual - a.actual) };
+        }, [sales, members, activeBusinessTeams, dashStartDate, dashEndDate, customMemberTargets, globalIndividualTarget]);
+
+        const topPerformanceData = useMemo(() => {
+            let mStats = {};
+            (members || []).forEach(m => {
+                if (m && m.id) {
+                    mStats[m.id] = { id: m.id, name: m.name, newCustSet: new Set(), totalFullBoxes: 0, oldFullBoxes: 0 };
+                }
+            });
+            const filteredSales = (sales || []).filter(s => s && (s.date || '') >= dashStartDate && (s.date || '') <= dashEndDate);
+            filteredSales.forEach(s => {
+                const memberId = s.memberId; if (!memberId) return;
+                if (!mStats[memberId]) {
+                    const mem = (members || []).find(m => m && m.id === memberId);
+                    mStats[memberId] = { id: memberId, name: mem ? mem.name : memberId, newCustSet: new Set(), totalFullBoxes: 0, oldFullBoxes: 0 };
+                }
+                const fullBoxes = parseInt(s['ยอดรวมชิ้นทั้งหมด'] || 0, 10);
+                const cust = (customers || []).find(c => c && c.id === s.customerId);
+                const cType = cust ? String(cust.type || '').trim() : '';
+                if (cType.includes('ใหม่') || cType.includes('ปรึกษา')) { if (s.customerId) mStats[memberId].newCustSet.add(s.customerId); }
+                mStats[memberId].totalFullBoxes += fullBoxes;
+                if (cType.includes('เก่า') || cType.includes('ปรึกษา') || cType.includes('โทร')) { mStats[memberId].oldFullBoxes += fullBoxes; }
+            });
+            return Object.values(mStats).map(m => ({ ...m, newCustCount: m.newCustSet.size })).sort((a, b) => b.totalFullBoxes - a.totalFullBoxes).slice(0, 10);
+        }, [sales, customers, members, dashStartDate, dashEndDate]);
+
+        const podiumData = useMemo(() => {
+            const podium = [];
+            if(topPerformanceData.length > 0) podium.push({ ...topPerformanceData[0], rank: 1 });
+            if(topPerformanceData.length > 1) podium.push({ ...topPerformanceData[1], rank: 2 });
+            if(topPerformanceData.length > 2) podium.push({ ...topPerformanceData[2], rank: 3 });
+            return podium;
+        }, [topPerformanceData]);
+
+        const rank4to10Data = useMemo(() => topPerformanceData.slice(3, 10), [topPerformanceData]);
+
+        const maxPerfStats = useMemo(() => {
+            let maxFull = 1, maxOld = 1, maxNew = 1;
+            topPerformanceData.forEach(d => {
+                if (d.totalFullBoxes > maxFull) maxFull = d.totalFullBoxes;
+                if (d.oldFullBoxes > maxOld) maxOld = d.oldFullBoxes;
+                if (d.newCustCount > maxNew) maxNew = d.newCustCount;
+            });
+            return { maxFull, maxOld, maxNew };
+        }, [topPerformanceData]);
+
+        const dailyTopSales = useMemo(() => {
+            const periodSales = (sales || []).filter(s => s && (s.date || '') >= dailyTopSalesStartDate && (s.date || '') <= dailyTopSalesEndDate);
+            const aggregated = {};
+            periodSales.forEach(s => {
+                const mId = s.memberId;
+                if (!mId) return;
+                if (!aggregated[mId]) { aggregated[mId] = { memberId: mId, memberName: s.memberName, totalFullBoxes: 0 }; }
+                aggregated[mId].totalFullBoxes += (parseInt(s['ยอดรวมชิ้นทั้งหมด']) || 0);
+            });
+            return Object.values(aggregated).filter(m => m.totalFullBoxes > 0).sort((a, b) => b.totalFullBoxes - a.totalFullBoxes).slice(0, 10);
+        }, [sales, dailyTopSalesStartDate, dailyTopSalesEndDate]);
+
+        const [zeroSalesStartDate, setZeroSalesStartDate] = useState(firstDayOfMonthStr);
+        const [zeroSalesEndDate, setZeroSalesEndDate] = useState(todayStr);
+
+        const zeroSalesData = useMemo(() => {
+            let mStats = {};
+            activeTeamMembers.forEach(m => {
+                if (m && m.id && (m.status === 'ทำงานอยู่' || m.status === 'ใช้งาน' || m.status === 'Active')) {
+                    mStats[m.id] = { id: m.id, name: m.name, team: String(m.team || '').trim(), totalFullBoxes: 0, profileUrl: m.profileUrl };
+                }
+            });
+
+            const filteredSales = (sales || []).filter(s => s && (s.date || '') >= zeroSalesStartDate && (s.date || '') <= zeroSalesEndDate);
+            filteredSales.forEach(s => {
+                const memberId = s.memberId;
+                if (mStats[memberId]) {
+                    mStats[memberId].totalFullBoxes += (parseInt(s['ยอดรวมชิ้นทั้งหมด'] || 0, 10));
+                }
+            });
+
+            const paletteColors = [
+                { dotColor: 'bg-blue-500', shadow: 'shadow-[0_0_8px_rgba(59,130,246,0.8)]' },
+                { dotColor: 'bg-rose-500', shadow: 'shadow-[0_0_8px_rgba(244,63,94,0.8)]' },
+                { dotColor: 'bg-amber-500', shadow: 'shadow-[0_0_8px_rgba(245,158,11,0.8)]' },
+                { dotColor: 'bg-emerald-500', shadow: 'shadow-[0_0_8px_rgba(16,185,129,0.8)]' },
+                { dotColor: 'bg-purple-500', shadow: 'shadow-[0_0_8px_rgba(139,92,246,0.8)]' },
+                { dotColor: 'bg-cyan-500', shadow: 'shadow-[0_0_8px_rgba(6,182,212,0.8)]' }
+            ];
+
+            const teamMap = {};
+            activeBusinessTeams.forEach((bt, idx) => {
+                const color = paletteColors[idx % paletteColors.length];
+                teamMap[bt.id] = { teamId: bt.id, teamName: bt.name, data: [], dotColor: color.dotColor, shadow: color.shadow };
+            });
+
+            Object.values(mStats).forEach(m => {
+                if (m.totalFullBoxes === 0) {
+                    const memTeam = m.team;
+                    let matchedTeam = activeBusinessTeams.find(bt => 
+                        memTeam === bt.id || 
+                        memTeam.toLowerCase() === bt.name.toLowerCase() ||
+                        (bt.name.toLowerCase().includes('marketing') && (memTeam === 'Team A' || memTeam === 'Marketing')) ||
+                        (bt.name.toLowerCase().includes('center') && (memTeam === 'Team B' || memTeam === 'Center'))
+                    );
+                    if (matchedTeam && teamMap[matchedTeam.id]) {
+                        teamMap[matchedTeam.id].data.push(m);
+                    }
+                }
+            });
+
+            return Object.values(teamMap);
+        }, [members, sales, activeBusinessTeams, zeroSalesStartDate, zeroSalesEndDate]);
+
+        const [custTypeStartDate, setCustTypeStartDate] = useState(firstDayOfMonthStr);
+        const [custTypeEndDate, setCustTypeEndDate] = useState(todayStr);
+
+        const salesByCustTypeData = useMemo(() => {
+            let mStats = {};
+            const filteredSales = (sales || []).filter(s => s && (s.date || '') >= custTypeStartDate && (s.date || '') <= custTypeEndDate);
+            const foundTypes = new Set();
+
+            (activeCustomerTypes || []).forEach(t => {
+                if (t && t.name && String(t.name).trim() !== '') {
+                    foundTypes.add(String(t.name).trim());
+                }
+            });
+
+            filteredSales.forEach(s => {
+                const boxes = parseInt(s['ยอดรวมชิ้นทั้งหมด'] || 0, 10);
+                if (boxes === 0) return;
+
+                const memberId = s.memberId;
+                if (!memberId) return;
+
+                if (!mStats[memberId]) {
+                    const mem = (members || []).find(m => m && m.id === memberId);
+                    mStats[memberId] = { id: memberId, name: mem ? mem.name : memberId, profileUrl: mem?.profileUrl, totalBoxes: 0, typeBreakdown: {} };
+                }
+
+                const cust = (customers || []).find(c => c && c.id === s.customerId);
+                let cType = cust && cust.type ? String(cust.type).trim() : 'ไม่ระบุ';
+                if (cType === '') cType = 'ไม่ระบุ';
+                
+                foundTypes.add(cType);
+
+                mStats[memberId].totalBoxes += boxes;
+                mStats[memberId].typeBreakdown[cType] = (mStats[memberId].typeBreakdown[cType] || 0) + boxes;
+            });
+
+            const sortedMembers = Object.values(mStats).sort((a, b) => b.totalBoxes - a.totalBoxes);
+            
+            const colorPalette = [
+                { bg: 'bg-cyan-500', text: 'text-cyan-400', shadow: 'shadow-[0_0_8px_rgba(6,182,212,0.6)]' },
+                { bg: 'bg-fuchsia-500', text: 'text-fuchsia-400', shadow: 'shadow-[0_0_8px_rgba(217,70,239,0.6)]' },
+                { bg: 'bg-lime-500', text: 'text-lime-400', shadow: 'shadow-[0_0_8px_rgba(132,204,22,0.6)]' },
+                { bg: 'bg-rose-500', text: 'text-rose-400', shadow: 'shadow-[0_0_8px_rgba(244,63,94,0.6)]' },
+                { bg: 'bg-amber-500', text: 'text-amber-400', shadow: 'shadow-[0_0_8px_rgba(245,158,11,0.6)]' },
+                { bg: 'bg-indigo-500', text: 'text-indigo-400', shadow: 'shadow-[0_0_8px_rgba(99,102,241,0.6)]' },
+                { bg: 'bg-emerald-500', text: 'text-emerald-400', shadow: 'shadow-[0_0_8px_rgba(16,185,129,0.6)]' },
+                { bg: 'bg-orange-500', text: 'text-orange-400', shadow: 'shadow-[0_0_8px_rgba(249,115,22,0.6)]' },
+                { bg: 'bg-blue-500', text: 'text-blue-400', shadow: 'shadow-[0_0_8px_rgba(59,130,246,0.6)]' },
+                { bg: 'bg-violet-500', text: 'text-violet-400', shadow: 'shadow-[0_0_8px_rgba(139,92,246,0.6)]' },
+                { bg: 'bg-pink-500', text: 'text-pink-400', shadow: 'shadow-[0_0_8px_rgba(236,72,153,0.6)]' },
+                { bg: 'bg-teal-500', text: 'text-teal-400', shadow: 'shadow-[0_0_8px_rgba(20,184,166,0.6)]' }
+            ];
+
+            const typeColors = {};
+            Array.from(foundTypes).sort().forEach((t, idx) => {
+                typeColors[t] = colorPalette[idx % colorPalette.length];
+            });
+
+            let maxBoxesInSingleType = 1;
+            sortedMembers.forEach(m => {
+                Object.values(m.typeBreakdown).forEach(val => {
+                    if (val > maxBoxesInSingleType) maxBoxesInSingleType = val;
+                });
+            });
+
+            return { membersData: sortedMembers, typeColors, maxScale: maxBoxesInSingleType };
+        }, [sales, members, customers, activeCustomerTypes, custTypeStartDate, custTypeEndDate]);
+
+        const [progressPage, setProgressPage] = useState(1);
+        const ITEMS_PER_PAGE = 48;
+        const totalProgressPages = Math.ceil(teamStats.memberTargetData.length / ITEMS_PER_PAGE);
+        const paginatedProgressData = teamStats.memberTargetData.slice((progressPage - 1) * ITEMS_PER_PAGE, progressPage * ITEMS_PER_PAGE);
+
+        return (
+          <div className="space-y-4 animation-fade-in pb-4">
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3">
+              <h2 className="text-2xl font-bold text-slate-800">แดชบอร์ดสรุปผล (Dashboard)</h2>
+              <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-2xl shadow-sm border border-slate-100/80 shadow-slate-100">
+                <span className="text-[12px] font-bold text-slate-500">กรองช่วงเวลา:</span>
+                <div className="flex items-center gap-1.5">
+                    <input type="date" className="bg-slate-50/50 focus:bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-[13px] font-bold text-blue-600 outline-none shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300" value={dashStartDate} onChange={e => setDashStartDate(e.target.value)} />
+                    <span className="text-slate-400 font-bold">-</span>
+                    <input type="date" className="bg-slate-50/50 focus:bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-[13px] font-bold text-blue-600 outline-none shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300" value={dashEndDate} onChange={e => setDashEndDate(e.target.value)} />
+                </div>
+              </div>
+              <div className="bg-white px-5 py-3 rounded-3xl shadow-sm border border-slate-100/80 shadow-slate-100/40 flex items-center gap-4 w-full xl:w-auto">
+                 <div className="bg-rose-50 p-2.5 rounded-2xl text-rose-500"><Target size={28} /></div>
+                 <div>
+                    <span className="block text-xs font-bold text-slate-400">เป้าหมายรวม {isAdmin ? '(แก้ไขได้)' : ''}</span>
+                    <div className="flex items-baseline gap-2 mt-0.5">
+                       <input type="number" className="w-24 text-2xl font-black text-slate-800 bg-slate-50/50 border border-slate-200 px-2 py-1 rounded-xl outline-none focus:border-rose-400 focus:ring-4 focus:ring-rose-100 transition-all duration-300 disabled:opacity-80 disabled:bg-transparent disabled:border-transparent disabled:px-0" value={dashboardTarget} onChange={e => setDashboardTarget(Number(e.target.value))} min="1" disabled={!isAdmin} />
+                       <span className="text-sm font-bold text-slate-500">กล่อง</span>
+                    </div>
+                 </div>
+              </div>
+            </div>
+
+            <div className={`${boxWrapper} flex flex-col justify-center relative overflow-hidden bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border-0 shadow-2xl mb-8 min-h-[85vh]`}>
+               <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none opacity-20">
+                  <div className="absolute -top-32 -left-32 w-96 h-96 bg-blue-500 rounded-full blur-[100px]"></div>
+                  <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-red-600 rounded-full blur-[120px]"></div>
+               </div>
+               <div className="flex justify-center items-center mb-6 border-b border-white/10 pb-6 shrink-0 relative z-10 mt-4">
+                  <h3 className="text-2xl sm:text-4xl font-black text-white flex items-center justify-center gap-3"><Target size={36} className="text-rose-500"/> การแข่งขันความคืบหน้าเป้าหมาย</h3>
+               </div>
+               <div className="flex flex-wrap justify-center items-center flex-1 pb-10 pt-6 gap-8 lg:gap-16 relative z-10">
+                  {teamStats.teamsList.map((t, idx) => (
+                     <React.Fragment key={t.id || idx}>
+                        {idx > 0 && (
+                           <div className="hidden lg:block w-px h-64 bg-white/10 shrink-0 relative">
+                              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800 text-slate-400 text-[12px] font-black px-3 py-1.5 rounded-full border border-white/10">VS</div>
+                           </div>
+                        )}
+                        <div className="flex flex-col items-center group cursor-pointer hover:scale-105 transition-transform duration-500 min-w-[220px]">
+                           <DonutChart value={t.totalSales} target={dashboardTarget} colorClass={t.style.text} strokeColor={t.style.stroke} glowColor={t.style.glow} size="xl" />
+                           <h4 className={`font-bold text-white text-xl sm:text-2xl mt-8 ${t.style.bg} px-8 py-2.5 rounded-full border ${t.style.border} shadow-lg ${t.style.hoverBg} transition-all duration-300`}>
+                              {t.name}
+                           </h4>
+                        </div>
+                     </React.Fragment>
+                  ))}
+               </div>
+            </div>
+
+            <div className={`${boxWrapper} flex flex-col bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border-0 shadow-2xl relative overflow-hidden py-4 sm:py-6 px-3 sm:px-6`}>
+               <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none opacity-20"><div className="absolute -top-32 -left-32 w-96 h-96 bg-blue-500 rounded-full blur-[100px]"></div><div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-amber-500 rounded-full blur-[120px]"></div></div>
+
+               <div className="flex flex-col mb-4 gap-1 border-b border-white/10 pb-3 shrink-0 relative z-10">
+                 <h3 className="text-xl sm:text-2xl font-black text-white flex items-center gap-3"><Trophy size={24} className="text-yellow-400 drop-shadow-md"/> Top Performance & Hall of Fame</h3>
+                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                    <p className="text-[11px] sm:text-[12px] text-slate-400 font-medium">จัดอันดับผลงานและยอดขายสะสมทั้งหมดในช่วงเวลาที่กรอง ({dashStartDate} ถึง {dashEndDate})</p>
+                    <div className="flex items-center gap-3 sm:gap-4 bg-black/20 px-3 py-1.5 rounded-lg border border-white/5">
+                        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded bg-blue-600 shadow-[0_0_5px_rgba(37,99,235,0.6)]"></div><span className="text-[9px] sm:text-[10px] text-slate-300 font-bold">ยอดเต็ม</span></div>
+                        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded bg-orange-500 shadow-[0_0_5px_rgba(249,115,22,0.6)]"></div><span className="text-[9px] sm:text-[10px] text-slate-300 font-bold">ลูกค้าเก่า</span></div>
+                        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.6)]"></div><span className="text-[9px] sm:text-[10px] text-slate-300 font-bold">คนมาตรวจ</span></div>
+                    </div>
+                 </div>
+               </div>
+
+               {topPerformanceData.length > 0 && (
+                  <div className="flex justify-between items-end gap-2 sm:gap-4 overflow-x-auto hide-scroll w-full pt-4 pb-6 border-b border-white/5 mb-6 relative z-10 px-2 sm:px-4">
+                     {topPerformanceData.map((m, idx) => {
+                        const currentMember = (members || []).find(mem => mem.id === m.id);
+                        const avatarUrl = currentMember && currentMember.profileUrl ? currentMember.profileUrl : `https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=1e293b&color=94a3b8&rounded=true&bold=true`;
+                        
+                        return (
+                           <div key={m.id} className="flex flex-col items-center flex-1 min-w-[60px] max-w-[90px] sm:max-w-[110px] group relative cursor-pointer">
+                              <div className="flex items-end justify-center gap-1 sm:gap-2 h-24 sm:h-32 w-full mb-3 border-b border-white/10 pb-1">
+                                 <div className="flex flex-col items-center justify-end h-full">
+                                    <span className="text-[9px] sm:text-[11px] font-black text-blue-400 mb-1">{m.totalFullBoxes}</span>
+                                    <div className="w-2.5 sm:w-4 bg-blue-500 rounded-t-[2px] shadow-[0_0_5px_rgba(59,130,246,0.6)] group-hover:bg-blue-400 transition-colors" style={{ height: `${Math.max((m.totalFullBoxes / maxPerfStats.maxFull) * 100, 2)}%` }}></div>
+                                 </div>
+                                 <div className="flex flex-col items-center justify-end h-full">
+                                    <span className="text-[9px] sm:text-[11px] font-black text-orange-400 mb-1">{m.oldFullBoxes}</span>
+                                    <div className="w-2.5 sm:w-4 bg-orange-500 rounded-t-[2px] shadow-[0_0_5px_rgba(249,115,22,0.6)] group-hover:bg-orange-400 transition-colors" style={{ height: `${Math.max((m.oldFullBoxes / maxPerfStats.maxFull) * 100, 2)}%` }}></div>
+                                 </div>
+                                 <div className="flex flex-col items-center justify-end h-full">
+                                    <span className="text-[9px] sm:text-[11px] font-black text-emerald-400 mb-1">{m.newCustCount}</span>
+                                    <div className="w-2.5 sm:w-4 bg-emerald-50 rounded-t-[2px] shadow-[0_0_5px_rgba(16,185,129,0.6)] group-hover:bg-emerald-400 transition-colors" style={{ height: `${Math.max((m.newCustCount / maxPerfStats.maxFull) * 100, 2)}%` }}></div>
+                                 </div>
+                              </div>
+                              <div className="relative mb-2">
+                                 <img src={avatarUrl} className={`w-8 h-8 sm:w-11 sm:h-11 rounded-full object-cover border-2 shadow-lg ${idx===0?'border-yellow-400':idx===1?'border-slate-300':idx===2?'border-orange-500':'border-slate-600'}`} />
+                                 <div className={`absolute -bottom-1 -right-1.5 w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-[8px] sm:text-[9px] font-black rounded-full shadow-md border border-slate-800 ${idx===0?'bg-yellow-400 text-yellow-900 scale-110':idx===1?'bg-slate-300 text-slate-800':idx===2?'bg-orange-500 text-white':'bg-slate-700 text-slate-300'}`}>
+                                    {idx + 1}
+                                 </div>
+                              </div>
+                              <div className="text-[8px] sm:text-[10px] font-bold text-slate-300 text-center w-full whitespace-normal break-words leading-tight group-hover:text-white transition-colors px-0.5">
+                                 {m.name}
+                              </div>
+                           </div>
+                        );
+                     })}
+                  </div>
+               )}
+               
+               <div className="flex flex-col xl:flex-row justify-center items-center w-full gap-6 xl:gap-8 relative z-10 pb-2">
+                  <div className="flex justify-center items-end gap-3 sm:gap-4 md:gap-5 w-full xl:w-auto overflow-x-auto hide-scroll pt-6 pb-2 px-2">
+                     {podiumData.map((m) => {
+                        const currentMember = (members || []).find(mem => mem.id === m.id);
+                        const avatarUrl = currentMember && currentMember.profileUrl ? currentMember.profileUrl : `https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=eff6ff&color=1d4ed8&rounded=true&bold=true`;
+                        const isRank1 = m.rank === 1; const isRank2 = m.rank === 2;
+                        
+                        const theme = isRank1 
+                            ? { outer: 'bg-gradient-to-br from-yellow-300 via-yellow-500 to-amber-700', inner: 'bg-gradient-to-b from-yellow-100 via-yellow-300 to-amber-500', text: 'text-yellow-950', avatar: 'w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24', card: 'w-40 sm:w-48 lg:w-[15rem] h-[15rem] sm:h-[18rem] lg:h-[20rem] z-30', rank: 'text-yellow-900', shadow: 'shadow-[0_20px_50px_rgba(217,119,6,0.6)]' }
+                            : isRank2 
+                            ? { outer: 'bg-gradient-to-br from-slate-300 via-slate-400 to-slate-600', inner: 'bg-gradient-to-b from-slate-100 via-slate-200 to-slate-400', text: 'text-slate-900', avatar: 'w-14 h-14 sm:w-16 sm:h-16 lg:w-20 lg:h-20', card: 'w-32 sm:w-40 lg:w-[13rem] h-[13.5rem] sm:h-[16rem] lg:h-[17.5rem] z-20 opacity-95 hover:opacity-100', rank: 'text-slate-800', shadow: 'shadow-[0_20px_50px_rgba(100,116,139,0.5)]' }
+                            : { outer: 'bg-gradient-to-br from-orange-400 via-orange-500 to-orange-800', inner: 'bg-gradient-to-b from-orange-100 via-orange-300 to-orange-600', text: 'text-orange-950', avatar: 'w-14 h-14 sm:w-16 sm:h-16 lg:w-20 lg:h-20', card: 'w-32 sm:w-40 lg:w-[13rem] h-[13.5rem] sm:h-[16rem] lg:h-[17.5rem] z-20 opacity-95 hover:opacity-100', rank: 'text-orange-900', shadow: 'shadow-[0_20px_50px_rgba(153,56,17,0.5)]' };
+                        const animClass = isRank1 ? 'animate-float-1' : isRank2 ? 'animate-float-2' : 'animate-float-3';
+
+                        return (
+                           <div key={m.id} className={`relative flex flex-col items-center shrink-0 ${theme.card} ${animClass} transition-transform duration-300 hover:scale-105 cursor-pointer`}>
+                              <div className={`absolute inset-0 ${theme.outer} rounded-t-[2.5rem] sm:rounded-t-[3.5rem] rounded-b-2xl ${theme.shadow} p-[3px] sm:p-[5px]`}>
+                                 <div className={`w-full h-full ${theme.inner} rounded-t-[2.3rem] sm:rounded-t-[3.2rem] rounded-b-xl flex flex-col items-center relative overflow-hidden`}>
+                                    <div className="absolute inset-0 bg-white/10" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 20px)' }}></div>
+                                    <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/40 to-transparent"></div>
+                                    
+                                    <div className="absolute top-2 sm:top-3 left-1/2 -translate-x-1/2 flex flex-col items-center z-10">
+                                       <span className={`text-2xl sm:text-3xl lg:text-4xl font-black leading-none drop-shadow-md ${theme.rank}`}>{m.rank}</span>
+                                       <span className={`text-[7px] sm:text-[9px] lg:text-[10px] font-black tracking-widest ${theme.rank} uppercase mt-0.5`}>Rank</span>
+                                    </div>
+                                    
+                                    <div className="mt-12 sm:mt-16 lg:mt-20 mb-1 sm:mb-2 relative z-10">
+                                       <img src={avatarUrl} className={`rounded-full object-cover border-[3px] sm:border-[4px] shadow-2xl border-white/90 ${theme.avatar}`} />
+                                       <div className="absolute bottom-0 right-0 sm:bottom-0.5 sm:right-0.5 bg-blue-700 text-white text-[8px] sm:text-[10px] px-2 py-0.5 rounded-full border-2 border-white font-black shadow-md">STK</div>
+                                    </div>
+                                    
+                                    <div className="flex-1 w-full flex flex-col justify-end items-center text-center pb-2 sm:pb-3 z-10 px-2 sm:px-3">
+                                       <div className={`font-black text-[9px] sm:text-[11px] lg:text-[12px] uppercase tracking-wide w-full drop-shadow-sm break-words leading-tight px-1 line-clamp-2 min-h-[2.5em] flex items-center justify-center ${theme.text}`}>{m.name}</div>
+                                       <p className={`text-3xl sm:text-4xl lg:text-5xl font-black leading-none drop-shadow-md mt-1 ${theme.text}`}>{m.totalFullBoxes}</p>
+                                    </div>
+                                 </div>
+                              </div>
+                           </div>
+                        );
+                     })}
+                  </div>
+
+                  {rank4to10Data.length > 0 && (
+                     <div className="flex flex-col w-full xl:w-[360px] 2xl:w-[400px] shrink-0 bg-white/5 p-3 sm:p-4 rounded-3xl border border-white/10 backdrop-blur-sm shadow-xl self-stretch h-auto overflow-hidden">
+                        <div className="flex items-center gap-2 mb-2 border-b border-white/10 pb-2 shrink-0">
+                           <Trophy size={16} className="text-slate-300" />
+                           <h4 className="text-slate-200 font-bold text-[11px] uppercase tracking-wider">Hall of Fame (Rank 4-10)</h4>
+                        </div>
+                        <div className="flex flex-col flex-1 justify-between gap-1 pb-1">
+                           {rank4to10Data.map((m, idx) => {
+                              const currentMember = (members || []).find(mem => mem.id === m.id);
+                              const avatarUrl = currentMember && currentMember.profileUrl ? currentMember.profileUrl : `https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=eff6ff&color=1d4ed8&rounded=true&bold=true`;
+                              const realRank = idx + 4;
+                              return (
+                                 <div key={m.id} className="flex items-center gap-2.5 bg-black/20 p-1.5 sm:px-3 sm:py-1.5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors cursor-pointer group flex-1">
+                                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-slate-700 text-slate-300 flex items-center justify-center text-[9px] sm:text-[10px] font-black shadow-inner border border-slate-500 shrink-0 group-hover:bg-slate-600 group-hover:text-white transition-colors">{realRank}</div>
+                                    <img src={avatarUrl} className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover border border-slate-600 shrink-0 group-hover:border-blue-400 transition-colors" />
+                                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                       <div className="text-[10px] sm:text-[11px] font-bold text-slate-300 uppercase leading-tight line-clamp-2 break-words pr-1">{m.name}</div>
+                                    </div>
+                                    <div className="text-[11px] sm:text-[13px] font-black text-white bg-blue-600/80 px-2 py-0.5 rounded-lg shadow-inner border border-blue-500/50 shrink-0 min-w-[35px] text-center ml-auto">{m.totalFullBoxes}</div>
+                                 </div>
+                              );
+                           })}
+                        </div>
+                     </div>
+                  )}
+               </div>
+
+               <hr className="border-white/10 my-4 sm:my-6 w-full relative z-10" />
+
+               <div className="flex flex-col w-full relative z-10">
+                  <div className="mb-2 flex flex-col md:flex-row justify-between items-start md:items-center gap-2 border-b border-white/10 pb-2 shrink-0">
+                    <div>
+                     <h3 className="text-lg sm:text-xl font-black text-white flex items-center gap-2"><Trophy size={20} className="text-amber-400 drop-shadow-md"/> Top Sales ประจำวัน</h3>
+                     <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 font-medium">10 อันดับที่มียอดสั่งซื้อ (ทุกราคา) สูงสุดในช่วงเวลาที่เลือก (แสดงเฉพาะผู้ที่มียอด)</p>
+                    </div>
+                      <div className="flex items-center gap-2 mt-1 md:mt-0 bg-white/5 p-1.5 sm:p-2 rounded-xl border border-white/10 shadow-sm">
+                      <span className="text-[10px] sm:text-[11px] font-bold text-slate-400">ช่วงเวลา:</span>
+                       <input type="date" className="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-[11px] sm:text-[12px] font-bold text-amber-400 outline-none focus:border-amber-500 shadow-inner" value={dailyTopSalesStartDate} onChange={e => setDailyTopSalesStartDate(e.target.value)} />
+                       <span className="text-slate-400 font-bold">-</span>
+                       <input type="date" className="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-[11px] sm:text-[12px] font-bold text-amber-400 outline-none focus:border-amber-500 shadow-inner" value={dailyTopSalesEndDate} onChange={e => setDailyTopSalesEndDate(e.target.value)} />
+                  </div>
+                  </div>
+
+                  {dailyTopSales.length > 0 ? (
+                      <div className="flex flex-row items-stretch justify-between w-full mt-2 gap-1.5 sm:gap-2 pb-2 pt-2 px-1">
+                         {dailyTopSales.map((s, index) => {
+                            const mem = (members || []).find(m => m.id === s.memberId);
+                            const avatarUrl = mem && mem.profileUrl ? mem.profileUrl : `https://ui-avatars.com/api/?name=${encodeURIComponent(s.memberName || s.memberId)}&background=1e293b&color=94a3b8&rounded=true&bold=true`;
+                            const rank = index + 1;
+                            
+                            let cardSize, imgSize, badgeColor, borderColor;
+                            if (rank === 1) {
+                                cardSize = "flex-1 max-w-[150px] px-2 sm:px-3 pb-3 bg-white/10";
+                                imgSize = "w-12 h-12 sm:w-16 sm:h-16 border-yellow-400 border-[3px]";
+                                badgeColor = "bg-yellow-400 text-yellow-900";
+                                borderColor = "border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.3)]";
+                            } else if (rank === 2 || rank === 3) {
+                                cardSize = "flex-1 max-w-[140px] px-1.5 sm:px-2 pb-2.5 bg-white/5";
+                                imgSize = "w-10 h-10 sm:w-14 sm:h-14 border-slate-300 border-[3px]";
+                                badgeColor = rank === 2 ? "bg-slate-300 text-slate-800" : "bg-orange-500 text-white";
+                                borderColor = rank === 2 ? "border-slate-400/50 shadow-lg" : "border-orange-500/50 shadow-lg";
+                            } else {
+                                cardSize = "flex-1 max-w-[120px] px-1 sm:px-1.5 pb-2 bg-black/20 hover:bg-white/5";
+                                imgSize = "w-8 h-8 sm:w-10 sm:h-10 border-slate-500 border-2 group-hover:border-amber-400";
+                                badgeColor = "bg-slate-700 text-white";
+                                borderColor = "border-white/5";
+                            }
+
+                            return (
+                               <div key={s.memberId} className={`relative flex flex-col items-center group transition-transform hover:-translate-y-1 cursor-pointer rounded-2xl border ${borderColor} ${cardSize} pt-3 overflow-hidden`}>
+                                  <div className="relative mb-3 flex flex-col items-center shrink-0">
+                                     <img src={avatarUrl} className={`rounded-full object-cover shadow-lg bg-slate-800 ${imgSize}`} />
+                                     <div className={`absolute -bottom-2 flex items-center justify-center rounded-full text-[8px] sm:text-[10px] font-black shadow-sm w-4 h-4 sm:w-6 sm:h-6 z-10 ${badgeColor}`}>{rank}</div>
+                                  </div>
+                                  <div className={`text-[8px] sm:text-[11px] font-bold text-center uppercase mb-2 leading-tight px-0.5 w-full flex-1 flex items-center justify-center min-h-[2.5em] ${rank === 1 ? 'text-yellow-400' : 'text-slate-200'}`}>
+                                     <div className="line-clamp-2 break-words" title={s.memberName || s.memberId}>
+                                        {s.memberName || s.memberId}
+                                     </div>
+                                  </div>
+                                  <span className={`font-black rounded-lg shadow-inner w-full text-center mt-auto shrink-0 ${rank <= 3 ? 'text-[12px] sm:text-[16px] text-white bg-amber-500/90 py-1 border border-amber-400/50' : 'text-[10px] sm:text-[12px] text-amber-200 bg-slate-700/80 py-0.5 border border-slate-600'}`}>
+                                     {s.totalFullBoxes}
+                                  </span>
+                                </div>
+                            );
+                         })}
+                      </div>
+                  ) : (
+                      <div className="p-6 text-center text-slate-400 font-bold bg-white/5 rounded-2xl w-full text-xs sm:text-sm border border-white/10 mt-1">ไม่มีข้อมูลการขายตั้งแต่ {dailyTopSalesStartDate} ถึง {dailyTopSalesEndDate}</div>
+                  )}
+               </div>
+            </div>
+
+            <div className={`${boxWrapper} flex flex-col bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border-0 shadow-2xl relative overflow-hidden py-4 sm:py-6 px-3 sm:px-6`}>
+               <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none opacity-20">
+                   <div className="absolute top-1/2 left-1/4 w-96 h-96 bg-fuchsia-500 rounded-full blur-[100px]"></div>
+                   <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-cyan-500 rounded-full blur-[120px]"></div>
+               </div>
+
+               <div className="mb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-white/10 pb-3 shrink-0 relative z-10">
+                 <div>
+                    <h3 className="text-xl sm:text-2xl font-black text-white flex items-center gap-3"><Tags size={24} className="text-cyan-400 drop-shadow-md"/> สัดส่วนยอดขายตามประเภทลูกค้า</h3>
+                    <p className="text-[11px] sm:text-[12px] text-slate-400 mt-1 font-medium font-bold text-cyan-400">
+                       แยกโครงสร้างยอดขาย (เฉพาะราคาเต็ม) ของพนักงานแต่ละคนตามแหล่งที่มา (เลื่อนซ้าย-ขวาเพื่อดูทุกคน 👉)
+                    </p>
+                 </div>
+                 <div className="flex items-center gap-2 bg-black/30 p-1.5 sm:p-2 rounded-xl border border-white/10 shadow-inner">
+                    <span className="text-[10px] sm:text-[11px] font-bold text-slate-400">เลือกวันที่:</span>
+                    <input type="date" className="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-[11px] sm:text-[12px] font-bold text-cyan-400 outline-none focus:border-cyan-500 transition-colors" value={custTypeStartDate} onChange={e => setCustTypeStartDate(e.target.value)} />
+                    <span className="text-slate-500 font-bold">-</span>
+                    <input type="date" className="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-[11px] sm:text-[12px] font-bold text-cyan-400 outline-none focus:border-cyan-500 transition-colors" value={custTypeEndDate} onChange={e => setCustTypeEndDate(e.target.value)} />
+                 </div>
+               </div>
+
+               {Object.keys(salesByCustTypeData.typeColors).length > 0 && (
+                   <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 mb-6 relative z-10 bg-black/20 p-2 sm:p-3 rounded-xl border border-white/5 mx-2 sm:mx-4">
+                       {Object.entries(salesByCustTypeData.typeColors).map(([typeName, theme]) => (
+                           <div key={typeName} className="flex items-center gap-1.5 bg-white/5 px-2 py-1 rounded shadow-sm">
+                              <div className={`w-2.5 h-2.5 rounded shadow-sm ${theme.bg} ${theme.shadow}`}></div>
+                              <span className={`text-[9px] sm:text-[11px] font-bold ${theme.text}`}>{typeName}</span>
+                           </div>
+                       ))}
+                   </div>
+               )}
+
+               {salesByCustTypeData.membersData.length > 0 ? (
+                    <div className="flex items-end gap-2 sm:gap-4 overflow-x-auto w-full pt-4 pb-4 border-b border-white/5 mb-2 relative z-10 px-2 sm:px-6">
+                       {salesByCustTypeData.membersData.map((m) => {
+                          const avatarUrl = m.profileUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=1e293b&color=94a3b8&rounded=true&bold=true`;
+                          return (
+                              <div key={m.id} className="flex flex-col items-center shrink-0 min-w-[80px] sm:min-w-[100px] flex-1 max-w-[140px] group relative cursor-pointer pt-6 pb-2 px-1 hover:bg-white/5 rounded-2xl transition-all duration-300">
+                                 <div className="flex items-end justify-center gap-1.5 sm:gap-2 h-36 sm:h-48 w-full mb-4 border-b border-white/10 pb-2">
+                                    {Object.entries(m.typeBreakdown).sort((a,b) => b[1]-a[1]).map(([tName, qty]) => {
+                                        if (qty <= 0) return null;
+                                        const theme = salesByCustTypeData.typeColors[tName];
+                                        const heightPercent = Math.max((qty / salesByCustTypeData.maxScale) * 100, 5); 
+                                        return (
+                                            <div key={tName} className="flex flex-col items-center justify-end h-full" title={`${tName}: ${qty} กล่อง`}>
+                                               <span className={`text-[10px] sm:text-xs font-black mb-1.5 ${theme.text} drop-shadow-sm`}>{qty}</span>
+                                               <div className={`w-3 sm:w-4 ${theme.bg} rounded-t-sm shadow-sm transition-all duration-300 group-hover:brightness-110`} style={{ height: `${heightPercent}%` }}></div>
+                                            </div>
+                                        );
+                                    })}
+                                 </div>
+                                 <div className="relative mb-3 shrink-0">
+                                     <img src={avatarUrl} className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border-[3px] border-slate-700 shadow-md group-hover:border-cyan-400 transition-colors" />
+                                     <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 bg-slate-800 text-cyan-400 text-[10px] sm:text-[11px] font-black px-2.5 py-0.5 rounded-full border border-slate-600 shadow-sm whitespace-nowrap">
+                                        รวม {m.totalBoxes}
+                                     </div>
+                                 </div>
+                                 <div className="text-[9px] sm:text-[11px] font-bold text-slate-400 text-center w-full break-words leading-tight group-hover:text-white transition-colors mt-2 px-1 h-[2.8em] flex items-start justify-center overflow-hidden">
+                                    <span className="line-clamp-2">{m.name}</span>
+                                 </div>
+                              </div>
+                          );
+                       })}
+                    </div>
+               ) : (
+                    <div className="p-8 text-center text-slate-400 font-bold bg-white/5 rounded-2xl w-full border border-white/10 z-10 text-xs sm:text-sm my-4">ไม่มีข้อมูลการขายในช่วงเวลาที่ค้นหา</div>
+               )}
+            </div>
+
+            <div className={`${boxWrapper} flex flex-col bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border-0 shadow-2xl relative overflow-hidden py-4 sm:py-6 px-3 sm:px-6`}>
+               <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none opacity-20 z-0">
+                   <div className="absolute -top-32 -right-32 w-96 h-96 bg-slate-500 rounded-full blur-[100px]"></div>
+                   <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-slate-700 rounded-full blur-[120px]"></div>
+               </div>
+
+               <div className="mb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-white/10 pb-3 shrink-0 relative z-10">
+                  <div>
+                     <h3 className="text-xl sm:text-2xl font-black flex items-center gap-3"><span className="text-red-500 drop-shadow-md">⚠️</span> <span className="text-white">Hall of Shame (ยอดขายเป็นศูนย์)</span></h3>
+                     <p className="text-[11px] sm:text-[12px] text-slate-400 mt-1 font-medium">รายชื่อพนักงานที่ยังไม่มีผลงาน (ราคาเต็ม 0 กล่อง) ในช่วงเวลาที่เลือก</p>
+                  </div>
+                  <div className="flex items-center gap-2 bg-black/30 p-1.5 sm:p-2 rounded-xl border border-white/10 shadow-inner">
+                     <span className="text-[10px] sm:text-[11px] font-bold text-slate-400">ค้นหาวันที่:</span>
+                     <input type="date" className="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-[11px] sm:text-[12px] font-bold text-white outline-none focus:border-blue-500 transition-colors" value={zeroSalesStartDate} onChange={e => setZeroSalesStartDate(e.target.value)} />
+                     <span className="text-slate-500 font-bold">-</span>
+                     <input type="date" className="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-[11px] sm:text-[12px] font-bold text-white outline-none focus:border-blue-500 transition-colors" value={zeroSalesEndDate} onChange={e => setZeroSalesEndDate(e.target.value)} />
+                  </div>
+               </div>
+
+               <div className={`grid grid-cols-1 ${zeroSalesData.length === 1 ? 'lg:grid-cols-1' : zeroSalesData.length === 2 ? 'lg:grid-cols-2' : 'lg:grid-cols-3'} gap-4 sm:gap-6 relative z-10`}>
+                  {zeroSalesData.map((team) => {
+                     const top5 = team.data.slice(0, 5);
+                     const rest = team.data.slice(5);
+
+                     return (
+                          <div key={team.teamId || team.teamName} className="bg-black/20 rounded-2xl p-4 sm:p-5 border border-white/10 flex flex-col h-full shadow-inner">
+                              <div className="flex items-center gap-2 mb-4 border-b border-white/10 pb-3 shrink-0">
+                                 <div className={`w-2 h-2 rounded-full ${team.dotColor} ${team.shadow}`}></div>
+                                 <h4 className="text-sm font-bold text-white">ทีม {team.teamName} <span className="text-slate-400 text-xs font-medium ml-2">({team.data.length} คน)</span></h4>
+                              </div>
+
+                              {team.data.length === 0 ? (
+                                 <div className="flex-1 flex flex-col items-center justify-center py-10 text-sm font-bold text-emerald-400 bg-emerald-900/20 rounded-xl border border-emerald-800/30">
+                                     <span className="text-3xl mb-2">🎉</span>
+                                     สุดยอด! ทุกคนมียอดขาย
+                                 </div>
+                              ) : (
+                                 <div className="flex flex-col gap-4">
+                                    {top5.length > 0 && (
+                                       <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 shrink-0">
+                                          {top5.map((m, idx) => {
+                                              const avatarUrl = m.profileUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=334155&color=cbd5e1&rounded=true&bold=true`;
+                                              return (
+                                                 <div key={m.id} className="relative flex flex-col items-center group transition-transform hover:-translate-y-1 cursor-pointer rounded-2xl border border-white/10 hover:border-white/30 bg-black/40 px-2 sm:px-3 pb-3 pt-3 w-full shadow-lg">
+                                                     <div className="relative mb-2 flex flex-col items-center shrink-0">
+                                                         <img src={avatarUrl} className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover shadow-2xl bg-slate-700 border-2 border-slate-500 transition-all" />
+                                                         <div className="absolute -bottom-1.5 flex items-center justify-center rounded-full text-[9px] font-black shadow-sm w-4 h-4 z-10 bg-slate-800 text-white border border-slate-500">{idx + 1}</div>
+                                                     </div>
+                                                     <div className="text-[10px] sm:text-[11px] font-bold text-slate-200 text-center leading-tight px-1 w-full flex-1 flex items-center justify-center min-h-[2.5em] mb-2">
+                                                         <span className="line-clamp-2 break-words" title={m.name}>{m.name}</span>
+                                                     </div>
+                                                     <span className="font-black rounded-lg shadow-inner w-full text-center mt-auto shrink-0 text-[10px] sm:text-[11px] text-slate-400 bg-black/50 py-1 border border-white/10">
+                                                         0 กล่อง
+                                                      </span>
+                                                  </div>
+                                               );
+                                           })}
+                                        </div>
+                                     )}
+
+                                     {rest.length > 0 && (
+                                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-1.5 sm:gap-2 border-t border-white/10 pt-3">
+                                            {rest.map((m, idx) => {
+                                                const avatarUrl = m.profileUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=334155&color=cbd5e1&rounded=true&bold=true`;
+                                                return (
+                                                   <div key={m.id} className="flex items-center gap-2 bg-black/20 p-1.5 sm:p-2 rounded-lg border border-white/5 hover:bg-white/10 transition-colors shrink-0 min-w-0">
+                                                       <span className="w-5 h-5 flex items-center justify-center bg-slate-800 text-slate-300 rounded-full text-[9px] font-black shrink-0 border border-slate-600 shadow-inner">{idx + 6}</span>
+                                                       <img src={avatarUrl} className="w-6 h-6 rounded-full object-cover border border-slate-500 shrink-0" />
+                                                       <span className="text-[10px] sm:text-[11px] font-bold text-slate-200 flex-1 truncate" title={m.name}>{m.name}</span>
+                                                       <span className="text-[9px] font-black text-slate-400 bg-black/40 px-1.5 py-0.5 rounded shadow-sm border border-white/10 shrink-0">0 กล่อง</span>
+                                                   </div>
+                                                );
+                                            })}
+                                        </div>
+                                     )}
+                                  </div>
+                               )}
+                           </div>
+                       );
+                   })}
+                </div>
+             </div>
+
+             <div className="w-full mb-5 rounded-2xl flex flex-col bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 shadow-2xl relative overflow-hidden py-4 sm:py-6 px-3 sm:px-6 min-h-0">
+                <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none opacity-[0.03] z-0">
+                    <div className="absolute top-1/2 left-1/4 w-96 h-96 bg-blue-500 rounded-full blur-[120px]"></div>
+                </div>
+
+                <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-700/50 pb-4 shrink-0 relative z-10">
+                  <div>
+                     <h3 className="text-xl sm:text-2xl font-black text-white flex items-center gap-3"><Activity size={24} className="text-blue-500"/> ความคืบหน้าเป้าหมายรายบุคคล</h3>
+                     <p className="text-[11px] sm:text-[12px] text-slate-400 mt-1 font-medium">เปรียบเทียบยอดขายกับเป้าหมาย <span className="text-rose-400 font-bold">(นับเฉพาะราคาเต็ม)</span></p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                     <div className="flex items-center gap-2 bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-800 text-slate-300 shadow-inner">
+                        <span className="text-[11px] sm:text-[12px] font-bold text-slate-300">ตั้งเป้าหมายทุกคน:</span>
+                        <input type="number" min="1" className="w-16 bg-slate-900 border border-slate-700 text-blue-400 font-black text-[12px] sm:text-[13px] rounded-lg px-2 py-1 outline-none focus:border-blue-400 text-center" value={globalIndividualTarget} onChange={e => handleGlobalIndividualTargetChange(e.target.value)} title="เปลี่ยนเป้าหมายของพนักงานทุกคนพร้อมกันในครั้งเดียว" />
+                        <span className="text-[11px] sm:text-[12px] font-bold text-slate-400">กล่อง</span>
+                     </div>
+                     <button
+                        type="button"
+                        onClick={() => setShowTargetHistoryModal(true)}
+                        className="bg-slate-950 hover:bg-slate-900 text-amber-400 font-bold text-[11px] sm:text-[12px] px-3.5 py-2 rounded-xl border border-slate-800 shadow-sm flex items-center gap-1.5 transition-all hover:border-amber-400/50 cursor-pointer"
+                        title="คลิกเพื่อดูประวัติการตั้งเป้าหมายย้อนหลัง"
+                     >
+                        <Archive size={15} className="text-amber-400" />
+                        <span>📜 ประวัติเป้าหมาย</span>
+                     </button>
+                     <div className="flex gap-3 text-[11px] sm:text-[12px] font-bold bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-800 text-slate-300 shadow-inner">
+                        <div className="flex items-center gap-2"><div className="w-3 h-3 border border-slate-600 bg-slate-800 rounded-sm"></div> เป้าหมาย</div>
+                        <div className="flex items-center gap-2"><div className="w-3 h-3 bg-blue-500 rounded-sm"></div> ยอดที่ทำได้</div>
+                     </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1.5 sm:gap-2 relative z-10 pt-1 pb-3">
+                  {paginatedProgressData.map((d, idx) => {
+                     const globalIndex = (progressPage - 1) * ITEMS_PER_PAGE + idx;
+                     const percent = Math.min((d.actual / d.target) * 100, 100);
+                     const remaining = Math.max(d.target - d.actual, 0);
+                     const memInfo = (members || []).find(m => m.id === d.id);
+                     const avatarUrl = memInfo?.profileUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(d.name)}&background=334155&color=cbd5e1&rounded=true&bold=true`;
+                     return (
+                        <div key={d.id} className="flex items-center gap-2 sm:gap-2.5 bg-slate-800/40 p-1.5 sm:p-2 rounded-xl border border-slate-700/50 hover:bg-slate-800/80 hover:border-slate-600 transition-colors group shadow-sm">
+                           <div className="relative shrink-0">
+                              <img src={avatarUrl} className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover border border-slate-500 shadow-md bg-slate-700 group-hover:border-blue-400 transition-colors" />
+                              <div className={`absolute -top-1 -left-1 w-3.5 h-3.5 sm:w-4 sm:h-4 flex items-center justify-center text-[7px] sm:text-[8px] font-black rounded-full border border-slate-800 shadow-sm ${globalIndex === 0 ? 'bg-yellow-400 text-yellow-900 scale-110' : globalIndex === 1 ? 'bg-slate-300 text-slate-800' : globalIndex === 2 ? 'bg-orange-500 text-white' : 'bg-slate-600 text-slate-200'}`}>
+                                 {globalIndex + 1}
+                              </div>
+                           </div>
+                           <div className="flex-1 flex flex-col min-w-0 justify-center">
+                              <div className="flex justify-between items-center mb-1">
+                                 <span className="text-[9px] sm:text-[10px] font-bold text-slate-200 truncate group-hover:text-white transition-colors">{d.name}</span>
+                              </div>
+                              <div className="w-full h-1 sm:h-1.5 bg-slate-950/80 rounded-full overflow-hidden border border-slate-800/50 shadow-inner relative mb-1">
+                                 <div className="h-full bg-gradient-to-r from-blue-700 via-blue-500 to-sky-400 rounded-full transition-all duration-1000 ease-out relative shadow-[0_0_8px_rgba(56,189,248,0.6)]" style={{ width: `${percent}%` }}></div>
+                              </div>
+                              
+                              <div className="flex justify-between items-center w-full">
+                                 <span className="text-[7px] sm:text-[8px] font-medium text-rose-400/90">เหลือ {Number(remaining).toLocaleString()}</span>
+                                 <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 shrink-0 flex items-baseline gap-0.5">
+                                    ยอด: <span className="text-white drop-shadow-[0_0_6px_rgba(56,189,248,0.8)] text-[12px] sm:text-[14px] font-black">{Number(d.actual).toLocaleString()}</span> <span className="opacity-50 text-[7px] sm:text-[8px]">/</span> <input type="number" min="1" className="w-12 bg-slate-950/80 border border-slate-700/80 text-blue-300 font-bold text-[9px] sm:text-[10px] rounded px-1 text-center outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400" value={d.target} onChange={e => handleUpdateMemberTarget(d.id, e.target.value)} title="คลิกเพื่อแก้ไขเป้าหมายของคนนี้" />
+                                 </span>
+                              </div>
+                           </div>
+                        </div>
+                    )})}
+                  {paginatedProgressData.length === 0 && <div className="w-full text-center text-slate-500 font-bold py-10 xl:col-span-4 lg:col-span-3">ไม่มีข้อมูลสมาชิกในระบบ</div>}
+               </div>
+
+               {totalProgressPages > 1 && (
+                  <div className="flex justify-center items-center gap-4 mt-4 pt-3 border-t border-slate-700/50 relative z-10">
+                     <button onClick={() => setProgressPage(p => Math.max(1, p - 1))} disabled={progressPage === 1} className="px-4 py-1.5 bg-slate-800 text-slate-300 text-[11px] sm:text-xs font-bold rounded-lg border border-slate-700 disabled:opacity-50 hover:bg-slate-700 hover:text-white transition-colors shadow-sm">ย้อนกลับ</button>
+                     <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 shadow-inner">หน้าที่ {progressPage} / {totalProgressPages}</span>
+                     <button onClick={() => setProgressPage(p => Math.min(totalProgressPages, p + 1))} disabled={progressPage === totalProgressPages} className="px-4 py-1.5 bg-slate-800 text-slate-300 text-[11px] sm:text-xs font-bold rounded-lg border border-slate-700 disabled:opacity-50 hover:bg-slate-700 hover:text-white transition-colors shadow-sm">ถัดไป</button>
+                  </div>
+               )}
+            </div>
+
+            <EditModal 
+                isOpen={showTargetHistoryModal} 
+                onClose={() => setShowTargetHistoryModal(false)} 
+                title="📜 ประวัติการตั้งเป้าหมายย้อนหลัง (Target Audit Log)" 
+                icon={Archive}
+            >
+                <div className="space-y-3 text-slate-800">
+                    {/* Filter Bar */}
+                    <div className="bg-slate-900 text-white p-3 rounded-2xl border border-slate-800">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2.5">
+                            <div>
+                                <span className="text-xs text-amber-400 font-bold block">บันทึกประวัติเป้าหมายย้อนหลังทั้งหมด</span>
+                                <span className="text-sm font-black text-slate-200">ตรวจสอบเป้าหมายตามวัน เวลา และผู้ตั้งค่า</span>
+                            </div>
+                            <div className="flex items-center bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs">
+                                <SearchIcon size={14} className="text-slate-400 mr-2 shrink-0" />
+                                <input 
+                                    type="text" 
+                                    placeholder="ค้นหาตามวัน, ผู้ตั้ง, ประเภท..." 
+                                    className="bg-transparent text-white outline-none w-40" 
+                                    value={targetHistorySearch} 
+                                    onChange={e => setTargetHistorySearch(e.target.value)} 
+                                />
+                            </div>
+                        </div>
+                        {/* Date Range Filter */}
+                        <div className="flex flex-wrap items-center gap-2 mt-2.5 border-t border-slate-800 pt-2.5">
+                            <span className="text-[11px] text-slate-400 font-bold shrink-0">📅 ช่วงวันที่:</span>
+                            <div className="flex items-center gap-1.5">
+                                <input 
+                                    type="date" 
+                                    className="bg-slate-800 border border-slate-700 text-slate-200 text-[11px] font-bold rounded-lg px-2 py-1 outline-none focus:border-amber-400 transition-colors" 
+                                    value={targetHistoryFilterStart} 
+                                    onChange={e => setTargetHistoryFilterStart(e.target.value)} 
+                                />
+                                <span className="text-slate-500 font-bold text-xs">ถึง</span>
+                                <input 
+                                    type="date" 
+                                    className="bg-slate-800 border border-slate-700 text-slate-200 text-[11px] font-bold rounded-lg px-2 py-1 outline-none focus:border-amber-400 transition-colors" 
+                                    value={targetHistoryFilterEnd} 
+                                    onChange={e => setTargetHistoryFilterEnd(e.target.value)} 
+                                />
+                            </div>
+                            {(targetHistoryFilterStart || targetHistoryFilterEnd || targetHistorySearch) && (
+                                <button 
+                                    onClick={() => { setTargetHistoryFilterStart(''); setTargetHistoryFilterEnd(''); setTargetHistorySearch(''); }}
+                                    className="text-[11px] font-bold text-rose-400 hover:text-rose-300 bg-rose-400/10 hover:bg-rose-400/20 px-2 py-1 rounded-lg transition-colors border border-rose-400/20"
+                                >
+                                    ✕ ล้างตัวกรอง
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="max-h-[380px] overflow-y-auto border border-slate-200 rounded-2xl">
+                        <table className="w-full text-left border-collapse text-xs">
+                            <thead className="bg-slate-100 sticky top-0 border-b border-slate-200 z-10">
+                                <tr>
+                                    <th className="p-3 font-bold text-slate-700 whitespace-nowrap">วัน - เวลา</th>
+                                    <th className="p-3 font-bold text-slate-700 text-center whitespace-nowrap">ประเภท</th>
+                                    <th className="p-3 font-bold text-slate-700 text-center whitespace-nowrap">เป้าหมาย</th>
+                                    <th className="p-3 font-bold text-slate-700 whitespace-nowrap">ผู้ตั้งค่า</th>
+                                    <th className="p-3 font-bold text-slate-700">หมายเหตุ</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {(() => {
+                                    const sorted = [...(targetHistory || [])].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+                                    const filtered = sorted.filter(item => {
+                                        const dateStr = (item.date || '').substring(0, 10);
+                                        const afterStart = !targetHistoryFilterStart || dateStr >= targetHistoryFilterStart;
+                                        const beforeEnd = !targetHistoryFilterEnd || dateStr <= targetHistoryFilterEnd;
+                                        const matchSearch = !targetHistorySearch ||
+                                            (item.date || '').toLowerCase().includes(targetHistorySearch.toLowerCase()) ||
+                                            (item.setBy || '').toLowerCase().includes(targetHistorySearch.toLowerCase()) ||
+                                            (item.targetType || '').toLowerCase().includes(targetHistorySearch.toLowerCase()) ||
+                                            String(item.targetValue).includes(targetHistorySearch);
+                                        return afterStart && beforeEnd && matchSearch;
+                                    });
+                                    if (filtered.length === 0) return (
+                                        <tr><td colSpan="5" className="p-8 text-center text-slate-400 font-bold">
+                                            {(targetHistory || []).length === 0 ? 'ยังไม่มีประวัติการบันทึกเป้าหมายในระบบ' : 'ไม่พบข้อมูลตามเงื่อนไขที่กรอง'}
+                                        </td></tr>
+                                    );
+                                    return filtered.map((item, idx) => (
+                                        <tr key={item.id || idx} className={`transition-colors ${idx % 2 === 0 ? 'bg-white hover:bg-blue-50' : 'bg-slate-50 hover:bg-blue-50'}`}>
+                                            <td className="p-3 font-mono font-medium text-slate-600 whitespace-nowrap text-[11px]">{item.date}</td>
+                                            <td className="p-3 text-center whitespace-nowrap">
+                                                <span className={`px-2.5 py-1 rounded-full font-bold text-[10px] border ${item.targetType === 'เป้าหมายรวมทุกคน' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-purple-50 text-purple-700 border-purple-200'}`}>
+                                                    {item.targetType === 'เป้าหมายรวมทุกคน' ? '👥 รวมทุกคน' : '👤 รายบุคคล'}
+                                                </span>
+                                            </td>
+                                            <td className="p-3 text-center font-black text-blue-600 text-sm whitespace-nowrap">
+                                                {Number(item.targetValue).toLocaleString()} <span className="text-slate-400 font-normal text-[10px]">กล่อง</span>
+                                            </td>
+                                            <td className="p-3 font-bold text-slate-700 whitespace-nowrap">{item.setBy || 'Admin'}</td>
+                                            <td className="p-3 text-slate-500 text-[11px]">{item.notes || '-'}</td>
+                                        </tr>
+                                    ));
+                                })()}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </EditModal>
+
+          </div>
+        );
+    };
+
+    // ==========================================
+    // 📌 React App (Main Component)
+    // ==========================================
+    const App = () => {
+      const [isLoggedIn, setIsLoggedIn] = useState(false);
+      const [currentUser, setCurrentUser] = useState(null);
+      const [showLoginModal, setShowLoginModal] = useState(false);
+      
+      const [products, setProducts] = useState([]);
+      const [customerTypes, setCustomerTypes] = useState(fallbackCustomerTypes);
+      const [closers, setClosers] = useState([]);
+      const [members, setMembers] = useState([]);
+      const [customers, setCustomers] = useState([]);
+      const [sales, setSales] = useState([]);
+      const [businessTeams, setBusinessTeams] = useState([]);
+      const [systemUsers, setSystemUsers] = useState([]);
+      const [targetHistory, setTargetHistory] = useState([]);
+      const [isAppLoading, setIsAppLoading] = useState(true);
+      const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+        try {
+          return localStorage.getItem('stk_sidebar_collapsed') === 'true';
+        } catch(e) {
+          return false;
+        }
+      });
+      
+      const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+      const showToast = (message, type = 'success') => {
+        setToast({ show: true, message, type });
+      };
+
+      const SCRIPT_URL = "<?= getScriptUrl() ?>";
+
+      const isAdmin = currentUser && (
+          String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
+          String(currentUser.role).trim().toLowerCase() === 'admin'
+      );
+      const currentUserProfileUrl = currentUser?.profileUrl || '';
+
+      const activeCustomerTypes = useMemo(() => {
+          if (!customerTypes || customerTypes.length === 0) return fallbackCustomerTypes;
+          return (customerTypes || []).filter(p => p && p.status === 'ใช้งาน');
+      }, [customerTypes]);
+
+      useEffect(() => {
+        const savedUserStr = localStorage.getItem('stk_current_user');
+        if (savedUserStr) {
+          const user = JSON.parse(savedUserStr);
+          setCurrentUser(user);
+          setIsLoggedIn(true);
+        } else {
+          // ในหน้า Index/Dashboard อนุญาตให้คนภายนอกเข้าดูได้
+          // จึงไม่ต้องเปิด LoginModal บังคับ
+        }
+
+        const initialLoader = document.getElementById('initial-loader');
+        if (initialLoader) {
+            initialLoader.style.display = 'none';
+        }
+
+        if (typeof google !== 'undefined' && google.script) {
+           try {
+               const cachedData = localStorage.getItem('stk_app_cache_data');
+               if (cachedData) {
+                   const parsedData = JSON.parse(cachedData);
+                   applyDataToStates(parsedData);
+                   setIsAppLoading(false);
+               }
+           } catch (e) { console.warn("Cache error", e); }
+
+           google.script.run
+             .withSuccessHandler((response) => {
+                if (response) {
+                    try { localStorage.setItem('stk_app_cache_data', JSON.stringify(response)); } catch(e){}
+                    applyDataToStates(response);
+                }
+                setIsAppLoading(false); 
+             })
+             .withFailureHandler((error) => {
+                setIsAppLoading(false);
+                showToast('การเชื่อมต่อเซิร์ฟเวอร์ขัดข้อง: ' + (error ? (error.message || error) : ''), 'error');
+             })
+             .getInitialData(); 
+        } else {
+           setProducts([{ id: 'P001', name: 'SESAMIN', status: 'ใช้งาน' }]);
+           setCustomerTypes(fallbackCustomerTypes);
+           setClosers([{ id: 'C001', name: 'BEE', team: 'Marketing', status: 'ใช้งาน' }, { id: 'C002', name: 'HAT', team: 'Center', status: 'ใช้งาน' }]);
+           setIsAppLoading(false);
+        }
+      }, []);
+
+      const applyDataToStates = (response) => {
+           if (Array.isArray(response.products)) setProducts(response.products);
+           if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes);
+           if (Array.isArray(response.closers)) setClosers(response.closers);
+           if (Array.isArray(response.members)) setMembers(response.members);
+           if (Array.isArray(response.customers)) setCustomers(response.customers);
+           if (Array.isArray(response.businessTeams)) setBusinessTeams(response.businessTeams);
+           if (Array.isArray(response.systemUsers)) setSystemUsers(response.systemUsers);
+           if (Array.isArray(response.targetHistory)) setTargetHistory(response.targetHistory);
+           
+           if (Array.isArray(response.sales)) {
+               const processedSales = response.sales.map(s => {
+                   let sumF = 0, sumM = 0, sumP = 0, sumZ = 0;
+                   Object.keys(s).forEach(k => {
+                       if (k !== 'รวมชิ้นราคาเต็ม' && k !== 'รวมชิ้นราคาสมาชิก' && k !== 'รวมชิ้นราคาโปร' && k !== 'รวมชิ้นราคาศูนย์' && k !== 'ยอดรวมชิ้นทั้งหมด') {
+                           if (k.endsWith('_ราคาเต็ม')) sumF += (parseInt(s[k]) || 0);
+                           else if (k.endsWith('_ราคาสมาชิก')) sumM += (parseInt(s[k]) || 0);
+                           else if (k.endsWith('_ราคาโปร')) sumP += (parseInt(s[k]) || 0);
+                           else if (k.endsWith('_ราคาศูนย์')) sumZ += (parseInt(s[k]) || 0);
+                       }
+                   });
+                   s['รวมชิ้นราคาเต็ม'] = sumF; 
+                   s['รวมชิ้นราคาสมาชิก'] = sumM;
+                   s['รวมชิ้นราคาโปร'] = sumP; 
+                   s['รวมชิ้นราคาศูนย์'] = sumZ;
+                   s['ยอดรวมชิ้นทั้งหมด'] = sumF + sumM + sumP + sumZ;
+                   return s;
+               });
+               setSales(processedSales);
+           }
+      };
+
+      const handleLoginSuccess = (user) => {
+        localStorage.setItem('stk_current_user', JSON.stringify(user));
+        setCurrentUser(user);
+        setIsLoggedIn(true);
+        setShowLoginModal(false);
+        showToast('เข้าสู่ระบบสำเร็จ!', 'success');
+      };
+
+      const handleLogout = () => {
+        localStorage.removeItem('stk_current_user');
+        setCurrentUser(null);
+        setIsLoggedIn(false);
+        if (typeof window !== 'undefined') {
+          window.open(resolvePageUrl(SCRIPT_URL + '?page=dashboard'), '_top');
+        }
+      };
+
+      return (
+        <div className="min-h-screen flex font-sans bg-slate-50">
+          <Sidebar 
+            activePage="dashboard" 
+            isLoggedIn={isLoggedIn} 
+            currentUser={currentUser} 
+            currentUserProfileUrl={currentUserProfileUrl} 
+            isAdmin={isAdmin} 
+            onLogout={handleLogout} 
+            showLoginModal={showLoginModal} 
+            setShowLoginModal={setShowLoginModal} 
+            SCRIPT_URL={SCRIPT_URL}
+            setIsAppLoading={setIsAppLoading}
+            isSidebarCollapsed={isSidebarCollapsed}
+            setIsSidebarCollapsed={setIsSidebarCollapsed}
+          />
+          
+          <main className={`flex-1 flex flex-col min-h-screen bg-slate-50 transition-all duration-300 relative ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} w-full overflow-x-hidden`}>
+            
+            {toast.show && (
+              <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animation-fade-in" style={{ animationDuration: '0.2s' }}>
+                 <div className={`bg-white rounded-3xl shadow-xl p-8 max-w-sm w-full text-center animation-pop border-t-4 ${toast.type === 'error' ? 'border-red-500' : toast.type === 'info' ? 'border-blue-500' : 'border-emerald-500'}`}>
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${toast.type === 'error' ? 'bg-red-100 text-red-500' : toast.type === 'info' ? 'bg-blue-100 text-blue-500' : 'bg-emerald-100 text-emerald-500'}`}>
+                       {toast.type === 'error' ? <X size={32} /> : toast.type === 'info' ? <Trophy size={32} /> : <CheckCircle size={32} />}
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">{toast.type === 'error' ? 'เกิดข้อผิดพลาด' : toast.type === 'info' ? 'แจ้งเตือน' : 'สำเร็จ!'}</h3>
+                    <p className="text-slate-600 font-medium text-sm mb-6">{toast.message}</p>
+                    <button onClick={() => setToast({ ...toast, show: false })} className="w-full py-2.5 rounded-lg font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors">ตกลง</button>
+                 </div>
+              </div>
+            )}
+
+            <div className="p-3 sm:p-6 flex-1 w-full relative z-0">
+              <div className="w-full relative z-10">
+                {isAppLoading ? (
+                  <div className="flex flex-col items-center justify-center py-32 gap-5 animation-fade-in">
+                    <div className="w-16 h-16 border-[4px] border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+                    <h2 className="text-lg font-bold text-slate-700">กำลังซิงค์ข้อมูลกับฐานข้อมูล...</h2>
+                    <p className="text-slate-500 text-sm">กรุณารอสักครู่ ระบบกำลังดึงข้อมูลล่าสุด</p>
+                  </div>
+                ) : (
+                  <DashboardView 
+                    sales={sales} 
+                    members={members} 
+                    customers={customers} 
+                    isAdmin={isAdmin}
+                    activeCustomerTypes={activeCustomerTypes}
+                    businessTeams={businessTeams}
+                    initialTargetHistory={targetHistory}
+                  />
+                )}
+              </div>
+            </div>
+
+            <footer className="w-full text-center py-6 mt-auto border-t border-slate-200/50 no-print shrink-0">
+               <p className="text-[11px] font-bold text-slate-400 opacity-60 hover:opacity-100 transition-opacity">
+                  &copy; {new Date().getFullYear()} STK Sales Management System. Developed by Sackda Southammavong.
+               </p>
+            </footer>
+
+          </main>
+
+          <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} onLoginSuccess={handleLoginSuccess} systemUsers={systemUsers} />
+
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

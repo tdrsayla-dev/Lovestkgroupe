@@ -1,0 +1,66 @@
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
+  body { font-family: 'Inter', 'IBM Plex Sans Thai', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; }
+  .animation-fade-in { animation: fadeIn 0.2s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .animation-slide-up { animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(30px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  .animation-pop { animation: pop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+  @keyframes pop { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+  @keyframes floatCard { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
+  .animate-float-1 { animation: floatCard 3s ease-in-out infinite; }
+  .animate-float-2 { animation: floatCard 3.5s ease-in-out infinite 0.5s; }
+  .animate-float-3 { animation: floatCard 4s ease-in-out infinite 1s; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .hide-scroll::-webkit-scrollbar { display: none; }
+  .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* 📌 เอฟเฟคใหม่: เส้นพลังงานวิ่งสวนกันแบบสมูท (Smooth Glowing Lines) */
+  @keyframes orbit-cw {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+  }
+  @keyframes orbit-ccw {
+      0% { transform: rotate(360deg); }
+      100% { transform: rotate(0deg); }
+  }
+  .animate-orbit-cw {
+      animation: orbit-cw 6s linear infinite;
+      transform-origin: 18px 18px; /* หมุนรอบจุดศูนย์กลาง SVG */
+  }
+  .animate-orbit-ccw {
+      animation: orbit-ccw 9s linear infinite;
+      transform-origin: 18px 18px; /* หมุนรอบจุดศูนย์กลาง SVG */
+  }
+
+  /* 📌 เอฟเฟคไอคอนเมนูด้านซ้าย (ดุ๊กดิ๊กน่ารักๆ) */
+  @keyframes icon-wiggle {
+      0%, 100% { transform: rotate(0deg) scale(1); }
+      25% { transform: rotate(-12deg) scale(1.15); }
+      50% { transform: rotate(12deg) scale(1.15); }
+      75% { transform: rotate(-6deg) scale(1.15); }
+  }
+  .group:hover .animate-icon-wiggle {
+      animation: icon-wiggle 0.5s ease-in-out;
+  }
+
+  /* 📌 CSS สำหรับการพิมพ์รายงาน (Print) */
+  @media print {
+      body { background-color: white !important; }
+      aside, header, .no-print, .print-hide { display: none !important; }
+      main { margin-left: 0 !important; width: 100% !important; padding: 0 !important; }
+      .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl, .shadow-inner { box-shadow: none !important; }
+      table { border-collapse: collapse !important; }
+      th, td { border: 1px solid #cbd5e1 !important; }
+      .fixed.inset-0 { position: absolute !important; background: white !important; inset: 0 !important; }
+  }
+</style>
+<script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
+<script src="https://cdn.tailwindcss.com" defer></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin defer></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin defer></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" defer></script>

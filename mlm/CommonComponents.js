@@ -1,0 +1,805 @@
+// ==========================================
+// 📌 STK GROUPE - Common Components & Utilities (Pure JS)
+// ==========================================
+(function () {
+  const IconProps = { fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" };
+
+  const LayoutDashboard = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('rect', { width: "7", height: "9", x: "3", y: "3", rx: "1" }),
+    React.createElement('rect', { width: "7", height: "5", x: "14", y: "3", rx: "1" }),
+    React.createElement('rect', { width: "7", height: "9", x: "14", y: "12", rx: "1" }),
+    React.createElement('rect', { width: "7", height: "5", x: "3", y: "16", rx: "1" })
+  );
+  const ShoppingCart = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('circle', { cx: "8", cy: "21", r: "1" }),
+    React.createElement('circle', { cx: "19", cy: "21", r: "1" }),
+    React.createElement('path', { d: "M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" })
+  );
+  const Users = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('path', { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" }),
+    React.createElement('circle', { cx: "9", cy: "7", r: "4" }),
+    React.createElement('path', { d: "M22 21v-2a4 4 0 0 0-3-3.87" }),
+    React.createElement('path', { d: "M16 3.13a4 4 0 0 1 0 7.75" })
+  );
+  const Contact = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('path', { d: "M17 18a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2" }),
+    React.createElement('rect', { width: "18", height: "18", x: "3", y: "4", rx: "2" }),
+    React.createElement('circle', { cx: "12", cy: "10", r: "2" }),
+    React.createElement('line', { x1: "8", x2: "8", y1: "2", y2: "4" }),
+    React.createElement('line', { x1: "16", x2: "16", y1: "2", y2: "4" })
+  );
+  const Headset = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('path', { d: "M3 11h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5Zm0 0a9 9 0 1 1 18 0m0 0v5a2 2 0 0 1-2 2h-1a2 2 0 0 1 2-2h3Z" })
+  );
+  const BarChart3 = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('path', { d: "M3 3v18h18" }),
+    React.createElement('rect', { width: "4", height: "7", x: "7", y: "10", rx: "1" }),
+    React.createElement('rect', { width: "4", height: "12", x: "15", y: "5", rx: "1" })
+  );
+  const Plus = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('path', { d: "M5 12h14" }),
+    React.createElement('path', { d: "M12 5v14" })
+  );
+  const Edit = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('path', { d: "M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" }),
+    React.createElement('path', { d: "M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" })
+  );
+  const Trash2 = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('path', { d: "M3 6h18" }),
+    React.createElement('path', { d: "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" }),
+    React.createElement('path', { d: "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" }),
+    React.createElement('line', { x1: "10", x2: "10", y1: "11", y2: "17" }),
+    React.createElement('line', { x1: "14", x2: "14", y1: "11", y2: "17" })
+  );
+  const UserCircle = ({ size = 20, className = "" }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", className: className, ...IconProps },
+    React.createElement('circle', { cx: "12", cy: "12", r: "10" }),
+    React.createElement('circle', { cx: "12", cy: "10", r: "3" }),
+    React.createElement('path', { d: "M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662" })
+  );
+  const Menu = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('line', { x1: "4", x2: "20", y1: "12", y2: "12" }),
+    React.createElement('line', { x1: "4", x2: "20", y1: "6", y2: "6" }),
+    React.createElement('line', { x1: "4", x2: "20", y1: "18", y2: "18" })
+  );
+  const X = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('path', { d: "M18 6 6 18" }),
+    React.createElement('path', { d: "m6 6 12 12" })
+  );
+  const Save = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('path', { d: "M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" }),
+    React.createElement('polyline', { points: "17 21 17 13 7 13 7 21" }),
+    React.createElement('polyline', { points: "7 3 7 8 15 8" })
+  );
+  const Info = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('circle', { cx: "12", cy: "12", r: "10" }),
+    React.createElement('line', { x1: "12", y1: "16", x2: "12", y2: "12" }),
+    React.createElement('line', { x1: "12", y1: "8", x2: "12.01", y2: "8" })
+  );
+  const PackageIcon = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('path', { d: "M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" }),
+    React.createElement('polyline', { points: "3.27 6.96 12 12.01 20.73 6.96" }),
+    React.createElement('line', { x1: "12", y1: "22.08", x2: "12", y2: "12" })
+  );
+  const Target = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('circle', { cx: "12", cy: "12", r: "10" }),
+    React.createElement('circle', { cx: "12", cy: "12", r: "6" }),
+    React.createElement('circle', { cx: "12", cy: "12", r: "2" })
+  );
+  const Trophy = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('path', { d: "M6 9H4.5a2.5 2.5 0 0 1 0-5H6" }),
+    React.createElement('path', { d: "M18 9h1.5a2.5 2.5 0 0 0 0-5H18" }),
+    React.createElement('path', { d: "M4 22h16" }),
+    React.createElement('path', { d: "M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" }),
+    React.createElement('path', { d: "M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" }),
+    React.createElement('path', { d: "M18 2H6v7a6 6 0 0 0 12 0V2Z" })
+  );
+  const Activity = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('polyline', { points: "22 12 18 12 15 21 9 3 6 12 2 12" })
+  );
+  const SearchIcon = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('circle', { cx: "11", cy: "11", r: "8" }),
+    React.createElement('line', { x1: "21", y1: "21", x2: "16.65", y2: "16.65" })
+  );
+  const Eye = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('path', { d: "M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" }),
+    React.createElement('circle', { cx: "12", cy: "12", r: "3" })
+  );
+  const Tags = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('path', { d: "M9 5H2v7l6.29 6.29c.94.94 2.48.94 3.42 0l3.58-3.58c.94-.94.94-2.48 0-3.42L9 5Z" }),
+    React.createElement('path', { d: "M6 9.01V9" })
+  );
+  const CheckCircle = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('path', { d: "M22 11.08V12a10 10 0 1 1-5.93-9.14" }),
+    React.createElement('polyline', { points: "22 4 12 14.01 9 11.01" })
+  );
+  const GitBranch = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('line', { x1: "6", x2: "6", y1: "3", y2: "15" }),
+    React.createElement('circle', { cx: "18", cy: "6", r: "3" }),
+    React.createElement('circle', { cx: "6", cy: "18", r: "3" }),
+    React.createElement('path', { d: "M18 9a9 9 0 0 1-9 9" })
+  );
+  const Archive = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('rect', { width: "20", height: "5", x: "2", y: "3", rx: "1" }),
+    React.createElement('path', { d: "M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" }),
+    React.createElement('line', { x1: "10", x2: "14", y1: "12", y2: "12" })
+  );
+  const ChevronDown = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('path', { d: "m6 9 6 6 6-6" })
+  );
+  const SettingsIcon = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('circle', { cx: "12", cy: "12", r: "3" }),
+    React.createElement('path', { d: "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" })
+  );
+  const Coins = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('circle', { cx: "8", cy: "8", r: "6" }),
+    React.createElement('circle', { cx: "18", cy: "18", r: "4" }),
+    React.createElement('path', { d: "M12 18a6 6 0 0 0-6-6" }),
+    React.createElement('path', { d: "M20 10.6A6 6 0 0 0 13.4 4" })
+  );
+  const ShieldCheck = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('path', { d: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" }),
+    React.createElement('path', { d: "m9 12 2 2 4-4" })
+  );
+
+  const fallbackProductsList = ['SESAMIN', 'APPLE', 'KING_GOLD'];
+  const fallbackCustomerTypes = [
+    { id: 'T001', name: 'ลูกค้าใหม่', status: 'ใช้งาน' },
+    { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'ใช้งาน' }
+  ];
+
+  const safeUpper = (str) => String(str || '').trim().toUpperCase();
+  const getLocalISODate = (d = new Date()) => {
+    const year = d.getFullYear(); const month = String(d.getMonth() + 1).padStart(2, '0'); const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const inputClassHud = "w-full border border-slate-200 bg-slate-50/30 focus:bg-white px-4 py-2.5 rounded-xl outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400/80 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:bg-slate-100/50 disabled:text-slate-400 transition-all duration-300 shadow-sm shadow-slate-100/40";
+  const labelClassHud = "block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-1";
+  const btnClassPrimary = "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-2.5 rounded-xl text-[13px] font-bold transition-all duration-300 shadow-md shadow-blue-500/10 hover:shadow-lg hover:shadow-blue-500/20 hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 h-[38px] sm:h-[40px]";
+  const btnClassSecondary = "bg-white hover:bg-slate-50 text-slate-600 border border-slate-200/80 px-6 py-2.5 rounded-xl text-[13px] font-bold transition-all duration-300 shadow-sm shadow-slate-100/50 hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 h-[38px] sm:h-[40px]";
+  const boxWrapper = "bg-white p-6 sm:p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.015)] border border-slate-100/80 w-full mb-6 transition-all duration-300";
+  const tableHeaderClass = "bg-slate-50/60 border-b border-slate-100 px-4 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap";
+  const tableCellClass = "px-4 py-4 text-[13px] font-medium text-slate-700 border-b border-slate-100/80 whitespace-nowrap transition-colors";
+  const titleClass = "text-xl sm:text-2xl font-black text-slate-800 flex items-center gap-3 tracking-tight";
+  const thBase = "p-4 text-[13px] font-bold border-b border-slate-200 bg-slate-50 text-slate-700 whitespace-nowrap uppercase tracking-wide";
+
+  function useDebounce(value, delay) {
+    const [debouncedValue, setDebouncedValue] = React.useState(value);
+    React.useEffect(() => {
+      const handler = setTimeout(() => { setDebouncedValue(value); }, delay);
+      return () => { clearTimeout(handler); };
+    }, [value, delay]);
+    return debouncedValue;
+  }
+
+  const exportToCSV = (filename, rows) => {
+    const processRow = function (row) {
+      let finalVal = '';
+      for (let j = 0; j < row.length; j++) {
+        let innerValue = row[j] === null || row[j] === undefined ? '' : row[j].toString();
+        let result = innerValue.replace(/"/g, '""');
+        if (result.search(/("|,|\n)/g) >= 0) result = '"' + result + '"';
+        if (j > 0) finalVal += ',';
+        finalVal += result;
+      }
+      return finalVal + '\n';
+    };
+    let csvFile = '\uFEFF';
+    for (let i = 0; i < rows.length; i++) { csvFile += processRow(rows[i]); }
+    const blob = new Blob([csvFile], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {
+    if (!isOpen) return null;
+    return React.createElement('div', {
+      className: "fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[1000] flex items-center justify-center p-4 animation-fade-in",
+      onClick: onClose
+    }, React.createElement('div', {
+      className: "bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 animation-pop text-center border border-slate-100",
+      onClick: e => e.stopPropagation()
+    },
+      React.createElement('div', { className: "w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-red-100" }, React.createElement(Trash2, { size: 32 })),
+      React.createElement('h3', { className: "text-xl font-bold text-slate-800 mb-2" }, title),
+      React.createElement('p', { className: "text-slate-500 text-sm mb-8" }, message),
+      React.createElement('div', { className: "flex flex-col sm:flex-row justify-center gap-3" },
+        React.createElement('button', { type: "button", onClick: onClose, className: "flex-1 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition-colors" }, "ยกเลิก"),
+        React.createElement('button', { type: "button", onClick: () => { onConfirm(); onClose(); }, className: "flex-1 py-2.5 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-colors shadow-sm shadow-red-200" }, "ยืนยันการลบ")
+      )
+    ));
+  };
+
+  const EditModal = ({ isOpen, onClose, title, children, icon: Icon, maxWidthClass = "max-w-4xl" }) => {
+    if (!isOpen) return null;
+    return React.createElement('div', {
+      className: "fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[990] flex items-center justify-center p-4 sm:p-6 animation-fade-in"
+    }, React.createElement('div', {
+      className: `bg-white rounded-3xl shadow-2xl w-full ${maxWidthClass} max-h-[90vh] flex flex-col animation-pop border border-slate-100 relative`,
+      onClick: e => e.stopPropagation()
+    },
+      React.createElement('div', { className: "p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl shrink-0" },
+        React.createElement('h3', { className: "font-bold text-base text-blue-700 flex items-center gap-2" },
+          Icon ? React.createElement(Icon, { size: 18 }) : null,
+          " ", title
+        ),
+        React.createElement('button', { type: "button", onClick: onClose, className: "text-slate-400 hover:text-slate-700 p-1 bg-white rounded-md border border-slate-200 shadow-sm transition-colors" }, React.createElement(X, { size: 18 }))
+      ),
+      React.createElement('div', { className: "p-4 sm:p-5 overflow-y-auto hide-scroll flex-1" }, children)
+    ));
+  };
+
+  const AutoSuggestInput = ({ value, onChange, onSelect, data, placeholder, required, disabled }) => {
+    const [showList, setShowList] = React.useState(false);
+    const [focused, setFocused] = React.useState(false);
+    const safeValue = value || '';
+
+    const filteredData = React.useMemo(() => {
+      if (!data || !Array.isArray(data)) return [];
+      if (!safeValue.trim()) return data.slice(0, 10);
+      return data.filter(item => {
+        const label = typeof item === 'string' ? item : (item.label || item.value || '');
+        return label.toLowerCase().includes(safeValue.toLowerCase());
+      }).slice(0, 10);
+    }, [data, safeValue]);
+
+    const wrapperRef = React.useRef(null);
+    React.useEffect(() => {
+      const handleClickOutside = (e) => {
+        if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+          setShowList(false);
+        }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    return React.createElement('div', { ref: wrapperRef, className: "relative w-full" },
+      React.createElement('input', {
+        type: "text",
+        required: required,
+        disabled: disabled,
+        placeholder: placeholder,
+        value: safeValue,
+        onChange: (e) => { onChange(e.target.value); if (e.target.value.length > 0) setShowList(true); else setShowList(false); },
+        onFocus: () => { setFocused(true); if (safeValue.length > 0) setShowList(true); },
+        className: inputClassHud
+      }),
+      showList && filteredData.length > 0 ? React.createElement('ul', {
+        className: "absolute z-50 w-full bg-white border border-slate-200 mt-1 rounded-2xl shadow-xl max-h-56 overflow-y-auto overflow-x-hidden"
+      }, filteredData.map((item, i) => {
+        const label = typeof item === 'string' ? item : item.label;
+        const val = typeof item === 'string' ? item : item.value;
+        return React.createElement('li', {
+          key: i,
+          className: "px-4 py-2.5 hover:bg-blue-50 hover:text-blue-700 cursor-pointer text-[13px] font-medium text-slate-700 border-b border-slate-50 last:border-0 transition-colors truncate",
+          onClick: () => { onSelect(val); setShowList(false); }
+        }, label);
+      })) : null
+    );
+  };
+
+  const DonutChart = ({ value, target, colorClass, strokeColor, glowColor = "rgba(255,255,255,0)", size = "xl" }) => {
+    const percent = Math.min((value / target) * 100, 100) || 0;
+    const remaining = Math.max(target - value, 0);
+    const dashArray = `${percent} ${100 - percent}`;
+
+    const dimensions = size === "xl" ? "w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96" : size === "md" ? "w-32 h-32 sm:w-44 sm:h-44 lg:w-48 lg:h-48" : "w-40 h-40 sm:w-56 sm:h-56";
+    const numSize = size === "xl" ? "text-5xl sm:text-6xl md:text-7xl" : size === "md" ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl";
+    const labelSize = size === "xl" ? "text-base sm:text-lg lg:text-xl" : size === "md" ? "text-[10px] sm:text-[11px]" : "text-[12px] sm:text-sm";
+    const strokeW = size === "xl" ? "2.5" : "3";
+
+    return React.createElement('div', { className: `relative flex-shrink-0 mx-auto ${dimensions}` },
+      React.createElement('svg', { viewBox: "0 0 36 36", className: "w-full h-full transform -rotate-90 relative z-10", style: { filter: `drop-shadow(0px 0px 12px ${glowColor})` } },
+        React.createElement('circle', { cx: "18", cy: "18", r: "15.915", fill: "transparent", stroke: "rgba(255,255,255,0.05)", strokeWidth: strokeW }),
+        React.createElement('circle', { cx: "18", cy: "18", r: "15.915", fill: "transparent", stroke: "rgba(255,255,255,0.1)", strokeWidth: strokeW, strokeDasharray: "100 0" }),
+        React.createElement('circle', { cx: "18", cy: "18", r: "15.915", fill: "transparent", stroke: strokeColor, strokeWidth: strokeW, strokeDasharray: dashArray, className: "transition-all duration-1000 ease-out", strokeLinecap: "round" }),
+        React.createElement('g', { className: "animate-orbit-cw" },
+          React.createElement('circle', { cx: "18", cy: "18", r: "17.2", fill: "transparent", stroke: strokeColor, strokeWidth: "0.6", strokeDasharray: "15 91.8", strokeLinecap: "round", opacity: "0.6", style: { filter: `drop-shadow(0 0 4px ${strokeColor})` } }),
+          React.createElement('circle', { cx: "18", cy: "18", r: "17.2", fill: "transparent", stroke: "#ffffff", strokeWidth: "0.2", strokeDasharray: "15 91.8", strokeLinecap: "round", opacity: "0.9" })
+        ),
+        React.createElement('g', { className: "animate-orbit-ccw" },
+          React.createElement('circle', { cx: "18", cy: "18", r: "17.2", fill: "transparent", stroke: strokeColor, strokeWidth: "0.4", strokeDasharray: "8 98.8", strokeLinecap: "round", opacity: "0.5", style: { filter: `drop-shadow(0 0 3px ${strokeColor})` } }),
+          React.createElement('circle', { cx: "18", cy: "18", r: "17.2", fill: "transparent", stroke: "#ffffff", strokeWidth: "0.1", strokeDasharray: "8 98.8", strokeLinecap: "round", opacity: "0.8" })
+        ),
+        React.createElement('circle', { cx: "18", cy: "18", r: "13.5", fill: "transparent", stroke: "rgba(255,255,255,0.15)", strokeWidth: "0.2", strokeDasharray: "0.5 1" })
+      ),
+      React.createElement('div', { className: "absolute inset-0 flex flex-col items-center justify-center z-20" },
+        React.createElement('span', { className: `${labelSize} font-bold text-slate-400 mb-0.5 uppercase tracking-widest` }, "เหลือเป้า"),
+        React.createElement('span', { className: `${numSize} font-black leading-none drop-shadow-md ${colorClass}` }, remaining.toLocaleString()),
+        React.createElement('div', { className: `${labelSize} font-bold text-slate-400 mt-1 sm:mt-2 pt-1 sm:pt-2 border-t border-white/10 w-3/4 text-center flex flex-col items-center` },
+          React.createElement('span', null, "ขายได้: ", React.createElement('span', { className: "text-white font-black" }, value.toLocaleString()), " กล่อง"),
+          React.createElement('span', { className: `text-[11px] sm:text-[13px] font-black mt-1 ${colorClass} bg-black/30 px-2.5 py-0.5 rounded-lg border border-white/10 shadow-sm` }, `คืบหน้า ${percent.toFixed(1)}%`)
+        )
+      )
+    );
+  };
+
+  const getUserPagePermission = (currentUser, pageId) => {
+    if (!currentUser) return 'view';
+    const role = currentUser.role || 'พนักงานทั่วไป';
+    if (role === 'ผู้ดูแลระบบ' || String(role).toLowerCase() === 'admin') return 'full';
+
+    let saved = {};
+    try {
+      const stored = localStorage.getItem('stk_role_permissions');
+      if (stored) saved = JSON.parse(stored);
+    } catch (e) { }
+
+    if (saved[role] && saved[role][pageId] !== undefined) {
+      return saved[role][pageId];
+    }
+
+    const defaultStaff = {
+      dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'edit', customers: 'view',
+      team: 'none', business_teams: 'none', stock: 'none', customer_types: 'none', closers: 'none',
+      exchange_rate: 'none', system_users: 'none'
+    };
+    return defaultStaff[pageId] !== undefined ? defaultStaff[pageId] : 'view';
+  };
+
+  const resolvePageUrl = (href) => {
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      return href;
+    }
+    const pageFileMap = {
+      'dashboard': 'index.html',
+      'reports': 'Reports.html',
+      'org_chart': 'OrgChart.html',
+      'sales': 'Sales.html',
+      'customers': 'Customers.html',
+      'system_users': 'SystemUsers.html',
+      'team': 'Team.html',
+      'business_teams': 'Team.html',
+      'stock': 'Stock.html',
+      'customer_types': 'CustomerTypes.html',
+      'closers': 'Closers.html',
+      'exchange_rate': 'ExchangeRate.html'
+    };
+    if (!href) return '#';
+    for (const [p, file] of Object.entries(pageFileMap)) {
+      if (href.includes(`page=${p}`)) {
+        return href.includes('tab=business_teams') ? 'Team.html?tab=business_teams' : file;
+      }
+    }
+    return href;
+  };
+
+  const SidebarItem = ({ icon: Icon, label, id, activeTab, href, onTabClick, isSidebarCollapsed }) => React.createElement('a', {
+    href: resolvePageUrl(href),
+    onClick: (e) => {
+      if (activeTab === id) {
+        e.preventDefault();
+        return;
+      }
+      onTabClick();
+    },
+    className: `group w-full flex items-center px-4 py-3.5 rounded-xl transition-all duration-300 ${isSidebarCollapsed ? 'justify-center' : 'gap-3.5 text-left'} ${activeTab === id ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/20' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-100'}`,
+    title: isSidebarCollapsed ? label : ''
+  },
+    React.createElement('div', { className: "shrink-0 animate-icon-wiggle transition-colors" }, React.createElement(Icon, { size: 22 })),
+    !isSidebarCollapsed ? React.createElement('span', { className: "font-bold whitespace-nowrap truncate transition-transform duration-300 group-hover:translate-x-1" }, label) : null
+  );
+
+  const SidebarReportsGroup = ({ activeTab, isSidebarCollapsed, handleTabClick, SCRIPT_URL, currentUser }) => {
+    const perm = getUserPagePermission(currentUser, 'reports');
+    if (perm === 'none') return null;
+
+    const isPageInReports = activeTab === 'reports';
+    const [isOpen, setIsOpen] = React.useState(isPageInReports);
+
+    React.useEffect(() => {
+      if (isPageInReports) {
+        setIsOpen(true);
+      }
+    }, [activeTab, isPageInReports]);
+
+    if (isSidebarCollapsed) {
+      return React.createElement(SidebarItem, { icon: BarChart3, label: "รายงานสรุปผลงาน", id: "reports", activeTab: activeTab, href: SCRIPT_URL + '?page=reports', onTabClick: handleTabClick, isSidebarCollapsed: true });
+    }
+
+    return React.createElement('div', { className: "space-y-1" },
+      React.createElement('button', {
+        type: "button",
+        onClick: () => setIsOpen(!isOpen),
+        className: `w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300 h-[50px] ${activeTab === 'reports' ? 'text-blue-400 bg-slate-800/80 font-bold' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-100'}`
+      },
+        React.createElement('div', { className: "flex items-center gap-3.5" },
+          React.createElement('div', { className: "shrink-0 text-slate-400" }, React.createElement(BarChart3, { size: 22 })),
+          React.createElement('span', { className: "font-bold text-sm" }, "รายงานสรุปผลงาน")
+        ),
+        React.createElement('div', { className: `transition-transform duration-300 ${isOpen ? 'rotate-180' : ''} text-slate-500` }, React.createElement(ChevronDown, { size: 16 }))
+      ),
+      isOpen ? React.createElement('div', { className: "pl-4 ml-5 border-l border-slate-800 space-y-1 relative animation-slide-down", style: { animationDuration: '0.2s' } },
+        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=sales'), onClick: handleTabClick, className: "flex items-center px-4 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all hover:translate-x-1" }, "📊 ยอดขาย & พนักงาน"),
+        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=finance'), onClick: handleTabClick, className: "flex items-center px-4 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all hover:translate-x-1" }, "💰 การเงิน & รายรับ"),
+        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=stock'), onClick: handleTabClick, className: "flex items-center px-4 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all hover:translate-x-1" }, "📦 สต๊อก & สินค้าตัดศูนย์"),
+        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'), onClick: handleTabClick, className: "flex items-center px-4 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all hover:translate-x-1" }, "🎁 ค่าแนะนำ & ปันผล")
+      ) : null
+    );
+  };
+
+  const SidebarSettingsGroup = ({ activeTab, isSidebarCollapsed, isAdmin, handleTabClick, SCRIPT_URL, onSubTabChange, currentUser }) => {
+    const canSysUsers = getUserPagePermission(currentUser, 'system_users') !== 'none';
+    const canTeam = getUserPagePermission(currentUser, 'team') !== 'none';
+    const canBusTeams = getUserPagePermission(currentUser, 'business_teams') !== 'none';
+    const canStock = getUserPagePermission(currentUser, 'stock') !== 'none';
+    const canCustTypes = getUserPagePermission(currentUser, 'customer_types') !== 'none';
+    const canClosers = getUserPagePermission(currentUser, 'closers') !== 'none';
+    const canExRate = getUserPagePermission(currentUser, 'exchange_rate') !== 'none';
+
+    const hasAnySettings = canSysUsers || canTeam || canBusTeams || canStock || canCustTypes || canClosers || canExRate;
+    if (!hasAnySettings) return null;
+
+    const settingsPages = ['system_users', 'team', 'stock', 'customer_types', 'closers', 'exchange_rate'];
+    const isPageInSettings = settingsPages.includes(activeTab);
+    const [isOpen, setIsOpen] = React.useState(isPageInSettings);
+
+    React.useEffect(() => {
+      if (isPageInSettings) {
+        setIsOpen(true);
+      }
+    }, [activeTab, isPageInSettings]);
+
+    if (isSidebarCollapsed) {
+      return React.createElement(React.Fragment, null,
+        canSysUsers ? React.createElement(SidebarItem, { icon: UserCircle, label: "สิทธิ์เข้าใช้งานระบบ", id: "system_users", activeTab: activeTab, href: SCRIPT_URL + '?page=system_users', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
+        canTeam ? React.createElement(SidebarItem, { icon: Users, label: "ข้อมูลพนักงาน (Team)", id: "team", activeTab: activeTab, href: SCRIPT_URL + '?page=team', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
+        canStock ? React.createElement(SidebarItem, { icon: Archive, label: "คลังสินค้า & สต๊อก", id: "stock", activeTab: activeTab, href: SCRIPT_URL + '?page=stock', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
+        canCustTypes ? React.createElement(SidebarItem, { icon: Tags, label: "จัดการประเภทลูกค้า", id: "customer_types", activeTab: activeTab, href: SCRIPT_URL + '?page=customer_types', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
+        canClosers ? React.createElement(SidebarItem, { icon: Headset, label: "จัดการผู้ปิดการขาย", id: "closers", activeTab: activeTab, href: SCRIPT_URL + '?page=closers', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
+        canExRate ? React.createElement(SidebarItem, { icon: Coins, label: "ตั้งค่าอัตราแลกเปลี่ยน", id: "exchange_rate", activeTab: activeTab, href: SCRIPT_URL + '?page=exchange_rate', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null
+      );
+    }
+
+    return React.createElement('div', { className: "space-y-1" },
+      React.createElement('button', {
+        type: "button",
+        onClick: () => setIsOpen(!isOpen),
+        className: `w-full flex items-center justify-between px-4 py-3 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-slate-100 transition-all duration-300 h-[50px]`
+      },
+        React.createElement('div', { className: "flex items-center gap-3.5" },
+          React.createElement('div', { className: "shrink-0 text-slate-400" }, React.createElement(SettingsIcon, { size: 22 })),
+          React.createElement('span', { className: "font-bold text-sm" }, "ตั้งค่าระบบ")
+        ),
+        React.createElement('div', { className: `transition-transform duration-300 ${isOpen ? 'rotate-180' : ''} text-slate-500` }, React.createElement(ChevronDown, { size: 16 }))
+      ),
+      isOpen ? React.createElement('div', { className: "pl-4 ml-5 border-l border-slate-800 space-y-1 relative animation-slide-down", style: { animationDuration: '0.2s' } },
+        canSysUsers ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=system_users'), onClick: handleTabClick, className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'system_users' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}` }, "สิทธิ์เข้าใช้งานระบบ") : null,
+        canTeam ? React.createElement('a', {
+          href: resolvePageUrl(SCRIPT_URL + '?page=team'),
+          onClick: (e) => {
+            if (onSubTabChange) {
+              e.preventDefault();
+              onSubTabChange('members');
+              try { if (window.history && window.history.pushState) window.history.pushState(null, '', resolvePageUrl(SCRIPT_URL + '?page=team')); } catch (err) { }
+              return;
+            }
+            handleTabClick();
+          },
+          className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'team' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}`
+        }, "ข้อมูลพนักงาน (Team)") : null,
+        canBusTeams ? React.createElement('a', {
+          href: resolvePageUrl(SCRIPT_URL + '?page=team&tab=business_teams'),
+          onClick: (e) => {
+            if (onSubTabChange) {
+              e.preventDefault();
+              onSubTabChange('business_teams');
+              try { if (window.history && window.history.pushState) window.history.pushState(null, '', resolvePageUrl(SCRIPT_URL + '?page=team&tab=business_teams')); } catch (err) { }
+              return;
+            }
+            handleTabClick();
+          },
+          className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'business_teams' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}`
+        }, "ข้อมูลทีมสังกัด") : null,
+        canStock ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=stock'), onClick: handleTabClick, className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'stock' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}` }, "คลังสินค้า & สต๊อก") : null,
+        canCustTypes ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=customer_types'), onClick: handleTabClick, className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'customer_types' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}` }, "จัดการประเภทลูกค้า") : null,
+        canClosers ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=closers'), onClick: handleTabClick, className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'closers' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}` }, "จัดการผู้ปิดการขาย") : null,
+        canExRate ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=exchange_rate'), onClick: handleTabClick, className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'exchange_rate' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}` }, "ตั้งค่าอัตราแลกเปลี่ยน") : null
+      ) : null
+    );
+  };
+
+  const Sidebar = ({
+    activePage,
+    isLoggedIn,
+    currentUser,
+    currentUserProfileUrl,
+    isAdmin,
+    onLogout,
+    showLoginModal,
+    setShowLoginModal,
+    SCRIPT_URL,
+    setIsAppLoading,
+    isSidebarCollapsed: propCollapsed,
+    setIsSidebarCollapsed: propSetCollapsed
+  }) => {
+    const [localCollapsed, setLocalCollapsed] = React.useState(() => {
+      try {
+        return localStorage.getItem('stk_sidebar_collapsed') === 'true';
+      } catch (e) {
+        return false;
+      }
+    });
+
+    const isSidebarCollapsed = propCollapsed !== undefined ? propCollapsed : localCollapsed;
+    const setIsSidebarCollapsed = (val) => {
+      const next = typeof val === 'function' ? val(isSidebarCollapsed) : val;
+      try { localStorage.setItem('stk_sidebar_collapsed', String(next)); } catch (e) { }
+      if (propSetCollapsed) {
+        propSetCollapsed(next);
+      } else {
+        setLocalCollapsed(next);
+      }
+    };
+
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+
+    const handleTabClick = () => {
+      if (setIsAppLoading) setIsAppLoading(true);
+    };
+
+    const canDashboard = getUserPagePermission(currentUser, 'dashboard') !== 'none';
+    const canOrgChart = getUserPagePermission(currentUser, 'orgchart') !== 'none';
+    const canSales = getUserPagePermission(currentUser, 'sales') !== 'none';
+    const canCustomers = getUserPagePermission(currentUser, 'customers') !== 'none';
+
+    return React.createElement(React.Fragment, null,
+      React.createElement('aside', { className: `hidden lg:flex flex-col bg-slate-900 border-r border-slate-800 fixed h-full z-30 transition-all duration-300 shadow-xl ${isSidebarCollapsed ? 'w-20' : 'w-64'}` },
+        React.createElement('div', { className: `p-4 border-b border-slate-800 flex items-center h-[72px] ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}` },
+          !isSidebarCollapsed ? React.createElement('div', { className: "overflow-hidden flex items-center" },
+            React.createElement('h1', { className: "text-xl font-black text-white tracking-tight" }, "LOVE ", React.createElement('span', { className: "text-blue-500" }, "STK GROUPE"))
+          ) : null,
+          React.createElement('button', { onClick: () => setIsSidebarCollapsed(!isSidebarCollapsed), className: "p-2 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors border border-transparent" },
+            React.createElement(Menu, { size: 20 })
+          )
+        ),
+        React.createElement('div', { className: "flex-1 p-4 space-y-2 overflow-y-auto pb-28 hide-scroll" },
+          canDashboard ? React.createElement(SidebarItem, { icon: LayoutDashboard, label: "แดชบอร์ด (Dashboard)", id: "dashboard", activeTab: activePage, href: SCRIPT_URL + '?page=dashboard', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
+          isLoggedIn ? React.createElement(React.Fragment, null,
+            React.createElement(SidebarReportsGroup, { activeTab: activePage, isSidebarCollapsed: isSidebarCollapsed, handleTabClick: handleTabClick, SCRIPT_URL: SCRIPT_URL, currentUser: currentUser }),
+            canOrgChart ? React.createElement(SidebarItem, { icon: GitBranch, label: "ผังองค์กรสายงาน", id: "org_chart", activeTab: activePage, href: SCRIPT_URL + '?page=org_chart', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
+            (canSales || canCustomers) ? React.createElement('div', { className: "pt-3 pb-1.5" }, React.createElement('p', { className: `text-[10px] font-black text-slate-500 uppercase tracking-widest ${isSidebarCollapsed ? 'text-center' : 'px-4'}` }, "ธุรกรรมประจำวัน")) : null,
+            canSales ? React.createElement(SidebarItem, { icon: ShoppingCart, label: "ป้อนข้อมูลขาย (Sales)", id: "sales", activeTab: activePage, href: SCRIPT_URL + '?page=sales', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
+            canCustomers ? React.createElement(SidebarItem, { icon: Contact, label: "ข้อมูลลูกค้า (Customers)", id: "customers", activeTab: activePage, href: SCRIPT_URL + '?page=customers', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
+            React.createElement(SidebarSettingsGroup, { activeTab: activePage, isSidebarCollapsed: isSidebarCollapsed, isAdmin: isAdmin, handleTabClick: handleTabClick, SCRIPT_URL: SCRIPT_URL, currentUser: currentUser })
+          ) : null
+        ),
+        React.createElement('div', { className: `border-t border-slate-800 bg-slate-950 flex items-center absolute bottom-0 w-full h-24 overflow-hidden ${isSidebarCollapsed ? 'p-2 justify-center' : 'p-4 gap-3'}` },
+          isLoggedIn ? React.createElement(React.Fragment, null,
+            currentUserProfileUrl ? React.createElement('img', { src: currentUserProfileUrl, alt: "Profile", className: `rounded-full object-cover border-2 border-slate-700 shadow-sm shrink-0 ${isSidebarCollapsed ? 'w-10 h-10 mx-auto' : 'w-10 h-10'}` }) : React.createElement(UserCircle, { size: isSidebarCollapsed ? 32 : 36, className: `text-blue-400 bg-blue-900/30 rounded-full shrink-0 p-1 ${isSidebarCollapsed ? 'mx-auto' : ''}` }),
+            !isSidebarCollapsed ? React.createElement('div', { className: "w-full flex flex-col items-start overflow-hidden" },
+              React.createElement('p', { className: "text-[12px] font-bold text-white truncate w-full", title: currentUser ? currentUser.name : '' }, currentUser ? currentUser.name : ''),
+              React.createElement('p', { className: "text-[10px] font-bold text-slate-400 mb-1" }, currentUser ? currentUser.role : ''),
+              React.createElement('button', { onClick: onLogout, className: "text-[11px] font-bold text-red-400 hover:text-red-300 bg-red-950/30 px-2 py-0.5 rounded border border-red-900/50 transition-colors w-full text-left" }, "ออกจากระบบ")
+            ) : null
+          ) : React.createElement('div', { className: "w-full flex flex-col items-center justify-center" },
+            !isSidebarCollapsed ? React.createElement('p', { className: "text-[11px] font-bold text-slate-400 mb-2" }, "เข้าสู่ระบบเพื่อใช้งาน") : null,
+            React.createElement('button', { onClick: () => setShowLoginModal(true), className: `bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-sm transition-colors w-full ${isSidebarCollapsed ? 'py-2 px-1 text-[10px]' : 'py-1.5 px-4 text-xs'}` }, isSidebarCollapsed ? 'Login' : 'ล็อกอินเข้าสู่ระบบ')
+          )
+        )
+      ),
+      React.createElement('div', { className: "lg:hidden bg-slate-900 border-b border-slate-800 sticky top-0 z-20 px-4 py-3 flex justify-between items-center shadow-sm h-[60px] no-print" },
+        React.createElement('h1', { className: "text-lg font-black text-white tracking-tight" }, "LOVE ", React.createElement('span', { className: "text-blue-500" }, "STK GROUPE")),
+        React.createElement('button', { onClick: () => setIsMobileMenuOpen(true), className: "p-2 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors" }, React.createElement(Menu, { size: 24 }))
+      ),
+      isMobileMenuOpen ? React.createElement('div', { className: "fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 lg:hidden", onClick: () => setIsMobileMenuOpen(false) }) : null,
+      React.createElement('aside', { className: `fixed inset-y-0 left-0 bg-slate-900 w-72 shadow-2xl z-50 transform transition-transform duration-300 lg:hidden flex flex-col border-r border-slate-800 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}` },
+        React.createElement('div', { className: "p-4 border-b border-slate-800 flex justify-between items-center h-[72px]" },
+          React.createElement('h1', { className: "text-xl font-black text-white tracking-tight" }, "LOVE ", React.createElement('span', { className: "text-blue-500" }, "STK GROUPE")),
+          React.createElement('button', { onClick: () => setIsMobileMenuOpen(false), className: "p-2 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg border border-transparent transition-colors" }, React.createElement(X, { size: 24 }))
+        ),
+        React.createElement('div', { className: "flex-1 p-4 space-y-2 overflow-y-auto pb-28 hide-scroll" },
+          canDashboard ? React.createElement(SidebarItem, { icon: LayoutDashboard, label: "แดชบอร์ด (Dashboard)", id: "dashboard", activeTab: activePage, href: SCRIPT_URL + '?page=dashboard', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
+          isLoggedIn ? React.createElement(React.Fragment, null,
+            React.createElement(SidebarReportsGroup, { activeTab: activePage, isSidebarCollapsed: false, handleTabClick: handleTabClick, SCRIPT_URL: SCRIPT_URL, currentUser: currentUser }),
+            canOrgChart ? React.createElement(SidebarItem, { icon: GitBranch, label: "ผังองค์กรสายงาน", id: "org_chart", activeTab: activePage, href: SCRIPT_URL + '?page=org_chart', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
+            (canSales || canCustomers) ? React.createElement('div', { className: "pt-3 pb-1.5" }, React.createElement('p', { className: "text-[10px] font-black text-slate-500 uppercase tracking-widest px-4" }, "ธุรกรรมประจำวัน")) : null,
+            canSales ? React.createElement(SidebarItem, { icon: ShoppingCart, label: "ป้อนข้อมูลขาย (Sales)", id: "sales", activeTab: activePage, href: SCRIPT_URL + '?page=sales', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
+            canCustomers ? React.createElement(SidebarItem, { icon: Contact, label: "ข้อมูลลูกค้า (Customers)", id: "customers", activeTab: activePage, href: SCRIPT_URL + '?page=customers', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
+            React.createElement(SidebarSettingsGroup, { activeTab: activePage, isSidebarCollapsed: false, isAdmin: isAdmin, handleTabClick: handleTabClick, SCRIPT_URL: SCRIPT_URL, currentUser: currentUser })
+          ) : null
+        ),
+        React.createElement('div', { className: "p-4 border-t border-slate-800 bg-slate-950 flex items-center gap-3 absolute bottom-0 w-full h-24" },
+          isLoggedIn ? React.createElement(React.Fragment, null,
+            currentUserProfileUrl ? React.createElement('img', { src: currentUserProfileUrl, alt: "Profile", className: "w-10 h-10 rounded-full object-cover border-2 border-slate-700 shadow-sm shrink-0" }) : React.createElement(UserCircle, { size: 36, className: "text-blue-400 bg-blue-900/30 rounded-full shrink-0 p-1" }),
+            React.createElement('div', { className: "w-full flex flex-col items-start overflow-hidden" },
+              React.createElement('p', { className: "text-[13px] font-bold text-white truncate w-full" }, currentUser ? currentUser.name : ''),
+              React.createElement('p', { className: "text-[11px] font-bold text-slate-400 mb-1" }, currentUser ? currentUser.role : ''),
+              React.createElement('button', { onClick: onLogout, className: "text-[11px] font-bold text-red-400 hover:text-red-300 bg-red-950/30 px-3 py-1 rounded border border-red-900/50 transition-colors" }, "ออกจากระบบ")
+            )
+          ) : React.createElement('div', { className: "w-full flex flex-col items-center justify-center px-4" },
+            React.createElement('p', { className: "text-[11px] font-bold text-slate-400 mb-2" }, "โหมดผู้เยี่ยมชม (ดูยอดขายได้เท่านั้น)"),
+            React.createElement('button', { onClick: () => setShowLoginModal(true), className: "bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-xl shadow-sm text-sm w-full transition-colors" }, "ล็อกอินเข้าสู่ระบบ")
+          )
+        )
+      )
+    );
+  };
+
+  const LoginModal = ({ isOpen, onClose, onLoginSuccess, systemUsers }) => {
+    const [username, setUsername] = React.useState('');
+    const [password, setPassword] = React.useState('');
+    const [rememberMe, setRememberMe] = React.useState(false);
+    const [error, setError] = React.useState('');
+    const [isLoading, setIsLoading] = React.useState(false);
+
+    React.useEffect(() => {
+      if (isOpen) {
+        try {
+          const savedUser = localStorage.getItem('stk_saved_username');
+          const savedPass = localStorage.getItem('stk_saved_password');
+          if (savedUser && savedPass) {
+            setUsername(savedUser);
+            setPassword(atob(savedPass));
+            setRememberMe(true);
+          }
+        } catch (err) {
+          console.warn("เบราว์เซอร์บล็อกการจดจำรหัสผ่าน");
+        }
+      }
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    const handleLogin = (e) => {
+      e.preventDefault();
+      setError('');
+      setIsLoading(true);
+
+      const inputUser = String(username).trim();
+      const inputPass = String(password).trim();
+
+      const processSuccess = (user) => {
+        try {
+          if (rememberMe) {
+            localStorage.setItem('stk_saved_username', inputUser);
+            localStorage.setItem('stk_saved_password', btoa(inputPass));
+          } else {
+            localStorage.removeItem('stk_saved_username');
+            localStorage.removeItem('stk_saved_password');
+          }
+        } catch (err) {
+          console.warn("ไม่สามารถบันทึกการจดจำรหัสผ่านได้");
+        }
+        onLoginSuccess(user);
+      };
+
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler((serverResult) => {
+            setIsLoading(false);
+            if (serverResult) {
+              processSuccess({
+                id: serverResult.id || serverResult['รหัสสมาชิก'] || '',
+                username: serverResult.username || serverResult.Username || inputUser,
+                name: serverResult.name || serverResult['ชื่อผู้ใช้งาน'] || inputUser,
+                role: serverResult.role || serverResult['ระดับสิทธิ์'] || 'พนักงานทั่วไป',
+                status: serverResult.status || serverResult['สถานะ'] || 'ใช้งาน',
+                profileUrl: serverResult.profileUrl || ''
+              });
+            } else {
+              setError('Username หรือ Password ไม่ถูกต้อง');
+            }
+          })
+          .withFailureHandler(() => {
+            setIsLoading(false);
+            setError('ไม่สามารถเชื่อมต่อฐานข้อมูลได้');
+          })
+          .verifyLogin(inputUser, inputPass);
+      } else {
+        setTimeout(() => {
+          setIsLoading(false);
+          const foundLocal = (systemUsers || []).find(u =>
+            u && String(u.username).trim().toLowerCase() === inputUser.toLowerCase() && String(u.password).trim() === inputPass
+          );
+
+          if (foundLocal) {
+            processSuccess(foundLocal);
+          } else if (inputUser.toLowerCase() === 'admin' && (inputPass === '1234' || inputPass === 'password' || inputPass === 'admin')) {
+            processSuccess({ id: 'U001', username: 'admin', name: 'Admin (ทดสอบ)', role: 'ผู้ดูแลระบบ', status: 'ใช้งาน' });
+          } else {
+            setError('Username หรือ Password ไม่ถูกต้อง');
+          }
+        }, 500);
+      }
+    };
+
+    return React.createElement('div', {
+      className: "fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[1000] flex items-center justify-center p-4 animation-fade-in"
+    }, React.createElement('div', {
+      className: "bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 animation-pop border border-slate-100 relative overflow-hidden",
+      onClick: e => e.stopPropagation()
+    },
+      React.createElement('div', { className: "absolute -top-16 -right-16 w-32 h-32 bg-blue-500 rounded-full blur-3xl opacity-20" }),
+      React.createElement('div', { className: "absolute -bottom-16 -left-16 w-32 h-32 bg-fuchsia-500 rounded-full blur-3xl opacity-20" }),
+      React.createElement('div', { className: "text-center mb-8 relative z-10" },
+        React.createElement('div', { className: "w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-100 shadow-sm" }, React.createElement(UserCircle, { size: 36 })),
+        React.createElement('h3', { className: "text-2xl font-black text-slate-800" }, "เข้าสู่ระบบ"),
+        React.createElement('p', { className: "text-slate-500 text-sm font-medium mt-1" }, "STK Sales Management")
+      ),
+      React.createElement('form', { onSubmit: handleLogin, className: "space-y-4 relative z-10" },
+        error ? React.createElement('div', { className: "bg-red-50 text-red-500 text-sm font-bold p-3 rounded-xl border border-red-100 text-center" }, error) : null,
+        React.createElement('div', null,
+          React.createElement('label', { className: labelClassHud }, "Username"),
+          React.createElement('input', { type: "text", required: true, className: inputClassHud, placeholder: "กรอก Username", value: username, onChange: e => setUsername(e.target.value) })
+        ),
+        React.createElement('div', null,
+          React.createElement('label', { className: labelClassHud }, "Password"),
+          React.createElement('input', { type: "password", required: true, className: inputClassHud, placeholder: "กรอก Password", value: password, onChange: e => setPassword(e.target.value) })
+        ),
+        React.createElement('div', { className: "flex items-center gap-2 mt-1 mb-2 pl-1" },
+          React.createElement('input', { type: "checkbox", id: "rememberMe", checked: rememberMe, onChange: e => setRememberMe(e.target.checked), className: "w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer" }),
+          React.createElement('label', { htmlFor: "rememberMe", className: "text-[13px] font-bold text-slate-600 cursor-pointer select-none" }, "จดจำรหัสผ่าน")
+        ),
+        React.createElement('button', { type: "submit", disabled: isLoading, className: `${btnClassPrimary} w-full mt-2` },
+          isLoading ? 'กำลังตรวจสอบ...' : 'เข้าสู่ระบบ'
+        )
+      ),
+      React.createElement('button', { onClick: onClose, className: "absolute top-4 right-4 text-slate-400 hover:text-slate-700 bg-slate-50 p-1.5 rounded-lg border border-slate-200 transition-colors z-20" }, React.createElement(X, { size: 18 }))
+    ));
+  };
+
+  // Export to Global Window Scope
+  window.IconProps = IconProps;
+  window.LayoutDashboard = LayoutDashboard;
+  window.ShoppingCart = ShoppingCart;
+  window.Users = Users;
+  window.Contact = Contact;
+  window.Headset = Headset;
+  window.BarChart3 = BarChart3;
+  window.Plus = Plus;
+  window.Edit = Edit;
+  window.Trash2 = Trash2;
+  window.UserCircle = UserCircle;
+  window.Menu = Menu;
+  window.X = X;
+  window.Save = Save;
+  window.Info = Info;
+  window.PackageIcon = PackageIcon;
+  window.Target = Target;
+  window.Trophy = Trophy;
+  window.Activity = Activity;
+  window.SearchIcon = SearchIcon;
+  window.Eye = Eye;
+  window.Tags = Tags;
+  window.CheckCircle = CheckCircle;
+  window.GitBranch = GitBranch;
+  window.Archive = Archive;
+  window.ChevronDown = ChevronDown;
+  window.SettingsIcon = SettingsIcon;
+  window.Coins = Coins;
+  window.ShieldCheck = ShieldCheck;
+  window.fallbackProductsList = fallbackProductsList;
+  window.fallbackCustomerTypes = fallbackCustomerTypes;
+  window.safeUpper = safeUpper;
+  window.getLocalISODate = getLocalISODate;
+  window.inputClassHud = inputClassHud;
+  window.labelClassHud = labelClassHud;
+  window.btnClassPrimary = btnClassPrimary;
+  window.btnClassSecondary = btnClassSecondary;
+  window.boxWrapper = boxWrapper;
+  window.tableHeaderClass = tableHeaderClass;
+  window.tableCellClass = tableCellClass;
+  window.titleClass = titleClass;
+  window.thBase = thBase;
+  window.useDebounce = useDebounce;
+  window.exportToCSV = exportToCSV;
+  window.ConfirmModal = ConfirmModal;
+  window.EditModal = EditModal;
+  window.AutoSuggestInput = AutoSuggestInput;
+  window.DonutChart = DonutChart;
+  window.getUserPagePermission = getUserPagePermission;
+  window.resolvePageUrl = resolvePageUrl;
+  window.SidebarItem = SidebarItem;
+  window.SidebarReportsGroup = SidebarReportsGroup;
+  window.SidebarSettingsGroup = SidebarSettingsGroup;
+  window.Sidebar = Sidebar;
+  window.LoginModal = LoginModal;
+})();

@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ข้อมูลลูกค้า (Customers) - LOVE STK GROUPE</title>
+  <!-- Standalone & GAS Libraries -->
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
+    body { font-family: 'Inter', 'IBM Plex Sans Thai', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; }
+  </style>
+  <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+    window.SUPABASE_URL='https://qqyotianqcgpdzrfgjif.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
+    if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
+    async function supabaseSelect(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:window.SUPABASE_HEADERS});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();}
+    async function supabaseInsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('INSERT '+t+':'+r.status);return r.json();}
+    async function supabaseUpdate(t,id,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('UPDATE '+t+':'+r.status);return r.json();}
+    async function supabaseDelete(t,id){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'DELETE',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'})});if(!r.ok)throw new Error('DELETE '+t+':'+r.status);return true;}
+    async function supabaseUpsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'resolution=merge-duplicates,return=representation'}),body:JSON.stringify(d)});if(!r.ok)throw new Error('UPSERT '+t+':'+r.status);return r.json();}
+  </script>
+  <script src="CommonComponents.js"></script>
+  <script>
+    window.addEventListener('DOMContentLoaded', function() {
+      setTimeout(function() { var l=document.getElementById('initial-loader'); if(l)l.style.display='none'; }, 600);
+    });
+  </script>
+  <!-- <?!= include('Includes'); ?> -->
+</head>
+<body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
+
+  <div id="initial-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999;">
+    <div style="width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 24px;"></div>
+    <style>@keyframes initial-spin { to { transform: rotate(360deg); } }</style>
+    <h2 style="font-size: 1.75rem; font-weight: 800; color: #1e40af; margin: 0; letter-spacing: -0.025em;">LOVE <span style="color: #475569;">STK GROUPE</span></h2>
+    <p style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 8px;">กำลังโหลดระบบจัดการข้อมูล...</p>
+  </div>
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect, useRef, useCallback } = React;
+
+    const fallbackCustomerTypes = window.fallbackCustomerTypes || [
+       { id: 'T001', name: 'ลูกค้าใหม่', status: 'ใช้งาน' },
+       { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'ใช้งาน' }
+    ];
+    const fallbackProductsList = window.fallbackProductsList || ['SESAMIN', 'APPLE', 'KING_GOLD'];
+
+    /* <?!= include('CommonComponents'); ?> */
+
+
+    // ==========================================
+    // 📌 Customer Management View Component
+    // ==========================================
+    const CustomerManagementView = ({ sales, customers, members, closers, activeCustomerTypes, setCustomers, showToast, isAdmin }) => {
+        const [activeCustTab, setActiveCustTab] = useState('stats'); 
+        const [rankingModal, setRankingModal] = useState(null); 
+        const todayStr = getLocalISODate();
+        const firstDayOfMonthStr = `${todayStr.substring(0, 7)}-01`;
+        const [statStartDate, setStatStartDate] = useState(firstDayOfMonthStr);
+        const [statEndDate, setStatEndDate] = useState(todayStr); const [memberFilter, setMemberFilter] = useState('All');
+        const [viewCustomer, setViewCustomer] = useState(null);
+        
+        const [searchAllData, setSearchAllData] = useState(''); const [teamFilter, setTeamFilter] = useState('All');
+        
+        const [editCustData, setEditCustData] = useState(null);
+        const [isSubmitting, setIsSubmitting] = useState(false);
+        const [confirmDeleteCust, setConfirmDeleteCust] = useState({ show: false, id: null, title: '' });
+        const [showAddCustModal, setShowAddCustModal] = useState(false);
+                const [newCustData, setNewCustData] = useState({ id: '', name: '', phone: '', lineId: '', type: '', symptom: '', closer: '', memberId: '', memberName: '' });
+        const [isAddingCust, setIsAddingCust] = useState(false);
+
+        const handleOpenAddCustomer = () => {
+            let nextIdNum = 1;
+            const cIds = (customers || []).map(c => { const match = c && c.id && c.id.match(/^C(\d+)$/i); return match ? parseInt(match[1], 10) : 0; });
+            if (cIds.length > 0) nextIdNum = Math.max(...cIds) + 1;
+            setNewCustData({ 
+                id: "C" + nextIdNum.toString().padStart(3, '0'), 
+                name: '', phone: '', lineId: '', type: activeCustomerTypes.length > 0 ? activeCustomerTypes[0].name : '', 
+                symptom: '', closer: '', memberId: '', memberName: '' 
+            });
+            setShowAddCustModal(true);
+        };
+
+                const handleSaveNewCustomer = (e) => {
+            e.preventDefault();
+            if(!newCustData.name) { showToast('กรุณากรอกชื่อลูกค้า', 'error'); return; }
+            setIsAddingCust(true);
+            
+            const mFull = (members || []).find(m => m && m.id.toUpperCase() === newCustData.memberId.toUpperCase());
+            const finalData = { ...newCustData, memberName: mFull ? mFull.name : newCustData.memberId };
+
+            if (typeof google !== 'undefined' && google.script && google.script.run.saveCustomerOnly) {
+                google.script.run.withSuccessHandler(() => {
+                    setCustomers([finalData, ...(customers || [])]);
+                    setShowAddCustModal(false);
+                    setIsAddingCust(false);
+                    showToast('เพิ่มข้อมูลลูกค้าใหม่สำเร็จ', 'success');
+                }).withFailureHandler((err) => {
+                    setIsAddingCust(false); showToast('เกิดข้อผิดพลาดในการบันทึก: ' + (err ? (err.message || err) : ''), 'error');
+                }).saveCustomerOnly(finalData);
+            } else {
+                setTimeout(() => {
+                    setCustomers([finalData, ...(customers || [])]);
+                    setShowAddCustModal(false);
+                    setIsAddingCust(false);
+                    showToast('จำลองเพิ่มลูกค้าสำเร็จ', 'success');
+                }, 500);
+            }
+        };
+
+        const filteredSalesInPeriod = useMemo(() => {
+            return (sales || []).filter(s => {
+                if (!s) return false;
+                const inDateRange = (s.date || '') >= statStartDate && (s.date || '') <= statEndDate;
+                const matchMember = memberFilter === 'All' || s.memberId === memberFilter;
+                return inDateRange && matchMember;
+            });
+        }, [sales, statStartDate, statEndDate, memberFilter]);
+
+        const customerSalesStatsFiltered = useMemo(() => {
+            const stats = {};
+            filteredSalesInPeriod.forEach(s => {
+                const cid = s.customerId; if (!cid) return;
+                if (!stats[cid]) { stats[cid] = { count: 0, dates: [] }; }
+                stats[cid].count += 1; if (s.date) stats[cid].dates.push(s.date);
+            });
+            Object.keys(stats).forEach(cid => {
+                const uniqueDates = [...new Set(stats[cid].dates)].sort((a, b) => b.localeCompare(a));
+                stats[cid].lastVisit = uniqueDates.length > 0 ? uniqueDates[0] : '-';
+                stats[cid].prevVisit = uniqueDates.length > 1 ? uniqueDates[1] : '-';
+            });
+            return stats;
+        }, [filteredSalesInPeriod]);
+
+        const customerStats = useMemo(() => {
+          let stats = { types: {}, newMemberRankings: {}, consultMemberRankings: {}, returnRankings: {}, teleMemberRankings: {}, topCloserARankings: {}, topCloserBRankings: {} };
+          (activeCustomerTypes || []).forEach(t => { if (t && t.name) stats.types[t.name] = 0; });
+
+          const uniqueCustIds = [...new Set(filteredSalesInPeriod.map(s => s.customerId))];
+          uniqueCustIds.forEach(custId => {
+            const c = (customers || []).find(cust => cust && cust.id === custId);
+            if (c) {
+              const cType = c.type || '';
+              if (stats.types[cType] !== undefined) stats.types[cType]++; else stats.types[cType] = 1;
+
+              const mFull = (members || []).find(m => m && m.id === c.memberId);
+              const mName = mFull ? mFull.name : (c.memberName || c.memberId);
+              const isOld = cType.includes('เก่า'); const isConsult = cType.includes('ปรึกษา'); const isTele = cType.includes('โทร');
+              const isNew = cType.includes('ใหม่') || (!isOld && !isConsult && !isTele);
+
+              if (mName) {
+                 if (isNew) stats.newMemberRankings[mName] = (stats.newMemberRankings[mName] || 0) + 1;
+                 else if (isConsult) stats.consultMemberRankings[mName] = (stats.consultMemberRankings[mName] || 0) + 1;
+                 else if (isTele) stats.teleMemberRankings[mName] = (stats.teleMemberRankings[mName] || 0) + 1;
+                 else if (isOld) stats.returnRankings[mName] = (stats.returnRankings[mName] || 0) + 1;
+              }
+              if (c.closer) {
+                 const normalizedCloser = String(c.closer).trim().toUpperCase();
+                 const closerObj = (closers || []).find(cl => cl && safeUpper(cl.name) === normalizedCloser);
+                 let cTeam = closerObj ? closerObj.team : '';
+                 if (cTeam === 'Marketing') stats.topCloserARankings[normalizedCloser] = (stats.topCloserARankings[normalizedCloser] || 0) + 1;
+                 else if (cTeam === 'Center') stats.topCloserBRankings[normalizedCloser] = (stats.topCloserBRankings[normalizedCloser] || 0) + 1;
+              }
+            }
+          });
+          const sortObj = (obj) => Object.entries(obj).sort((a, b) => b[1] - a[1]);
+          return { types: stats.types, totalVisits: filteredSalesInPeriod.length, totalUnique: uniqueCustIds.length, 
+             newMemberRankings: sortObj(stats.newMemberRankings).slice(0, 5), fullNewMemberRankings: sortObj(stats.newMemberRankings),
+             consultMemberRankings: sortObj(stats.consultMemberRankings).slice(0, 5), fullConsultMemberRankings: sortObj(stats.consultMemberRankings),
+             teleMemberRankings: sortObj(stats.teleMemberRankings).slice(0, 5), fullTeleMemberRankings: sortObj(stats.teleMemberRankings),
+             returnRankings: sortObj(stats.returnRankings).slice(0, 5), fullReturnRankings: sortObj(stats.returnRankings),
+             topCloserARankings: sortObj(stats.topCloserARankings).slice(0, 5), fullTopCloserARankings: sortObj(stats.topCloserARankings),
+             topCloserBRankings: sortObj(stats.topCloserBRankings).slice(0, 5), fullTopCloserBRankings: sortObj(stats.topCloserBRankings)
+          };
+        }, [customers, filteredSalesInPeriod, members, activeCustomerTypes, closers]);
+
+        const topFrequentCustomers = useMemo(() => {
+            return Object.keys(customerSalesStatsFiltered).map(cid => {
+                const custDetails = (customers || []).find(c => c && c.id === cid) || {};
+                return { id: cid, name: custDetails.name || 'ไม่ทราบชื่อ', type: custDetails.type || 'N/A', symptom: custDetails.symptom || '-', visitCount: customerSalesStatsFiltered[cid].count, lastVisit: customerSalesStatsFiltered[cid].lastVisit, prevVisit: customerSalesStatsFiltered[cid].prevVisit };
+            }).sort((a, b) => b.visitCount - a.visitCount).slice(0, 10);
+        }, [customerSalesStatsFiltered, customers]);
+
+        const processedFilteredCustomers = useMemo(() => {
+            return (customers || []).filter(c => {
+                const stat = c ? customerSalesStatsFiltered[c.id] : null;
+                if (!stat || stat.count <= 0) return false;
+                
+                if (teamFilter !== 'All') {
+                    const m = (members || []).find(mem => mem && mem.id === c.memberId);
+                    let t = m ? m.team : '';
+                    if (t === 'Team A') t = 'Marketing';
+                    if (t === 'Team B') t = 'Center';
+                    if (t !== teamFilter) return false;
+                }
+                return true;
+            });
+        }, [customers, customerSalesStatsFiltered, teamFilter, members]);
+
+        const displayAllCustomers = useMemo(() => {
+            return (customers || []).filter(c => {
+                if (teamFilter !== 'All') {
+                    const m = (members || []).find(mem => mem && mem.id === c.memberId);
+                    let t = m ? m.team : '';
+                    if (t === 'Team A') t = 'Marketing';
+                    if (t === 'Team B') t = 'Center';
+                    if (t !== teamFilter) return false;
+                }
+                const search = searchAllData.toLowerCase();
+                return (c.id && c.id.toLowerCase().includes(search)) || 
+                       (c.name && c.name.toLowerCase().includes(search)) || 
+                       (c.phone && c.phone.includes(search));
+            });
+        }, [customers, teamFilter, members, searchAllData]);
+
+        const allDatabaseStats = useMemo(() => {
+            const now = new Date(); const curMonthPrefix = getLocalISODate(now).substring(0, 7);
+            const lastMonthPrefix = getLocalISODate(new Date(now.getFullYear(), now.getMonth() - 1, 1)).substring(0, 7);
+            let uniqueCurNew = new Set(); let uniqueLastNew = new Set(); let uniqueCurReturn = new Set();
+
+            (sales || []).forEach(s => {
+               const c = (customers || []).find(cust => cust && cust.id === s.customerId); if (!c) return;
+               const cType = c.type || '';
+               if ((s.date || '').startsWith(curMonthPrefix)) { if (cType.includes('ใหม่')) uniqueCurNew.add(c.id); else if (cType.includes('เก่า')) uniqueCurReturn.add(c.id); } 
+               else if ((s.date || '').startsWith(lastMonthPrefix)) { if (cType.includes('ใหม่')) uniqueLastNew.add(c.id); }
+            });
+            return { total: (customers || []).length, newCur: uniqueCurNew.size, newLast: uniqueLastNew.size, returnCur: uniqueCurReturn.size };
+        }, [sales, customers]);
+
+        const handleSaveCust = (e) => {
+            e.preventDefault();
+            setIsSubmitting(true);
+            const mFull = (members || []).find(m => m && m.id.toUpperCase() === (editCustData.memberId || '').toUpperCase());
+            const finalData = { ...editCustData, memberName: mFull ? mFull.name : editCustData.memberId };
+
+            if (typeof google !== 'undefined' && google.script) {
+                google.script.run.withSuccessHandler(() => {
+                    setCustomers(customers.map(c => c.id === editCustData.id ? finalData : c));
+                    setEditCustData(null); setIsSubmitting(false); showToast('อัปเดตข้อมูลลูกค้าสำเร็จ', 'success');
+                }).withFailureHandler((err) => { 
+                    setIsSubmitting(false); 
+                    showToast('เกิดข้อผิดพลาดในการอัปเดต: ' + (err ? (err.message || err) : ''), 'error'); 
+                }).updateCustomerData(finalData);
+            } else {
+                setTimeout(() => {
+                    setCustomers(customers.map(c => c.id === editCustData.id ? finalData : c));
+                    setEditCustData(null); setIsSubmitting(false); showToast('จำลองอัปเดตลูกค้าสำเร็จ', 'success');
+                }, 500);
+            }
+        };
+
+        const executeDeleteCust = () => {
+            const id = confirmDeleteCust.id;
+            if (typeof google !== 'undefined' && google.script) {
+                google.script.run.withSuccessHandler(() => {
+                    setCustomers(customers.filter(c => c.id !== id)); showToast('ลบลูกค้าสำเร็จ', 'success');
+                }).deleteCustomerData(id);
+            } else {
+                setCustomers(customers.filter(c => c.id !== id)); showToast('จำลองลบลูกค้าสำเร็จ', 'success');
+            }
+        };
+
+        const renderCustomerGroupTable = (typeObj) => {
+           const groupData = processedFilteredCustomers.filter(c => (c.type || '') === typeObj.name);
+           if (groupData.length === 0) return (<div className="mb-8 opacity-60" key={typeObj.id}><h4 className="font-bold mb-3 px-4 py-2 rounded-lg inline-block bg-slate-100 border border-slate-200 text-slate-500 shadow-sm">{typeObj.name} (0 คน)</h4><div className="bg-white p-6 rounded-xl border border-slate-200 text-center text-slate-500 text-sm font-bold">ไม่มีข้อมูลในประเภทนี้</div></div>);
+           return (
+              <div className="mb-8 animation-fade-in" key={typeObj.id}>
+                 <h4 className="font-bold mb-3 px-4 py-2 rounded-lg inline-block bg-blue-50 border border-blue-200 text-blue-800 shadow-sm">{typeObj.name} ({groupData.length} คน)</h4>
+                 <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto shadow-sm">
+                     <table className="w-full text-left border-collapse min-w-[1000px]">
+                        <thead><tr className={tableHeaderClass}><th className="p-4">รหัส</th><th className="p-4">ชื่อลูกค้า</th><th className="p-4">เบอร์โทร</th><th className="p-4">โรค/อาการ</th><th className="p-4">ผู้ปิดการขาย</th><th className="p-4">เจ้าของเคส</th><th className="p-4 text-center">มาล่าสุด</th><th className="p-4 text-center">รายละเอียด</th></tr></thead>
+                        <tbody>
+                           {groupData.map(c => {
+                              const mFull = (members || []).find(m => m && m.id === c.memberId);
+                              const stat = customerSalesStatsFiltered[c.id] || { count: 0, lastVisit: '-' };
+                              return (
+                                <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
+                                   <td className="p-4 text-sm font-bold text-blue-600 whitespace-nowrap">{c.id}</td><td className="p-4 text-sm font-bold text-slate-800 whitespace-nowrap">{c.name}</td><td className="p-4 text-sm text-slate-600 whitespace-nowrap">{c.phone || '-'}</td><td className="p-4 text-sm text-slate-700">{c.symptom || '-'}</td><td className="p-4 text-sm text-indigo-600 font-bold whitespace-nowrap">{c.closer || '-'}</td><td className="p-4 text-sm text-amber-600 font-bold whitespace-nowrap">{mFull ? mFull.name : (c.memberName || c.memberId || '-')}</td><td className="p-4 text-sm text-slate-500 text-center font-bold whitespace-nowrap">{stat.lastVisit}</td>
+                                   <td className="p-4 text-sm text-center whitespace-nowrap border-l border-slate-100"><button onClick={() => setViewCustomer({...c, visitCount: stat.count, lastVisit: stat.lastVisit || '-'})} className="p-1.5 text-blue-500 bg-white shadow-sm border border-slate-200 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition"><Eye size={18}/></button></td>
+                                </tr>
+                              )
+                           })}
+                        </tbody>
+                     </table>
+                 </div>
+              </div>
+           );
+        };
+
+        const rankingBox = (title, data, icon, unit, colorClass, borderClass, bgClass) => (
+            <div className={`bg-white p-5 rounded-2xl border border-${borderClass} cursor-pointer hover:bg-slate-50 hover:shadow-md transition-all shadow-sm`}
+                 onClick={() => setRankingModal({ title, data, unit, icon, colorClass: `text-${colorClass}` })}>
+              <h4 className={`text-sm font-bold text-${colorClass} mb-4 border-b border-${borderClass}/50 pb-3 flex items-center gap-2`}>{icon} {title}</h4>
+              <ul className="space-y-3">{data.length > 0 ? data.map(([m, qty], i) => (<li key={i} className="flex justify-between items-center text-xs"><span className="flex-1 font-bold text-slate-700 whitespace-normal leading-tight pr-2"><span className="text-slate-400 mr-2">{i+1}.</span>{m}</span><span className={`font-black text-${colorClass} ${bgClass} px-2.5 py-1 rounded-lg border border-${borderClass}/50 whitespace-nowrap shadow-sm`}>{qty} {unit}</span></li>)) : <li className="text-[12px] text-slate-400 font-bold text-center py-4">ไม่มีข้อมูล</li>}</ul>
+            </div>
+        );
+
+        return (
+          <div className="space-y-6 animation-fade-in relative w-full">
+            <ConfirmModal isOpen={confirmDeleteCust.show} onClose={() => setConfirmDeleteCust({show: false, id: null, title: ''})} onConfirm={executeDeleteCust} title="ยืนยันการลบลูกค้า" message={`คุณต้องการลบข้อมูลลูกค้า "${confirmDeleteCust.title}" ใช่หรือไม่?`} />
+            
+            <EditModal isOpen={editCustData !== null} onClose={() => setEditCustData(null)} title="แก้ไขข้อมูลลูกค้า" icon={Contact}>
+                {editCustData && (
+                <form onSubmit={handleSaveCust} className="space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div><label className={labelClassHud}>รหัสลูกค้า</label><input type="text" disabled className={`${inputClassHud} bg-slate-100 font-bold`} value={editCustData.id} /></div>
+                    <div><label className={labelClassHud}>ชื่อลูกค้า *</label><input type="text" required className={inputClassHud} value={editCustData.name} onChange={e => setEditCustData({...editCustData, name: e.target.value})} /></div>
+                    <div><label className={labelClassHud}>เบอร์โทรศัพท์</label><input type="text" className={inputClassHud} value={editCustData.phone || ''} onChange={e => setEditCustData({...editCustData, phone: e.target.value})} /></div>
+                    <div><label className={labelClassHud}>LINE ID</label><input type="text" className={inputClassHud} placeholder="ระบุ LINE ID" value={editCustData.lineId || ''} onChange={e => setEditCustData({...editCustData, lineId: e.target.value})} /></div>
+                    <div><label className={labelClassHud}>ประเภทลูกค้า</label><select className={inputClassHud} value={editCustData.type} onChange={e => setEditCustData({...editCustData, type: e.target.value})}>{activeCustomerTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}</select></div>
+                    <div className="md:col-span-2"><label className={labelClassHud}>โรคประจำตัว/อาการ</label><input type="text" className={inputClassHud} value={editCustData.symptom || ''} onChange={e => setEditCustData({...editCustData, symptom: e.target.value})} /></div>
+                    <div><label className={labelClassHud}>ผู้ปิดการขาย (Closer)</label><input type="text" className={inputClassHud} value={editCustData.closer || ''} onChange={e => setEditCustData({...editCustData, closer: e.target.value})} /></div>
+                    <div><label className={labelClassHud}>เจ้าของเคส (รหัสพนักงาน)</label><input type="text" className={inputClassHud} value={editCustData.memberId || ''} onChange={e => setEditCustData({...editCustData, memberId: e.target.value})} /></div>
+                  </div>
+                  <div className="flex justify-end pt-4 border-t border-slate-100 gap-3 mt-4">
+                     <button type="button" onClick={()=>setEditCustData(null)} className={btnClassSecondary}>ยกเลิก</button>
+                     <button type="submit" disabled={isSubmitting} className={btnClassPrimary}>{isSubmitting ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</button>
+                  </div>
+                </form>
+                )}
+            </EditModal> 
+            <EditModal isOpen={showAddCustModal} onClose={() => setShowAddCustModal(false)} title="เพิ่มข้อมูลลูกค้าใหม่ (สร้างรหัสล่วงหน้า)" icon={Plus}>
+                <form onSubmit={handleSaveNewCustomer} className="space-y-5">
+                  <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 text-sm text-amber-800 font-bold flex gap-2">
+                     <Info size={20} className="shrink-0"/>
+                     <p>ใช้สำหรับเพิ่มลูกค้าเก่า/ลูกค้าที่มีอยู่แล้ว เพื่อนำรหัส <span className="text-blue-700 bg-white px-2 py-0.5 rounded border">{newCustData.id}</span> ไปใช้กรอกในหน้า "ป้อนข้อมูลขาย" ได้ทันที</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div><label className={labelClassHud}>รหัสลูกค้า (อัตโนมัติ)</label><input type="text" disabled className={`${inputClassHud} bg-slate-100 font-bold text-blue-600 text-lg`} value={newCustData.id} /></div>
+                    <div><label className={labelClassHud}>ชื่อลูกค้า *</label><input type="text" required className={inputClassHud} placeholder="ชื่อ-นามสกุล" value={newCustData.name} onChange={e => setNewCustData({...newCustData, name: e.target.value})} /></div>
+                    <div><label className={labelClassHud}>เบอร์โทรศัพท์</label><input type="text" className={inputClassHud} placeholder="ถ้ามี" value={newCustData.phone || ''} onChange={e => setNewCustData({...newCustData, phone: e.target.value})} /></div>
+                    <div><label className={labelClassHud}>LINE ID</label><input type="text" className={inputClassHud} placeholder="ระบุ LINE ID..." value={newCustData.lineId || ''} onChange={e => setNewCustData({...newCustData, lineId: e.target.value})} /></div>
+                    <div><label className={labelClassHud}>ประเภทลูกค้า</label><select className={inputClassHud} value={newCustData.type} onChange={e => setNewCustData({...newCustData, type: e.target.value})}>{activeCustomerTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}</select></div>
+                    <div className="md:col-span-2"><label className={labelClassHud}>โรคประจำตัว/อาการ</label><input type="text" className={inputClassHud} placeholder="ระบุอาการ..." value={newCustData.symptom || ''} onChange={e => setNewCustData({...newCustData, symptom: e.target.value})} /></div>
+                    <div><label className={labelClassHud}>ผู้ปิดการขาย (Closer)</label><input type="text" className={inputClassHud} placeholder="ระบุชื่อผู้ปิด..." value={newCustData.closer || ''} onChange={e => setNewCustData({...newCustData, closer: e.target.value})} /></div>
+                    <div><label className={labelClassHud}>เจ้าของเคส (รหัสพนักงาน)</label><input type="text" className={inputClassHud} placeholder="เช่น M001" value={newCustData.memberId || ''} onChange={e => setNewCustData({...newCustData, memberId: e.target.value})} /></div>
+                  </div>
+                  <div className="flex justify-end pt-4 border-t border-slate-100 gap-3 mt-4">
+                     <button type="button" onClick={()=>setShowAddCustModal(false)} className={btnClassSecondary}>ยกเลิก</button>
+                     <button type="submit" disabled={isAddingCust} className={btnClassPrimary}>{isAddingCust ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</button>
+                  </div>
+                </form>
+            </EditModal>
+
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2 no-print">
+               <h2 className="text-2xl font-bold text-slate-800">จัดการข้อมูลลูกค้า (Customers)</h2>
+               <div className="flex items-center gap-2 w-full sm:w-auto">
+                   <select 
+                       className={inputClassHud + " w-auto cursor-pointer border-blue-200 bg-blue-50 text-blue-700"} 
+                       value={teamFilter} 
+                       onChange={e => setTeamFilter(e.target.value)}
+                   >
+                       <option value="All">แสดงทุกทีม (ทั้งหมด)</option>
+                       <option value="Marketing">เฉพาะลูกค้าทีม Marketing</option>
+                       <option value="Center">เฉพาะลูกค้าทีม Center</option>
+                   </select>
+                   <button onClick={() => window.print()} className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2 rounded-xl text-[13px] font-bold transition-all shadow-sm flex items-center justify-center gap-2 h-[38px] sm:h-[40px] shrink-0">
+                      🖨️ สั่งปริ้น
+                   </button>
+               </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3 no-print">
+              <button onClick={() => setActiveCustTab('stats')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all border shadow-sm h-[38px] sm:h-[40px] ${activeCustTab === 'stats' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:text-blue-600 hover:bg-slate-50'}`}>📊 สถิติลูกค้า</button>
+              <button onClick={() => setActiveCustTab('groupedData')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all border shadow-sm h-[38px] sm:h-[40px] ${activeCustTab === 'groupedData' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:text-blue-600 hover:bg-slate-50'}`}>📋 คัดกรองตามประเภท</button>
+              <button onClick={() => setActiveCustTab('allData')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all border shadow-sm h-[38px] sm:h-[40px] ${activeCustTab === 'allData' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:text-indigo-600 hover:bg-slate-50'}`}>🗄️ ฐานข้อมูลทั้งหมด</button>
+            </div>
+
+            {(activeCustTab === 'stats' || activeCustTab === 'groupedData') && (
+                <div className={`${boxWrapper} flex flex-col md:flex-row flex-wrap items-start md:items-center gap-4 py-4`}>
+                  <div className="flex flex-wrap items-center gap-4">
+                      <span className="text-[14px] font-bold text-blue-600 flex items-center gap-2"><SearchIcon size={18}/> กรองช่วงเวลา:</span>
+                      <div className="flex items-center gap-2">
+                        <input type="date" className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all shadow-sm" value={statStartDate} onChange={e => setStatStartDate(e.target.value)} />
+                        <span className="text-slate-400 font-bold mx-1">-</span>
+                        <input type="date" className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all shadow-sm" value={statEndDate} onChange={e => setStatEndDate(e.target.value)} />
+                      </div>
+                  </div>
+                  
+                  <div className="flex flex-wrap items-center gap-2 md:ml-auto border-t md:border-t-0 border-slate-200 pt-3 md:pt-0 w-full md:w-auto">
+                      <span className="text-[14px] font-bold text-indigo-600 flex items-center gap-2"><UserCircle size={18}/> เลือกพนักงาน:</span>
+                      <select 
+                          className={`${inputClassHud} w-full md:w-64 cursor-pointer bg-indigo-50 border-indigo-200 text-indigo-700 font-bold`}
+                          value={memberFilter} 
+                          onChange={e => setMemberFilter(e.target.value)}
+                      >
+                          <option value="All">แสดงข้อมูลของทุกคน</option>
+                          {(members || [])
+                              .filter(m => m && m.status === 'ทำงานอยู่')
+                              .map(m => (
+                                  <option key={m.id} value={m.id}>{m.name} ({m.id})</option>
+                          ))}
+                      </select>
+                  </div>
+                </div>
+            )}
+
+            {activeCustTab === 'stats' && (
+              <div className="space-y-6 animation-fade-in">
+                <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-4">
+                   {activeCustomerTypes.map((t, i) => {
+                      const glowColors = ['blue', 'emerald', 'amber', 'fuchsia', 'rose', 'indigo'];
+                      const c = glowColors[i % glowColors.length];
+                      return (
+                        <div key={t.id} className={`p-5 rounded-2xl border flex flex-col justify-between bg-white shadow-sm border-${c}-200 hover:-translate-y-1 transition-transform`}>
+                            <p className={`text-xs font-bold mb-2 text-${c}-600 line-clamp-1`} title={t.name}>{t.name}</p>
+                            <p className={`text-4xl font-black text-${c}-700`}>{customerStats.types[t.name] || 0} <span className={`text-sm font-bold text-${c}-500`}>คน</span></p>
+                        </div>
+                      )
+                   })}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {rankingBox('ผู้พาลูกค้าใหม่มาตรวจ', customerStats.fullNewMemberRankings, <Users size={18}/>, 'คน', 'blue-600', 'blue-200', 'bg-blue-50')}
+                  {rankingBox('ลูกค้านำผลตรวจมาปรึกษา', customerStats.fullConsultMemberRankings, <Activity size={18}/>, 'เคส', 'emerald-600', 'emerald-200', 'bg-emerald-50')}
+                  {rankingBox('โทรติดตามการขาย', customerStats.fullTeleMemberRankings, <Contact size={18}/>, 'เคส', 'rose-600', 'rose-200', 'bg-rose-50')}
+                  {rankingBox('ผู้ดึงลูกค้าเก่ากลับมา', customerStats.fullReturnRankings, <Tags size={18}/>, 'คน', 'amber-600', 'amber-200', 'bg-amber-50')}
+                  {rankingBox('ผู้ปิดการขายสูงสุด ทีม Marketing', customerStats.fullTopCloserARankings, <Trophy size={18}/>, 'เคส', 'indigo-600', 'indigo-200', 'bg-indigo-50')}
+                  {rankingBox('ผู้ปิดการขายสูงสุด ทีม Center', customerStats.fullTopCloserBRankings, <Trophy size={18}/>, 'เคส', 'fuchsia-600', 'fuchsia-200', 'bg-fuchsia-50')}
+                </div>
+
+                <div className={boxWrapper}>
+                   <h3 className={titleClass + " mb-5"}><Trophy size={24} className="text-amber-500"/> ลูกค้าเข้าใช้บริการบ่อยสุด (Top 10)</h3>
+                   <div className="overflow-x-auto rounded-xl border border-slate-200">
+                     <table className="w-full text-left text-sm whitespace-nowrap">
+                        <thead><tr className={tableHeaderClass}>
+                            <th className="p-4">รหัส</th><th className="p-4">ชื่อลูกค้า</th><th className="p-4">โรค/อาการ</th><th className="p-4">ประเภท</th><th className="p-4 text-center">จำนวนครั้ง</th><th className="p-4 text-center">มาครั้งก่อน</th><th className="p-4 text-center">มาล่าสุด</th>
+                        </tr></thead>
+                        <tbody>
+                          {topFrequentCustomers.length > 0 ? topFrequentCustomers.map(c => (
+                             <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
+                                <td className="p-4 font-bold text-blue-600">{c.id}</td><td className="p-4 font-bold text-slate-800">{c.name}</td>
+                                <td className="p-4 text-slate-600 text-xs truncate max-w-[200px]" title={c.symptom}>{c.symptom}</td>
+                                <td className="p-4 text-blue-600"><span className="bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-md text-[11px] font-bold">{c.type}</span></td>
+                                <td className="p-4 text-center"><span className="font-black text-indigo-700 bg-indigo-100 border border-indigo-200 px-3 py-1 rounded-lg shadow-sm">{c.visitCount}</span></td>
+                                <td className="p-4 text-slate-500 text-sm text-center font-medium">{c.prevVisit}</td><td className="p-4 text-slate-700 text-sm font-bold text-center">{c.lastVisit}</td>
+                             </tr>
+                          )) : <tr><td colSpan="7" className="p-10 text-center text-slate-400 font-bold text-base bg-slate-50">ไม่มีข้อมูลในช่วงเวลานี้</td></tr>}
+                        </tbody>
+                     </table>
+                   </div>
+                </div>
+              </div>
+            )}
+
+            {activeCustTab === 'groupedData' && (
+              <div className={`${boxWrapper} animation-fade-in`}>
+                 <h3 className={titleClass + " mb-6"}><Tags size={24} className="text-blue-500"/> ข้อมูลจัดกลุ่มตามประเภทลูกค้า</h3>
+                 {activeCustomerTypes.map(t => renderCustomerGroupTable(t))}
+              </div>
+            )}
+
+            {activeCustTab === 'allData' && (
+              <div className="space-y-6 animation-fade-in">
+                <div className="bg-gradient-to-br from-indigo-600 to-blue-700 p-6 sm:p-8 rounded-3xl shadow-md text-white relative overflow-hidden">
+                   <div className="absolute top-0 right-0 -mt-10 -mr-10 text-white/10"><Users size={200}/></div>
+                   <h3 className="text-lg font-bold mb-6 text-indigo-100 flex items-center gap-2 relative z-10"><Contact size={24}/> สรุปฐานข้อมูลลูกค้าภาพรวม</h3>
+                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
+                      <div className="bg-white/10 p-5 rounded-2xl border border-white/20 backdrop-blur-sm shadow-inner">
+                         <p className="text-xs font-bold text-indigo-200 mb-1">ลูกค้าในระบบทั้งหมด</p>
+                         <p className="text-4xl font-black text-white">{allDatabaseStats.total} <span className="text-sm text-indigo-200 font-bold">คน</span></p>
+                      </div>
+                      <div className="bg-white/10 p-5 rounded-2xl border border-white/20 backdrop-blur-sm shadow-inner">
+                         <p className="text-xs font-bold text-emerald-200 mb-1">ลูกค้าใหม่ (เดือนนี้)</p>
+                         <p className="text-4xl font-black text-emerald-300">+{allDatabaseStats.newCur} <span className="text-sm text-emerald-200 font-bold">คน</span></p>
+                      </div>
+                      <div className="bg-white/10 p-5 rounded-2xl border border-white/20 backdrop-blur-sm shadow-inner">
+                         <p className="text-xs font-bold text-blue-200 mb-1">ลูกค้าใหม่ (เดือนก่อน)</p>
+                         <p className="text-4xl font-black text-blue-100">+{allDatabaseStats.newLast} <span className="text-sm text-blue-200 font-bold">คน</span></p>
+                      </div>
+                      <div className="bg-white/10 p-5 rounded-2xl border border-white/20 backdrop-blur-sm shadow-inner">
+                         <p className="text-xs font-bold text-amber-200 mb-1">ลูกค้าเก่ากลับมา (เดือนนี้)</p>
+                         <p className="text-4xl font-black text-amber-300">{allDatabaseStats.returnCur} <span className="text-sm text-amber-200 font-bold">คน</span></p>
+                      </div>
+                   </div>
+                </div>
+
+                <div className={`${boxWrapper} p-0 overflow-hidden`}>
+                   <div className="p-5 border-b border-slate-200 flex flex-col md:flex-row justify-between items-center bg-slate-50 gap-4">
+                      <h3 className="font-bold text-slate-700 flex items-center gap-2"><Contact size={20} className="text-blue-500"/> ฐานข้อมูลดิบ (Raw Data)</h3>
+                      <div className="flex items-center gap-3 w-full md:w-auto">
+                         <button onClick={handleOpenAddCustomer} className={`${btnClassPrimary} shrink-0 bg-emerald-600 hover:bg-emerald-700`}><Plus size={18}/> เพิ่มลูกค้า</button>
+                         <div className="flex items-center bg-slate-50/30 focus-within:bg-white border border-slate-200 rounded-xl px-3 shadow-sm focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 transition-all duration-300 flex-1 sm:w-72 h-[38px] sm:h-[40px]">
+                            <SearchIcon size={18} className="text-slate-400 shrink-0" />
+                            <input type="text" placeholder="ค้นหารหัส, ชื่อ, เบอร์โทร..." className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={searchAllData} onChange={e => setSearchAllData(e.target.value)} />
+                         </div>
+                      </div>
+                   </div>
+                   <div className="overflow-x-auto">
+                     <table className="w-full text-left text-sm whitespace-nowrap min-w-[1200px]">
+                        <thead><tr className={tableHeaderClass}><th className="p-4">รหัส</th><th className="p-4">ชื่อลูกค้า</th><th className="p-4">เบอร์โทร</th><th className="p-4">LINE ID</th><th className="p-4">ประเภท (เริ่มแรก)</th><th className="p-4">อาการ</th><th className="p-4">ผู้ปิดการขาย</th><th className="p-4">เจ้าของเคส</th>{isAdmin && <th className="p-4 text-center">จัดการ</th>}</tr></thead>
+                        <tbody>
+                           {displayAllCustomers.length > 0 ? 
+                            displayAllCustomers.map(c => (
+                              <tr key={c.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition text-[13px]">
+                                 <td className="p-4 font-bold text-blue-600">{c.id}</td>
+                                 <td className="p-4 font-bold text-slate-800">{c.name}</td>
+                                 <td className="p-4 text-slate-600 font-medium">{c.phone || '-'}</td>
+                                 <td className="p-4 text-slate-600 font-bold">{c.lineId || '-'}</td>
+                                 <td className="p-4"><span className="bg-slate-100 border border-slate-200 text-slate-600 px-2 py-0.5 rounded text-[11px] font-bold">{c.type || '-'}</span></td>
+                                 <td className="p-4 text-slate-600">{c.symptom || '-'}</td>
+                                 <td className="p-4 text-indigo-600 font-bold">{c.closer || '-'}</td>
+                                 <td className="p-4 text-amber-600 font-bold">{c.memberName || c.memberId || '-'}</td>
+                                 {isAdmin && (
+                                   <td className="p-4 text-center border-l border-slate-100 bg-slate-50/50">
+                                      <button onClick={() => setEditCustData(c)} className="text-blue-500 hover:text-blue-700 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm mx-1"><Edit size={16}/></button>
+                                      <button onClick={() => setConfirmDeleteCust({show:true, id: c.id, title: c.name})} className="text-red-500 hover:text-red-700 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm mx-1"><Trash2 size={16}/></button>
+                                   </td>
+                                 )}
+                              </tr>
+                           )) : <tr><td colSpan={isAdmin ? 8 : 7} className="p-12 text-center text-slate-500 font-bold text-base bg-slate-50">ไม่มีข้อมูลที่ค้นหา</td></tr>}
+                        </tbody>
+                     </table>
+                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Detail */}
+            <EditModal isOpen={viewCustomer !== null} onClose={() => setViewCustomer(null)} title="ข้อมูลลูกค้า" icon={Contact}>
+                {viewCustomer && (
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
+                       <div><span className={labelClassHud}>รหัสลูกค้า</span><span className="font-black text-lg text-blue-600 bg-blue-50 px-3 py-1 rounded-lg border border-blue-100 inline-block">{viewCustomer.id}</span></div>
+                       <div><span className={labelClassHud}>ชื่อลูกค้า</span><span className="font-bold text-lg text-slate-800">{viewCustomer.name}</span></div>
+                        <div><span className={labelClassHud}>เบอร์โทรศัพท์</span><span className="font-bold text-base text-slate-700">{viewCustomer.phone || '-'}</span></div>
+                        <div><span className={labelClassHud}>LINE ID</span><span className="font-bold text-base text-slate-700">{viewCustomer.lineId || '-'}</span></div>
+                        <div className="sm:col-span-2"><span className={labelClassHud}>ผู้ปิดการขาย (Closer)</span><span className="font-bold text-base text-slate-700">{viewCustomer.closer || '-'}</span></div>
+                       <div className="sm:col-span-2"><span className={labelClassHud}>โรค/อาการ</span><span className="font-medium text-slate-700 bg-slate-50 p-4 rounded-xl block border border-slate-200 min-h-[80px] shadow-inner">{viewCustomer.symptom || '-'}</span></div>
+                       <div><span className={labelClassHud}>ประเภทล่าสุด</span><span className="font-bold text-fuchsia-700 bg-fuchsia-50 px-3 py-1 rounded-lg border border-fuchsia-200 text-sm inline-block">{viewCustomer.type || '-'}</span></div>
+                       <div><span className={labelClassHud}>มาแล้ว</span><span className="font-black text-emerald-800 bg-emerald-100 px-3 py-1 rounded-lg border border-emerald-200 text-sm inline-block">{viewCustomer.visitCount} ครั้ง</span></div>
+                       <div className="sm:col-span-2"><span className={labelClassHud}>เจ้าของเคส</span><span className="font-bold text-amber-700 text-base">{viewCustomer.memberName || viewCustomer.memberId}</span></div>
+                   </div>
+                )}
+            </EditModal>
+
+            {/* Modal Ranking */}
+            <EditModal isOpen={rankingModal !== null} onClose={() => setRankingModal(null)} title={rankingModal ? `จัดอันดับ: ${rankingModal.title}` : ''} icon={rankingModal ? () => rankingModal.icon : null}>
+                {rankingModal && (
+                    <div className="p-0 overflow-y-auto hide-scroll rounded-xl border border-slate-200 shadow-sm">
+                        <table className="w-full text-left border-collapse">
+                           <thead className="bg-slate-50 sticky top-0 border-b border-slate-200 z-10 shadow-sm">
+                             <tr><th className="p-4 pl-6 text-[13px] font-bold text-slate-600 w-24">อันดับ</th><th className="p-4 text-[13px] font-bold text-slate-600">ชื่อ</th><th className="p-4 pr-6 text-[13px] font-bold text-slate-600 text-right">ยอด</th></tr>
+                           </thead>
+                           <tbody>
+                             {rankingModal.data.map(([name, qty], idx) => (
+                               <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                  <td className="p-4 pl-6 font-black text-slate-400 text-lg">{idx + 1}</td>
+                                  <td className="p-4 font-bold text-slate-800 text-base">{name}</td>
+                                  <td className="p-4 pr-6 text-right font-black text-blue-600 text-lg">{qty} <span className="text-xs font-bold text-slate-500">{rankingModal.unit}</span></td>
+                               </tr>
+                             ))}
+                             {rankingModal.data.length === 0 && (<tr><td colSpan="3" className="p-12 text-center text-slate-500 text-base font-bold bg-slate-50/50">ไม่มีข้อมูล</td></tr>)}
+                           </tbody>
+                        </table>
+                    </div>
+                )}
+            </EditModal>
+
+          </div>
+        );
+    };
+
+    // ==========================================
+    // 📌 React App (Main Component)
+    // ==========================================
+    const App = () => {
+      const [isLoggedIn, setIsLoggedIn] = useState(false);
+      const [currentUser, setCurrentUser] = useState(null);
+      const [showLoginModal, setShowLoginModal] = useState(false);
+      
+      const [products, setProducts] = useState([]);
+      const [customerTypes, setCustomerTypes] = useState(fallbackCustomerTypes);
+      const [closers, setClosers] = useState([]);
+      const [members, setMembers] = useState([]);
+      const [customers, setCustomers] = useState([]);
+      const [sales, setSales] = useState([]);
+      const [systemUsers, setSystemUsers] = useState([]);
+      const [isAppLoading, setIsAppLoading] = useState(true);
+      const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+        try {
+          return localStorage.getItem('stk_sidebar_collapsed') === 'true';
+        } catch(e) {
+          return false;
+        }
+      });
+      
+      const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+      const showToast = (message, type = 'success') => {
+        setToast({ show: true, message, type });
+      };
+
+      const SCRIPT_URL = "<?= getScriptUrl() ?>";
+
+      const isAdmin = currentUser && (
+          String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
+          String(currentUser.role).trim().toLowerCase() === 'admin'
+      );
+      const currentUserProfileUrl = currentUser?.profileUrl || '';
+
+      const activeCustomerTypes = useMemo(() => {
+          if (!customerTypes || customerTypes.length === 0) return fallbackCustomerTypes;
+          return (customerTypes || []).filter(p => p && p.status === 'ใช้งาน');
+      }, [customerTypes]);
+
+      useEffect(() => {
+        const savedUserStr = localStorage.getItem('stk_current_user');
+        if (savedUserStr) {
+          const user = JSON.parse(savedUserStr);
+          setCurrentUser(user);
+          setIsLoggedIn(true);
+        } else {
+          setShowLoginModal(true);
+        }
+
+        const initialLoader = document.getElementById('initial-loader');
+        if (initialLoader) {
+            initialLoader.style.display = 'none';
+        }
+
+        if (typeof google !== 'undefined' && google.script) {
+           try {
+               const cachedData = localStorage.getItem('stk_app_cache_data');
+               if (cachedData) {
+                   const parsedData = JSON.parse(cachedData);
+                   applyDataToStates(parsedData);
+                   setIsAppLoading(false);
+               }
+           } catch (e) { console.warn("Cache error", e); }
+
+           google.script.run
+             .withSuccessHandler((response) => {
+                if (response) {
+                    try { localStorage.setItem('stk_app_cache_data', JSON.stringify(response)); } catch(e){}
+                    applyDataToStates(response);
+                }
+                setIsAppLoading(false); 
+             })
+             .withFailureHandler((error) => {
+                setIsAppLoading(false);
+                showToast('กรุณากรอกชื่อลูกค้: ' + (error ? (error.message || error) : ''), 'error');
+             })
+             .getInitialData(); 
+        } else {
+           setProducts([{ id: 'P001', name: 'SESAMIN', status: 'ใช้งาน' }]);
+           setCustomerTypes(fallbackCustomerTypes);
+           setClosers([{ id: 'C001', name: 'BEE', team: 'Marketing', status: 'ใช้งาน' }, { id: 'C002', name: 'HAT', team: 'Center', status: 'ใช้งาน' }]);
+           setIsAppLoading(false);
+        }
+      }, []);
+
+      const applyDataToStates = (response) => {
+           if (Array.isArray(response.products)) setProducts(response.products);
+           if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes);
+           if (Array.isArray(response.closers)) setClosers(response.closers);
+           if (Array.isArray(response.members)) setMembers(response.members);
+           if (Array.isArray(response.customers)) setCustomers(response.customers);
+           if (Array.isArray(response.systemUsers)) setSystemUsers(response.systemUsers);
+           
+           if (Array.isArray(response.sales)) {
+               const processedSales = response.sales.map(s => {
+                   let sumF = 0, sumP = 0, sumZ = 0;
+                   Object.keys(s).forEach(k => {
+                       if (k !== 'รวมชิ้นราคาเต็ม' && k !== 'รวมชิ้นราคาโปร' && k !== 'รวมชิ้นราคาศูนย์' && k !== 'ยอดรวมชิ้นทั้งหมด') {
+                           if (k.endsWith('_ราคาเต็ม')) sumF += (parseInt(s[k]) || 0);
+                           else if (k.endsWith('_ราคาโปร')) sumP += (parseInt(s[k]) || 0);
+                           else if (k.endsWith('_ราคาศูนย์')) sumZ += (parseInt(s[k]) || 0);
+                       }
+                   });
+                   s['รวมชิ้นราคาเต็ม'] = sumF; s['รวมชิ้นราคาโปร'] = sumP; s['รวมชิ้นราคาศูนย์'] = sumZ;
+                   s['ยอดรวมชิ้นทั้งหมด'] = sumF + sumP + sumZ;
+                   return s;
+               });
+               setSales(processedSales);
+           }
+      };
+
+      const handleLoginSuccess = (user) => {
+        localStorage.setItem('stk_current_user', JSON.stringify(user));
+        setCurrentUser(user);
+        setIsLoggedIn(true);
+        setShowLoginModal(false);
+        showToast('เข้าสู่ระบบสำเร็จ!', 'success');
+      };
+
+      const handleLogout = () => {
+        localStorage.removeItem('stk_current_user');
+        setCurrentUser(null);
+        setIsLoggedIn(false);
+        if (typeof window !== 'undefined') {
+          window.open(resolvePageUrl(SCRIPT_URL + '?page=dashboard'), '_top');
+        }
+      };
+
+      return (
+        <div className="min-h-screen flex font-sans bg-slate-50">
+          <Sidebar 
+            activePage="customers" 
+            isLoggedIn={isLoggedIn} 
+            currentUser={currentUser} 
+            currentUserProfileUrl={currentUserProfileUrl} 
+            isAdmin={isAdmin} 
+            onLogout={handleLogout} 
+            showLoginModal={showLoginModal} 
+            setShowLoginModal={setShowLoginModal} 
+            SCRIPT_URL={SCRIPT_URL}
+            setIsAppLoading={setIsAppLoading}
+            isSidebarCollapsed={isSidebarCollapsed}
+            setIsSidebarCollapsed={setIsSidebarCollapsed}
+          />
+          
+          <main className={`flex-1 flex flex-col min-h-screen bg-slate-50 transition-all duration-300 relative ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} w-full overflow-x-hidden`}>
+            
+            {toast.show && (
+              <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animation-fade-in" style={{ animationDuration: '0.2s' }}>
+                 <div className={`bg-white rounded-3xl shadow-xl p-8 max-w-sm w-full text-center animation-pop border-t-4 ${toast.type === 'error' ? 'border-red-500' : toast.type === 'info' ? 'border-blue-500' : 'border-emerald-500'}`}>
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${toast.type === 'error' ? 'bg-red-100 text-red-500' : toast.type === 'info' ? 'bg-blue-100 text-blue-500' : 'bg-emerald-100 text-emerald-500'}`}>
+                       {toast.type === 'error' ? <X size={32} /> : toast.type === 'info' ? <Trophy size={32} /> : <CheckCircle size={32} />}
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">{toast.type === 'error' ? 'เกิดข้อผิดพลาด' : toast.type === 'info' ? 'แจ้งเตือน' : 'สำเร็จ!'}</h3>
+                    <p className="text-slate-600 font-medium text-sm mb-6">{toast.message}</p>
+                    <button onClick={() => setToast({ ...toast, show: false })} className="w-full py-2.5 rounded-lg font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors">ตกลง</button>
+                 </div>
+              </div>
+            )}
+
+            <div className="p-3 sm:p-6 flex-1 w-full relative z-0">
+              <div className="w-full relative z-10">
+                {isAppLoading ? (
+                  <div className="flex flex-col items-center justify-center py-32 gap-5 animation-fade-in">
+                    <div className="w-16 h-16 border-[4px] border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+                    <h2 className="text-lg font-bold text-slate-700">กำลังซิงค์ข้อมูลกับฐานข้อมูล...</h2>
+                    <p className="text-slate-500 text-sm">กรุณารอสักครู่ ระบบกำลังดึงข้อมูลล่าสุด</p>
+                  </div>
+                ) : isLoggedIn ? (
+                  <CustomerManagementView 
+                    sales={sales} 
+                    customers={customers} 
+                    members={members} 
+                    closers={closers} 
+                    activeCustomerTypes={activeCustomerTypes} 
+                    setCustomers={setCustomers} 
+                    showToast={showToast} 
+                    isAdmin={isAdmin} 
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-32 gap-5 animation-fade-in">
+                    <h2 className="text-xl font-black text-red-500">กรุณาเข้าสู่ระบบก่อนใช้งาน</h2>
+                    <button onClick={() => setShowLoginModal(true)} className={btnClassPrimary}>เข้าสู่ระบบ</button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <footer className="w-full text-center py-6 mt-auto border-t border-slate-200/50 no-print shrink-0">
+               <p className="text-[11px] font-bold text-slate-400 opacity-60 hover:opacity-100 transition-opacity">
+                  &copy; {new Date().getFullYear()} STK Sales Management System. Developed by Sackda Southammavong.
+               </p>
+            </footer>
+
+          </main>
+
+          <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} onLoginSuccess={handleLoginSuccess} systemUsers={systemUsers} />
+
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

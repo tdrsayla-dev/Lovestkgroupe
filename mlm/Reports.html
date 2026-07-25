@@ -1,0 +1,2155 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>รายงานสรุปและผลประโยชน์ (Reports) - LOVE STK GROUPE</title>
+  <!-- Standalone & GAS Libraries -->
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
+    body { font-family: 'Inter', 'IBM Plex Sans Thai', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; }
+  </style>
+  <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+    window.SUPABASE_URL='https://qqyotianqcgpdzrfgjif.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
+    if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
+    async function supabaseSelect(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:window.SUPABASE_HEADERS});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();}
+    async function supabaseInsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('INSERT '+t+':'+r.status);return r.json();}
+    async function supabaseUpdate(t,id,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('UPDATE '+t+':'+r.status);return r.json();}
+    async function supabaseDelete(t,id){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'DELETE',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'})});if(!r.ok)throw new Error('DELETE '+t+':'+r.status);return true;}
+    async function supabaseUpsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'resolution=merge-duplicates,return=representation'}),body:JSON.stringify(d)});if(!r.ok)throw new Error('UPSERT '+t+':'+r.status);return r.json();}
+  </script>
+  <script src="CommonComponents.js"></script>
+  <script>
+    window.addEventListener('DOMContentLoaded', function() {
+      setTimeout(function() { var l=document.getElementById('initial-loader'); if(l)l.style.display='none'; }, 600);
+    });
+  </script>
+  <?!= include('Includes'); ?>
+</head>
+<body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
+
+  <div id="initial-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999;">
+    <div style="width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 24px;"></div>
+    <style>@keyframes initial-spin { to { transform: rotate(360deg); } }</style>
+    <h2 style="font-size: 1.75rem; font-weight: 800; color: #1e40af; margin: 0; letter-spacing: -0.025em;">STK<span style="color: #475569;">System</span></h2>
+    <p style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 8px;">กำลังโหลดระบบจัดการข้อมูลและรายงาน...</p>
+  </div>
+
+  <div id="root"></div>
+
+  <script>
+    window.INITIAL_REPORT_GROUP = "<?= getInitialGroup() ?>";
+  </script>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect, useRef, useCallback } = React;
+
+    const fallbackCustomerTypes = window.fallbackCustomerTypes || [
+       { id: 'T001', name: 'ลูกค้าใหม่', status: 'ใช้งาน' },
+       { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'ใช้งาน' }
+    ];
+    const fallbackProductsList = window.fallbackProductsList || ['SESAMIN', 'APPLE', 'KING_GOLD'];
+
+    /* <?!= include('CommonComponents'); ?> */
+
+    // Helper Badge Renderer Component
+    const renderDetailBadges = (detailsObj, colorClasses) => {
+        const keys = Object.keys(detailsObj || {});
+        if (keys.length === 0) return <span className="text-slate-300 text-xs">-</span>;
+        return (
+            <div className="flex flex-wrap gap-1.5">
+                {keys.map(p => (
+                    <span key={p} className={`px-2.5 py-1 rounded-md text-[11px] font-bold flex items-center gap-1.5 shadow-sm ${colorClasses}`}>
+                        {p} <span className="bg-white/90 px-1.5 rounded-sm border border-[inherit] font-black">{detailsObj[p]}</span>
+                    </span>
+                ))}
+            </div>
+        );
+    };
+
+    // Helper Team Name Resolver
+    const resolveTeamName = (rawTeam, businessTeams) => {
+        if (!rawTeam) return 'N/A';
+        const tUpper = String(rawTeam).trim().toUpperCase();
+        if (tUpper === 'TEAM A' || tUpper === 'T01' || tUpper === 'TB1') return 'Marketing';
+        if (tUpper === 'TEAM B' || tUpper === 'T02' || tUpper === 'TB2') return 'Center';
+        if (Array.isArray(businessTeams)) {
+            const found = businessTeams.find(bt => bt && (safeUpper(bt.id) === tUpper || safeUpper(bt.name) === tUpper));
+            if (found && found.name) return found.name;
+        }
+        return rawTeam;
+    };
+
+    // Sub-Tab Button Component
+    const SubTabButton = ({ id, label, activeTab, setSubTab, isSpecial, isData }) => {
+        const isActive = activeTab === id;
+        let baseClass = "px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex-shrink-0 shadow-sm border ";
+        if (isActive) {
+            if (isSpecial) baseClass += "bg-indigo-600 text-white border-indigo-600 shadow-indigo-200";
+            else if (isData) baseClass += "bg-emerald-600 text-white border-emerald-600 shadow-emerald-200";
+            else baseClass += "bg-blue-600 text-white border-blue-600 shadow-blue-200";
+        } else {
+            baseClass += "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-blue-600";
+        }
+        return (
+            <button type="button" onClick={() => setSubTab(id)} className={baseClass}>
+                {label}
+            </button>
+        );
+    };
+
+    // ==========================================
+    // ⚙️ Product Commission & Dividend Settings Modal Component
+    // ==========================================
+    const ProductCommissionSettingsModal = ({ isOpen, onClose, products, onSave, isSaving }) => {
+        const [editableProducts, setEditableProducts] = useState([]);
+
+        useEffect(() => {
+            if (products) {
+                setEditableProducts(JSON.parse(JSON.stringify(products)));
+            }
+        }, [products]);
+
+        if (!isOpen) return null;
+
+        const handleInputChange = (index, field, value) => {
+            const updated = [...editableProducts];
+            updated[index][field] = Number(value) || 0;
+            setEditableProducts(updated);
+        };
+
+        const handleSave = () => {
+            onSave(editableProducts);
+        };
+
+        return (
+            <EditModal isOpen={isOpen} onClose={onClose} title="⚙️ ตั้งค่าอัตราค่าคอมมิชชันและปันผลสินค้า" icon={SettingsIcon} maxWidthClass="max-w-6xl">
+                <div className="space-y-4">
+                    <p className="text-xs font-bold text-slate-500">
+                        กำหนดค่าคอมมิชชันขายเองข้างกล่อง และเปอร์เซ็นต์ค่าแนะนำชั้น 1 - 5 สำหรับแต่ละสินค้า
+                    </p>
+
+                    <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                        <div className="overflow-x-auto max-h-[60vh]">
+                            <table className="w-full text-left border-collapse min-w-[950px]">
+                                <thead className="sticky top-0 bg-slate-900 text-white z-10">
+                                    <tr>
+                                        <th className="p-3 text-xs font-bold border-b border-slate-800">สินค้า</th>
+                                        <th className="p-3 text-xs font-bold border-b border-slate-800 text-center bg-blue-900/50">คอมขายเอง (บาท/กีบ)</th>
+                                        <th className="p-3 text-xs font-bold border-b border-slate-800 text-center bg-blue-900/50">คอมขายเอง (%)</th>
+                                        <th className="p-3 text-xs font-bold border-b border-slate-800 text-center bg-emerald-900/50">ชั้น 1 (บาท/กีบ)</th>
+                                        <th className="p-3 text-xs font-bold border-b border-slate-800 text-center bg-emerald-900/50">ชั้น 1 (%)</th>
+                                        <th className="p-3 text-xs font-bold border-b border-slate-800 text-center bg-indigo-900/50">ชั้น 2 (บาท/กีบ)</th>
+                                        <th className="p-3 text-xs font-bold border-b border-slate-800 text-center bg-indigo-900/50">ชั้น 2 (%)</th>
+                                        <th className="p-3 text-xs font-bold border-b border-slate-800 text-center bg-fuchsia-900/50">ชั้น 3 (บาท/กีบ)</th>
+                                        <th className="p-3 text-xs font-bold border-b border-slate-800 text-center bg-fuchsia-900/50">ชั้น 3 (%)</th>
+                                        <th className="p-3 text-xs font-bold border-b border-slate-800 text-center bg-rose-900/50">ชั้น 4 (บาท/กีบ)</th>
+                                        <th className="p-3 text-xs font-bold border-b border-slate-800 text-center bg-rose-900/50">ชั้น 5 (บาท/กีบ)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {editableProducts.map((p, index) => (
+                                        <tr key={p.id || index} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                            <td className="p-3">
+                                                <div className="font-bold text-slate-800 text-xs">{p.name}</div>
+                                                <div className="text-[10px] text-slate-400 font-mono">{p.id}</div>
+                                            </td>
+                                            <td className="p-2 text-center bg-blue-50/20">
+                                                <input type="number" min="0" className="w-20 p-1.5 text-center text-xs font-bold border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={p.selfFee || 0} onChange={e => handleInputChange(index, 'selfFee', e.target.value)} />
+                                            </td>
+                                            <td className="p-2 text-center bg-blue-50/20">
+                                                <input type="number" min="0" step="0.5" className="w-16 p-1.5 text-center text-xs font-bold border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={p.selfPercent || 0} onChange={e => handleInputChange(index, 'selfPercent', e.target.value)} />
+                                            </td>
+                                            <td className="p-2 text-center bg-emerald-50/20">
+                                                <input type="number" min="0" className="w-20 p-1.5 text-center text-xs font-bold border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" value={p.level1Fee || 0} onChange={e => handleInputChange(index, 'level1Fee', e.target.value)} />
+                                            </td>
+                                            <td className="p-2 text-center bg-emerald-50/20">
+                                                <input type="number" min="0" step="0.5" className="w-16 p-1.5 text-center text-xs font-bold border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" value={p.level1Percent || 0} onChange={e => handleInputChange(index, 'level1Percent', e.target.value)} />
+                                            </td>
+                                            <td className="p-2 text-center bg-indigo-50/20">
+                                                <input type="number" min="0" className="w-20 p-1.5 text-center text-xs font-bold border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" value={p.level2Fee || 0} onChange={e => handleInputChange(index, 'level2Fee', e.target.value)} />
+                                            </td>
+                                            <td className="p-2 text-center bg-indigo-50/20">
+                                                <input type="number" min="0" step="0.5" className="w-16 p-1.5 text-center text-xs font-bold border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" value={p.level2Percent || 0} onChange={e => handleInputChange(index, 'level2Percent', e.target.value)} />
+                                            </td>
+                                            <td className="p-2 text-center bg-fuchsia-50/20">
+                                                <input type="number" min="0" className="w-20 p-1.5 text-center text-xs font-bold border border-slate-200 rounded-lg focus:ring-2 focus:ring-fuchsia-500 outline-none" value={p.level3Fee || 0} onChange={e => handleInputChange(index, 'level3Fee', e.target.value)} />
+                                            </td>
+                                            <td className="p-2 text-center bg-fuchsia-50/20">
+                                                <input type="number" min="0" step="0.5" className="w-16 p-1.5 text-center text-xs font-bold border border-slate-200 rounded-lg focus:ring-2 focus:ring-fuchsia-500 outline-none" value={p.level3Percent || 0} onChange={e => handleInputChange(index, 'level3Percent', e.target.value)} />
+                                            </td>
+                                            <td className="p-2 text-center bg-rose-50/20">
+                                                <input type="number" min="0" className="w-20 p-1.5 text-center text-xs font-bold border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500 outline-none" value={p.level4Fee || 0} onChange={e => handleInputChange(index, 'level4Fee', e.target.value)} />
+                                            </td>
+                                            <td className="p-2 text-center bg-rose-50/20">
+                                                <input type="number" min="0" className="w-20 p-1.5 text-center text-xs font-bold border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500 outline-none" value={p.level5Fee || 0} onChange={e => handleInputChange(index, 'level5Fee', e.target.value)} />
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-3">
+                        <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs">ยกเลิก</button>
+                        <button type="button" onClick={handleSave} disabled={isSaving} className="px-6 py-2.5 rounded-xl font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md text-xs flex items-center gap-2">
+                            {isSaving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : '💾 บันทึกการตั้งค่าลงระบบ'}
+                        </button>
+                    </div>
+                </div>
+            </EditModal>
+        );
+    };
+
+    // ==========================================
+    // 📌 Reports View Component
+    // ==========================================
+    const ReportsView = ({ sales, members, customers, activeCustomerTypes, products, systemSettings, businessTeams, currentUser, isAdmin, onRefreshData }) => {
+        const todayStr = getLocalISODate();
+        const [startDate, setStartDate] = useState(todayStr);
+        const [endDate, setEndDate] = useState(todayStr);
+
+        // Group Parameter URL Handling
+        const [activeGroup, setActiveGroup] = useState(() => {
+            const injected = typeof window !== 'undefined' && window.INITIAL_REPORT_GROUP ? window.INITIAL_REPORT_GROUP : null;
+            if (injected && ['sales', 'finance', 'stock', 'referral'].includes(injected)) {
+                return injected;
+            }
+            const params = new URLSearchParams(window.location.search);
+            return params.get('group') || 'sales';
+        });
+
+        const [subTab, setSubTab] = useState('sales_member_day');
+        const [searchQuery, setSearchQuery] = useState('');
+        const [currencyMode, setCurrencyMode] = useState('LAK'); // 'LAK' or 'THB'
+        const exchangeRate = Number(systemSettings?.exchange_rate || 700);
+
+        // Referral Calculation Options & Filters
+        const [referralCalcMode, setReferralCalcMode] = useState('box'); // 'box', 'percent', 'combo'
+        const [selectedSponsorFilter, setSelectedSponsorFilter] = useState(''); // Mother team line filter
+        const [selectedTeamFilter, setSelectedTeamFilter] = useState(''); // Team filter
+
+        // Stock Period View (Daily / Weekly / Monthly)
+        const [stockPeriodMode, setStockPeriodMode] = useState('day'); // 'day', 'week', 'month'
+        const [stockModalItem, setStockModalItem] = useState(null); // Product item selected for bill drilldown
+
+        // Product Commission Settings Modal State
+        const [showSettingsModal, setShowSettingsModal] = useState(false);
+        const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+        // Listen for URL changes when user clicks Sidebar links
+        useEffect(() => {
+            const checkUrlGroup = () => {
+                const params = new URLSearchParams(window.location.search);
+                const currentGroup = params.get('group') || (window.INITIAL_REPORT_GROUP || 'sales');
+                setActiveGroup(currentGroup);
+            };
+            checkUrlGroup();
+            window.addEventListener('popstate', checkUrlGroup);
+            return () => window.removeEventListener('popstate', checkUrlGroup);
+        }, []);
+
+        // Update default sub-tab when Group changes
+        useEffect(() => {
+            if (activeGroup === 'sales') setSubTab('sales_member_day');
+            else if (activeGroup === 'finance') setSubTab('finance_summary');
+            else if (activeGroup === 'stock') setSubTab('stock_sales_by_product');
+            else if (activeGroup === 'referral') setSubTab('referral_fee');
+        }, [activeGroup]);
+
+        // Currency Conversions
+        const convertVal = useCallback((lakVal) => {
+            if (currencyMode === 'THB') {
+                return lakVal / exchangeRate;
+            }
+            return lakVal;
+        }, [currencyMode, exchangeRate]);
+
+        const getCurrencySuffix = useCallback(() => {
+            return currencyMode === 'THB' ? 'บาท' : 'กีบ';
+        }, [currencyMode]);
+
+        const formatValDisplay = useCallback((lakVal) => {
+            if (lakVal <= 0) return '-';
+            const converted = convertVal(lakVal);
+            if (currencyMode === 'THB') {
+                return converted % 1 === 0 ? converted.toLocaleString() : converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+            return Math.round(converted).toLocaleString();
+        }, [convertVal, currencyMode]);
+
+        const debouncedSearchQuery = useDebounce(searchQuery, 300);
+        const [detailModalEarner, setDetailModalEarner] = useState(null);
+
+        // Distinct Teams list with Clean Names
+        const distinctTeams = useMemo(() => {
+            const set = new Set();
+            (members || []).forEach(m => { 
+                if (m && m.team) {
+                    const cName = resolveTeamName(m.team, businessTeams);
+                    set.add(cName);
+                } 
+            });
+            return Array.from(set).sort();
+        }, [members, businessTeams]);
+
+        // Distinct Upline Leaders (Sponsors) list
+        const uplineLeadersList = useMemo(() => {
+            const sponsorIds = new Set();
+            (members || []).forEach(m => {
+                if (m && (m.referrer || m.sponsorId)) {
+                    sponsorIds.add(safeUpper(m.referrer || m.sponsorId));
+                }
+            });
+            return (members || []).filter(m => m && sponsorIds.has(safeUpper(m.id)));
+        }, [members]);
+
+        // Save Product Commission Fees Handler
+        const handleSaveProductFees = (updatedProducts) => {
+            setIsSavingSettings(true);
+            if (typeof google !== 'undefined' && google.script) {
+                google.script.run
+                    .withSuccessHandler((res) => {
+                        setIsSavingSettings(false);
+                        setShowSettingsModal(false);
+                        if (onRefreshData) onRefreshData();
+                        alert(res.message || 'บันทึกการตั้งค่าเรียบร้อยแล้ว!');
+                    })
+                    .withFailureHandler((err) => {
+                        setIsSavingSettings(false);
+                        alert('เกิดข้อผิดพลาด: ' + (err.message || err));
+                    })
+                    .updateProductCommissionSettings(updatedProducts);
+            } else {
+                setIsSavingSettings(false);
+                setShowSettingsModal(false);
+                alert('บันทึกการตั้งค่าสำเร็จ (โหมดจำลอง)');
+            }
+        };
+
+        // ==========================================
+        // 🔒 Line Hierarchy & Permission Scoping
+        // ==========================================
+        const permittedMemberSet = useMemo(() => {
+            if (!currentUser) return null;
+            if (isAdmin) return null; // Admin can see all
+
+            const userId = safeUpper(currentUser.id || currentUser.username);
+            let downlines = new Set([userId]);
+            let queue = [userId];
+
+            while (queue.length > 0) {
+                let parentId = queue.shift();
+                (members || []).forEach(m => {
+                    if (m && m.id) {
+                        const sponsor = safeUpper(m.referrer || m.sponsorId);
+                        if (sponsor === parentId) {
+                            let mId = safeUpper(m.id);
+                            if (!downlines.has(mId)) {
+                                downlines.add(mId);
+                                queue.push(mId);
+                            }
+                        }
+                    }
+                });
+            }
+            return downlines;
+        }, [currentUser, isAdmin, members]);
+
+        useEffect(() => {
+            const isMonthly = subTab.includes('month') || subTab === 'finance_summary';
+            if (isMonthly || subTab === 'ranking' || subTab === 'sales_by_cust_type' || subTab === 'referral_fee') {
+                const now = new Date();
+                setStartDate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`);
+                setEndDate(todayStr);
+            } else {
+                setStartDate(todayStr);
+                setEndDate(todayStr);
+            }
+        }, [subTab]);
+
+        // Unfolded Sales Records with Permission Scoping
+        const unfoldedSales = useMemo(() => {
+            let items = [];
+            const dateFilteredSales = (sales || []).filter(s => {
+                if (!s || (s.date || '') < startDate || (s.date || '') > endDate) return false;
+                if (permittedMemberSet !== null) {
+                    return permittedMemberSet.has(safeUpper(s.memberId));
+                }
+                return true;
+            });
+
+            dateFilteredSales.forEach(record => {
+                const member = (members || []).find(m => m && safeUpper(m.id) === safeUpper(record.memberId));
+                const cust = (customers || []).find(c => c && c.id === record.customerId);
+                const cleanTeam = resolveTeamName(member?.team, businessTeams);
+
+                Object.entries(record || {}).forEach(([key, value]) => {
+                    if (key.endsWith('_ราคาเต็ม') || key.endsWith('_ราคาสมาชิก') || key.endsWith('_ราคาโปร') || key.endsWith('_ราคาศูนย์')) {
+                        const qty = parseInt(value, 10);
+                        if (!isNaN(qty) && qty > 0) {
+                            const lastUnderscore = key.lastIndexOf('_');
+                            items.push({
+                                billId: record.id,
+                                date: record.date || '',
+                                memberId: record.memberId,
+                                memberName: member?.name || record.memberId || 'UNKNOWN',
+                                team: cleanTeam,
+                                custType: cust ? cust.type : 'N/A',
+                                product: key.substring(0, lastUnderscore).replace(/\(.*?\)/g, '').trim(),
+                                priceType: key.substring(lastUnderscore + 1),
+                                qty: qty
+                            });
+                        }
+                    }
+                });
+            });
+            return items;
+        }, [sales, members, customers, startDate, endDate, permittedMemberSet, businessTeams]);
+
+        // Upline Leader Team Summary Card Data
+        const uplineTeamSummary = useMemo(() => {
+            if (!currentUser || !permittedMemberSet) return null;
+            const currentId = safeUpper(currentUser.id || currentUser.username);
+            const downlineCount = Math.max(permittedMemberSet.size - 1, 0);
+            let selfBoxes = 0;
+            let downlineBoxes = 0;
+
+            (unfoldedSales || []).forEach(s => {
+                const mId = safeUpper(s.memberId);
+                if (mId === currentId) {
+                    selfBoxes += s.qty;
+                } else if (permittedMemberSet.has(mId)) {
+                    downlineBoxes += s.qty;
+                }
+            });
+
+            return {
+                downlineCount,
+                selfBoxes,
+                downlineBoxes,
+                totalTeamBoxes: selfBoxes + downlineBoxes
+            };
+        }, [currentUser, permittedMemberSet, unfoldedSales]);
+
+        // ==========================================
+        // 🎁 Referral & Self-Sale Commission Report Data (Exact Level Matching Fix)
+        // ==========================================
+        const referralReportData = useMemo(() => {
+            if (activeGroup !== 'referral') return [];
+            let memberMap = {};
+
+            (members || []).forEach(m => {
+                if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(m.id))) return;
+
+                const cTeam = resolveTeamName(m.team, businessTeams);
+
+                // Team filter
+                if (selectedTeamFilter && safeUpper(cTeam) !== safeUpper(selectedTeamFilter)) return;
+
+                // Sponsor line filter
+                if (selectedSponsorFilter) {
+                    const motherId = safeUpper(selectedSponsorFilter);
+                    const isMotherOrChild = safeUpper(m.id) === motherId || safeUpper(m.referrer) === motherId || safeUpper(m.sponsorId) === motherId;
+                    if (!isMotherOrChild) return;
+                }
+
+                let levelEarns = {};
+                for (let l = 1; l <= 10; l++) levelEarns[`level${l}Earn`] = 0;
+
+                memberMap[safeUpper(m.id)] = {
+                    id: m.id,
+                    name: m.name,
+                    team: cTeam,
+                    profileUrl: m.profileUrl || '',
+                    details: {},
+                    selfBoxes: 0,
+                    selfEarn: 0,
+                    selfPv: 0,
+                    teamBoxes: 0,
+                    teamPv: 0,
+                    ...levelEarns
+                };
+            });
+
+            unfoldedSales.forEach(s => {
+                if (s.priceType !== 'ราคาเต็ม' && s.priceType !== 'ราคาสมาชิก') return;
+                const cleanProdName = (name) => String(name || '').replace(/\(.*?\)/g, '').trim().toUpperCase();
+                const target = cleanProdName(s.product);
+                const prodConfig = (products || []).find(p => {
+                    if (!p) return false;
+                    const pName = cleanProdName(p.name);
+                    const pId = cleanProdName(p.id);
+                    return target === pName || target === pId || pName.includes(target) || target.includes(pName);
+                }) || { priceFull: 0, givePv: 0, selfFee: 0, level1Fee: 0 };
+
+                const priceFull = Number(prodConfig.priceFull || prodConfig.priceMember || 0);
+
+                // Exact Level Fee & Percent Resolver
+                const computePayout = (levelIdx) => {
+                    let feePerBox = 0;
+                    let feePercent = 0;
+
+                    if (levelIdx === 0) {
+                        feePerBox = Number(prodConfig.selfFee || prodConfig.directFee || prodConfig.self_fee || prodConfig.level0Fee || 0);
+                        feePercent = Number(prodConfig.selfPercent || prodConfig.level0Percent || 0);
+                    } else if (levelIdx === 1) {
+                        feePerBox = Number(prodConfig.level1Fee || prodConfig.uplineFee || prodConfig.level_1_fee || 0);
+                        feePercent = Number(prodConfig.level1Percent || prodConfig.level_1_percent || 0);
+                    } else {
+                        feePerBox = Number(prodConfig[`level${levelIdx}Fee`] || prodConfig[`level_${levelIdx}_fee`] || 0);
+                        feePercent = Number(prodConfig[`level${levelIdx}Percent`] || prodConfig[`level_${levelIdx}_percent`] || 0);
+                    }
+
+                    const boxEarn = feePerBox * s.qty;
+                    const percentEarn = (priceFull * s.qty) * (feePercent / 100);
+
+                    if (referralCalcMode === 'percent') return percentEarn;
+                    if (referralCalcMode === 'combo') return boxEarn + percentEarn;
+                    return boxEarn;
+                };
+
+                // 1. Direct Seller Self Commission (Level 0)
+                const sellerKey = safeUpper(s.memberId);
+                if (memberMap[sellerKey]) {
+                    const selfPay = computePayout(0);
+                    const givePv = Number(prodConfig.givePv || prodConfig.pv || 0);
+                    memberMap[sellerKey].selfBoxes += s.qty;
+                    memberMap[sellerKey].selfEarn += selfPay;
+                    memberMap[sellerKey].selfPv += (givePv * s.qty);
+                    memberMap[sellerKey].details[s.product] = (memberMap[sellerKey].details[s.product] || 0) + s.qty;
+                }
+
+                // 2. Upline Referral Fees (Levels 1 to 10)
+                let currentMemInfo = (members || []).find(m => safeUpper(m.id) === sellerKey);
+                let currentMemberId = currentMemInfo ? (currentMemInfo.referrer || currentMemInfo.sponsorId) : null;
+                let currentLevel = 1;
+
+                const maxCommLevels = Number(systemSettings?.commission_levels || 6);
+                const maxDownlines = Math.max(1, maxCommLevels - 1);
+                while (currentMemberId && currentLevel <= maxDownlines) {
+                    let targetKey = safeUpper(currentMemberId);
+                    let payAmt = computePayout(currentLevel);
+
+                    if (memberMap[targetKey]) {
+                        if (payAmt > 0) memberMap[targetKey][`level${currentLevel}Earn`] += payAmt;
+                        const givePv = Number(prodConfig.givePv || prodConfig.pv || 0);
+                        memberMap[targetKey].teamBoxes += s.qty;
+                        memberMap[targetKey].teamPv += (givePv * s.qty);
+                    }
+                    const memInfo = (members || []).find(m => safeUpper(m.id) === targetKey);
+                    currentMemberId = memInfo ? (memInfo.referrer || memInfo.sponsorId) : null;
+                    currentLevel++;
+                }
+            });
+
+            const query = (debouncedSearchQuery || '').trim().toUpperCase();
+
+            return Object.values(memberMap)
+                .filter(m => {
+                    if (m.selfBoxes > 0 || m.teamBoxes > 0 || m.selfEarn > 0) return true;
+                    for (let l = 1; l <= 10; l++) if (m[`level${l}Earn`] > 0) return true;
+                    return false;
+                })
+                .filter(m => query === '' || m.id.toUpperCase().includes(query) || m.name.toUpperCase().includes(query))
+                .sort((a, b) => {
+                    let sumA = a.selfEarn; let sumB = b.selfEarn;
+                    for (let l = 1; l <= 10; l++) { sumA += a[`level${l}Earn`]; sumB += b[`level${l}Earn`]; }
+                    return sumB - sumA;
+                });
+        }, [unfoldedSales, activeGroup, referralCalcMode, selectedTeamFilter, selectedSponsorFilter, members, products, debouncedSearchQuery, permittedMemberSet, businessTeams]);
+
+        // Active Level Columns Detection (Dynamic columns based on systemSettings.commission_levels)
+        const activeLevelCols = useMemo(() => {
+            const maxCommLevels = Number(systemSettings?.commission_levels || 6);
+            const maxDownlines = Math.max(1, maxCommLevels - 1);
+            let activeLevels = [];
+            for (let l = 1; l <= maxDownlines; l++) {
+                const sum = referralReportData.reduce((acc, r) => acc + (r[`level${l}Earn`] || 0), 0);
+                activeLevels.push({ level: l, total: sum });
+            }
+            return activeLevels;
+        }, [referralReportData, systemSettings]);
+
+        const referralTotals = useMemo(() => {
+            let Self = 0;
+            let levelTotals = {};
+            for (let l = 1; l <= 10; l++) levelTotals[`L${l}`] = 0;
+
+            referralReportData.forEach(r => {
+                Self += r.selfEarn;
+                for (let l = 1; l <= 10; l++) {
+                    levelTotals[`L${l}`] += (r[`level${l}Earn`] || 0);
+                }
+            });
+
+            let grandTotal = Self;
+            Object.values(levelTotals).forEach(v => grandTotal += v);
+
+            return { Self, levelTotals, grandTotal };
+        }, [referralReportData]);
+
+        // Individual Detail Modal Earnings Data
+        const selectedEarnerDetails = useMemo(() => {
+            if (!detailModalEarner) return [];
+            let details = [];
+            let memberMap = {};
+            (members || []).forEach(m => { memberMap[safeUpper(m.id)] = { ...m }; });
+
+            unfoldedSales.forEach(s => {
+                if (s.priceType !== 'ราคาเต็ม' && s.priceType !== 'ราคาสมาชิก') return;
+                const cleanProdName = (name) => String(name || '').replace(/\(.*?\)/g, '').trim().toUpperCase();
+                const target = cleanProdName(s.product);
+                const prodConfig = (products || []).find(p => {
+                    if (!p) return false;
+                    const pName = cleanProdName(p.name);
+                    const pId = cleanProdName(p.id);
+                    return target === pName || target === pId || pName.includes(target) || target.includes(pName);
+                }) || { priceFull: 0, givePv: 0, selfFee: 0, level1Fee: 0 };
+
+                const priceFull = Number(prodConfig.priceFull || prodConfig.priceMember || 0);
+
+                const computePayout = (levelIdx) => {
+                    let feePerBox = 0;
+                    let feePercent = 0;
+
+                    if (levelIdx === 0) {
+                        feePerBox = Number(prodConfig.selfFee || prodConfig.directFee || prodConfig.self_fee || prodConfig.level0Fee || 0);
+                        feePercent = Number(prodConfig.selfPercent || prodConfig.level0Percent || 0);
+                    } else if (levelIdx === 1) {
+                        feePerBox = Number(prodConfig.level1Fee || prodConfig.uplineFee || prodConfig.level_1_fee || 0);
+                        feePercent = Number(prodConfig.level1Percent || prodConfig.level_1_percent || 0);
+                    } else {
+                        feePerBox = Number(prodConfig[`level${levelIdx}Fee`] || prodConfig[`level_${levelIdx}_fee`] || 0);
+                        feePercent = Number(prodConfig[`level${levelIdx}Percent`] || prodConfig[`level_${levelIdx}_percent`] || 0);
+                    }
+
+                    const boxEarn = feePerBox * s.qty;
+                    const percentEarn = (priceFull * s.qty) * (feePercent / 100);
+
+                    if (referralCalcMode === 'percent') return { earn: percentEarn, rateStr: `${feePercent}%` };
+                    if (referralCalcMode === 'combo') return { earn: boxEarn + percentEarn, rateStr: `@${feePerBox.toLocaleString()} + ${feePercent}%` };
+                    return { earn: boxEarn, rateStr: `@${feePerBox.toLocaleString()}` };
+                };
+
+                const earnerId = safeUpper(detailModalEarner.id);
+
+                // Self Sale
+                if (safeUpper(s.memberId) === earnerId) {
+                    const res = computePayout(0);
+                    if (res.earn > 0) {
+                        details.push({
+                            date: s.date,
+                            billId: s.billId,
+                            sellerId: s.memberId,
+                            sellerName: s.memberName,
+                            product: s.product,
+                            qty: s.qty,
+                            level: 'ขายเอง (ข้างกล่อง)',
+                            feeRateStr: res.rateStr,
+                            totalEarned: res.earn
+                        });
+                    }
+                }
+
+                // Upline Referral
+                let currentMemInfo = memberMap[safeUpper(s.memberId)];
+                let currentMemberId = currentMemInfo ? (currentMemInfo.referrer || currentMemInfo.sponsorId) : null;
+                let currentLevel = 1;
+
+                const maxCommLevels = Number(systemSettings?.commission_levels || 6);
+                const maxDownlines = Math.max(1, maxCommLevels - 1);
+                while (currentMemberId && currentLevel <= maxDownlines) {
+                    let targetKey = safeUpper(currentMemberId);
+                    const res = computePayout(currentLevel);
+
+                    if (res.earn > 0 && targetKey === earnerId) {
+                        details.push({
+                            date: s.date,
+                            billId: s.billId,
+                            sellerId: s.memberId,
+                            sellerName: s.memberName,
+                            product: s.product,
+                            qty: s.qty,
+                            level: `ชั้นที่ ${currentLevel}`,
+                            feeRateStr: res.rateStr,
+                            totalEarned: res.earn
+                        });
+                    }
+                    const memInfo = memberMap[targetKey];
+                    currentMemberId = memInfo ? (memInfo.referrer || memInfo.sponsorId) : null;
+                    currentLevel++;
+                }
+            });
+
+            return details.sort((a, b) => b.date.localeCompare(a.date) || b.billId.localeCompare(a.billId));
+        }, [unfoldedSales, detailModalEarner, members, products, referralCalcMode]);
+
+        // Export Modal Specific CSV
+        const handleExportModalExcel = () => {
+            if (!detailModalEarner || selectedEarnerDetails.length === 0) return;
+            const headers = ["วันที่", "เลขที่บิล", "ประเภทได้รับ", "รหัสผู้ขาย", "ชื่อผู้ขายบิลนี้", "สินค้าที่ขายได้", "จำนวน (กล่อง)", "เรทคำนวณ", `เงินที่ได้ (${getCurrencySuffix()})`];
+            const rows = [headers];
+            selectedEarnerDetails.forEach(d => {
+                rows.push([d.date, d.billId, d.level, d.sellerId, d.sellerName, d.product, d.qty, d.feeRateStr, d.totalEarned]);
+            });
+            exportToCSV(`STK_Commission_Detail_${detailModalEarner.id}_${detailModalEarner.name}_${startDate}_to_${endDate}.csv`, rows);
+        };
+
+        // ==========================================
+        // 📊 Standard Sales & Staff Report Data
+        // ==========================================
+        const isMonthly = subTab.includes('month');
+        const isTeamView = subTab.includes('team');
+        const isRanking = subTab === 'ranking';
+        const isCustTypeView = subTab === 'sales_by_cust_type';
+
+        const reportData = useMemo(() => {
+            if (activeGroup !== 'sales' || isRanking) return [];
+            let grouped = {};
+
+            unfoldedSales.forEach(s => {
+                const query = (debouncedSearchQuery || '').trim().toUpperCase();
+                if (query !== '') {
+                    if (isTeamView) { if (!(s.team || '').toUpperCase().includes(query)) return; }
+                    else if (isCustTypeView) { if (!(s.custType || '').toUpperCase().includes(query)) return; }
+                    else { if (!(s.memberId || '').toUpperCase().includes(query) && !(s.memberName || '').toUpperCase().includes(query)) return; }
+                }
+
+                let period = s.date; if (isMonthly || isCustTypeView) period = period.substring(0, 7);
+                let key = ''; let label2 = ''; let subLabel2 = '';
+
+                if (isTeamView) { key = `${period}_${s.team}`; label2 = s.team; }
+                else if (isCustTypeView) { key = `${period}_${s.custType}_${s.memberId}`; label2 = s.custType; subLabel2 = `${s.memberName} (${s.memberId})`; }
+                else { key = `${period}_${s.memberId}`; label2 = s.memberId; subLabel2 = s.memberName; }
+
+                if (!grouped[key]) grouped[key] = { label1: period, label2, subLabel2, total: 0, detailsFull: {}, detailsMember: {}, detailsPro: {}, detailsZero: {} };
+
+                grouped[key].total += s.qty;
+                if (s.priceType === 'ราคาเต็ม') grouped[key].detailsFull[s.product] = (grouped[key].detailsFull[s.product] || 0) + s.qty;
+                else if (s.priceType === 'ราคาสมาชิก') grouped[key].detailsMember[s.product] = (grouped[key].detailsMember[s.product] || 0) + s.qty;
+                else if (s.priceType === 'ราคาโปร') grouped[key].detailsPro[s.product] = (grouped[key].detailsPro[s.product] || 0) + s.qty;
+                else if (s.priceType === 'ราคาศูนย์') grouped[key].detailsZero[s.product] = (grouped[key].detailsZero[s.product] || 0) + s.qty;
+            });
+            return Object.values(grouped).sort((a, b) => b.total - a.total);
+        }, [unfoldedSales, activeGroup, subTab, debouncedSearchQuery, isMonthly, isTeamView, isCustTypeView, isRanking]);
+
+        const reportTotals = useMemo(() => {
+            let sumFull = 0, sumMember = 0, sumPro = 0, sumZero = 0, sumTotal = 0;
+            reportData.forEach(r => {
+                Object.values(r.detailsFull).forEach(v => sumFull += v);
+                Object.values(r.detailsMember).forEach(v => sumMember += v);
+                Object.values(r.detailsPro).forEach(v => sumPro += v);
+                Object.values(r.detailsZero).forEach(v => sumZero += v);
+                sumTotal += r.total;
+            });
+            return { sumFull, sumMember, sumPro, sumZero, sumTotal };
+        }, [reportData]);
+
+        // ==========================================
+        // 💰 Financial & Revenue Reports
+        // ==========================================
+        const financialReportData = useMemo(() => {
+            if (activeGroup !== 'finance') return { summaryRows: [], billRows: [], grandTotalFull: 0, grandTotalPro: 0, grandTotalZero: 0, grandTotalAmt: 0 };
+            
+            let summaryGrouped = {};
+            let billList = [];
+
+            const filteredSales = (sales || []).filter(s => {
+                if (!s || (s.date || '') < startDate || (s.date || '') > endDate) return false;
+                if (permittedMemberSet !== null) return permittedMemberSet.has(safeUpper(s.memberId));
+                return true;
+            });
+
+            filteredSales.forEach(s => {
+                const mem = (members || []).find(m => m && safeUpper(m.id) === safeUpper(s.memberId));
+                const cust = (customers || []).find(c => c && c.id === s.customerId);
+
+                let sumF = parseInt(s['รวมชิ้นราคาเต็ม'] || 0, 10);
+                let sumM = parseInt(s['รวมชิ้นราคาสมาชิก'] || 0, 10);
+                let sumP = parseInt(s['รวมชิ้นราคาโปร'] || 0, 10);
+                let sumZ = parseInt(s['รวมชิ้นราคาศูนย์'] || 0, 10);
+                let totalQty = parseInt(s['ยอดรวมชิ้นทั้งหมด'] || 0, 10);
+                let totalAmt = Number(s['ยอดขายรวม'] || s['ยอดรวมเงิน'] || s['totalAmount'] || 0);
+
+                const period = subTab === 'finance_summary' ? s.date.substring(0, 7) : s.date;
+
+                if (!summaryGrouped[period]) {
+                    summaryGrouped[period] = { period, count: 0, sumFull: 0, sumMember: 0, sumPro: 0, sumZero: 0, totalQty: 0, totalAmt: 0 };
+                }
+
+                summaryGrouped[period].count += 1;
+                summaryGrouped[period].sumFull += sumF;
+                summaryGrouped[period].sumMember += sumM;
+                summaryGrouped[period].sumPro += sumP;
+                summaryGrouped[period].sumZero += sumZ;
+                summaryGrouped[period].totalQty += totalQty;
+                summaryGrouped[period].totalAmt += totalAmt;
+
+                billList.push({
+                    billId: s.id,
+                    date: s.date,
+                    memberId: s.memberId,
+                    memberName: mem ? mem.name : s.memberId,
+                    customerName: cust ? cust.name : (s.customerId || '-'),
+                    sumFull: sumF,
+                    sumMember: sumM,
+                    sumPro: sumP,
+                    sumZero: sumZ,
+                    totalQty,
+                    totalAmt,
+                    payMode: s.payMode || 'เงินโอน'
+                });
+            });
+
+            let gFull = 0, gPro = 0, gZero = 0, gAmt = 0;
+            Object.values(summaryGrouped).forEach(r => {
+                gFull += r.sumFull; gPro += r.sumPro; gZero += r.sumZero; gAmt += r.totalAmt;
+            });
+
+            const query = (debouncedSearchQuery || '').trim().toUpperCase();
+
+            const summaryRows = Object.values(summaryGrouped).sort((a, b) => b.period.localeCompare(a.period));
+            const billRows = billList.filter(b => query === '' || b.billId.toUpperCase().includes(query) || b.memberName.toUpperCase().includes(query) || b.customerName.toUpperCase().includes(query))
+                                     .sort((a, b) => b.date.localeCompare(a.date) || b.billId.localeCompare(a.billId));
+
+            return { summaryRows, billRows, grandTotalFull: gFull, grandTotalPro: gPro, grandTotalZero: gZero, grandTotalAmt: gAmt };
+        }, [activeGroup, subTab, sales, startDate, endDate, members, customers, debouncedSearchQuery, permittedMemberSet]);
+
+        // ==========================================
+        // 📦 Stock & Zero-Cut Reports (Daily/Weekly/Monthly + Source Bills Drilldown)
+        // ==========================================
+        const stockReportData = useMemo(() => {
+            if (activeGroup !== 'stock') return { productSummary: [], zeroCutRows: [], balanceRows: [], grandFull: 0, grandPro: 0, grandZero: 0, grandTotal: 0, grandBalanceQty: 0, grandBalanceValue: 0 };
+
+            let prodMap = {};
+            let zeroCutList = [];
+
+            (products || []).forEach(p => {
+                const pPriceFull = Number(p.priceFull || p.fullPrice || p.price || 0);
+                const pCurrentStock = Number(p.stock || p.quantity || 0);
+                prodMap[p.name] = { 
+                    id: p.id || p.name, 
+                    name: p.name, 
+                    full: 0, 
+                    member: 0,
+                    pro: 0, 
+                    zero: 0, 
+                    total: 0,
+                    priceFull: pPriceFull,
+                    currentStock: pCurrentStock,
+                    soldInPeriod: 0,
+                    futureSold: 0
+                };
+            });
+
+            (sales || []).forEach(s => {
+                const sDate = s.date || '';
+                const isWithinRange = sDate >= startDate && sDate <= endDate;
+                const isAfterRange = sDate > endDate;
+
+                (products || []).forEach(p => {
+                    const pName = p.name;
+                    const fullQty = Number(s[`${pName}_ราคาเต็ม`] || 0);
+                    const memberQty = Number(s[`${pName}_ราคาสมาชิก`] || 0);
+                    const proQty = Number(s[`${pName}_ราคาโปร`] || 0);
+                    const zeroQty = Number(s[`${pName}_ราคาศูนย์`] || 0);
+                    const totQty = fullQty + memberQty + proQty + zeroQty;
+
+                    if (totQty > 0) {
+                        if (!prodMap[pName]) {
+                            prodMap[pName] = { 
+                                id: p.id || pName, 
+                                name: pName, 
+                                full: 0, 
+                                member: 0,
+                                pro: 0, 
+                                zero: 0, 
+                                total: 0, 
+                                priceFull: Number(p.priceFull || p.fullPrice || 0), 
+                                currentStock: Number(p.stock || 0), 
+                                soldInPeriod: 0, 
+                                futureSold: 0 
+                            };
+                        }
+
+                        if (isWithinRange) {
+                            prodMap[pName].full += fullQty;
+                            prodMap[pName].member += memberQty;
+                            prodMap[pName].pro += proQty;
+                            prodMap[pName].zero += zeroQty;
+                            prodMap[pName].total += totQty;
+                            prodMap[pName].soldInPeriod += totQty;
+                        } else if (isAfterRange) {
+                            prodMap[pName].futureSold += totQty;
+                        }
+
+                        if (isWithinRange && zeroQty > 0) {
+                            zeroCutList.push({
+                                billId: s.id,
+                                date: s.date,
+                                memberName: s.sellerName || s.sellerId || s.memberId,
+                                custType: s.customerType || s.custType || 'ลูกค้าใหม่',
+                                product: pName,
+                                qty: zeroQty
+                            });
+                        }
+                    }
+                });
+            });
+
+            const query = (debouncedSearchQuery || '').trim().toUpperCase();
+
+            let grandFull = 0, grandMember = 0, grandPro = 0, grandZero = 0, grandTotal = 0;
+            const productSummary = Object.values(prodMap)
+                .filter(p => p.total > 0)
+                .filter(p => query === '' || p.id.toUpperCase().includes(query) || p.name.toUpperCase().includes(query))
+                .sort((a, b) => b.total - a.total);
+
+            productSummary.forEach(p => {
+                grandFull += p.full;
+                grandMember += p.member;
+                grandPro += p.pro;
+                grandZero += p.zero;
+                grandTotal += p.total;
+            });
+
+            const zeroCutRows = zeroCutList
+                .filter(z => query === '' || z.billId.toUpperCase().includes(query) || z.memberName.toUpperCase().includes(query) || z.product.toUpperCase().includes(query))
+                .sort((a, b) => b.date.localeCompare(a.date));
+
+            let grandBalanceQty = 0;
+            let grandBalanceValue = 0;
+
+            const balanceRows = Object.values(prodMap)
+                .filter(p => query === '' || p.id.toUpperCase().includes(query) || p.name.toUpperCase().includes(query))
+                .map(p => {
+                    const endingStock = p.currentStock + p.futureSold;
+                    const stockInward = endingStock + p.soldInPeriod;
+                    grandBalanceQty += endingStock;
+                    return {
+                        id: p.id,
+                        name: p.name,
+                        stockInward: stockInward,
+                        soldInPeriod: p.soldInPeriod,
+                        endingStock: endingStock
+                    };
+                })
+                .sort((a, b) => b.endingStock - a.endingStock);
+
+            return { productSummary, zeroCutRows, balanceRows, grandFull, grandMember, grandPro, grandZero, grandTotal, grandBalanceQty };
+        }, [activeGroup, sales, products, startDate, endDate, debouncedSearchQuery]);
+
+        // Drill-down bills for Stock Product Item
+        const stockItemSourceBills = useMemo(() => {
+            if (!stockModalItem) return [];
+            return unfoldedSales
+                .filter(s => s.product === stockModalItem.name && (stockModalItem.priceType ? s.priceType === stockModalItem.priceType : true))
+                .sort((a, b) => b.date.localeCompare(a.date) || b.billId.localeCompare(a.billId));
+        }, [unfoldedSales, stockModalItem]);
+
+        // Rankings Data
+        const rankings = useMemo(() => {
+            if (subTab !== 'ranking') return null;
+            let mStats = { full: {}, member: {}, pro: {}, zero: {} };
+            let pStats = { full: {}, member: {}, pro: {}, zero: {} };
+            let topSellersByProduct = {};
+
+            unfoldedSales.forEach(s => {
+                const mKey = s.memberName;
+                const pKey = s.product;
+                const type = s.priceType === 'ราคาเต็ม' ? 'full' : s.priceType === 'ราคาสมาชิก' ? 'member' : s.priceType === 'ราคาโปร' ? 'pro' : 'zero';
+
+                mStats[type][mKey] = (mStats[type][mKey] || 0) + s.qty;
+                pStats[type][pKey] = (pStats[type][pKey] || 0) + s.qty;
+
+                if (!topSellersByProduct[pKey]) topSellersByProduct[pKey] = {};
+                if (!topSellersByProduct[pKey][mKey]) topSellersByProduct[pKey][mKey] = { total: 0 };
+                topSellersByProduct[pKey][mKey].total += s.qty;
+            });
+
+            const sortMap = (obj) => Object.entries(obj).sort((a, b) => b[1] - a[1]);
+
+            return {
+                members: { full: sortMap(mStats.full), member: sortMap(mStats.member), pro: sortMap(mStats.pro), zero: sortMap(mStats.zero) },
+                products: { full: sortMap(pStats.full), member: sortMap(pStats.member), pro: sortMap(pStats.pro), zero: sortMap(pStats.zero) },
+                topSellersByProduct: Object.fromEntries(Object.entries(topSellersByProduct).map(([p, sellers]) => [p, sortMap(sellers)]))
+            };
+        }, [unfoldedSales, subTab]);
+
+        // Exports CSV
+        const handleExportExcel = () => {
+            if (subTab === 'ranking') { alert("หน้านี้กรุณาใช้ฟังก์ชัน ปริ้นรายงาน (Print) ครับ"); return; }
+
+            if (activeGroup === 'referral') {
+                const headers = ["รหัสพนักงาน", "ชื่อ-นามสกุล", "ทีม", "กล่อง (ราคาเต็ม)", "คอมขายเอง"];
+                activeLevelCols.forEach(col => headers.push(`ค่าแนะนำชั้น ${col.level}`));
+                headers.push("รวมรับทั้งหมด");
+
+                const rows = [headers];
+                referralReportData.forEach(r => {
+                    let rowData = [r.id, r.name, r.team, r.selfBoxes, r.selfEarn];
+                    let sumAll = r.selfEarn;
+                    activeLevelCols.forEach(col => {
+                        const earn = r[`level${col.level}Earn`] || 0;
+                        rowData.push(earn);
+                        sumAll += earn;
+                    });
+                    rowData.push(sumAll);
+                    rows.push(rowData);
+                });
+                exportToCSV(`STK_Commission_Report_${startDate}_to_${endDate}.csv`, rows);
+                return;
+            }
+
+            if (activeGroup === 'finance') {
+                const headers = ["บิลเลขที่", "วันที่", "พนักงานผู้ขาย", "ชื่อลูกค้า", "เต็ม (กล่อง)", "โปร (กล่อง)", "ศูนย์ (กล่อง)", "ยอดขายรวม"];
+                const rows = [headers];
+                financialReportData.billRows.forEach(b => {
+                    rows.push([b.billId, b.date, b.memberName, b.customerName, b.sumFull, b.sumPro, b.sumZero, b.totalAmt]);
+                });
+                exportToCSV(`STK_Financial_Report_${startDate}_to_${endDate}.csv`, rows);
+                return;
+            }
+
+            const headers = ["ช่วงเวลา", "รายการ/พนักงาน", "กล่อง (เต็ม)", "กล่อง (โปร)", "กล่อง (ศูนย์)", "รวมทั้งหมด"];
+            const rows = [headers];
+            reportData.forEach(row => {
+                rows.push([row.label1, row.label2, Object.values(row.detailsFull).reduce((a,b)=>a+b,0), Object.values(row.detailsPro).reduce((a,b)=>a+b,0), Object.values(row.detailsZero).reduce((a,b)=>a+b,0), row.total]);
+            });
+            exportToCSV(`STK_Report_${subTab}_${startDate}_to_${endDate}.csv`, rows);
+        };
+
+        const thBase = "p-4 text-[13px] font-bold border-b border-slate-200 bg-slate-50 text-slate-700 whitespace-nowrap uppercase tracking-wide";
+
+        // Group Title Labels
+        const groupTitles = {
+            sales: '📊 รายงานสรุปยอดขายและพนักงาน',
+            finance: '💰 รายงานการเงินและรายรับบริษัท',
+            stock: '📦 รายงานสต๊อกสินค้าและสินค้าตัดศูนย์',
+            referral: '🎁 รายงานสรุปค่าแนะนำและปันผล'
+        };
+
+        return (
+            <div className="space-y-6 animation-fade-in w-full">
+                {/* Header Title & Actions */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-4 no-print">
+                    <div>
+                        <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                            {groupTitles[activeGroup] || '📊 รายงานสรุปผลงาน'}
+                        </h2>
+                        <p className="text-xs font-bold text-slate-400 mt-1">
+                            {isAdmin ? 'สิทธิ์ผู้ดูแลระบบ: แสดงผลรายงานทั้งหมดในองค์กร' : `สิทธิ์ผู้ใช้งาน: แสดงเฉพาะข้อมูลตนเอง และสายงานลูกทีม (${currentUser?.name || ''})`}
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button onClick={handleExportExcel} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-[13px] font-bold transition-all shadow-sm flex items-center justify-center gap-2 h-[40px] shrink-0 no-print">
+                            📊 โหลดไฟล์ Excel
+                        </button>
+                        <button onClick={() => window.print()} className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-xl text-[13px] font-bold transition-all shadow-sm flex items-center justify-center gap-2 h-[40px] shrink-0 no-print">
+                            🖨️ สั่งปริ้นรายงาน
+                        </button>
+                    </div>
+                </div>
+
+                {/* Upline Leader Summary Card */}
+                {uplineTeamSummary && !isAdmin && (
+                    <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-900 p-6 rounded-3xl text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 animation-fade-in">
+                        <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center text-3xl shrink-0 backdrop-blur-md border border-white/10">
+                                👥
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black text-white">สรุปผลงานสายงานแม่ทีม ({currentUser?.name})</h3>
+                                <p className="text-xs text-indigo-200 font-bold mt-0.5">
+                                    ดูแลลูกทีมในสายงานรวม <span className="text-yellow-400 font-black text-sm px-1.5 py-0.5 bg-black/30 rounded-md border border-white/10">{uplineTeamSummary.downlineCount}</span> คน
+                                </p>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3 w-full md:w-auto">
+                            <div className="bg-white/10 backdrop-blur-md p-3.5 rounded-2xl border border-white/10 text-center">
+                                <span className="block text-[11px] font-bold text-slate-300">ขายเอง</span>
+                                <span className="text-xl font-black text-white">{uplineTeamSummary.selfBoxes.toLocaleString()}</span>
+                                <span className="text-[10px] text-slate-400 block">กล่อง</span>
+                            </div>
+                            <div className="bg-white/10 backdrop-blur-md p-3.5 rounded-2xl border border-white/10 text-center">
+                                <span className="block text-[11px] font-bold text-indigo-200">ลูกทีมขายรวม</span>
+                                <span className="text-xl font-black text-indigo-300">{uplineTeamSummary.downlineBoxes.toLocaleString()}</span>
+                                <span className="text-[10px] text-slate-400 block">กล่อง</span>
+                            </div>
+                            <div className="bg-emerald-500/20 backdrop-blur-md p-3.5 rounded-2xl border border-emerald-400/30 text-center">
+                                <span className="block text-[11px] font-bold text-emerald-300">รวมทั้งสายงาน</span>
+                                <span className="text-xl font-black text-emerald-400">{uplineTeamSummary.totalTeamBoxes.toLocaleString()}</span>
+                                <span className="text-[10px] text-emerald-200 block">กล่อง</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Sub-Tab Navigation Bar */}
+                <div className="flex flex-wrap gap-2 pb-2 w-full border-b border-slate-200 no-print">
+                    {activeGroup === 'sales' && (
+                        <React.Fragment>
+                            <SubTabButton id="sales_member_day" label="ยอดบุคคล (วัน)" activeTab={subTab} setSubTab={setSubTab} />
+                            <SubTabButton id="sales_member_month" label="ยอดบุคคล (เดือน)" activeTab={subTab} setSubTab={setSubTab} />
+                            <SubTabButton id="total_team_day" label="ยอดทีม (วัน)" activeTab={subTab} setSubTab={setSubTab} />
+                            <SubTabButton id="total_team_month" label="ยอดทีม (เดือน)" activeTab={subTab} setSubTab={setSubTab} />
+                            <SubTabButton id="sales_by_cust_type" label="📊 ตามประเภทลูกค้า" activeTab={subTab} setSubTab={setSubTab} isData={true} />
+                            <SubTabButton id="ranking" label="🏆 จัดอันดับ Ranking" activeTab={subTab} setSubTab={setSubTab} isSpecial={true} />
+                        </React.Fragment>
+                    )}
+
+                    {activeGroup === 'finance' && (
+                        <React.Fragment>
+                            <SubTabButton id="finance_summary" label="💵 สรุปรายรับบริษัท (รายวัน/เดือน)" activeTab={subTab} setSubTab={setSubTab} isData={true} />
+                            <SubTabButton id="finance_by_bill" label="📜 รายละเอียดรับเงินแยกตามบิล" activeTab={subTab} setSubTab={setSubTab} isSpecial={true} />
+                        </React.Fragment>
+                    )}
+
+                    {activeGroup === 'stock' && (
+                        <React.Fragment>
+                            <SubTabButton id="stock_sales_by_product" label="📦 สรุปยอดขายตามสินค้า" activeTab={subTab} setSubTab={setSubTab} isData={true} />
+                            <SubTabButton id="stock_zero_cut" label="⚠️ รายงานสินค้าตัดศูนย์ (แถม/สูญ)" activeTab={subTab} setSubTab={setSubTab} isSpecial={true} />
+                            <SubTabButton id="stock_balance_report" label="📊 รายงานสต๊อกคงเหลือ" activeTab={subTab} setSubTab={setSubTab} isData={true} />
+                        </React.Fragment>
+                    )}
+
+                    {activeGroup === 'referral' && (
+                        <React.Fragment>
+                            <SubTabButton id="referral_fee" label="🎁 สรุปค่าแนะนำ & ปันผล" activeTab={subTab} setSubTab={setSubTab} isSpecial={true} />
+                        </React.Fragment>
+                    )}
+                </div>
+
+                {/* Filter Controls (Dates, Team, Sponsor & Search) */}
+                <div className={`${boxWrapper} py-4`}>
+                    <div className="flex flex-col md:flex-row flex-wrap items-start md:items-end gap-4">
+                        <div><label className={labelClassHud}>ตั้งแต่วันที่</label><input type="date" className={inputClassHud} value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
+                        <div><label className={labelClassHud}>ถึงวันที่</label><input type="date" className={inputClassHud} value={endDate} onChange={e => setEndDate(e.target.value)} /></div>
+                        
+                        {/* Dynamic Team Filter */}
+                        {activeGroup === 'referral' && (
+                            <div>
+                                <label className={labelClassHud}>ค้นหาตามสังกัดทีม</label>
+                                <select className={inputClassHud} value={selectedTeamFilter} onChange={e => setSelectedTeamFilter(e.target.value)}>
+                                    <option value="">ทุกทีมทั้งหมด</option>
+                                    {distinctTeams.map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                            </div>
+                        )}
+
+                        {/* Sponsor Line Filter */}
+                        {activeGroup === 'referral' && (
+                            <div>
+                                <label className={labelClassHud}>ค้นหาตามสายงานแม่ทีม</label>
+                                <select className={inputClassHud} value={selectedSponsorFilter} onChange={e => setSelectedSponsorFilter(e.target.value)}>
+                                    <option value="">ทุกสายงานแม่ทีม</option>
+                                    {uplineLeadersList.map(l => <option key={l.id} value={l.id}>{l.name} ({l.id})</option>)}
+                                </select>
+                            </div>
+                        )}
+
+                        {subTab !== 'ranking' && (
+                            <div className="w-full md:w-auto md:pl-4 md:border-l border-slate-200 flex-1 md:min-w-[200px]">
+                                <label className={labelClassHud}>พิมพ์ค้นหาข้อมูล</label>
+                                <div className="flex items-center bg-slate-50/30 focus-within:bg-white border border-slate-200 rounded-xl px-3 shadow-sm focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 transition-all duration-300 w-full h-[38px] sm:h-[40px]">
+                                    <SearchIcon size={18} className="text-slate-400 shrink-0" />
+                                    <input type="text" placeholder="พิมพ์ชื่อ/รหัส..." className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* ------------------------------------------------------------- */}
+                {/* 🎁 CATEGORY 4: Referral & Dividend Commission View */}
+                {/* ------------------------------------------------------------- */}
+                {activeGroup === 'referral' && (
+                    <div className="space-y-4 animation-fade-in">
+                        {/* 3 Calculation Method Tabs + Currency Toggle Bar */}
+                        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                            {/* 3 Calculation Modes */}
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs font-bold text-slate-600 mr-1">รูปแบบการคำนวณปันผล:</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setReferralCalcMode('box')}
+                                    className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${referralCalcMode === 'box' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                >
+                                    <span>📦</span> คำนวณข้างกล่องทั้งหมด (Fixed Fee)
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setReferralCalcMode('percent')}
+                                    className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${referralCalcMode === 'percent' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                >
+                                    <span>📊</span> คำนวณเปอร์เซ็นต์ทั้งหมด (% Full Price)
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setReferralCalcMode('combo')}
+                                    className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${referralCalcMode === 'combo' ? 'bg-fuchsia-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                >
+                                    <span>🔀</span> คำนวณแบบผสม (ข้างกล่อง + %)
+                                </button>
+                            </div>
+
+                            {/* Currency Toggle Bar */}
+                            <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-xs font-bold text-slate-600">สกุลเงิน:</span>
+                                <button type="button" onClick={() => setCurrencyMode('LAK')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${currencyMode === 'LAK' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                                    🇱🇦 เงินกีบ (LAK)
+                                </button>
+                                <button type="button" onClick={() => setCurrencyMode('THB')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${currencyMode === 'THB' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                                    🇹🇭 เงินบาท (THB)
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Referral Main Table */}
+                        <div className={`${boxWrapper} p-0 overflow-hidden`}>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse min-w-[1100px]">
+                                    <thead>
+                                        <tr className="bg-slate-100 border-b border-slate-200">
+                                            <th className={thBase}>รหัส</th>
+                                            <th className={thBase}>พนักงาน</th>
+                                            <th className={thBase}>ยอดขายตัวเอง</th>
+                                            <th className={thBase}>ยอดขายลูกทีม</th>
+                                            <th className={`${thBase} text-right text-blue-700 bg-blue-50/50`}>คอมขายเอง</th>
+                                            {activeLevelCols.map(col => (
+                                                <th key={col.level} className={`${thBase} text-right text-emerald-700`}>
+                                                    ค่าแนะนำ (ชั้น {col.level})
+                                                </th>
+                                            ))}
+                                            <th className={`${thBase} text-right text-slate-900 font-bold bg-slate-100/50`}>รวมรับสุทธิ</th>
+                                            <th className={`${thBase} text-center bg-slate-100/50 w-16`}><SearchIcon size={16} className="mx-auto text-slate-500" title="รายละเอียด"/></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {referralReportData.map((r, index) => {
+                                            let rowSum = r.selfEarn;
+                                            activeLevelCols.forEach(col => rowSum += (r[`level${col.level}Earn`] || 0));
+
+                                            return (
+                                                <tr key={index} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                                    <td className="p-4 text-sm font-bold text-blue-600 whitespace-nowrap">{r.id}</td>
+                                                    <td className="p-4 text-sm font-bold text-slate-800">
+                                                        <div className="flex items-center gap-3">
+                                                            {r.profileUrl ? (
+                                                                <img src={r.profileUrl} alt={r.name} className="w-10 h-10 rounded-full object-cover border-2 border-slate-200 shadow-sm shrink-0" />
+                                                            ) : (
+                                                                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black text-xs shadow-sm shrink-0">
+                                                                    {(r.name || 'U').substring(0, 2).toUpperCase()}
+                                                                </div>
+                                                            )}
+                                                            <div className="flex flex-col">
+                                                                <span className="font-black text-slate-800 text-sm">{r.name}</span>
+                                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 w-fit mt-1">
+                                                                    ทีม: {r.team}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4 text-sm font-medium">
+                                                        <span className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-black shadow-sm">
+                                                            {r.selfBoxes.toLocaleString()}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4 text-sm font-medium">
+                                                        {r.teamBoxes > 0 ? (
+                                                            <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-black shadow-sm">
+                                                                {r.teamBoxes.toLocaleString()}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-slate-300 text-xs font-bold">-</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-4 text-sm text-right font-black text-blue-600 bg-blue-50/30 whitespace-nowrap">{formatValDisplay(r.selfEarn)}</td>
+                                                    {activeLevelCols.map(col => (
+                                                        <td key={col.level} className="p-4 text-sm text-right font-black text-emerald-600 whitespace-nowrap">
+                                                            {formatValDisplay(r[`level${col.level}Earn`] || 0)}
+                                                        </td>
+                                                    ))}
+                                                    <td className="p-4 text-sm text-right font-black bg-slate-50 text-slate-900 whitespace-nowrap">
+                                                        {formatValDisplay(rowSum)} 
+                                                        <span className="text-[10px] font-bold text-slate-500 ml-1">{getCurrencySuffix()}</span>
+                                                    </td>
+                                                    <td className="p-2 text-center border-l border-slate-100 bg-slate-50/50">
+                                                        <button 
+                                                            onClick={() => setDetailModalEarner(r)} 
+                                                            title="ดูรายละเอียดเจาะลึก"
+                                                            className="w-8 h-8 flex justify-center items-center mx-auto bg-white hover:bg-indigo-50 text-indigo-500 hover:text-indigo-700 rounded-full border border-slate-200 transition-all shadow-sm hover:shadow-md"
+                                                        >
+                                                            <SearchIcon size={16}/>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                        {referralReportData.length === 0 && (
+                                            <tr><td colSpan={6 + activeLevelCols.length} className="p-12 text-center text-slate-400 font-bold">ไม่พบข้อมูลค่าแนะนำตามเงื่อนไขที่ระบุ</td></tr>
+                                        )}
+                                    </tbody>
+                                    <tfoot className="bg-slate-900 text-white border-t-4 border-slate-950 sticky bottom-0 shadow-[0_-4px_10px_rgba(0,0,0,0.2)]">
+                                        <tr>
+                                            <td colSpan="4" className="p-4 text-right align-middle border-r border-slate-800">
+                                                <span className="text-sm font-bold text-slate-400">ยอดรวมจ่ายค่าคอมมิชชันและค่าแนะนำสุทธิ:</span>
+                                            </td>
+                                            <td className="p-4 text-right align-middle border-r border-slate-800 bg-blue-950/40">
+                                                <span className="text-xl font-black text-blue-400 block">{formatValDisplay(referralTotals.Self)}</span>
+                                                <span className="text-[10px] text-blue-300 font-bold uppercase tracking-widest mt-1">ขายเอง</span>
+                                            </td>
+                                            {activeLevelCols.map(col => (
+                                                <td key={col.level} className="p-4 text-right align-middle border-r border-slate-800">
+                                                    <span className="text-xl font-black text-emerald-400 block">{formatValDisplay(col.total)}</span>
+                                                    <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest mt-1">ชั้น {col.level}</span>
+                                                </td>
+                                            ))}
+                                            <td colSpan="2" className="p-4 text-right align-middle bg-slate-950">
+                                                <span className="text-2xl font-black text-white block drop-shadow-lg">{formatValDisplay(referralTotals.grandTotal)}</span>
+                                                <span className="text-[11px] text-slate-500 font-bold uppercase tracking-widest mt-1">รวมสุทธิ ({getCurrencySuffix()})</span>
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ------------------------------------------------------------- */}
+                {/* 💰 CATEGORY 2: Financial & Revenue View */}
+                {/* ------------------------------------------------------------- */}
+                {activeGroup === 'finance' && (
+                    <div className="space-y-6 animation-fade-in">
+                        {/* Financial Metric Cards */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-2xl font-black shrink-0">💵</div>
+                                <div>
+                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">รายรับรวมสุทธิ</span>
+                                    <span className="text-2xl font-black text-slate-800">{financialReportData.grandTotalAmt.toLocaleString()}</span>
+                                    <span className="text-[11px] text-slate-400 font-bold block">บาท/กีบ</span>
+                                </div>
+                            </div>
+                            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-2xl font-black shrink-0">📦</div>
+                                <div>
+                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">ยอดขายราคาเต็ม</span>
+                                    <span className="text-2xl font-black text-blue-600">{financialReportData.grandTotalFull.toLocaleString()}</span>
+                                    <span className="text-[11px] text-slate-400 font-bold block">กล่อง</span>
+                                </div>
+                            </div>
+                            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center text-2xl font-black shrink-0">🏷️</div>
+                                <div>
+                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">ยอดขายราคาโปร</span>
+                                    <span className="text-2xl font-black text-orange-600">{financialReportData.grandTotalPro.toLocaleString()}</span>
+                                    <span className="text-[11px] text-slate-400 font-bold block">กล่อง</span>
+                                </div>
+                            </div>
+                            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center text-2xl font-black shrink-0">🎁</div>
+                                <div>
+                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">ยอดขายราคาศูนย์</span>
+                                    <span className="text-2xl font-black text-slate-600">{financialReportData.grandTotalZero.toLocaleString()}</span>
+                                    <span className="text-[11px] text-slate-400 font-bold block">กล่อง</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Financial Table View */}
+                        <div className={`${boxWrapper} p-0 overflow-hidden`}>
+                            <div className="overflow-x-auto">
+                                {subTab === 'finance_summary' ? (
+                                    <table className="w-full text-left border-collapse min-w-[800px]">
+                                        <thead>
+                                            <tr>
+                                                <th className={thBase}>ช่วงเวลา (เดือน/วัน)</th>
+                                                <th className={`${thBase} text-center`}>จำนวนบิลทั้งหมด</th>
+                                                <th className={`${thBase} text-right text-emerald-700`}>กล่องราคาเต็ม</th>
+                                                <th className={`${thBase} text-right text-orange-700`}>กล่องราคาโปร</th>
+                                                <th className={`${thBase} text-right text-slate-700`}>กล่องราคาศูนย์</th>
+                                                <th className={`${thBase} text-right text-blue-700 font-black`}>รายรับรวม (เงิน)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {financialReportData.summaryRows.map((r, i) => (
+                                                <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                                    <td className="p-4 font-black text-slate-800 text-sm">{r.period}</td>
+                                                    <td className="p-4 text-center font-bold text-slate-600">{r.count} บิล</td>
+                                                    <td className="p-4 text-right font-bold text-emerald-600">{r.sumFull} กล่อง</td>
+                                                    <td className="p-4 text-right font-bold text-orange-600">{r.sumPro} กล่อง</td>
+                                                    <td className="p-4 text-right font-bold text-slate-500">{r.sumZero} กล่อง</td>
+                                                    <td className="p-4 text-right font-black text-blue-700 text-base">{r.totalAmt.toLocaleString()}</td>
+                                                </tr>
+                                            ))}
+                                            {financialReportData.summaryRows.length === 0 && (
+                                                <tr><td colSpan="6" className="p-12 text-center text-slate-400 font-bold">ไม่พบข้อมูลการเงินตามเงื่อนไข</td></tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                ) : (
+                                    <table className="w-full text-left border-collapse min-w-[900px]">
+                                        <thead>
+                                            <tr>
+                                                <th className={thBase}>เลขที่บิล</th>
+                                                <th className={thBase}>วันที่</th>
+                                                <th className={thBase}>ผู้ขาย (พนักงาน)</th>
+                                                <th className={thBase}>ชื่อลูกค้า</th>
+                                                <th className={`${thBase} text-center`}>ช่องทางชำระ</th>
+                                                <th className={`${thBase} text-right text-emerald-700`}>เต็ม (กล่อง)</th>
+                                                <th className={`${thBase} text-right text-orange-700`}>โปร (กล่อง)</th>
+                                                <th className={`${thBase} text-right text-slate-700`}>ศูนย์ (กล่อง)</th>
+                                                <th className={`${thBase} text-right text-blue-700 font-black`}>ยอดรับรวม</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {financialReportData.billRows.map((b, i) => (
+                                                <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                                    <td className="p-4 text-sm font-bold text-blue-600 whitespace-nowrap">{b.billId}</td>
+                                                    <td className="p-4 text-xs font-bold text-slate-500 whitespace-nowrap">{b.date}</td>
+                                                    <td className="p-4 text-xs font-bold text-slate-700">{b.memberName}</td>
+                                                    <td className="p-4 text-xs font-bold text-slate-700">{b.customerName}</td>
+                                                    <td className="p-4 text-center">
+                                                        <span className="px-2.5 py-1 bg-slate-100 text-slate-700 font-bold rounded-lg text-xs border border-slate-200">
+                                                            {b.payMode}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4 text-right text-xs font-bold text-emerald-600">{b.sumFull}</td>
+                                                    <td className="p-4 text-right text-xs font-bold text-orange-600">{b.sumPro}</td>
+                                                    <td className="p-4 text-right text-xs font-bold text-slate-500">{b.sumZero}</td>
+                                                    <td className="p-4 text-right text-sm font-black text-blue-700">{b.totalAmt.toLocaleString()}</td>
+                                                </tr>
+                                            ))}
+                                            {financialReportData.billRows.length === 0 && (
+                                                <tr><td colSpan="9" className="p-12 text-center text-slate-400 font-bold">ไม่พบบิลรับเงินตามเงื่อนไข</td></tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ------------------------------------------------------------- */}
+                {/* 📦 CATEGORY 3: Stock & Zero-Cut View */}
+                {/* ------------------------------------------------------------- */}
+                {activeGroup === 'stock' && (
+                    <div className="space-y-6 animation-fade-in">
+
+
+                        <div className={`${boxWrapper} p-0 overflow-hidden`}>
+                            <div className="overflow-x-auto">
+                                {subTab === 'stock_balance_report' ? (
+                                    <table className="w-full text-left border-collapse min-w-[850px]">
+                                        <thead>
+                                            <tr className="bg-slate-100 border-b border-slate-200">
+                                                <th className={thBase}>รหัส/ชื่อสินค้า</th>
+                                                <th className={`${thBase} text-right text-blue-700 font-black`}>ยอดรับเข้าสะสม</th>
+                                                <th className={`${thBase} text-right text-purple-700 font-black`}>เบิก/ขายออกในช่วงเวลา</th>
+                                                <th className={`${thBase} text-right text-emerald-700 font-black text-base`}>ยอดสต๊อกคงเหลือ ณ วันที่เลือก</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {stockReportData.balanceRows.map((b, i) => (
+                                                <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                                    <td className="p-4 font-bold text-slate-800 text-sm flex items-center gap-3">
+                                                        <span className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-black text-xs">P</span>
+                                                        <div>
+                                                            <div className="font-black text-slate-800">{b.name}</div>
+                                                            <div className="text-xs text-slate-400">รหัส: {b.id}</div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4 text-right font-bold text-blue-600 text-base">{b.stockInward.toLocaleString()}</td>
+                                                    <td className="p-4 text-right font-bold text-purple-600 text-base">{b.soldInPeriod.toLocaleString()}</td>
+                                                    <td className="p-4 text-right font-black text-emerald-600 text-lg">{b.endingStock.toLocaleString()}</td>
+                                                </tr>
+                                            ))}
+                                            {stockReportData.balanceRows.length === 0 && (
+                                                <tr><td colSpan="4" className="p-12 text-center text-slate-400 font-bold">ไม่พบข้อมูลสต๊อกตามเงื่อนไข</td></tr>
+                                            )}
+                                        </tbody>
+                                        {stockReportData.balanceRows.length > 0 && (
+                                            <tfoot className="bg-slate-900 text-white border-t-4 border-slate-950 sticky bottom-0 shadow-lg">
+                                                <tr>
+                                                    <td className="p-4 font-black text-sm text-slate-300">
+                                                        รวมสต๊อกสินค้าทั้งหมด (Grand Total Balance)
+                                                    </td>
+                                                    <td className="p-4 text-right font-black text-blue-400 text-base">
+                                                        {stockReportData.balanceRows.reduce((a,c)=>a+c.stockInward,0).toLocaleString()}
+                                                    </td>
+                                                    <td className="p-4 text-right font-black text-purple-400 text-base">
+                                                        {stockReportData.balanceRows.reduce((a,c)=>a+c.soldInPeriod,0).toLocaleString()}
+                                                    </td>
+                                                    <td className="p-4 text-right font-black text-emerald-400 text-xl">
+                                                        {stockReportData.grandBalanceQty.toLocaleString()}
+                                                    </td>
+                                                </tr>
+                                            </tfoot>
+                                        )}
+                                    </table>
+                                ) : subTab === 'stock_sales_by_product' ? (
+                                    <table className="w-full text-left border-collapse min-w-[850px]">
+                                        <thead>
+                                            <tr>
+                                                <th className={thBase}>รหัส/ชื่อสินค้า</th>
+                                                <th className={`${thBase} text-right text-emerald-700`}>ขายราคาเต็ม</th>
+                                                <th className={`${thBase} text-right text-indigo-700`}>ขายราคาสมาชิก</th>
+                                                <th className={`${thBase} text-right text-orange-700`}>ขายราคาโปร</th>
+                                                <th className={`${thBase} text-right text-slate-700`}>ตัดศูนย์ราคา</th>
+                                                <th className={`${thBase} text-right text-blue-700 font-black`}>รวมเบิกขายทั้งหมด</th>
+                                                <th className={`${thBase} text-center bg-slate-100/50 w-16 no-print`}><SearchIcon size={16} className="mx-auto text-slate-500" title="ตรวจสอบบิลที่มา"/></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {stockReportData.productSummary.map((p, i) => (
+                                                <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                                    <td className="p-4 font-bold text-slate-800 text-sm flex items-center gap-3">
+                                                        <span className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-black text-xs">P</span>
+                                                        <span>{p.name}</span>
+                                                    </td>
+                                                    <td className="p-4 text-right font-black text-emerald-600">{p.full.toLocaleString()}</td>
+                                                    <td className="p-4 text-right font-black text-indigo-600">{p.member.toLocaleString()}</td>
+                                                    <td className="p-4 text-right font-black text-orange-600">{p.pro.toLocaleString()}</td>
+                                                    <td className="p-4 text-right font-black text-slate-500">{p.zero.toLocaleString()}</td>
+                                                    <td className="p-4 text-right font-black text-blue-700 text-lg">{p.total.toLocaleString()}</td>
+                                                    <td className="p-2 text-center border-l border-slate-100 bg-slate-50/50 no-print">
+                                                        <button 
+                                                            onClick={() => setStockModalItem({ name: p.name, priceType: null })} 
+                                                            title="ตรวจสอบบิลต้นทางของสินค้านี้"
+                                                            className="w-8 h-8 flex justify-center items-center mx-auto bg-white hover:bg-blue-50 text-blue-600 rounded-full border border-slate-200 transition-all shadow-sm hover:shadow-md"
+                                                        >
+                                                            <SearchIcon size={16}/>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {stockReportData.productSummary.length === 0 && (
+                                                <tr><td colSpan="7" className="p-12 text-center text-slate-400 font-bold">ไม่พบข้อมูลสินค้าตามเงื่อนไข</td></tr>
+                                            )}
+                                        </tbody>
+                                        {stockReportData.productSummary.length > 0 && (
+                                            <tfoot className="bg-slate-900 text-white border-t-4 border-slate-950 sticky bottom-0 shadow-lg">
+                                                <tr>
+                                                    <td className="p-4 font-black text-sm text-slate-300">
+                                                        ยอดรวมสินค้าทั้งหมด (Grand Total)
+                                                    </td>
+                                                    <td className="p-4 text-right font-black text-emerald-400 text-base">
+                                                        {stockReportData.grandFull.toLocaleString()}
+                                                    </td>
+                                                    <td className="p-4 text-right font-black text-indigo-400 text-base">
+                                                        {stockReportData.grandMember.toLocaleString()}
+                                                    </td>
+                                                    <td className="p-4 text-right font-black text-orange-400 text-base">
+                                                        {stockReportData.grandPro.toLocaleString()}
+                                                    </td>
+                                                    <td className="p-4 text-right font-black text-slate-300 text-base">
+                                                        {stockReportData.grandZero.toLocaleString()}
+                                                    </td>
+                                                    <td className="p-4 text-right font-black text-yellow-400 text-xl">
+                                                        {stockReportData.grandTotal.toLocaleString()}
+                                                    </td>
+                                                    <td className="p-2 no-print"></td>
+                                                </tr>
+                                            </tfoot>
+                                        )}
+                                    </table>
+                                ) : (
+                                    <table className="w-full text-left border-collapse min-w-[850px]">
+                                        <thead>
+                                            <tr>
+                                                <th className={thBase}>เลขที่บิล</th>
+                                                <th className={thBase}>วันที่</th>
+                                                <th className={thBase}>พนักงานผู้เบิก/ขาย</th>
+                                                <th className={thBase}>ประเภทลูกค้า</th>
+                                                <th className={thBase}>สินค้าที่ตัดศูนย์</th>
+                                                <th className={`${thBase} text-right text-slate-800 font-black`}>จำนวนที่ตัดสูญ (กล่อง)</th>
+                                                <th className={`${thBase} text-center bg-slate-100/50 w-16 no-print`}><SearchIcon size={16} className="mx-auto text-slate-500" title="ตรวจสอบบิลที่มา"/></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {stockReportData.zeroCutRows.map((z, i) => (
+                                                <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                                    <td className="p-4 text-sm font-bold text-blue-600 whitespace-nowrap">{z.billId}</td>
+                                                    <td className="p-4 text-xs font-bold text-slate-500 whitespace-nowrap">{z.date}</td>
+                                                    <td className="p-4 text-xs font-bold text-slate-700">{z.memberName}</td>
+                                                    <td className="p-4 text-xs font-bold text-slate-600">{z.custType}</td>
+                                                    <td className="p-4 text-xs font-bold text-slate-800">{z.product}</td>
+                                                    <td className="p-4 text-right font-black text-rose-600 text-base">{z.qty} กล่อง</td>
+                                                    <td className="p-2 text-center border-l border-slate-100 bg-slate-50/50 no-print">
+                                                        <button 
+                                                            onClick={() => setStockModalItem({ name: z.product, priceType: 'ราคาศูนย์' })} 
+                                                            title="ตรวจสอบบิลต้นทางที่ตัดศูนย์"
+                                                            className="w-8 h-8 flex justify-center items-center mx-auto bg-white hover:bg-rose-50 text-rose-600 rounded-full border border-slate-200 transition-all shadow-sm hover:shadow-md"
+                                                        >
+                                                            <SearchIcon size={16}/>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {stockReportData.zeroCutRows.length === 0 && (
+                                                <tr><td colSpan="7" className="p-12 text-center text-slate-400 font-bold">ไม่พบรายการตัดสินค้าศูนย์ราคาในรอบวันที่เลือก</td></tr>
+                                            )}
+                                        </tbody>
+                                        {stockReportData.zeroCutRows.length > 0 && (
+                                            <tfoot className="bg-slate-900 text-white border-t-4 border-slate-950 sticky bottom-0 shadow-lg">
+                                                <tr>
+                                                    <td colSpan="5" className="p-4 text-right font-black text-sm text-slate-300">
+                                                        ยอดรวมสินค้าตัดศูนย์ราคาแถมทั้งหมด:
+                                                    </td>
+                                                    <td className="p-4 text-right font-black text-rose-400 text-xl">
+                                                        {stockReportData.zeroCutRows.reduce((sum, z) => sum + z.qty, 0).toLocaleString()} <span className="text-[10px] text-rose-200 font-bold">กล่อง</span>
+                                                    </td>
+                                                    <td className="p-2 no-print"></td>
+                                                </tr>
+                                            </tfoot>
+                                        )}
+                                    </table>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ------------------------------------------------------------- */}
+                {/* 📊 CATEGORY 1: Sales & Staff Performance View */}
+                {/* ------------------------------------------------------------- */}
+                {activeGroup === 'sales' && (
+                    <React.Fragment>
+                        {isRanking && rankings && (
+                            <div className="p-6 sm:p-8 bg-slate-50 border border-slate-200 rounded-3xl flex flex-col gap-8 animation-fade-in shadow-inner">
+                                <div>
+                                    <h4 className="font-bold text-slate-800 mb-5 flex items-center gap-2"><span className="text-2xl">📦</span> อันดับสินค้าขายดี (จำแนกตามราคา)</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                                        <div className="bg-white rounded-2xl p-5 shadow-sm border border-emerald-100">
+                                            <h5 className="font-bold text-emerald-700 mb-4 border-b border-emerald-100 pb-3 flex justify-between items-center text-sm"><span>ราคาเต็ม</span><span className="text-[11px] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md text-emerald-700 shadow-sm">{rankings.products?.full?.length || 0} รายการ</span></h5>
+                                            <ul className="space-y-3">
+                                                {rankings.products?.full?.length > 0 ? rankings.products.full.map(([p, q], i) => (
+                                                    <li key={p} className="flex justify-between items-center text-sm">
+                                                        <div className="flex items-center gap-3"><span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${i===0?'bg-yellow-400 text-yellow-900':i===1?'bg-slate-200 text-slate-700':i===2?'bg-orange-500 text-white':'bg-slate-100 text-slate-500'}`}>{i+1}</span><span className="font-bold text-slate-700">{p}</span></div>
+                                                        <span className="font-black text-emerald-600 text-base">{q} <span className="text-xs font-medium text-emerald-500">กล่อง</span></span>
+                                                    </li>
+                                                )) : <li className="text-xs font-medium text-slate-500 py-4 text-center">ไม่มีข้อมูล</li>}
+                                            </ul>
+                                        </div>
+                                        <div className="bg-white rounded-2xl p-5 shadow-sm border border-indigo-100">
+                                            <h5 className="font-bold text-indigo-700 mb-4 border-b border-indigo-100 pb-3 flex justify-between items-center text-sm"><span>ราคาสมาชิก</span><span className="text-[11px] bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md text-indigo-700 shadow-sm">{rankings.products?.member?.length || 0} รายการ</span></h5>
+                                            <ul className="space-y-3">
+                                                {rankings.products?.member?.length > 0 ? rankings.products.member.map(([p, q], i) => (
+                                                    <li key={p} className="flex justify-between items-center text-sm">
+                                                        <div className="flex items-center gap-3"><span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${i===0?'bg-yellow-400 text-yellow-900':i===1?'bg-slate-200 text-slate-700':i===2?'bg-orange-500 text-white':'bg-slate-100 text-slate-500'}`}>{i+1}</span><span className="font-bold text-slate-700">{p}</span></div>
+                                                        <span className="font-black text-indigo-600 text-base">{q} <span className="text-xs font-medium text-indigo-500">กล่อง</span></span>
+                                                    </li>
+                                                )) : <li className="text-xs font-medium text-slate-500 py-4 text-center">ไม่มีข้อมูล</li>}
+                                            </ul>
+                                        </div>
+                                        <div className="bg-white rounded-2xl p-5 shadow-sm border border-orange-100">
+                                            <h5 className="font-bold text-orange-600 mb-4 border-b border-orange-100 pb-3 flex justify-between items-center text-sm"><span>ราคาโปร</span><span className="text-[11px] bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-md text-orange-700 shadow-sm">{rankings.products?.pro?.length || 0} รายการ</span></h5>
+                                            <ul className="space-y-3">
+                                                {rankings.products?.pro?.length > 0 ? rankings.products.pro.map(([p, q], i) => (
+                                                    <li key={p} className="flex justify-between items-center text-sm">
+                                                        <div className="flex items-center gap-3"><span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${i===0?'bg-yellow-400 text-yellow-900':i===1?'bg-slate-200 text-slate-700':i===2?'bg-orange-500 text-white':'bg-slate-100 text-slate-500'}`}>{i+1}</span><span className="font-bold text-slate-700">{p}</span></div>
+                                                        <span className="font-black text-orange-600 text-base">{q} <span className="text-xs font-medium text-orange-500">กล่อง</span></span>
+                                                    </li>
+                                                )) : <li className="text-xs font-medium text-slate-500 py-4 text-center">ไม่มีข้อมูล</li>}
+                                            </ul>
+                                        </div>
+                                        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
+                                            <h5 className="font-bold text-slate-600 mb-4 border-b border-slate-200 pb-3 flex justify-between items-center text-sm"><span>ราคาศูนย์</span><span className="text-[11px] bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-md text-slate-600 shadow-sm">{rankings.products?.zero?.length || 0} รายการ</span></h5>
+                                            <ul className="space-y-3">
+                                                {rankings.products?.zero?.length > 0 ? rankings.products.zero.map(([p, q], i) => (
+                                                    <li key={p} className="flex justify-between items-center text-sm">
+                                                        <div className="flex items-center gap-3"><span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${i===0?'bg-yellow-400 text-yellow-900':i===1?'bg-slate-200 text-slate-700':i===2?'bg-orange-500 text-white':'bg-slate-100 text-slate-500'}`}>{i+1}</span><span className="font-bold text-slate-700">{p}</span></div>
+                                                        <span className="font-bold text-slate-500 text-base">{q} <span className="text-xs font-medium text-slate-400">กล่อง</span></span>
+                                                    </li>
+                                                )) : <li className="text-xs font-medium text-slate-500 py-4 text-center">ไม่มีข้อมูล</li>}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <hr className="border-slate-200" />
+
+                                <div>
+                                    <h4 className="font-bold text-indigo-700 mb-5 flex items-center gap-2"><span className="text-2xl">🏆</span> อันดับพนักงานยอดเยี่ยม (Top Sellers)</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                                        <div className="bg-white rounded-2xl p-5 shadow-sm border border-emerald-100">
+                                            <h5 className="font-bold text-emerald-700 mb-4 border-b border-emerald-100 pb-3 flex justify-between items-center text-sm"><span>ราคาเต็ม</span><span className="text-[11px] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md text-emerald-700 shadow-sm">{rankings.members?.full?.length || 0} คน</span></h5>
+                                            <ul className="space-y-3">
+                                                {rankings.members?.full?.length > 0 ? rankings.members.full.map(([m, q], i) => (
+                                                    <li key={m} className="flex justify-between items-center text-sm">
+                                                        <div className="flex items-center gap-3"><span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${i===0?'bg-yellow-400 text-yellow-900':i===1?'bg-slate-200 text-slate-700':i===2?'bg-orange-500 text-white':'bg-slate-100 text-slate-500'}`}>{i+1}</span><span className="font-bold text-slate-700">{m}</span></div>
+                                                        <span className="font-black text-emerald-600 text-base">{q} <span className="text-xs font-medium text-emerald-500">กล่อง</span></span>
+                                                    </li>
+                                                )) : <li className="text-xs font-medium text-slate-500 py-4 text-center">ไม่มีข้อมูล</li>}
+                                            </ul>
+                                        </div>
+                                        <div className="bg-white rounded-2xl p-5 shadow-sm border border-indigo-100">
+                                            <h5 className="font-bold text-indigo-700 mb-4 border-b border-indigo-100 pb-3 flex justify-between items-center text-sm"><span>ราคาสมาชิก</span><span className="text-[11px] bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md text-indigo-700 shadow-sm">{rankings.members?.member?.length || 0} คน</span></h5>
+                                            <ul className="space-y-3">
+                                                {rankings.members?.member?.length > 0 ? rankings.members.member.map(([m, q], i) => (
+                                                    <li key={m} className="flex justify-between items-center text-sm">
+                                                        <div className="flex items-center gap-3"><span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${i===0?'bg-yellow-400 text-yellow-900':i===1?'bg-slate-200 text-slate-700':i===2?'bg-orange-500 text-white':'bg-slate-100 text-slate-500'}`}>{i+1}</span><span className="font-bold text-slate-700">{m}</span></div>
+                                                        <span className="font-black text-indigo-600 text-base">{q} <span className="text-xs font-medium text-indigo-500">กล่อง</span></span>
+                                                    </li>
+                                                )) : <li className="text-xs font-medium text-slate-500 py-4 text-center">ไม่มีข้อมูล</li>}
+                                            </ul>
+                                        </div>
+                                        <div className="bg-white rounded-2xl p-5 shadow-sm border border-orange-100">
+                                            <h5 className="font-bold text-orange-600 mb-4 border-b border-orange-100 pb-3 flex justify-between items-center text-sm"><span>ราคาโปร</span><span className="text-[11px] bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-md text-orange-700 shadow-sm">{rankings.members?.pro?.length || 0} คน</span></h5>
+                                            <ul className="space-y-3">
+                                                {rankings.members?.pro?.length > 0 ? rankings.members.pro.map(([m, q], i) => (
+                                                    <li key={m} className="flex justify-between items-center text-sm">
+                                                        <div className="flex items-center gap-3"><span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${i===0?'bg-yellow-400 text-yellow-900':i===1?'bg-slate-200 text-slate-700':i===2?'bg-orange-500 text-white':'bg-slate-100 text-slate-500'}`}>{i+1}</span><span className="font-bold text-slate-700">{m}</span></div>
+                                                        <span className="font-black text-orange-600 text-base">{q} <span className="text-xs font-medium text-orange-500">กล่อง</span></span>
+                                                    </li>
+                                                )) : <li className="text-xs font-medium text-slate-500 py-4 text-center">ไม่มีข้อมูล</li>}
+                                            </ul>
+                                        </div>
+                                        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
+                                            <h5 className="font-bold text-slate-600 mb-4 border-b border-slate-200 pb-3 flex justify-between items-center text-sm"><span>ราคาศูนย์</span><span className="text-[11px] bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-md text-slate-600 shadow-sm">{rankings.members?.zero?.length || 0} คน</span></h5>
+                                            <ul className="space-y-3">
+                                                {rankings.members?.zero?.length > 0 ? rankings.members.zero.map(([m, q], i) => (
+                                                    <li key={m} className="flex justify-between items-center text-sm">
+                                                        <div className="flex items-center gap-3"><span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${i===0?'bg-yellow-400 text-yellow-900':i===1?'bg-slate-200 text-slate-700':i===2?'bg-orange-500 text-white':'bg-slate-100 text-slate-500'}`}>{i+1}</span><span className="font-bold text-slate-700">{m}</span></div>
+                                                        <span className="font-bold text-slate-500 text-base">{q} <span className="text-xs font-medium text-slate-400">กล่อง</span></span>
+                                                    </li>
+                                                )) : <li className="text-xs font-medium text-slate-500 py-4 text-center">ไม่มีข้อมูล</li>}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {!isRanking && (
+                            <div className={`${boxWrapper} p-0 overflow-hidden`}>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse min-w-[800px]">
+                                        <thead>
+                                            <tr>
+                                                <th className={thBase}>เดือน/ช่วงเวลา</th>
+                                                <th className={thBase}>{isTeamView ? 'ทีม' : (isCustTypeView ? 'ประเภทลูกค้า' : 'พนักงาน')}</th>
+                                                <th className={`${thBase} border-l border-slate-200`}>รายการ (เต็ม)</th>
+                                                <th className={`${thBase} border-l border-slate-200`}>รายการ (สมาชิก)</th>
+                                                <th className={`${thBase} border-l border-slate-200`}>รายการ (โปร)</th>
+                                                <th className={`${thBase} border-l border-slate-200`}>รายการ (ศูนย์)</th>
+                                                <th className={`${thBase} border-l border-slate-200 text-center text-blue-700`}>รวม<br/><span className="text-[10px] font-normal">(ทุกราคา)</span></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {reportData.map((row, index) => (
+                                                <tr key={index} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                                    <td className="p-4 text-sm font-bold text-slate-800 whitespace-nowrap">{row.label1}</td>
+                                                    <td className="p-4 text-sm font-bold text-slate-800">
+                                                        <div className="flex flex-col">
+                                                            <span>{row.label2}</span>
+                                                            {row.subLabel2 && <span className="text-[11px] text-blue-600 mt-0.5">{row.subLabel2}</span>}
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4 border-l border-slate-100 bg-emerald-50/20">{renderDetailBadges(row.detailsFull, 'bg-emerald-100 text-emerald-800 border-emerald-200')}</td>
+                                                    <td className="p-4 border-l border-slate-100 bg-indigo-50/20">{renderDetailBadges(row.detailsMember, 'bg-indigo-100 text-indigo-800 border-indigo-200')}</td>
+                                                    <td className="p-4 border-l border-slate-100 bg-orange-50/20">{renderDetailBadges(row.detailsPro, 'bg-orange-100 text-orange-800 border-orange-200')}</td>
+                                                    <td className="p-4 border-l border-slate-100 bg-slate-50/50">{renderDetailBadges(row.detailsZero, 'bg-white text-slate-600 border-slate-300')}</td>
+                                                    <td className="p-4 text-center align-middle border-l border-slate-100 bg-blue-50/50 shadow-inner">
+                                                        <div className="text-2xl font-black text-blue-600">{row.total}</div>
+                                                        <div className="text-[10px] font-bold text-slate-500">กล่อง</div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {reportData.length === 0 && (
+                                                <tr><td colSpan={7} className="p-12 text-center text-slate-500 font-bold bg-slate-50/50">ไม่พบข้อมูลยอดขายตามเงื่อนไขที่ระบุ</td></tr>
+                                            )}
+                                        </tbody>
+                                        {reportData.length > 0 && (
+                                            <tfoot className="bg-white border-t-[3px] border-slate-200">
+                                                <tr>
+                                                    <td colSpan={2} className="py-6 px-4 align-middle text-center border-r border-slate-100">
+                                                        <div className="font-black text-slate-800 text-sm">ยอดรวมสุทธิ (Grand Total)</div>
+                                                        <div className="text-[11px] font-bold text-slate-600 bg-slate-50 inline-block px-3 py-1 rounded-lg border border-slate-200 mt-2 shadow-sm">ทั้งหมด {reportData.length} รายการ</div>
+                                                    </td>
+                                                    <td className="p-4 align-middle text-center border-l border-slate-100">
+                                                        <div className="font-black text-2xl text-emerald-700">{reportTotals.sumFull}</div>
+                                                        <div className="text-[10px] font-bold text-emerald-600 mt-1">กล่อง (เต็ม)</div>
+                                                    </td>
+                                                    <td className="p-4 align-middle text-center border-l border-slate-100">
+                                                        <div className="font-black text-2xl text-indigo-700">{reportTotals.sumMember}</div>
+                                                        <div className="text-[10px] font-bold text-indigo-600 mt-1">กล่อง (สมาชิก)</div>
+                                                    </td>
+                                                    <td className="p-4 align-middle text-center border-l border-slate-100">
+                                                        <div className="font-black text-2xl text-orange-600">{reportTotals.sumPro}</div>
+                                                        <div className="text-[10px] font-bold text-orange-600 mt-1">กล่อง (โปร)</div>
+                                                    </td>
+                                                    <td className="p-4 align-middle text-center border-l border-slate-100">
+                                                        <div className="font-black text-2xl text-slate-600">{reportTotals.sumZero}</div>
+                                                        <div className="text-[10px] font-bold text-slate-600 mt-1">กล่อง (ศูนย์)</div>
+                                                    </td>
+                                                    <td className="p-4 align-middle text-center border-l border-slate-100">
+                                                        <div className="font-black text-4xl text-blue-800 drop-shadow-sm">{reportTotals.sumTotal}</div>
+                                                        <div className="text-[12px] font-black text-blue-600 uppercase tracking-widest mt-1">Total</div>
+                                                    </td>
+                                                </tr>
+                                            </tfoot>
+                                        )}
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </React.Fragment>
+                )}
+
+                {/* 📌 Individual Earner Detail Modal */}
+                <EditModal isOpen={detailModalEarner !== null} onClose={() => setDetailModalEarner(null)} title={`บัญชีแยกประเภทค่าแนะนำ & ค่าคอมมิชชัน: ${detailModalEarner?.name}`} icon={SearchIcon} maxWidthClass="max-w-6xl">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b border-slate-200 pb-4 gap-4 no-print">
+                        <div>
+                            <p className="text-sm font-bold text-slate-500 mb-1">รหัสพนักงาน: <span className="text-blue-600">{detailModalEarner?.id}</span> &nbsp;|&nbsp; สังกัดทีม: <span className="text-slate-700">{detailModalEarner?.team}</span></p>
+                            <p className="text-xs text-slate-400">ประวัติการรับเงินปันผล/ค่าคอมมิชชันช่วงวันที่ <span className="font-bold text-slate-600">{startDate}</span> ถึง <span className="font-bold text-slate-600">{endDate}</span> (รูปแบบ: {referralCalcMode === 'percent' ? 'คำนวณ %' : referralCalcMode === 'combo' ? 'ข้างกล่อง + %' : 'ข้างกล่อง'})</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                            <button onClick={handleExportModalExcel} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 h-[36px]">
+                                📊 โหลด Excel
+                            </button>
+                            <button onClick={() => window.print()} className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 h-[36px]">
+                                🖨️ สั่งปริ้นท์ / ส่งออก PDF
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="border border-indigo-200 rounded-xl overflow-hidden shadow-sm">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse min-w-[900px]">
+                                <thead>
+                                    <tr className="bg-indigo-50 border-b-2 border-indigo-200">
+                                        <th className={`${thBase} bg-transparent text-indigo-900`}>วันที่</th>
+                                        <th className={`${thBase} bg-transparent text-indigo-900`}>เลขที่บิล</th>
+                                        <th className={`${thBase} bg-transparent text-indigo-900 text-center`}>ประเภทได้รับ</th>
+                                        <th className={`${thBase} bg-transparent text-indigo-900`}>ผู้ขายบิลนี้</th>
+                                        <th className={`${thBase} bg-transparent text-indigo-900`}>สินค้าที่ขายได้</th>
+                                        <th className={`${thBase} bg-transparent text-indigo-900 text-right`}>เรทคำนวณ</th>
+                                        <th className={`${thBase} bg-transparent text-indigo-900 text-right font-black`}>เงินที่ได้ ({getCurrencySuffix()})</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {selectedEarnerDetails.map((d, index) => (
+                                        <tr key={index} className="border-b border-slate-100 hover:bg-indigo-50/50 transition-colors">
+                                            <td className="p-3 text-xs font-bold text-slate-600 whitespace-nowrap">{d.date}</td>
+                                            <td className="p-3 text-xs font-bold text-blue-600 whitespace-nowrap">{d.billId}</td>
+                                            <td className="p-3 text-center">
+                                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border whitespace-nowrap ${d.level.includes('ขายเอง') ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                                                    {d.level}
+                                                </span>
+                                            </td>
+                                            <td className="p-3">
+                                                <div className="font-bold text-slate-700 text-xs truncate max-w-[200px]">{d.sellerName}</div>
+                                                <div className="text-[10px] text-slate-400">{d.sellerId}</div>
+                                            </td>
+                                            <td className="p-3">
+                                                <span className="bg-slate-100 text-slate-700 font-bold px-2 py-1 rounded border border-slate-200 text-xs whitespace-nowrap">
+                                                    {d.product} <span className="text-blue-600 ml-1">x{d.qty}</span>
+                                                </span>
+                                            </td>
+                                            <td className="p-3 text-xs text-right font-medium text-slate-500 whitespace-nowrap">{d.feeRateStr}</td>
+                                            <td className="p-3 text-sm text-right font-black text-indigo-700 whitespace-nowrap">{formatValDisplay(d.totalEarned)}</td>
+                                        </tr>
+                                    ))}
+                                    {selectedEarnerDetails.length === 0 && (
+                                        <tr><td colSpan="7" className="p-8 text-center text-slate-400 font-bold">ไม่พบประวัติการรับค่าแนะนำในช่วงเวลานี้</td></tr>
+                                    )}
+                                </tbody>
+                                <tfoot className="bg-indigo-950 text-white sticky bottom-0">
+                                    <tr>
+                                        <td colSpan="6" className="p-3 text-right align-middle font-bold text-indigo-200 text-sm">ยอดรวมเจาะลึกเฉพาะบัญชีนี้:</td>
+                                        <td className="p-3 text-right align-middle whitespace-nowrap">
+                                            <span className="text-xl font-black text-white drop-shadow-md">
+                                                {formatValDisplay(selectedEarnerDetails.reduce((sum, d) => sum + d.totalEarned, 0))}
+                                            </span>
+                                            <span className="text-[10px] text-indigo-300 font-bold ml-1">{getCurrencySuffix()}</span>
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </EditModal>
+
+                {/* 📦 Stock Product Source Bills Drilldown Modal */}
+                <EditModal isOpen={stockModalItem !== null} onClose={() => setStockModalItem(null)} title={`บิลขายและรายการเบิกต้นทาง: ${stockModalItem?.name}`} icon={SearchIcon} maxWidthClass="max-w-5xl">
+                    <div className="flex justify-between items-center mb-4 border-b border-slate-200 pb-3">
+                        <p className="text-xs font-bold text-slate-500">
+                            รายการบิลขายทั้งหมดที่มีการเบิกหรือตัดขายสินค้า <span className="text-blue-600 font-bold">{stockModalItem?.name}</span> {stockModalItem?.priceType ? `(${stockModalItem.priceType})` : ''}
+                        </p>
+                        <button onClick={() => window.print()} className="bg-slate-800 hover:bg-slate-900 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all no-print">
+                            🖨️ สั่งปริ้นท์
+                        </button>
+                    </div>
+
+                    <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                        <div className="overflow-x-auto max-h-[60vh]">
+                            <table className="w-full text-left border-collapse min-w-[700px]">
+                                <thead className="bg-slate-100 border-b border-slate-200 sticky top-0">
+                                    <tr>
+                                        <th className={thBase}>วันที่</th>
+                                        <th className={thBase}>เลขที่บิล</th>
+                                        <th className={thBase}>พนักงานผู้ขาย/เบิก</th>
+                                        <th className={thBase}>สังกัดทีม</th>
+                                        <th className={thBase}>ประเภทลูกค้า</th>
+                                        <th className={`${thBase} text-center`}>ราคาที่ขาย</th>
+                                        <th className={`${thBase} text-right text-blue-700 font-black`}>จำนวน (กล่อง)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {stockItemSourceBills.map((b, idx) => (
+                                        <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                            <td className="p-3 text-xs font-bold text-slate-500 whitespace-nowrap">{b.date}</td>
+                                            <td className="p-3 text-xs font-bold text-blue-600 whitespace-nowrap">{b.billId}</td>
+                                            <td className="p-3 text-xs font-bold text-slate-800">{b.memberName}</td>
+                                            <td className="p-3 text-xs font-bold text-slate-600">{b.team}</td>
+                                            <td className="p-3 text-xs font-bold text-slate-600">{b.custType}</td>
+                                            <td className="p-3 text-center">
+                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${b.priceType === 'ราคาเต็ม' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : b.priceType === 'ราคาโปร' ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                                                    {b.priceType}
+                                                </span>
+                                            </td>
+                                            <td className="p-3 text-sm text-right font-black text-blue-700">{b.qty} กล่อง</td>
+                                        </tr>
+                                    ))}
+                                    {stockItemSourceBills.length === 0 && (
+                                        <tr><td colSpan="7" className="p-8 text-center text-slate-400 font-bold">ไม่พบประวัติบิลขายของสินค้านี้</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </EditModal>
+            </div>
+        );
+    };
+
+    // ==========================================
+    // 📌 React App (Main Component Wrapper)
+    // ==========================================
+    const App = () => {
+        const [isLoggedIn, setIsLoggedIn] = useState(false);
+        const [currentUser, setCurrentUser] = useState(null);
+        const [showLoginModal, setShowLoginModal] = useState(false);
+
+        const [systemSettings, setSystemSettings] = useState({ exchange_rate: 700 });
+        const [products, setProducts] = useState([]);
+        const [customerTypes, setCustomerTypes] = useState(fallbackCustomerTypes);
+        const [closers, setClosers] = useState([]);
+        const [businessTeams, setBusinessTeams] = useState([]);
+        const [members, setMembers] = useState([]);
+        const [customers, setCustomers] = useState([]);
+        const [sales, setSales] = useState([]);
+        const [systemUsers, setSystemUsers] = useState([]);
+        const [isAppLoading, setIsAppLoading] = useState(true);
+        const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+            try { return localStorage.getItem('stk_sidebar_collapsed') === 'true'; } catch(e) { return false; }
+        });
+
+        const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+        const showToast = (message, type = 'success') => setToast({ show: true, message, type });
+
+        const SCRIPT_URL = (() => {
+  try {
+    if (window.top && window.top.location && window.top.location.href) {
+      const base = window.top.location.href.split('?')[0];
+      if (base && base.startsWith('http')) return base;
+    }
+  } catch(e) {}
+  return "<?= getScriptUrl() ?>";
+})();
+        const isAdmin = currentUser && (
+            String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
+            String(currentUser.role).trim().toLowerCase() === 'admin'
+        );
+        const currentUserProfileUrl = currentUser?.profileUrl || '';
+
+        const activeCustomerTypes = useMemo(() => {
+            if (!customerTypes || customerTypes.length === 0) return fallbackCustomerTypes;
+            return (customerTypes || []).filter(p => p && p.status === 'ใช้งาน');
+        }, [customerTypes]);
+
+        const fetchAllData = useCallback(() => {
+            if (typeof google !== 'undefined' && google.script) {
+                google.script.run
+                    .withSuccessHandler((response) => {
+                        if (response) {
+                            try { localStorage.setItem('stk_app_cache_data', JSON.stringify(response)); } catch(e){}
+                            applyDataToStates(response);
+                        }
+                        setIsAppLoading(false); 
+                    })
+                    .withFailureHandler((error) => {
+                        setIsAppLoading(false);
+                        showToast('การเชื่อมต่อเซิร์ฟเวอร์ขัดข้อง: ' + (error ? (error.message || error) : ''), 'error');
+                    })
+                    .getInitialData();
+            }
+        }, []);
+
+        useEffect(() => {
+            const savedUserStr = localStorage.getItem('stk_current_user');
+            if (savedUserStr) {
+                const user = JSON.parse(savedUserStr);
+                setCurrentUser(user);
+                setIsLoggedIn(true);
+            } else {
+                setShowLoginModal(true);
+            }
+
+            const initialLoader = document.getElementById('initial-loader');
+            if (initialLoader) initialLoader.style.display = 'none';
+
+            if (typeof google !== 'undefined' && google.script) {
+                try {
+                    const cachedData = localStorage.getItem('stk_app_cache_data');
+                    if (cachedData) {
+                        const parsedData = JSON.parse(cachedData);
+                        applyDataToStates(parsedData);
+                        setIsAppLoading(false);
+                    }
+                } catch (e) { console.warn("Cache error", e); }
+
+                fetchAllData();
+            } else {
+                setProducts([{ id: 'P001', name: 'SESAMIN', status: 'ใช้งาน' }]);
+                setCustomerTypes(fallbackCustomerTypes);
+                setClosers([{ id: 'C001', name: 'BEE', team: 'Marketing', status: 'ใช้งาน' }, { id: 'C002', name: 'HAT', team: 'Center', status: 'ใช้งาน' }]);
+                setIsAppLoading(false);
+            }
+        }, [fetchAllData]);
+
+        const applyDataToStates = (response) => {
+            if (response.systemSettings) setSystemSettings(response.systemSettings);
+            if (Array.isArray(response.products)) setProducts(response.products);
+            if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes);
+            if (Array.isArray(response.closers)) setClosers(response.closers);
+            if (Array.isArray(response.businessTeams)) setBusinessTeams(response.businessTeams);
+            if (Array.isArray(response.members)) setMembers(response.members);
+            if (Array.isArray(response.customers)) setCustomers(response.customers);
+            if (Array.isArray(response.systemUsers)) setSystemUsers(response.systemUsers);
+
+            if (Array.isArray(response.sales)) {
+                const processedSales = response.sales.map(s => {
+                    let sumF = 0, sumP = 0, sumZ = 0;
+                    Object.keys(s).forEach(k => {
+                        if (k !== 'รวมชิ้นราคาเต็ม' && k !== 'รวมชิ้นราคาโปร' && k !== 'รวมชิ้นราคาศูนย์' && k !== 'ยอดรวมชิ้นทั้งหมด') {
+                            if (k.endsWith('_ราคาเต็ม')) sumF += (parseInt(s[k]) || 0);
+                            else if (k.endsWith('_ราคาโปร')) sumP += (parseInt(s[k]) || 0);
+                            else if (k.endsWith('_ราคาศูนย์')) sumZ += (parseInt(s[k]) || 0);
+                        }
+                    });
+                    s['รวมชิ้นราคาเต็ม'] = sumF; s['รวมชิ้นราคาโปร'] = sumP; s['รวมชิ้นราคาศูนย์'] = sumZ;
+                    s['ยอดรวมชิ้นทั้งหมด'] = sumF + sumP + sumZ;
+                    return s;
+                });
+                setSales(processedSales);
+            }
+        };
+
+        const handleLoginSuccess = (user) => {
+            localStorage.setItem('stk_current_user', JSON.stringify(user));
+            setCurrentUser(user);
+            setIsLoggedIn(true);
+            setShowLoginModal(false);
+            showToast('เข้าสู่ระบบสำเร็จ!', 'success');
+        };
+
+        const handleLogout = () => {
+            localStorage.removeItem('stk_current_user');
+            setCurrentUser(null);
+            setIsLoggedIn(false);
+            if (typeof window !== 'undefined') {
+                window.open(resolvePageUrl(SCRIPT_URL + '?page=reports'), '_top');
+            }
+        };
+
+        return (
+            <div className="min-h-screen flex font-sans bg-slate-50">
+                <Sidebar 
+                    activePage="reports" 
+                    isLoggedIn={isLoggedIn} 
+                    currentUser={currentUser} 
+                    currentUserProfileUrl={currentUserProfileUrl} 
+                    isAdmin={isAdmin} 
+                    onLogout={handleLogout} 
+                    showLoginModal={showLoginModal} 
+                    setShowLoginModal={setShowLoginModal} 
+                    SCRIPT_URL={SCRIPT_URL}
+                    setIsAppLoading={setIsAppLoading}
+                    isSidebarCollapsed={isSidebarCollapsed}
+                    setIsSidebarCollapsed={setIsSidebarCollapsed}
+                />
+
+                <main className={`flex-1 flex flex-col min-h-screen bg-slate-50 transition-all duration-300 relative ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} w-full overflow-x-hidden`}>
+                    {toast.show && (
+                        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animation-fade-in" style={{ animationDuration: '0.2s' }}>
+                            <div className={`bg-white rounded-3xl shadow-xl p-8 max-w-sm w-full text-center animation-pop border-t-4 ${toast.type === 'error' ? 'border-red-500' : toast.type === 'info' ? 'border-blue-500' : 'border-emerald-500'}`}>
+                                <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${toast.type === 'error' ? 'bg-red-100 text-red-500' : toast.type === 'info' ? 'bg-blue-100 text-blue-500' : 'bg-emerald-100 text-emerald-500'}`}>
+                                    {toast.type === 'error' ? <X size={32} /> : toast.type === 'info' ? <Trophy size={32} /> : <CheckCircle size={32} />}
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-800 mb-2">{toast.type === 'error' ? 'เกิดข้อผิดพลาด' : toast.type === 'info' ? 'แจ้งเตือน' : 'สำเร็จ!'}</h3>
+                                <p className="text-slate-600 font-medium text-sm mb-6">{toast.message}</p>
+                                <button onClick={() => setToast({ ...toast, show: false })} className="w-full py-2.5 rounded-lg font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors">ตกลง</button>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="p-3 sm:p-6 flex-1 w-full relative z-0">
+                        <div className="w-full relative z-10">
+                            {isAppLoading ? (
+                                <div className="flex flex-col items-center justify-center py-32 gap-5 animation-fade-in">
+                                    <div className="w-16 h-16 border-[4px] border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+                                    <h2 className="text-lg font-bold text-slate-700">กำลังซิงค์ข้อมูลกับฐานข้อมูล...</h2>
+                                    <p className="text-slate-500 text-sm">กรุณารอสักครู่ ระบบกำลังดึงข้อมูลล่าสุด</p>
+                                </div>
+                            ) : isLoggedIn ? (
+                                <ReportsView 
+                                    sales={sales} 
+                                    members={members} 
+                                    customers={customers} 
+                                    activeCustomerTypes={activeCustomerTypes} 
+                                    products={products} 
+                                    systemSettings={systemSettings}
+                                    businessTeams={businessTeams}
+                                    currentUser={currentUser}
+                                    isAdmin={isAdmin}
+                                    onRefreshData={fetchAllData}
+                                />
+                            ) : (
+                                <div className="flex flex-col items-center justify-center py-32 gap-5 animation-fade-in">
+                                    <h2 className="text-xl font-black text-red-500">กรุณาเข้าสู่ระบบก่อนใช้งาน</h2>
+                                    <button onClick={() => setShowLoginModal(true)} className={btnClassPrimary}>เข้าสู่ระบบ</button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <footer className="w-full text-center py-6 mt-auto border-t border-slate-200/50 no-print shrink-0">
+                        <p className="text-[11px] font-bold text-slate-400 opacity-60 hover:opacity-100 transition-opacity">
+                            &copy; {new Date().getFullYear()} STK Sales Management System. Developed by Sackda Southammavong.
+                        </p>
+                    </footer>
+                </main>
+
+                <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} onLoginSuccess={handleLoginSuccess} systemUsers={systemUsers} />
+            </div>
+        );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

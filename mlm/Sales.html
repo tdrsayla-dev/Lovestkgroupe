@@ -1,0 +1,1904 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ป้อนข้อมูลขาย (Sales) - LOVE STK GROUPE</title>
+  <!-- Standalone & GAS Libraries -->
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
+    body { font-family: 'Inter', 'IBM Plex Sans Thai', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; }
+  </style>
+  <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+    window.SUPABASE_URL='https://qqyotianqcgpdzrfgjif.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
+    if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
+    async function supabaseSelect(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:window.SUPABASE_HEADERS});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();}
+    async function supabaseInsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('INSERT '+t+':'+r.status);return r.json();}
+    async function supabaseUpdate(t,id,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('UPDATE '+t+':'+r.status);return r.json();}
+    async function supabaseDelete(t,id){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'DELETE',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'})});if(!r.ok)throw new Error('DELETE '+t+':'+r.status);return true;}
+    async function supabaseUpsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'resolution=merge-duplicates,return=representation'}),body:JSON.stringify(d)});if(!r.ok)throw new Error('UPSERT '+t+':'+r.status);return r.json();}
+  </script>
+  <script src="CommonComponents.js"></script>
+  <script>
+    window.addEventListener('DOMContentLoaded', function() {
+      setTimeout(function() { var l=document.getElementById('initial-loader'); if(l)l.style.display='none'; }, 600);
+    });
+  </script>
+  <?!= include('Includes'); ?>
+  <style>
+    /* ล็อกหน้าจอสำหรับ POS ไม่ให้เด้งขึ้นลง */
+    .pos-layout { height: calc(100vh - 100px); min-height: 500px; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white bg-slate-50">
+
+  <div id="initial-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999;">
+    <div style="width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 24px;"></div>
+    <style>@keyframes initial-spin { to { transform: rotate(360deg); } }</style>
+    <h2 style="font-size: 1.75rem; font-weight: 800; color: #1e40af; margin: 0; letter-spacing: -0.025em;">STK<span style="color: #475569;">System</span></h2>
+    <p style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 8px;">กำลังโหลดระบบจัดการข้อมูล...</p>
+  </div>
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect, useRef, useCallback } = React;
+
+    const fallbackCustomerTypes = window.fallbackCustomerTypes || [
+       { id: 'T001', name: 'ลูกค้าใหม่', status: 'ใช้งาน' },
+       { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'ใช้งาน' }
+    ];
+    const fallbackProductsList = window.fallbackProductsList || ['SESAMIN', 'APPLE', 'KING_GOLD'];
+
+    /* <?!= include('CommonComponents'); ?> */
+
+    const PrinterIcon = ({size=20, className=""}) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+        <rect x="6" y="14" width="12" height="8"></rect>
+      </svg>
+    );
+
+    const formatDbDateForFilter = (dateVal) => {
+        if (!dateVal) return '';
+        let str = String(dateVal).trim();
+        if (str.includes('T')) str = str.split('T')[0]; 
+        if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+        const parts = str.split(/[\/\-]/);
+        if (parts.length === 3 && parts[2].length === 4) {
+            return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+        const d = new Date(dateVal);
+        if (!isNaN(d.getTime())) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+        return str;
+    };
+
+    // ==========================================
+    // 📌 Sales Entry View Component
+    // ==========================================
+    const SalesEntryView = ({ members, customers, closers, sales, setSales, setCustomers, activeProductsList, activeCustomerTypes, isAdmin, showToast, currentUser, products, setProducts, systemSettings }) => {
+        const [saleTab, setSaleTab] = useState('B2M');
+        
+        const [formData, setFormData] = useState({ date: getLocalISODate() });
+        const [memberIdInput, setMemberIdInput] = useState(''); 
+        
+        const [custMode, setCustMode] = useState(''); 
+        const isOldCustomerMode = (custMode || '').includes('เก่า');
+
+        const [custData, setCustData] = useState({ id: '', name: '', phone: '', lineId: '', symptom: '', closer: '', closerTeam: '' });
+        const [isSubmitting, setIsSubmitting] = useState(false);
+        const [editingSaleId, setEditingSaleId] = useState(null); 
+        
+        const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null, customerId: null, title: '' });
+        const [successModal, setSuccessModal] = useState({ show: false, saleRecord: null });
+        
+        const [viewBillDetail, setViewBillDetail] = useState(null);
+
+        const [historyStartDate, setHistoryStartDate] = useState(getLocalISODate());
+        const [historyEndDate, setHistoryEndDate] = useState(getLocalISODate());
+        const [salesSearchTerm, setSalesSearchTerm] = useState('');
+
+        const [salesPage, setSalesPage] = useState(1);
+        const SALES_PER_PAGE = 20; 
+
+        const findMemberRobustLocal = (inputStr) => { 
+            if (!inputStr) return null; 
+            const mId = inputStr.split(' ')[0].replace('-', '').trim(); 
+            return (members || []).find(m => m && safeUpper(m.id) === safeUpper(mId)); 
+        };
+        const foundMember = findMemberRobustLocal(memberIdInput);
+
+        const membersSuggestList = useMemo(() => (members || []).filter(m => m && m.id).map(m => ({ 
+            label: `${m.id} - ${m.name}`, 
+            value: `${m.id} - ${m.name}` 
+        })), [members]);
+        
+        const customersSuggestList = useMemo(() => (customers || []).filter(c => c && c.id).map(c => ({ 
+            label: `${c.id} - ${c.name} (${c.phone || 'ไม่มีเบอร์'})`, 
+            value: c.id,
+            searchText: `${c.id} ${c.name} ${c.phone}`
+        })), [customers]);
+        
+        const closersSuggestList = useMemo(() => {
+            return (closers || []).filter(c => {
+                const mapTeam = (c.team === 'Team A' ? 'Marketing' : (c.team === 'Team B' ? 'Center' : c.team));
+                return mapTeam === custData.closerTeam && c.status === 'ใช้งาน';
+            }).map(c => c.name);
+        }, [closers, custData.closerTeam]);
+
+        const [cart, setCart] = useState([]);
+        const [catalogSearch, setCatalogSearch] = useState('');
+
+        const [payMode, setPayMode] = useState('สด');
+        const [payCashTHB, setPayCashTHB] = useState('');
+        const [payCashLAK, setPayCashLAK] = useState('');
+        const [payTransferThaiTHB, setPayTransferThaiTHB] = useState('');
+        const [payTransferThaiBank, setPayTransferThaiBank] = useState('กสิกรไทย');
+        const [payTransferLaosTHB, setPayTransferLaosTHB] = useState('');
+        const [payTransferLaosBankTHB, setPayTransferLaosBankTHB] = useState('BCEL');
+        const [payTransferLaosLAK, setPayTransferLaosLAK] = useState('');
+        const [payTransferLaosBankLAK, setPayTransferLaosBankLAK] = useState('BCEL');
+        const [paymentNote, setPaymentNote] = useState('');
+        const exchangeRate = parseFloat(systemSettings?.exchange_rate) || 700;
+
+        const [isCustomerExpanded, setIsCustomerExpanded] = useState(true);
+
+        const formatDisplayNumber = (val) => {
+            if (val === '' || val === null || val === undefined) return '';
+            const parts = val.toString().split('.');
+            parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+            return parts.join('.');
+        };
+
+        const handleNumberInput = (setter) => (e) => {
+            let val = e.target.value.replace(/,/g, ''); 
+            if (val === '') { setter(''); return; }
+            if (/^\d*\.?\d*$/.test(val)) {
+                setter(val); 
+            }
+        };
+
+        const handleAddToCart = (productName, priceType = 'ราคาโปร', forceQty = null) => {
+            const prodObj = (products || []).find(p => p.name === productName) || {};
+            const currentQtyInCart = cart.filter(item => item.productName === productName).reduce((sum, item) => sum + (parseInt(item.qty)||0), 0);
+            const addAmount = forceQty !== null ? forceQty : 1;
+
+            if (prodObj.stock < currentQtyInCart + addAmount) {
+                showToast(`ไม่สามารถเพิ่มได้ สต๊อก ${productName} มีไม่พอ (เหลือ ${prodObj.stock} ชิ้น)`, 'error');
+                return;
+            }
+
+            let unitPrice = 0;
+            if (priceType === 'ราคาเต็ม') unitPrice = parseFloat(prodObj.priceFull || 0);
+            else if (priceType === 'ราคาโปร') unitPrice = parseFloat(prodObj.pricePromo || 0);
+            else if (priceType === 'ราคาสมาชิก') unitPrice = parseFloat(prodObj.priceMember || 0);
+            else if (priceType === 'ราคาศูนย์') unitPrice = 0;
+
+            setCart(prev => {
+                const existingIdx = prev.findIndex(item => item.productName === productName && item.priceType === priceType);
+                if (existingIdx > -1) {
+                    const nextCart = [...prev];
+                    if (forceQty !== null) nextCart[existingIdx].qty = forceQty;
+                    else nextCart[existingIdx].qty = (parseInt(nextCart[existingIdx].qty)||0) + 1;
+                    return nextCart;
+                } else {
+                    return [...prev, { productName, priceType, price: unitPrice, qty: forceQty !== null ? forceQty : 1 }];
+                }
+            });
+        };
+
+        const handleRemoveFromCart = (productName, priceType) => {
+            setCart(prev => prev.filter(item => !(item.productName === productName && item.priceType === priceType)));
+        };
+
+        const handleUpdateCartQty = (productName, priceType, delta) => {
+            if (delta > 0) {
+                const prodObj = (products || []).find(p => p.name === productName) || {};
+                const currentQtyInCart = cart.filter(item => item.productName === productName).reduce((sum, item) => sum + (parseInt(item.qty)||0), 0);
+                if (prodObj.stock <= currentQtyInCart) {
+                    showToast(`สต๊อก ${productName} มีจำกัดแค่ ${prodObj.stock} ชิ้น`, 'error');
+                    return;
+                }
+            }
+
+            setCart(prev => prev.map(item => {
+                if (item.productName === productName && item.priceType === priceType) {
+                    return { ...item, qty: Math.max(1, (parseInt(item.qty)||0) + delta) };
+                }
+                return item;
+            }));
+        };
+
+        const handleSetCartQty = (productName, priceType, newQtyVal) => {
+            if (newQtyVal === '') {
+                setCart(prev => prev.map(item => item.productName === productName && item.priceType === priceType ? { ...item, qty: '' } : item));
+                return;
+            }
+            
+            let parsedQty = parseInt(newQtyVal, 10);
+            if (isNaN(parsedQty)) return;
+
+            const prodObj = (products || []).find(p => p.name === productName) || {};
+            const currentQtyInCartOtherTypes = cart.filter(item => item.productName === productName && item.priceType !== priceType).reduce((sum, item) => sum + (parseInt(item.qty)||0), 0);
+            
+            if (prodObj.stock < currentQtyInCartOtherTypes + parsedQty) {
+                showToast(`สต๊อก ${productName} มีจำกัดแค่ ${prodObj.stock} ชิ้น`, 'error');
+                parsedQty = Math.max(1, prodObj.stock - currentQtyInCartOtherTypes);
+            }
+
+            setCart(prev => prev.map(item => {
+                if (item.productName === productName && item.priceType === priceType) {
+                    return { ...item, qty: parsedQty };
+                }
+                return item;
+            }));
+        };
+
+        const handleUpdateCartPriceType = (productName, oldPriceType, newPriceType) => {
+            const prodObj = (products || []).find(p => p.name === productName) || {};
+            let newPrice = 0;
+            if (newPriceType === 'ราคาเต็ม') newPrice = parseFloat(prodObj.priceFull || 0);
+            else if (newPriceType === 'ราคาโปร') newPrice = parseFloat(prodObj.pricePromo || 0);
+            else if (newPriceType === 'ราคาสมาชิก') newPrice = parseFloat(prodObj.priceMember || 0);
+            else if (newPriceType === 'ราคาศูนย์') newPrice = 0;
+
+            setCart(prev => {
+                const existingIdx = prev.findIndex(item => item.productName === productName && item.priceType === newPriceType);
+                const oldIdx = prev.findIndex(item => item.productName === productName && item.priceType === oldPriceType);
+                if (oldIdx === -1) return prev;
+                
+                const nextCart = [...prev];
+                const oldQty = parseInt(nextCart[oldIdx].qty) || 0;
+                
+                if (existingIdx > -1 && existingIdx !== oldIdx) {
+                    nextCart[existingIdx].qty = (parseInt(nextCart[existingIdx].qty)||0) + oldQty;
+                    return nextCart.filter((_, idx) => idx !== oldIdx);
+                } else {
+                    nextCart[oldIdx].priceType = newPriceType;
+                    nextCart[oldIdx].price = newPrice;
+                    return nextCart;
+                }
+            });
+        };
+
+        const cartTotals = useMemo(() => {
+            let qty = 0; let amount = 0; let baseAmount = 0;
+            cart.forEach(item => { 
+                const itemQty = parseInt(item.qty) || 0;
+                qty += itemQty; 
+                amount += item.price * itemQty; 
+                const prodObj = (products || []).find(p => p.name === item.productName) || {};
+                let fPrice = parseFloat(prodObj.priceFull || 0);
+                if(fPrice < item.price) fPrice = item.price; 
+                baseAmount += fPrice * itemQty;
+            });
+            return { qty, amount, baseAmount, discount: baseAmount - amount };
+        }, [cart, products]);
+
+        const filteredProductsList = useMemo(() => {
+            const search = catalogSearch.trim().toLowerCase();
+            return (products || [])
+              .filter(p => p && p.status === 'ใช้งาน')
+              .filter(p => {
+                  return p.name.toLowerCase().includes(search) || 
+                         p.id.toLowerCase().includes(search) || 
+                         (p.category && p.category.toLowerCase().includes(search));
+              });
+        }, [products, catalogSearch]);
+
+        const performSearch = () => {
+            const search = catalogSearch.trim().toLowerCase();
+            if (!search) return;
+            
+            let matchedProd = (products || []).find(p => p && p.status === 'ใช้งาน' && (p.id.toLowerCase() === search || p.name.toLowerCase() === search));
+            if (!matchedProd) {
+                const matches = filteredProductsList;
+                if (matches.length === 1) matchedProd = matches[0];
+            }
+            
+            if (matchedProd) {
+                handleAddToCart(matchedProd.name, 'ราคาโปร');
+                setCatalogSearch('');
+                showToast(`เพิ่ม ${matchedProd.name} ลงตะกร้าแล้ว`, 'success');
+            } else {
+                showToast(`ไม่พบสินค้า: "${search}"`, 'error');
+            }
+        };
+
+        const handleBarcodeScan = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                performSearch();
+            }
+        };
+
+        const handleOldCustomerChange = (searchId) => {
+          const foundCust = (customers || []).find(c => c && safeUpper(c.id) === safeUpper(searchId));
+          if (foundCust) {
+              const cObj = (closers || []).find(c => c.name === foundCust.closer);
+              let cTeam = cObj ? cObj.team : '';
+              if (cTeam === 'Team A') cTeam = 'Marketing';
+              if (cTeam === 'Team B') cTeam = 'Center';
+              setCustData({ 
+                  id: foundCust.id, 
+                  name: foundCust.name || '', 
+                  phone: foundCust.phone || '', 
+                  lineId: foundCust.lineId || '', 
+                  symptom: foundCust.symptom || '', 
+                  closer: foundCust.closer || '',
+                  closerTeam: cTeam 
+              });
+          } else { 
+              setCustData({ id: searchId, name: '', phone: '', lineId: '', symptom: '', closer: '', closerTeam: '' }); 
+          }
+        };
+
+        const handleCancelEdit = () => {
+            setEditingSaleId(null); 
+            setCart([]);
+            setCustData({ id: '', name: '', phone: '', lineId: '', symptom: '', closer: '', closerTeam: '' });
+            setMemberIdInput(''); 
+            setFormData({ date: getLocalISODate() });
+            
+            setPayMode('สด');
+            setPayCashTHB('');
+            setPayCashLAK('');
+            setPayTransferThaiTHB('');
+            setPayTransferThaiBank('กสิกรไทย');
+            setPayTransferLaosTHB('');
+            setPayTransferLaosBankTHB('BCEL');
+            setPayTransferLaosLAK('');
+            setPayTransferLaosBankLAK('BCEL');
+            setPaymentNote('');
+        };
+
+        const handlePrintReceiptPopup = (rs) => {
+            const custObj = (customers || []).find(c => c && c.id === rs.customerId) || {};
+            const custName = custObj.name || '';
+            
+            const saleTypeStr = rs.saleType || 'เงินสด';
+            let cTHB = 0; let cLAK = 0;
+            let tThaiTHB = 0; let bThaiTHB = '';
+            let tLaosTHB = 0; let bLaosTHB = '';
+            let tLaosLAK = 0; let bLaosLAK = '';
+            let rate = parseFloat(systemSettings?.exchange_rate) || 700;
+            
+            if (saleTypeStr.includes(':') || saleTypeStr.includes('โอน') || saleTypeStr.includes('|')) {
+                const parts = saleTypeStr.split('|').map(p => p.trim());
+                parts.forEach(p => {
+                    if (p.startsWith('สด:')) cTHB = parseFloat(p.replace('สด:', '').trim()) || 0;
+                    else if (p.startsWith('สดกีบ:')) cLAK = parseFloat(p.replace('สดกีบ:', '').trim()) || 0;
+                    else if (p.match(/^โอนไทย\(([^)]+)\):(.*)$/)) {
+                        const m = p.match(/^โอนไทย\(([^)]+)\):(.*)$/);
+                        bThaiTHB = m[1].trim(); tThaiTHB = parseFloat(m[2].trim()) || 0;
+                    }
+                    else if (p.match(/^โอนลาวบาท\(([^)]+)\):(.*)$/)) {
+                        const m = p.match(/^โอนลาวบาท\(([^)]+)\):(.*)$/);
+                        bLaosTHB = m[1].trim(); tLaosTHB = parseFloat(m[2].trim()) || 0;
+                    }
+                    else if (p.match(/^โอนลาวกีบ\(([^)]+)\):(.*)$/)) {
+                        const m = p.match(/^โอนลาวกีบ\(([^)]+)\):(.*)$/);
+                        bLaosLAK = m[1].trim(); tLaosLAK = parseFloat(m[2].trim()) || 0;
+                    }
+                    else if (p.match(/^โอน\(([^)]+)\):(.*)$/)) {
+                        const m = p.match(/^โอน\(([^)]+)\):(.*)$/);
+                        bThaiTHB = m[1].trim(); tThaiTHB = parseFloat(m[2].trim()) || 0;
+                    }
+                    else if (p.match(/^โอนกีบ\(([^)]+)\):(.*)$/)) {
+                        const m = p.match(/^โอนกีบ\(([^)]+)\):(.*)$/);
+                        bLaosLAK = m[1].trim(); tLaosLAK = parseFloat(m[2].trim()) || 0;
+                    }
+                    else if (p.startsWith('เรท:')) rate = parseFloat(p.replace('เรท:', '').trim()) || 700;
+                });
+            } else {
+                const amt = rs.totalAmount || 0;
+                if (saleTypeStr.includes('โอน')) {
+                    tThaiTHB = amt;
+                    const matchBank = saleTypeStr.match(/ธ\.(.+)\)/);
+                    if (matchBank) bThaiTHB = matchBank[1]; else bThaiTHB = 'ไม่ระบุ';
+                } else {
+                    cTHB = amt;
+                }
+            }
+
+            const items = [];
+            let totalBaseAmount = 0; 
+            let totalDiscountAmount = 0; 
+            let totalItemQuantity = 0;
+
+            Object.keys(rs).forEach(key => {
+                const qty = parseInt(rs[key]) || 0;
+                if (qty > 0) {
+                    let productName = ''; let priceType = ''; let unitPrice = 0;
+                    
+                    if (key.endsWith('_ราคาเต็ม') && key !== 'รวมชิ้นราคาเต็ม') { productName = key.replace('_ราคาเต็ม', ''); priceType = 'ราคาเต็ม'; } 
+                    else if (key.endsWith('_ราคาโปร') && key !== 'รวมชิ้นราคาโปร') { productName = key.replace('_ราคาโปร', ''); priceType = 'ราคาโปร'; } 
+                    else if (key.endsWith('_ราคาสมาชิก') && key !== 'รวมชิ้นราคาสมาชิก') { productName = key.replace('_ราคาสมาชิก', ''); priceType = 'ราคาสมาชิก'; } 
+                    else if (key.endsWith('_ราคาศูนย์') && key !== 'รวมชิ้นราคาศูนย์') { productName = key.replace('_ราคาศูนย์', ''); priceType = 'ราคาศูนย์'; }
+                    
+                    if (productName) {
+                        const prodObj = (products || []).find(p => p.name === productName) || {};
+                        let fullPrice = parseFloat(prodObj.priceFull || 0);
+
+                        if (priceType === 'ราคาเต็ม') unitPrice = fullPrice;
+                        else if (priceType === 'ราคาโปร') unitPrice = parseFloat(prodObj.pricePromo || 0);
+                        else if (priceType === 'ราคาสมาชิก') unitPrice = parseFloat(prodObj.priceMember || 0);
+                        else if (priceType === 'ราคาศูนย์') unitPrice = 0;
+                        
+                        if (fullPrice < unitPrice) fullPrice = unitPrice;
+
+                        const itemTotal = unitPrice * qty;
+                        const itemBaseTotal = fullPrice * qty;
+                        const itemDiscount = itemBaseTotal - itemTotal;
+
+                        totalBaseAmount += itemBaseTotal;
+                        totalDiscountAmount += itemDiscount;
+                        totalItemQuantity += qty;
+
+                        items.push({ 
+                            name: productName, priceType, qty, unitPrice, fullPrice, total: itemTotal, discount: itemDiscount
+                        });
+                    }
+                }
+            });
+
+            const typeOrder = { 'ราคาเต็ม': 1, 'ราคาสมาชิก': 2, 'ราคาโปร': 3, 'ราคาศูนย์': 4 };
+            items.sort((a, b) => (typeOrder[a.priceType] || 99) - (typeOrder[b.priceType] || 99));
+
+            const itemsHtml = items.map(item => `
+              <tr>
+                <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;">
+                  <div style="font-weight: bold; font-size: 11px; color: #1e293b;">${item.name}</div>
+                </td>
+                <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: center; font-weight: bold; font-size: 11px;">${item.qty}</td>
+                <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: bold; font-size: 11px; color: #1e293b;">฿${item.total.toLocaleString()}</td>
+              </tr>
+            `).join('');
+
+            const breakdownParts = [];
+            const totalPaidTHB = cTHB + (cLAK/rate) + tThaiTHB + tLaosTHB + (tLaosLAK/rate);
+            
+            let payMethodLabel = 'เงินสด';
+            if ((cTHB > 0 || cLAK > 0) && (tThaiTHB > 0 || tLaosTHB > 0 || tLaosLAK > 0)) {
+                payMethodLabel = 'เงินสด + เงินโอน';
+            } else if (tThaiTHB > 0 || tLaosTHB > 0 || tLaosLAK > 0) {
+                payMethodLabel = 'เงินโอน';
+            }
+
+            breakdownParts.push(`<tr><td colspan="2" style="padding: 4px 0; font-weight: bold; color: #1e3a8a;">ชำระโดย: ${payMethodLabel}</td></tr>`);
+
+            if (cTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- เงินสด (THB):</td><td style="padding: 2px 0; text-align: right;">฿${cTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
+            if (cLAK > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- เงินสด (LAK):</td><td style="padding: 2px 0; text-align: right;">${cLAK.toLocaleString()} ₭</td></tr>`);
+            if (tThaiTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนไทย (${bThaiTHB}):</td><td style="padding: 2px 0; text-align: right;">฿${tThaiTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
+            if (tLaosTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนลาว (${bLaosTHB}):</td><td style="padding: 2px 0; text-align: right;">฿${tLaosTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
+            if (tLaosLAK > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนลาว (${bLaosLAK}):</td><td style="padding: 2px 0; text-align: right;">${tLaosLAK.toLocaleString()} ₭</td></tr>`);
+            
+            breakdownParts.push(`<tr><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; font-weight: bold;">รับเงินรวม (THB):</td><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; text-align: right; font-weight: bold;">฿${(Math.round(totalPaidTHB * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
+            
+            const diff = (rs.totalAmount || 0) - totalPaidTHB;
+            let changeTHB = diff < -0.05 ? Math.abs(diff) : 0;
+            
+            breakdownParts.push(`<tr><td colspan="2"><div class="divider" style="margin: 2mm 0;"></div></td></tr>`);
+            breakdownParts.push(`<tr><td style="padding: 2px 0; font-weight: bold; font-size: 12px; color: #1e3a8a;">เงินทอน (THB):</td><td style="padding: 2px 0; text-align: right; font-weight: bold; font-size: 12px; color: #1e3a8a;">฿${changeTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
+            if (changeTHB > 0) {
+                breakdownParts.push(`<tr><td style="padding: 2px 0; font-weight: bold; font-size: 12px; color: #1e3a8a;">เงินทอน (LAK):</td><td style="padding: 2px 0; text-align: right; font-weight: bold; font-size: 12px; color: #1e3a8a;">${(Math.round(changeTHB * rate)).toLocaleString()} ₭</td></tr>`);
+            }
+            
+            if (rs.paymentNote) breakdownParts.push(`<tr><td colspan="2" style="font-size: 9px; color: #64748b; padding-top: 6px; font-style: italic;">📝 หมายเหตุ: ${rs.paymentNote}</td></tr>`);
+            
+            const paymentBreakdownHtml = breakdownParts.join('');
+
+            const printWindow = window.open('', '_blank');
+            if(printWindow) {
+                printWindow.document.open();
+                printWindow.document.write(`
+                  <!DOCTYPE html>
+                  <html>
+                  <head>
+                    <meta charset="utf-8">
+                    <title>Receipt ${rs.id}</title>
+                    <style>
+                      @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700;800&display=swap');
+                      body { font-family: 'Sarabun', sans-serif; width: 76mm; margin: 0 auto; padding: 4mm; font-size: 11px; color: #1e293b; line-height: 1.4; }
+                      .text-center { text-align: center; } .text-right { text-align: right; } .bold { font-weight: bold; }
+                      .header { margin-bottom: 4mm; } .header h1 { font-size: 16px; margin: 0; font-weight: 800; color: #1e3a8a; }
+                      .divider { border-top: 1px dashed #94a3b8; margin: 3mm 0; }
+                      .meta-table, .items-table { width: 100%; border-collapse: collapse; margin-bottom: 2mm; }
+                      .meta-table td { padding: 3px 0; font-size: 10px; vertical-align: top; }
+                      .items-table th { border-bottom: 1px solid #1e293b; text-align: left; padding: 4px 0; font-size: 10px; color: #475569;}
+                      .total-row td { padding: 3px 0; font-size: 11px; }
+                      .signatures { display: table; width: 100%; margin-top: 25px; text-align: center; font-size: 9px; color: #475569; }
+                      .sig-box { display: table-cell; width: 33.33%; vertical-align: bottom; padding: 0 4px; }
+                      .sig-line { border-bottom: 1px dashed #64748b; width: 90%; margin: 0 auto 5px auto; }
+                    </style>
+                  </head>
+                  <body>
+                    <div class="header text-center">
+                      <h1>LOVE STK GROUPE</h1>
+                      <p style="margin: 2px 0; font-size: 10px; color: #64748b;">ระบบจัดการงานขายและข้อมูลบิล</p>
+                    </div>
+                    <div class="divider"></div>
+                    <table class="meta-table">
+                      <tr><td class="bold" style="width: 38%;">เลขที่บิล:</td><td style="width: 62%; font-weight: bold; color: #0f172a;">${rs.id}</td></tr>
+                      <tr><td class="bold">วันที่:</td><td>${formatDbDateForFilter(rs.date)}</td></tr>
+                      <tr><td class="bold">ลูกค้า:</td><td>${custName || '-'} (${rs.customerId || '-'})</td></tr>
+                      <tr><td class="bold">ผู้ขาย (เจ้าของเคส):</td><td>${rs.memberName}</td></tr>
+                      <tr><td class="bold">ผู้ปิดการขาย:</td><td>${custObj.closer || '-'}</td></tr>
+                      <tr><td class="bold">พนักงานผู้คีย์ขาย:</td><td>${rs.recordedBy || '-'}</td></tr>
+                    </table>
+                    <div class="divider"></div>
+                    <table class="items-table">
+                      <thead><tr><th style="width: 50%;">สินค้า</th><th style="width: 15%; text-align: center;">จำนวน</th><th style="width: 35%; text-align: right;">รวม</th></tr></thead>
+                      <tbody>${itemsHtml}</tbody>
+                      <tfoot>
+                        <tr>
+                            <td style="text-align: right; font-weight: bold; padding: 4px 0; border-top: 1px solid #e2e8f0;">รวมชิ้นทั้งหมด:</td>
+                            <td style="text-align: center; font-weight: bold; padding: 4px 0; border-top: 1px solid #e2e8f0; color: #1e3a8a;">${totalItemQuantity}</td>
+                            <td style="border-top: 1px solid #e2e8f0;"></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                    <div class="divider"></div>
+                    <table class="meta-table">
+                      <tr class="total-row"><td>รวมเป็นเงิน:</td><td class="text-right">฿${totalBaseAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
+                      ${totalDiscountAmount > 0 ? `<tr class="total-row"><td>ส่วนลดทั้งหมด:</td><td class="text-right" style="color: #ef4444;">- ฿${totalDiscountAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>` : ''}
+                      <tr class="total-row bold"><td style="padding-top: 4px;">ยอดรวมสุทธิ (THB):</td><td class="text-right" style="padding-top: 4px; font-size: 14px; color: #1e3a8a;">฿${(rs.totalAmount || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
+                      <tr class="total-row"><td>ราคาเงินกีบ (LAK):</td><td class="text-right">${((rs.totalAmount || 0) * rate).toLocaleString()} ₭</td></tr>
+                    </table>
+                    <div class="divider"></div>
+                    <table class="meta-table">
+                      <tr class="bold"><td colspan="2" style="font-size: 11px; color: #1e3a8a; padding-bottom: 2px;">💰 การชำระเงิน (Payment)</td></tr>
+                      ${paymentBreakdownHtml}
+                    </table>
+                    
+                    <div class="signatures">
+                        <div class="sig-box"><div class="sig-line"></div>ลายเซ็นลูกค้า</div>
+                        <div class="sig-box"><div class="sig-line"></div>ลายเซ็นผู้จ่ายยา</div>
+                        <div class="sig-box"><div class="sig-line"></div>พนักงานเคาน์เตอร์</div>
+                    </div>
+                    <div class="text-center" style="font-size: 10px; margin-top: 5mm; color: #475569;"><p class="bold" style="color: #0f172a;">ขอบคุณที่ใช้บริการค่ะ</p></div>
+                    
+                    <script>
+                      window.addEventListener('load', function() {
+                          setTimeout(function() {
+                              window.print();
+                              setTimeout(function(){ window.close(); }, 500);
+                          }, 500);
+                      });
+                    <\/script>
+                  </body>
+                  </html>
+                `);
+                printWindow.document.close();
+                printWindow.focus();
+            } else {
+                showToast('เบราว์เซอร์บล็อกหน้าต่าง Popup กรุณาอนุญาต (Allow Pop-ups) ก่อนพิมพ์ใบเสร็จ', 'error');
+            }
+        };
+
+        const handleEditSale = (record) => {
+            setEditingSaleId(record.id); 
+            setFormData({ date: record.date || getLocalISODate() }); 
+            setMemberIdInput(`${record.memberId} - ${record.memberName}`); 
+            
+            const saleTypeStr = record.saleType || 'สด';
+            let loadedMode = 'สด';
+            
+            let lCashTHB = ''; let lCashLAK = '';
+            let lThaiTHB = ''; let bThaiTHB = 'กสิกรไทย';
+            let lLaosTHB = ''; let bLaosTHB = 'BCEL';
+            let lLaosLAK = ''; let bLaosLAK = 'BCEL';
+
+            if (saleTypeStr.includes(':') || saleTypeStr.includes('|')) {
+                const parts = saleTypeStr.split('|').map(p => p.trim());
+                let hasCash = false; let hasTransfer = false;
+                parts.forEach(p => {
+                    if (p.startsWith('สด:')) { lCashTHB = p.replace('สด:', '').trim(); hasCash = true; }
+                    else if (p.startsWith('สดกีบ:')) { lCashLAK = p.replace('สดกีบ:', '').trim(); hasCash = true; }
+                    else if (p.match(/^โอนไทย\(([^)]+)\):(.*)$/)) {
+                        const m = p.match(/^โอนไทย\(([^)]+)\):(.*)$/);
+                        bThaiTHB = m[1].trim(); lThaiTHB = m[2].trim(); hasTransfer = true;
+                    }
+                    else if (p.match(/^โอนลาวบาท\(([^)]+)\):(.*)$/)) {
+                        const m = p.match(/^โอนลาวบาท\(([^)]+)\):(.*)$/);
+                        bLaosTHB = m[1].trim(); lLaosTHB = m[2].trim(); hasTransfer = true;
+                    }
+                    else if (p.match(/^โอนลาวกีบ\(([^)]+)\):(.*)$/)) {
+                        const m = p.match(/^โอนลาวกีบ\(([^)]+)\):(.*)$/);
+                        bLaosLAK = m[1].trim(); lLaosLAK = m[2].trim(); hasTransfer = true;
+                    }
+                    else if (p.match(/^โอน\(([^)]+)\):(.*)$/)) {
+                        const m = p.match(/^โอน\(([^)]+)\):(.*)$/);
+                        bThaiTHB = m[1].trim(); lThaiTHB = m[2].trim(); hasTransfer = true;
+                    }
+                    else if (p.match(/^โอนกีบ\(([^)]+)\):(.*)$/)) {
+                        const m = p.match(/^โอนกีบ\(([^)]+)\):(.*)$/);
+                        bLaosLAK = m[1].trim(); lLaosLAK = m[2].trim(); hasTransfer = true;
+                    }
+                });
+                if (hasCash && hasTransfer) loadedMode = 'สด+โอน';
+                else if (hasTransfer) loadedMode = 'โอน';
+                else loadedMode = 'สด';
+            } else {
+                const amt = record.totalAmount ? String(record.totalAmount) : '';
+                if (saleTypeStr.includes('โอน')) { 
+                    lThaiTHB = amt; loadedMode = 'โอน'; 
+                    const matchBank = saleTypeStr.match(/ธ\.(.+)\)/); 
+                    if (matchBank) bThaiTHB = matchBank[1]; 
+                }
+                else { lCashTHB = amt; loadedMode = 'สด'; }
+            }
+
+            setPayMode(loadedMode);
+            setPayCashTHB(lCashTHB);
+            setPayCashLAK(lCashLAK);
+            setPayTransferThaiTHB(lThaiTHB);
+            setPayTransferThaiBank(bThaiTHB);
+            setPayTransferLaosTHB(lLaosTHB);
+            setPayTransferLaosBankTHB(bLaosTHB);
+            setPayTransferLaosLAK(lLaosLAK);
+            setPayTransferLaosBankLAK(bLaosLAK);
+            setPaymentNote(record.paymentNote || '');
+            
+            const cust = (customers || []).find(c => c.id === record.customerId);
+            if (cust) {
+                setCustMode(cust.type || '');
+                const cObj = (closers || []).find(cl => cl.name === cust.closer);
+                let cTeam = cObj ? cObj.team : '';
+                if (cTeam === 'Team A') cTeam = 'Marketing';
+                if (cTeam === 'Team B') cTeam = 'Center';
+                setCustData({ id: cust.id, name: cust.name || '', phone: cust.phone || '', lineId: cust.lineId || '', symptom: cust.symptom || '', closer: cust.closer || '', closerTeam: cTeam });
+            } else { 
+                setCustData({ id: record.customerId, name: '', phone: '', lineId: '', symptom: '', closer: '', closerTeam: '' }); 
+            }
+
+            const loadedCart = [];
+            // แก้ไข Bug: โหลดสินค้าจาก record ทั้งหมด ไม่ใช่แค่ activeProductsList
+            // เพื่อรองรับสินค้าใหม่หรือสินค้าที่ถูกปิดใช้งานหลังบันทึกบิล
+            const allProdNamesInRecord = [...new Set([
+                ...Object.keys(record).filter(k => 
+                    (k.endsWith('_ราคาเต็ม') && k !== 'รวมชิ้นราคาเต็ม') ||
+                    (k.endsWith('_ราคาโปร') && k !== 'รวมชิ้นราคาโปร') ||
+                    (k.endsWith('_ราคาสมาชิก') && k !== 'รวมชิ้นราคาสมาชิก') ||
+                    (k.endsWith('_ราคาศูนย์') && k !== 'รวมชิ้นราคาศูนย์')
+                ).map(k => k.replace(/_ราคาเต็ม$|_ราคาโปร$|_ราคาสมาชิก$|_ราคาศูนย์$/, '')),
+                ...activeProductsList
+            ])];
+            allProdNamesInRecord.forEach(product => {
+                const fQty = parseInt(record[`${product}_ราคาเต็ม`], 10) || 0;
+                const pQty = parseInt(record[`${product}_ราคาโปร`], 10) || 0;
+                const mQty = parseInt(record[`${product}_ราคาสมาชิก`], 10) || 0;
+                const zQty = parseInt(record[`${product}_ราคาศูนย์`], 10) || 0;
+                const prodObj = (products || []).find(p => p.name === product) || {};
+                
+                if (fQty > 0) loadedCart.push({ productName: product, priceType: 'ราคาเต็ม', price: parseFloat(prodObj.priceFull || 0), qty: fQty });
+                if (pQty > 0) loadedCart.push({ productName: product, priceType: 'ราคาโปร', price: parseFloat(prodObj.pricePromo || 0), qty: pQty });
+                if (mQty > 0) loadedCart.push({ productName: product, priceType: 'ราคาสมาชิก', price: parseFloat(prodObj.priceMember || 0), qty: mQty });
+                if (zQty > 0) loadedCart.push({ productName: product, priceType: 'ราคาศูนย์', price: 0, qty: zQty });
+            });
+            setCart(loadedCart);
+        };
+
+        const executeDeleteSale = () => {
+            const saleId = confirmDelete.id;
+            const custId = confirmDelete.customerId;
+            if (typeof google !== 'undefined' && google.script && google.script.run.deleteSaleRecord) {
+                google.script.run.withSuccessHandler(() => { 
+                    setSales(prev => prev.filter(s => s.id !== saleId)); 
+                    if (custId && google.script.run.deleteCustomerData) {
+                        google.script.run.deleteCustomerData(custId);
+                        setCustomers(prev => prev.filter(c => c.id !== custId));
+                    }
+                    showToast('ลบรายการขายและลูกค้าสำเร็จ', 'success'); 
+                }).deleteSaleRecord(saleId);
+            } else { 
+                setSales(prev => prev.filter(s => s.id !== saleId)); 
+                setCustomers(prev => prev.filter(c => c.id !== custId));
+                showToast('จำลองลบรายการขายและลูกค้าสำเร็จ', 'success'); 
+            }
+        };
+
+        const handleAdd = (e) => {
+          e.preventDefault();
+          if (!foundMember) { showToast('ระบุรหัสสมาชิกผู้ขายไม่ถูกต้อง', 'error'); return; }
+          if (!custMode || String(custMode).trim() === '') { showToast('กรุณาระบุประเภทลูกค้า', 'error'); return; }
+          
+          let finalCustomerId = custData.id; let newCustomerObj = null;
+          const isOldCustomerMode = custMode.includes('เก่า');
+
+          if (!isOldCustomerMode) {
+            if (!custData.name) { showToast('กรุณากรอกชื่อลูกค้า', 'error'); return; }
+            if (!custData.closerTeam) { showToast('กรุณาเลือกทีมผู้ปิดการขาย', 'error'); return; }
+            if (!custData.closer) { showToast('กรุณาระบุผู้ปิดการขาย', 'error'); return; }
+            if (!finalCustomerId) {
+                let nextIdNum = 1; const cIds = (customers || []).map(c => { const match = c && c.id && c.id.match(/^C(\d+)$/i); return match ? parseInt(match[1], 10) : 0; });
+                if (cIds.length > 0) nextIdNum = Math.max(0, ...cIds) + 1;
+                finalCustomerId = "C" + nextIdNum.toString().padStart(3, '0'); 
+            }
+            newCustomerObj = { id: finalCustomerId, name: custData.name, phone: custData.phone, lineId: custData.lineId || '', type: custMode, symptom: custData.symptom, closer: custData.closer, memberId: foundMember.id, memberName: foundMember.name };
+          } else {
+            const originalCust = (customers || []).find(c => c && safeUpper(c.id) === safeUpper(finalCustomerId));
+            if (!originalCust) { showToast('ไม่พบข้อมูลลูกค้าเก่ารหัสนี้', 'error'); return; }
+            if (!custData.closerTeam) { showToast('กรุณาเลือกทีมผู้ปิดการขาย', 'error'); return; }
+            if (!custData.closer) { showToast('กรุณาระบุผู้ปิดการขาย', 'error'); return; }
+            if (originalCust.memberId && safeUpper(originalCust.memberId) !== safeUpper(foundMember.id)) { showToast('ขออภัย! เจ้าของเคสเดิมไม่ใช่สมาชิกผู้ขายท่านนี้', 'error'); return; }
+            
+            if (originalCust.closer !== custData.closer || originalCust.type !== custMode || originalCust.phone !== custData.phone || originalCust.lineId !== custData.lineId || originalCust.symptom !== custData.symptom) {
+               const updatedCust = { ...originalCust, closer: custData.closer, type: custMode, phone: custData.phone, lineId: custData.lineId, symptom: custData.symptom };
+               newCustomerObj = updatedCust;
+            }
+          }
+
+          const qtyMap = {};
+          cart.forEach(item => {
+              const p = (products || []).find(prod => prod.name === item.productName);
+              if(p) qtyMap[p.id] = (qtyMap[p.id] || 0) + (parseInt(item.qty)||0);
+          });
+
+          for (const pid of Object.keys(qtyMap)) {
+              const p = (products || []).find(prod => prod.id === pid);
+              if (!editingSaleId && p && p.stock < qtyMap[pid]) {
+                  showToast(`สินค้า ${p.name} มีสต๊อกไม่พอ (เหลือ ${p.stock} ชิ้น)`, 'error');
+                  return;
+              }
+          }
+
+          let nextSaleIdStr = "";
+          if (!editingSaleId) {
+             const dateParts = formData.date.split('-');
+             const datePrefix = `${dateParts[0]}${dateParts[1]}${dateParts[2]}`; 
+             const prefixSales = (sales || []).filter(s => String(s.id).startsWith(datePrefix));
+             let maxRun = 0;
+             prefixSales.forEach(s => {
+                const parts = String(s.id).split('-');
+                if (parts.length === 2) {
+                   const runNum = parseInt(parts[1], 10);
+                   if (!isNaN(runNum) && runNum > maxRun) maxRun = runNum;
+                }
+             });
+             nextSaleIdStr = `${datePrefix}-${String(maxRun + 1).padStart(3, '0')}`;
+          } else { 
+             nextSaleIdStr = editingSaleId; 
+          }
+
+          const paymentSummaryParts = [];
+          const cTHB = parseFloat(payCashTHB) || 0;
+          const cLAK = parseFloat(payCashLAK) || 0;
+          const tThaiTHB = parseFloat(payTransferThaiTHB) || 0;
+          const tLaosTHB = parseFloat(payTransferLaosTHB) || 0;
+          const tLaosLAK = parseFloat(payTransferLaosLAK) || 0;
+
+          if (payMode === 'สด' || payMode === 'สด+โอน') {
+              if (cTHB > 0) paymentSummaryParts.push(`สด:${cTHB}`);
+              if (cLAK > 0) paymentSummaryParts.push(`สดกีบ:${cLAK}`);
+          }
+          if (payMode === 'โอน' || payMode === 'สด+โอน') {
+              if (tThaiTHB > 0) paymentSummaryParts.push(`โอนไทย(${payTransferThaiBank}):${tThaiTHB}`);
+              if (tLaosTHB > 0) paymentSummaryParts.push(`โอนลาวบาท(${payTransferLaosBankTHB}):${tLaosTHB}`);
+              if (tLaosLAK > 0) paymentSummaryParts.push(`โอนลาวกีบ(${payTransferLaosBankLAK}):${tLaosLAK}`);
+          }
+          if (paymentSummaryParts.length > 0 && (cLAK > 0 || tLaosLAK > 0)) {
+              paymentSummaryParts.push(`เรท:${exchangeRate}`);
+          }
+          const paymentSummaryStr = paymentSummaryParts.length > 0 ? paymentSummaryParts.join(' | ') : `${payMode}`;
+
+          const newRecord = { 
+              id: nextSaleIdStr, 
+              date: formData.date, 
+              memberId: foundMember.id, 
+              memberName: foundMember.name, 
+              customerId: finalCustomerId, 
+              recordedBy: currentUser ? (currentUser.name || currentUser.username || 'Admin') : 'ไม่ระบุ',
+              saleType: paymentSummaryStr,
+              totalAmount: cartTotals.amount,
+              paymentNote: paymentNote
+          };
+          
+          let sumFull = 0, sumPro = 0, sumMember = 0, sumZero = 0;
+          // แก้ไข Bug: รวมสินค้าจาก cart ทั้งหมด ไม่ใช่แค่ activeProductsList
+          // กรณีสินค้าใหม่หรือสถานะไม่ใช่ 'ใช้งาน' ต้องถูกบันทึกด้วย
+          const allProductNamesToSave = [...new Set([
+              ...activeProductsList,
+              ...cart.map(item => item.productName)
+          ])];
+          allProductNamesToSave.forEach(product => {
+            const fQty = cart.filter(item => item.productName === product && item.priceType === 'ราคาเต็ม').reduce((sum, item) => sum + (parseInt(item.qty)||0), 0);
+            const pQty = cart.filter(item => item.productName === product && item.priceType === 'ราคาโปร').reduce((sum, item) => sum + (parseInt(item.qty)||0), 0);
+            const mQty = cart.filter(item => item.productName === product && item.priceType === 'ราคาสมาชิก').reduce((sum, item) => sum + (parseInt(item.qty)||0), 0);
+            const zQty = cart.filter(item => item.productName === product && item.priceType === 'ราคาศูนย์').reduce((sum, item) => sum + (parseInt(item.qty)||0), 0);
+            
+            // บันทึกเฉพาะสินค้าที่มีจำนวน เพื่อไม่ให้ Google Sheet มีคอลัมน์ว่างโดยไม่จำเป็น
+            if (fQty > 0) newRecord[`${product}_ราคาเต็ม`] = fQty;
+            if (pQty > 0) newRecord[`${product}_ราคาโปร`] = pQty;
+            if (mQty > 0) newRecord[`${product}_ราคาสมาชิก`] = mQty;
+            if (zQty > 0) newRecord[`${product}_ราคาศูนย์`] = zQty;
+            
+            sumFull += fQty; sumPro += pQty; sumMember += mQty; sumZero += zQty;
+          });
+          newRecord['รวมชิ้นราคาเต็ม'] = sumFull;
+          newRecord['รวมชิ้นราคาโปร'] = sumPro;
+          newRecord['รวมชิ้นราคาสมาชิก'] = sumMember;
+          newRecord['รวมชิ้นราคาศูนย์'] = sumZero;
+          newRecord['ยอดรวมชิ้นทั้งหมด'] = sumFull + sumPro + sumMember + sumZero;
+          
+          if (newRecord['ยอดรวมชิ้นทั้งหมด'] === 0) { showToast('กรุณาระบุจำนวนสินค้าที่จะเปิดบิลอย่างน้อย 1 ชิ้น', 'error'); return; }
+          
+          setIsSubmitting(true);
+
+          if (editingSaleId) {
+             newRecord.id = editingSaleId;
+             if (typeof google !== 'undefined' && google.script && google.script.run.updateSaleRecord) {
+                 google.script.run.updateSaleRecord(newRecord, newCustomerObj); 
+             }
+             
+             setSales(prev => prev.map(s => s.id === editingSaleId ? newRecord : s)); 
+             if(newCustomerObj) {
+                 setCustomers(prev => {
+                     const exists = prev.find(c => c.id === newCustomerObj.id);
+                     if(exists) return prev.map(c => c.id === newCustomerObj.id ? newCustomerObj : c);
+                     return [newCustomerObj, ...prev];
+                 });
+             }
+             handleCancelEdit();
+             setSuccessModal({ show: true, saleRecord: newRecord });
+             setIsSubmitting(false);
+             return;
+          }
+
+          if (typeof google !== 'undefined' && google.script) {
+             const stockItems = Object.keys(qtyMap).map(pid => ({ productId: pid, quantity: qtyMap[pid] }));
+             const stockData = {
+                 items: stockItems,
+                 subType: 'เบิกขาย',
+                 notes: `บิลขาย: ${newRecord.id}`,
+                 createdBy: currentUser ? (currentUser.name || currentUser.username) : foundMember.name
+             };
+
+             google.script.run.stockOut(stockData);
+             google.script.run.saveSalesAndCustomer(newRecord, newCustomerObj);
+             
+             if (setProducts) {
+                 setProducts(prev => prev.map(p => {
+                     const deduct = qtyMap[p.id] || 0;
+                     return deduct > 0 ? {...p, stock: p.stock - deduct} : p;
+                 }));
+             }
+             setSales(prev => [newRecord, ...(prev || [])]); 
+             if(newCustomerObj) setCustomers(prev => [newCustomerObj, ...(prev || [])]); 
+             handleSuccessFinish();
+
+          } else { 
+             setTimeout(() => { 
+               if (setProducts) {
+                   setProducts(prev => prev.map(p => {
+                       const deduct = qtyMap[p.id] || 0;
+                       return deduct > 0 ? {...p, stock: p.stock - deduct} : p;
+                   }));
+               }
+               setSales(prev => [newRecord, ...(prev || [])]); 
+               if(newCustomerObj) setCustomers(prev => [newCustomerObj, ...(prev || [])]); 
+               handleSuccessFinish();
+             }, 500); 
+          }
+        };
+
+        const filteredSalesHistory = useMemo(() => {
+           let result = (sales || []);
+           
+           result = result.sort((a, b) => {
+               const idA = String(a.id || '');
+               const idB = String(b.id || '');
+               return idB.localeCompare(idA); 
+           });
+
+           if (historyStartDate) result = result.filter(s => formatDbDateForFilter(s.date) >= historyStartDate);
+           if (historyEndDate) result = result.filter(s => formatDbDateForFilter(s.date) <= historyEndDate);
+
+           if (salesSearchTerm.trim() !== '') {
+               const st = salesSearchTerm.toLowerCase();
+               result = result.filter(s => {
+                  const sCustId = s.customerId ? s.customerId.toLowerCase() : '';
+                  const sMemId = s.memberId ? s.memberId.toLowerCase() : '';
+                  const sMemName = s.memberName ? s.memberName.toLowerCase() : '';
+                  const sIdStr = s.id ? s.id.toString() : '';
+                  return sCustId.includes(st) || sMemId.includes(st) || sMemName.includes(st) || sIdStr.includes(st);
+               });
+           }
+           
+           if (saleTab !== 'B2M') {
+               result = []; 
+           }
+
+           return result;
+        }, [sales, historyStartDate, historyEndDate, salesSearchTerm, saleTab]);
+
+        const totalSalesPages = Math.max(1, Math.ceil(filteredSalesHistory.length / SALES_PER_PAGE));
+        const paginatedSalesHistory = useMemo(() => {
+            return filteredSalesHistory.slice((salesPage - 1) * SALES_PER_PAGE, salesPage * SALES_PER_PAGE);
+        }, [filteredSalesHistory, salesPage]);
+
+        useEffect(() => { setSalesPage(1); }, [historyStartDate, historyEndDate, salesSearchTerm, saleTab]);
+
+        const tableTotals = useMemo(() => {
+            let totalFull = 0, totalMember = 0, totalPro = 0, totalZero = 0, grandTotal = 0, totalAmountTHB = 0;
+            filteredSalesHistory.forEach(s => {
+               let rowF = 0, rowM = 0, rowP = 0, rowZ = 0;
+               Object.keys(s).forEach(key => {
+                   const qty = parseInt(s[key]) || 0;
+                   if (qty > 0) {
+                       if (key.endsWith('_ราคาเต็ม') && key !== 'รวมชิ้นราคาเต็ม') rowF += qty;
+                       else if (key.endsWith('_ราคาสมาชิก') && key !== 'รวมชิ้นราคาสมาชิก') rowM += qty;
+                       else if (key.endsWith('_ราคาโปร') && key !== 'รวมชิ้นราคาโปร') rowP += qty;
+                       else if (key.endsWith('_ราคาศูนย์') && key !== 'รวมชิ้นราคาศูนย์') rowZ += qty;
+                   }
+               });
+
+               totalFull += rowF;
+               totalMember += rowM;
+               totalPro += rowP;
+               totalZero += rowZ;
+               grandTotal += (rowF + rowM + rowP + rowZ);
+               totalAmountTHB += parseFloat(s.totalAmount || 0);
+            });
+            return { totalFull, totalMember, totalPro, totalZero, grandTotal, totalAmountTHB, count: filteredSalesHistory.length };
+        }, [filteredSalesHistory]);
+
+       const renderRecordCells = (record) => {
+            let fullItems = []; let memberItems = []; let proItems = []; let zeroItems = [];
+            Object.keys(record).forEach(key => {
+                const qty = parseInt(record[key]) || 0;
+                if (qty > 0) {
+                    const cleanProdName = (raw) => raw.replace(/\(.*?\)/g, '').trim();
+                    if (key.endsWith('_ราคาเต็ม') && key !== 'รวมชิ้นราคาเต็ม') fullItems.push({name: cleanProdName(key.replace('_ราคาเต็ม', '')), qty});
+                    else if (key.endsWith('_ราคาสมาชิก') && key !== 'รวมชิ้นราคาสมาชิก') memberItems.push({name: cleanProdName(key.replace('_ราคาสมาชิก', '')), qty});
+                    else if (key.endsWith('_ราคาโปร') && key !== 'รวมชิ้นราคาโปร') proItems.push({name: cleanProdName(key.replace('_ราคาโปร', '')), qty});
+                    else if (key.endsWith('_ราคาศูนย์') && key !== 'รวมชิ้นราคาศูนย์') zeroItems.push({name: cleanProdName(key.replace('_ราคาศูนย์', '')), qty});
+                }
+            });
+
+            const totalQtyInRow = [...fullItems, ...memberItems, ...proItems, ...zeroItems].reduce((sum, item) => sum + item.qty, 0);
+
+            const renderList = (items, textClass) => {
+                if(items.length === 0) return <span className="text-slate-300 text-xs">-</span>;
+                return (
+                    <div className="flex flex-col gap-1 w-full">
+                        {items.map((it, i) => (
+                            <div key={i} className="flex justify-between items-center text-[11px] bg-white px-2 py-1 rounded shadow-sm border border-slate-100">
+                                <span className="font-bold text-slate-700 truncate mr-2" title={it.name}>{it.name}</span>
+                                <span className={`font-black ${textClass}`}>x{it.qty}</span>
+                            </div>
+                        ))}
+                    </div>
+                )
+            }
+
+            return (
+              <React.Fragment>
+                  <td className={`${tableCellClass} bg-green-50/30 border-l border-slate-100 align-top`}>{renderList(fullItems, 'text-green-600')}</td>
+                  <td className={`${tableCellClass} bg-purple-50/30 border-l border-slate-100 align-top`}>{renderList(memberItems, 'text-purple-600')}</td>
+                  <td className={`${tableCellClass} bg-orange-50/30 border-l border-slate-100 align-top`}>{renderList(proItems, 'text-orange-600')}</td>
+                  <td className={`${tableCellClass} bg-slate-50/50 border-l border-slate-100 align-top`}>{renderList(zeroItems, 'text-slate-600')}</td>
+                  <td className="p-4 align-middle text-center border-l border-blue-200 bg-blue-50/50 w-[180px]">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">รวมทั้งหมด</div>
+                    <div className="font-black text-4xl text-blue-700 drop-shadow-sm leading-none">
+                        {totalQtyInRow} <span className="text-[14px] font-bold text-blue-500">ชิ้น</span>
+                    </div>
+                    <div className="text-[12px] font-black text-emerald-700 mt-2 bg-white py-1.5 px-2 rounded-lg border border-emerald-200 shadow-sm">
+                        มูลค่า: ฿{parseFloat(record.totalAmount || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
+                    </div>
+                  </td>
+              </React.Fragment>
+            )
+        };
+
+        const renderSalesForm = () => (
+          // 🟢 สัดส่วน 50:50 บีบช่องว่างเพื่อให้กล่องอยู่พอดีเป๊ะในหน้าเดียว 100%
+          <div className="flex flex-col xl:flex-row gap-4 w-full h-[calc(100vh-120px)] min-h-[650px] mb-0 relative">
+             
+             {/* 🟢 LEFT COLUMN (50%): Customer + Payment */}
+             <div className="w-full xl:w-1/2 flex flex-col gap-3 h-full shrink-0 relative">
+                
+                {/* 📋 Customer Box (กระชับระยะห่างช่องไฟให้มากที่สุด) */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm w-full shrink-0">
+                   <div 
+                      onClick={() => setIsCustomerExpanded(!isCustomerExpanded)}
+                      className="flex items-center justify-between cursor-pointer border-b border-slate-100 pb-1.5 hover:opacity-80 transition-opacity"
+                   >
+                      <div className="flex items-center gap-1.5">
+                         <UserCircle size={16} className="text-blue-600 shrink-0" /> 
+                         <h4 className="font-extrabold text-[13px] text-slate-800">ข้อมูลผู้ขาย & ลูกค้า</h4>
+                      </div>
+                      <div className="flex items-center gap-2">
+                         {!isCustomerExpanded && foundMember && (
+                            <span className="text-[10px] font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 max-w-[150px] truncate">
+                               👤 {foundMember.name} {custData.name ? ` | ${custData.name}` : ''}
+                            </span>
+                         )}
+                         <span className="text-slate-400 bg-slate-50 p-1 rounded-lg border border-slate-100">
+                            <ChevronDown size={14} className={`transform transition-transform duration-300 ${isCustomerExpanded ? 'rotate-180' : ''}`} />
+                         </span>
+                      </div>
+                   </div>
+
+                   {isCustomerExpanded && (
+                      <div className="space-y-1.5 transition-all mt-2 w-full">
+                         <div className="flex gap-2">
+                            <div className="flex-1 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                               <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">วันที่บิล</label>
+                               <input type="date" required className="w-full bg-white border border-slate-200 rounded-md text-[11px] py-1.5 px-2 outline-none focus:border-blue-500 shadow-sm" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
+                            </div>
+                            <div className="flex-[2] relative bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                               <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">ผู้ขาย (เจ้าของเคส) *</label>
+                               <AutoSuggestInput value={memberIdInput} onChange={setMemberIdInput} onSelect={setMemberIdInput} data={membersSuggestList} placeholder="พิมพ์ค้นหารหัส หรือชื่อพนักงาน" required={true} />
+                            </div>
+                         </div>
+
+                         <div className="flex gap-2">
+                            <div className="flex-[1.5] bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                               <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">ประเภทลูกค้า</label>
+                               <select className="w-full bg-white border border-slate-200 rounded-md text-[11px] py-1.5 px-2 outline-none focus:border-blue-500 shadow-sm" value={custMode} onChange={(e) => { setCustMode(e.target.value); setCustData(prev => ({ ...prev, id: '', name: '', phone: '', symptom: '', closer: '', closerTeam: '' })); }}><option value="" disabled>ระบุประเภท</option>{activeCustomerTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}</select>
+                            </div>
+                            <div className="flex-[1.5] bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                               <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">{isOldCustomerMode ? 'ลูกค้าเก่า *' : 'รหัสลูกค้า'}</label>
+                               {isOldCustomerMode ? (<AutoSuggestInput value={custData.id} onChange={handleOldCustomerChange} onSelect={handleOldCustomerChange} data={customersSuggestList} placeholder="รหัส/เบอร์โทร..." required={true} />) : (<div className="w-full border border-dashed border-slate-300 px-1 py-1 rounded-md bg-slate-100 text-slate-400 text-[11px] font-bold text-center">สร้างอัตโนมัติ</div>)}
+                            </div>
+                         </div>
+
+                         <div className="flex gap-2">
+                            <div className="flex-1 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                               <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">ทีมผู้ปิด</label>
+                               <select required className="w-full bg-white border border-slate-200 rounded-md text-[11px] py-1.5 px-2 outline-none focus:border-blue-500 shadow-sm" value={custData.closerTeam} onChange={(e) => setCustData({...custData, closerTeam: e.target.value, closer: ''})}><option value="" disabled>- ทีม -</option><option value="Marketing">Marketing</option><option value="Center">Center</option></select>
+                            </div>
+                            <div className="flex-[2] bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                               <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">ผู้ปิดการขาย *</label>
+                               <AutoSuggestInput value={custData.closer} onChange={(val) => setCustData({...custData, closer: val})} onSelect={(val) => setCustData({...custData, closer: val})} data={closersSuggestList} placeholder="ระบุชื่อผู้ปิด" required={true} disabled={!custData.closerTeam} />
+                            </div>
+                         </div>
+
+                         <div className="flex gap-2 border-t border-slate-100 pt-1.5 mt-1.5">
+                            <div className="flex-[2]">
+                               <input type="text" required={!isOldCustomerMode} disabled={isOldCustomerMode} placeholder="ชื่อ-นามสกุลลูกค้า" className="w-full bg-white border border-slate-200 rounded-md text-[11px] py-1.5 px-2 outline-none focus:border-blue-500 shadow-sm" value={custData.name} onChange={e => setCustData({...custData, name: e.target.value})} />
+                            </div>
+                            <div className="flex-1">
+                               <input type="text" disabled={isOldCustomerMode} placeholder="เบอร์โทรศัพท์" className="w-full bg-white border border-slate-200 rounded-md text-[11px] py-1.5 px-2 outline-none focus:border-blue-500 shadow-sm" value={custData.phone || ''} onChange={e => setCustData({...custData, phone: e.target.value})} />
+                            </div>
+                         </div>
+                         
+                         <div className="flex gap-2">
+                            <div className="flex-1">
+                               <input type="text" disabled={isOldCustomerMode} placeholder="LINE ID" className="w-full bg-white border border-slate-200 rounded-md text-[11px] py-1.5 px-2 outline-none focus:border-blue-500 shadow-sm" value={custData.lineId || ''} onChange={e => setCustData({...custData, lineId: e.target.value})} />
+                            </div>
+                            <div className="flex-[2]">
+                               <input type="text" disabled={isOldCustomerMode} placeholder="โรคประจำตัว/อาการ..." className="w-full bg-white border border-slate-200 rounded-md text-[11px] py-1.5 px-2 outline-none focus:border-blue-500 shadow-sm" value={custData.symptom || ''} onChange={e => setCustData({...custData, symptom: e.target.value})} />
+                            </div>
+                         </div>
+                      </div>
+                   )}
+                </div>
+
+                {/* 💳 Payment Box (อยู่ด้านล่างสุดของฝั่งซ้าย - กลับมาเรียงบนล่างตามสั่ง แต่ลดความสูงขอบบนล่างลง) */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-lg shrink-0 flex flex-col mt-auto z-20 w-full">
+                    <div className="flex flex-col bg-slate-50 border border-slate-200 rounded-lg p-2 shadow-sm gap-1 mb-1.5">
+                        <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold border-b border-slate-200 pb-1">
+                            <span>รวมราคาปกติ:</span>
+                            <span>฿{cartTotals.baseAmount.toLocaleString()}</span>
+                        </div>
+                        {cartTotals.discount > 0 && (
+                            <div className="flex justify-between items-center text-[10px] text-red-500 font-bold border-b border-slate-200 pb-1">
+                                <span>ส่วนลดทั้งหมด:</span>
+                                <span>- ฿{cartTotals.discount.toLocaleString()}</span>
+                            </div>
+                        )}
+                        <div className="flex justify-between items-end pt-0.5">
+                            <div className="flex flex-col">
+                               <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">ยอดสุทธิ (Net Total)</span>
+                               <span className="text-[10px] font-bold text-amber-500">{(cartTotals.amount * exchangeRate).toLocaleString()} ₭</span>
+                            </div>
+                            <span className="text-2xl font-black text-blue-700 leading-none">฿{cartTotals.amount.toLocaleString()}</span>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-1.5 mb-1.5">
+                        {['สด', 'โอน', 'สด+โอน'].map(mode => (
+                           <button key={mode} type="button" onClick={() => setPayMode(mode)}
+                              className={`py-1.5 px-1 rounded-md text-[11px] font-black border transition-all shadow-sm ${payMode === mode ? 'bg-blue-600 border-blue-500 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-800'}`}
+                           >{mode === 'สด' ? '💵 สด' : mode === 'โอน' ? '📱 โอน' : '💵+📱 สด+โอน'}</button>
+                        ))}
+                    </div>
+
+                    {/* 🟢 ช่องเงินสดและเงินโอนจะเรียงบนล่างตามเดิมแล้วครับ */}
+                    {(payMode === 'สด' || payMode === 'สด+โอน') && (
+                        <div className="bg-green-50/50 p-2 rounded-lg border border-green-200 space-y-1 mb-1.5">
+                            <label className="text-[9px] font-black text-green-700 flex items-center gap-1"><Coins size={10}/> รับเงินสด (บาท/กีบ)</label>
+                            <div className="flex gap-2">
+                                <div className="flex-1 relative">
+                                    <span className="absolute left-2.5 top-1 text-[10px] text-slate-400 font-bold">฿</span>
+                                    <input type="text" inputMode="decimal" placeholder="บาท" className="w-full pl-6 pr-1 py-1 rounded-md border border-green-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-green-500 shadow-sm" value={formatDisplayNumber(payCashTHB)} onChange={handleNumberInput(setPayCashTHB)} />
+                                </div>
+                                <div className="flex-1 relative">
+                                    <span className="absolute left-2.5 top-1 text-[10px] text-slate-400 font-bold">₭</span>
+                                    <input type="text" inputMode="decimal" placeholder="กีบ" className="w-full pl-6 pr-1 py-1 rounded-md border border-green-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-green-500 shadow-sm" value={formatDisplayNumber(payCashLAK)} onChange={handleNumberInput(setPayCashLAK)} />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {(payMode === 'โอน' || payMode === 'สด+โอน') && (
+                        <div className="bg-blue-50/50 p-2 rounded-lg border border-blue-200 flex flex-col gap-1.5 mb-1.5">
+                            <label className="text-[9px] font-black text-blue-700 flex items-center gap-1"><Activity size={10}/> รับเงินโอน</label>
+                            <div className="flex flex-col gap-1">
+                                <div className="flex gap-1.5">
+                                    <span className="bg-blue-100 text-blue-800 text-[9px] font-bold px-1 py-1 rounded-md border border-blue-200 shrink-0 w-10 text-center flex items-center justify-center">ไทย</span>
+                                    <select className="w-[75px] rounded-md border border-blue-300 bg-white text-slate-700 text-[9px] font-bold px-1 outline-none focus:border-blue-500 shadow-sm" value={payTransferThaiBank} onChange={e => setPayTransferThaiBank(e.target.value)}>
+                                        <option value="กสิกรไทย">KBANK</option>
+                                        <option value="ไทยพาณิชย์">SCB</option>
+                                        <option value="กรุงเทพ">BBL</option>
+                                        <option value="กรุงไทย">KTB</option>
+                                        <option value="กรุงศรี">BAY</option>
+                                        <option value="PromptPay">Prompt</option>
+                                    </select>
+                                    <div className="flex-1 relative">
+                                        <span className="absolute left-2.5 top-1 text-[9px] text-slate-400 font-bold">฿</span>
+                                        <input type="text" inputMode="decimal" placeholder="บาท" className="w-full pl-6 pr-1 py-1 rounded-md border border-blue-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-blue-500 shadow-sm" value={formatDisplayNumber(payTransferThaiTHB)} onChange={handleNumberInput(setPayTransferThaiTHB)} />
+                                    </div>
+                                </div>
+                                <div className="flex gap-1.5">
+                                    <span className="bg-indigo-100 text-indigo-800 text-[9px] font-bold px-1 py-1 rounded-md border border-indigo-200 shrink-0 w-10 text-center flex items-center justify-center">ลาว</span>
+                                    <select className="w-[75px] rounded-md border border-indigo-300 bg-white text-slate-700 text-[9px] font-bold px-1 outline-none focus:border-indigo-500 shadow-sm" value={payTransferLaosBankTHB} onChange={e => setPayTransferLaosBankTHB(e.target.value)}>
+                                        <option value="BCEL">BCEL</option>
+                                        <option value="JDB">JDB</option>
+                                        <option value="LDB">LDB</option>
+                                    </select>
+                                    <div className="flex-1 relative">
+                                        <span className="absolute left-2.5 top-1 text-[9px] text-slate-400 font-bold">฿</span>
+                                        <input type="text" inputMode="decimal" placeholder="บาท" className="w-full pl-6 pr-1 py-1 rounded-md border border-indigo-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-indigo-500 shadow-sm" value={formatDisplayNumber(payTransferLaosTHB)} onChange={handleNumberInput(setPayTransferLaosTHB)} />
+                                    </div>
+                                </div>
+                                <div className="flex gap-1.5">
+                                    <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-1 py-1 rounded-md border border-amber-200 shrink-0 w-10 text-center flex items-center justify-center">ลาว</span>
+                                    <select className="w-[75px] rounded-md border border-amber-300 bg-white text-slate-700 text-[9px] font-bold px-1 outline-none focus:border-amber-500 shadow-sm" value={payTransferLaosBankLAK} onChange={e => setPayTransferLaosBankLAK(e.target.value)}>
+                                        <option value="BCEL">BCEL</option>
+                                        <option value="JDB">JDB</option>
+                                        <option value="LDB">LDB</option>
+                                    </select>
+                                    <div className="flex-1 relative">
+                                        <span className="absolute left-2.5 top-1 text-[9px] text-slate-400 font-bold">₭</span>
+                                        <input type="text" inputMode="decimal" placeholder="กีบ" className="w-full pl-6 pr-1 py-1 rounded-md border border-amber-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-amber-500 shadow-sm" value={formatDisplayNumber(payTransferLaosLAK)} onChange={handleNumberInput(setPayTransferLaosLAK)} />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {(() => {
+                        const cTHB = parseFloat(payCashTHB) || 0;
+                        const cLAK = parseFloat(payCashLAK) || 0;
+                        const tThaiTHB = parseFloat(payTransferThaiTHB) || 0;
+                        const tLaosTHB = parseFloat(payTransferLaosTHB) || 0;
+                        const tLaosLAK = parseFloat(payTransferLaosLAK) || 0;
+                        
+                        const showCash = payMode === 'สด' || payMode === 'สด+โอน';
+                        const showTransfer = payMode === 'โอน' || payMode === 'สด+โอน';
+                        
+                        const totalPaidTHB = (showCash ? cTHB + (cLAK/exchangeRate) : 0) + (showTransfer ? tThaiTHB + tLaosTHB + (tLaosLAK/exchangeRate) : 0);
+                        const remainingTHB = Math.round((cartTotals.amount - totalPaidTHB) * 100) / 100;
+                        const remainingLAK = remainingTHB * exchangeRate;
+
+                        return (
+                            <div className="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-200 shadow-inner mb-1.5">
+                            {remainingTHB > 0 ? (
+                                <React.Fragment>
+                                    <div className="text-[10px] font-black text-red-500">🔴 ค้างชำระ<br/><span className="text-[8px] font-bold text-slate-400">(ต้องเก็บเพิ่ม)</span></div>
+                                    <div className="text-right">
+                                        <div className="text-sm font-black text-red-600 leading-none">฿{remainingTHB.toLocaleString()}</div>
+                                        <div className="text-[9px] font-bold text-red-500/80">≈ {Math.round(remainingLAK).toLocaleString()} ₭</div>
+                                    </div>
+                                </React.Fragment>
+                            ) : remainingTHB < 0 ? (
+                                <React.Fragment>
+                                    <div className="text-[10px] font-black text-blue-500">🔵 เงินทอน<br/><span className="text-[8px] font-bold text-slate-400">(ต้องทอนลูกค้า)</span></div>
+                                    <div className="text-right">
+                                        <div className="text-sm font-black text-blue-600 leading-none">฿{Math.abs(remainingTHB).toLocaleString()}</div>
+                                        <div className="text-[9px] font-bold text-blue-500/80">≈ {Math.round(Math.abs(remainingLAK)).toLocaleString()} ₭</div>
+                                    </div>
+                                </React.Fragment>
+                            ) : (
+                                <React.Fragment>
+                                    <div className="text-[10px] font-black text-emerald-500">🟢 สถานะชำระ</div>
+                                    <div className="text-xs font-black text-emerald-600">ครบพอดี ✓</div>
+                                </React.Fragment>
+                            )}
+                            </div>
+                        );
+                    })()}
+
+                    {/* 🟢 ย้ายปุ่มไปฝั่งขวาแล้ว สามารถขยายกล่องหมายเหตุให้ยาวขึ้น (กว้างๆ พิมพ์สบาย) */}
+                    <textarea 
+                        rows="3" 
+                        placeholder="หมายเหตุ / รายละเอียดจ่ายเงิน..." 
+                        className="w-full border border-slate-200 bg-slate-50 px-3 py-2 rounded-lg outline-none text-[12px] font-bold text-slate-800 focus:border-blue-500 focus:bg-white shadow-sm mb-0 flex-1 resize-none h-full" 
+                        value={paymentNote} 
+                        onChange={(e) => setPaymentNote(e.target.value)} 
+                    />
+                </div>
+             </div>
+
+             {/* 🟢 RIGHT COLUMN (50%): Floating Search + Cart + ปุ่มบันทึกบิล */}
+             <div className="w-full xl:w-1/2 flex flex-col gap-4 h-full shrink-0 relative">
+                
+                <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm shrink-0 relative z-50">
+                    <div className="flex items-center gap-2">
+                        <SearchIcon size={20} className="text-slate-400 ml-2" />
+                        <input 
+                            type="text" 
+                            className="w-full bg-slate-50 border-none outline-none focus:ring-0 text-[15px] font-bold placeholder-slate-400 rounded-xl py-2.5 px-3"
+                            placeholder="ค้นหาสินค้า (พิมพ์ชื่อ หรือ ยิงบาร์โค้ด แล้วกด Enter)..."
+                            value={catalogSearch}
+                            onChange={(e) => setCatalogSearch(e.target.value)}
+                            onKeyDown={handleBarcodeScan}
+                        />
+                        {catalogSearch && <button onClick={() => setCatalogSearch('')} className="text-slate-400 hover:text-red-500 p-2"><X size={18}/></button>}
+                    </div>
+                    
+                    {/* Dropdown ผลลัพธ์การค้นหา */}
+                    {catalogSearch.trim() !== '' && (
+                        <div className="absolute top-[110%] left-0 w-full bg-white border border-slate-200 shadow-2xl rounded-2xl max-h-[400px] overflow-y-auto py-2 z-50 custom-scrollbar">
+                            <div className="px-4 py-2 border-b border-slate-100 bg-slate-50 sticky top-0 z-10 -mt-2 mb-2">
+                                <span className="text-xs font-black text-slate-600">👇 กรุณาคลิกเลือกราคาเพื่อเพิ่มลงตะกร้า</span>
+                            </div>
+                            {filteredProductsList.length > 0 ? filteredProductsList.map(prod => {
+                                const isOutOfStock = prod.stock <= 0;
+                                return (
+                                <div key={prod.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3.5 border-b border-slate-100 hover:bg-slate-50 gap-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center shrink-0 border border-slate-200 overflow-hidden shadow-sm">
+                                            {prod.imageUrl ? <img src={prod.imageUrl} className="w-full h-full object-cover" /> : <PackageIcon size={20} className="text-slate-300"/>}
+                                        </div>
+                                        <div>
+                                            <div className="font-black text-[15px] text-slate-800">{prod.name}</div>
+                                            <div className={`text-xs font-bold mt-1 ${isOutOfStock ? 'text-red-500' : 'text-emerald-600'}`}>คงเหลือ: {prod.stock} ชิ้น</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                                        <button disabled={isOutOfStock} onClick={() => { handleAddToCart(prod.name, 'ราคาเต็ม'); setCatalogSearch(''); }} className="flex-1 sm:flex-none px-4 py-2.5 bg-green-50 text-green-700 hover:bg-green-600 hover:text-white text-[13px] font-black rounded-xl border border-green-300 shadow-sm transition-all text-center">ราคาเต็ม ฿{(prod.priceFull||0).toLocaleString()}</button>
+                                        <button disabled={isOutOfStock} onClick={() => { handleAddToCart(prod.name, 'ราคาสมาชิก'); setCatalogSearch(''); }} className="flex-1 sm:flex-none px-4 py-2.5 bg-purple-50 text-purple-700 hover:bg-purple-600 hover:text-white text-[13px] font-black rounded-xl border border-purple-300 shadow-sm transition-all text-center">ราคาสมาชิก ฿{(prod.priceMember||0).toLocaleString()}</button>
+                                        <button disabled={isOutOfStock} onClick={() => { handleAddToCart(prod.name, 'ราคาโปร'); setCatalogSearch(''); }} className="flex-1 sm:flex-none px-4 py-2.5 bg-orange-50 text-orange-700 hover:bg-orange-500 hover:text-white text-[13px] font-black rounded-xl border border-orange-300 shadow-sm transition-all text-center">ราคาโปร ฿{(prod.pricePromo||0).toLocaleString()}</button>
+                                        <button disabled={isOutOfStock} onClick={() => { handleAddToCart(prod.name, 'ราคาศูนย์'); setCatalogSearch(''); }} className="flex-1 sm:flex-none px-4 py-2.5 bg-slate-100 text-slate-600 hover:bg-slate-500 hover:text-white text-[13px] font-black rounded-xl border border-slate-300 shadow-sm transition-all text-center">ราคาศูนย์ ฿0</button>
+                                    </div>
+                                </div>
+                            )}) : (
+                                <div className="p-6 text-center text-slate-500 text-[13px] font-bold">❌ ไม่พบสินค้าที่ค้นหา</div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex-1 flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden z-10 min-h-[300px]">
+                   <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                      <h4 className="font-extrabold text-[15px] text-slate-800 flex items-center gap-2">
+                         <ShoppingCart size={20} className="text-blue-600" /> ตะกร้าสินค้า ({cart.length})
+                      </h4>
+                      <button type="button" onClick={() => setCart([])} disabled={cart.length === 0} className="text-[12px] font-bold text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 border border-red-100 shadow-sm">ล้างตะกร้า</button>
+                   </div>
+
+                   <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3 bg-slate-50/50">
+                      {cart.map((item, idx) => {
+                         const prodObj = (products || []).find(p => p.name === item.productName) || {};
+                         const img = prodObj.imageUrl && prodObj.imageUrl.trim() !== '' ? prodObj.imageUrl : null;
+                         return (
+                         <div key={`${item.productName}-${item.priceType}`} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 bg-white rounded-xl border border-slate-200 hover:border-blue-300 transition-all shadow-sm">
+                            
+                            <div className="flex items-center gap-3 flex-1 min-w-0 w-full">
+                               <div className="w-14 h-14 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
+                                  {img ? <img src={img} alt={item.productName} className="w-full h-full object-cover" /> : <PackageIcon size={24} className="text-slate-300"/>}
+                               </div>
+                               <div className="flex flex-col min-w-0 flex-1">
+                                  <div className="font-black text-[15px] text-slate-800 truncate" title={item.productName}>{item.productName}</div>
+                                  <div className="flex items-center gap-2 mt-1">
+                                     <select 
+                                        className="text-[12px] font-black border border-slate-200 bg-slate-50 text-slate-700 rounded-md px-2 py-1 outline-none focus:border-blue-500 cursor-pointer shadow-sm"
+                                        value={item.priceType} onChange={(e) => handleUpdateCartPriceType(item.productName, item.priceType, e.target.value)}
+                                     >
+                                        <option value="ราคาเต็ม">ราคาเต็ม</option>
+                                        <option value="ราคาสมาชิก">ราคาสมาชิก</option>
+                                        <option value="ราคาโปร">ราคาโปร</option>
+                                        <option value="ราคาศูนย์">ราคาศูนย์</option>
+                                     </select>
+                                     <span className="text-[13px] font-black text-blue-600">฿{(item.price || 0).toLocaleString()}</span>
+                                  </div>
+                               </div>
+                            </div>
+                            
+                            <div className="flex items-center justify-between pt-2 border-t border-slate-100 sm:border-0 sm:pt-0 shrink-0 gap-3 w-full sm:w-auto">
+                               <div className="flex items-center border border-slate-200 bg-slate-50 rounded-lg overflow-hidden shadow-sm h-10">
+                                  <button type="button" onClick={() => handleUpdateCartQty(item.productName, item.priceType, -1)} className="px-4 text-slate-500 hover:bg-white hover:text-red-500 font-bold transition-colors">-</button>
+                                  <input 
+                                     type="text" 
+                                     inputMode="numeric"
+                                     className="font-black text-[15px] text-blue-700 w-14 text-center bg-white h-full border-x border-slate-200 outline-none focus:bg-blue-50 focus:text-blue-800 transition-colors" 
+                                     value={item.qty} 
+                                     onChange={(e) => {
+                                         const val = e.target.value.replace(/[^0-9]/g, '');
+                                         handleSetCartQty(item.productName, item.priceType, val);
+                                     }}
+                                     onBlur={(e) => {
+                                         if (!e.target.value || parseInt(e.target.value) < 1) {
+                                             handleSetCartQty(item.productName, item.priceType, 1);
+                                         }
+                                     }}
+                                  />
+                                  <button type="button" onClick={() => handleUpdateCartQty(item.productName, item.priceType, 1)} className="px-4 text-slate-500 hover:bg-white hover:text-green-600 font-bold transition-colors">+</button>
+                               </div>
+                               <div className="text-[16px] font-black text-slate-800 w-20 text-right">฿{((item.price || 0) * item.qty).toLocaleString()}</div>
+                               <button type="button" onClick={() => handleRemoveFromCart(item.productName, item.priceType)} className="p-2.5 text-red-500 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors border border-transparent hover:border-red-200 shrink-0">
+                                  <Trash2 size={18} />
+                               </button>
+                            </div>
+                         </div>
+                      )})}
+                      {cart.length === 0 && (
+                         <div className="flex flex-col items-center justify-center py-32 text-slate-300 gap-4 h-full">
+                            <ShoppingCart size={64} className="stroke-1 text-slate-200" />
+                            <span className="text-[15px] font-bold text-slate-400">ยังไม่มีสินค้าในตะกร้า</span>
+                         </div>
+                      )}
+                   </div>
+                </div>
+
+                {/* 🟢 ปุ่มบันทึกบิลย้ายมาวางให้เด่นๆ อยู่ล่างสุดฝั่งขวาเลยครับ */}
+                <button type="button" onClick={handleAdd} disabled={isSubmitting || cart.length === 0} className={`w-full py-4 rounded-2xl font-black text-[16px] shadow-lg transition-all shrink-0 mt-1 ${isSubmitting || cart.length === 0 ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300' : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 hover:-translate-y-0.5'}`}>
+                    {isSubmitting ? 'กำลังบันทึก...' : editingSaleId ? '💾 บันทึกแก้ไขบิล' : '💳 บันทึกบิลชำระเงิน'}
+                </button>
+
+             </div>
+          </div>
+        );
+
+        return (
+          <div className="flex flex-col gap-5 h-full animation-fade-in relative z-10 w-full mx-auto">
+            <ConfirmModal isOpen={confirmDelete.show} onClose={() => setConfirmDelete({show: false, id: null, title: ''})} onConfirm={executeDeleteSale} title="ยืนยันการลบประวัติการขาย" message={`คุณต้องการลบข้อมูลบิล "${confirmDelete.title}" ใช่หรือไม่? (ไม่สามารถกู้คืนได้)`} />
+            
+            <EditModal isOpen={successModal.show} onClose={() => { setSuccessModal({show: false, saleRecord: null}); handleCancelEdit(); }} title="สถานะการบันทึก" icon={CheckCircle} maxWidthClass="max-w-md">
+                <div className="flex flex-col items-center justify-center p-4 text-center gap-4">
+                    <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-2">
+                        <CheckCircle size={48} />
+                    </div>
+                    <div>
+                        <h3 className="text-2xl font-black text-slate-800">บันทึกบิลสำเร็จ!</h3>
+                        <p className="text-slate-500 font-medium mt-1">รหัสบิล: <span className="text-blue-600 font-bold">{successModal.saleRecord?.id}</span></p>
+                    </div>
+                    
+                    <div className="flex flex-col w-full gap-3 mt-2">
+                        <button 
+                            type="button" 
+                            onClick={() => {
+                                handlePrintReceiptPopup(successModal.saleRecord);
+                                setSuccessModal({show: false, saleRecord: null});
+                                handleCancelEdit();
+                            }}
+                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors flex items-center justify-center gap-2"
+                        >
+                            <PrinterIcon size={18} /> พิมพ์ใบเสร็จ (Print Receipt)
+                        </button>
+                        <button 
+                            type="button" 
+                            onClick={() => { setSuccessModal({show: false, saleRecord: null}); handleCancelEdit(); }}
+                            className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl border border-slate-200 transition-colors"
+                        >
+                            เสร็จสิ้น (คีย์บิลใหม่)
+                        </button>
+                    </div>
+                </div>
+            </EditModal>
+
+            <EditModal isOpen={!!viewBillDetail} onClose={() => setViewBillDetail(null)} title={`รายละเอียดบิล (Bill Detail)`} icon={Eye} maxWidthClass="max-w-3xl">
+                {viewBillDetail && (
+                    <div className="space-y-6">
+                        <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm relative overflow-hidden">
+                            <div className="col-span-full border-b border-slate-200 pb-3 mb-1 flex justify-between items-center">
+                                <h3 className="text-lg font-black text-slate-800">รหัสบิล: <span className="text-blue-600">{viewBillDetail.id}</span></h3>
+                                <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg text-xs font-bold shadow-sm border border-emerald-200">✅ บันทึกสำเร็จ</span>
+                            </div>
+                            <div>
+                                <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">วันที่บิล</span>
+                                <span className="block text-sm font-black text-slate-800">{formatDbDateForFilter(viewBillDetail.date)}</span>
+                            </div>
+                            <div>
+                                <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">รหัสลูกค้า</span>
+                                <span className="block text-sm font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded inline-block">{viewBillDetail.customerId}</span>
+                            </div>
+                            <div className="md:col-span-2">
+                                <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">ผู้ขาย (เจ้าของเคส)</span>
+                                <span className="block text-sm font-black text-slate-800 truncate">{viewBillDetail.memberName || viewBillDetail.memberId}</span>
+                            </div>
+                            <div className="md:col-span-4 border-t border-slate-200 pt-3 mt-1">
+                                <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">พนักงานผู้ทำรายการ</span>
+                                <span className="block text-sm font-bold text-slate-600">{viewBillDetail.recordedBy || '-'}</span>
+                            </div>
+                        </div>
+
+                        <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-slate-100 border-b border-slate-200 text-slate-600 text-[11px] uppercase tracking-wider">
+                                    <tr>
+                                        <th className="p-3 font-black pl-4">รายการสินค้า</th>
+                                        <th className="p-3 text-right font-black">ราคา/ชิ้น</th>
+                                        <th className="p-3 text-center font-black w-24">จำนวน</th>
+                                        <th className="p-3 text-right font-black pr-4">รวม (THB)</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {Object.keys(viewBillDetail).filter(k => k.includes('_ราคา') && !k.includes('รวมชิ้น') && viewBillDetail[k] > 0).map(key => {
+                                        const qty = viewBillDetail[key];
+                                        let productName = ''; let priceType = ''; let unitPrice = 0;
+                                        
+                                        if (key.endsWith('_ราคาเต็ม')) { productName = key.replace('_ราคาเต็ม', ''); priceType = 'ราคาเต็ม'; } 
+                                        else if (key.endsWith('_ราคาโปร')) { productName = key.replace('_ราคาโปร', ''); priceType = 'ราคาโปร'; } 
+                                        else if (key.endsWith('_ราคาสมาชิก')) { productName = key.replace('_ราคาสมาชิก', ''); priceType = 'ราคาสมาชิก'; } 
+                                        else if (key.endsWith('_ราคาศูนย์')) { productName = key.replace('_ราคาศูนย์', ''); priceType = 'ราคาศูนย์'; }
+                                        
+                                        const prodObj = (products || []).find(p => p.name === productName) || {};
+                                        if (priceType === 'ราคาเต็ม') unitPrice = parseFloat(prodObj.priceFull || 0);
+                                        else if (priceType === 'ราคาโปร') unitPrice = parseFloat(prodObj.pricePromo || 0);
+                                        else if (priceType === 'ราคาสมาชิก') unitPrice = parseFloat(prodObj.priceMember || 0);
+                                        else if (priceType === 'ราคาศูนย์') unitPrice = 0;
+
+                                        const itemTotal = unitPrice * qty;
+
+                                        return (
+                                            <tr key={key} className="bg-white hover:bg-slate-50 transition-colors">
+                                                <td className="p-3 pl-4">
+                                                    <div className="font-black text-[13px] text-slate-800">{productName}</div>
+                                                    <div className="text-[10px] text-slate-500 font-bold mt-0.5">{priceType}</div>
+                                                </td>
+                                                <td className="p-3 text-right font-bold text-slate-600">฿{unitPrice.toLocaleString()}</td>
+                                                <td className="p-3 text-center font-black text-lg text-blue-600 bg-blue-50/30 border-x border-slate-50">{qty}</td>
+                                                <td className="p-3 text-right font-black text-slate-800 pr-4">฿{itemTotal.toLocaleString()}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                                <tfoot className="bg-blue-50/50 border-t-2 border-blue-100">
+                                    <tr>
+                                        <td colSpan="2" className="p-4 text-right font-black text-slate-600 uppercase">รวมจำนวนชิ้นทั้งหมด:</td>
+                                        <td className="p-4 text-center font-black text-2xl text-blue-700 bg-blue-100/50 rounded-b-xl border-x border-blue-100/50">
+                                            {Object.keys(viewBillDetail).filter(k => k.includes('_ราคา') && !k.includes('รวมชิ้น') && viewBillDetail[k] > 0).reduce((sum, key) => sum + parseInt(viewBillDetail[key]), 0)}
+                                        </td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+
+                        <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
+                            <div className="flex flex-col gap-1 w-full md:w-auto">
+                                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">ช่องทางชำระเงิน</span>
+                                <span className="text-sm font-black text-slate-800 bg-white px-3 py-1.5 rounded-lg border border-blue-100 inline-block w-fit shadow-sm">{viewBillDetail.saleType}</span>
+                                {viewBillDetail.paymentNote && <span className="text-xs text-slate-500 italic mt-2 flex items-center gap-1"><Edit size={12}/> หมายเหตุ: {viewBillDetail.paymentNote}</span>}
+                            </div>
+                            <div className="flex flex-col items-end text-right w-full md:w-auto border-t md:border-t-0 md:border-l border-blue-200/50 pt-4 md:pt-0 md:pl-6">
+                                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">ยอดสุทธิ (Net Total)</span>
+                                <span className="text-4xl font-black text-blue-700 leading-none drop-shadow-sm">฿{parseFloat(viewBillDetail.totalAmount || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                            </div>
+                        </div>
+                        
+                        <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                            <button onClick={() => setViewBillDetail(null)} className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl border border-slate-200 transition-colors shadow-sm">ปิดหน้าต่าง</button>
+                            <button onClick={() => { handlePrintReceiptPopup(viewBillDetail); setViewBillDetail(null); }} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-colors flex items-center gap-2"><PrinterIcon size={18}/> พิมพ์บิลนี้</button>
+                        </div>
+                    </div>
+                )}
+            </EditModal>
+
+            <EditModal isOpen={editingSaleId !== null} onClose={handleCancelEdit} title="แก้ไขประวัติการขาย (Edit Sale)" icon={Edit} maxWidthClass="max-w-6xl">
+                {renderSalesForm()}
+            </EditModal>
+
+            {!editingSaleId && (
+              <div className="w-full flex flex-col h-full min-h-0">
+                <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between border-b border-slate-200 pb-0 mb-4 gap-3">
+                    <h3 className="text-lg font-bold flex items-center gap-2 text-blue-700 px-2 pb-2 shrink-0"><Plus size={20}/> บันทึกรายการขายใหม่ (New Sale Entry)</h3>
+                    <div className="flex gap-1.5 px-2 sm:px-0 pb-2">
+                        <button onClick={() => setSaleTab('B2M')} className={`px-5 py-2 text-[12px] font-black rounded-lg transition-all shadow-sm ${saleTab === 'B2M' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-blue-500/30' : 'bg-white text-slate-500 hover:bg-blue-50 border border-slate-200'}`}>B2M (ปลีก)</button>
+                        <button onClick={() => setSaleTab('B2N')} className={`px-5 py-2 text-[12px] font-black rounded-lg transition-all shadow-sm ${saleTab === 'B2N' ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-indigo-500/30' : 'bg-white text-slate-500 hover:bg-indigo-50 border border-slate-200'}`}>B2N (ตัวแทน)</button>
+                        <button onClick={() => setSaleTab('B2B')} className={`px-5 py-2 text-[12px] font-black rounded-lg transition-all shadow-sm ${saleTab === 'B2B' ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-emerald-500/30' : 'bg-white text-slate-500 hover:bg-emerald-50 border border-slate-200'}`}>B2B (ส่ง)</button>
+                    </div>
+                </div>
+                
+                {saleTab === 'B2M' ? renderSalesForm() : (
+                    <div className="flex flex-col items-center justify-center bg-white border border-dashed border-slate-300 rounded-3xl py-24 px-6 gap-6 mb-6 shadow-sm">
+                        <span className="text-6xl drop-shadow-md">🚀</span>
+                        <div className="text-center">
+                            <h2 className="text-2xl font-black text-slate-800 mb-2">โหมดการขาย {saleTab}</h2>
+                            <p className="text-slate-500 font-bold text-[13px]">ระบบกำลังอยู่ในช่วงการพัฒนาและออกแบบ UI/UX สำหรับโหมดนี้</p>
+                        </div>
+                        <span className="bg-slate-100 text-slate-400 px-6 py-2 rounded-full font-bold border border-slate-200 text-[11px]">Coming Soon...</span>
+                    </div>
+                )}
+              </div>
+            )}
+
+            <div className={`${boxWrapper} flex flex-col relative mt-[15vh] shrink-0`}>
+               <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-5 mb-5 border-b border-slate-100 pb-5">
+                  <h3 className={titleClass}><ShoppingCart size={24} className="text-blue-500"/> ประวัติการขาย (Sales History)</h3>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full xl:w-auto">
+                     <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200 shadow-sm w-full sm:w-auto overflow-x-auto">
+                        <span className="text-[13px] font-bold text-slate-500 pl-1 shrink-0">ค้นหาวันที่:</span>
+                        <input type="date" className="bg-white border border-slate-200 focus:border-blue-500 rounded-lg px-3 py-1.5 text-[13px] font-bold text-blue-600 outline-none focus:ring-4 focus:ring-blue-100 transition-all duration-300 min-w-[120px] shadow-sm" value={historyStartDate} onChange={e => setHistoryStartDate(e.target.value)} />
+                        <span className="text-[13px] font-bold text-slate-400">-</span>
+                        <input type="date" className="bg-white border border-slate-200 focus:border-blue-500 rounded-lg px-3 py-1.5 text-[13px] font-bold text-blue-600 outline-none focus:ring-4 focus:ring-blue-100 transition-all duration-300 min-w-[120px] shadow-sm" value={historyEndDate} onChange={e => setHistoryEndDate(e.target.value)} />
+                     </div>
+                     <div className="flex items-center bg-slate-50/30 focus-within:bg-white border border-slate-200 rounded-xl px-3 shadow-sm focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 transition-all duration-300 flex-1 sm:w-64 h-[38px] sm:h-[40px]">
+                        <SearchIcon size={18} className="text-slate-400 shrink-0" />
+                        <input type="text" placeholder="ค้นหาบิล, ชื่อ, รหัส..." className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={salesSearchTerm} onChange={e => setSalesSearchTerm(e.target.value)} />
+                     </div>
+                  </div>
+               </div>
+               
+               {saleTab === 'B2M' ? (
+                   <React.Fragment>
+                       <div className="w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm mb-2">
+                         <table className="w-full text-left min-w-[1000px] border-collapse relative">
+                            <thead className="bg-slate-50 shadow-sm border-b border-slate-200">
+                              <tr>
+                                <th className={tableHeaderClass}>ข้อมูลบิล / ลูกค้า</th>
+                                <th className={`${tableHeaderClass} text-center text-green-700 border-l border-slate-200 w-[12%]`}>ชิ้น (ราคาเต็ม)</th>
+                                <th className={`${tableHeaderClass} text-center text-purple-700 border-l border-slate-200 w-[12%]`}>ชิ้น (ราคาสมาชิก)</th>
+                                <th className={`${tableHeaderClass} text-center text-orange-700 border-l border-slate-200 w-[12%]`}>ชิ้น (ราคาโปร)</th>
+                                <th className={`${tableHeaderClass} text-center text-slate-500 border-l border-slate-200 w-[12%]`}>ชิ้น (ราคาศูนย์)</th>
+                                <th className={`${tableHeaderClass} text-center text-blue-800 border-l border-slate-200 bg-blue-50 w-[180px]`}>TOTAL</th>
+                                {isAdmin && <th className={`${tableHeaderClass} text-center border-l border-slate-200 w-[100px]`}>จัดการ</th>}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {paginatedSalesHistory.map((rs, index) => {
+                                 const mName = (members || []).find(m => m && m.id === rs.memberId)?.name || rs.memberName || rs.memberId; 
+                                 return (
+                                  <tr key={index} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
+                                     <td className="py-2.5 px-3 align-top border-r border-slate-100 overflow-hidden">
+                                        <div className="font-bold text-blue-700 text-sm leading-tight mb-1 truncate flex justify-between items-center" title={rs.customerId}>
+                                           <span>👤 {rs.customerId || ''}</span>
+                                           <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-300 font-bold shadow-sm text-center">บิล:<br/><span className="text-blue-700">{rs.id}</span></span>
+                                        </div>
+                                        <div className="text-[10px] font-bold text-slate-500 mb-0.5 truncate" title={rs.memberId}>รหัสผู้ขาย: <span className="text-slate-800">{rs.memberId}</span></div>
+                                        <div className="text-[12px] font-bold text-slate-800 mb-1.5 whitespace-normal leading-tight" title={mName}>{mName}</div>
+                                       
+                                        <div className="flex flex-col gap-1 mt-1">
+                                          <div className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 inline-block w-fit rounded border border-blue-100">{formatDbDateForFilter(rs.date)}</div>
+                                          <div className="text-[9px] font-bold text-slate-400 flex items-center gap-1 border-t border-slate-100 pt-1 w-fit">
+                                             <UserCircle size={10}/> ผู้คีย์: <span className="text-indigo-600">{rs.recordedBy || 'ไม่ระบุ'}</span>
+                                          </div>
+                                        </div>
+
+                                        <div className="mt-2 border-t border-slate-100 pt-2 pr-2 flex flex-col gap-1.5">
+                                          <button 
+                                             type="button"
+                                             onClick={() => setViewBillDetail(rs)} 
+                                             className="flex items-center justify-center bg-white hover:bg-blue-50 text-blue-600 border border-slate-200 hover:border-blue-300 px-2 py-1.5 rounded transition-colors shadow-sm gap-1 text-[10px] font-bold w-full" 
+                                          >
+                                             <Eye size={12} /> 👁️ ดูรายละเอียด
+                                          </button>
+                                          <button 
+                                             type="button"
+                                             onClick={() => handlePrintReceiptPopup(rs)} 
+                                             className="flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-1.5 rounded transition-colors shadow-sm gap-1 text-[10px] font-bold w-full" 
+                                          >
+                                             <PrinterIcon size={12} /> 🖨️ สั่งพิมพ์บิล
+                                          </button>
+                                        </div>
+                                    </td>
+                                    {renderRecordCells(rs)}
+                                    {isAdmin && (
+                                      <td className="p-2 align-middle text-center border-l border-slate-100 bg-slate-50/50">
+                                        <div className="flex flex-col items-center justify-center gap-1.5">
+                                            <button onClick={() => handleEditSale(rs)} className="flex items-center justify-center gap-1 w-full text-[11px] font-bold text-blue-600 hover:text-blue-700 transition-colors bg-white py-1 rounded border border-slate-200 shadow-sm" title="แก้ไข"><Edit size={12}/> แก้ไข</button>
+                                            <button onClick={() => setConfirmDelete({show: true, id: rs.id, customerId: rs.customerId, title: `บิล ${rs.id} ลูกค้า ${rs.customerId}`})} className="flex items-center justify-center gap-1 w-full text-[11px] font-bold text-red-500 hover:text-red-700 transition-colors bg-white py-1 rounded border border-slate-200 shadow-sm" title="ลบ"><Trash2 size={12}/> ลบ</button>
+                                        </div>
+                                      </td>
+                                    )}
+                                 </tr>
+                               )
+                             })}
+                             {paginatedSalesHistory.length === 0 && <tr><td colSpan={isAdmin?7:6} className="p-12 text-center text-slate-500 font-bold text-sm bg-slate-50/50">ไม่พบประวัติการขายในช่วงเวลาที่ค้นหา</td></tr>}
+                           </tbody>
+                           <tfoot className="bg-slate-100 border-t-[3px] border-slate-300 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                              <tr>
+                                 <td className="py-3 px-3 align-middle text-right border-r border-slate-200">
+                                    <div className="font-black text-slate-800 text-xs">รวมทั้งหมด</div>
+                                    <div className="text-[10px] font-bold text-slate-500 bg-white inline-block px-1.5 py-0.5 rounded border border-slate-200 mt-0.5">{tableTotals.count} บิล</div>
+                                 </td>
+                                 <td className="p-2 align-middle text-center border-l border-slate-200 bg-green-50/70">
+                                    <div className="font-black text-lg text-green-700">{tableTotals.totalFull}</div>
+                                    <div className="text-[9px] font-bold text-green-600">ชิ้น (ราคาเต็ม)</div>
+                                 </td>
+                                 <td className="p-2 align-middle text-center border-l border-slate-200 bg-purple-50/70">
+                                    <div className="font-black text-lg text-purple-700">{tableTotals.totalMember}</div>
+                                    <div className="text-[9px] font-bold text-purple-600">ชิ้น (ราคาสมาชิก)</div>
+                                 </td>
+                                 <td className="p-2 align-middle text-center border-l border-slate-200 bg-orange-50/70">
+                                    <div className="font-black text-lg text-orange-700">{tableTotals.totalPro}</div>
+                                    <div className="text-[9px] font-bold text-orange-600">ชิ้น (ราคาโปร)</div>
+                                 </td>
+                                 <td className="p-2 align-middle text-center border-l border-slate-200 bg-slate-50/90">
+                                    <div className="font-black text-lg text-slate-600">{tableTotals.totalZero}</div>
+                                    <div className="text-[9px] font-bold text-slate-500">ชิ้น (ราคาศูนย์)</div>
+                                 </td>
+                                 <td className="p-2 align-middle text-center border-l border-slate-300 bg-blue-100/60">
+                                    <div className="font-black text-2xl text-blue-800 drop-shadow-sm">{tableTotals.grandTotal}</div>
+                                    <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mt-0.5 mb-1">จำนวนกล่องรวม</div>
+                                    <div className="text-[11px] font-black text-emerald-700 bg-white py-1 px-1.5 rounded border border-emerald-200 shadow-sm mx-1">มูลค่า: ฿{tableTotals.totalAmountTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                                 </td>
+                                 {isAdmin && <td className="bg-slate-100 border-l border-slate-200"></td>}
+                              </tr>
+                            </tfoot>
+                         </table>
+                       </div>
+
+                       {totalSalesPages > 1 && (
+                         <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm gap-2">
+                            <span className="text-[11px] sm:text-xs font-bold text-slate-500">
+                                แสดง {((salesPage - 1) * SALES_PER_PAGE) + 1} ถึง {Math.min(salesPage * SALES_PER_PAGE, filteredSalesHistory.length)} จากทั้งหมด {filteredSalesHistory.length} รายการ
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                                <button onClick={() => setSalesPage(p => Math.max(1, p - 1))} disabled={salesPage === 1} className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-slate-100 text-slate-700 text-[11px] sm:text-[12px] font-bold rounded border border-slate-200 disabled:opacity-50 hover:bg-slate-200 transition-colors shadow-sm">ก่อนหน้า</button>
+                                <span className="text-[11px] sm:text-[12px] font-bold text-blue-700 bg-blue-50 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded border border-blue-200 shadow-sm">หน้า {salesPage} / {totalSalesPages}</span>
+                                <button onClick={() => setSalesPage(p => Math.min(totalSalesPages, p + 1))} disabled={salesPage === totalSalesPages} className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-slate-100 text-slate-700 text-[11px] sm:text-[12px] font-bold rounded border border-slate-200 disabled:opacity-50 hover:bg-slate-200 transition-colors shadow-sm">ถัดไป</button>
+                            </div>
+                         </div>
+                       )}
+                   </React.Fragment>
+               ) : (
+                   <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-sm">
+                       <h3 className="text-xl font-black text-slate-400 mb-2">ประวัติการขายโหมด {saleTab}</h3>
+                       <p className="text-slate-400 text-sm">ยังไม่มีข้อมูลประวัติการขายสำหรับโหมดนี้ หรือระบบกำลังอยู่ระหว่างการพัฒนา</p>
+                   </div>
+               )}
+            </div>
+          </div>
+        );
+    };
+
+    // ==========================================
+    // 📌 React App (Main Component)
+    // ==========================================
+    const App = () => {
+      const [isLoggedIn, setIsLoggedIn] = useState(false);
+      const [currentUser, setCurrentUser] = useState(null);
+      const [showLoginModal, setShowLoginModal] = useState(false);
+      
+      const [products, setProducts] = useState([]);
+      const [customerTypes, setCustomerTypes] = useState(fallbackCustomerTypes);
+      const [closers, setClosers] = useState([]);
+      const [members, setMembers] = useState([]);
+      const [customers, setCustomers] = useState([]);
+      const [sales, setSales] = useState([]);
+      const [systemUsers, setSystemUsers] = useState([]);
+      const [systemSettings, setSystemSettings] = useState({ exchange_rate: 700 }); 
+      const [isAppLoading, setIsAppLoading] = useState(true);
+      const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+        try {
+          return localStorage.getItem('stk_sidebar_collapsed') === 'true';
+        } catch(e) {
+          return false;
+        }
+      });
+      
+      const latestSaleIdRef = useRef(null);
+      const latestCustIdRef = useRef(null);
+      const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+      
+      const showToast = (message, type = 'success') => {
+        setToast({ show: true, message, type });
+      };
+
+      const SCRIPT_URL = (() => {
+  try {
+    if (window.top && window.top.location && window.top.location.href) {
+      const base = window.top.location.href.split('?')[0];
+      if (base && base.startsWith('http')) return base;
+    }
+  } catch(e) {}
+  return "<?= getScriptUrl() ?>";
+})();
+
+      const isAdmin = currentUser && (
+          String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
+          String(currentUser.role).trim().toLowerCase() === 'admin'
+      );
+      const currentUserProfileUrl = currentUser?.profileUrl || '';
+
+      const activeProductsList = useMemo(() => {
+          if (!products || products.length === 0) return fallbackProductsList;
+          return (products || []).filter(p => p && p.status === 'ใช้งาน').map(p => p.name);
+      }, [products]);
+
+      const activeCustomerTypes = useMemo(() => {
+          if (!customerTypes || customerTypes.length === 0) return fallbackCustomerTypes;
+          return (customerTypes || []).filter(p => p && p.status === 'ใช้งาน');
+      }, [customerTypes]);
+
+      useEffect(() => {
+        const savedUserStr = localStorage.getItem('stk_current_user');
+        if (savedUserStr) {
+          const user = JSON.parse(savedUserStr);
+          setCurrentUser(user);
+          setIsLoggedIn(true);
+        } else {
+          setShowLoginModal(true);
+        }
+
+        const initialLoader = document.getElementById('initial-loader');
+        if (initialLoader) {
+            initialLoader.style.display = 'none';
+        }
+
+        if (typeof google !== 'undefined' && google.script) {
+           try {
+               const cachedData = localStorage.getItem('stk_app_cache_data');
+               if (cachedData) {
+                   const parsedData = JSON.parse(cachedData);
+                   applyDataToStates(parsedData);
+                   setIsAppLoading(false);
+               }
+           } catch (e) { console.warn("Cache error", e); }
+
+           google.script.run
+             .withSuccessHandler((response) => {
+                if (response) {
+                    try { localStorage.setItem('stk_app_cache_data', JSON.stringify(response)); } catch(e){}
+                    applyDataToStates(response);
+                }
+                setIsAppLoading(false); 
+             })
+             .withFailureHandler((error) => {
+                setIsAppLoading(false);
+                showToast('การเชื่อมต่อมีปัญหา: ' + (error ? (error.message || error) : ''), 'error');
+             })
+             .getInitialData(); 
+        } else {
+           setProducts([{ id: 'P001', name: 'SESAMIN', status: 'ใช้งาน', priceFull: 1800, pricePromo: 800, priceMember: 1300 }]);
+           setCustomerTypes(fallbackCustomerTypes);
+           setClosers([{ id: 'C001', name: 'BEE', team: 'Marketing', status: 'ใช้งาน' }, { id: 'C002', name: 'HAT', team: 'Center', status: 'ใช้งาน' }]);
+           setIsAppLoading(false);
+        }
+      }, []);
+
+      const applyDataToStates = (response) => {
+           if (Array.isArray(response.products)) setProducts(response.products);
+           if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes);
+           if (Array.isArray(response.closers)) setClosers(response.closers);
+           if (Array.isArray(response.members)) setMembers(response.members);
+           if (Array.isArray(response.customers)) setCustomers(response.customers);
+           if (Array.isArray(response.systemUsers)) setSystemUsers(response.systemUsers);
+           
+           if (Array.isArray(response.sales)) {
+               const processedSales = response.sales.map(s => {
+                   let sumF = 0, sumP = 0, sumZ = 0;
+                   Object.keys(s).forEach(k => {
+                       if (k !== 'รวมชิ้นราคาเต็ม' && k !== 'รวมชิ้นราคาโปร' && k !== 'รวมชิ้นราคาศูนย์' && k !== 'ยอดรวมชิ้นทั้งหมด') {
+                           if (k.endsWith('_ราคาเต็ม')) sumF += (parseInt(s[k]) || 0);
+                           else if (k.endsWith('_ราคาโปร')) sumP += (parseInt(s[k]) || 0);
+                           else if (k.endsWith('_ราคาศูนย์')) sumZ += (parseInt(s[k]) || 0);
+                       }
+                   });
+                   s['รวมชิ้นราคาเต็ม'] = sumF; s['รวมชิ้นราคาโปร'] = sumP; s['รวมชิ้นราคาศูนย์'] = sumZ;
+                   s['ยอดรวมชิ้นทั้งหมด'] = sumF + sumP + sumZ;
+                   return s;
+               });
+               setSales(processedSales);
+               if (processedSales.length > 0) latestSaleIdRef.current = processedSales[0].id; 
+           }
+           if (response.systemSettings) setSystemSettings(response.systemSettings);
+      };
+
+      const handleLoginSuccess = (user) => {
+        localStorage.setItem('stk_current_user', JSON.stringify(user));
+        setCurrentUser(user);
+        setIsLoggedIn(true);
+        setShowLoginModal(false);
+        showToast('เข้าสู่ระบบสำเร็จ!', 'success');
+      };
+
+      const handleLogout = () => {
+        localStorage.removeItem('stk_current_user');
+        setCurrentUser(null);
+        setIsLoggedIn(false);
+        if (typeof window !== 'undefined') {
+          window.open(resolvePageUrl(SCRIPT_URL + '?page=dashboard'), '_top');
+        }
+      };
+
+      return (
+        <div className="min-h-screen flex font-sans bg-slate-50">
+          <Sidebar 
+            activePage="sales" 
+            isLoggedIn={isLoggedIn} 
+            currentUser={currentUser} 
+            currentUserProfileUrl={currentUserProfileUrl} 
+            isAdmin={isAdmin} 
+            onLogout={handleLogout} 
+            showLoginModal={showLoginModal} 
+            setShowLoginModal={setShowLoginModal} 
+            SCRIPT_URL={SCRIPT_URL}
+            setIsAppLoading={setIsAppLoading}
+            isSidebarCollapsed={isSidebarCollapsed}
+            setIsSidebarCollapsed={setIsSidebarCollapsed}
+          />
+          
+          <main className={`flex-1 flex flex-col min-h-screen bg-slate-50 transition-all duration-300 relative ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} w-full overflow-x-hidden`}>
+            
+            {toast.show && (
+              <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animation-fade-in" style={{ animationDuration: '0.2s' }}>
+                 <div className={`bg-white rounded-3xl shadow-xl p-8 max-w-sm w-full text-center animation-pop border-t-4 ${toast.type === 'error' ? 'border-red-500' : toast.type === 'info' ? 'border-blue-500' : 'border-emerald-500'}`}>
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${toast.type === 'error' ? 'bg-red-100 text-red-500' : toast.type === 'info' ? 'bg-blue-100 text-blue-500' : 'bg-emerald-100 text-emerald-500'}`}>
+                       {toast.type === 'error' ? <X size={32} /> : toast.type === 'info' ? <Trophy size={32} /> : <CheckCircle size={32} />}
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">{toast.type === 'error' ? 'เกิดข้อผิดพลาด' : toast.type === 'info' ? 'แจ้งเตือน' : 'สำเร็จ!'}</h3>
+                    <p className="text-slate-600 font-medium text-sm mb-6">{toast.message}</p>
+                    <button onClick={() => setToast({ ...toast, show: false })} className="w-full py-2.5 rounded-lg font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors">ตกลง</button>
+                 </div>
+              </div>
+            )}
+
+            <div className="p-3 sm:p-5 flex-1 w-full relative z-0 custom-scrollbar">
+              <div className="w-full relative z-10 h-full flex flex-col min-h-0 pos-layout">
+                {isAppLoading ? (
+                  <div className="flex flex-col items-center justify-center py-32 gap-5 animation-fade-in flex-1">
+                    <div className="w-16 h-16 border-[4px] border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+                    <h2 className="text-lg font-bold text-slate-700">กำลังซิงค์ข้อมูลกับฐานข้อมูล...</h2>
+                    <p className="text-slate-500 text-sm">กรุณารอสักครู่ ระบบกำลังดึงข้อมูลล่าสุด</p>
+                  </div>
+                ) : isLoggedIn ? (
+                  <SalesEntryView 
+                    members={members} 
+                    customers={customers} 
+                    closers={closers} 
+                    sales={sales} 
+                    setSales={setSales} 
+                    setCustomers={setCustomers} 
+                    activeProductsList={activeProductsList} 
+                    activeCustomerTypes={activeCustomerTypes} 
+                    isAdmin={isAdmin} 
+                    showToast={showToast} 
+                    currentUser={currentUser} 
+                    products={products}
+                    setProducts={setProducts}
+                    systemSettings={systemSettings}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-32 gap-5 animation-fade-in flex-1">
+                    <h2 className="text-xl font-black text-red-500">กรุณาเข้าสู่ระบบก่อนใช้งาน</h2>
+                    <button onClick={() => setShowLoginModal(true)} className={btnClassPrimary}>เข้าสู่ระบบ</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </main>
+
+          <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} onLoginSuccess={handleLoginSuccess} systemUsers={systemUsers} />
+
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
