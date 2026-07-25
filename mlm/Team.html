@@ -67,7 +67,7 @@
     // ==========================================
     // 📌 ส่วนจัดการข้อมูลพนักงาน (Team Management View)
     // ==========================================
-    const TeamManagementView = ({ members, setMembers, businessTeams, isAdmin, showToast, sales, products }) => {
+    const TeamManagementView = ({ members, setMembers, businessTeams, isAdmin, showToast, sales, products, currentUser }) => {
         const [showForm, setShowForm] = useState(false);
         const [isEditing, setIsEditing] = useState(false);
         const [isSubmitting, setIsSubmitting] = useState(false);
@@ -115,6 +115,35 @@
             const sheetPv = Number(selectedMember.accumulatedPV || 0); return { personalComm, teamComm, accumulatedPv: sheetPv > 0 ? sheetPv : accumulatedPv };
         }, [selectedMember, sales, products]);
 
+        const visibleMembers = useMemo(() => {
+            if (!currentUser) return members || [];
+            const role = currentUser.role || 'พนักงานทั่วไป';
+            if (role === 'ผู้ดูแลระบบ' || String(role).toLowerCase() === 'admin' || role === 'พนักงานทั่วไป') {
+                return members || [];
+            }
+            if (role === 'พนักงานการตลาด') {
+                const currId = String(currentUser.user_id || currentUser.username || currentUser.id || '').trim().toUpperCase();
+                const downlines = new Set([currId]);
+                let changed = true;
+                while (changed) {
+                    changed = false;
+                    for (const m of (members || [])) {
+                        const mId = String(m.id || m.user_id || '').trim().toUpperCase();
+                        const sponsor = String(m.referrer || m.sponsor_id || '').trim().toUpperCase();
+                        if (sponsor && downlines.has(sponsor) && !downlines.has(mId)) {
+                            downlines.add(mId);
+                            changed = true;
+                        }
+                    }
+                }
+                return (members || []).filter(m => {
+                    const mId = String(m.id || m.user_id || '').trim().toUpperCase();
+                    return downlines.has(mId);
+                });
+            }
+            return members || [];
+        }, [members, currentUser]);
+
         const initialFormState = {
           id: '', username: '', password: '1234', name: '', team: 'T01', role: 'Staff',
           startDate: getLocalISODate(), status: 'ทำงานอยู่', profileUrl: '', referrer: '',
@@ -126,7 +155,7 @@
 
         // 🟢 รายชื่อสำหรับ AutoSuggest ผู้แนะนำ (แม่ทีม)
         const referrerSuggestList = useMemo(() => {
-            const list = (members || [])
+            const list = visibleMembers
                 .filter(m => m && m.id !== formData.id && m.status === 'ทำงานอยู่')
                 .map(m => ({
                     label: `${m.id} - ${m.name}`,
@@ -134,13 +163,13 @@
                     searchText: `${m.id} ${m.name}`
                 }));
             return list;
-        }, [members, formData.id]);
+        }, [visibleMembers, formData.id]);
 
         // 🟢 ฟังก์ชันค้นหาข้อมูลแม่ทีมมาโชว์ใต้ช่องกรอก
         const foundReferrer = useMemo(() => {
             if (!formData.referrer) return null;
-            return (members || []).find(m => m.id.toUpperCase() === formData.referrer.toUpperCase());
-        }, [formData.referrer, members]);
+            return visibleMembers.find(m => m.id.toUpperCase() === formData.referrer.toUpperCase());
+        }, [formData.referrer, visibleMembers]);
 
         const handleOpenAdd = () => { 
             setIsEditing(false); 
@@ -333,7 +362,7 @@
             }
         };
 
-        const displayedMembers = filterTeam === 'All' ? (members || []) : (members || []).filter(m => {
+        const displayedMembers = filterTeam === 'All' ? visibleMembers : visibleMembers.filter(m => {
            let t = m && m.team;
            if (t === 'T01' || t === 'Marketing' || t === 'Team A') return filterTeam === 'Marketing';
            if (t === 'T02' || t === 'Center' || t === 'Team B') return filterTeam === 'Center';
@@ -370,7 +399,7 @@
                       </div>
                       <div>
                         <label className={labelClassHud}>ชื่อผู้ใช้งาน (Username) *</label>
-                        <input type="text" required placeholder="ใช้ล็อกอินเข้าระบบ" className={inputClassHud} value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
+                        <input type="text" required disabled={isEditing && !isAdmin} placeholder="ใช้ล็อกอินเข้าระบบ" className={`${inputClassHud} ${isEditing && !isAdmin ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`} value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
                       </div>
                       <div>
                         <label className={labelClassHud}>รหัสผ่านเข้าระบบ *</label>
@@ -396,7 +425,7 @@
                       </div>
                       <div>
                         <label className={labelClassHud}>สิทธิ์การใช้งาน (Role)</label>
-                        <select className={inputClassHud} value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
+                        <select disabled={!isAdmin} className={`${inputClassHud} ${!isAdmin ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`} value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
                           <option value="Staff">พนักงานทั่วไป (Staff)</option>
                           <option value="Admin">ผู้ดูแลระบบ (Admin)</option>
                         </select>
@@ -412,6 +441,7 @@
                             data={referrerSuggestList} 
                             placeholder="พิมพ์รหัส หรือชื่อเพื่อค้นหา..." 
                             required={false} 
+                            disabled={isEditing && !isAdmin}
                         />
                         {/* 🟢 แสดงชื่อแม่ทีมที่เลือกไว้ด้านล่างเพื่อรีเช็ค */}
                         {foundReferrer ? (
@@ -677,7 +707,7 @@
                                <div className="text-sm sm:text-base font-black text-blue-800 mt-1 leading-tight whitespace-nowrap">
                                   {Number(selectedMemberStats.accumulatedPv || 0).toLocaleString()}
                                </div>
-                               <span className="text-[10px] font-bold text-blue-600 block mt-0.5">PV</span>
+                               <span className="text-[13px] font-bold text-blue-100">{visibleMembers.length} คน</span>
                             </div>
                          </div>
                       </div>
@@ -728,13 +758,13 @@
             {/* Filter Tabs */}
             <div className="flex gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200 w-full sm:w-fit overflow-x-auto hide-scroll">
                <button onClick={() => setFilterTeam("All")} className={filterBtn + (filterTeam === "All" ? " bg-blue-600 text-white border-blue-600 shadow-sm" : " bg-white text-slate-700 hover:bg-slate-50 border-slate-200")}>
-                 ทั้งหมด ({(members || []).length})
+                 ทั้งหมด ({visibleMembers.length})
                </button>
                <button onClick={() => setFilterTeam("Marketing")} className={filterBtn + (filterTeam === "Marketing" ? " bg-blue-600 text-white border-blue-600 shadow-sm" : " bg-white text-slate-700 hover:bg-slate-50 border-slate-200")}>
-                 ทีม Marketing ({(members || []).filter(m => { let t = m && m.team; return t === "Marketing" || t === "Team A" || t === "T01"; }).length})
+                 ทีม Marketing ({visibleMembers.filter(m => { let t = m && m.team; return t === "Marketing" || t === "Team A" || t === "T01"; }).length})
                </button>
                <button onClick={() => setFilterTeam("Center")} className={filterBtn + (filterTeam === "Center" ? " bg-blue-600 text-white border-blue-600 shadow-sm" : " bg-white text-slate-700 hover:bg-slate-50 border-slate-200")}>
-                 ทีม Center ({(members || []).filter(m => { let t = m && m.team; return t === "Center" || t === "Team B" || t === "T02"; }).length})
+                 ทีม Center ({visibleMembers.filter(m => { let t = m && m.team; return t === "Center" || t === "Team B" || t === "T02"; }).length})
                </button>
             </div>
 
@@ -789,7 +819,10 @@
                           <span className="text-slate-700 font-extrabold line-clamp-1">
                             {(() => {
                               const teamInfo = (businessTeams || []).find(t => t.id === m?.team);
-                              return teamInfo ? teamInfo.name : (m?.team === 'Team A' ? 'Marketing' : (m?.team === 'Team B' ? 'Center' : m?.team));
+                              if (teamInfo) return teamInfo.name;
+                              if (m?.team === 'Team A' || m?.team === 'T01' || m?.team === 'Marketing') return 'Marketing';
+                              if (m?.team === 'Team B' || m?.team === 'T02' || m?.team === 'Center') return 'Center';
+                              return m?.team || '-';
                             })()}
                           </span>
                         </div>
@@ -1314,6 +1347,7 @@
                       showToast={showToast}
                       sales={sales}
                       products={products}
+                      currentUser={currentUser}
                     />
                   )
                 ) : (

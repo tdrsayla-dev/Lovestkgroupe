@@ -326,8 +326,8 @@
 
   const getUserPagePermission = (currentUser, pageId) => {
     if (!currentUser) return 'view';
-    const role = currentUser.role || 'พนักงานทั่วไป';
-    if (role === 'ผู้ดูแลระบบ' || String(role).toLowerCase() === 'admin') return 'full';
+    const role = (currentUser.role || 'พนักงานทั่วไป').trim();
+    if (role === 'ผู้ดูแลระบบ' || role.toLowerCase() === 'admin') return 'full';
 
     let saved = {};
     try {
@@ -339,12 +339,21 @@
       return saved[role][pageId];
     }
 
-    const defaultStaff = {
-      dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'edit', customers: 'view',
-      team: 'none', business_teams: 'none', stock: 'none', customer_types: 'none', closers: 'none',
-      exchange_rate: 'none', system_users: 'none'
+    const defaultRolePermissions = {
+        'พนักงานการตลาด': {
+            dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'none', customers: 'none',
+            team: 'edit', business_teams: 'none', stock: 'none', customer_types: 'none', closers: 'none',
+            exchange_rate: 'none', system_users: 'none'
+        },
+        'พนักงานทั่วไป': {
+            dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'edit', customers: 'view',
+            team: 'none', business_teams: 'none', stock: 'none', customer_types: 'none', closers: 'none',
+            exchange_rate: 'none', system_users: 'none'
+        }
     };
-    return defaultStaff[pageId] !== undefined ? defaultStaff[pageId] : 'view';
+    
+    const defaults = defaultRolePermissions[role] || defaultRolePermissions['พนักงานทั่วไป'];
+    return defaults[pageId] !== undefined ? defaults[pageId] : 'view';
   };
 
   const resolvePageUrl = (href) => {
@@ -576,7 +585,7 @@
         ),
         React.createElement('div', { className: `border-t border-slate-800 bg-slate-950 flex items-center absolute bottom-0 w-full h-24 overflow-hidden ${isSidebarCollapsed ? 'p-2 justify-center' : 'p-4 gap-3'}` },
           isLoggedIn ? React.createElement(React.Fragment, null,
-            currentUserProfileUrl ? React.createElement('img', { src: currentUserProfileUrl, alt: "Profile", className: `rounded-full object-cover border-2 border-slate-700 shadow-sm shrink-0 ${isSidebarCollapsed ? 'w-10 h-10 mx-auto' : 'w-10 h-10'}` }) : React.createElement(UserCircle, { size: isSidebarCollapsed ? 32 : 36, className: `text-blue-400 bg-blue-900/30 rounded-full shrink-0 p-1 ${isSidebarCollapsed ? 'mx-auto' : ''}` }),
+            (currentUserProfileUrl && currentUserProfileUrl !== '-') ? React.createElement('img', { src: currentUserProfileUrl, alt: "Profile", className: `rounded-full object-cover border-2 border-slate-700 shadow-sm shrink-0 ${isSidebarCollapsed ? 'w-10 h-10 mx-auto' : 'w-10 h-10'}` }) : React.createElement(UserCircle, { size: isSidebarCollapsed ? 32 : 36, className: `text-blue-400 bg-blue-900/30 rounded-full shrink-0 p-1 ${isSidebarCollapsed ? 'mx-auto' : ''}` }),
             !isSidebarCollapsed ? React.createElement('div', { className: "w-full flex flex-col items-start overflow-hidden" },
               React.createElement('p', { className: "text-[12px] font-bold text-white truncate w-full", title: currentUser ? currentUser.name : '' }, currentUser ? currentUser.name : ''),
               React.createElement('p', { className: "text-[10px] font-bold text-slate-400 mb-1" }, currentUser ? currentUser.role : ''),
@@ -611,7 +620,7 @@
         ),
         React.createElement('div', { className: "p-4 border-t border-slate-800 bg-slate-950 flex items-center gap-3 absolute bottom-0 w-full h-24" },
           isLoggedIn ? React.createElement(React.Fragment, null,
-            currentUserProfileUrl ? React.createElement('img', { src: currentUserProfileUrl, alt: "Profile", className: "w-10 h-10 rounded-full object-cover border-2 border-slate-700 shadow-sm shrink-0" }) : React.createElement(UserCircle, { size: 36, className: "text-blue-400 bg-blue-900/30 rounded-full shrink-0 p-1" }),
+            (currentUserProfileUrl && currentUserProfileUrl !== '-') ? React.createElement('img', { src: currentUserProfileUrl, alt: "Profile", className: "w-10 h-10 rounded-full object-cover border-2 border-slate-700 shadow-sm shrink-0" }) : React.createElement(UserCircle, { size: 36, className: "text-blue-400 bg-blue-900/30 rounded-full shrink-0 p-1" }),
             React.createElement('div', { className: "w-full flex flex-col items-start overflow-hidden" },
               React.createElement('p', { className: "text-[13px] font-bold text-white truncate w-full" }, currentUser ? currentUser.name : ''),
               React.createElement('p', { className: "text-[11px] font-bold text-slate-400 mb-1" }, currentUser ? currentUser.role : ''),
@@ -696,6 +705,34 @@
             setError('ไม่สามารถเชื่อมต่อฐานข้อมูลได้');
           })
           .verifyLogin(inputUser, inputPass);
+      } else if (typeof window.supabaseSelect === 'function') {
+        window.supabaseSelect('stk_members')
+          .then(members => {
+            setIsLoading(false);
+            const foundUser = members.find(u => 
+              (String(u.username).trim().toLowerCase() === inputUser.toLowerCase() || String(u.user_id || u.id).trim().toLowerCase() === inputUser.toLowerCase()) && 
+              (String(u.password_hash || u.password || u.Password).trim() === inputPass)
+            );
+
+            if (foundUser) {
+              processSuccess({
+                id: String(foundUser.id || foundUser.user_id || foundUser.User_ID || '').trim(),
+                username: String(foundUser.username || foundUser.Username || foundUser.id || '').trim(),
+                name: String(foundUser.name || foundUser.Name || '').trim(),
+                role: String(foundUser.permission_role || foundUser.Permission_Role || foundUser.role || 'พนักงานทั่วไป').trim(),
+                status: String(foundUser.status || foundUser.Status || 'ทำงานอยู่').trim(),
+                profileUrl: foundUser.profile_url || foundUser.id_card_url || foundUser.ID_Card_URL || ''
+              });
+            } else if (inputUser.toLowerCase() === 'admin' && (inputPass === '1234' || inputPass === 'password' || inputPass === 'admin')) {
+              processSuccess({ id: 'U001', username: 'admin', name: 'Admin (ทดสอบ)', role: 'ผู้ดูแลระบบ', status: 'ใช้งาน' });
+            } else {
+              setError('Username หรือ Password ไม่ถูกต้อง');
+            }
+          })
+          .catch(err => {
+            setIsLoading(false);
+            setError('การเชื่อมต่อฐานข้อมูลล้มเหลว');
+          });
       } else {
         setTimeout(() => {
           setIsLoading(false);

@@ -108,6 +108,38 @@
         const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null, customerId: null, title: '' });
         const [successModal, setSuccessModal] = useState({ show: false, saleRecord: null });
         
+        const calculateBillPV = (cartItems, prods) => {
+            let totalPV = 0;
+            cartItems.forEach(item => {
+                const p = (prods || []).find(prod => prod.name === item.productName);
+                if (p) {
+                    const givePv = Number(p.givePv || 0);
+                    const pvRate = givePv > 0 ? givePv : 1;
+                    if (item.priceType === 'ราคาเต็ม' || item.priceType === 'ราคาสมาชิก') {
+                        totalPV += (Number(item.qty) || 0) * pvRate;
+                    }
+                }
+            });
+            return totalPV;
+        };
+
+        const updateMemberPVInSupabase = async (memberId, pvChange) => {
+            if (!memberId || pvChange === 0) return;
+            try {
+                const memRes = await supabaseSelect('stk_members', `id=eq.${encodeURIComponent(memberId)}`);
+                if (memRes && memRes.length > 0) {
+                    const mem = memRes[0];
+                    let currentPv = Number(mem.accumulated_pv || mem.Accumulated_PV || 0);
+                    let newPv = currentPv + pvChange;
+                    if (newPv < 0) newPv = 0;
+                    await supabaseUpdate('stk_members', memberId, { accumulated_pv: newPv });
+                    console.log(`✅ Updated PV for ${memberId}: ${currentPv} -> ${newPv} (Change: ${pvChange})`);
+                }
+            } catch (err) {
+                console.error('❌ Failed to update member PV in Supabase:', err);
+            }
+        };
+
         const [viewBillDetail, setViewBillDetail] = useState(null);
 
         const fallbackToday = new Date().toISOString().split('T')[0];
@@ -702,6 +734,22 @@
         const executeDeleteSale = () => {
             const saleId = confirmDelete.id;
             const custId = confirmDelete.customerId;
+            const record = (sales || []).find(s => s.id === saleId);
+            const memberId = record ? record.memberId : null;
+            let pvToSubtract = 0;
+
+            if (record) {
+                const oldCart = [];
+                Object.keys(record).forEach(k => {
+                    const qty = parseInt(record[k], 10) || 0;
+                    if (qty > 0) {
+                        if (k.endsWith('_ราคาเต็ม') && k !== 'รวมชิ้นราคาเต็ม') oldCart.push({ productName: k.replace('_ราคาเต็ม', ''), priceType: 'ราคาเต็ม', qty });
+                        else if (k.endsWith('_ราคาสมาชิก') && k !== 'รวมชิ้นราคาสมาชิก') oldCart.push({ productName: k.replace('_ราคาสมาชิก', ''), priceType: 'ราคาสมาชิก', qty });
+                    }
+                });
+                pvToSubtract = calculateBillPV(oldCart, products);
+            }
+
             if (typeof google !== 'undefined' && google.script && google.script.run.deleteSaleRecord) {
                 google.script.run.withSuccessHandler(() => { 
                     setSales(prev => prev.filter(s => s.id !== saleId)); 
@@ -709,11 +757,13 @@
                         google.script.run.deleteCustomerData(custId);
                         setCustomers(prev => prev.filter(c => c.id !== custId));
                     }
+                    if (memberId && pvToSubtract > 0) updateMemberPVInSupabase(memberId, -pvToSubtract);
                     showToast('ลบรายการขายและลูกค้าสำเร็จ', 'success'); 
                 }).deleteSaleRecord(saleId);
             } else { 
                 setSales(prev => prev.filter(s => s.id !== saleId)); 
                 setCustomers(prev => prev.filter(c => c.id !== custId));
+                if (memberId && pvToSubtract > 0) updateMemberPVInSupabase(memberId, -pvToSubtract);
                 showToast('จำลองลบรายการขายและลูกค้าสำเร็จ', 'success'); 
             }
         };
@@ -845,6 +895,28 @@
           
           setIsSubmitting(true);
 
+          let pvChange = 0;
+          let oldPv = 0;
+          let newPv = calculateBillPV(cart, products);
+
+          if (editingSaleId) {
+             const oldRecord = (sales || []).find(s => s.id === editingSaleId);
+             if (oldRecord) {
+                 const oldCart = [];
+                 Object.keys(oldRecord).forEach(k => {
+                     const qty = parseInt(oldRecord[k], 10) || 0;
+                     if (qty > 0) {
+                         if (k.endsWith('_ราคาเต็ม') && k !== 'รวมชิ้นราคาเต็ม') oldCart.push({ productName: k.replace('_ราคาเต็ม', ''), priceType: 'ราคาเต็ม', qty });
+                         else if (k.endsWith('_ราคาสมาชิก') && k !== 'รวมชิ้นราคาสมาชิก') oldCart.push({ productName: k.replace('_ราคาสมาชิก', ''), priceType: 'ราคาสมาชิก', qty });
+                     }
+                 });
+                 oldPv = calculateBillPV(oldCart, products);
+             }
+             pvChange = newPv - oldPv;
+          } else {
+             pvChange = newPv;
+          }
+
           if (editingSaleId) {
              newRecord.id = editingSaleId;
              if (typeof google !== 'undefined' && google.script && google.script.run.updateSaleRecord) {
@@ -859,6 +931,7 @@
                      return [newCustomerObj, ...prev];
                  });
              }
+             if (foundMember && foundMember.id && pvChange !== 0) updateMemberPVInSupabase(foundMember.id, pvChange);
              handleCancelEdit();
              setSuccessModal({ show: true, saleRecord: newRecord });
              setIsSubmitting(false);
@@ -876,6 +949,7 @@
 
              google.script.run.stockOut(stockData);
              google.script.run.saveSalesAndCustomer(newRecord, newCustomerObj);
+             if (foundMember && foundMember.id && pvChange !== 0) updateMemberPVInSupabase(foundMember.id, pvChange);
              
              if (setProducts) {
                  setProducts(prev => prev.map(p => {
@@ -889,6 +963,7 @@
 
           } else { 
              setTimeout(() => { 
+               if (foundMember && foundMember.id && pvChange !== 0) updateMemberPVInSupabase(foundMember.id, pvChange);
                if (setProducts) {
                    setProducts(prev => prev.map(p => {
                        const deduct = qtyMap[p.id] || 0;

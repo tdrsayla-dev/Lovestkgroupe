@@ -302,7 +302,7 @@ const DonutChart = ({ value, target, colorClass, strokeColor, glowColor = "rgba(
 // ==========================================
 const getUserPagePermission = (currentUser, pageId) => {
     if (!currentUser) return 'view';
-    const role = currentUser.role || 'พนักงานทั่วไป';
+    const role = (currentUser.role || 'พนักงานทั่วไป').trim();
     if (role === 'ผู้ดูแลระบบ' || String(role).toLowerCase() === 'admin') return 'full';
     
     let saved = {};
@@ -315,12 +315,21 @@ const getUserPagePermission = (currentUser, pageId) => {
         return saved[role][pageId];
     }
 
-    const defaultStaff = {
-        dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'edit', customers: 'view',
-        team: 'none', business_teams: 'none', stock: 'none', customer_types: 'none', closers: 'none',
-        exchange_rate: 'none', system_users: 'none'
+    const defaultRolePermissions = {
+        'พนักงานการตลาด': {
+            dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'none', customers: 'none',
+            team: 'edit', business_teams: 'none', stock: 'none', customer_types: 'none', closers: 'none',
+            exchange_rate: 'none', system_users: 'none'
+        },
+        'พนักงานทั่วไป': {
+            dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'edit', customers: 'view',
+            team: 'none', business_teams: 'none', stock: 'none', customer_types: 'none', closers: 'none',
+            exchange_rate: 'none', system_users: 'none'
+        }
     };
-    return defaultStaff[pageId] !== undefined ? defaultStaff[pageId] : 'view';
+    
+    const defaults = defaultRolePermissions[role] || defaultRolePermissions['พนักงานทั่วไป'];
+    return defaults[pageId] !== undefined ? defaults[pageId] : 'view';
 };
 window.getUserPagePermission = getUserPagePermission;
 
@@ -1762,6 +1771,9 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess, systemUsers }) => {
             (businessTeams || []).forEach(t => {
                 if (t && t.id) map[String(t.id).trim().toUpperCase()] = t.name;
             });
+            if (!map['T01']) map['T01'] = 'Marketing';
+            if (!map['T02']) map['T02'] = 'Center';
+            if (!map['TEAM A']) map['TEAM A'] = 'Marketing';
             return map;
         }, [businessTeams]);
 
@@ -1807,13 +1819,28 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess, systemUsers }) => {
 
         const memberSales = useMemo(() => {
             const salesMap = {};
-            (members || []).forEach(m => { salesMap[m.id] = { personal: 0, group: 0 }; });
+            const idMap = {};
+            (members || []).forEach(m => { 
+                salesMap[m.id] = { personal: 0, group: 0 }; 
+                idMap[String(m.id).trim().toUpperCase()] = m.id;
+            });
 
             (sales || []).forEach(s => {
-                const sellerId = String(s.memberId || '').trim();
-                if (salesMap[sellerId]) {
-                    const qty = parseInt(s['ยอดรวมชิ้นทั้งหมด'] || s['รวมชิ้นราคาเต็ม'] || s['ชิ้น'] || 0, 10);
-                    salesMap[sellerId].personal += qty;
+                const sellerId = String(s.seller_id || s.sellerId || s.seller || s.memberId || '').trim().toUpperCase();
+                const originalId = idMap[sellerId];
+                if (originalId && salesMap[originalId]) {
+                    let qty = parseInt(s['ยอดรวมชิ้นทั้งหมด'] || s['รวมชิ้นราคาเต็ม'] || s['ชิ้น'] || 0, 10);
+                    if (s.items_json) {
+                        try {
+                            const itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json;
+                            if (Array.isArray(itemsList) && itemsList.length > 0) {
+                                let jsonQty = 0;
+                                itemsList.forEach(it => { jsonQty += Number(it.qty || it.quantity || 1); });
+                                qty = jsonQty;
+                            }
+                        } catch(e) {}
+                    }
+                    salesMap[originalId].personal += qty;
                 }
             });
 
@@ -1821,16 +1848,19 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess, systemUsers }) => {
             const getGroupSales = (memberId) => {
                 if (memoGroup[memberId] !== undefined) return memoGroup[memberId];
                 const pSales = salesMap[memberId]?.personal || 0;
-                let gSales = 0;
+                let gSales = 0; // Downline only
                 const children = (members || []).filter(m => 
                     String(m.referrer || '').trim().toUpperCase() === String(memberId).trim().toUpperCase() &&
                     String(m.id).trim().toUpperCase() !== String(memberId).trim().toUpperCase()
                 );
                 children.forEach(c => { gSales += getGroupSales(c.id); });
-                const total = pSales + gSales;
-                if (salesMap[memberId]) salesMap[memberId].group = total;
-                memoGroup[memberId] = total;
-                return total;
+                const subtreeTotal = pSales + gSales;
+                if (salesMap[memberId]) {
+                    salesMap[memberId].group = gSales; // Store downline sales only
+                    salesMap[memberId].total = subtreeTotal;
+                }
+                memoGroup[memberId] = subtreeTotal;
+                return subtreeTotal;
             };
 
             (members || []).forEach(m => { getGroupSales(m.id); });
@@ -1853,19 +1883,37 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess, systemUsers }) => {
             const mId = String(selectedMember.id || '').trim().toUpperCase();
             let pv = 0;
             (sales || []).forEach(s => {
-                const seller = String(s.sellerId || s.sellerName || s.seller || s.memberId || '').trim().toUpperCase();
+                const seller = String(s.seller_id || s.sellerId || s.sellerName || s.seller || s.memberId || '').trim().toUpperCase();
                 if (seller === mId) {
-                    (products || []).forEach(p => {
-                        const pName = p.name;
-                        const fullQty = Number(s[`${pName}_ราคาเต็ม`] || 0);
-                        const memQty = Number(s[`${pName}_ราคาสมาชิก`] || 0);
-                        const givePv = Number(p.givePv || 0);
-                        const pvRate = givePv > 0 ? givePv : 1;
-                        pv += ((fullQty + memQty) * pvRate);
-                    });
+                    if (s.items_json) {
+                        try {
+                            const itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json;
+                            if (Array.isArray(itemsList)) {
+                                itemsList.forEach(it => {
+                                    const p = (products || []).find(prod => prod.name === it.productName);
+                                    if (p) {
+                                        const givePv = Number(p.givePv || 0);
+                                        const pvRate = givePv > 0 ? givePv : 1;
+                                        if (it.priceType === 'ราคาเต็ม' || it.priceType === 'ราคาสมาชิก') {
+                                            pv += (Number(it.qty || it.quantity || 1) * pvRate);
+                                        }
+                                    }
+                                });
+                            }
+                        } catch(e) {}
+                    } else {
+                        (products || []).forEach(p => {
+                            const pName = p.name;
+                            const fullQty = Number(s[`${pName}_ราคาเต็ม`] || 0);
+                            const memQty = Number(s[`${pName}_ราคาสมาชิก`] || 0);
+                            const givePv = Number(p.givePv || 0);
+                            const pvRate = givePv > 0 ? givePv : 1;
+                            pv += ((fullQty + memQty) * pvRate);
+                        });
+                    }
                 }
             });
-            return Math.max(pv, Number(selectedMember.accumulatedPV || 0));
+            return Math.max(pv, Number(selectedMember.accumulatedPV || selectedMember.accumulated_pv || selectedMember.Accumulated_PV || 0));
         }, [selectedMember, sales, products]);
 
         const performanceChartData = useMemo(() => {
@@ -1883,10 +1931,20 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess, systemUsers }) => {
             last7Dates.forEach(d => salesByDate[d] = 0);
 
             (sales || []).forEach(s => {
-                const sMemId = String(s.memberId || '').trim().toUpperCase();
+                const sMemId = String(s.seller_id || s.sellerId || s.seller || s.memberId || '').trim().toUpperCase();
                 const sDate = s.date ? String(s.date).split('T')[0] : '';
                 if (sMemId === targetId && salesByDate[sDate] !== undefined) {
-                    const qty = parseInt(s['ยอดรวมชิ้นทั้งหมด'] || 0, 10);
+                    let qty = parseInt(s['ยอดรวมชิ้นทั้งหมด'] || 0, 10);
+                    if (s.items_json) {
+                        try {
+                            const itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json;
+                            if (Array.isArray(itemsList) && itemsList.length > 0) {
+                                let jsonQty = 0;
+                                itemsList.forEach(it => { jsonQty += Number(it.qty || it.quantity || 1); });
+                                qty = jsonQty;
+                            }
+                        } catch(e) {}
+                    }
                     salesByDate[sDate] += qty;
                 }
             });

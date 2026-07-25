@@ -76,8 +76,8 @@
                 exchange_rate: 'full', system_users: 'full'
             },
             'พนักงานการตลาด': {
-                dashboard: 'view', reports: 'view', orgchart: 'view', sales: 'edit', customers: 'edit',
-                team: 'view', business_teams: 'view', stock: 'view', customer_types: 'none', closers: 'none',
+                dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'none', customers: 'none',
+                team: 'edit', business_teams: 'none', stock: 'none', customer_types: 'none', closers: 'none',
                 exchange_rate: 'none', system_users: 'none'
             },
             'พนักงานทั่วไป': {
@@ -161,7 +161,7 @@
                'สถานะ': formData.status
            };
 
-           if (typeof google !== 'undefined' && google.script) {
+           if (typeof google !== 'undefined' && google.script && google.script.run) {
               if(isEditing) {
                  google.script.run
                    .withSuccessHandler((res) => {
@@ -170,7 +170,22 @@
                            showToast(res, 'error');
                            return;
                        }
-                       setSystemUsers((systemUsers || []).map(p => p && safeUpper(p.id) === safeUpper(formData.id) ? formData : p));
+                       let list = (systemUsers && systemUsers.length > 0) ? systemUsers : members;
+                       setSystemUsers(list.map(p => p && safeUpper(p.id || p.user_id || p.User_ID) === safeUpper(formData.id) ? { ...p, ...payloadForSheet, role: formData.role, Permission_Role: formData.role } : p));
+                       
+                       try {
+                           const savedUserStr = localStorage.getItem('stk_current_user');
+                           if (savedUserStr) {
+                               const savedUser = JSON.parse(savedUserStr);
+                               if (safeUpper(savedUser.id || savedUser.username) === safeUpper(formData.id)) {
+                                   savedUser.role = formData.role;
+                                   savedUser.name = formData.name;
+                                   savedUser.status = formData.status;
+                                   localStorage.setItem('stk_current_user', JSON.stringify(savedUser));
+                               }
+                           }
+                       } catch (e) {}
+
                        setShowForm(false);
                        setIsSubmitting(false);
                        showToast('แก้ไขผู้ใช้งานสำเร็จ', 'success');
@@ -189,10 +204,11 @@
                             showToast(res, 'error');
                             return;
                         }
-                        setSystemUsers([...(systemUsers || []), formData]);
+                        let list = (systemUsers && systemUsers.length > 0) ? systemUsers : members;
+                        setSystemUsers([...list, { ...payloadForSheet, role: formData.role, Permission_Role: formData.role }]);
                         setShowForm(false);
                         setIsSubmitting(false);
-                        showToast('เพิ่มผู้ใช้งานสำเร็จ', 'success');
+                        showToast('เพิ่มผู้ใช้งานใหม่สำเร็จ', 'success');
                    })
                    .withFailureHandler((err) => {
                        setIsSubmitting(false);
@@ -200,20 +216,108 @@
                    })
                    .saveSystemUser(payloadForSheet); 
               }
+           } else if (typeof window.supabaseUpdate === 'function') {
+               const sbPayload = {
+                   user_id: formData.id,
+                   username: formData.username,
+                   password_hash: formData.password,
+                   name: formData.name,
+                   permission_role: formData.role,
+                   status: formData.status
+               };
+               
+               if (isEditing) {
+                   fetch(window.SUPABASE_REST_URL + '/stk_members?user_id=eq.' + encodeURIComponent(formData.id), {
+                       method: 'PATCH',
+                       headers: window.SUPABASE_HEADERS,
+                       body: JSON.stringify(sbPayload)
+                   })
+                   .then(async r => {
+                       if (!r.ok) throw new Error('UPDATE stk_members:' + r.status + ' ' + (await r.text()));
+                       return r.json();
+                   })
+                    .then(() => {
+                        const updatedPayload = { ...sbPayload, role: formData.role, Permission_Role: formData.role };
+                        let list = (systemUsers && systemUsers.length > 0) ? systemUsers : members;
+                        setSystemUsers(list.map(p => p && safeUpper(p.id || p.user_id || p.User_ID) === safeUpper(formData.id) ? { ...p, ...updatedPayload } : p));
+                        
+                        try {
+                            const savedUserStr = localStorage.getItem('stk_current_user');
+                            if (savedUserStr) {
+                                const savedUser = JSON.parse(savedUserStr);
+                                if (safeUpper(savedUser.id || savedUser.username) === safeUpper(formData.id)) {
+                                    savedUser.role = formData.role;
+                                    savedUser.name = formData.name;
+                                    savedUser.status = formData.status;
+                                    localStorage.setItem('stk_current_user', JSON.stringify(savedUser));
+                                }
+                            }
+                        } catch (e) {}
+
+                        setShowForm(false);
+                        setIsSubmitting(false);
+                        showToast('แก้ไขข้อมูลผู้ใช้งานในระบบสำเร็จ', 'success');
+                    })
+                   .catch(err => {
+                       setIsSubmitting(false);
+                       showToast('แก้ไขล้มเหลว: ' + err.message, 'error');
+                   });
+               } else {
+                   window.supabaseInsert('stk_members', sbPayload)
+                       .then(() => {
+                           let list = (systemUsers && systemUsers.length > 0) ? systemUsers : members;
+                           setSystemUsers([...list, { ...sbPayload, role: formData.role, Permission_Role: formData.role }]);
+                           setShowForm(false);
+                           setIsSubmitting(false);
+                           showToast('เพิ่มผู้ใช้งานใหม่ในระบบสำเร็จ', 'success');
+                       })
+                       .catch(err => {
+                           setIsSubmitting(false);
+                           showToast('เพิ่มข้อมูลล้มเหลว: ' + err.message, 'error');
+                       });
+               }
            } else {
-              setTimeout(() => { if(isEditing) setSystemUsers((systemUsers || []).map(p => p && safeUpper(p.id) === safeUpper(formData.id) ? formData : p)); else setSystemUsers([...(systemUsers || []), formData]); setShowForm(false); setIsSubmitting(false); showToast('จำลองการแก้ไขสำเร็จ', 'success'); }, 500);
+              setTimeout(() => { 
+                  let list = (systemUsers && systemUsers.length > 0) ? systemUsers : members;
+                  if(isEditing) setSystemUsers(list.map(p => p && safeUpper(p.id || p.user_id || p.User_ID) === safeUpper(formData.id) ? { ...p, ...formData, role: formData.role, Permission_Role: formData.role } : p)); 
+                  else setSystemUsers([...list, { ...formData, role: formData.role, Permission_Role: formData.role }]); 
+                  setShowForm(false); setIsSubmitting(false); showToast('จำลองการแก้ไขสำเร็จ', 'success'); 
+              }, 500);
            }
         };
 
         const executeDelete = () => { 
             const id = confirmDelete.id;
-            if (typeof google !== 'undefined' && google.script) { 
+            if (typeof google !== 'undefined' && google.script && google.script.run) { 
                 google.script.run
-                  .withSuccessHandler(()=>{setSystemUsers((systemUsers || []).filter(p => p && p.id !== id)); showToast('ลบสำเร็จ', 'success');})
+                  .withSuccessHandler(()=>{
+                      let list = (systemUsers && systemUsers.length > 0) ? systemUsers : members;
+                      setSystemUsers(list.filter(p => p && safeUpper(p.id || p.user_id || p.User_ID) !== safeUpper(id)));
+                      setConfirmDelete({ show: false, id: null, title: '' });
+                      showToast('ลบสำเร็จ', 'success');
+                  })
                   .withFailureHandler((err) => { showToast('ผิดพลาดจากเซิร์ฟเวอร์: ' + err.message, 'error'); })
                   .deleteSystemUser(id); 
+            } else if (typeof window.supabaseDelete === 'function') {
+                fetch(window.SUPABASE_REST_URL + '/stk_members?user_id=eq.' + encodeURIComponent(id), {
+                    method: 'DELETE',
+                    headers: Object.assign({}, window.SUPABASE_HEADERS, {'Prefer': 'return=minimal'})
+                })
+                .then(async r => {
+                    if (!r.ok) throw new Error('DELETE stk_members:' + r.status + ' ' + (await r.text()));
+                    let list = (systemUsers && systemUsers.length > 0) ? systemUsers : members;
+                    setSystemUsers(list.filter(p => p && safeUpper(p.id || p.user_id || p.User_ID) !== safeUpper(id)));
+                    setConfirmDelete({ show: false, id: null, title: '' });
+                    showToast('ลบผู้ใช้งานออกจากระบบสำเร็จ', 'success');
+                })
+                .catch(err => {
+                    showToast('ลบล้มเหลว: ' + err.message, 'error');
+                });
             } else { 
-                setSystemUsers((systemUsers || []).filter(p => p && p.id !== id)); showToast('จำลองการลบสำเร็จ', 'success'); 
+                let list = (systemUsers && systemUsers.length > 0) ? systemUsers : members;
+                setSystemUsers(list.filter(p => p && safeUpper(p.id || p.user_id || p.User_ID) !== safeUpper(id)));
+                setConfirmDelete({ show: false, id: null, title: '' });
+                showToast('จำลองการลบสำเร็จ', 'success'); 
             } 
         };
 
