@@ -152,6 +152,9 @@
     const year = d.getFullYear(); const month = String(d.getMonth() + 1).padStart(2, '0'); const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
+  const getFirstDayOfMonth = (d = new Date()) => {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  };
 
   const inputClassHud = "w-full border border-slate-200 bg-slate-50/30 focus:bg-white px-4 py-2.5 rounded-xl outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400/80 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:bg-slate-100/50 disabled:text-slate-400 transition-all duration-300 shadow-sm shadow-slate-100/40";
   const labelClassHud = "block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-1";
@@ -780,6 +783,7 @@
   window.fallbackCustomerTypes = fallbackCustomerTypes;
   window.safeUpper = safeUpper;
   window.getLocalISODate = getLocalISODate;
+  window.getFirstDayOfMonth = getFirstDayOfMonth;
   window.inputClassHud = inputClassHud;
   window.labelClassHud = labelClassHud;
   window.btnClassPrimary = btnClassPrimary;

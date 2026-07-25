@@ -16,7 +16,7 @@
   <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script>
-    window.SUPABASE_URL='https://qqyotianqcgpdzrfgjif.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
+    window.SUPABASE_URL='https://mfpkeyrykqnrywyksyqp.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
     if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
     async function supabaseSelect(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:window.SUPABASE_HEADERS});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();}
     async function supabaseInsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('INSERT '+t+':'+r.status);return r.json();}
@@ -1172,11 +1172,27 @@
              })
              .getInitialData();
         } else {
-           setProducts([{ id: 'P001', name: 'SESAMIN', status: 'ใช้งาน' }]);
-           setCustomerTypes(fallbackCustomerTypes);
-           setClosers([{ id: 'C001', name: 'BEE', team: 'Marketing', status: 'ใช้งาน' }, { id: 'C002', name: 'HAT', team: 'Center', status: 'ใช้งาน' }]);
-           setBusinessTeams([{ id: 'TB01', name: 'Marketing', status: 'ใช้งาน' }, { id: 'TB02', name: 'Center', status: 'ใช้งาน' }]);
-           setIsAppLoading(false);
+           // Load real data directly from Supabase
+           Promise.all([
+             supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
+             supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
+             supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
+             supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
+             supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams'))
+           ]).then(([pRes, typeRes, cloRes, memRes, teamRes]) => {
+             const resObj = {
+               products: pRes,
+               customerTypes: typeRes,
+               closers: cloRes,
+               members: memRes,
+               businessTeams: teamRes
+             };
+             applyDataToStates(resObj);
+           }).catch(err => {
+             console.error("Supabase load error:", err);
+           }).finally(() => {
+             setIsAppLoading(false);
+           });
         }
       }, []);
 
@@ -1184,7 +1200,25 @@
            if (Array.isArray(response.products)) setProducts(response.products);
            if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes);
            if (Array.isArray(response.closers)) setClosers(response.closers);
-           if (Array.isArray(response.members)) setMembers(response.members);
+           if (Array.isArray(response.members)) {
+               const formattedMembers = response.members.map(m => ({
+                   id: String(m.id || m.user_id || m.User_ID || '').trim(),
+                   name: String(m.name || m.Name || '').trim(),
+                   referrer: String(m.referrer || m.sponsor_id || m.Sponsor_ID || '').trim(),
+                   team: String(m.team || m.business_team || m.Business_Team || 'Marketing').trim(),
+                   role: String(m.role || m.permission_role || m.Permission_Role || 'Staff').trim(),
+                   status: String(m.status || m.Status || 'ทำงานอยู่').trim(),
+                   profileUrl: m.profile_url || m.id_card_url || m.ID_Card_URL || '',
+                   phone: m.phone || m.phone_number || m.Phone_Number || '',
+                   email: m.email || m.Email || '',
+                   lineId: m.line_id || m.LINE_ID || '',
+                   bankName: m.bank_name || m.Bank_Name || '',
+                   bankAccountNo: m.bank_account_no || m.Bank_Account_No || '',
+                   bankAccountName: m.bank_account_name || m.Bank_Account_Name || '',
+                   accumulatedPV: Number(m.accumulated_pv || m.Accumulated_PV || 0)
+               })).filter(m => m.id !== '');
+               setMembers(formattedMembers);
+           }
            if (Array.isArray(response.customers)) setCustomers(response.customers);
            if (Array.isArray(response.systemUsers)) setSystemUsers(response.systemUsers);
            if (Array.isArray(response.businessTeams)) setBusinessTeams(response.businessTeams);

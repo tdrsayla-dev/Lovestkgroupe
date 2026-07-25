@@ -16,7 +16,7 @@
   <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script>
-    window.SUPABASE_URL='https://qqyotianqcgpdzrfgjif.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
+    window.SUPABASE_URL='https://mfpkeyrykqnrywyksyqp.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
     if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
     async function supabaseSelect(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:window.SUPABASE_HEADERS});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();}
     async function supabaseInsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('INSERT '+t+':'+r.status);return r.json();}
@@ -234,10 +234,20 @@
              })
              .getInitialData(); 
         } else {
-           setProducts([{ id: 'P001', name: 'SESAMIN', status: 'ใช้งาน' }]);
-           setCustomerTypes(fallbackCustomerTypes);
-           setClosers([{ id: 'C001', name: 'BEE', team: 'Marketing', status: 'ใช้งาน' }, { id: 'C002', name: 'HAT', team: 'Center', status: 'ใช้งาน' }]);
-           setIsAppLoading(false);
+           // Load real data directly from Supabase
+           Promise.all([
+             supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
+             supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
+             supabaseSelect('stk_closers').catch(() => supabaseSelect('closers'))
+           ]).then(([typeRes, pRes, cloRes]) => {
+             if (Array.isArray(typeRes)) setCustomerTypes(typeRes);
+             if (Array.isArray(pRes)) setProducts(pRes);
+             if (Array.isArray(cloRes)) setClosers(cloRes);
+           }).catch(err => {
+             console.error("Supabase load error:", err);
+           }).finally(() => {
+             setIsAppLoading(false);
+           });
         }
       }, []);
 

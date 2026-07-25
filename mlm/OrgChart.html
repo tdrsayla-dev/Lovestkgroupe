@@ -16,7 +16,7 @@
   <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script>
-    window.SUPABASE_URL='https://qqyotianqcgpdzrfgjif.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
+    window.SUPABASE_URL='https://mfpkeyrykqnrywyksyqp.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
     if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
     async function supabaseSelect(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:window.SUPABASE_HEADERS});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();}
     async function supabaseInsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('INSERT '+t+':'+r.status);return r.json();}
@@ -867,12 +867,16 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess, systemUsers }) => {
             );
         }, [node.id, allMembers]);
 
-        const isExpanded = expandedNodes[node.id];
+        const isExpanded = expandedNodes[node?.id || ''];
         const hasChildren = children.length > 0;
         
-        const isMatched = searchQuery && (
-            node.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-            node.id.toLowerCase().includes(searchQuery.toLowerCase())
+        const nodeName = String(node?.name || '');
+        const nodeId = String(node?.id || '');
+        const searchQueryStr = String(searchQuery || '').toLowerCase();
+        
+        const isMatched = searchQueryStr !== '' && (
+            nodeName.toLowerCase().includes(searchQueryStr) || 
+            nodeId.toLowerCase().includes(searchQueryStr)
         );
 
         const isSelected = selectedId && String(selectedId).trim().toUpperCase() === String(node.id).trim().toUpperCase();
@@ -1077,9 +1081,13 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess, systemUsers }) => {
         const isExpanded = expandedNodes[node.id];
         const hasChildren = children.length > 0;
         
-        const isMatched = searchQuery && (
-            node.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-            node.id.toLowerCase().includes(searchQuery.toLowerCase())
+        const nodeName = String(node?.name || '');
+        const nodeId = String(node?.id || '');
+        const searchQueryStr = String(searchQuery || '').toLowerCase();
+        
+        const isMatched = searchQueryStr !== '' && (
+            nodeName.toLowerCase().includes(searchQueryStr) || 
+            nodeId.toLowerCase().includes(searchQueryStr)
         );
 
         const isSelected = selectedId && String(selectedId).trim().toUpperCase() === String(node.id).trim().toUpperCase();
@@ -1275,19 +1283,41 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess, systemUsers }) => {
             };
 
             filteredSales.forEach(s => {
-                const sellerId = String(s.memberId || s.sellerId || s.seller || '').trim().toUpperCase();
+                const sellerId = String(s.seller_id || s.sellerId || s.seller || s.memberId || '').trim().toUpperCase();
                 const isSelf = sellerId === mId;
                 const downlevel = downlineMap[sellerId];
                 const isTeam = isSelf || downlevel !== undefined;
 
                 if (isTeam) {
+                    let itemsList = [];
+                    if (s.items_json) {
+                        try {
+                            itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json;
+                        } catch(e) {}
+                    }
+
                     (products || []).forEach(p => {
                         const pName = p.name;
                         const pCat = p.category || 'หมวดทั่วไป';
-                        const fullQty = Number(s[`${pName}_ราคาเต็ม`] || 0);
-                        const memQty = Number(s[`${pName}_ราคาสมาชิก`] || 0);
-                        const promoQty = Number(s[`${pName}_ราคาโปร`] || 0);
-                        const zeroQty = Number(s[`${pName}_ราคาศูนย์`] || 0);
+                        let fullQty = Number(s[`${pName}_ราคาเต็ม`] || 0);
+                        let memQty = Number(s[`${pName}_ราคาสมาชิก`] || 0);
+                        let promoQty = Number(s[`${pName}_ราคาโปร`] || 0);
+                        let zeroQty = Number(s[`${pName}_ราคาศูนย์`] || 0);
+
+                        if (Array.isArray(itemsList) && itemsList.length > 0) {
+                            itemsList.forEach(it => {
+                                const itName = it.prod || it.name || it.product_name || '';
+                                if (itName === pName || itName === p.id || itName.includes(pName) || pName.includes(itName)) {
+                                    const typeStr = String(it.type || '').trim();
+                                    const qtyNum = Number(it.qty || it.quantity || 1);
+                                    if (typeStr === 'ราคาเต็ม') fullQty += qtyNum;
+                                    else if (typeStr === 'ราคาสมาชิก') memQty += qtyNum;
+                                    else if (typeStr === 'ราคาโปร' || typeStr === 'โปรโมชั่น') promoQty += qtyNum;
+                                    else if (typeStr === 'ราคาศูนย์') zeroQty += qtyNum;
+                                    else memQty += qtyNum;
+                                }
+                            });
+                        }
                         const normalQty = fullQty + memQty;
                         const totalItemQty = normalQty + promoQty + zeroQty;
 
@@ -1890,10 +1920,13 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess, systemUsers }) => {
             const val = e.target.value;
             setSearchQuery(val);
             if (val.trim() !== '') {
-                const matches = (members || []).filter(m => 
-                    m.name.toLowerCase().includes(val.toLowerCase()) || 
-                    m.id.toLowerCase().includes(val.toLowerCase())
-                );
+                const matches = (members || []).filter(m => {
+                    if (!m) return false;
+                    const mName = String(m.name || '').toLowerCase();
+                    const mId = String(m.id || '').toLowerCase();
+                    const valLower = val.toLowerCase();
+                    return mName.includes(valLower) || mId.includes(valLower);
+                });
                 
                 const toExpand = {};
                 matches.forEach(m => {
@@ -2266,14 +2299,31 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess, systemUsers }) => {
              })
              .getInitialData();
         } else {
-           setMembers([
-               { id: 'M001', name: 'คุณศักดา (Founder)', referrer: '', team: 'Marketing', startDate: '2026-01-01', status: 'ใช้งาน' },
-               { id: 'M002', name: 'คุณสมชาย', referrer: 'M001', team: 'Marketing', startDate: '2026-02-10', status: 'ใช้งาน' },
-               { id: 'M003', name: 'คุณวันดี', referrer: 'M001', team: 'Center', startDate: '2026-03-01', status: 'ใช้งาน' },
-               { id: 'M004', name: 'คุณสายชล', referrer: 'M002', team: 'Marketing', startDate: '2026-04-12', status: 'ใช้งาน' },
-               { id: 'M005', name: 'คุณมานี', referrer: 'M002', team: 'Marketing', startDate: '2026-04-15', status: 'ใช้งาน' }
-           ]);
-           setIsAppLoading(false);
+           // Load real data directly from Supabase
+           Promise.all([
+             supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
+             supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
+             supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
+             supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
+             supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams')),
+             supabaseSelect('stk_sales').catch(() => supabaseSelect('sales')),
+             supabaseSelect('stk_customers').catch(() => supabaseSelect('customers'))
+           ]).then(([memRes, pRes, typeRes, cloRes, teamRes, saleRes, custRes]) => {
+             const resObj = {
+               members: memRes,
+               products: pRes,
+               customerTypes: typeRes,
+               closers: cloRes,
+               businessTeams: teamRes,
+               sales: saleRes,
+               customers: custRes
+             };
+             applyDataToStates(resObj);
+           }).catch(err => {
+             console.error("Supabase load error:", err);
+           }).finally(() => {
+             setIsAppLoading(false);
+           });
         }
       }, []);
 
@@ -2283,7 +2333,25 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess, systemUsers }) => {
            if (response.systemSettings) setSystemSettings(response.systemSettings);
            if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes);
            if (Array.isArray(response.closers)) setClosers(response.closers);
-           if (Array.isArray(response.members)) setMembers(response.members);
+           if (Array.isArray(response.members)) {
+               const formattedMembers = response.members.map(m => ({
+                   id: String(m.id || m.user_id || m.User_ID || '').trim(),
+                   name: String(m.name || m.Name || '').trim(),
+                   referrer: String(m.referrer || m.sponsor_id || m.Sponsor_ID || '').trim(),
+                   team: String(m.team || m.business_team || m.Business_Team || 'Marketing').trim(),
+                   role: String(m.role || m.permission_role || m.Permission_Role || 'Staff').trim(),
+                   status: String(m.status || m.Status || 'ทำงานอยู่').trim(),
+                   profileUrl: m.profile_url || m.id_card_url || m.ID_Card_URL || '',
+                   phone: m.phone || m.phone_number || m.Phone_Number || '',
+                   email: m.email || m.Email || '',
+                   lineId: m.line_id || m.LINE_ID || '',
+                   bankName: m.bank_name || m.Bank_Name || '',
+                   bankAccountNo: m.bank_account_no || m.Bank_Account_No || '',
+                   bankAccountName: m.bank_account_name || m.Bank_Account_Name || '',
+                   accumulatedPV: Number(m.accumulated_pv || m.Accumulated_PV || 0)
+               })).filter(m => m.id !== '');
+               setMembers(formattedMembers);
+           }
            if (Array.isArray(response.customers)) setCustomers(response.customers);
            if (Array.isArray(response.systemUsers)) setSystemUsers(response.systemUsers);
            if (Array.isArray(response.businessTeams)) setBusinessTeams(response.businessTeams);

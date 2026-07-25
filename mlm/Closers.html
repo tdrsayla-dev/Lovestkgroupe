@@ -18,7 +18,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <!-- ✅ STK Supabase Config -->
   <script>
-    window.SUPABASE_URL      = 'https://qqyotianqcgpdzrfgjif.supabase.co';
+    window.SUPABASE_URL      = 'https://mfpkeyrykqnrywyksyqp.supabase.co';
     window.SUPABASE_ANON_KEY = 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
     window.SUPABASE_REST_URL = window.SUPABASE_URL + '/rest/v1';
     window.SUPABASE_HEADERS  = { 'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation' };
@@ -252,10 +252,20 @@
              })
              .getInitialData(); 
         } else {
-           setProducts([{ id: 'P001', name: 'SESAMIN', status: 'ใช้งาน' }]);
-           setCustomerTypes(fallbackCustomerTypes);
-           setClosers([{ id: 'C001', name: 'BEE', team: 'Marketing', status: 'ใช้งาน' }, { id: 'C002', name: 'HAT', team: 'Center', status: 'ใช้งาน' }]);
-           setIsAppLoading(false);
+           // Load real data directly from Supabase
+           Promise.all([
+             supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
+             supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
+             supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types'))
+           ]).then(([cloRes, pRes, typeRes]) => {
+             if (Array.isArray(cloRes)) setClosers(cloRes);
+             if (Array.isArray(pRes)) setProducts(pRes);
+             if (Array.isArray(typeRes)) setCustomerTypes(typeRes);
+           }).catch(err => {
+             console.error("Supabase load error:", err);
+           }).finally(() => {
+             setIsAppLoading(false);
+           });
         }
       }, []);
 

@@ -21,7 +21,7 @@
     // =====================================================================
     // STK GROUPE - Supabase Config (MLM / Sales System Phase 2.3)
     // =====================================================================
-    window.SUPABASE_URL      = 'https://qqyotianqcgpdzrfgjif.supabase.co';
+    window.SUPABASE_URL      = 'https://mfpkeyrykqnrywyksyqp.supabase.co';
     window.SUPABASE_ANON_KEY = 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
     window.SUPABASE_REST_URL = window.SUPABASE_URL + '/rest/v1';
     window.SUPABASE_HEADERS  = {
@@ -250,17 +250,21 @@
           filteredSales.forEach(s => {
              const fullBoxes = parseInt(s['ยอดรวมชิ้นทั้งหมด'] || 0, 10);
              if (fullBoxes === 0) return;
-             const mem = (members || []).find(m => m && m.id === s.memberId);
+             const mem = (members || []).find(m => m && (m.id === s.memberId || m.id === s.sellerId));
              if (mem) {
                  const memTeam = String(mem.team || '').trim();
-                 activeBusinessTeams.forEach(bt => {
+                 const memTeamLower = memTeam.toLowerCase();
+                 (activeBusinessTeams || []).forEach(bt => {
+                     if (!bt) return;
+                     const btName = String(bt.name || '').toLowerCase();
+                     const btId = String(bt.id || '');
                      if (
-                         memTeam === bt.id || 
-                         memTeam.toLowerCase() === bt.name.toLowerCase() ||
-                         (bt.name.toLowerCase().includes('marketing') && (memTeam === 'Team A' || memTeam === 'Marketing')) ||
-                         (bt.name.toLowerCase().includes('center') && (memTeam === 'Team B' || memTeam === 'Center'))
+                         (btId && memTeam === btId) || 
+                         (btName && memTeamLower === btName) ||
+                         (btName && btName.includes('marketing') && (memTeam === 'Team A' || memTeam === 'Marketing' || memTeam === 'T01')) ||
+                         (btName && btName.includes('center') && (memTeam === 'Team B' || memTeam === 'Center' || memTeam === 'T02'))
                      ) {
-                         teamSalesMap[bt.id] = (teamSalesMap[bt.id] || 0) + fullBoxes;
+                         if (bt.id) teamSalesMap[bt.id] = (teamSalesMap[bt.id] || 0) + fullBoxes;
                      }
                  });
                  if (mTargetData[mem.id]) mTargetData[mem.id].actual += fullBoxes;
@@ -379,12 +383,18 @@
             Object.values(mStats).forEach(m => {
                 if (m.totalFullBoxes === 0) {
                     const memTeam = m.team;
-                    let matchedTeam = activeBusinessTeams.find(bt => 
-                        memTeam === bt.id || 
-                        memTeam.toLowerCase() === bt.name.toLowerCase() ||
-                        (bt.name.toLowerCase().includes('marketing') && (memTeam === 'Team A' || memTeam === 'Marketing')) ||
-                        (bt.name.toLowerCase().includes('center') && (memTeam === 'Team B' || memTeam === 'Center'))
-                    );
+                    let matchedTeam = activeBusinessTeams.find(bt => {
+                        if (!bt) return false;
+                        const btName = String(bt.name || '').toLowerCase();
+                        const btId = String(bt.id || '');
+                        const memTeamLower = String(memTeam || '').toLowerCase();
+                        return (
+                            (btId && memTeam === btId) || 
+                            (btName && memTeamLower === btName) ||
+                            (btName && btName.includes('marketing') && (memTeam === 'Team A' || memTeam === 'Marketing' || memTeam === 'T01')) ||
+                            (btName && btName.includes('center') && (memTeam === 'Team B' || memTeam === 'Center' || memTeam === 'T02'))
+                        );
+                    });
                     if (matchedTeam && teamMap[matchedTeam.id]) {
                         teamMap[matchedTeam.id].data.push(m);
                     }
@@ -1126,10 +1136,33 @@
              })
              .getInitialData(); 
         } else {
-           setProducts([{ id: 'P001', name: 'SESAMIN', status: 'ใช้งาน' }]);
-           setCustomerTypes(fallbackCustomerTypes);
-           setClosers([{ id: 'C001', name: 'BEE', team: 'Marketing', status: 'ใช้งาน' }, { id: 'C002', name: 'HAT', team: 'Center', status: 'ใช้งาน' }]);
-           setIsAppLoading(false);
+           // Load real data directly from Supabase
+           Promise.all([
+             supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
+             supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
+             supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
+             supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
+             supabaseSelect('stk_customers').catch(() => supabaseSelect('customers')),
+             supabaseSelect('stk_sales').catch(() => supabaseSelect('sales')),
+             supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams')),
+             supabaseSelect('stk_target_history').catch(() => supabaseSelect('target_history'))
+           ]).then(([pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes, tgtRes]) => {
+             const resObj = {
+               products: pRes,
+               customerTypes: typeRes,
+               closers: cloRes,
+               members: memRes,
+               customers: custRes,
+               sales: saleRes,
+               businessTeams: teamRes,
+               targetHistory: tgtRes
+             };
+             applyDataToStates(resObj);
+           }).catch(err => {
+             console.error("Supabase load error:", err);
+           }).finally(() => {
+             setIsAppLoading(false);
+           });
         }
       }, []);
 
@@ -1137,7 +1170,25 @@
            if (Array.isArray(response.products)) setProducts(response.products);
            if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes);
            if (Array.isArray(response.closers)) setClosers(response.closers);
-           if (Array.isArray(response.members)) setMembers(response.members);
+           if (Array.isArray(response.members)) {
+               const formattedMembers = response.members.map(m => ({
+                   id: String(m.id || m.user_id || m.User_ID || '').trim(),
+                   name: String(m.name || m.Name || '').trim(),
+                   referrer: String(m.referrer || m.sponsor_id || m.Sponsor_ID || '').trim(),
+                   team: String(m.team || m.business_team || m.Business_Team || 'Marketing').trim(),
+                   role: String(m.role || m.permission_role || m.Permission_Role || 'Staff').trim(),
+                   status: String(m.status || m.Status || 'ทำงานอยู่').trim(),
+                   profileUrl: m.profile_url || m.id_card_url || m.ID_Card_URL || '',
+                   phone: m.phone || m.phone_number || m.Phone_Number || '',
+                   email: m.email || m.Email || '',
+                   lineId: m.line_id || m.LINE_ID || '',
+                   bankName: m.bank_name || m.Bank_Name || '',
+                   bankAccountNo: m.bank_account_no || m.Bank_Account_No || '',
+                   bankAccountName: m.bank_account_name || m.Bank_Account_Name || '',
+                   accumulatedPV: Number(m.accumulated_pv || m.Accumulated_PV || 0)
+               })).filter(m => m.id !== '');
+               setMembers(formattedMembers);
+           }
            if (Array.isArray(response.customers)) setCustomers(response.customers);
            if (Array.isArray(response.businessTeams)) setBusinessTeams(response.businessTeams);
            if (Array.isArray(response.systemUsers)) setSystemUsers(response.systemUsers);
@@ -1158,7 +1209,9 @@
                    s['รวมชิ้นราคาสมาชิก'] = sumM;
                    s['รวมชิ้นราคาโปร'] = sumP; 
                    s['รวมชิ้นราคาศูนย์'] = sumZ;
-                   s['ยอดรวมชิ้นทั้งหมด'] = sumF + sumM + sumP + sumZ;
+                   s['memberId'] = s.memberId || s.sellerId || s.seller_id || s.seller;
+                   s['sellerId'] = s.sellerId || s.seller_id || s.seller || s.memberId;
+                   s['ยอดรวมชิ้นทั้งหมด'] = Number(s.total_bottles || 0) || (sumF + sumM + sumP + sumZ);
                    return s;
                });
                setSales(processedSales);
