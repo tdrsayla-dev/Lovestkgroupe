@@ -349,7 +349,7 @@
       return href;
     }
     const pageFileMap = {
-      'dashboard': 'index.html',
+      'dashboard': 'Mlm.html',
       'reports': 'Reports.html',
       'org_chart': 'OrgChart.html',
       'sales': 'Sales.html',
