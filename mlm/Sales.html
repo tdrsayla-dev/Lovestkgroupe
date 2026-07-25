@@ -110,8 +110,12 @@
         
         const [viewBillDetail, setViewBillDetail] = useState(null);
 
-        const [historyStartDate, setHistoryStartDate] = useState(typeof window !== 'undefined' && window.getFirstDayOfMonth ? window.getFirstDayOfMonth() : getLocalISODate());
-        const [historyEndDate, setHistoryEndDate] = useState(getLocalISODate());
+        const fallbackToday = new Date().toISOString().split('T')[0];
+        const getLocalISO = (typeof window !== 'undefined' && window.getLocalISODate) ? window.getLocalISODate : () => fallbackToday;
+        const getFirstDOM = (typeof window !== 'undefined' && window.getFirstDayOfMonth) ? window.getFirstDayOfMonth : () => `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
+
+        const [historyStartDate, setHistoryStartDate] = useState(getFirstDOM());
+        const [historyEndDate, setHistoryEndDate] = useState(getLocalISO());
         const [salesSearchTerm, setSalesSearchTerm] = useState('');
 
         const [salesPage, setSalesPage] = useState(1);

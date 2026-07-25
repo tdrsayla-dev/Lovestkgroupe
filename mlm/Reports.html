@@ -212,8 +212,9 @@
     // 📌 Reports View Component
     // ==========================================
     const ReportsView = ({ sales, members, customers, activeCustomerTypes, products, systemSettings, businessTeams, currentUser, isAdmin, onRefreshData }) => {
-        const todayStr = getLocalISODate();
-        const firstDayOfMonthStr = getFirstDayOfMonth();
+        const todayStr = (typeof window !== 'undefined' && window.getLocalISODate) ? window.getLocalISODate() : new Date().toISOString().split('T')[0];
+        const fallbackFirstDay = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
+        const firstDayOfMonthStr = (typeof window !== 'undefined' && window.getFirstDayOfMonth) ? window.getFirstDayOfMonth() : fallbackFirstDay;
         const [startDate, setStartDate] = useState(firstDayOfMonthStr);
         const [endDate, setEndDate] = useState(todayStr);
 
