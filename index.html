@@ -2392,7 +2392,7 @@
                 </a>
               </li>
               <li>
-                <a href="project-phase23/Index.html" style="color: rgba(255, 255, 255, 0.85); text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: color 0.2s;"
+                <a href="mlm/Index.html" onclick="goToMlm(event)" style="color: rgba(255, 255, 255, 0.85); text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: color 0.2s;"
                    onmouseover="this.style.color='#f97316'" onmouseout="this.style.color='rgba(255, 255, 255, 0.85)'">
                   System MLM Management
                 </a>
@@ -2423,6 +2423,27 @@
         loc += '/';
       }
       window.location.pathname = loc + 'Hr.html';
+    }
+
+    function goToMlm(e) {
+      if (e) e.preventDefault();
+      let loc = window.location.pathname;
+      if (loc.includes('/mlm/')) {
+        var base = loc.substring(0, loc.indexOf('/mlm/'));
+        window.location.pathname = base + '/mlm/Index.html';
+        return;
+      }
+      if (loc.includes('/project-phase23/')) {
+        var base = loc.substring(0, loc.indexOf('/project-phase23/'));
+        window.location.pathname = base + '/project-phase23/Index.html';
+        return;
+      }
+      if (loc.endsWith('index.html') || loc.endsWith('Index.html')) {
+        loc = loc.substring(0, loc.lastIndexOf('/') + 1);
+      } else if (!loc.endsWith('/')) {
+        loc += '/';
+      }
+      window.location.pathname = loc + 'mlm/Index.html';
     }
 
     </script>
