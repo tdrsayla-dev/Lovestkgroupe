@@ -36,8 +36,8 @@
     .tree-scroll-container {
       overflow-x: auto;
       overflow-y: auto;
-      min-height: 600px;
-      padding: 40px;
+      min-height: 400px;
+      padding: 20px;
       background: #f8fafc;
       background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
       background-size: 20px 20px;
@@ -2010,10 +2010,10 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess, systemUsers }) => {
                 </div>
 
                 {/* 🟢 Main Layout: ซ้าย (Dashboard) 1 ส่วน | ขวา (Org Tree) 2 ส่วน */}
-                <div className="flex flex-col lg:flex-row gap-5 items-stretch h-[calc(100vh-140px)]">
+                <div className="flex flex-col lg:flex-row gap-5 items-stretch h-auto lg:h-[calc(100vh-140px)]">
                     
                     {/* 📌 Left Column: Performance Dashboard (Fixed Width) */}
-                    <div className="w-full lg:w-[320px] flex flex-col gap-4 shrink-0 overflow-y-auto hide-scroll pb-6">
+                    <div className="w-full lg:w-[320px] flex flex-col gap-4 shrink-0 overflow-y-auto hide-scroll pb-6 lg:pb-0 h-auto lg:h-full">
                         
                         {/* 1. Profile Summary Card */}
                         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center text-center relative overflow-hidden">
@@ -2118,7 +2118,7 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess, systemUsers }) => {
                     </div>
 
                     {/* 📌 Right Column: The Org Tree (w-auto/flex-1) */}
-                    <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative h-full">
+                    <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative h-[500px] lg:h-full">
                         
                         {/* 🟢 Tools overlay for Tree mode */}
                         {viewMode === 'tree' && (
@@ -2147,7 +2147,7 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess, systemUsers }) => {
                                 className={`tree-scroll-container flex-1 overflow-auto hide-scroll select-none`}
                             >
                                 <div className="inline-block origin-top-left transition-transform duration-100 ease-out min-w-full" style={{ transform: `scale(${zoom})` }}>
-                                    <div className="flex flex-row justify-center items-start gap-12 min-w-max mx-auto px-10">
+                                    <div className="flex flex-row justify-center items-start gap-6 sm:gap-12 min-w-max mx-auto px-4 sm:px-10">
                                         {roots.map(rootNode => (
                                             <TreeNode 
                                                 key={rootNode.id} 
@@ -2389,7 +2389,7 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess, systemUsers }) => {
       };
 
       return (
-        <div className="min-h-screen flex font-sans bg-slate-50">
+        <div className="min-h-screen flex flex-col lg:flex-row font-sans bg-slate-50">
           <Sidebar
             activePage="org_chart"
             isLoggedIn={isLoggedIn}

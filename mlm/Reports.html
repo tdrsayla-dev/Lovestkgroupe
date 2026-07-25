@@ -1134,15 +1134,17 @@
 
                 {/* Filter Controls (Dates, Team, Sponsor & Search) */}
                 <div className={`${boxWrapper} py-4`}>
-                    <div className="flex flex-col md:flex-row flex-wrap items-start md:items-end gap-4">
-                        <div><label className={labelClassHud}>ตั้งแต่วันที่</label><input type="date" className={inputClassHud} value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
-                        <div><label className={labelClassHud}>ถึงวันที่</label><input type="date" className={inputClassHud} value={endDate} onChange={e => setEndDate(e.target.value)} /></div>
+                    <div className="flex flex-col md:flex-row flex-wrap items-start md:items-end gap-4 w-full">
+                        <div className="grid grid-cols-2 gap-4 w-full md:w-auto">
+                            <div className="w-full"><label className={labelClassHud}>ตั้งแต่วันที่</label><input type="date" className={`${inputClassHud} w-full`} value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
+                            <div className="w-full"><label className={labelClassHud}>ถึงวันที่</label><input type="date" className={`${inputClassHud} w-full`} value={endDate} onChange={e => setEndDate(e.target.value)} /></div>
+                        </div>
                         
                         {/* Dynamic Team Filter */}
                         {activeGroup === 'referral' && (
-                            <div>
+                            <div className="w-full md:w-auto">
                                 <label className={labelClassHud}>ค้นหาตามสังกัดทีม</label>
-                                <select className={inputClassHud} value={selectedTeamFilter} onChange={e => setSelectedTeamFilter(e.target.value)}>
+                                <select className={`${inputClassHud} w-full`} value={selectedTeamFilter} onChange={e => setSelectedTeamFilter(e.target.value)}>
                                     <option value="">ทุกทีมทั้งหมด</option>
                                     {distinctTeams.map(t => <option key={t} value={t}>{t}</option>)}
                                 </select>
@@ -1151,9 +1153,9 @@
 
                         {/* Sponsor Line Filter */}
                         {activeGroup === 'referral' && (
-                            <div>
+                            <div className="w-full md:w-auto">
                                 <label className={labelClassHud}>ค้นหาตามสายงานแม่ทีม</label>
-                                <select className={inputClassHud} value={selectedSponsorFilter} onChange={e => setSelectedSponsorFilter(e.target.value)}>
+                                <select className={`${inputClassHud} w-full`} value={selectedSponsorFilter} onChange={e => setSelectedSponsorFilter(e.target.value)}>
                                     <option value="">ทุกสายงานแม่ทีม</option>
                                     {uplineLeadersList.map(l => <option key={l.id} value={l.id}>{l.name} ({l.id})</option>)}
                                 </select>
@@ -2150,7 +2152,7 @@
         };
 
         return (
-            <div className="min-h-screen flex font-sans bg-slate-50">
+            <div className="min-h-screen flex flex-col lg:flex-row font-sans bg-slate-50">
                 <Sidebar 
                     activePage="reports" 
                     isLoggedIn={isLoggedIn} 

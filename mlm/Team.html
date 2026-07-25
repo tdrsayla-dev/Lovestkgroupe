@@ -1256,7 +1256,7 @@
       };
 
       return (
-        <div className="min-h-screen flex font-sans bg-slate-50">
+        <div className="min-h-screen flex flex-col lg:flex-row font-sans bg-slate-50">
           <Sidebar
             activePage={activeSubTab === 'business_teams' ? 'business_teams' : 'team'}
             onSubTabChange={(sub) => setActiveSubTab(sub)}
