@@ -353,6 +353,9 @@
                 if (mapped === 'is_evaluator') {
                     val = String(val).toLowerCase() === 'true' || val === true;
                 }
+                if (val === '') {
+                    val = null;
+                }
                 out[mapped] = val;
             });
             return out;
