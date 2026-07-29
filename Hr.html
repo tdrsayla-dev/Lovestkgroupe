@@ -156,6 +156,7 @@
             'Staff': 'staff',
             'user': 'users',
             'User': 'users',
+            'users': 'users',
             'Fingerprint_Logs': 'fingerprint_logs',
             'fingerprint_logs': 'fingerprint_logs',
             'Announcements': 'announcements',
@@ -165,20 +166,26 @@
             'Leave application': 'leave_applications',
             'leave_applications': 'leave_applications',
             'Department ': 'departments',
+            'Department': 'departments',
             'departments': 'departments',
             'Asset_Tracking': 'asset_tracking',
             'asset_tracking': 'asset_tracking',
+            'Assets': 'asset_tracking',
+            'assets': 'asset_tracking',
             'Training': 'training',
             'training': 'training',
             'Organization ': 'organization',
+            'Organization': 'organization',
             'organization': 'organization',
             'Organization Structure ': 'organization_structure',
+            'Organization Structure': 'organization_structure',
             'organization_structure': 'organization_structure',
             'Reward Categories ': 'reward_categories',
             'reward_categories': 'reward_categories',
             'Reward points': 'reward_points',
             'reward_points': 'reward_points',
             'Documents ': 'documents',
+            'Documents': 'documents',
             'documents': 'documents',
             'Employees Ranting ': 'employees_rating',
             'Employees Ranting': 'employees_rating',
@@ -197,7 +204,7 @@
 
         const SHEET_HEADERS = {
             staff: ['Employee_ID', 'Prefix', 'First_Name', 'Last_Name', 'Birthday ', 'Tel', 'Email', 'Line', 'Bank_Name', 'Bank_Account_Name', 'Bank_Account_No', 'Department_ID', 'Position_ID', 'Hire_Date', 'Base_Salary', 'Daily_Rate_Formula', 'Leave_Quota', 'Status', 'RanKing', 'Reward Level', 'Photos', 'Is Evaluator'],
-            users: ['Employee_ID', 'Email', 'Password ', 'Role', 'Device ID', 'Permissions'],
+            users: ['Employee_ID', 'Email', 'Password ', 'Role', 'Device ID', 'Permissions', 'Status'],
             fingerprint_logs: ['Log_ID', 'Employee_ID', 'Full_Name', 'Date', 'Shift_Start', 'Shift_End', 'Check_In', 'Check_Out', 'Attendance_Status', 'Late_Hours', 'Early_Leave_Hours', 'OT_Amount'],
             announcements: ['ID', 'Date', 'Type', 'Topic', 'Photo', 'Status'],
             news: ['ID', 'Date', 'Type', 'Topic', 'Content', 'Photo', 'Status', 'Audience'],
@@ -322,7 +329,7 @@
                 Status: 'Status', Bank_Name: 'Bank_Name', Bank_Account_Name: 'Bank_Account_Name', Bank_Account_No: 'Bank_Account_No',
                 RanKing: 'RanKing', 'Reward Level': 'Reward Level', Photos: 'Photos', 'Is Evaluator': 'is_evaluator'
             },
-            users: { 'Employee_ID': 'employee_id', 'Email': 'username', 'Password ': 'password_hash', Role: 'role', 'Device ID': 'device_id', Permissions: 'permissions' },
+            users: { 'Employee_ID': 'employee_id', 'Email': 'username', 'Password ': 'password_hash', Role: 'role', 'Device ID': 'device_id', Permissions: 'permissions', Status: 'status', status: 'status' },
             fingerprint_logs: { Log_ID: 'Log_ID', Employee_ID: 'Employee_ID', Full_Name: 'Full_Name', Date: 'Date', Shift_Start: 'Shift_Start', Shift_End: 'Shift_End', Check_In: 'Check_In', Check_Out: 'Check_Out', Attendance_Status: 'Attendance_Status', Late_Hours: 'Late_Hours', Early_Leave_Hours: 'Early_Leave_Hours', OT_Amount: 'OT_Amount' },
             announcements: { ID: 'announcement_id', Date: 'announcement_date', Type: 'type', Topic: 'topic', Photo: 'photo', Status: 'status' },
             news: { ID: 'news_id', Date: 'news_date', Type: 'type', Topic: 'topic', Content: 'content', Photo: 'photo', Status: 'status', Audience: 'audience' },
@@ -458,21 +465,42 @@
             if (method === 'verifyLogin') {
                 const [email, password] = args;
                 try {
-                    // Query ตรงจากตาราง public.users โดยใช้ email (username) + password_hash
-                    const rows = await bridge.getTableData('users', {
-                        select: '*',
-                        filter: `username=eq.${email}`
-                    });
+                    const normEmail = String(email || '').trim().toLowerCase();
+                    const rows = await bridge.getTableData('users', { select: '*' });
 
-                    const user = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+                    let user = (rows || []).find(r => String(r.username || r.Email || r.email || '').trim().toLowerCase() === normEmail);
+
+                    // Fallback to check staff table if user doesn't exist in users table yet
                     if (!user) {
-                        return { success: false, message: 'ไม่พบอีเมลนี้ในระบบ กรุณาตรวจสอบอีเมล' };
+                        const staffRows = await bridge.getTableData('staff', { select: '*' });
+                        const staff = (staffRows || []).find(s => String(s.Email || s.email || '').trim().toLowerCase() === normEmail);
+                        if (staff) {
+                            user = {
+                                employee_id: staff.Employee_ID || staff.employee_id,
+                                username: staff.Email || staff.email,
+                                password_hash: '246810',
+                                role: 'Staff',
+                                permissions: 'Dashboard:view',
+                                status: 'Active'
+                            };
+                        }
                     }
 
+                    if (!user) {
+                        return { success: false, message: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' };
+                    }
+
+                    // 1. ตรวจสอบรหัสผ่านก่อน
                     const storedPassword = String(user.password_hash || '').trim();
                     const inputPassword = String(password || '').trim();
                     if (storedPassword !== inputPassword) {
-                        return { success: false, message: 'รหัสผ่านไม่ถูกต้อง' };
+                        return { success: false, message: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' };
+                    }
+
+                    // 2. ถ้ารหัสผ่านถูกต้องแล้ว ให้ตรวจสอบสถานะบัญชี (Active vs Disabled / Suspended)
+                    const statusVal = typeof getUserStatus === 'function' ? getUserStatus(user) : (user.status || user.Status || 'Active');
+                    if (String(statusVal).toLowerCase() === 'disabled') {
+                        return { success: false, message: '⚠️ บัญชีผู้ใช้นี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ (Account Suspended)' };
                     }
 
                     return {
@@ -480,6 +508,7 @@
                         role: user.role || 'Staff',
                         empId: user.employee_id || user.Employee_ID || '',
                         permissions: user.permissions || [],
+                        status: statusVal,
                         username: user.username
                     };
                 } catch (authErr) {
@@ -737,10 +766,20 @@
                 const table = TABLE_MAP[sheetName] || sheetName;
                 const isDbUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(recordId || ''));
                 const key = isDbUuid ? 'id' : getKeyForTable(table);
-                // updateRecordData is also called as (sheet, id, column, value).
-                const dataObj = method === 'updateRecordData' && args.length >= 4
-                    ? { [args[2]]: args[3] }
-                    : args[2];
+                
+                let dataObj;
+                if (method === 'updateRecordData') {
+                    if (args.length >= 5 && typeof args[4] === 'object' && args[4] !== null) {
+                        dataObj = Object.assign({}, args[4], { [args[2]]: args[3] });
+                    } else if (args.length >= 4) {
+                        dataObj = { [args[2]]: args[3] };
+                    } else {
+                        dataObj = args[2];
+                    }
+                } else {
+                    dataObj = args[2];
+                }
+
                 const payload = toPayload(table, dataObj);
 
                 // ── ระบบหักโควตาวันลาคงเหลือของพนักงานอัตโนมัติ (Automatic Leave Quota Deduction) ──
@@ -865,6 +904,52 @@
 
                     const inserted = await bridge.insertRows('fingerprint_logs', [cleanPayload]);
                     return { success: true, data: inserted };
+                }
+
+                if (table === 'users') {
+                    const empIdVal = String(payload.employee_id || payload.Employee_ID || payload.username || recordId || '').trim();
+                    try {
+                        const existingUsers = await bridge.getTableData('users', { select: '*' });
+                        const targetEmpUpper = empIdVal.toUpperCase();
+                        const matchedUser = (existingUsers || []).find(u => {
+                            const uEmp = String(u.employee_id || u.Employee_ID || u.username || '').trim().toUpperCase();
+                            const uId = String(u.id || '').trim();
+                            return (uEmp && uEmp === targetEmpUpper) || (uId && uId === String(recordId).trim());
+                        });
+
+                        const rawSt = String(dataObj.status || dataObj.Status || dataObj.statusVal || payload.status || payload.Status || '').trim().toLowerCase();
+                        let existingPerms = matchedUser ? (matchedUser.permissions || matchedUser.Permissions || '') : (payload.permissions || dataObj.permissions || '');
+                        if (rawSt) {
+                            existingPerms = String(existingPerms || '').replace(/,?\s*status:(active|disabled|suspended|inactive)/gi, '').trim();
+                            existingPerms = existingPerms ? `${existingPerms}, status:${rawSt}` : `status:${rawSt}`;
+                            payload.permissions = existingPerms;
+                        }
+                        delete payload.status;
+                        delete payload.Status;
+                        delete payload.statusVal;
+
+                        if (matchedUser) {
+                            const targetPk = matchedUser.employee_id || matchedUser.Employee_ID || matchedUser.id || empIdVal;
+                            const pkCol = matchedUser.employee_id ? 'employee_id' : (matchedUser.Employee_ID ? 'Employee_ID' : 'id');
+                            const updated = await bridge.updateRow('users', pkCol, targetPk, payload);
+                            return { success: true, data: updated };
+                        } else {
+                            let emailVal = payload.Email || payload.email || (empIdVal.toLowerCase() + '@company.com');
+                            const insertPayload = {
+                                employee_id: empIdVal,
+                                username: emailVal,
+                                password_hash: '246810',
+                                role: payload.Role || payload.role || 'Staff',
+                                permissions: payload.permissions || payload.Permissions || 'Dashboard:view',
+                                ...payload
+                            };
+                            const inserted = await bridge.insertRows('users', [insertPayload]);
+                            return { success: true, data: inserted };
+                        }
+                    } catch (usersErr) {
+                        console.error('[users update/insert error]', usersErr);
+                        throw usersErr;
+                    }
                 }
 
                 let res;
