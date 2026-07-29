@@ -71,6 +71,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <!-- Load Configuration -->
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
@@ -122,11 +123,16 @@
                         extraHeaders: { Prefer: "return=representation" },
                     });
                 },
-                async insertRows(table, rows) {
-                    return request(`/rest/v1/${table}`, {
+                async insertRows(table, rows, options = {}) {
+                    let preferStr = options.upsert ? "resolution=merge-duplicates,return=representation" : "return=representation";
+                    let url = `/rest/v1/${table}`;
+                    if (options.onConflict) {
+                        url += `?on_conflict=${encodeURIComponent(options.onConflict)}`;
+                    }
+                    return request(url, {
                         method: "POST",
                         body: rows,
-                        extraHeaders: { Prefer: "resolution=merge-duplicates,return=representation" },
+                        extraHeaders: { Prefer: preferStr },
                     });
                 },
                 async updateRow(table, matchKey, matchValue, patch) {
@@ -207,24 +213,102 @@
             employees_rating: ['Ranting_Id', 'Employees Id', 'Employees Name', 'Ranting Date', 'Star Point', 'Category ', 'Comment', 'Give By', 'Status'],
             kpi_records: ['KPI_Id', 'Staff_ID', 'Month ', 'KPI Score'],
             policy: ['Id', 'Head_Name', 'Link'],
-            budget_requests: ['Id_Budget', 'Employee_ID', 'Prefix', 'First_Name', 'Last_Name', 'Department_ID', 'Position_ID', 'Title', 'Amount', 'Description', 'Items', 'Request_Date', 'Signature', 'Photo']
+            budget_requests: ['Id_Budget', 'Employee_ID', 'Prefix', 'First_Name', 'Last_Name', 'Department_ID', 'Position_ID', 'Title', 'Amount', 'Description', 'Items', 'Request_Date', 'Status', 'Photo', 'Dept_Head_Sign', 'Approver_Sign', 'Dept_Head_Img', 'Approver_Img', 'Currency']
         };
 
         function fromDbRow(table, row) {
+            if (!row) return {};
             const headers = SHEET_HEADERS[table] || Object.keys(row || {});
-            const reverse = {};
             const map = COL_MAP[table] || {};
-            Object.keys(map).forEach(k => reverse[map[k]] = k);
+            
+            // Build a flexible key lookup dictionary from row keys
+            const rowKeysLower = {};
+            Object.keys(row).forEach(k => {
+                rowKeysLower[k.toLowerCase().trim().replace(/[\s_]/g, '')] = row[k];
+            });
+
             const out = {};
             headers.forEach(h => {
-                const dbKey = map[h] || reverse[h] || h;
-                const dbKeyLower = String(dbKey).toLowerCase();
-                const hLower = String(h).toLowerCase();
-                out[h] = row?.[dbKey] ?? row?.[dbKeyLower] ?? row?.[h] ?? row?.[hLower] ?? '';
+                const dbMappedKey = map[h] || h;
+                const cleanMapped = String(dbMappedKey).toLowerCase().trim().replace(/[\s_]/g, '');
+                const cleanH = String(h).toLowerCase().trim().replace(/[\s_]/g, '');
+
+                let val = row[h] ?? row[dbMappedKey] ?? rowKeysLower[cleanMapped] ?? rowKeysLower[cleanH];
+                
+                // Extra fallback checks for common variations
+                if (val === undefined || val === null || val === '') {
+                    if (cleanH.includes('id') && (cleanH.includes('budget') || cleanH.includes('req'))) {
+                        val = row.budget_id || row.Id_Budget || row.id_budget || row.id || row.Id || '';
+                    } else if (cleanH.includes('employee') || cleanH.includes('empid') || cleanH.includes('staffid')) {
+                        val = row.employee_id || row.Employee_ID || row.emp_id || row.Staff_ID || '';
+                    } else if (cleanH === 'prefix') {
+                        val = row.prefix || row.Prefix || '';
+                    } else if (cleanH === 'firstname' || cleanH === 'first') {
+                        val = row.first_name || row.First_Name || '';
+                    } else if (cleanH === 'lastname' || cleanH === 'last') {
+                        val = row.last_name || row.Last_Name || '';
+                    } else if ((cleanH === 'departmentid' || cleanH === 'department' || cleanH === 'deptid') && !cleanH.includes('sign') && !cleanH.includes('img')) {
+                        val = row.department_id || row.Department_ID || '';
+                    } else if ((cleanH === 'positionid' || cleanH === 'position' || cleanH === 'posid') && !cleanH.includes('sign') && !cleanH.includes('img')) {
+                        val = row.position_id || row.Position_ID || '';
+                    } else if (cleanH === 'title' || cleanH === 'subject' || cleanH === 'topic') {
+                        val = row.title || row.Title || '';
+                    } else if (cleanH === 'amount' || cleanH === 'price' || cleanH === 'total') {
+                        val = row.amount || row.Amount || 0;
+                    } else if (cleanH === 'requestdate' || cleanH === 'date') {
+                        val = row.request_date || row.Request_Date || row.created_at || '';
+                    } else if (cleanH === 'items' || cleanH === 'item') {
+                        val = row.items || row.Items || '[]';
+                    } else if (cleanH === 'description' || cleanH === 'desc') {
+                        val = row.description || row.Description || '';
+                    } else if (cleanH === 'currency') {
+                        val = row.currency || row.Currency || 'THB';
+                    } else if (cleanH === 'deptheadsign') {
+                        val = row.dept_head_sign || row.Dept_Head_Sign || '';
+                    } else if (cleanH === 'approversign') {
+                        val = row.approver_sign || row.Approver_Sign || '';
+                    } else if (cleanH === 'deptheadimg') {
+                        val = row.dept_head_img || row.Dept_Head_Img || '';
+                    } else if (cleanH === 'approverimg') {
+                        val = row.approver_img || row.Approver_Img || '';
+                    } else {
+                        val = row[h] ?? '';
+                    }
+                }
+                out[h] = val;
             });
-            // Keep Supabase's UUID as an internal row locator. It is not part of
-            // currentHeaders, so it is neither displayed nor submitted as form data.
-            if (row?.id) out.__db_id = row.id;
+
+            if (row?.id || row?.budget_id) out.__db_id = row.id || row.budget_id;
+
+            // Persistent local signature & approval fallback merge for budget_requests
+            if (table === 'budget_requests') {
+                const recordId = out.Id_Budget || out.budget_id || row.budget_id || row.Id_Budget || row.id;
+                if (recordId) {
+                    const savedLocalSig = localStorage.getItem('hr_budget_sig_' + recordId);
+                    if (savedLocalSig) {
+                        try {
+                            const parsed = JSON.parse(savedLocalSig);
+                            if (parsed.signature) {
+                                out.Signature = parsed.signature;
+                                out.signature = parsed.signature;
+                                out.Status = parsed.signature;
+                                out.status = parsed.signature;
+                            }
+                            if (parsed.dept_head_sign) { out.dept_head_sign = parsed.dept_head_sign; out.Dept_Head_Sign = parsed.dept_head_sign; }
+                            if (parsed.approver_sign) { out.approver_sign = parsed.approver_sign; out.Approver_Sign = parsed.approver_sign; }
+                            if (parsed.dept_head_img) { out.dept_head_img = parsed.dept_head_img; out.Dept_Head_Img = parsed.dept_head_img; }
+                            if (parsed.approver_img) { out.approver_img = parsed.approver_img; out.Approver_Img = parsed.approver_img; }
+                        } catch (e) { }
+                    }
+                }
+                // Ensure Status and Signature sync with row values if present
+                const sigVal = row.signature || row.Signature || out.Signature || out.Status || 'Pending';
+                out.Status = sigVal;
+                out.status = sigVal;
+                out.Signature = sigVal;
+                out.signature = sigVal;
+            }
+
             return out;
         }
 
@@ -254,7 +338,7 @@
             employees_rating: { Ranting_Id: 'rating_id', 'Employees Id': 'employee_id', 'Employees Name': 'employee_name', 'Ranting Date': 'rating_date', 'Star Point': 'star_point', 'Category ': 'category', Comment: 'comment', 'Give By': 'give_by', Status: 'status' },
             kpi_records: { KPI_Id: 'kpi_id', Staff_ID: 'staff_id', 'Month ': 'month', 'KPI Score': 'kpi_score' },
             policy: { Id: 'policy_code', Head_Name: 'head_name', Link: 'link' },
-            budget_requests: { Id_Budget: 'budget_id', Employee_ID: 'employee_id', Prefix: 'prefix', First_Name: 'first_name', Last_Name: 'last_name', Department_ID: 'department_id', Position_ID: 'position_id', Title: 'title', Amount: 'amount', Description: 'description', Items: 'items', Request_Date: 'request_date', Signature: 'signature', Photo: 'photo' }
+            budget_requests: { Id_Budget: 'budget_id', Employee_ID: 'employee_id', Prefix: 'prefix', First_Name: 'first_name', Last_Name: 'last_name', Department_ID: 'department_id', Position_ID: 'position_id', Title: 'title', Amount: 'amount', Description: 'description', Items: 'items', Request_Date: 'request_date', Status: 'signature', Signature: 'signature', Photo: 'photo', Dept_Head_Sign: 'dept_head_sign', Approver_Sign: 'approver_sign', Dept_Head_Img: 'dept_head_img', Approver_Img: 'approver_img', Currency: 'currency' }
         };
 
         function toPayload(table, dataObj = {}) {
@@ -456,10 +540,16 @@
             if (method === 'getSheetData') {
                 const sheetName = String(args[0] || '');
                 const table = TABLE_MAP[sheetName] || TABLE_MAP[sheetName.trim()] || sheetName;
-                const rows = await bridge.getTableData(table, { select: '*' });
-                const data = Array.isArray(rows) ? rows.map(r => fromDbRow(table, r)) : [];
-                const headers = SHEET_HEADERS[table] || (data.length ? Object.keys(data[0]) : []);
-                return { success: true, headers, data };
+                try {
+                    const rows = await bridge.getTableData(table, { select: '*' });
+                    const data = Array.isArray(rows) ? rows.map(r => fromDbRow(table, r)) : [];
+                    const headers = SHEET_HEADERS[table] || (data.length ? Object.keys(data[0]) : []);
+                    return { success: true, headers, data };
+                } catch (err) {
+                    console.warn(`[getSheetData] Table query for ${table} failed:`, err);
+                    const headers = SHEET_HEADERS[table] || [];
+                    return { success: true, headers, data: [] };
+                }
             }
 
             if (method === 'getDashboardData') {
@@ -505,12 +595,16 @@
                     try {
                         logRows = await bridge.getTableData('fingerprint_logs', { select: '*', filter: logFilter });
                     } catch (e2) {
-                        logRows = await bridge.getTableData('fingerprint_logs', { select: '*' });
+                        try {
+                            logRows = await bridge.getTableData('fingerprint_logs', { select: '*' });
+                        } catch (e3) {
+                            logRows = [];
+                        }
                     }
                 }
 
                 const [staffRows, leaveRows, assetRows, trainingRows] = await Promise.all([
-                    bridge.getTableData('staff', { select: 'Employee_ID' }),
+                    bridge.getTableData('staff', { select: 'Employee_ID' }).catch(() => []),
                     bridge.getTableData('leave_applications', { select: '*' }).catch(() => []),
                     bridge.getTableData('asset_tracking', { select: '*' }).catch(() => []),
                     bridge.getTableData('training', { select: '*' }).catch(() => [])
@@ -813,7 +907,7 @@
                         emoji: row.emoji,
                         sort_order: Number(row.sort_order || 99)
                     }));
-                    await bridge.insertRows('subsidiaries', rowsToUpsert);
+                    await bridge.insertRows('subsidiaries', rowsToUpsert, { upsert: true, onConflict: 'id' });
                 }
                 if (Array.isArray(deletedSubIds) && deletedSubIds.length > 0) {
                     for (const id of deletedSubIds) {
@@ -1218,6 +1312,14 @@
                         data-i18n="menu_time_tracking">Time
                         Tracking</span>
                 </button>
+                <button onclick="navigate('facebook-budget', 'Facebook Budget')" title="Facebook Budget"
+                    class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all font-medium overflow-hidden group"
+                    data-page="facebook-budget">
+                    <i
+                        class="fa-brands fa-facebook w-5 text-[15px] flex-shrink-0 text-center transition-colors group-hover:text-brandindigo"></i>
+                    <span
+                        class="sidebar-text ml-3 text-sm whitespace-nowrap transition-opacity duration-200 font-medium">FB Budget</span>
+                </button>
 
                 <p class="sidebar-text text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-4 mb-2 px-2 admin-only hidden"
                     data-i18n="menu_records">
@@ -1242,6 +1344,51 @@
                         class="sidebar-text ml-3 text-sm whitespace-nowrap transition-opacity duration-200 font-medium"
                         data-i18n="menu_budget_requests">Budget
                         Requests</span>
+                </button>
+                <button onclick="navigate('chart-of-accounts', 'Chart of Accounts')" title="Chart of Accounts"
+                    class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all admin-only hidden overflow-hidden group"
+                    data-page="chart-of-accounts">
+                    <i
+                        class="fa-solid fa-book-bookmark w-5 text-[15px] flex-shrink-0 text-center transition-colors group-hover:text-brandindigo"></i>
+                    <span
+                        class="sidebar-text ml-3 text-sm whitespace-nowrap transition-opacity duration-200 font-medium"
+                        data-i18n="menu_chart_of_accounts">Chart of Accounts</span>
+                </button>
+                <button onclick="navigate('expense-vouchers', 'Expense Vouchers')" title="Expense Vouchers"
+                    class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all admin-only hidden overflow-hidden group"
+                    data-page="expense-vouchers">
+                    <i
+                        class="fa-solid fa-receipt w-5 text-[15px] flex-shrink-0 text-center transition-colors group-hover:text-brandindigo"></i>
+                    <span
+                        class="sidebar-text ml-3 text-sm whitespace-nowrap transition-opacity duration-200 font-medium"
+                        data-i18n="menu_expense_vouchers">Expense Vouchers</span>
+                </button>
+                <button onclick="navigate('general-ledger', 'General Ledger')" title="General Ledger"
+                    class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all admin-only hidden overflow-hidden group"
+                    data-page="general-ledger">
+                    <i
+                        class="fa-solid fa-book-open w-5 text-[15px] flex-shrink-0 text-center transition-colors group-hover:text-brandindigo"></i>
+                    <span
+                        class="sidebar-text ml-3 text-sm whitespace-nowrap transition-opacity duration-200 font-medium"
+                        data-i18n="menu_general_ledger">General Ledger</span>
+                </button>
+                <button onclick="navigate('invoices', 'Invoices & Revenue')" title="Invoices & Revenue"
+                    class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all admin-only hidden overflow-hidden group"
+                    data-page="invoices">
+                    <i
+                        class="fa-solid fa-file-invoice w-5 text-[15px] flex-shrink-0 text-center transition-colors group-hover:text-brandindigo"></i>
+                    <span
+                        class="sidebar-text ml-3 text-sm whitespace-nowrap transition-opacity duration-200 font-medium"
+                        data-i18n="menu_invoices">Invoices & Revenue</span>
+                </button>
+                <button onclick="navigate('financial-reports', 'Financial Reports')" title="Financial Reports"
+                    class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all admin-only hidden overflow-hidden group"
+                    data-page="financial-reports">
+                    <i
+                        class="fa-solid fa-chart-line w-5 text-[15px] flex-shrink-0 text-center transition-colors group-hover:text-brandindigo"></i>
+                    <span
+                        class="sidebar-text ml-3 text-sm whitespace-nowrap transition-opacity duration-200 font-medium"
+                        data-i18n="menu_financial_reports">Financial Reports</span>
                 </button>
                 <button onclick="navigate('table', 'Attendance Logs', 'Fingerprint_Logs')" title="Attendance Logs"
                     class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all overflow-hidden group"
@@ -2397,13 +2544,248 @@
                         <div id="display-total-days" class="hidden">รวมวันลาพักร้อน: <span id="sum-leave-days"
                                 class="text-brandindigo text-sm font-black">0</span> วัน</div>
                         <div id="display-total-amount" class="hidden">รวมงบประมาณที่ขอ: <span id="sum-budget-amount"
-                                class="text-brandindigo text-sm font-black">0</span> บาท</div>
+                                class="text-brandindigo text-sm font-black">0</span></div>
                     </div>
 
                     <div id="card-wrapper"
                         class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-4 transition-all duration-300">
                     </div>
                 </div>
+
+                <!-- 📌 ส่วนหน้าเบิกงบประมาณ Facebook -->
+                <div id="section-facebook-budget" class="page-section hidden max-w-5xl mx-auto relative z-10 space-y-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-800">เบิกงบประมาณ Facebook</h2>
+                        <div class="flex space-x-2">
+                            <button onclick="document.getElementById('fb-budget-form').style.display='block'; document.getElementById('fb-budget-dashboard').style.display='none';" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">ฟอร์มเบิกงบ</button>
+                            <button onclick="document.getElementById('fb-budget-form').style.display='none'; document.getElementById('fb-budget-dashboard').style.display='block'; loadFacebookBudgetDashboard();" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition">Dashboard</button>
+                        </div>
+                    </div>
+
+                    <div id="fb-budget-form" class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 max-w-lg mx-auto mt-8">
+                        <form id="fbBudgetForm" onsubmit="submitFacebookBudget(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">รหัสพนักงาน (Member ID)</label>
+                                <input type="text" id="fb_member_id" required class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="เช่น L03709">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อแคมเปญ</label>
+                                <input type="text" id="fb_campaign_name" required class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="เช่น แคมเปญลดสิว">
+                            </div>
+                            <div class="grid grid-cols-3 gap-4">
+                                <div class="col-span-2">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">จำนวนเงิน</label>
+                                    <input type="number" id="fb_amount" required class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="5000" step="0.01">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">สกุลเงิน</label>
+                                    <select id="fb_currency" class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white">
+                                        <option value="THB">บาท (THB)</option>
+                                        <option value="LAK">กีบ (LAK)</option>
+                                        <option value="USD">ดอลลาร์ (USD)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="submit" id="fb_submit_btn" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium mt-4 transition-colors">บันทึกคำขอเบิกงบ</button>
+                        </form>
+                    </div>
+
+                    <div id="fb-budget-dashboard" class="hidden bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mt-8">
+                        <h3 class="text-xl font-semibold mb-4 text-gray-800">รายงานรายได้เทียบกับการเบิกงบ (ดึงข้อมูลจาก MLM)</h3>
+                        <div id="fb-dashboard-loading" class="text-center py-10 text-gray-500 hidden">
+                            <i class="fa-solid fa-spinner fa-spin text-2xl mb-2 text-indigo-500"></i><br>กำลังโหลดและคำนวณข้อมูล...
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-gray-50 border-b border-gray-200">
+                                        <th class="p-4 text-sm font-medium text-gray-500">รหัสพนักงาน</th>
+                                        <th class="p-4 text-sm font-medium text-gray-500 text-right">ปันผล (MLM)</th>
+                                        <th class="p-4 text-sm font-medium text-gray-500 text-right text-purple-600">ค่าแนะนำ (Clinic)</th>
+                                        <th class="p-4 text-sm font-medium text-gray-500 text-right">เบิกงบ (HR)</th>
+                                        <th class="p-4 text-sm font-medium text-gray-500 text-right">กำไรสุทธิ</th>
+                                        <th class="p-4 text-sm font-medium text-gray-500 text-center">สถานะ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="fb-dashboard-body" class="divide-y divide-gray-100">
+                                    <tr><td colspan="5" class="text-center py-6 text-gray-400">กรุณากดเปิด Dashboard เพื่อโหลดข้อมูล</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <script>
+                    async function submitFacebookBudget(e) {
+                        e.preventDefault();
+                        const btn = document.getElementById('fb_submit_btn');
+                        btn.disabled = true;
+                        btn.innerText = 'กำลังบันทึก...';
+                        
+                        try {
+                            const data = {
+                                member_id: document.getElementById('fb_member_id').value,
+                                campaign_name: document.getElementById('fb_campaign_name').value,
+                                amount: Number(document.getElementById('fb_amount').value),
+                                currency: document.getElementById('fb_currency').value,
+                                status: 'Approved' // ค่าเริ่มต้นสำหรับทดสอบ
+                            };
+                            
+                            const bridge = window.SUPABASE_URL && window.SUPABASE_ANON_KEY ? createSupabaseBridge({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY }) : null;
+                            if(!bridge) throw new Error("Supabase is not configured.");
+                            
+                            await bridge.insertRows('facebook_budget_requests', [data]);
+                            
+                            if (typeof Swal !== 'undefined') {
+                                Swal.fire('สำเร็จ', 'บันทึกข้อมูลเบิกงบสำเร็จ', 'success');
+                            } else {
+                                alert('บันทึกข้อมูลเบิกงบสำเร็จ');
+                            }
+                            e.target.reset();
+                        } catch (err) {
+                            console.error(err);
+                            if (typeof Swal !== 'undefined') {
+                                Swal.fire('ข้อผิดพลาด', err.message, 'error');
+                            } else {
+                                alert('ข้อผิดพลาด: ' + err.message);
+                            }
+                        } finally {
+                            btn.disabled = false;
+                            btn.innerText = 'บันทึกคำขอเบิกงบ';
+                        }
+                    }
+
+                    async function loadFacebookBudgetDashboard() {
+                        const tbody = document.getElementById('fb-dashboard-body');
+                        const loading = document.getElementById('fb-dashboard-loading');
+                        tbody.innerHTML = '';
+                        loading.classList.remove('hidden');
+                        
+                        try {
+                            const hrBridge = window.SUPABASE_URL && window.SUPABASE_ANON_KEY ? createSupabaseBridge({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY }) : null;
+                            if(!hrBridge) throw new Error("HR Supabase is not configured.");
+                            
+                            // 1. ดึงข้อมูลเบิกงบฝั่ง HR
+                            const budgets = await hrBridge.getTableData('facebook_budget_requests', { filter: 'status=eq.Approved', select: 'member_id,amount,currency' });
+                            // 2. ดึงข้อมูลยอดขายฝั่ง MLM (Cross-fetch)
+                            const mlmUrl = 'https://mfpkeyrykqnrywyksyqp.supabase.co';
+                            const mlmKey = 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
+                            
+                            // ดึงสินค้าจาก MLM เพื่อเอา self_fee
+                            const prodRes = await fetch(`${mlmUrl}/rest/v1/stk_products?select=name,self_fee`, {
+                                headers: { 'apikey': mlmKey, 'Authorization': `Bearer ${mlmKey}` }
+                            });
+                            if (!prodRes.ok) throw new Error('Failed to fetch MLM products');
+                            const products = await prodRes.json();
+                            const prodMap = {};
+                            products.forEach(p => {
+                                prodMap[String(p.name).trim()] = Number(p.self_fee || 0);
+                            });
+
+                            const res = await fetch(`${mlmUrl}/rest/v1/sales?select=seller_id,items_json`, {
+                                headers: {
+                                    'apikey': mlmKey,
+                                    'Authorization': `Bearer ${mlmKey}`
+                                }
+                            });
+                            if (!res.ok) throw new Error('Failed to fetch MLM sales data');
+                            const sales = await res.json();
+                            
+                            const map = {};
+                            sales.forEach(s => {
+                                if (!s.seller_id) return;
+                                if (!map[s.seller_id]) map[s.seller_id] = { salesLAK: 0, budgetTHB: 0, budgets: [], clinicTHB: 0 };
+                                
+                                let itemsList = [];
+                                if (s.items_json) {
+                                    try {
+                                        itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json;
+                                    } catch(e) {}
+                                }
+                                
+                                let commissionLAK = 0;
+                                if (Array.isArray(itemsList)) {
+                                    itemsList.forEach(it => {
+                                        const typeStr = String(it.type || '').trim();
+                                        if (typeStr === 'ราคาเต็ม' || typeStr === 'ราคาสมาชิก' || !typeStr || typeStr === '') {
+                                            const qtyNum = Number(it.qty || it.quantity || 1);
+                                            const pName = String(it.prod || it.name || it.product_name || '').trim();
+                                            let fee = prodMap[pName] || 0;
+                                            if (fee === 0) {
+                                                const matchedKey = Object.keys(prodMap).find(k => k.includes(pName) || pName.includes(k));
+                                                if (matchedKey) fee = prodMap[matchedKey];
+                                            }
+                                            commissionLAK += (qtyNum * fee);
+                                        }
+                                    });
+                                }
+                                map[s.seller_id].salesLAK += commissionLAK;
+                            });
+                            budgets.forEach(b => {
+                                if (!b.member_id) return;
+                                if (!map[b.member_id]) map[b.member_id] = { salesLAK: 0, budgetTHB: 0, budgets: [], clinicTHB: 0 };
+                                
+                                const amt = Number(b.amount || 0);
+                                const curr = b.currency || 'THB';
+                                map[b.member_id].budgets.push({ amount: amt, currency: curr });
+                                
+                                if (curr === 'THB') map[b.member_id].budgetTHB += amt;
+                                else if (curr === 'LAK') map[b.member_id].budgetTHB += (amt / 700);
+                                else if (curr === 'USD') map[b.member_id].budgetTHB += (amt * 35);
+                            });
+                            
+                            const sortedMembers = Object.keys(map).sort((a,b) => map[b].salesLAK - map[a].salesLAK);
+                            
+                            if (sortedMembers.length === 0) {
+                                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-gray-500">ไม่พบข้อมูล</td></tr>`;
+                            } else {
+                                sortedMembers.forEach(memberId => {
+                                    const stat = map[memberId];
+                                    const EXCHANGE_RATE = 700; // สมมติเรทแปลง LAK เป็น THB เพื่อคำนวณกำไรสุทธิ
+                                    const salesTHB = stat.salesLAK / EXCHANGE_RATE; 
+                                    const totalIncomeTHB = salesTHB + stat.clinicTHB;
+                                    
+                                    const netTHB = totalIncomeTHB - stat.budgetTHB;
+                                    const isLoss = netTHB < 0;
+                                    const percent = totalIncomeTHB > 0 ? ((stat.budgetTHB / totalIncomeTHB)*100).toFixed(1) : (stat.budgetTHB > 0 ? 100 : 0);
+                                    
+                                    let budgetDisplay = [];
+                                    let sumByCurrency = {};
+                                    (stat.budgets || []).forEach(b => {
+                                        sumByCurrency[b.currency] = (sumByCurrency[b.currency] || 0) + b.amount;
+                                    });
+                                    if (Object.keys(sumByCurrency).length === 0) budgetDisplay = ['฿0'];
+                                    else {
+                                        if (sumByCurrency['THB']) budgetDisplay.push(`฿${sumByCurrency['THB'].toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}`);
+                                        if (sumByCurrency['LAK']) budgetDisplay.push(`${sumByCurrency['LAK'].toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})} ₭`);
+                                        if (sumByCurrency['USD']) budgetDisplay.push(`$${sumByCurrency['USD'].toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}`);
+                                    }
+                                    const budgetHtml = budgetDisplay.join('<br><span class="text-xs text-gray-400 opacity-50">+</span><br>');
+
+                                    tbody.innerHTML += `
+                                        <tr class="hover:bg-gray-50 transition-colors border-b border-gray-100">
+                                            <td class="p-4 font-medium text-gray-800">${memberId}</td>
+                                            <td class="p-4 text-right text-emerald-600 font-bold">${stat.salesLAK.toLocaleString()} LAK</td>
+                                            <td class="p-4 text-right text-purple-600 font-bold">฿${stat.clinicTHB.toLocaleString()}</td>
+                                            <td class="p-4 text-right text-rose-600 font-medium leading-tight">${budgetHtml}</td>
+                                            <td class="p-4 text-right font-bold ${isLoss ? 'text-rose-500' : 'text-indigo-600'}">฿${netTHB.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                                            <td class="p-4 text-center">
+                                                ${isLoss ? 
+                                                    '<span class="px-3 py-1 bg-rose-100 text-rose-700 text-xs rounded-full font-medium shadow-sm">เบิกเกินรายรับ!</span>' : 
+                                                    `<span class="px-3 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-full font-medium shadow-sm">ใช้งบ ${percent}%</span>`
+                                                }
+                                            </td>
+                                        </tr>
+                                    `;
+                                });
+                            }
+                        } catch (err) {
+                            console.error(err);
+                            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-red-500">เกิดข้อผิดพลาด: ${err.message}</td></tr>`;
+                        } finally {
+                            loading.classList.add('hidden');
+                        }
+                    }
+                </script>
 
                 <!-- 📌 ส่วนหน้าสแกนลงเวลา -->
 
@@ -2520,6 +2902,243 @@
                                 </form>
 
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 📌 ส่วนของผังบัญชี (Chart of Accounts) -->
+                <div id="section-chart-of-accounts" class="page-section hidden max-w-7xl mx-auto space-y-6">
+                    <div class="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100">
+                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                            <div>
+                                <h3 class="text-xl font-extrabold text-gray-900 flex items-center">
+                                    <i class="fa-solid fa-book-bookmark text-brandindigo mr-3"></i> ผังบัญชี (Chart of Accounts)
+                                </h3>
+                                <p class="text-xs text-gray-500 mt-1">รายการรหัสบัญชีมาตรฐาน 5 หมวด สำหรับลงบันทึกทางบัญชี</p>
+                            </div>
+                            <button onclick="openAddAccountModal()" class="bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-plus"></i> เพิ่มรหัสบัญชีใหม่
+                            </button>
+                        </div>
+
+                        <!-- Category Filter Tabs -->
+                        <div class="flex flex-wrap items-center justify-between gap-3 mb-6 bg-gray-50 p-2 rounded-2xl border border-gray-100">
+                            <div class="flex flex-wrap gap-1.5">
+                                <button onclick="filterCoaCategory('ALL')" data-cat="ALL" class="coa-filter-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-brandindigo text-white shadow-sm">ทั้งหมด</button>
+                                <button onclick="filterCoaCategory('Asset')" data-cat="Asset" class="coa-filter-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">1. สินทรัพย์ (Asset)</button>
+                                <button onclick="filterCoaCategory('Liability')" data-cat="Liability" class="coa-filter-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">2. หนี้สิน (Liability)</button>
+                                <button onclick="filterCoaCategory('Equity')" data-cat="Equity" class="coa-filter-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">3. ทุน (Equity)</button>
+                                <button onclick="filterCoaCategory('Revenue')" data-cat="Revenue" class="coa-filter-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">4. รายได้ (Revenue)</button>
+                                <button onclick="filterCoaCategory('Expense')" data-cat="Expense" class="coa-filter-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">5. ค่าใช้จ่าย (Expense)</button>
+                            </div>
+                            <div class="w-full md:w-64">
+                                <input type="text" id="coa-search-input" oninput="renderChartOfAccounts()" placeholder="ค้นหารหัส หรือชื่อบัญชี..." class="w-full bg-white border border-gray-200 text-xs rounded-xl px-3 py-2 focus:ring-brandindigo focus:border-brandindigo">
+                            </div>
+                        </div>
+
+                        <!-- Table -->
+                        <div class="overflow-x-auto rounded-2xl border border-gray-100">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-bold">
+                                    <tr>
+                                        <th class="py-3 px-4">รหัสบัญชี</th>
+                                        <th class="py-3 px-4">ชื่อบัญชี (ไทย)</th>
+                                        <th class="py-3 px-4">Account Name (EN)</th>
+                                        <th class="py-3 px-4">หมวดหมู่</th>
+                                        <th class="py-3 px-4">คำอธิบาย</th>
+                                        <th class="py-3 px-4 text-center">สถานะ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="coa-table-body" class="text-sm divide-y divide-gray-100">
+                                    <!-- Rendered dynamically by js/accounting.js -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 📌 ส่วนของบันทึกค่าใช้จ่าย (Expense Vouchers) -->
+                <div id="section-expense-vouchers" class="page-section hidden max-w-7xl mx-auto space-y-6">
+                    <!-- Top Stat Cards -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl font-bold">
+                                <i class="fa-solid fa-coins"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">ค่าใช้จ่ายรวมทั้งหมด</p>
+                                <h4 id="stat-total-expenses" class="text-xl font-black text-gray-900 mt-0.5">0.00</h4>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl font-bold">
+                                <i class="fa-solid fa-circle-check"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">จ่ายเงินเรียบร้อยแล้ว</p>
+                                <h4 id="stat-paid-expenses" class="text-xl font-black text-emerald-600 mt-0.5">0.00</h4>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl font-bold">
+                                <i class="fa-solid fa-clock-rotate-left"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">รอตั้งจ่าย / อนุมัติ</p>
+                                <h4 id="stat-pending-expenses" class="text-xl font-black text-blue-600 mt-0.5">0.00</h4>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100">
+                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                            <div>
+                                <h3 class="text-xl font-extrabold text-gray-900 flex items-center">
+                                    <i class="fa-solid fa-receipt text-brandindigo mr-3"></i> บันทึกค่าใช้จ่าย (Expense Vouchers)
+                                </h3>
+                                <p class="text-xs text-gray-500 mt-1">ออกใบสำคัญจ่าย ตั้งค่าใช้จ่ายบริษัท และตัดเบิกจากใบขออนุมัติงบประมาณ</p>
+                            </div>
+                            <button onclick="openAddExpenseModal()" class="bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-plus"></i> สร้างใบสำคัญจ่ายใหม่
+                            </button>
+                        </div>
+
+                        <!-- Filter & Search -->
+                        <div class="mb-6">
+                            <input type="text" id="expense-search-input" oninput="renderExpenseVouchers()" placeholder="ค้นหาเลขที่เอกสาร, ผู้รับเงิน, หมายเหตุ..." class="w-full md:w-80 bg-gray-50 border border-gray-200 text-xs rounded-xl px-4 py-2.5 focus:ring-brandindigo focus:border-brandindigo">
+                        </div>
+
+                        <!-- Table -->
+                        <div class="overflow-x-auto rounded-2xl border border-gray-100">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-bold">
+                                    <tr>
+                                        <th class="py-3 px-4">เลขที่เอกสาร</th>
+                                        <th class="py-3 px-4">วันที่</th>
+                                        <th class="py-3 px-4">หมวดบัญชี</th>
+                                        <th class="py-3 px-4">ผู้รับเงิน / Payee</th>
+                                        <th class="py-3 px-4 text-right">จำนวนเงิน</th>
+                                        <th class="py-3 px-4">การชำระเงิน</th>
+                                        <th class="py-3 px-4 text-center">สถานะ</th>
+                                        <th class="py-3 px-4 text-center">การกระทำ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="expense-table-body" class="text-sm divide-y divide-gray-100">
+                                    <!-- Rendered dynamically by js/accounting.js -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 📌 ส่วนของสมุดรายวันทั่วไป (General Ledger) -->
+                <div id="section-general-ledger" class="page-section hidden max-w-7xl mx-auto space-y-6">
+                    <div class="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100">
+                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                            <div>
+                                <h3 class="text-xl font-extrabold text-gray-900 flex items-center">
+                                    <i class="fa-solid fa-book-open text-brandindigo mr-3"></i> สมุดรายวันทั่วไป (General Ledger)
+                                </h3>
+                                <p class="text-xs text-gray-500 mt-1">บันทึกรายการเดบิตและเครดิตคู่บัญชี (Double-Entry Journal Vouchers)</p>
+                            </div>
+                            <button onclick="openAddJournalModal()" class="bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-plus"></i> เพิ่มรายการสมุดรายวัน (JV)
+                            </button>
+                        </div>
+
+                        <div class="mb-6">
+                            <input type="text" id="gl-search-input" oninput="renderGeneralLedger()" placeholder="ค้นหาเลขที่ JV, คำอธิบาย, เลขที่อ้างอิง..." class="w-full md:w-80 bg-gray-50 border border-gray-200 text-xs rounded-xl px-4 py-2.5 focus:ring-brandindigo focus:border-brandindigo">
+                        </div>
+
+                        <div class="overflow-x-auto rounded-2xl border border-gray-100">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-bold">
+                                    <tr>
+                                        <th class="py-3 px-4">เลขที่ JV</th>
+                                        <th class="py-3 px-4">วันที่</th>
+                                        <th class="py-3 px-4">คำอธิบายรายการ (Description)</th>
+                                        <th class="py-3 px-4 text-center">แหล่งที่มา</th>
+                                        <th class="py-3 px-4 text-right">ยอดรวม (Debit/Credit)</th>
+                                        <th class="py-3 px-4 text-center">สถานะ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="gl-table-body" class="text-sm">
+                                    <!-- Rendered dynamically by js/accounting.js -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 📌 ส่วนของใบแจ้งหนี้และรายรับ (Invoices & Revenue) -->
+                <div id="section-invoices" class="page-section hidden max-w-7xl mx-auto space-y-6">
+                    <div class="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100">
+                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                            <div>
+                                <h3 class="text-xl font-extrabold text-gray-900 flex items-center">
+                                    <i class="fa-solid fa-file-invoice text-brandindigo mr-3"></i> ใบแจ้งหนี้และรายรับ (Invoices & Revenue)
+                                </h3>
+                                <p class="text-xs text-gray-500 mt-1">สร้างใบแจ้งหนี้ บันทึกรายได้บริษัท และสั่งพิมพ์ใบเสนอราคา/ใบเสร็จ</p>
+                            </div>
+                            <button onclick="openAddInvoiceModal()" class="bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-plus"></i> สร้างใบแจ้งหนี้ใหม่
+                            </button>
+                        </div>
+
+                        <div class="mb-6">
+                            <input type="text" id="invoice-search-input" oninput="renderInvoices()" placeholder="ค้นหาเลขที่ใบแจ้งหนี้, ชื่อลูกค้า..." class="w-full md:w-80 bg-gray-50 border border-gray-200 text-xs rounded-xl px-4 py-2.5 focus:ring-brandindigo focus:border-brandindigo">
+                        </div>
+
+                        <div class="overflow-x-auto rounded-2xl border border-gray-100">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-bold">
+                                    <tr>
+                                        <th class="py-3 px-4">เลขที่ใบแจ้งหนี้</th>
+                                        <th class="py-3 px-4">วันที่ออกเอกสาร</th>
+                                        <th class="py-3 px-4">ชื่อลูกค้า / Customer</th>
+                                        <th class="py-3 px-4 text-right">ยอดก่อนภาษี</th>
+                                        <th class="py-3 px-4 text-right">ภาษี VAT</th>
+                                        <th class="py-3 px-4 text-right">ยอดรวมทั้งสิ้น</th>
+                                        <th class="py-3 px-4 text-center">สถานะ</th>
+                                        <th class="py-3 px-4 text-center">การกระทำ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="invoice-table-body" class="text-sm divide-y divide-gray-100">
+                                    <!-- Rendered dynamically by js/accounting.js -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 📌 ส่วนของรายงานทางการเงิน (Financial Reports & Statements) -->
+                <div id="section-financial-reports" class="page-section hidden max-w-7xl mx-auto space-y-6">
+                    <div class="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100">
+                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                            <div>
+                                <h3 class="text-xl font-extrabold text-gray-900 flex items-center">
+                                    <i class="fa-solid fa-chart-line text-brandindigo mr-3"></i> รายงานทางการเงิน (Financial Reports)
+                                </h3>
+                                <p class="text-xs text-gray-500 mt-1">สรุปงบกำไรขาดทุน, งบทดลอง และงบฐานะการเงินแบบ Real-time</p>
+                            </div>
+                        </div>
+
+                        <!-- Report Tabs Switcher -->
+                        <div class="flex flex-wrap gap-2 mb-6 bg-gray-50 p-2 rounded-2xl border border-gray-100">
+                            <button onclick="switchFinancialReportTab('PNL')" data-tab="PNL" class="report-tab-btn px-5 py-2.5 rounded-xl text-xs font-bold transition-all bg-brandindigo text-white shadow-sm">
+                                <i class="fas fa-chart-pie mr-1.5"></i> งบกำไรขาดทุน (P&L)
+                            </button>
+                            <button onclick="switchFinancialReportTab('TRIAL')" data-tab="TRIAL" class="report-tab-btn px-5 py-2.5 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">
+                                <i class="fas fa-table-columns mr-1.5"></i> งบทดลอง (Trial Balance)
+                            </button>
+                            <button onclick="switchFinancialReportTab('BALANCE')" data-tab="BALANCE" class="report-tab-btn px-5 py-2.5 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">
+                                <i class="fas fa-scale-balanced mr-1.5"></i> งบดุล (Balance Sheet)
+                            </button>
+                        </div>
+
+                        <!-- Dynamic Report Container -->
+                        <div id="financial-report-content">
+                            <!-- Rendered dynamically by js/accounting.js -->
                         </div>
                     </div>
                 </div>
@@ -2866,6 +3485,11 @@
 
             <!-- Close & Print buttons -->
             <div class="absolute top-4 right-4 flex items-center gap-2 print-hide">
+                <button onclick="downloadBillPDF()"
+                    class="text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 rounded-full p-2.5 w-10 h-10 flex items-center justify-center transition-colors shadow-sm"
+                    title="ดาวน์โหลด PDF (Download PDF)">
+                    <i class="fa-solid fa-file-pdf text-base"></i>
+                </button>
                 <button onclick="printBill()"
                     class="text-brandindigo hover:text-white bg-indigo-50 hover:bg-brandindigo rounded-full p-2.5 w-10 h-10 flex items-center justify-center transition-colors shadow-sm"
                     title="พิมพ์บิล (Print)">
@@ -2899,7 +3523,7 @@
                         </div>
                         <div class="text-right">
                             <span
-                                class="inline-block px-3 py-1 bg-amber-50 border border-amber-100 text-amber-600 text-[10px] font-bold rounded-full uppercase tracking-wider"
+                                class="inline-block px-3 py-1 bg-amber-50 border border-amber-100 text-amber-600 text-[10px] font-bold rounded-full uppercase tracking-wider shadow-sm"
                                 id="bill-modal-status">Pending</span>
                         </div>
                     </div>
@@ -2960,7 +3584,7 @@
                         </div>
                         <div class="flex justify-between font-medium text-gray-500">
                             <span>ภาษีมูลค่าเพิ่ม / Tax (0%):</span>
-                            <span>0.00 บาท</span>
+                            <span id="bill-modal-tax" class="font-bold text-gray-500">0.00 บาท</span>
                         </div>
                         <div
                             class="flex justify-between border-t border-gray-100 pt-3 text-base font-black text-gray-900">
@@ -2970,21 +3594,90 @@
                     </div>
                 </div>
 
-                <!-- Invoice Signature Lines -->
-                <div
-                    class="mt-8 grid grid-cols-2 gap-8 text-center text-xs font-bold text-gray-500 pt-8 border-t border-gray-100">
+                <!-- Invoice Signature Lines (3 ช่อง: ผู้เสนอขอ -> หัวหน้าแผนก -> ผู้อนุมัติขั้นสุดท้าย) -->
+                <div class="mt-8 grid grid-cols-3 gap-4 text-center text-xs font-bold text-gray-500 pt-8 border-t border-gray-100">
                     <div>
-                        <div class="h-16 flex items-end justify-center border-b border-gray-200 pb-1 max-w-[200px] mx-auto text-gray-900 font-bold text-sm italic"
+                        <div class="h-16 flex items-end justify-center border-b border-gray-200 pb-1 max-w-[180px] mx-auto text-gray-900 font-bold text-xs md:text-sm italic"
                             id="bill-modal-sign-requester">-</div>
-                        <p class="mt-2">ลงชื่อผู้ขออนุมัติ / Requestor</p>
+                        <p class="mt-2 text-[11px]">1. ผู้เสนอขอ / Requestor</p>
                     </div>
                     <div>
-                        <div class="h-16 flex items-end justify-center border-b border-gray-200 pb-1 max-w-[200px] mx-auto text-gray-900 font-bold text-sm"
+                        <div class="h-16 flex items-end justify-center border-b border-gray-200 pb-1 max-w-[180px] mx-auto text-xs md:text-sm transition-colors duration-300"
+                            id="bill-modal-sign-depthead">-</div>
+                        <p class="mt-2 text-[11px]">2. หัวหน้าแผนก / Dept Head</p>
+                    </div>
+                    <div>
+                        <div class="h-16 flex items-end justify-center border-b border-gray-200 pb-1 max-w-[180px] mx-auto text-xs md:text-sm transition-colors duration-300"
                             id="bill-modal-sign-approver">-</div>
-                        <p class="mt-2">ลงชื่อผู้อนุมัติ / Approver</p>
+                        <p class="mt-2 text-[11px]">3. ผู้อนุมัติ / Final Approver</p>
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- 📌 Modal ลงนามอนุมัติบนใบเสนอของบประมาณ (Direct Bill Approval Modal) -->
+    <div id="direct-approval-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-fade-in-up border border-gray-100">
+            <div class="bg-gradient-to-r from-brandindigo to-brandpurple p-5 text-white flex justify-between items-center">
+                <h3 class="font-bold text-base flex items-center gap-2">
+                    <i class="fa-solid fa-pen-nib"></i> ลงนามอนุมัติเอกสาร (Sign & Approve)
+                </h3>
+                <button type="button" onclick="closeDirectApprovalModal()" class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-7 h-7 flex items-center justify-center">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </div>
+            <form onsubmit="submitDirectBillApproval(event)" class="p-6 space-y-3.5">
+                <input type="hidden" id="direct-approve-target-slot" value="">
+                
+                <!-- Signature Canvas Pad (สำหรับจอสัมผัส/มือถือ/เมาส์) -->
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block text-xs font-bold text-gray-700">วาดลายเซ็น (สำหรับจอสัมผัส/มือถือ) หรือข้ามได้</label>
+                        <button type="button" onclick="clearSignatureCanvas()" class="text-[11px] font-bold text-rose-500 hover:text-rose-700 flex items-center gap-1">
+                            <i class="fa-solid fa-eraser"></i> ล้างลายเซ็น
+                        </button>
+                    </div>
+                    <div class="border-2 border-dashed border-gray-200 hover:border-brandindigo rounded-2xl bg-gray-50/50 p-1 transition-colors relative">
+                        <canvas id="signature-pad-canvas" width="380" height="150" class="w-full h-36 bg-white rounded-xl touch-none cursor-crosshair shadow-inner"></canvas>
+                        <div id="signature-pad-placeholder" class="absolute inset-0 flex items-center justify-center pointer-events-none text-gray-300 text-xs font-semibold">
+                            <i class="fa-solid fa-signature mr-1.5"></i> เซ็นชื่อตรงนี้ด้วยนิ้วมือหรือเมาส์
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">ชื่อ-นามสกุล ผู้อนุมัติ / Approver Name *</label>
+                    <input type="text" id="direct-approve-name" required placeholder="เช่น p.bouala" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm font-semibold focus:ring-brandindigo focus:border-brandindigo">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">ตำแหน่ง / Role *</label>
+                    <select id="direct-approve-role" required class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs font-bold focus:ring-brandindigo focus:border-brandindigo">
+                        <option value="Dept Head">Dept Head (หัวหน้าแผนก)</option>
+                        <option value="HR Manager">HR Manager (ผู้จัดการ)</option>
+                        <option value="HR Admin">HR Admin (ผู้บริหาร)</option>
+                        <option value="CEO">CEO (ประธานบริหาร)</option>
+                        <option value="COO">COO (ประธานปฏิบัติการ)</option>
+                        <option value="CFO">CFO (ประธานการเงิน)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">คำตัดสิน / Action *</label>
+                    <select id="direct-approve-action" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs font-bold focus:ring-brandindigo focus:border-brandindigo">
+                        <option value="Approve">✓ อนุมัติเอกสาร (Approve)</option>
+                        <option value="Reject">✗ ปฏิเสธ / ไม่อนุมัติ (Reject)</option>
+                    </select>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-3 border-t border-gray-100">
+                    <button type="button" onclick="closeDirectApprovalModal()" class="px-4 py-2 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50">ยกเลิก</button>
+                    <button type="submit" id="direct-approve-submit-btn" class="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg flex items-center gap-1.5">
+                        <i class="fa-solid fa-check"></i> ยืนยันลงนามอนุมัติ
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -3311,6 +4004,252 @@
         </div>
     </div>
 
+    <!-- 📌 Modal เพิ่มผังบัญชีใหม่ -->
+    <div id="modal-add-account" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in-up">
+            <div class="bg-gradient-to-r from-brandindigo to-brandpurple p-6 text-white flex justify-between items-center">
+                <h3 class="font-bold text-lg"><i class="fa-solid fa-book-bookmark mr-2"></i> เพิ่มผังบัญชีใหม่</h3>
+                <button onclick="closeAddAccountModal()" class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </div>
+            <form id="add-account-form" onsubmit="saveAccount(event)" class="p-6 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">รหัสบัญชี (Account Code) *</label>
+                        <input type="text" id="new-acc-code" required placeholder="เช่น 5006" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">หมวดหมู่บัญชี *</label>
+                        <select id="new-acc-category" required class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
+                            <option value="Asset">1. สินทรัพย์ (Asset)</option>
+                            <option value="Liability">2. หนี้สิน (Liability)</option>
+                            <option value="Equity">3. ทุน (Equity)</option>
+                            <option value="Revenue">4. รายได้ (Revenue)</option>
+                            <option value="Expense" selected>5. ค่าใช้จ่าย (Expense)</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">ชื่อบัญชี (ภาษาไทย) *</label>
+                    <input type="text" id="new-acc-name-th" required placeholder="เช่น ค่าการตลาดและโฆษณา" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Account Name (English)</label>
+                    <input type="text" id="new-acc-name-en" placeholder="e.g. Marketing & Advertising Expense" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">คำอธิบายรายละเอียด</label>
+                    <textarea id="new-acc-desc" rows="2" placeholder="รายละเอียดเพิ่มเติมของบัญชี..." class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo"></textarea>
+                </div>
+                <div class="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                    <button type="button" onclick="closeAddAccountModal()" class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50">ยกเลิก</button>
+                    <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-brandindigo to-brandpurple text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg">บันทึกผังบัญชี</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 📌 Modal สร้างใบสำคัญจ่าย / บันทึกค่าใช้จ่าย -->
+    <div id="modal-add-expense" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-fade-in-up">
+            <div class="bg-gradient-to-r from-brandindigo to-brandpurple p-6 text-white flex justify-between items-center">
+                <h3 class="font-bold text-lg"><i class="fa-solid fa-receipt mr-2"></i> สร้างใบสำคัญจ่าย / บันทึกค่าใช้จ่าย</h3>
+                <button onclick="closeAddExpenseModal()" class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </div>
+            <form id="add-expense-form" onsubmit="saveExpenseVoucher(event)" class="p-6 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">เลขที่เอกสาร *</label>
+                        <input type="text" id="new-exp-voucher-no" required class="w-full bg-gray-100 font-mono font-bold border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">วันที่รายการ *</label>
+                        <input type="date" id="new-exp-date" required class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">ดึงข้อมูลจากใบขออนุมัติงบประมาณ (Optional)</label>
+                    <select id="new-exp-budget-id" onchange="onBudgetSelectChange()" class="w-full bg-indigo-50/50 border border-indigo-200 text-brandindigo font-medium rounded-xl p-2.5 text-sm focus:ring-brandindigo">
+                        <option value="">-- ไม่เชื่อมโยง (จ่ายตรง) --</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">บัญชีตัดจ่าย *</label>
+                        <select id="new-exp-account-id" required class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">ช่องทางชำระเงิน *</label>
+                        <select id="new-exp-method" required class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
+                            <option value="Cash">เงินสด (Cash)</option>
+                            <option value="Bank Transfer">โอนเงินผ่านธนาคาร (Bank Transfer)</option>
+                            <option value="Petty Cash">เงินสดย่อย (Petty Cash)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">ผู้รับเงิน / Payee *</label>
+                        <input type="text" id="new-exp-payee" required placeholder="เช่น นายสมชาย หรือ ชื่อบริษัทร้านค้า" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">จำนวนเงิน *</label>
+                        <input type="number" step="0.01" id="new-exp-amount" required placeholder="0.00" class="w-full bg-gray-50 border border-gray-200 text-gray-900 font-bold rounded-xl p-2.5 text-sm focus:ring-brandindigo">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">หมายเหตุ / รายละเอียด</label>
+                    <textarea id="new-exp-remark" rows="2" placeholder="วัตถุประสงค์การตั้งจ่าย หรือรายละเอียดใบเสร็จ..." class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo"></textarea>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                    <button type="button" onclick="closeAddExpenseModal()" class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50">ยกเลิก</button>
+                    <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-brandindigo to-brandpurple text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg">บันทึกใบสำคัญจ่าย</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 📌 Modal สร้างรายการสมุดรายวันทั่วไป (Journal Voucher) -->
+    <div id="modal-add-journal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-fade-in-up">
+            <div class="bg-gradient-to-r from-brandindigo to-brandpurple p-6 text-white flex justify-between items-center">
+                <h3 class="font-bold text-lg"><i class="fa-solid fa-book-open mr-2"></i> เพิ่มรายการสมุดรายวันทั่วไป (Journal Voucher)</h3>
+                <button onclick="closeAddJournalModal()" class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </div>
+            <form id="add-journal-form" onsubmit="saveJournalEntry(event)" class="p-6 space-y-4">
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">เลขที่ JV *</label>
+                        <input type="text" id="new-jv-number" required class="w-full bg-gray-100 font-mono font-bold border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">วันที่ *</label>
+                        <input type="date" id="new-jv-date" required class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">เลขที่อ้างอิง (Ref No)</label>
+                        <input type="text" id="new-jv-ref" placeholder="เช่น PO-001" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">คำอธิบายรายการ *</label>
+                    <input type="text" id="new-jv-desc" required placeholder="เช่น บันทึกรายการตั้งหนี้ค่าน้ำมันรถบริษัท" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm">
+                </div>
+
+                <!-- Journal Entry Items Rows -->
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-xs font-bold text-gray-700">รายการคู่บัญชี (Debit / Credit Rows) *</label>
+                        <button type="button" onclick="addJournalRow()" class="text-xs font-bold text-brandindigo hover:text-indigo-800">
+                            <i class="fas fa-plus mr-1"></i> เพิ่มบรรทัด
+                        </button>
+                    </div>
+                    <div id="journal-items-container" class="space-y-2 max-h-56 overflow-y-auto pr-1 custom-scrollbar">
+                        <!-- Dynamic rows -->
+                    </div>
+                </div>
+
+                <!-- Balance Summary Footer -->
+                <div class="bg-indigo-50/60 p-4 rounded-2xl border border-indigo-100 flex justify-between items-center text-xs">
+                    <div class="space-x-4">
+                        <span>Total Debit: <strong id="jv-total-debit" class="font-mono text-sm text-indigo-950">0.00</strong></span>
+                        <span>Total Credit: <strong id="jv-total-credit" class="font-mono text-sm text-indigo-950">0.00</strong></span>
+                    </div>
+                    <div id="jv-total-diff" class="font-bold text-rose-600">
+                        ⚠️ ไม่สมดุลกัน
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                    <button type="button" onclick="closeAddJournalModal()" class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50">ยกเลิก</button>
+                    <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-brandindigo to-brandpurple text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg">บันทึกรายการ JV</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 📌 Modal สร้างใบแจ้งหนี้ (Invoice Modal) -->
+    <div id="modal-add-invoice" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-fade-in-up">
+            <div class="bg-gradient-to-r from-brandindigo to-brandpurple p-6 text-white flex justify-between items-center">
+                <h3 class="font-bold text-lg"><i class="fa-solid fa-file-invoice mr-2"></i> สร้างใบแจ้งหนี้ใหม่ (Invoice)</h3>
+                <button onclick="closeAddInvoiceModal()" class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </div>
+            <form id="add-invoice-form" onsubmit="saveInvoice(event)" class="p-6 space-y-4">
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">เลขที่ใบแจ้งหนี้ *</label>
+                        <input type="text" id="new-inv-number" required class="w-full bg-gray-100 font-mono font-bold border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">วันที่ออก *</label>
+                        <input type="date" id="new-inv-date" required class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">ครบกำหนด</label>
+                        <input type="date" id="new-inv-due-date" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">ชื่อลูกค้า / บริษัท *</label>
+                        <input type="text" id="new-inv-customer" required placeholder="เช่น บริษัท เออบานี่ จำกัด" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">เลขประจำตัวผู้เสียภาษี</label>
+                        <input type="text" id="new-inv-tax-id" placeholder="13 หลัก" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">ยอดก่อนภาษี *</label>
+                        <input type="number" step="0.01" id="new-inv-subtotal" required oninput="calculateInvoiceTotals()" placeholder="0.00" class="w-full bg-gray-50 border border-gray-200 text-gray-900 font-bold rounded-xl p-2.5 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">อัตรา VAT (%)</label>
+                        <input type="number" step="0.1" id="new-inv-vat-rate" value="7.0" oninput="calculateInvoiceTotals()" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">ภาษี VAT (บาท)</label>
+                        <input type="text" id="new-inv-vat-amount" readonly value="0.00" class="w-full bg-gray-100 border border-gray-200 text-gray-700 font-mono font-bold rounded-xl p-2.5 text-sm">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">ยอดรวมทั้งสิ้น (Grand Total)</label>
+                    <input type="text" id="new-inv-grand-total" readonly value="0.00" class="w-full bg-emerald-50 border border-emerald-200 text-emerald-800 font-mono font-black rounded-xl p-3 text-lg">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">รายละเอียด / หมายเหตุ</label>
+                    <textarea id="new-inv-remark" rows="2" placeholder="รายละเอียดรายการสินค้าหรือบริการ..." class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm"></textarea>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                    <button type="button" onclick="closeAddInvoiceModal()" class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50">ยกเลิก</button>
+                    <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-brandindigo to-brandpurple text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg">สร้างใบแจ้งหนี้</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- 📌 Script หลัก (แบ่งย่อยเพื่อประสิทธิภาพและความปลอดภัย) -->
     <script src="js/i18n.js"></script>
     <script src="js/utils.js"></script>
@@ -3323,6 +4262,7 @@
     <script src="js/tables.js"></script>
     <script src="js/forms.js"></script>
     <script src="js/features.js"></script>
+    <script src="js/accounting.js"></script>
 
 </body>
 
