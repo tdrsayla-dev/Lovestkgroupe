@@ -332,17 +332,29 @@ function hideSuccessModal() {
 }
 
 function getRecordId(row) {
-    if (!row) return null;
+    if (!row || typeof row !== 'object') return null;
     if (row.__db_id) return row.__db_id;
-    const sName = String(currentSheet).toLowerCase().trim();
+    const sName = String(currentSheet || '').toLowerCase().trim();
+
+    if (sName.includes('budget')) {
+        return row.Id_Budget || row.id_budget || row.budget_id || row.Id || row.id || null;
+    }
+    if (sName.includes('leave')) {
+        return row.Id_Leave || row.id_leave || row.leave_id || row.Id || row.id || null;
+    }
+    if (sName === 'staff') {
+        return row.Employee_ID || row.employee_id || row.emp_id || row.id || null;
+    }
+    if (sName === 'user') {
+        return row.id || row.ID || row.Employee_ID || row.employee_id || null;
+    }
+
     let targetKeys = ['id'];
-    if (sName.includes('leave')) targetKeys = ['id_leave', 'leave_id', 'id'];
-    else if (sName.includes('log') || sName.includes('attendance')) targetKeys = ['log_id', 'id'];
+    if (sName.includes('log') || sName.includes('attendance')) targetKeys = ['log_id', 'id'];
     else if (sName.includes('asset')) targetKeys = ['asset_id', 'id'];
     else if (sName.includes('training')) targetKeys = ['course_id', 'id'];
     else if (sName.includes('department')) targetKeys = ['department_id', 'id'];
     else if (sName.includes('organization')) targetKeys = ['organization id', 'organization_id', 'id'];
-    else if (sName === 'staff' || sName === 'user') targetKeys = ['employee_id', 'emp_id', 'id'];
     else if (sName.includes('ranting') || sName.includes('rating')) targetKeys = ['ranting_id', 'rating_id', 'id'];
     else if (sName.includes('budget')) targetKeys = ['id_budget', 'budget_id', 'id'];
     else targetKeys = ['id_leave', 'leave_id', 'log_id', 'asset_id', 'course_id', 'department_id', 'employee_id', 'emp_id', 'ranting_id', 'rating_id', 'id_budget', 'budget_id', 'id'];

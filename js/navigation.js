@@ -49,7 +49,12 @@ function navigate(pageId, title, sheetName = '') {
             'Orientation': 'menu_orientation',
             'Policy': 'menu_policy',
             'Users': 'menu_users',
-            'ตั้งค่าหน้าเว็บหลัก': 'menu_web_settings'
+            'ตั้งค่าหน้าเว็บหลัก': 'menu_web_settings',
+            'Chart of Accounts': 'menu_chart_of_accounts',
+            'Expense Vouchers': 'menu_expense_vouchers',
+            'General Ledger': 'menu_general_ledger',
+            'Invoices & Revenue': 'menu_invoices',
+            'Financial Reports': 'menu_financial_reports'
         };
         const key = titleToKey[title] || title;
         const titleEl = document.getElementById('page-title');
@@ -98,6 +103,11 @@ function navigate(pageId, title, sheetName = '') {
         else if (pageId === 'digital-card') { loadDigitalCard(); }
         else if (pageId === 'company-settings') { loadCompanySettings(); }
         else if (pageId === 'staff-dashboard') { loadStaffDashboard(); }
+        else if (pageId === 'chart-of-accounts') { if (typeof loadChartOfAccounts === 'function') loadChartOfAccounts(); }
+        else if (pageId === 'expense-vouchers') { if (typeof loadExpenseVouchers === 'function') loadExpenseVouchers(); }
+        else if (pageId === 'general-ledger') { if (typeof loadGeneralLedger === 'function') loadGeneralLedger(); }
+        else if (pageId === 'invoices') { if (typeof loadInvoices === 'function') loadInvoices(); }
+        else if (pageId === 'financial-reports') { if (typeof loadFinancialReports === 'function') loadFinancialReports(); }
         else if (pageId === 'table') {
             if (sheetName === 'Fingerprint_Logs') {
                 let calMonthInput = document.getElementById('calendarMonth');

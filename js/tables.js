@@ -7,6 +7,16 @@
  * - แสดงตารางข้อมูลพนักงาน, การเข้างาน ฯลฯ และจัดการหน้าแบ่งข้อมูล (Pagination)
  * ===================================================================== */
 function renderTable(data) {
+    let sheetToRender = currentSheet;
+    if (typeof data === 'string') {
+        sheetToRender = data;
+        data = null;
+    }
+
+    if (!Array.isArray(data)) {
+        const cacheObj = tableCache[sheetToRender] || tableCache[currentSheet];
+        data = cacheObj && Array.isArray(cacheObj.data) ? cacheObj.data : [];
+    }
     document.getElementById('table-controls-wrapper').classList.remove('hidden');
     document.getElementById('org-chart-wrapper').classList.add('hidden');
 
@@ -170,7 +180,9 @@ function renderTable(data) {
 
     let validRowsCount = 0;
     let sumLeaveDays = 0;
-    let sumBudgetAmount = 0;
+    let sumBudgetTHB = 0;
+    let sumBudgetLAK = 0;
+    let sumBudgetUSD = 0;
 
     data.forEach(row => {
         const isEmpty = currentHeaders.every(h => !row[h] || String(row[h]).trim() === '');
@@ -184,11 +196,15 @@ function renderTable(data) {
                 }
             }
         }
-        if (currentSheet === 'Budget Request') {
-            for (let k in row) {
-                if (k.toLowerCase().includes('amount')) {
-                    sumBudgetAmount += parseFloat(row[k]) || 0;
-                }
+        if (currentSheet === 'Budget Request' || currentSheet === 'Budget_Requests' || String(currentSheet).toLowerCase().includes('budget')) {
+            const rawAmt = parseFloat(row.Amount || row.amount || 0) || 0;
+            const cur = String(row.currency || row.Currency || 'THB').toUpperCase().trim();
+            if (cur === 'LAK' || cur.includes('กิ๊บ') || cur.includes('กีบ')) {
+                sumBudgetLAK += rawAmt;
+            } else if (cur === 'USD' || cur === '$') {
+                sumBudgetUSD += rawAmt;
+            } else {
+                sumBudgetTHB += rawAmt;
             }
         }
     });
@@ -208,10 +224,26 @@ function renderTable(data) {
     }
 
     const totalAmountSpan = document.getElementById('display-total-amount');
-    if (currentSheet === 'Budget Request') {
+    if (currentSheet === 'Budget Request' || currentSheet === 'Budget_Requests' || String(currentSheet).toLowerCase().includes('budget')) {
         if (totalAmountSpan) {
             totalAmountSpan.classList.remove('hidden');
-            document.getElementById('sum-budget-amount').innerText = new Intl.NumberFormat('th-TH').format(sumBudgetAmount);
+            const parts = [];
+            if (sumBudgetTHB > 0) {
+                parts.push(`${new Intl.NumberFormat('th-TH').format(sumBudgetTHB)} บาท`);
+            }
+            if (sumBudgetLAK > 0) {
+                parts.push(`${new Intl.NumberFormat('th-TH').format(sumBudgetLAK)} ກີບ`);
+            }
+            if (sumBudgetUSD > 0) {
+                parts.push(`$ ${new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2 }).format(sumBudgetUSD)}`);
+            }
+            if (parts.length === 0) {
+                parts.push(`0 บาท`);
+            }
+            const labelEl = document.getElementById('sum-budget-amount');
+            if (labelEl) {
+                labelEl.innerText = parts.join(' | ');
+            }
         }
     } else {
         if (totalAmountSpan) totalAmountSpan.classList.add('hidden');
@@ -776,14 +808,24 @@ function renderTable(data) {
         }
     }
 
-    if (!currentHeaders.length) {
+    let displayHeaders = currentHeaders;
+    if (currentSheet === 'Budget Request' || currentSheet === 'Budget_Requests' || String(currentSheet).toLowerCase().includes('budget')) {
+        const hiddenBudgetFields = [
+            'prefix', 'first_name', 'last_name', 'department_id', 'position_id',
+            'title', 'description', 'dept_head_sign', 'approver_sign',
+            'dept_head_img', 'approver_img', 'currency'
+        ];
+        displayHeaders = currentHeaders.filter(h => !hiddenBudgetFields.includes(String(h).toLowerCase().trim()));
+    }
+
+    if (!displayHeaders.length) {
         let noDataTxt = window.t ? window.t('no_data') : 'NO DATA FOUND';
         tBody.innerHTML = '<tr><td colspan="100%" class="text-center py-12 text-gray-400 font-bold tracking-widest uppercase">' + noDataTxt + '</td></tr>';
         return;
     }
 
     let trHead = '<tr>';
-    currentHeaders.forEach(h => {
+    displayHeaders.forEach(h => {
         const isPhotoColumn = /^(photo|photos|profile|pic|image)$/i.test(String(h).trim());
         let displayH = (currentSheet.toLowerCase() === 'user' && (h.toLowerCase().trim() === 'user name' || h.toLowerCase().trim() === 'username')) ? 'EMAIL' : h;
         let translatedH = window.t ? window.t(displayH) : displayH;
@@ -825,11 +867,11 @@ function renderTable(data) {
     }
 
     data.forEach(row => {
-        const isEmpty = currentHeaders.every(h => !row[h] || String(row[h]).trim() === '');
+        const isEmpty = displayHeaders.every(h => !row[h] || String(row[h]).trim() === '');
         if (isEmpty) return;
 
         let tr = '<tr class="bg-white hover:bg-gray-50 transition-colors">';
-        currentHeaders.forEach(h => {
+        displayHeaders.forEach(h => {
             let val = row[h] || '';
             const lw = h.toLowerCase();
 
@@ -841,43 +883,82 @@ function renderTable(data) {
             }
 
             if (lw.includes('status') || lw === 'signature' || lw.includes('role')) {
-                const isApproved = val !== 'Pending' && val !== 'Rejected' && val !== '' && val !== '-';
-                let color = 'bg-gray-100 text-gray-600 border border-gray-200';
-                let displayText = val || '-';
+                const isBudgetSheet = currentSheet === 'Budget Request' || currentSheet === 'Budget_Requests' || String(currentSheet).toLowerCase().includes('budget');
 
-                if (['active', 'present', 'admin', 'hr', 'เข้างานแล้ว', 'เลิกงานแล้ว'].includes(val.toLowerCase())) { color = 'bg-emerald-50 text-emerald-600 border border-emerald-200'; }
-                else if (['inactive', 'missing out', 'absent', 'rejected', 'ขาดงาน'].includes(val.toLowerCase()) || val === 'Rejected') {
-                    color = 'bg-red-50 text-red-600 border border-red-200'; displayText = val === 'Rejected' ? 'Rejected' : displayText;
-                }
-                else if (['pending', 'staff', 'on leave', 'ยังไม่ถึง'].includes(val.toLowerCase())) {
-                    color = 'bg-amber-50 text-amber-600 border border-amber-200'; displayText = val === 'Pending' ? 'Pending' : displayText;
-                }
-                else if (['วันหยุด'].includes(val.toLowerCase()) || ['on leave', 'ON LEAVE'].includes(val.toUpperCase())) {
-                    color = val.toUpperCase() === 'ON LEAVE' ? 'bg-yellow-50 text-yellow-600 border border-yellow-200' : 'bg-gray-100 text-gray-500 border border-gray-200';
-                }
-                else if (lw === 'signature' && isApproved) {
-                    color = 'bg-emerald-50 text-emerald-600 border border-emerald-200'; displayText = 'Approved (' + val + ')';
-                }
+                if (isBudgetSheet) {
+                    const statusVal = String(val || row.Status || row.status || row.Signature || row.signature || '').trim();
+                    const statusValLower = statusVal.toLowerCase();
+                    const deptSignVal = String(row.dept_head_sign || row.Dept_Head_Sign || '').trim();
+                    const approverSignVal = String(row.approver_sign || row.Approver_Sign || '').trim();
 
-                if ((currentSheet === 'Leave application' || currentSheet === 'Budget Request') && lw === 'signature') {
-                    const rowId = getRecordId(row);
-                    if (role !== 'Staff') {
-                        val = `
-                                <div class="flex items-center space-x-3">
-                                    <span class="px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest ${color}">${displayText}</span>
-                                    <select onchange="changeApprovalStatus('${rowId}', '${h}', this)" class="bg-white border border-gray-300 text-gray-800 text-xs font-bold rounded-lg focus:ring-brandindigo focus:border-brandindigo block py-1.5 px-2 cursor-pointer hover:bg-gray-50 outline-none transition-colors shadow-sm">
-                                        <option value="" disabled selected>Change Status...</option>
-                                        <option value="Pending">Pending</option>
-                                        <option value="HR Manager">Approve (Manager)</option>
-                                        <option value="HR Admin">Approve (Admin)</option>
-                                        <option value="Rejected">Reject</option>
-                                    </select>
-                                </div>`;
+                    const hasDeptHeadSign = !!deptSignVal && !deptSignVal.startsWith('DEPT-');
+                    const hasApproverSign = !!approverSignVal && !approverSignVal.startsWith('DEPT-');
+
+                    let color = 'bg-amber-50 text-amber-600 border border-amber-200';
+                    let displayText = 'รออนุมัติ (Pending)';
+
+                    if (hasApproverSign || statusValLower === 'approved') {
+                        color = 'bg-emerald-500 text-white font-bold shadow-sm';
+                        displayText = 'Approved (อนุมัติแล้ว)';
+                    } else if (hasDeptHeadSign || statusValLower.includes('dept head') || statusValLower.includes('checked')) {
+                        color = 'bg-indigo-50 text-brandindigo border border-indigo-200 font-bold';
+                        displayText = 'Checked (Dept Head)';
+                    } else if (statusValLower.includes('reject')) {
+                        color = 'bg-red-50 text-red-600 border border-red-200 font-bold';
+                        displayText = 'Rejected (ไม่อนุมัติ)';
+                    }
+
+                    val = `<span class="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${color}">${displayText}</span>`;
+                } else {
+                    const isApproved = val !== 'Pending' && val !== 'Rejected' && val !== '' && val !== '-';
+                    let color = 'bg-gray-100 text-gray-600 border border-gray-200';
+                    let displayText = val || '-';
+
+                    if (['active', 'present', 'admin', 'hr', 'เข้างานแล้ว', 'เลิกงานแล้ว'].includes(val.toLowerCase())) { color = 'bg-emerald-50 text-emerald-600 border border-emerald-200'; }
+                    else if (['inactive', 'missing out', 'absent', 'rejected', 'ขาดงาน'].includes(val.toLowerCase()) || val === 'Rejected') {
+                        color = 'bg-red-50 text-red-600 border border-red-200'; displayText = val === 'Rejected' ? 'Rejected' : displayText;
+                    }
+                    else if (['pending', 'staff', 'on leave', 'ยังไม่ถึง'].includes(val.toLowerCase())) {
+                        color = 'bg-amber-50 text-amber-600 border border-amber-200'; displayText = val === 'Pending' ? 'Pending' : displayText;
+                    }
+                    else if (['วันหยุด'].includes(val.toLowerCase()) || ['on leave', 'ON LEAVE'].includes(val.toUpperCase())) {
+                        color = val.toUpperCase() === 'ON LEAVE' ? 'bg-yellow-50 text-yellow-600 border border-yellow-200' : 'bg-gray-100 text-gray-500 border border-gray-200';
+                    }
+                    else if (lw === 'signature' && isApproved) {
+                        let displayRole = val;
+                        if (val === 'Dept Head') displayRole = 'Dept Head (หัวหน้าแผนก)';
+                        else if (val === 'HR Manager') displayRole = 'HR Manager (ผู้จัดการ)';
+                        else if (val === 'HR Admin') displayRole = 'HR Admin (ผู้บริหาร)';
+                        else if (val === 'CEO') displayRole = 'CEO';
+                        else if (val === 'COO') displayRole = 'COO';
+                        else if (val === 'CFO') displayRole = 'CFO';
+                        color = 'bg-emerald-50 text-emerald-600 border border-emerald-200'; displayText = 'Approved (' + displayRole + ')';
+                    }
+
+                    if (currentSheet === 'Leave application' && lw === 'signature') {
+                        const rowId = getRecordId(row);
+                        if (role !== 'Staff') {
+                            val = `
+                                    <div class="flex items-center space-x-3">
+                                        <span class="px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest ${color}">${displayText}</span>
+                                        <select onchange="changeApprovalStatus('${rowId}', '${h}', this)" class="bg-white border border-gray-300 text-gray-800 text-xs font-bold rounded-lg focus:ring-brandindigo focus:border-brandindigo block py-1.5 px-2 cursor-pointer hover:bg-gray-50 outline-none transition-colors shadow-sm">
+                                            <option value="" disabled selected>Change Status...</option>
+                                            <option value="Pending">Pending (รออนุมัติ)</option>
+                                            <option value="Dept Head">Approve (Dept Head / หัวหน้าแผนก)</option>
+                                            <option value="HR Manager">Approve (Manager / ผู้จัดการ)</option>
+                                            <option value="HR Admin">Approve (HR Admin / ผู้บริหาร)</option>
+                                            <option value="CEO">Approve (CEO)</option>
+                                            <option value="COO">Approve (COO)</option>
+                                            <option value="CFO">Approve (CFO)</option>
+                                            <option value="Rejected">Reject (ไม่อนุมัติ)</option>
+                                        </select>
+                                    </div>`;
+                        } else {
+                            val = `<span class="px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest ${color}">${displayText}</span>`;
+                        }
                     } else {
                         val = `<span class="px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest ${color}">${displayText}</span>`;
                     }
-                } else {
-                    val = `<span class="px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest ${color}">${displayText}</span>`;
                 }
             }
             if (lw === 'items') {

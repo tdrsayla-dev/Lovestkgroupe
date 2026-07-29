@@ -102,6 +102,10 @@ function getFieldI18nKey(h) {
     if (lw === 'format') return 'format_label';
     if (lw === 'photo' || lw === 'profile' || lw === 'attachment') return 'photo_label';
     if (lw === 'permissions') return 'permissions_label';
+    if (lw === 'title' || lw === 'subject' || lw === 'topic') return 'title_label';
+    if (lw === 'description' || lw === 'desc' || lw === 'details') return 'description_label';
+    if (lw === 'amount' || lw === 'price') return 'amount_label';
+    if (lw.includes('request') && lw.includes('date')) return 'request_date_label';
     return String(h).trim();
 }
 
@@ -129,6 +133,8 @@ function getFieldPlaceholderKey(h) {
     if (lw === 'status') return 'select_status';
     if (lw === 'format') return 'select_format';
     if (lw === 'giveby') return 'select_evaluator';
+    if (lw === 'title' || lw === 'subject' || lw === 'topic') return 'enter_title';
+    if (lw === 'description' || lw === 'desc' || lw === 'details') return 'enter_description';
     return 'enter_details';
 }
 
@@ -502,7 +508,7 @@ function openFormModal(rowDataStr = null) {
     currentHeaders.forEach((h, index) => {
         const lw = h.toLowerCase().trim();
 
-        if (lw === 'signature') return;
+        if (lw === 'signature' || lw === 'dept_head_sign' || lw === 'approver_sign' || lw === 'dept_head_img' || lw === 'approver_img' || lw === 'currency') return;
         if (lw === 'status' && currentSheet.toLowerCase() !== 'staff' && currentSheet.toLowerCase() !== 'training') return;
 
         const val = rowData ? (rowData[h] || '') : '';
@@ -675,9 +681,21 @@ function openFormModal(rowDataStr = null) {
         }
 
         if (lw === 'items') {
+            const currentCurrency = rowData?.Currency || rowData?.currency || 'THB';
             formFields.insertAdjacentHTML('beforeend', `
-                                <div class="col-span-1 sm:col-span-2 bg-indigo-50/20 p-5 rounded-2xl border border-indigo-100/50 mb-4 mt-2">
-                                    <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h}</label>
+                                <div class="col-span-1 sm:col-span-2 bg-indigo-50/30 p-5 rounded-2xl border border-indigo-100 mb-4 mt-2 shadow-sm">
+                                    <div class="flex flex-row justify-between items-center mb-3">
+                                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider">${h}</label>
+                                        <div class="flex items-center gap-2">
+                                            <i class="fa-solid fa-coins text-amber-500 text-xs"></i>
+                                            <label class="text-xs font-bold text-gray-600">สกุลเงิน (Currency):</label>
+                                            <select name="Currency" id="form-currency-select" class="bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl px-3 py-1.5 focus:ring-brandindigo focus:border-brandindigo shadow-sm outline-none cursor-pointer">
+                                                <option value="THB" ${currentCurrency === 'THB' ? 'selected' : ''}>THB (บาท)</option>
+                                                <option value="LAK" ${currentCurrency === 'LAK' ? 'selected' : ''}>LAK (ກີບ / กีบ)</option>
+                                                <option value="USD" ${currentCurrency === 'USD' ? 'selected' : ''}>USD ($ / ดอลลาร์)</option>
+                                            </select>
+                                        </div>
+                                    </div>
                                     <div class="overflow-x-auto w-full mb-3 rounded-xl border border-gray-200 shadow-inner bg-white p-2">
                                         <table class="w-full text-xs text-left text-gray-700 divide-y divide-gray-100 min-w-[500px]">
                                             <thead>
@@ -699,7 +717,7 @@ function openFormModal(rowDataStr = null) {
                                             <i class="fa-solid fa-plus mr-1"></i> เพิ่มรายการ
                                         </button>
                                         <div class="text-right text-xs font-bold text-gray-600">
-                                            ยอดรวมในบิล: <span id="bill-total-price-display" class="text-brandindigo text-sm font-black">0</span> บาท
+                                            ยอดรวมในบิล: <span id="bill-total-price-display" class="text-brandindigo text-sm font-black">0</span>
                                         </div>
                                     </div>
                                     <input type="hidden" id="hidden-bill-items-input" name="${h}" value="">
@@ -1455,12 +1473,34 @@ function executeSaveToSheet(dataObj, currentEditId) {
         dataObj[sigKey] = 'Pending';
     }
 
+    if ((currentSheet === 'Budget Request' || currentSheet === 'Budget_Requests' || String(currentSheet).toLowerCase().includes('budget')) && !currentEditId) {
+        const timestamp = Date.now().toString().slice(-6);
+        const randomCode = Math.random().toString(36).substring(2, 5).toUpperCase();
+        const newBudgetId = `B-${timestamp}-${randomCode}`;
+
+        dataObj['Id_Budget'] = newBudgetId;
+        dataObj['budget_id'] = newBudgetId;
+        dataObj['Signature'] = 'Pending';
+        dataObj['signature'] = 'Pending';
+        dataObj['Status'] = 'Pending';
+        dataObj['status'] = 'Pending';
+        dataObj['dept_head_sign'] = null;
+        dataObj['Dept_Head_Sign'] = null;
+        dataObj['approver_sign'] = null;
+        dataObj['Approver_Sign'] = null;
+        dataObj['dept_head_img'] = null;
+        dataObj['Dept_Head_Img'] = null;
+        dataObj['approver_img'] = null;
+        dataObj['Approver_Img'] = null;
+    }
+
     const businessIdCol = currentHeaders.find(h => {
         const key = h.toLowerCase().trim();
         return key === 'id' || key === 'id_leave' || key === 'leave_id' || key === 'log_id' ||
             key === 'asset_id' || key === 'course_id' || key === 'department_id' ||
             key === 'organization_id' || key === 'orgid' || key === 'category_id' ||
-            key === 'point_id' || key === 'ranting_id' || key === 'rating_id' || key === 'kpi_id';
+            key === 'point_id' || key === 'ranting_id' || key === 'rating_id' || key === 'kpi_id' ||
+            key === 'id_budget' || key === 'budget_id';
     });
     if (businessIdCol && !String(dataObj[businessIdCol] || '').trim()) {
         const isDept = currentSheet.toLowerCase().includes('department');
@@ -1662,24 +1702,101 @@ window.initializeBillEditor = function (jsonStr) {
 
 window.showBillDetailsModal = function (encodedRow) {
     try {
-        const row = JSON.parse(decodeURIComponent(encodedRow));
+        let row = {};
+        if (typeof encodedRow === 'object') {
+            row = encodedRow;
+        } else {
+            row = JSON.parse(decodeURIComponent(encodedRow));
+        }
+
+        // Candidate keys for matching
+        const idCandidates = [
+            row.Id_Budget, row.budget_id, row.id, row.Id, row.__db_id,
+            (row.Employee_ID || row.employee_id) ? ((row.Employee_ID || row.employee_id) + '_' + (row.Request_Date || row.request_date)) : null
+        ].filter(Boolean);
+
+        // 1. Sync latest row data from tableCache if available
+        if (typeof tableCache !== 'undefined' && tableCache['Budget Request'] && Array.isArray(tableCache['Budget Request'].data)) {
+            const cached = tableCache['Budget Request'].data.find(r => {
+                const rIdCandidates = [r.Id_Budget, r.budget_id, r.id, r.Id, r.__db_id, (r.Employee_ID || r.employee_id) ? ((r.Employee_ID || r.employee_id) + '_' + (r.Request_Date || r.request_date)) : null].filter(Boolean);
+                return idCandidates.some(id => rIdCandidates.includes(id));
+            });
+            if (cached) {
+                row = Object.assign({}, row, cached);
+            }
+        }
+
+        // 2. Sync persistent signatures from localStorage across all candidate keys
+        for (let candidateId of idCandidates) {
+            const savedLocalSig = localStorage.getItem('hr_budget_sig_' + candidateId);
+            if (savedLocalSig) {
+                try {
+                    const parsedSig = JSON.parse(savedLocalSig);
+                    if (parsedSig.signature) {
+                        row.Signature = parsedSig.signature;
+                        row.signature = parsedSig.signature;
+                        row.Status = parsedSig.signature;
+                        row.status = parsedSig.signature;
+                    }
+                    if (parsedSig.dept_head_sign) { row.dept_head_sign = parsedSig.dept_head_sign; row.Dept_Head_Sign = parsedSig.dept_head_sign; }
+                    if (parsedSig.approver_sign) { row.approver_sign = parsedSig.approver_sign; row.Approver_Sign = parsedSig.approver_sign; }
+                    if (parsedSig.dept_head_img) { row.dept_head_img = parsedSig.dept_head_img; row.Dept_Head_Img = parsedSig.dept_head_img; }
+                    if (parsedSig.approver_img) { row.approver_img = parsedSig.approver_img; row.Approver_Img = parsedSig.approver_img; }
+                    break;
+                } catch (e) { }
+            }
+        }
 
         document.getElementById('bill-modal-id').innerText = row.Id_Budget || row.budget_id || '-';
         document.getElementById('bill-modal-date').innerText = row.Request_Date || row.request_date || '-';
 
-        const status = row.Signature || row.signature || 'Pending';
-        const isApproved = status.toLowerCase().includes('approve') || (!status.toLowerCase().includes('pending') && !status.toLowerCase().includes('reject') && status !== '-' && status !== '');
+        const status = row.Signature || row.signature || row.Status || row.status || 'Pending';
+        const statusLower = String(status).toLowerCase();
+
+        const deptSignVal = String(row.dept_head_sign || row.Dept_Head_Sign || '').trim();
+        const approverSignVal = String(row.approver_sign || row.Approver_Sign || '').trim();
+
+        const hasDeptHeadSign = !!deptSignVal && !deptSignVal.startsWith('DEPT-');
+        const hasFinalSign = !!approverSignVal && !approverSignVal.startsWith('DEPT-');
+
+        const isFinalApproved = hasFinalSign || statusLower === 'approved' || (statusLower.includes('approve') && !statusLower.includes('dept head') && !statusLower.includes('checked'));
+        const isDeptHeadApproved = hasDeptHeadSign || statusLower.includes('dept head') || statusLower.includes('checked') || isFinalApproved;
+
+        // Currency formatting helper (THB, LAK, USD)
+        const cur = row.currency || row.Currency || 'THB';
+        const selectEl = document.getElementById('bill-modal-currency-select');
+        if (selectEl) selectEl.value = cur;
+
+        function formatMoney(amount) {
+            const num = Number(amount || 0);
+            const formatted = new Intl.NumberFormat('th-TH', {
+                minimumFractionDigits: cur === 'USD' ? 2 : 0,
+                maximumFractionDigits: 2
+            }).format(num);
+
+            if (cur === 'LAK' || cur === 'กิ๊บ' || cur === 'กีบ') {
+                return `${formatted} ກີບ`;
+            } else if (cur === 'USD' || cur === '$') {
+                return `$ ${formatted}`;
+            } else {
+                return `${formatted} บาท`;
+            }
+        }
 
         const statusEl = document.getElementById('bill-modal-status');
         if (statusEl) {
-            statusEl.innerText = status;
-            statusEl.className = 'inline-block px-3 py-1 text-[10px] font-bold rounded-full uppercase tracking-wider';
-            if (isApproved) {
-                statusEl.classList.add('bg-emerald-50', 'border', 'border-emerald-100', 'text-emerald-600');
-            } else if (status.toLowerCase().includes('reject')) {
-                statusEl.classList.add('bg-red-50', 'border', 'border-red-100', 'text-red-600');
+            if (isFinalApproved) {
+                statusEl.innerText = 'APPROVED';
+                statusEl.className = 'inline-block px-3 py-1 bg-emerald-500 text-white text-[10px] font-black rounded-full uppercase tracking-wider shadow-sm';
+            } else if (isDeptHeadApproved) {
+                statusEl.innerText = 'CHECKED (DEPT HEAD)';
+                statusEl.className = 'inline-block px-3 py-1 bg-indigo-50 border border-indigo-100 text-brandindigo text-[10px] font-bold rounded-full uppercase tracking-wider shadow-sm';
+            } else if (statusLower.includes('reject')) {
+                statusEl.innerText = 'REJECTED';
+                statusEl.className = 'inline-block px-3 py-1 bg-red-50 border border-red-100 text-red-600 text-[10px] font-bold rounded-full uppercase tracking-wider shadow-sm';
             } else {
-                statusEl.classList.add('bg-amber-50', 'border', 'border-amber-100', 'text-amber-600');
+                statusEl.innerText = 'PENDING';
+                statusEl.className = 'inline-block px-3 py-1 bg-amber-50 border border-amber-100 text-amber-600 text-[10px] font-bold rounded-full uppercase tracking-wider shadow-sm';
             }
         }
 
@@ -1715,8 +1832,8 @@ window.showBillDetailsModal = function (encodedRow) {
                             <td class="px-4 py-3 text-center text-gray-400 font-bold">${item.no || (idx + 1)}</td>
                             <td class="px-4 py-3 font-semibold text-gray-900">${item.name || '-'}</td>
                             <td class="px-4 py-3 text-center">${item.qty || 0}</td>
-                            <td class="px-4 py-3 text-right">${new Intl.NumberFormat('th-TH').format(item.price || 0)} บาท</td>
-                            <td class="px-4 py-3 text-right font-black text-gray-900">${new Intl.NumberFormat('th-TH').format(item.total || 0)} บาท</td>
+                            <td class="px-4 py-3 text-right">${formatMoney(item.price || 0)}</td>
+                            <td class="px-4 py-3 text-right font-black text-gray-900">${formatMoney(item.total || 0)}</td>
                         `;
                 tbody.appendChild(tr);
                 grandTotal += parseFloat(item.total) || 0;
@@ -1728,40 +1845,83 @@ window.showBillDetailsModal = function (encodedRow) {
                         <td class="px-4 py-3 text-center text-gray-400 font-bold">1</td>
                         <td class="px-4 py-3 font-semibold text-gray-900">${row.Title || row.title || 'ของบประมาณ'}</td>
                         <td class="px-4 py-3 text-center">1</td>
-                        <td class="px-4 py-3 text-right">${new Intl.NumberFormat('th-TH').format(rawAmt)} บาท</td>
-                        <td class="px-4 py-3 text-right font-black text-gray-900">${new Intl.NumberFormat('th-TH').format(rawAmt)} บาท</td>
+                        <td class="px-4 py-3 text-right">${formatMoney(rawAmt)}</td>
+                        <td class="px-4 py-3 text-right font-black text-gray-900">${formatMoney(rawAmt)}</td>
                     `;
             tbody.appendChild(tr);
             grandTotal = rawAmt;
         }
 
-        document.getElementById('bill-modal-subtotal').innerText = new Intl.NumberFormat('th-TH').format(grandTotal) + ' บาท';
+        document.getElementById('bill-modal-subtotal').innerText = formatMoney(grandTotal);
+
+        const taxEl = document.getElementById('bill-modal-tax');
+        if (taxEl) taxEl.innerText = formatMoney(0);
 
         const grandTotalEl = document.getElementById('bill-modal-grandtotal');
         if (grandTotalEl) {
-            grandTotalEl.innerText = new Intl.NumberFormat('th-TH').format(grandTotal) + ' บาท';
+            grandTotalEl.innerText = formatMoney(grandTotal);
             grandTotalEl.className = 'text-lg font-black transition-colors duration-300';
-            if (isApproved) {
+            if (isFinalApproved) {
                 grandTotalEl.classList.add('text-emerald-600');
-            } else if (status.toLowerCase().includes('reject')) {
+            } else if (statusLower.includes('reject')) {
                 grandTotalEl.classList.add('text-red-600');
             } else {
                 grandTotalEl.classList.add('text-brandindigo');
             }
         }
 
+        window._activeBillRow = row;
+
         document.getElementById('bill-modal-sign-requester').innerText = fullName;
 
+        const deptHeadEl = document.getElementById('bill-modal-sign-depthead');
         const approverEl = document.getElementById('bill-modal-sign-approver');
-        if (approverEl) {
-            approverEl.innerText = isApproved ? status : '- ยังไม่ได้รับการอนุมัติ -';
-            approverEl.className = 'h-16 flex items-end justify-center border-b border-gray-200 pb-1 max-w-[200px] mx-auto text-sm transition-colors duration-300';
-            if (isApproved) {
-                approverEl.classList.add('text-emerald-600', 'font-black');
-            } else if (status.toLowerCase().includes('reject')) {
-                approverEl.classList.add('text-red-500', 'font-bold');
+
+        if (deptHeadEl) {
+            deptHeadEl.className = 'h-16 flex flex-col items-center justify-end border-b border-gray-200 pb-1 max-w-[180px] mx-auto text-xs md:text-sm transition-colors duration-300';
+            if (isDeptHeadApproved) {
+                const deptSignName = row.dept_head_sign || row.Dept_Head_Sign || 'Dept Head';
+                const deptImg = row.dept_head_img || row.Dept_Head_Img;
+                if (deptImg && typeof deptImg === 'string' && deptImg.startsWith('data:image/')) {
+                    deptHeadEl.innerHTML = `<img src="${deptImg}" class="h-10 max-h-10 mx-auto object-contain mb-0.5"><span class="text-[9px] text-emerald-600 font-bold uppercase">✓ ${deptSignName}</span>`;
+                } else {
+                    deptHeadEl.innerHTML = `<span class="font-bold text-emerald-600 italic text-sm">✓ ${deptSignName}</span><span class="text-[9px] text-emerald-600 font-bold uppercase block">Approved</span>`;
+                }
             } else {
-                approverEl.classList.add('text-gray-400', 'font-normal');
+                deptHeadEl.innerHTML = `
+                    <button type="button" onclick="openDirectApprovalModal('depthead')" class="print-hide px-2.5 py-1 bg-indigo-50 hover:bg-brandindigo text-brandindigo hover:text-white rounded-lg border border-indigo-200 font-bold text-[11px] transition-all shadow-sm flex items-center gap-1 mb-1">
+                        <i class="fa-solid fa-pen-nib text-[10px]"></i> ลงชื่ออนุมัติ
+                    </button>
+                    <span class="text-[10px] text-gray-400 font-normal">- รอการตรวจทาน -</span>`;
+            }
+        }
+
+        if (approverEl) {
+            approverEl.className = 'h-16 flex flex-col items-center justify-end border-b border-gray-200 pb-1 max-w-[180px] mx-auto text-xs md:text-sm transition-colors duration-300';
+            if (isFinalApproved) {
+                const finalSignName = row.approver_sign || row.Approver_Sign || status;
+                const finalImg = row.approver_img || row.Approver_Img;
+                if (finalImg && typeof finalImg === 'string' && finalImg.startsWith('data:image/')) {
+                    approverEl.innerHTML = `<img src="${finalImg}" class="h-10 max-h-10 mx-auto object-contain mb-0.5"><span class="text-[9px] text-emerald-600 font-bold uppercase">✓ ${finalSignName}</span>`;
+                } else {
+                    approverEl.innerHTML = `<span class="font-black text-emerald-600 italic text-sm">✓ ${finalSignName}</span><span class="text-[9px] text-emerald-600 font-bold uppercase block">Approved</span>`;
+                }
+            } else if (statusLower.includes('reject')) {
+                approverEl.innerHTML = `<span class="font-bold text-red-500 italic">✗ ไม่อนุมัติ (${status})</span>`;
+            } else if (isDeptHeadApproved) {
+                // UNLOCKED: Dept head has approved, now Final Approver (HR/CEO/COO/CFO) can approve
+                approverEl.innerHTML = `
+                    <button type="button" onclick="openDirectApprovalModal('approver')" class="print-hide px-2.5 py-1 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-lg border border-emerald-200 font-bold text-[11px] transition-all shadow-sm flex items-center gap-1 mb-1 animate-pulse">
+                        <i class="fa-solid fa-signature text-[10px]"></i> ลงชื่ออนุมัติ
+                    </button>
+                    <span class="text-[10px] text-gray-400 font-normal">- รออนุมัติขั้นสุดท้าย -</span>`;
+            } else {
+                // LOCKED: Dept Head must approve first!
+                approverEl.innerHTML = `
+                    <button type="button" disabled class="print-hide px-2.5 py-1 bg-gray-100 text-gray-400 rounded-lg border border-gray-200 font-bold text-[11px] cursor-not-allowed opacity-60 flex items-center gap-1 mb-1" title="ต้องผ่านการอนุมัติจากหัวหน้าแผนกก่อน">
+                        <i class="fa-solid fa-lock text-[10px]"></i> รอหัวหน้าแผนกก่อน
+                    </button>
+                    <span class="text-[10px] text-amber-500 font-medium">🔒 ต้องรอหัวหน้าแผนกก่อน</span>`;
             }
         }
 
@@ -1795,3 +1955,344 @@ window.closeBillModal = function () {
 window.printBill = function () {
     window.print();
 };
+
+window.downloadBillPDF = function () {
+    const element = document.getElementById('bill-print-area');
+    if (!element) {
+        alert('ไม่พบข้อมูลเอกสารสำหรับดาวน์โหลด PDF');
+        return;
+    }
+
+    const rawId = document.getElementById('bill-modal-id')?.innerText || 'Invoice';
+    const cleanId = rawId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    
+    // Check if html2pdf is available
+    if (typeof html2pdf !== 'function') {
+        alert('ระบบสร้าง PDF กำลังโหลด กรุณาลองใหม่อีกครั้ง');
+        return;
+    }
+
+    const opt = {
+        margin: [10, 10, 10, 10],
+        filename: `Bill_Invoice_${cleanId}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().set(opt).from(element).save().catch(err => {
+        console.error('PDF Generation Error:', err);
+        alert('เกิดข้อผิดพลาดในการสร้างไฟล์ PDF: ' + err.message);
+    });
+};
+
+// ── ระบบลงนามอนุมัติโดยตรงบนหน้าบิล + วาดลายเซ็น (Direct Bill Approval System & Signature Pad) ──
+let isSignatureDrawing = false;
+let canvasHasSignature = false;
+
+window.initSignatureCanvas = function () {
+    const canvas = document.getElementById('signature-pad-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    // High-DPI Scaling (4x HD Canvas for maximum sharpness & zero pixelation)
+    const dpr = Math.max(window.devicePixelRatio || 1, 3);
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+    }
+
+    ctx.lineWidth = 2.8;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#0f172a'; // Deep slate fountain pen ink
+    ctx.shadowColor = 'rgba(15, 23, 42, 0.15)';
+    ctx.shadowBlur = 0.8;
+
+    let p1 = null;
+    let p2 = null;
+
+    function getPos(e) {
+        const r = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+            x: clientX - r.left,
+            y: clientY - r.top
+        };
+    }
+
+    function startDraw(e) {
+        isSignatureDrawing = true;
+        canvasHasSignature = true;
+        const pos = getPos(e);
+        p1 = pos;
+        p2 = pos;
+
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, ctx.lineWidth / 2, 0, Math.PI * 2);
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.fill();
+
+        const placeholder = document.getElementById('signature-pad-placeholder');
+        if (placeholder) placeholder.style.display = 'none';
+        if (e.cancelable) e.preventDefault();
+    }
+
+    function draw(e) {
+        if (!isSignatureDrawing) return;
+        const pos = getPos(e);
+
+        ctx.beginPath();
+        ctx.moveTo(p2.x, p2.y);
+
+        // Smooth Quadratic Bezier curve between points
+        const midX = (p2.x + pos.x) / 2;
+        const midY = (p2.y + pos.y) / 2;
+        ctx.quadraticCurveTo(p2.x, p2.y, midX, midY);
+        ctx.stroke();
+
+        p1 = p2;
+        p2 = pos;
+        if (e.cancelable) e.preventDefault();
+    }
+
+    function stopDraw(e) {
+        if (isSignatureDrawing && p2) {
+            ctx.beginPath();
+            ctx.moveTo(p1 ? p1.x : p2.x, p1 ? p1.y : p2.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+        }
+        isSignatureDrawing = false;
+        p1 = null;
+        p2 = null;
+    }
+
+    canvas.onmousedown = startDraw;
+    canvas.onmousemove = draw;
+    canvas.onmouseup = stopDraw;
+    canvas.onmouseleave = stopDraw;
+
+    canvas.ontouchstart = startDraw;
+    canvas.ontouchmove = draw;
+    canvas.ontouchend = stopDraw;
+};
+
+window.clearSignatureCanvas = function () {
+    const canvas = document.getElementById('signature-pad-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    canvasHasSignature = false;
+    const placeholder = document.getElementById('signature-pad-placeholder');
+    if (placeholder) placeholder.style.display = 'flex';
+};
+
+window.openDirectApprovalModal = function (targetSlot) {
+    const activeRow = window._activeBillRow;
+    if (!activeRow) return;
+
+    const slotInput = document.getElementById('direct-approve-target-slot');
+    if (slotInput) slotInput.value = targetSlot;
+
+    const session = typeof getSessionToken === 'function' ? getSessionToken() : null;
+    const defaultName = localStorage.getItem('hr_user_name') || session?.username || '';
+
+    const nameInput = document.getElementById('direct-approve-name');
+    if (nameInput) nameInput.value = defaultName;
+
+    const roleSelect = document.getElementById('direct-approve-role');
+    if (roleSelect) {
+        if (targetSlot === 'depthead') roleSelect.value = 'Dept Head';
+        else roleSelect.value = 'HR Manager';
+    }
+
+    const modal = document.getElementById('direct-approval-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        // Initialize canvas after modal becomes visible
+        setTimeout(() => {
+            clearSignatureCanvas();
+            initSignatureCanvas();
+        }, 100);
+    }
+};
+
+window.closeDirectApprovalModal = function () {
+    const modal = document.getElementById('direct-approval-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+};
+
+window.submitDirectBillApproval = async function (e) {
+    e.preventDefault();
+    const activeRow = window._activeBillRow;
+    if (!activeRow) return;
+
+    const slot = document.getElementById('direct-approve-target-slot')?.value || 'approver';
+    const role = document.getElementById('direct-approve-role')?.value || 'HR Manager';
+    const name = document.getElementById('direct-approve-name')?.value.trim() || 'Approver';
+    const action = document.getElementById('direct-approve-action')?.value || 'Approve';
+
+    // Capture signature canvas drawing if present
+    let signatureImgData = null;
+    if (canvasHasSignature) {
+        const canvas = document.getElementById('signature-pad-canvas');
+        if (canvas) signatureImgData = canvas.toDataURL('image/png');
+    }
+
+    let newStatus = 'Pending';
+    if (action === 'Reject') {
+        newStatus = 'Rejected';
+    } else if (slot === 'depthead') {
+        newStatus = 'Dept Head Checked';
+    } else {
+        newStatus = 'Approved';
+    }
+
+    const signFormatted = `${name} (${role})`;
+
+    const recordId = activeRow.Id_Budget || activeRow.budget_id || activeRow.id || activeRow.Id;
+    const isDbUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(recordId || ''));
+    const pkKey = isDbUuid ? 'id' : (typeof getKeyForTable === 'function' ? getKeyForTable('budget_requests') : 'budget_id');
+
+    // Update active memory object
+    if (slot === 'depthead') {
+        activeRow.dept_head_sign = signFormatted;
+        activeRow.Dept_Head_Sign = signFormatted;
+        if (signatureImgData) {
+            activeRow.dept_head_img = signatureImgData;
+            activeRow.Dept_Head_Img = signatureImgData;
+        }
+        // If final approver hasn't signed yet, status is Dept Head Checked
+        if (!activeRow.approver_sign && !activeRow.Approver_Sign) {
+            activeRow.Signature = 'Dept Head Checked';
+            activeRow.signature = 'Dept Head Checked';
+            activeRow.Status = 'Dept Head Checked';
+            activeRow.status = 'Dept Head Checked';
+        }
+    } else {
+        activeRow.approver_sign = signFormatted;
+        activeRow.Approver_Sign = signFormatted;
+        if (signatureImgData) {
+            activeRow.approver_img = signatureImgData;
+            activeRow.Approver_Img = signatureImgData;
+        }
+        const finalStatus = action === 'Reject' ? 'Rejected' : 'Approved';
+        activeRow.Signature = finalStatus;
+        activeRow.signature = finalStatus;
+        activeRow.Status = finalStatus;
+        activeRow.status = finalStatus;
+    }
+
+    closeDirectApprovalModal();
+
+    const idCandidates = [
+        recordId, activeRow.Id_Budget, activeRow.budget_id, activeRow.id, activeRow.Id, activeRow.__db_id,
+        (activeRow.Employee_ID || activeRow.employee_id) ? ((activeRow.Employee_ID || activeRow.employee_id) + '_' + (activeRow.Request_Date || activeRow.request_date)) : null
+    ].filter(Boolean);
+
+    // Persistent localStorage fallback save across candidate keys
+    const sigObj = {
+        signature: activeRow.Signature || newStatus,
+        dept_head_sign: activeRow.dept_head_sign || activeRow.Dept_Head_Sign || null,
+        approver_sign: activeRow.approver_sign || activeRow.Approver_Sign || null,
+        dept_head_img: activeRow.dept_head_img || activeRow.Dept_Head_Img || null,
+        approver_img: activeRow.approver_img || activeRow.Approver_Img || null
+    };
+
+    idCandidates.forEach(candId => {
+        localStorage.setItem('hr_budget_sig_' + candId, JSON.stringify(sigObj));
+    });
+
+    // Update in-place in tableCache for instant main table rendering
+    ['Budget Request', 'budget_requests'].forEach(sheetKey => {
+        if (typeof tableCache !== 'undefined' && tableCache[sheetKey] && Array.isArray(tableCache[sheetKey].data)) {
+            tableCache[sheetKey].data.forEach(r => {
+                const rIdCandidates = [r.Id_Budget, r.budget_id, r.id, r.Id, r.__db_id, (r.Employee_ID || r.employee_id) ? ((r.Employee_ID || r.employee_id) + '_' + (r.Request_Date || r.request_date)) : null].filter(Boolean);
+                const isMatch = idCandidates.some(cand => rIdCandidates.includes(cand));
+                if (isMatch) {
+                    r.Signature = activeRow.Signature;
+                    r.signature = activeRow.signature;
+                    r.Status = activeRow.Status;
+                    r.status = activeRow.status;
+                    r.dept_head_sign = activeRow.dept_head_sign;
+                    r.Dept_Head_Sign = activeRow.dept_head_sign;
+                    r.approver_sign = activeRow.approver_sign;
+                    r.Approver_Sign = activeRow.approver_sign;
+                    r.dept_head_img = activeRow.dept_head_img;
+                    r.Dept_Head_Img = activeRow.dept_head_img;
+                    r.approver_img = activeRow.approver_img;
+                    r.Approver_Img = activeRow.approver_img;
+                }
+            });
+        }
+    });
+
+    if (typeof renderTable === 'function') {
+        renderTable('Budget Request');
+    }
+
+    // Re-render bill modal details immediately with updated signatures
+    showBillDetailsModal(encodeURIComponent(JSON.stringify(activeRow)));
+
+    // Update Supabase Database permanently with signatures & images
+    try {
+        const payload = {
+            signature: newStatus
+        };
+        if (activeRow.dept_head_sign || activeRow.Dept_Head_Sign) payload.dept_head_sign = activeRow.dept_head_sign || activeRow.Dept_Head_Sign;
+        if (activeRow.approver_sign || activeRow.Approver_Sign) payload.approver_sign = activeRow.approver_sign || activeRow.Approver_Sign;
+        if (activeRow.dept_head_img || activeRow.Dept_Head_Img) payload.dept_head_img = activeRow.dept_head_img || activeRow.Dept_Head_Img;
+        if (activeRow.approver_img || activeRow.Approver_Img) payload.approver_img = activeRow.approver_img || activeRow.Approver_Img;
+        if (activeRow.currency || activeRow.Currency) payload.currency = activeRow.currency || activeRow.Currency;
+
+        const targetRecordId = activeRow.__db_id || activeRow.budget_id || activeRow.Id_Budget || activeRow.id || activeRow.Id;
+        const bridge = createSupabaseBridge({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY });
+
+        let res = await bridge.updateRow('budget_requests', 'budget_id', targetRecordId, payload);
+        if (res && res.error) {
+            res = await bridge.updateRow('budget_requests', 'id', targetRecordId, payload);
+        }
+        if (res && res.error) {
+            await bridge.updateRow('budget_requests', 'budget_id', targetRecordId, { signature: newStatus });
+        }
+
+        if (typeof fetchData === 'function') {
+            fetchData('Budget Request', true);
+        }
+    } catch (err) {
+        console.warn('Direct approval save warning:', err);
+    }
+};
+
+window.changeBillCurrency = function (newCurrency) {
+    const activeRow = window._activeBillRow;
+    if (!activeRow) return;
+
+    activeRow.currency = newCurrency;
+    activeRow.Currency = newCurrency;
+
+    // Update memory & re-render bill modal
+    showBillDetailsModal(encodeURIComponent(JSON.stringify(activeRow)));
+
+    // Update Supabase Database
+    const recordId = activeRow.Id_Budget || activeRow.budget_id || activeRow.id || activeRow.Id;
+    const isDbUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(recordId || ''));
+    const pkKey = isDbUuid ? 'id' : (typeof getKeyForTable === 'function' ? getKeyForTable('budget_requests') : 'budget_id');
+
+    try {
+        const bridge = createSupabaseBridge({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY });
+        bridge.updateRow('budget_requests', pkKey, recordId, { currency: newCurrency, Currency: newCurrency });
+    } catch (err) {
+        console.warn('Currency save warn:', err);
+    }
+};
+
+
