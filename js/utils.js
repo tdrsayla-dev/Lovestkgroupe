@@ -38,12 +38,49 @@ function isMenuPermissionChecked(menuId, checkedList) {
     const target = norm(menuId);
 
     return checkedList.some(item => {
-        const itemNorm = norm(item);
+        let itemStr = String(item || '').trim();
+        if (itemStr.includes(':')) {
+            itemStr = itemStr.split(':')[0];
+        }
+        const itemNorm = norm(itemStr);
         if (target === itemNorm) return true;
 
+        // Plural / singular & substring handling (e.g. budgetrequest / budgetrequests)
+        if (target.startsWith(itemNorm) || itemNorm.startsWith(target)) return true;
+
         // Alias & typo handling
+        if (target.includes('budget') && itemNorm.includes('budget')) return true;
+        if (target.includes('leave') && itemNorm.includes('leave')) return true;
         if ((target.includes('orientat') || target.includes('orentat')) && (itemNorm.includes('orientat') || itemNorm.includes('orentat'))) return true;
         if ((target.includes('ranting') || target.includes('rating')) && (itemNorm.includes('ranting') || itemNorm.includes('rating'))) return true;
+        if ((target.includes('fingerprint') || target.includes('attendance')) && (itemNorm.includes('fingerprint') || itemNorm.includes('attendance'))) return true;
+        if (target.includes('asset') && itemNorm.includes('asset')) return true;
+
+        return false;
+    });
+}
+
+function hasActionPermission(menuId, action, checkedList) {
+    if (!checkedList || checkedList.length === 0) return false;
+    if (checkedList.includes('all') || checkedList.includes('admin')) return true;
+
+    const norm = (str) => String(str || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+    const targetAction = norm(action);
+
+    return checkedList.some(item => {
+        const itemStr = String(item || '').trim().toLowerCase();
+        if (!itemStr.includes(':')) {
+            return isMenuPermissionChecked(menuId, [itemStr]);
+        }
+        const parts = itemStr.split(':');
+        const itemMenu = parts[0];
+        const itemAct = norm(parts[1]);
+
+        const menuMatches = isMenuPermissionChecked(menuId, [itemMenu]);
+
+        if (menuMatches) {
+            return itemAct === targetAction || itemAct === 'all';
+        }
         return false;
     });
 }

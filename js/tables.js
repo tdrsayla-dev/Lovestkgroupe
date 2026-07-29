@@ -169,7 +169,17 @@ function renderTable(data) {
         summaryDiv.classList.add('hidden');
         if (calSec) calSec.classList.add('hidden');
         if (addDataBtn) {
-            if (role === 'Staff' && currentSheet !== 'Leave application' && currentSheet !== 'Budget_Requests' && currentSheet !== 'Budget Request') {
+            const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+            let userPerms = [];
+            if (sessionStr) {
+                try {
+                    const sessObj = JSON.parse(sessionStr);
+                    if (sessObj && sessObj.permissions) userPerms = parsePermissionsList(sessObj.permissions);
+                } catch (e) {}
+            }
+            const canAdd = role === 'Admin' || (typeof hasActionPermission === 'function' ? hasActionPermission(currentSheet, 'add', userPerms) : (role !== 'Staff' || currentSheet === 'Leave application' || currentSheet.includes('Budget')));
+
+            if (!canAdd) {
                 addDataBtn.classList.add('hidden');
             } else {
                 addDataBtn.classList.remove('hidden');
@@ -1024,11 +1034,23 @@ function renderTable(data) {
         const rowId = getRecordId(row);
         const encodedRow = encodeURIComponent(JSON.stringify(row)).replace(/'/g, "%27");
 
-        if (role !== 'Staff') {
+        const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+        let userPerms = [];
+        if (sessionStr) {
+            try {
+                const sessObj = JSON.parse(sessionStr);
+                if (sessObj && sessObj.permissions) userPerms = parsePermissionsList(sessObj.permissions);
+            } catch (e) {}
+        }
+
+        const canEdit = role === 'Admin' || (typeof hasActionPermission === 'function' ? hasActionPermission(currentSheet, 'edit', userPerms) : (role !== 'Staff'));
+        const canDelete = role === 'Admin' || (typeof hasActionPermission === 'function' ? hasActionPermission(currentSheet, 'delete', userPerms) : (role !== 'Staff'));
+
+        if (canEdit || canDelete) {
             tr += `<td class="px-6 py-5 whitespace-nowrap text-center sticky right-0 bg-white group-hover:bg-gray-50 shadow-[-10px_0_15px_-5px_rgba(0,0,0,0.05)] border-l border-gray-200 print-hide transition-colors">
                         <div class="flex justify-center space-x-2">
-                            <button onclick="openFormModal('${encodedRow}')" class="text-gray-400 hover:text-brandindigo hover:bg-indigo-50 p-2 rounded-xl transition-colors border border-transparent hover:border-indigo-100" title="Edit"><i class="fa-solid fa-pen-to-square"></i></button>
-                            <button onclick="deleteRecord('${rowId}')" class="text-gray-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-xl transition-colors border border-transparent hover:border-red-100" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                            ${canEdit ? `<button onclick="openFormModal('${encodedRow}')" class="text-gray-400 hover:text-brandindigo hover:bg-indigo-50 p-2 rounded-xl transition-colors border border-transparent hover:border-indigo-100" title="Edit"><i class="fa-solid fa-pen-to-square"></i></button>` : ''}
+                            ${canDelete ? `<button onclick="deleteRecord('${rowId}')" class="text-gray-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-xl transition-colors border border-transparent hover:border-red-100" title="Delete"><i class="fa-solid fa-trash"></i></button>` : ''}
                         </div>
                     </td>`;
         }
