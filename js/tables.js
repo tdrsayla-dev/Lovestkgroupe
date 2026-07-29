@@ -967,7 +967,9 @@ function renderTable(data) {
                 try {
                     let decoded = val;
                     if (String(decoded).includes('%')) {
-                        decoded = decodeURIComponent(decoded);
+                        try {
+                            decoded = decodeURIComponent(decoded);
+                        } catch (e) {}
                     }
                     const arr = JSON.parse(decoded || '[]');
                     if (Array.isArray(arr)) count = arr.length;

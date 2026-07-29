@@ -686,14 +686,21 @@ function openFormModal(rowDataStr = null) {
                                 <div class="col-span-1 sm:col-span-2 bg-indigo-50/30 p-5 rounded-2xl border border-indigo-100 mb-4 mt-2 shadow-sm">
                                     <div class="flex flex-row justify-between items-center mb-3">
                                         <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider">${h}</label>
-                                        <div class="flex items-center gap-2">
-                                            <i class="fa-solid fa-coins text-amber-500 text-xs"></i>
-                                            <label class="text-xs font-bold text-gray-600">สกุลเงิน (Currency):</label>
-                                            <select name="Currency" id="form-currency-select" class="bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl px-3 py-1.5 focus:ring-brandindigo focus:border-brandindigo shadow-sm outline-none cursor-pointer">
-                                                <option value="THB" ${currentCurrency === 'THB' ? 'selected' : ''}>THB (บาท)</option>
-                                                <option value="LAK" ${currentCurrency === 'LAK' ? 'selected' : ''}>LAK (ກີບ / กีบ)</option>
-                                                <option value="USD" ${currentCurrency === 'USD' ? 'selected' : ''}>USD ($ / ดอลลาร์)</option>
-                                            </select>
+                                        <div class="flex items-center gap-4">
+                                            <div class="flex items-center gap-2">
+                                                <i class="fa-solid fa-coins text-amber-500 text-xs"></i>
+                                                <label class="text-xs font-bold text-gray-600">สกุลเงิน (Currency):</label>
+                                                <select name="Currency" id="form-currency-select" class="bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl px-3 py-1.5 focus:ring-brandindigo focus:border-brandindigo shadow-sm outline-none cursor-pointer">
+                                                    <option value="THB" ${currentCurrency === 'THB' ? 'selected' : ''}>THB (บาท)</option>
+                                                    <option value="LAK" ${currentCurrency === 'LAK' ? 'selected' : ''}>LAK (ກີບ / กีบ)</option>
+                                                    <option value="USD" ${currentCurrency === 'USD' ? 'selected' : ''}>USD ($ / ดอลลาร์)</option>
+                                                </select>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <i class="fa-solid fa-percent text-indigo-500 text-xs"></i>
+                                                <label class="text-xs font-bold text-gray-600">VAT (%):</label>
+                                                <input type="number" name="vat_percent" id="form-vat-percent-input" onchange="updateBillJsonAndTotal()" oninput="updateBillJsonAndTotal()" class="w-16 bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl px-3 py-1.5 focus:ring-brandindigo focus:border-brandindigo shadow-sm outline-none" value="${rowData?.vat_percent || rowData?.Vat_Percent || rowData?.vat || 0}" min="0" max="100" placeholder="0">
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="overflow-x-auto w-full mb-3 rounded-xl border border-gray-200 shadow-inner bg-white p-2">
@@ -1655,6 +1662,11 @@ window.updateBillJsonAndTotal = function () {
         grandTotal += total;
     });
 
+    const vatInput = document.getElementById('form-vat-percent-input');
+    const vatPercent = vatInput ? (parseFloat(vatInput.value) || 0) : 0;
+    const vatAmount = grandTotal * (vatPercent / 100);
+    const finalTotal = grandTotal + vatAmount;
+
     const hiddenInput = document.getElementById('hidden-bill-items-input');
     if (hiddenInput) {
         hiddenInput.value = JSON.stringify(items);
@@ -1662,12 +1674,16 @@ window.updateBillJsonAndTotal = function () {
 
     const displayTotal = document.getElementById('bill-total-price-display');
     if (displayTotal) {
-        displayTotal.innerText = new Intl.NumberFormat('th-TH').format(grandTotal);
+        if (vatPercent > 0) {
+            displayTotal.innerText = `${new Intl.NumberFormat('th-TH').format(finalTotal)} (รวม VAT ${vatPercent}%)`;
+        } else {
+            displayTotal.innerText = new Intl.NumberFormat('th-TH').format(finalTotal);
+        }
     }
 
     const amountInput = document.querySelector('#dynamic-form input[name="Amount"], #dynamic-form input[name="amount"]');
     if (amountInput) {
-        amountInput.value = grandTotal;
+        amountInput.value = finalTotal;
         amountInput.readOnly = true;
         amountInput.classList.add('bg-gray-100', 'text-gray-500', 'cursor-not-allowed');
     }
@@ -1683,10 +1699,15 @@ window.initializeBillEditor = function (jsonStr) {
         if (decoded === undefined || decoded === null || String(decoded).trim() === '' || String(decoded).trim() === '-') {
             decoded = '[]';
         }
-        if (String(decoded).includes('%')) {
-            decoded = decodeURIComponent(decoded);
+        if (typeof decoded === 'string') {
+            decoded = decoded.replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+            if (decoded.includes('%')) {
+                try {
+                    decoded = decodeURIComponent(decoded);
+                } catch (e) {}
+            }
         }
-        const items = JSON.parse(decoded || '[]');
+        const items = typeof decoded === 'object' ? decoded : JSON.parse(decoded || '[]');
         if (Array.isArray(items) && items.length > 0) {
             items.forEach(item => {
                 addBillRow(item.no, item.name, item.qty, item.price, item.total);
@@ -1703,10 +1724,21 @@ window.initializeBillEditor = function (jsonStr) {
 window.showBillDetailsModal = function (encodedRow) {
     try {
         let row = {};
-        if (typeof encodedRow === 'object') {
+        if (typeof encodedRow === 'object' && encodedRow !== null) {
             row = encodedRow;
         } else {
-            row = JSON.parse(decodeURIComponent(encodedRow));
+            let str = String(encodedRow || '');
+            try {
+                if (str.includes('%')) {
+                    str = decodeURIComponent(str);
+                }
+            } catch (e) {}
+            try {
+                row = JSON.parse(str);
+            } catch (e) {
+                console.error("Failed to parse encodedRow JSON in showBillDetailsModal:", e, str);
+                row = {};
+            }
         }
 
         // Candidate keys for matching
@@ -1747,8 +1779,11 @@ window.showBillDetailsModal = function (encodedRow) {
             }
         }
 
-        document.getElementById('bill-modal-id').innerText = row.Id_Budget || row.budget_id || '-';
-        document.getElementById('bill-modal-date').innerText = row.Request_Date || row.request_date || '-';
+        const idEl = document.getElementById('bill-modal-id');
+        if (idEl) idEl.innerText = row.Id_Budget || row.budget_id || row.id || '-';
+
+        const dateEl = document.getElementById('bill-modal-date');
+        if (dateEl) dateEl.innerText = row.Request_Date || row.request_date || '-';
 
         const status = row.Signature || row.signature || row.Status || row.status || 'Pending';
         const statusLower = String(status).toLowerCase();
@@ -1801,20 +1836,22 @@ window.showBillDetailsModal = function (encodedRow) {
         }
 
         const fullName = `${row.Prefix || ''} ${row.First_Name || ''} ${row.Last_Name || ''}`.trim() || '-';
-        document.getElementById('bill-modal-requester-name').innerText = fullName;
-        document.getElementById('bill-modal-requester-id').innerText = row.Employee_ID || row.employee_id || '-';
-        document.getElementById('bill-modal-requester-dept').innerText = row.Department_ID || row.department_id || '-';
-        document.getElementById('bill-modal-requester-pos').innerText = row.Position_ID || row.position_id || '-';
+        const reqNameEl = document.getElementById('bill-modal-requester-name'); if (reqNameEl) reqNameEl.innerText = fullName;
+        const reqIdEl = document.getElementById('bill-modal-requester-id'); if (reqIdEl) reqIdEl.innerText = row.Employee_ID || row.employee_id || '-';
+        const reqDeptEl = document.getElementById('bill-modal-requester-dept'); if (reqDeptEl) reqDeptEl.innerText = row.Department_ID || row.department_id || '-';
+        const reqPosEl = document.getElementById('bill-modal-requester-pos'); if (reqPosEl) reqPosEl.innerText = row.Position_ID || row.position_id || '-';
 
-        document.getElementById('bill-modal-title').innerText = row.Title || row.title || '-';
-        document.getElementById('bill-modal-desc').innerText = row.Description || row.description || '-';
+        const titleEl = document.getElementById('bill-modal-title'); if (titleEl) titleEl.innerText = row.Title || row.title || '-';
+        const descEl = document.getElementById('bill-modal-desc'); if (descEl) descEl.innerText = row.Description || row.description || '-';
 
         const tbody = document.getElementById('bill-modal-items-tbody');
         tbody.innerHTML = '';
 
         let decodedItems = row.Items || row.items || '[]';
         if (String(decodedItems).includes('%')) {
-            decodedItems = decodeURIComponent(decodedItems);
+            try {
+                decodedItems = decodeURIComponent(decodedItems);
+            } catch (e) {}
         }
 
         let itemsList = [];
@@ -1852,14 +1889,18 @@ window.showBillDetailsModal = function (encodedRow) {
             grandTotal = rawAmt;
         }
 
+        const vatPercent = parseFloat(row.vat_percent || row.Vat_Percent || row.vat || 0) || 0;
+        const taxAmt = vatPercent > 0 ? (grandTotal * vatPercent / 100) : 0;
+        const finalBillTotal = grandTotal + taxAmt;
+
         document.getElementById('bill-modal-subtotal').innerText = formatMoney(grandTotal);
 
         const taxEl = document.getElementById('bill-modal-tax');
-        if (taxEl) taxEl.innerText = formatMoney(0);
+        if (taxEl) taxEl.innerText = formatMoney(taxAmt);
 
         const grandTotalEl = document.getElementById('bill-modal-grandtotal');
         if (grandTotalEl) {
-            grandTotalEl.innerText = formatMoney(grandTotal);
+            grandTotalEl.innerText = formatMoney(finalBillTotal);
             grandTotalEl.className = 'text-lg font-black transition-colors duration-300';
             if (isFinalApproved) {
                 grandTotalEl.classList.add('text-emerald-600');
