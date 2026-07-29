@@ -546,20 +546,59 @@ function openFormModal(rowDataStr = null) {
             let checkedValues = typeof parsePermissionsList === 'function' ? parsePermissionsList(val) : (val ? val.split(',').map(v => String(v).trim().toLowerCase()) : []);
 
             let checkboxesHtml = `
-                        <div class="col-span-1 sm:col-span-2 bg-indigo-50/30 p-5 rounded-2xl border border-indigo-100 mt-2 mb-2">
-                            <label class="block mb-4 text-sm font-bold text-brandindigo uppercase tracking-wider"><i class="fa-solid fa-user-shield mr-2"></i> กำหนดสิทธิ์ฟังก์ชันให้ผู้ใช้งาน</label>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto custom-scrollbar p-3 bg-white rounded-xl border border-gray-200 shadow-inner">`;
+                        <div class="col-span-1 sm:col-span-2 bg-indigo-50/30 p-5 rounded-2xl border border-indigo-100 mt-2 mb-2 shadow-sm">
+                            <div class="flex items-center justify-between mb-3">
+                                <label class="block text-sm font-bold text-brandindigo uppercase tracking-wider"><i class="fa-solid fa-user-shield mr-2"></i> กำหนดสิทธิ์ฟังก์ชันให้ผู้ใช้งาน</label>
+                                <div class="flex items-center gap-3">
+                                    <button type="button" onclick="toggleAllPermissionCheckboxes(true)" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors">เลือกทั้งหมด</button>
+                                    <span class="text-gray-300">|</span>
+                                    <button type="button" onclick="toggleAllPermissionCheckboxes(false)" class="text-xs font-bold text-gray-500 hover:text-gray-700 transition-colors">ยกเลิกทั้งหมด</button>
+                                </div>
+                            </div>
+                            
+                            <div class="p-3 bg-white rounded-xl border border-gray-200 shadow-inner max-h-72 overflow-y-auto custom-scrollbar">
+                                <div class="grid grid-cols-12 gap-2 text-xs font-bold text-gray-500 border-b border-gray-200 pb-2 mb-2 px-2 text-center bg-gray-50/90 rounded-lg p-2 sticky top-0 z-10 shadow-sm">
+                                    <div class="col-span-6 text-left">เมนู / ฟังก์ชัน (Menu / Feature)</div>
+                                    <div class="col-span-1.5 text-center">Edit</div>
+                                    <div class="col-span-1.5 text-center">Delete</div>
+                                    <div class="col-span-1.5 text-center">Add</div>
+                                    <div class="col-span-1.5 text-center">View</div>
+                                </div>`;
 
             allMenus.forEach(menu => {
-                let isChecked = (typeof isMenuPermissionChecked === 'function' ? isMenuPermissionChecked(menu.id, checkedValues) : checkedValues.includes(String(menu.id).toLowerCase())) ? 'checked' : '';
+                const mId = menu.id.trim();
+                const mIdClean = mId.toLowerCase();
+                const isMasterChecked = (typeof isMenuPermissionChecked === 'function' ? isMenuPermissionChecked(mIdClean, checkedValues) : checkedValues.includes(mIdClean));
+
+                const hasEdit = typeof hasActionPermission === 'function' ? hasActionPermission(mIdClean, 'edit', checkedValues) : isMasterChecked;
+                const hasDelete = typeof hasActionPermission === 'function' ? hasActionPermission(mIdClean, 'delete', checkedValues) : isMasterChecked;
+                const hasAdd = typeof hasActionPermission === 'function' ? hasActionPermission(mIdClean, 'add', checkedValues) : isMasterChecked;
+                const hasView = typeof hasActionPermission === 'function' ? hasActionPermission(mIdClean, 'view', checkedValues) : isMasterChecked;
+
                 checkboxesHtml += `
-                            <label class="flex items-center space-x-3 cursor-pointer group hover:bg-indigo-50 p-2.5 rounded-lg transition-colors border border-transparent hover:border-indigo-100">
-                                <input type="checkbox" name="${h}" value="${menu.id}" class="w-5 h-5 rounded border-gray-300 text-brandindigo focus:ring-brandindigo transition-colors shadow-sm" ${isChecked}> 
-                                <span class="text-xs font-bold text-gray-700 group-hover:text-brandindigo transition-colors">${menu.name}</span>
-                            </label>`;
+                                <div class="grid grid-cols-12 gap-2 items-center text-xs p-2 hover:bg-indigo-50/50 rounded-lg transition-colors border-b border-gray-100 last:border-none">
+                                    <div class="col-span-6 flex items-center space-x-2.5">
+                                        <input type="checkbox" name="${h}" value="${mId}" data-menu="${mIdClean}" class="perm-master-cb w-4 h-4 rounded border-gray-300 text-brandindigo focus:ring-brandindigo transition-colors cursor-pointer" ${isMasterChecked ? 'checked' : ''} onchange="handleMasterPermToggle(this)">
+                                        <span class="font-bold text-gray-700 select-none">${menu.name}</span>
+                                    </div>
+                                    <div class="col-span-1.5 text-center">
+                                        <input type="checkbox" name="${h}" value="${mId}:edit" data-menu="${mIdClean}" data-action="edit" class="perm-action-cb w-4 h-4 rounded border-gray-300 text-brandindigo focus:ring-brandindigo transition-colors cursor-pointer" ${hasEdit ? 'checked' : ''} onchange="handleActionPermToggle(this)">
+                                    </div>
+                                    <div class="col-span-1.5 text-center">
+                                        <input type="checkbox" name="${h}" value="${mId}:delete" data-menu="${mIdClean}" data-action="delete" class="perm-action-cb w-4 h-4 rounded border-gray-300 text-brandindigo focus:ring-brandindigo transition-colors cursor-pointer" ${hasDelete ? 'checked' : ''} onchange="handleActionPermToggle(this)">
+                                    </div>
+                                    <div class="col-span-1.5 text-center">
+                                        <input type="checkbox" name="${h}" value="${mId}:add" data-menu="${mIdClean}" data-action="add" class="perm-action-cb w-4 h-4 rounded border-gray-300 text-brandindigo focus:ring-brandindigo transition-colors cursor-pointer" ${hasAdd ? 'checked' : ''} onchange="handleActionPermToggle(this)">
+                                    </div>
+                                    <div class="col-span-1.5 text-center">
+                                        <input type="checkbox" name="${h}" value="${mId}:view" data-menu="${mIdClean}" data-action="view" class="perm-action-cb w-4 h-4 rounded border-gray-300 text-brandindigo focus:ring-brandindigo transition-colors cursor-pointer" ${hasView ? 'checked' : ''} onchange="handleActionPermToggle(this)">
+                                    </div>
+                                </div>`;
             });
 
-            checkboxesHtml += `</div></div>`;
+            checkboxesHtml += `
+                            </div>
+                        </div>`;
             formFields.insertAdjacentHTML('beforeend', checkboxesHtml);
             return;
         }
@@ -1667,6 +1706,10 @@ window.updateBillJsonAndTotal = function () {
     const vatAmount = grandTotal * (vatPercent / 100);
     const finalTotal = grandTotal + vatAmount;
 
+    items.forEach(it => {
+        it.vat_percent = vatPercent;
+    });
+
     const hiddenInput = document.getElementById('hidden-bill-items-input');
     if (hiddenInput) {
         hiddenInput.value = JSON.stringify(items);
@@ -1709,6 +1752,10 @@ window.initializeBillEditor = function (jsonStr) {
         }
         const items = typeof decoded === 'object' ? decoded : JSON.parse(decoded || '[]');
         if (Array.isArray(items) && items.length > 0) {
+            const savedVat = items[0].vat_percent || 0;
+            const vatInput = document.getElementById('form-vat-percent-input');
+            if (vatInput) vatInput.value = savedVat;
+
             items.forEach(item => {
                 addBillRow(item.no, item.name, item.qty, item.price, item.total);
             });
@@ -1889,11 +1936,15 @@ window.showBillDetailsModal = function (encodedRow) {
             grandTotal = rawAmt;
         }
 
-        const vatPercent = parseFloat(row.vat_percent || row.Vat_Percent || row.vat || 0) || 0;
+        const vatPercent = parseFloat(row.vat_percent || row.Vat_Percent || row.vat || (itemsList && itemsList[0] && itemsList[0].vat_percent) || 0) || 0;
         const taxAmt = vatPercent > 0 ? (grandTotal * vatPercent / 100) : 0;
         const finalBillTotal = grandTotal + taxAmt;
 
-        document.getElementById('bill-modal-subtotal').innerText = formatMoney(grandTotal);
+        const subTotalEl = document.getElementById('bill-modal-subtotal');
+        if (subTotalEl) subTotalEl.innerText = formatMoney(grandTotal);
+
+        const taxLabelEl = document.getElementById('bill-modal-tax-label');
+        if (taxLabelEl) taxLabelEl.innerText = `ภาษีมูลค่าเพิ่ม / Tax (${vatPercent}%):`;
 
         const taxEl = document.getElementById('bill-modal-tax');
         if (taxEl) taxEl.innerText = formatMoney(taxAmt);
@@ -2334,6 +2385,33 @@ window.changeBillCurrency = function (newCurrency) {
     } catch (err) {
         console.warn('Currency save warn:', err);
     }
+};
+
+window.handleMasterPermToggle = function(masterCb) {
+    if (!masterCb) return;
+    const parentRow = masterCb.closest('.grid');
+    if (!parentRow) return;
+    const actionCbs = parentRow.querySelectorAll('.perm-action-cb');
+    actionCbs.forEach(cb => {
+        cb.checked = masterCb.checked;
+    });
+};
+
+window.handleActionPermToggle = function(actionCb) {
+    if (!actionCb) return;
+    const parentRow = actionCb.closest('.grid');
+    if (!parentRow) return;
+    const masterCb = parentRow.querySelector('.perm-master-cb');
+    const actionCbs = parentRow.querySelectorAll('.perm-action-cb');
+    const anyChecked = Array.from(actionCbs).some(cb => cb.checked);
+    if (masterCb) {
+        masterCb.checked = anyChecked;
+    }
+};
+
+window.toggleAllPermissionCheckboxes = function(selectAll) {
+    const allCbs = document.querySelectorAll('.perm-master-cb, .perm-action-cb');
+    allCbs.forEach(cb => cb.checked = selectAll);
 };
 
 
