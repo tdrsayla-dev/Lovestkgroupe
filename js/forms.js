@@ -568,7 +568,7 @@ function openFormModal(rowDataStr = null) {
             allMenus.forEach(menu => {
                 const mId = menu.id.trim();
                 const mIdClean = mId.toLowerCase();
-                const isMasterChecked = (typeof isMenuPermissionChecked === 'function' ? isMenuPermissionChecked(mIdClean, checkedValues) : checkedValues.includes(mIdClean));
+                const isMasterChecked = (typeof isMasterPermissionChecked === 'function' ? isMasterPermissionChecked(mIdClean, checkedValues) : false);
 
                 const hasEdit = typeof hasActionPermission === 'function' ? hasActionPermission(mIdClean, 'edit', checkedValues) : isMasterChecked;
                 const hasDelete = typeof hasActionPermission === 'function' ? hasActionPermission(mIdClean, 'delete', checkedValues) : isMasterChecked;
@@ -578,7 +578,7 @@ function openFormModal(rowDataStr = null) {
                 checkboxesHtml += `
                                 <div class="grid grid-cols-12 gap-2 items-center text-xs p-2 hover:bg-indigo-50/50 rounded-lg transition-colors border-b border-gray-100 last:border-none">
                                     <div class="col-span-6 flex items-center space-x-2.5">
-                                        <input type="checkbox" name="${h}" value="${mId}" data-menu="${mIdClean}" class="perm-master-cb w-4 h-4 rounded border-gray-300 text-brandindigo focus:ring-brandindigo transition-colors cursor-pointer" ${isMasterChecked ? 'checked' : ''} onchange="handleMasterPermToggle(this)">
+                                        <input type="checkbox" data-menu="${mIdClean}" class="perm-master-cb w-4 h-4 rounded border-gray-300 text-brandindigo focus:ring-brandindigo transition-colors cursor-pointer" ${isMasterChecked ? 'checked' : ''} onchange="handleMasterPermToggle(this)">
                                         <span class="font-bold text-gray-700 select-none">${menu.name}</span>
                                     </div>
                                     <div class="col-span-1.5 text-center">
@@ -662,9 +662,10 @@ function openFormModal(rowDataStr = null) {
                     if (!tableCache['staff']) tableCache['staff'] = { headers: res.headers || [], data: res.data };
                     else tableCache['staff'].data = res.data;
 
+                    const isStaffRestricted = (role === 'Staff' && currentSheet === 'Leave application');
                     let options = '';
 
-                    if (role !== 'Staff') {
+                    if (!isStaffRestricted) {
                         options = `<option value="" disabled ${!val ? 'selected' : ''} data-i18n="select_employee">${t('select_employee')}</option>`;
                     }
 
@@ -678,7 +679,7 @@ function openFormModal(rowDataStr = null) {
                             let displayValue = empIdVal;
                             let safeEmpIdVal = String(empIdVal).toLowerCase().trim();
 
-                            if (role === 'Staff') {
+                            if (isStaffRestricted) {
                                 if (safeEmpIdVal === loggedInEmpId && loggedInEmpId !== '') {
                                     options += `<option value="${empIdVal}" selected>${displayValue}</option>`;
                                     actualMatchedEmpId = empIdVal;
@@ -689,20 +690,20 @@ function openFormModal(rowDataStr = null) {
                         }
                     });
 
-                    if (role === 'Staff' && options === '') {
+                    if (isStaffRestricted && options === '') {
                         options = `<option value="" disabled selected>ID not found in database</option>`;
                     }
 
                     selectEl.innerHTML = options;
 
-                    if (role === 'Staff') {
+                    if (isStaffRestricted) {
                         selectEl.style.pointerEvents = "none";
                         selectEl.classList.add('bg-gray-100', 'text-gray-500');
                         if (actualMatchedEmpId) {
                             autoFillEmployeeData(actualMatchedEmpId);
                         }
                     }
-                    else if (editingRecordId && val) {
+                    else if (val) {
                         autoFillEmployeeData(val);
                     }
                 } else if (selectEl) {
@@ -880,7 +881,7 @@ function openAttendanceEditModalByDate(empId, dateStr) {
             displayVal = formatToIsoDate(val);
         }
         const safeDisplayVal = String(displayVal).replace(/"/g, '&quot;');
-        const isOptional = (lw === 'adjusted_status' || lw === 'reference_leave_id' || lw === 'device id' || lw.includes('link') || lw.includes('url') || lw.includes('ลิงก์') || lw.includes('youtube') || lw.includes('facebook') || lw.includes('participant') || lw.includes('ผู้เข้าร่วม'));
+        const isOptional = (lw === 'adjusted_status' || lw === 'reference_leave_id' || lw === 'device id' || lw.includes('link') || lw.includes('url') || lw.includes('ลิงก์') || lw.includes('youtube') || lw.includes('facebook') || lw.includes('participant') || lw.includes('ผู้เข้าร่วม') || lw.includes('broken') || lw.includes('พัง') || lw.includes('เสีย') || lw === 'note' || lw === 'notes' || lw === 'หมายเหตุ');
         const requiredAttr = isOptional ? '' : 'required';
 
         if (lw === 'status' && currentSheet.toLowerCase() === 'staff') {
@@ -1203,6 +1204,18 @@ function openAttendanceEditModalByDate(empId, dateStr) {
                                             <input type="hidden" name="${h}" id="hidden-profile-input" value="${safeVal}">
                                         </div>
                                     </div>
+                                </div>
+                            `);
+        }
+        else if ((currentSheet.toLowerCase() === 'user' || currentSheet.toLowerCase() === 'users') && lw === 'status') {
+            const isDisabled = ['disabled', 'suspended', 'inactive', 'ระงับใช้งาน', 'ปิดใช้งาน'].includes(safeVal.toLowerCase());
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div>
+                                    <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span>สถานะบัญชี (ACCOUNT STATUS)</span> <span class="text-brandindigo">*</span></label>
+                                    <select name="${h}" class="bg-white border border-gray-300 text-gray-900 text-sm font-bold rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm cursor-pointer">
+                                        <option value="Active" ${!isDisabled ? 'selected' : ''}>Active (เปิดใช้งาน / Enabled)</option>
+                                        <option value="Disabled" ${isDisabled ? 'selected' : ''}>Disabled (ระงับใช้งาน / Account Suspended)</option>
+                                    </select>
                                 </div>
                             `);
         }
@@ -1602,6 +1615,29 @@ function executeSaveToSheet(dataObj, currentEditId) {
         if (rowIndex > -1) { Object.keys(dataObj).forEach(k => rawData[rowIndex][k] = dataObj[k]); }
     }
 
+    if (currentSheet.toLowerCase() === 'user' || currentSheet.toLowerCase() === 'users') {
+        const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+        if (sessionStr) {
+            try {
+                const s = JSON.parse(sessionStr);
+                const savedEmp = String(dataObj.Employee_ID || dataObj.employee_id || dataObj.Username || dataObj.username || '').trim().toUpperCase();
+                const sessionEmp = String(s.empId || s.username || s.email || '').trim().toUpperCase();
+                
+                if (savedEmp && (savedEmp === sessionEmp || String(s.email).trim().toLowerCase() === String(dataObj.Username || dataObj.username || '').trim().toLowerCase())) {
+                    s.permissions = dataObj.Permissions || dataObj.permissions || '';
+                    s.role = dataObj.Role || dataObj.role || s.role;
+                    localStorage.setItem('hr_user_session', JSON.stringify(s));
+                    if (sessionStorage.getItem('hr_user_session')) {
+                        sessionStorage.setItem('hr_user_session', JSON.stringify(s));
+                    }
+                    if (typeof applyRolePermissions === 'function') {
+                        applyRolePermissions(s.role, s.permissions);
+                    }
+                }
+            } catch (e) {}
+        }
+    }
+
     if (tableCache[currentSheet]) tableCache[currentSheet].data = rawData;
     renderTable(rawData);
 
@@ -1815,20 +1851,27 @@ window.showBillDetailsModal = function (encodedRow) {
             }
         }
 
+        const primaryId = row.Id_Budget || row.budget_id || row.id || row.Id || row.__db_id;
+
         // Candidate keys for matching
         const idCandidates = [
-            row.Id_Budget, row.budget_id, row.id, row.Id, row.__db_id,
-            (row.Employee_ID || row.employee_id) ? ((row.Employee_ID || row.employee_id) + '_' + (row.Request_Date || row.request_date)) : null
+            primaryId,
+            !primaryId && (row.Employee_ID || row.employee_id) ? ((row.Employee_ID || row.employee_id) + '_' + (row.Request_Date || row.request_date)) : null
         ].filter(Boolean);
 
         // 1. Sync latest row data from tableCache if available
         if (typeof tableCache !== 'undefined' && tableCache['Budget Request'] && Array.isArray(tableCache['Budget Request'].data)) {
             const cached = tableCache['Budget Request'].data.find(r => {
-                const rIdCandidates = [r.Id_Budget, r.budget_id, r.id, r.Id, r.__db_id, (r.Employee_ID || r.employee_id) ? ((r.Employee_ID || r.employee_id) + '_' + (r.Request_Date || r.request_date)) : null].filter(Boolean);
-                return idCandidates.some(id => rIdCandidates.includes(id));
+                const rPrimaryId = r.Id_Budget || r.budget_id || r.id || r.Id || r.__db_id;
+                if (primaryId && rPrimaryId) {
+                    return String(primaryId).trim() === String(rPrimaryId).trim();
+                }
+                const rEmpDate = (r.Employee_ID || r.employee_id) + '_' + (r.Request_Date || r.request_date);
+                const rowEmpDate = (row.Employee_ID || row.employee_id) + '_' + (row.Request_Date || row.request_date);
+                return rEmpDate === rowEmpDate;
             });
             if (cached) {
-                row = Object.assign({}, row, cached);
+                row = Object.assign({}, cached, row);
             }
         }
 

@@ -1010,6 +1010,7 @@ function approveLeaveFromDashboard(id, colName, selectElement) {
 }
 
 function filterDataForUser(data) {
+    if (!Array.isArray(data)) return [];
     const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
     let role = 'Staff', username = '', empId = '';
     if (sessionStr) {
@@ -1023,7 +1024,9 @@ function filterDataForUser(data) {
 
     if (role !== 'Staff') return data;
 
-    if (currentSheet.includes('Ranting') || currentSheet.includes('Rating') || currentSheet === 'Announcements' || currentSheet === 'News' || currentSheet === 'Training' || currentSheet === 'Asset_Tracking' || currentSheet.trim() === 'Documents') {
+    const s = String(currentSheet || '').toLowerCase().trim();
+
+    if (s.includes('ranting') || s.includes('rating') || s.includes('announc') || s.includes('news') || s.includes('train') || s.includes('asset') || s.includes('doc') || s.includes('policy') || s.includes('organ') || s.includes('dept') || s.includes('department')) {
         return data;
     }
 

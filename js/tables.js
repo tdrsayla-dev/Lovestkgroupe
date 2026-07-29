@@ -17,19 +17,52 @@ function renderTable(data) {
         const cacheObj = tableCache[sheetToRender] || tableCache[currentSheet];
         data = cacheObj && Array.isArray(cacheObj.data) ? cacheObj.data : [];
     }
+
+    const searchInput = document.getElementById('searchInput');
+    const isSearching = searchInput && searchInput.value.trim() !== '';
+
+    if (!isSearching && sheetToRender && (sheetToRender.toLowerCase() === 'user' || sheetToRender.toLowerCase() === 'users')) {
+        const staffData = tableCache['staff'] && Array.isArray(tableCache['staff'].data) ? tableCache['staff'].data : [];
+        const existingEmpIds = new Set(data.map(u => String(u.Employee_ID || u.employee_id || u.emp_id || u.Username || u.username || '').trim().toUpperCase()).filter(Boolean));
+        
+        staffData.forEach(stf => {
+            const empId = String(stf.Employee_ID || stf.employee_id || stf.emp_id || '').trim().toUpperCase();
+            if (empId && !existingEmpIds.has(empId)) {
+                const email = stf.Email || stf.email || (empId.toLowerCase() + '@company.com');
+                data.push({
+                    Employee_ID: empId,
+                    employee_id: empId,
+                    Username: email,
+                    username: email,
+                    Password: '****',
+                    Role: 'Staff',
+                    role: 'Staff',
+                    Permissions: 'Dashboard:view',
+                    permissions: 'Dashboard:view'
+                });
+                existingEmpIds.add(empId);
+            }
+        });
+    }
     document.getElementById('table-controls-wrapper').classList.remove('hidden');
     document.getElementById('org-chart-wrapper').classList.add('hidden');
 
     const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
     let role = 'Staff';
     let sessionEmpId = '';
+    let userPerms = [];
     if (sessionStr) {
         try {
             let s = JSON.parse(sessionStr);
             role = s.role || 'Staff';
             sessionEmpId = String(s.empId || s.employeeId || s.username || '').trim().toUpperCase();
+            if (s.permissions) userPerms = parsePermissionsList(s.permissions);
         } catch (e) { }
     }
+
+    const canEdit = role === 'Admin' || (typeof hasActionPermission === 'function' ? hasActionPermission(currentSheet, 'edit', userPerms) : (role !== 'Staff'));
+    const canDelete = role === 'Admin' || (typeof hasActionPermission === 'function' ? hasActionPermission(currentSheet, 'delete', userPerms) : (role !== 'Staff'));
+    const canAdd = role === 'Admin' || (typeof hasActionPermission === 'function' ? (hasActionPermission(currentSheet, 'add', userPerms) || hasActionPermission(currentSheet, 'edit', userPerms)) : (role !== 'Staff' || currentSheet === 'Leave application' || currentSheet.includes('Budget')));
 
     const tHead = document.getElementById('table-head'), tBody = document.getElementById('table-body');
     const summaryDiv = document.getElementById('table-summary');
@@ -169,16 +202,6 @@ function renderTable(data) {
         summaryDiv.classList.add('hidden');
         if (calSec) calSec.classList.add('hidden');
         if (addDataBtn) {
-            const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
-            let userPerms = [];
-            if (sessionStr) {
-                try {
-                    const sessObj = JSON.parse(sessionStr);
-                    if (sessObj && sessObj.permissions) userPerms = parsePermissionsList(sessObj.permissions);
-                } catch (e) {}
-            }
-            const canAdd = role === 'Admin' || (typeof hasActionPermission === 'function' ? hasActionPermission(currentSheet, 'add', userPerms) : (role !== 'Staff' || currentSheet === 'Leave application' || currentSheet.includes('Budget')));
-
             if (!canAdd) {
                 addDataBtn.classList.add('hidden');
             } else {
@@ -264,10 +287,12 @@ function renderTable(data) {
         cardWrapper.classList.remove('hidden');
         cardWrapper.innerHTML = '';
         summaryDiv.classList.add('hidden');
-        if (addDataBtn) addDataBtn.classList.remove('hidden');
-
-        if ((currentSheet === 'Announcements' || currentSheet === 'News' || currentSheet === 'Training' || currentSheet === 'Asset_Tracking' || currentSheet.trim() === 'Documents' || currentSheet.trim() === 'Policy') && role === 'Staff') {
-            if (addDataBtn) addDataBtn.classList.add('hidden');
+        if (addDataBtn) {
+            if (canAdd) {
+                addDataBtn.classList.remove('hidden');
+            } else {
+                addDataBtn.classList.add('hidden');
+            }
         }
 
         let isRatingPage = currentSheet.includes('Ranting') || currentSheet.includes('Rating');
@@ -383,10 +408,10 @@ function renderTable(data) {
                 let cardArr = [];
                 cardArr.push(`<div onclick="showTrainingDetail('${encodedRow}')" class="bg-white rounded-[1.5rem] shadow-sm border border-gray-100 overflow-hidden flex flex-col relative transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer group">`);
 
-                if (role !== 'Staff') {
+                if (canEdit || canDelete) {
                     cardArr.push('<div class="absolute top-3 right-3 flex space-x-2 z-10 bg-white/90 backdrop-blur-sm rounded-lg p-1.5" onclick="event.stopPropagation()">');
-                    cardArr.push('<button onclick="openFormModal(\'', encodedRow, '\')" class="text-gray-500 hover:text-gray-800 transition-colors" title="Edit"><i class="fa-regular fa-pen-to-square text-lg"></i></button>');
-                    cardArr.push('<button onclick="deleteRecord(\'', rowId, '\')" class="text-gray-500 hover:text-red-500 transition-colors" title="Delete"><i class="fa-regular fa-trash-can text-lg"></i></button>');
+                    if (canEdit) cardArr.push('<button onclick="openFormModal(\'', encodedRow, '\')" class="text-gray-500 hover:text-gray-800 transition-colors" title="Edit"><i class="fa-regular fa-pen-to-square text-lg"></i></button>');
+                    if (canDelete) cardArr.push('<button onclick="deleteRecord(\'', rowId, '\')" class="text-gray-500 hover:text-red-500 transition-colors" title="Delete"><i class="fa-regular fa-trash-can text-lg"></i></button>');
                     cardArr.push('</div>');
                 }
 
@@ -492,10 +517,10 @@ function renderTable(data) {
                 cardArr.push('<div class="flex justify-between items-start mb-2">');
                 cardArr.push(`<div class="font-bold text-[13px] tracking-wide text-gray-800">ສະຖານະ: <span class="${statusColor}">${escapeHtml(status || '-')}</span></div>`);
 
-                if (role !== 'Staff') {
+                if (canEdit || canDelete) {
                     cardArr.push('<div class="flex space-x-2 z-10 bg-white" onclick="event.stopPropagation()">');
-                    cardArr.push(`<button onclick="editAssetFromId('${rowId}', event)" class="text-gray-400 hover:text-gray-800 transition-colors" title="Edit"><i class="fa-regular fa-pen-to-square text-[15px]"></i></button>`);
-                    cardArr.push(`<button onclick="event.stopPropagation(); deleteRecord('${rowId}')" class="text-gray-400 hover:text-red-500 transition-colors" title="Delete"><i class="fa-regular fa-trash-can text-[15px]"></i></button>`);
+                    if (canEdit) cardArr.push(`<button onclick="editAssetFromId('${rowId}', event)" class="text-gray-400 hover:text-gray-800 transition-colors" title="Edit"><i class="fa-regular fa-pen-to-square text-[15px]"></i></button>`);
+                    if (canDelete) cardArr.push(`<button onclick="event.stopPropagation(); deleteRecord('${rowId}')" class="text-gray-400 hover:text-red-500 transition-colors" title="Delete"><i class="fa-regular fa-trash-can text-[15px]"></i></button>`);
                     cardArr.push('</div>');
                 } else {
                     cardArr.push('<div></div>');
@@ -575,10 +600,10 @@ function renderTable(data) {
                 cardArr.push(`<h3 class="text-sm font-bold text-gray-800 line-clamp-2 leading-snug" title="${escapeHtml(topic)}">${escapeHtml(topic)}</h3>`);
                 cardArr.push('</div>');
 
-                if (role !== 'Staff') {
-                    cardArr.push('<div class="flex space-x-2 shrink-0 mt-0.5">');
-                    cardArr.push(`<button onclick="editAnnounceFromId('${rowId}', event)" class="text-gray-400 hover:text-brandindigo transition-colors" title="Edit"><i class="fa-regular fa-pen-to-square text-[15px]"></i></button>`);
-                    cardArr.push(`<button onclick="event.stopPropagation(); deleteRecord('${rowId}')" class="text-gray-400 hover:text-red-500 transition-colors" title="Delete"><i class="fa-regular fa-trash-can text-[15px]"></i></button>`);
+                if (canEdit || canDelete) {
+                    cardArr.push('<div class="flex space-x-2 shrink-0 mt-0.5" onclick="event.stopPropagation()">');
+                    if (canEdit) cardArr.push(`<button onclick="editAnnounceFromId('${rowId}', event)" class="text-gray-400 hover:text-brandindigo transition-colors" title="Edit"><i class="fa-regular fa-pen-to-square text-[15px]"></i></button>`);
+                    if (canDelete) cardArr.push(`<button onclick="event.stopPropagation(); deleteRecord('${rowId}')" class="text-gray-400 hover:text-red-500 transition-colors" title="Delete"><i class="fa-regular fa-trash-can text-[15px]"></i></button>`);
                     cardArr.push('</div>');
                 }
                 cardArr.push('</div>');
@@ -651,10 +676,10 @@ function renderTable(data) {
                 cardArr.push(`<h3 class="text-sm font-bold text-gray-800 line-clamp-2 leading-snug" title="${escapeHtml(topic)}">${escapeHtml(topic)}</h3>`);
                 cardArr.push('</div>');
 
-                if (role !== 'Staff') {
-                    cardArr.push('<div class="flex space-x-2 shrink-0 mt-0.5">');
-                    cardArr.push(`<button onclick="editNewsFromId('${rowId}', event)" class="text-gray-400 hover:text-brandindigo transition-colors" title="Edit"><i class="fa-regular fa-pen-to-square text-[15px]"></i></button>`);
-                    cardArr.push(`<button onclick="event.stopPropagation(); deleteRecord('${rowId}')" class="text-gray-400 hover:text-red-500 transition-colors" title="Delete"><i class="fa-regular fa-trash-can text-[15px]"></i></button>`);
+                if (canEdit || canDelete) {
+                    cardArr.push('<div class="flex space-x-2 shrink-0 mt-0.5" onclick="event.stopPropagation()">');
+                    if (canEdit) cardArr.push(`<button onclick="editNewsFromId('${rowId}', event)" class="text-gray-400 hover:text-brandindigo transition-colors" title="Edit"><i class="fa-regular fa-pen-to-square text-[15px]"></i></button>`);
+                    if (canDelete) cardArr.push(`<button onclick="event.stopPropagation(); deleteRecord('${rowId}')" class="text-gray-400 hover:text-red-500 transition-colors" title="Delete"><i class="fa-regular fa-trash-can text-[15px]"></i></button>`);
                     cardArr.push('</div>');
                 }
                 cardArr.push('</div>');
@@ -703,10 +728,10 @@ function renderTable(data) {
                 cardArr.push('<div class="flex justify-between items-start mb-3">');
                 cardArr.push(`<div class="font-bold text-[11px] tracking-widest text-brandindigo uppercase bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-100 flex items-center"><i class="fa-solid fa-file-contract mr-1.5"></i> Policy</div>`);
 
-                if (role !== 'Staff') {
+                if (canEdit || canDelete) {
                     cardArr.push('<div class="flex space-x-2 z-10 bg-white" onclick="event.stopPropagation()">');
-                    cardArr.push(`<button onclick="openFormModal('${encodedRow}')" class="text-gray-400 hover:text-gray-800 transition-colors" title="Edit"><i class="fa-regular fa-pen-to-square text-[15px]"></i></button>`);
-                    cardArr.push(`<button onclick="event.stopPropagation(); deleteRecord('${rowId}')" class="text-gray-400 hover:text-red-500 transition-colors" title="Delete"><i class="fa-regular fa-trash-can text-[15px]"></i></button>`);
+                    if (canEdit) cardArr.push(`<button onclick="openFormModal('${encodedRow}')" class="text-gray-400 hover:text-gray-800 transition-colors" title="Edit"><i class="fa-regular fa-pen-to-square text-[15px]"></i></button>`);
+                    if (canDelete) cardArr.push(`<button onclick="event.stopPropagation(); deleteRecord('${rowId}')" class="text-gray-400 hover:text-red-500 transition-colors" title="Delete"><i class="fa-regular fa-trash-can text-[15px]"></i></button>`);
                     cardArr.push('</div>');
                 } else {
                     cardArr.push('<div></div>');
@@ -781,10 +806,10 @@ function renderTable(data) {
                 cardArr.push(`<h3 class="text-sm font-bold text-gray-800 line-clamp-2 leading-snug" title="${escapeHtml(topic)}">${escapeHtml(topic)}</h3>`);
                 cardArr.push('</div>');
 
-                if (role !== 'Staff') {
-                    cardArr.push('<div class="flex space-x-2 shrink-0 mt-0.5">');
-                    cardArr.push(`<button onclick="openFormModal('${encodedRow}')" class="text-gray-400 hover:text-brandindigo transition-colors" title="Edit"><i class="fa-regular fa-pen-to-square text-[15px]"></i></button>`);
-                    cardArr.push(`<button onclick="event.stopPropagation(); deleteRecord('${rowId}')" class="text-gray-400 hover:text-red-500 transition-colors" title="Delete"><i class="fa-regular fa-trash-can text-[15px]"></i></button>`);
+                if (canEdit || canDelete) {
+                    cardArr.push('<div class="flex space-x-2 shrink-0 mt-0.5" onclick="event.stopPropagation()">');
+                    if (canEdit) cardArr.push(`<button onclick="openFormModal('${encodedRow}')" class="text-gray-400 hover:text-brandindigo transition-colors" title="Edit"><i class="fa-regular fa-pen-to-square text-[15px]"></i></button>`);
+                    if (canDelete) cardArr.push(`<button onclick="event.stopPropagation(); deleteRecord('${rowId}')" class="text-gray-400 hover:text-red-500 transition-colors" title="Delete"><i class="fa-regular fa-trash-can text-[15px]"></i></button>`);
                     cardArr.push('</div>');
                 }
                 cardArr.push('</div>');
@@ -834,6 +859,8 @@ function renderTable(data) {
         return;
     }
 
+
+
     let trHead = '<tr>';
     displayHeaders.forEach(h => {
         const isPhotoColumn = /^(photo|photos|profile|pic|image)$/i.test(String(h).trim());
@@ -841,7 +868,7 @@ function renderTable(data) {
         let translatedH = window.t ? window.t(displayH) : displayH;
         trHead += `<th class="px-6 py-4 whitespace-nowrap font-bold tracking-widest text-gray-500 ${isPhotoColumn ? 'w-28 text-center' : ''}" data-i18n-th="${displayH}">${translatedH}</th>`;
     });
-    if (role !== 'Staff') {
+    if (canEdit || canDelete) {
         let actionTxt = window.t ? window.t('Action') : 'Action';
         trHead += `<th class="px-6 py-4 whitespace-nowrap text-center sticky right-0 bg-gray-50 z-10 shadow-[-10px_0_15px_-5px_rgba(0,0,0,0.05)] border-l border-gray-200 print-hide text-gray-500 font-bold tracking-widest">${actionTxt}</th>`;
     }
@@ -945,7 +972,28 @@ function renderTable(data) {
                         color = 'bg-emerald-50 text-emerald-600 border border-emerald-200'; displayText = 'Approved (' + displayRole + ')';
                     }
 
-                    if (currentSheet === 'Leave application' && lw === 'signature') {
+                    if ((currentSheet.toLowerCase() === 'user' || currentSheet.toLowerCase() === 'users') && lw.includes('status')) {
+                        const rowId = getRecordId(row);
+                        const statusVal = typeof getUserStatus === 'function' ? getUserStatus(row) : String(val || row.Status || row.status || 'Active').trim();
+                        const isDisabled = ['disabled', 'suspended', 'inactive', 'ระงับใช้งาน', 'ปิดใช้งาน'].includes(statusVal.toLowerCase());
+                        const isAct = !isDisabled;
+                        
+                        let color = isAct ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-red-50 text-red-600 border border-red-200';
+                        let displayText = isAct ? 'Active' : 'Disabled';
+
+                        if (role === 'Admin') {
+                            val = `
+                                <div class="flex items-center space-x-2">
+                                    <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${color}">${displayText}</span>
+                                    <select onchange="changeApprovalStatus('${rowId}', '${h}', this)" class="bg-white border border-gray-300 text-gray-800 text-xs font-bold rounded-lg focus:ring-brandindigo focus:border-brandindigo block py-1 px-1.5 cursor-pointer hover:bg-gray-50 outline-none transition-colors shadow-sm">
+                                        <option value="Active" ${isAct ? 'selected' : ''}>Active (เปิดใช้งาน)</option>
+                                        <option value="Disabled" ${isDisabled ? 'selected' : ''}>Disabled (ระงับใช้งาน)</option>
+                                    </select>
+                                </div>`;
+                        } else {
+                            val = `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${color}">${displayText}</span>`;
+                        }
+                    } else if (currentSheet === 'Leave application' && lw === 'signature') {
                         const rowId = getRecordId(row);
                         if (role !== 'Staff') {
                             val = `
@@ -1033,18 +1081,6 @@ function renderTable(data) {
 
         const rowId = getRecordId(row);
         const encodedRow = encodeURIComponent(JSON.stringify(row)).replace(/'/g, "%27");
-
-        const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
-        let userPerms = [];
-        if (sessionStr) {
-            try {
-                const sessObj = JSON.parse(sessionStr);
-                if (sessObj && sessObj.permissions) userPerms = parsePermissionsList(sessObj.permissions);
-            } catch (e) {}
-        }
-
-        const canEdit = role === 'Admin' || (typeof hasActionPermission === 'function' ? hasActionPermission(currentSheet, 'edit', userPerms) : (role !== 'Staff'));
-        const canDelete = role === 'Admin' || (typeof hasActionPermission === 'function' ? hasActionPermission(currentSheet, 'delete', userPerms) : (role !== 'Staff'));
 
         if (canEdit || canDelete) {
             tr += `<td class="px-6 py-5 whitespace-nowrap text-center sticky right-0 bg-white group-hover:bg-gray-50 shadow-[-10px_0_15px_-5px_rgba(0,0,0,0.05)] border-l border-gray-200 print-hide transition-colors">
@@ -1225,7 +1261,7 @@ function renderEmployeeRatingPageFromScratch(ratingRows) {
                             
                             ${stat.latestRowId && role !== 'Staff' ? `<button onclick="editRatingByRowId('${safeRowId}', event)" class="text-gray-500 hover:bg-indigo-50 hover:text-brandindigo w-7 h-7 rounded-md flex items-center justify-center transition-colors" title="แก้ไขคะแนนล่าสุด"><i class="fa-solid fa-pen-to-square text-[13px]"></i></button>` : ''}
                             
-                            ${stat.latestRowId && role !== 'Staff' ? `<button onclick="event.stopPropagation(); deleteRecord('${safeRowId}')" class="text-gray-500 hover:bg-red-50 hover:text-red-600 w-7 h-7 rounded-md flex items-center justify-center transition-colors" title="ลบ"><i class="fa-solid fa-trash text-[13px]"></i></button>` : ''}
+                            ${stat.latestRowId && (canDelete || canEdit) ? `<button onclick="event.stopPropagation(); deleteRecord('${safeRowId}')" class="text-gray-500 hover:bg-red-50 hover:text-red-600 w-7 h-7 rounded-md flex items-center justify-center transition-colors" title="ลบ"><i class="fa-solid fa-trash text-[13px]"></i></button>` : ''}
                         </div>
 
                         <div class="h-[100px] w-full bg-gradient-to-r from-brandindigo to-brandpurple"></div>

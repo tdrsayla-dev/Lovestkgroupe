@@ -231,6 +231,9 @@ function filterData() {
         });
     }
 
+    const rowsCountEl = document.getElementById('display-total-rows');
+    if (rowsCountEl) rowsCountEl.innerText = filtered.length;
+
     if (currentSheet === 'Organization Structure ') renderOrgChart(filtered);
     else renderTable(filtered);
 }
@@ -252,6 +255,19 @@ function changeApprovalStatus(id, columnName, selectElement) {
                 renderTable(rawData);
             }
 
+            const targetRow = rawData.find(r => getRecordId(r) === id) || {};
+            let curPerms = targetRow.Permissions || targetRow.permissions || 'Dashboard:view';
+            const updatePayload = {
+                employee_id: targetRow.Employee_ID || targetRow.employee_id || id,
+                username: targetRow.Email || targetRow.email || targetRow.Username || targetRow.username,
+                role: targetRow.Role || targetRow.role || 'Staff',
+                permissions: curPerms,
+                Permissions: curPerms,
+                status: newValue,
+                Status: newValue,
+                [columnName]: newValue
+            };
+
             toggleLoading(true, 'SAVING STATUS...');
             google.script.run
                 .withSuccessHandler(res => {
@@ -264,7 +280,7 @@ function changeApprovalStatus(id, columnName, selectElement) {
                     showToast('Connection failed: ' + err.message, 'error');
                     fetchData(currentSheet, true);
                 })
-                .updateRecordData(currentSheet, id, columnName, newValue);
+                .updateRecordData(currentSheet, id, columnName, newValue, updatePayload);
         },
         () => {
             renderTable(rawData);

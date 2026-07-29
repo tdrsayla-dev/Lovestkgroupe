@@ -11,17 +11,44 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
+function getUserStatus(user) {
+    if (!user) return 'Active';
+    if (user.status || user.Status) {
+        const s = String(user.status || user.Status).trim().toLowerCase();
+        if (['disabled', 'suspended', 'inactive', 'ระงับใช้งาน', 'ปิดใช้งาน'].includes(s)) return 'Disabled';
+    }
+    const perms = String(user.permissions || user.Permissions || '').toLowerCase();
+    if (perms.includes('status:disabled') || perms.includes('status:suspended') || perms.includes('status:inactive')) {
+        return 'Disabled';
+    }
+    return 'Active';
+}
+
 function parsePermissionsList(val) {
     if (!val) return [];
     if (Array.isArray(val)) {
         return val.map(v => String(v).trim().toLowerCase()).filter(Boolean);
     }
+    if (typeof val === 'object' && val !== null) {
+        const res = [];
+        for (let key in val) {
+            const menuObj = val[key];
+            if (typeof menuObj === 'object' && menuObj !== null) {
+                for (let act in menuObj) {
+                    if (menuObj[act]) res.push(`${key}:${act}`.toLowerCase());
+                }
+            } else if (menuObj) {
+                res.push(key.toLowerCase());
+            }
+        }
+        return res;
+    }
     let str = String(val).trim();
-    if (str.startsWith('[') && str.endsWith(']')) {
+    if ((str.startsWith('{') && str.endsWith('}')) || (str.startsWith('[') && str.endsWith(']'))) {
         try {
             let parsed = JSON.parse(str);
-            if (Array.isArray(parsed)) {
-                return parsed.map(v => String(v).trim().toLowerCase()).filter(Boolean);
+            if (Array.isArray(parsed) || (typeof parsed === 'object' && parsed !== null)) {
+                return parsePermissionsList(parsed);
             }
         } catch (e) { }
     }
@@ -30,31 +57,59 @@ function parsePermissionsList(val) {
     return str.split(',').map(v => String(v).trim().toLowerCase()).filter(Boolean);
 }
 
+function isMasterPermissionChecked(menuId, checkedList) {
+    if (!checkedList || checkedList.length === 0) return false;
+    if (checkedList.includes('all') || checkedList.includes('admin')) return true;
+
+    const hasEdit = hasActionPermission(menuId, 'edit', checkedList);
+    const hasDelete = hasActionPermission(menuId, 'delete', checkedList);
+    const hasAdd = hasActionPermission(menuId, 'add', checkedList);
+    const hasView = hasActionPermission(menuId, 'view', checkedList);
+
+    return hasEdit && hasDelete && hasAdd && hasView;
+}
+
 function isMenuPermissionChecked(menuId, checkedList) {
     if (!checkedList || checkedList.length === 0) return false;
-    if (checkedList.includes('all')) return true;
+    if (checkedList.includes('all') || checkedList.includes('admin')) return true;
 
     const norm = (str) => String(str || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
     const target = norm(menuId);
+    if (!target) return false;
 
     return checkedList.some(item => {
         let itemStr = String(item || '').trim();
+        if (!itemStr) return false;
         if (itemStr.includes(':')) {
             itemStr = itemStr.split(':')[0];
         }
         const itemNorm = norm(itemStr);
+        if (!itemNorm) return false;
+
         if (target === itemNorm) return true;
 
-        // Plural / singular & substring handling (e.g. budgetrequest / budgetrequests)
-        if (target.startsWith(itemNorm) || itemNorm.startsWith(target)) return true;
+        // Plural / singular & exact prefix handling
+        if (itemNorm.length >= 3 && target.length >= 3) {
+            if (target === itemNorm + 's' || itemNorm === target + 's') return true;
+            if (target === itemNorm + 'es' || itemNorm === target + 'es') return true;
+        }
 
-        // Alias & typo handling
+        // Domain-specific menu aliases
         if (target.includes('budget') && itemNorm.includes('budget')) return true;
         if (target.includes('leave') && itemNorm.includes('leave')) return true;
+        if (target.includes('digital') && itemNorm.includes('digital')) return true;
         if ((target.includes('orientat') || target.includes('orentat')) && (itemNorm.includes('orientat') || itemNorm.includes('orentat'))) return true;
         if ((target.includes('ranting') || target.includes('rating')) && (itemNorm.includes('ranting') || itemNorm.includes('rating'))) return true;
         if ((target.includes('fingerprint') || target.includes('attendance')) && (itemNorm.includes('fingerprint') || itemNorm.includes('attendance'))) return true;
         if (target.includes('asset') && itemNorm.includes('asset')) return true;
+        if (target.includes('doc') && itemNorm.includes('doc')) return true;
+        if (target.includes('announc') && itemNorm.includes('announc')) return true;
+        if (target.includes('news') && itemNorm.includes('news')) return true;
+        if (target.includes('train') && itemNorm.includes('train')) return true;
+        if (target.includes('policy') && itemNorm.includes('policy')) return true;
+        if (target.includes('dept') && itemNorm.includes('dept')) return true;
+        if (target.includes('organ') && itemNorm.includes('organ')) return true;
+        if ((target.includes('scan') || target.includes('timetrack')) && (itemNorm.includes('timetrack') || itemNorm.includes('scan'))) return true;
 
         return false;
     });
@@ -67,18 +122,25 @@ function hasActionPermission(menuId, action, checkedList) {
     const norm = (str) => String(str || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
     const targetAction = norm(action);
 
+    // Check if there are any explicit action-scoped items for this menu (items containing ':')
+    const hasExplicitActionsForMenu = checkedList.some(item => {
+        const itemStr = String(item || '').trim().toLowerCase();
+        if (!itemStr.includes(':')) return false;
+        const parts = itemStr.split(':');
+        return isMenuPermissionChecked(menuId, [parts[0]]);
+    });
+
     return checkedList.some(item => {
         const itemStr = String(item || '').trim().toLowerCase();
         if (!itemStr.includes(':')) {
+            if (hasExplicitActionsForMenu) return false;
             return isMenuPermissionChecked(menuId, [itemStr]);
         }
         const parts = itemStr.split(':');
         const itemMenu = parts[0];
         const itemAct = norm(parts[1]);
 
-        const menuMatches = isMenuPermissionChecked(menuId, [itemMenu]);
-
-        if (menuMatches) {
+        if (isMenuPermissionChecked(menuId, [itemMenu])) {
             return itemAct === targetAction || itemAct === 'all';
         }
         return false;

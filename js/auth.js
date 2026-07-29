@@ -11,7 +11,7 @@ function applyRolePermissions(role, permissions = '') {
         const roleStr = String(role).toLowerCase();
         const isAdmin = roleStr.includes('admin') || roleStr.includes('manager');
         const allowedMenus = typeof parsePermissionsList === 'function' ? parsePermissionsList(permissions) : (permissions ? String(permissions).split(',').map(m => m.trim().toLowerCase()) : []);
-        const publicMenus = ['scan', 'staff-dashboard'];
+        const publicMenus = ['staff-dashboard'];
 
         document.querySelectorAll('.nav-btn').forEach(btn => {
             let pageId = String(btn.getAttribute('data-page')).toLowerCase().trim();
@@ -72,6 +72,15 @@ function showApp() {
                 username = sessionData.username || '';
                 empId = sessionData.empId || '';
                 permissions = sessionData.permissions || '';
+                const isUserDisabled = typeof getUserStatus === 'function'
+                    ? getUserStatus(sessionData) === 'Disabled'
+                    : String(permissions).toLowerCase().includes('status:disabled');
+
+                if (isUserDisabled) {
+                    logout();
+                    showToast('⚠️ บัญชีของคุณถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ (Account Disabled)', 'error');
+                    return;
+                }
             } catch (e) { }
         }
 
@@ -116,6 +125,38 @@ function showApp() {
 
         applyRolePermissions(role, permissions);
 
+        // Fetch latest user permissions from Supabase users table to ensure live permissions updates
+        if (empId || username) {
+            google.script.run.withSuccessHandler(res => {
+                try {
+                    const uRows = (res && res.data) || [];
+                    const matchedUser = uRows.find(u => {
+                        const uEmp = String(u.employee_id || u.Employee_ID || u.username || '').trim().toUpperCase();
+                        const myEmp = String(empId || username).trim().toUpperCase();
+                        return uEmp === myEmp || String(u.username || '').trim().toLowerCase() === String(username).trim().toLowerCase();
+                    });
+                    if (matchedUser) {
+                        const freshPerms = matchedUser.permissions || matchedUser.Permissions || permissions;
+                        const freshRole = matchedUser.role || matchedUser.Role || role;
+                        
+                        if (sessionStr) {
+                            try {
+                                const sObj = JSON.parse(sessionStr);
+                                sObj.permissions = freshPerms;
+                                sObj.role = freshRole;
+                                localStorage.setItem('hr_user_session', JSON.stringify(sObj));
+                                if (sessionStorage.getItem('hr_user_session')) sessionStorage.setItem('hr_user_session', JSON.stringify(sObj));
+                            } catch (e) {}
+                        }
+                        applyRolePermissions(freshRole, freshPerms);
+                        if (typeof renderTable === 'function' && typeof currentSheet !== 'undefined' && currentSheet) {
+                            renderTable();
+                        }
+                    }
+                } catch(e) {}
+            }).getSheetData('users');
+        }
+
         let roleLower = String(role).toLowerCase();
         if (roleLower === 'staff') navigate('staff-dashboard', 'My Dashboard');
         else navigate('dashboard', 'Dashboard');
@@ -151,9 +192,14 @@ function handleLogin(e) {
                 try {
                     toggleLoading(false);
                     if (res.success) {
+                        const statusStr = String(res.status || res.Status || res.userStatus || '').toLowerCase();
+                        if (['disabled', 'suspended', 'inactive', 'ระงับใช้งาน', 'ปิดใช้งาน'].includes(statusStr)) {
+                            showToast('⚠️ บัญชีผู้ใช้นี้ถูกระงับการใช้งาน (Account Suspended)', 'error');
+                            return;
+                        }
                         showToast('Login successful', 'success');
-                        if (remember) localStorage.setItem('hr_user_session', JSON.stringify({ username: res.username || email.split('@')[0], email: email, role: res.role, empId: res.empId, permissions: res.permissions }));
-                        else sessionStorage.setItem('hr_user_session', JSON.stringify({ username: res.username || email.split('@')[0], email: email, role: res.role, empId: res.empId, permissions: res.permissions }));
+                        if (remember) localStorage.setItem('hr_user_session', JSON.stringify({ username: res.username || email.split('@')[0], email: email, role: res.role, empId: res.empId, permissions: res.permissions, status: res.status }));
+                        else sessionStorage.setItem('hr_user_session', JSON.stringify({ username: res.username || email.split('@')[0], email: email, role: res.role, empId: res.empId, permissions: res.permissions, status: res.status }));
                         showApp();
                     } else showToast(res.message, 'error');
                 } catch (errInner) {

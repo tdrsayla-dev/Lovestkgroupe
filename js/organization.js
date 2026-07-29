@@ -104,10 +104,10 @@ function createOrgCard(person) {
                 <div class="h-2 w-full bg-gradient-to-r ${cardGradient}"></div>
 
                 <!-- Admin Quick Actions -->
-                ${role !== 'Staff' ? `
+                ${(typeof canEdit !== 'undefined' ? (canEdit || canDelete) : role !== 'Staff') ? `
                 <div class="absolute top-3 right-3 bg-white/90 backdrop-blur-sm rounded-lg shadow-md border border-gray-100 p-1 flex space-x-1 z-30 opacity-0 group-hover:opacity-100 transition-opacity" onclick="event.stopPropagation()">
-                    <button onclick="openFormModal('${encodedPerson}')" title="Edit Record" class="text-blue-600 hover:bg-blue-50 w-6 h-6 rounded-md flex items-center justify-center transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
-                    <button onclick="deleteRecord('${rowId}')" title="Delete Record" class="text-red-500 hover:bg-red-50 w-6 h-6 rounded-md flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
+                    ${(typeof canEdit !== 'undefined' ? canEdit : role !== 'Staff') ? `<button onclick="openFormModal('${encodedPerson}')" title="Edit Record" class="text-blue-600 hover:bg-blue-50 w-6 h-6 rounded-md flex items-center justify-center transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>` : ''}
+                    ${(typeof canDelete !== 'undefined' ? canDelete : role !== 'Staff') ? `<button onclick="deleteRecord('${rowId}')" title="Delete Record" class="text-red-500 hover:bg-red-50 w-6 h-6 rounded-md flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>` : ''}
                 </div>` : ''}
 
                 <div class="p-4 flex flex-col items-center text-center">
