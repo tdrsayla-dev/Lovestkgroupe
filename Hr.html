@@ -2578,7 +2578,7 @@
                             <div class="grid grid-cols-3 gap-4">
                                 <div class="col-span-2">
                                     <label class="block text-sm font-medium text-gray-700 mb-1">จำนวนเงิน</label>
-                                    <input type="number" id="fb_amount" required class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="5000" step="0.01">
+                                    <input type="text" id="fb_amount" required oninput="formatAmountWithCommas(this)" class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="เช่น 50,000">
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-1">สกุลเงิน</label>
@@ -2601,23 +2601,67 @@
                         <div class="overflow-x-auto">
                             <table class="w-full text-left border-collapse">
                                 <thead>
-                                    <tr class="bg-gray-50 border-b border-gray-200">
-                                        <th class="p-4 text-sm font-medium text-gray-500">รหัสพนักงาน</th>
-                                        <th class="p-4 text-sm font-medium text-gray-500 text-right">ปันผล (MLM)</th>
-                                        <th class="p-4 text-sm font-medium text-gray-500 text-right text-purple-600">ค่าแนะนำ (Clinic)</th>
-                                        <th class="p-4 text-sm font-medium text-gray-500 text-right">เบิกงบ (HR)</th>
-                                        <th class="p-4 text-sm font-medium text-gray-500 text-right">กำไรสุทธิ</th>
-                                        <th class="p-4 text-sm font-medium text-gray-500 text-center">สถานะ</th>
+                                    <tr class="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 font-bold uppercase tracking-wider">
+                                        <th class="p-4">รหัสพนักงาน</th>
+                                        <th class="p-4">ชื่อ และ นามสกุล</th>
+                                        <th class="p-4">วันที่</th>
+                                        <th class="p-4 text-right text-emerald-600">ปันผล (MLM)</th>
+                                        <th class="p-4 text-right text-purple-600">ค่าแนะนำ (Clinic)</th>
+                                        <th class="p-4 text-right text-rose-600">เบิกงบ (HR)</th>
+                                        <th class="p-4 text-right text-blue-600">ยอดคงเหลือ</th>
+                                        <th class="p-4 text-center">สถานะ</th>
+                                        <th class="p-4 text-center">จัดการ</th>
                                     </tr>
                                 </thead>
-                                <tbody id="fb-dashboard-body" class="divide-y divide-gray-100">
-                                    <tr><td colspan="5" class="text-center py-6 text-gray-400">กรุณากดเปิด Dashboard เพื่อโหลดข้อมูล</td></tr>
+                                <tbody id="fb-dashboard-body" class="divide-y divide-gray-100 text-sm">
+                                    <tr><td colspan="9" class="text-center py-6 text-gray-400">กรุณากดเปิด Dashboard เพื่อโหลดข้อมูล</td></tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 </div>
                 <script>
+                    let editingFbId = null;
+
+                    window.formatAmountWithCommas = function(inputEl) {
+                        if (!inputEl) return;
+                        let raw = String(inputEl.value || '').replace(/,/g, '').replace(/[^0-9.]/g, '');
+                        if (!raw) {
+                            inputEl.value = '';
+                            return;
+                        }
+                        let parts = raw.split('.');
+                        let integerPart = parts[0] ? Number(parts[0]).toLocaleString('en-US') : '0';
+                        let formatted = parts.length > 1 ? integerPart + '.' + parts[1].slice(0, 2) : integerPart;
+                        inputEl.value = formatted;
+                    };
+
+                    window.editFbBudget = function(encodedFbRow) {
+                        try {
+                            let b = typeof encodedFbRow === 'object' ? encodedFbRow : JSON.parse(decodeURIComponent(encodedFbRow));
+                            editingFbId = b.raw_id || b.id || b.Id_Budget;
+                            
+                            document.getElementById('fb_member_id').value = b.member_id || b.Employee_ID || '';
+                            document.getElementById('fb_campaign_name').value = b.campaign_name || b.Title || '';
+                            
+                            const amtVal = b.amount || b.Amount || 0;
+                            const amtInput = document.getElementById('fb_amount');
+                            if (amtInput) {
+                                amtInput.value = amtVal ? Number(amtVal).toLocaleString('en-US') : '';
+                            }
+
+                            document.getElementById('fb_currency').value = b.currency || 'THB';
+                            
+                            document.getElementById('fb-budget-form').style.display = 'block';
+                            document.getElementById('fb-budget-dashboard').style.display = 'none';
+                            
+                            const submitBtn = document.getElementById('fb_submit_btn');
+                            if (submitBtn) submitBtn.innerText = 'อัปเดตคำขอเบิกงบ';
+                        } catch(e) {
+                            console.error('Error in editFbBudget:', e);
+                        }
+                    };
+
                     async function submitFacebookBudget(e) {
                         e.preventDefault();
                         const btn = document.getElementById('fb_submit_btn');
@@ -2625,25 +2669,31 @@
                         btn.innerText = 'กำลังบันทึก...';
                         
                         try {
+                            const rawAmtStr = String(document.getElementById('fb_amount').value || '').replace(/,/g, '').trim();
                             const data = {
                                 member_id: document.getElementById('fb_member_id').value,
                                 campaign_name: document.getElementById('fb_campaign_name').value,
-                                amount: Number(document.getElementById('fb_amount').value),
+                                amount: Number(rawAmtStr) || 0,
                                 currency: document.getElementById('fb_currency').value,
-                                status: 'Approved' // ค่าเริ่มต้นสำหรับทดสอบ
+                                status: 'Pending'
                             };
                             
                             const bridge = window.SUPABASE_URL && window.SUPABASE_ANON_KEY ? createSupabaseBridge({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY }) : null;
                             if(!bridge) throw new Error("Supabase is not configured.");
                             
-                            await bridge.insertRows('facebook_budget_requests', [data]);
-                            
-                            if (typeof Swal !== 'undefined') {
-                                Swal.fire('สำเร็จ', 'บันทึกข้อมูลเบิกงบสำเร็จ', 'success');
+                            if (editingFbId) {
+                                await bridge.updateRow('facebook_budget_requests', 'id', editingFbId, data);
+                                editingFbId = null;
+                                if (typeof Swal !== 'undefined') Swal.fire('สำเร็จ', 'อัปเดตข้อมูลเบิกงบสำเร็จ', 'success');
+                                else alert('อัปเดตข้อมูลเบิกงบสำเร็จ');
                             } else {
-                                alert('บันทึกข้อมูลเบิกงบสำเร็จ');
+                                await bridge.insertRows('facebook_budget_requests', [data]);
+                                if (typeof Swal !== 'undefined') Swal.fire('สำเร็จ', 'บันทึกข้อมูลเบิกงบสำเร็จ', 'success');
+                                else alert('บันทึกข้อมูลเบิกงบสำเร็จ');
                             }
+                            
                             e.target.reset();
+                            loadFacebookBudgetDashboard();
                         } catch (err) {
                             console.error(err);
                             if (typeof Swal !== 'undefined') {
@@ -2657,6 +2707,19 @@
                         }
                     }
 
+                    window.deleteFbBudget = async function(id) {
+                        if (!confirm('คุณต้องการลบรายการนี้ใช่หรือไม่?')) return;
+                        try {
+                            const hrBridge = window.SUPABASE_URL && window.SUPABASE_ANON_KEY ? createSupabaseBridge({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY }) : null;
+                            if (!hrBridge) throw new Error("Supabase is not configured.");
+                            await hrBridge.deleteRow('facebook_budget_requests', 'id', id);
+                            alert('ลบข้อมูลเรียบร้อย');
+                            loadFacebookBudgetDashboard();
+                        } catch(err) {
+                            alert('เกิดข้อผิดพลาด: ' + err.message);
+                        }
+                    };
+
                     async function loadFacebookBudgetDashboard() {
                         const tbody = document.getElementById('fb-dashboard-body');
                         const loading = document.getElementById('fb-dashboard-loading');
@@ -2667,115 +2730,231 @@
                             const hrBridge = window.SUPABASE_URL && window.SUPABASE_ANON_KEY ? createSupabaseBridge({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY }) : null;
                             if(!hrBridge) throw new Error("HR Supabase is not configured.");
                             
-                            // 1. ดึงข้อมูลเบิกงบฝั่ง HR
-                            const budgets = await hrBridge.getTableData('facebook_budget_requests', { filter: 'status=eq.Approved', select: 'member_id,amount,currency' });
-                            // 2. ดึงข้อมูลยอดขายฝั่ง MLM (Cross-fetch)
+                            // 1. ดึงข้อมูลเบิกงบฝั่ง HR และข้อมูลพนักงาน
+                            const [budgets, staffRows] = await Promise.all([
+                                hrBridge.getTableData('facebook_budget_requests', { select: '*' }).catch(() => []),
+                                hrBridge.getTableData('staff', { select: '*' }).catch(() => [])
+                            ]);
+
+                            const staffMap = {};
+                            (staffRows || []).forEach(s => {
+                                const id = String(s.Employee_ID || s.employee_id || s.Emp_ID || '').trim().toUpperCase();
+                                if (id) {
+                                    const fname = s.First_Name || s.first_name || '';
+                                    const lname = s.Last_Name || s.last_name || '';
+                                    const fullName = (fname + ' ' + lname).trim() || id;
+                                    staffMap[id] = {
+                                        name: fullName,
+                                        dept: s.Department_ID || s.department_id || s.department || '-',
+                                        pos: s.Position_ID || s.position_id || s.position || '-'
+                                    };
+                                }
+                            });
+                            
+                            // 2. ดึงข้อมูลยอดขายฝั่ง MLM และข้อมูลสมาชิก MLM (stk_members)
                             const mlmUrl = 'https://mfpkeyrykqnrywyksyqp.supabase.co';
                             const mlmKey = 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
                             
-                            // ดึงสินค้าจาก MLM เพื่อเอา self_fee
-                            const prodRes = await fetch(`${mlmUrl}/rest/v1/stk_products?select=name,self_fee`, {
-                                headers: { 'apikey': mlmKey, 'Authorization': `Bearer ${mlmKey}` }
-                            });
-                            if (!prodRes.ok) throw new Error('Failed to fetch MLM products');
-                            const products = await prodRes.json();
-                            const prodMap = {};
-                            products.forEach(p => {
-                                prodMap[String(p.name).trim()] = Number(p.self_fee || 0);
-                            });
+                            let salesMap = {};
+                            let mlmMembersMap = {};
+                            
+                            try {
+                                const [prodRes, salesRes, memRes] = await Promise.all([
+                                    fetch(`${mlmUrl}/rest/v1/stk_products?select=name,self_fee`, { headers: { 'apikey': mlmKey, 'Authorization': `Bearer ${mlmKey}` } }),
+                                    fetch(`${mlmUrl}/rest/v1/sales?select=seller_id,items_json`, { headers: { 'apikey': mlmKey, 'Authorization': `Bearer ${mlmKey}` } }),
+                                    fetch(`${mlmUrl}/rest/v1/stk_members?select=user_id,name`, { headers: { 'apikey': mlmKey, 'Authorization': `Bearer ${mlmKey}` } }).catch(() => null)
+                                ]);
+                                
+                                const products = prodRes && prodRes.ok ? await prodRes.json() : [];
+                                const prodMap = {};
+                                (products || []).forEach(p => {
+                                    prodMap[String(p.name).trim()] = Number(p.self_fee || 0);
+                                });
 
-                            const res = await fetch(`${mlmUrl}/rest/v1/sales?select=seller_id,items_json`, {
-                                headers: {
-                                    'apikey': mlmKey,
-                                    'Authorization': `Bearer ${mlmKey}`
-                                }
-                            });
-                            if (!res.ok) throw new Error('Failed to fetch MLM sales data');
-                            const sales = await res.json();
-                            
-                            const map = {};
-                            sales.forEach(s => {
-                                if (!s.seller_id) return;
-                                if (!map[s.seller_id]) map[s.seller_id] = { salesLAK: 0, budgetTHB: 0, budgets: [], clinicTHB: 0 };
-                                
-                                let itemsList = [];
-                                if (s.items_json) {
-                                    try {
-                                        itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json;
-                                    } catch(e) {}
-                                }
-                                
-                                let commissionLAK = 0;
-                                if (Array.isArray(itemsList)) {
-                                    itemsList.forEach(it => {
-                                        const typeStr = String(it.type || '').trim();
-                                        if (typeStr === 'ราคาเต็ม' || typeStr === 'ราคาสมาชิก' || !typeStr || typeStr === '') {
-                                            const qtyNum = Number(it.qty || it.quantity || 1);
-                                            const pName = String(it.prod || it.name || it.product_name || '').trim();
-                                            let fee = prodMap[pName] || 0;
-                                            if (fee === 0) {
-                                                const matchedKey = Object.keys(prodMap).find(k => k.includes(pName) || pName.includes(k));
-                                                if (matchedKey) fee = prodMap[matchedKey];
-                                            }
-                                            commissionLAK += (qtyNum * fee);
-                                        }
-                                    });
-                                }
-                                map[s.seller_id].salesLAK += commissionLAK;
-                            });
-                            budgets.forEach(b => {
-                                if (!b.member_id) return;
-                                if (!map[b.member_id]) map[b.member_id] = { salesLAK: 0, budgetTHB: 0, budgets: [], clinicTHB: 0 };
-                                
-                                const amt = Number(b.amount || 0);
-                                const curr = b.currency || 'THB';
-                                map[b.member_id].budgets.push({ amount: amt, currency: curr });
-                                
-                                if (curr === 'THB') map[b.member_id].budgetTHB += amt;
-                                else if (curr === 'LAK') map[b.member_id].budgetTHB += (amt / 700);
-                                else if (curr === 'USD') map[b.member_id].budgetTHB += (amt * 35);
-                            });
-                            
-                            const sortedMembers = Object.keys(map).sort((a,b) => map[b].salesLAK - map[a].salesLAK);
-                            
-                            if (sortedMembers.length === 0) {
-                                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-gray-500">ไม่พบข้อมูล</td></tr>`;
-                            } else {
-                                sortedMembers.forEach(memberId => {
-                                    const stat = map[memberId];
-                                    const EXCHANGE_RATE = 700; // สมมติเรทแปลง LAK เป็น THB เพื่อคำนวณกำไรสุทธิ
-                                    const salesTHB = stat.salesLAK / EXCHANGE_RATE; 
-                                    const totalIncomeTHB = salesTHB + stat.clinicTHB;
+                                const sales = salesRes && salesRes.ok ? await salesRes.json() : [];
+                                (sales || []).forEach(s => {
+                                    if (!s.seller_id) return;
+                                    const sid = String(s.seller_id).trim().toUpperCase();
+                                    if (!salesMap[sid]) salesMap[sid] = 0;
                                     
-                                    const netTHB = totalIncomeTHB - stat.budgetTHB;
-                                    const isLoss = netTHB < 0;
-                                    const percent = totalIncomeTHB > 0 ? ((stat.budgetTHB / totalIncomeTHB)*100).toFixed(1) : (stat.budgetTHB > 0 ? 100 : 0);
-                                    
-                                    let budgetDisplay = [];
-                                    let sumByCurrency = {};
-                                    (stat.budgets || []).forEach(b => {
-                                        sumByCurrency[b.currency] = (sumByCurrency[b.currency] || 0) + b.amount;
-                                    });
-                                    if (Object.keys(sumByCurrency).length === 0) budgetDisplay = ['฿0'];
-                                    else {
-                                        if (sumByCurrency['THB']) budgetDisplay.push(`฿${sumByCurrency['THB'].toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}`);
-                                        if (sumByCurrency['LAK']) budgetDisplay.push(`${sumByCurrency['LAK'].toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})} ₭`);
-                                        if (sumByCurrency['USD']) budgetDisplay.push(`$${sumByCurrency['USD'].toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}`);
+                                    let itemsList = [];
+                                    if (s.items_json) {
+                                        try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e) {}
                                     }
-                                    const budgetHtml = budgetDisplay.join('<br><span class="text-xs text-gray-400 opacity-50">+</span><br>');
+                                    if (Array.isArray(itemsList)) {
+                                        itemsList.forEach(it => {
+                                            const typeStr = String(it.type || '').trim();
+                                            if (typeStr === 'ราคาเต็ม' || typeStr === 'ราคาสมาชิก' || !typeStr) {
+                                                const qtyNum = Number(it.qty || it.quantity || 1);
+                                                const pName = String(it.prod || it.name || it.product_name || '').trim();
+                                                let fee = prodMap[pName] || 0;
+                                                if (fee === 0) {
+                                                    const matchedKey = Object.keys(prodMap).find(k => k.includes(pName) || pName.includes(k));
+                                                    if (matchedKey) fee = prodMap[matchedKey];
+                                                }
+                                                salesMap[sid] += (qtyNum * fee);
+                                            }
+                                        });
+                                    }
+                                });
+
+                                if (memRes && memRes.ok) {
+                                    const mems = await memRes.json();
+                                    (mems || []).forEach(m => {
+                                        const uid = String(m.user_id || m.id || '').trim().toUpperCase();
+                                        if (uid && m.name) mlmMembersMap[uid] = String(m.name).trim();
+                                    });
+                                }
+                            } catch(mlmErr) {
+                                console.warn('MLM fetch failed, proceeding with local data:', mlmErr);
+                            }
+
+                            if (!budgets || budgets.length === 0) {
+                                tbody.innerHTML = `<tr><td colspan="9" class="text-center py-6 text-gray-500">ไม่พบข้อมูลคำขอเบิกงบประมาณ</td></tr>`;
+                            } else {
+                                // 1. เรียงลำดับคำขอเบิกตามวันที่/เวลา จากเก่าไปใหม่ (ASC) เพื่อคำนวณยอดยกมาสะสม
+                                budgets.sort((a, b) => {
+                                    const tA = new Date(a.request_date || a.created_at || 0).getTime();
+                                    const tB = new Date(b.request_date || b.created_at || 0).getTime();
+                                    return tA - tB;
+                                });
+
+                                // 2. คำนวณ Running Balance ฝั่ง LAK แยกตามแต่ละคน
+                                const runningBalLAKMap = {};
+
+                                budgets.forEach(b => {
+                                    const mId = String(b.member_id || '').trim().toUpperCase();
+                                    const salesLAK = salesMap[mId] || 0;
+                                    const clinicFeeLAK = Number(b.clinic_fee || 0);
+
+                                    // ถ้าเพิ่งเจอคนนี้เป็นครั้งแรก ให้ตั้งต้นยอดยกมาด้วย (ยอดขาย MLM + ค่าแนะนำ Clinic)
+                                    if (runningBalLAKMap[mId] === undefined) {
+                                        runningBalLAKMap[mId] = salesLAK + clinicFeeLAK;
+                                    }
+
+                                    const amt = Number(b.amount || 0);
+                                    const curr = String(b.currency || 'THB').toUpperCase().trim();
+
+                                    // แปลงยอดเบิกใหม่ในคำขอนี้เป็น LAK
+                                    let amtInLAK = amt;
+                                    if (curr === 'USD' || curr === '$') {
+                                        amtInLAK = amt * 24500;
+                                    } else if (curr === 'THB') {
+                                        amtInLAK = amt * 700;
+                                    }
+
+                                    // หักลบจากยอดคงเหลือตั้งต้นของคนนั้น
+                                    runningBalLAKMap[mId] -= amtInLAK;
+                                    b._remainingBalLAK = runningBalLAKMap[mId];
+                                });
+
+                                budgets.forEach(b => {
+                                    const mId = String(b.member_id || '').trim().toUpperCase();
+                                    const mlmName = mlmMembersMap[mId];
+                                    const staffName = staffMap[mId] ? staffMap[mId].name : '';
+                                    const displayName = mlmName || staffName || mId;
+                                    
+                                    const sInfo = {
+                                        name: displayName,
+                                        dept: staffMap[mId] ? staffMap[mId].dept : '-',
+                                        pos: staffMap[mId] ? staffMap[mId].pos : '-'
+                                    };
+
+                                    const dateStr = b.request_date ? new Date(b.request_date).toLocaleDateString('en-US') : (b.created_at ? new Date(b.created_at).toLocaleDateString('en-US') : '7/29/2026');
+                                    
+                                    const salesLAK = salesMap[mId] || 0;
+                                    const clinicFee = Number(b.clinic_fee || 0);
+                                    const amt = Number(b.amount || 0);
+                                    const curr = String(b.currency || 'THB').toUpperCase().trim();
+                                    
+                                    // คำนวณยอดคงเหลือที่จะแสดงในสกุลเงินที่ขอเบิก
+                                    const remainingLAK = b._remainingBalLAK || 0;
+                                    let netVal = remainingLAK;
+                                    if (curr === 'USD' || curr === '$') {
+                                        netVal = remainingLAK / 24500;
+                                    } else if (curr === 'THB') {
+                                        netVal = remainingLAK / 700;
+                                    }
+
+                                    function fmtMoney(num, c) {
+                                        const val = Math.abs(Number(num || 0));
+                                        if (c === 'USD' || c === '$') {
+                                            return `$${val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+                                        } else if (c === 'LAK' || c === 'กีบ' || c === 'กิ๊บ' || c === '₭') {
+                                            return `${val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} ₭`;
+                                        } else {
+                                            return `฿${val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+                                        }
+                                    }
+
+                                    const budgetDisplayStr = fmtMoney(amt, curr);
+                                    const netDisplayStr = (netVal < 0 ? '-' : '') + fmtMoney(netVal, curr);
+                                    const clinicDisplayStr = `${clinicFee.toLocaleString()} ₭`;
+
+                                    const statusStr = b.status || 'Pending';
+                                    const isApproved = String(statusStr).toLowerCase().includes('approved');
+                                    const statusText = isApproved ? 'อนุมัติแล้ว' : 'รอการอนุมัติ';
+                                    const statusBg = isApproved ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-amber-500 hover:bg-amber-600';
+
+                                    const billRow = {
+                                        Id_Budget: b.id || ('FB-' + mId),
+                                        Request_Date: b.request_date || (b.created_at ? String(b.created_at).slice(0, 10) : new Date().toISOString().slice(0, 10)),
+                                        Employee_ID: mId,
+                                        First_Name: sInfo.name,
+                                        Last_Name: '',
+                                        Department_ID: sInfo.dept,
+                                        Position_ID: sInfo.pos,
+                                        Title: b.campaign_name || 'เบิกงบประมาณ Facebook',
+                                        Description: b.notes || b.campaign_name || 'ขออนุมัติเบิกงบโฆษณา Facebook',
+                                        Amount: amt,
+                                        currency: curr,
+                                        Status: statusStr,
+                                        Items: JSON.stringify([{
+                                            no: 1,
+                                            name: b.campaign_name || 'เบิกงบ Facebook',
+                                            qty: 1,
+                                            price: amt,
+                                            total: amt
+                                        }])
+                                    };
+
+                                    const fbRowObj = {
+                                        raw_id: b.id,
+                                        member_id: mId,
+                                        campaign_name: b.campaign_name || '',
+                                        amount: amt,
+                                        currency: curr
+                                    };
+
+                                    const encodedRow = encodeURIComponent(JSON.stringify(billRow)).replace(/'/g, "%27");
+                                    const encodedFbRow = encodeURIComponent(JSON.stringify(fbRowObj)).replace(/'/g, "%27");
 
                                     tbody.innerHTML += `
                                         <tr class="hover:bg-gray-50 transition-colors border-b border-gray-100">
-                                            <td class="p-4 font-medium text-gray-800">${memberId}</td>
-                                            <td class="p-4 text-right text-emerald-600 font-bold">${stat.salesLAK.toLocaleString()} LAK</td>
-                                            <td class="p-4 text-right text-purple-600 font-bold">฿${stat.clinicTHB.toLocaleString()}</td>
-                                            <td class="p-4 text-right text-rose-600 font-medium leading-tight">${budgetHtml}</td>
-                                            <td class="p-4 text-right font-bold ${isLoss ? 'text-rose-500' : 'text-indigo-600'}">฿${netTHB.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                                            <td class="p-4 font-bold text-gray-800">${mId}</td>
+                                            <td class="p-4 font-semibold text-gray-700">${sInfo.name}</td>
+                                            <td class="p-4 text-gray-500">${dateStr}</td>
+                                            <td class="p-4 text-right text-emerald-600 font-bold">${salesLAK.toLocaleString()} LAK</td>
+                                            <td class="p-4 text-right text-purple-600 font-bold">${clinicDisplayStr}</td>
+                                            <td class="p-4 text-right text-rose-600 font-bold">${budgetDisplayStr}</td>
+                                            <td class="p-4 text-right text-blue-600 font-bold">${netDisplayStr}</td>
                                             <td class="p-4 text-center">
-                                                ${isLoss ? 
-                                                    '<span class="px-3 py-1 bg-rose-100 text-rose-700 text-xs rounded-full font-medium shadow-sm">เบิกเกินรายรับ!</span>' : 
-                                                    `<span class="px-3 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-full font-medium shadow-sm">ใช้งบ ${percent}%</span>`
-                                                }
+                                                <button onclick="window.showBillDetailsModal('${encodedRow}')" class="px-3 py-1.5 ${statusBg} text-white font-bold text-xs rounded-xl shadow-sm transition">
+                                                    ${statusText}
+                                                </button>
+                                            </td>
+                                            <td class="p-4 text-center">
+                                                <div class="flex items-center justify-center space-x-2">
+                                                    <button onclick="editFbBudget('${encodedFbRow}')" class="p-1 text-blue-600 hover:text-blue-800 transition" title="แก้ไข">
+                                                        <i class="fa-regular fa-pen-to-square text-base"></i>
+                                                    </button>
+                                                    <button onclick="window.showBillDetailsModal('${encodedRow}')" class="p-1 text-purple-600 hover:text-purple-800 transition" title="ดูใบขออนุมัติ">
+                                                        <i class="fa-solid fa-file-invoice text-base"></i>
+                                                    </button>
+                                                    <button onclick="deleteFbBudget('${b.id}')" class="p-1 text-rose-500 hover:text-rose-700 transition" title="ลบ">
+                                                        <i class="fa-regular fa-trash-can text-base"></i>
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     `;
@@ -2783,7 +2962,7 @@
                             }
                         } catch (err) {
                             console.error(err);
-                            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-red-500">เกิดข้อผิดพลาด: ${err.message}</td></tr>`;
+                            tbody.innerHTML = `<tr><td colspan="9" class="text-center py-6 text-red-500">เกิดข้อผิดพลาด: ${err.message}</td></tr>`;
                         } finally {
                             loading.classList.add('hidden');
                         }
