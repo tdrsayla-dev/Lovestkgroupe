@@ -1199,7 +1199,7 @@ function openAttendanceEditModalByDate(empId, dateStr) {
                                             <img id="preview-profile-img" src="${safeVal && safeVal !== '-' ? safeVal : 'https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=Pic'}" class="w-full h-full object-cover">
                                         </div>
                                         <div class="flex-1">
-                                            <input type="file" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-white file:text-brandindigo hover:file:bg-indigo-100 transition-colors cursor-pointer border border-dashed border-indigo-200 rounded-xl p-2 bg-white" onchange="if(this.files[0]){ let r = new FileReader(); r.onload=e=>document.getElementById('preview-profile-img').src=e.target.result; r.readAsDataURL(this.files[0]); }">
+                                            <input type="file" accept="image/*, application/pdf, .pdf, .jpg, .jpeg, .png" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-white file:text-brandindigo hover:file:bg-indigo-100 transition-colors cursor-pointer border border-dashed border-indigo-200 rounded-xl p-2 bg-white" onchange="if(this.files[0]){ let f=this.files[0]; if(f.type==='application/pdf'||f.name.endsWith('.pdf')){ document.getElementById('preview-profile-img').src='https://cdn-icons-png.flaticon.com/512/337/337946.png'; document.getElementById('preview-profile-img').title=f.name; }else{ let r=new FileReader(); r.onload=e=>document.getElementById('preview-profile-img').src=e.target.result; r.readAsDataURL(f); } }">
                                             <input type="hidden" name="${h}" id="hidden-profile-input" value="${safeVal}">
                                         </div>
                                     </div>
@@ -1410,31 +1410,58 @@ function submitData(e) {
     let hiddenImgInput = document.getElementById('hidden-profile-input');
 
     if (fileInput && fileInput.files.length > 0) {
-        toggleLoading(true, 'PREPARING IMAGE...');
+        toggleLoading(true, 'UPLOADING FILE...');
         let file = fileInput.files[0];
-        compressImageFile(file, 480, 0.72).then(function (base64Data) {
-            google.script.run
-                .withSuccessHandler(res => {
-                    if (res.success) {
-                        if (hiddenImgInput) {
-                            let imgColName = hiddenImgInput.name;
-                            dataObj[imgColName] = res.url;
-                        }
-                        executeSaveToSheet(dataObj, currentEditId);
-                    } else {
-                        toggleLoading(false);
-                        showToast('Image upload failed: ' + res.message, 'error');
-                    }
-                })
-                .withFailureHandler(err => {
+        
+        if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+            let reader = new FileReader();
+            reader.onload = function (evt) {
+                toggleLoading(false);
+                if (hiddenImgInput) {
+                    let imgColName = hiddenImgInput.name;
+                    dataObj[imgColName] = evt.target.result;
+                }
+                executeSaveToSheet(dataObj, currentEditId);
+            };
+            reader.onerror = function (err) {
+                toggleLoading(false);
+                showToast('ไม่สามารถอ่านไฟล์ PDF ได้', 'error');
+            };
+            reader.readAsDataURL(file);
+        } else {
+            compressImageFile(file, 480, 0.72).then(function (base64Data) {
+                if (typeof google !== 'undefined' && google.script && google.script.run) {
+                    google.script.run
+                        .withSuccessHandler(res => {
+                            if (res.success) {
+                                if (hiddenImgInput) {
+                                    let imgColName = hiddenImgInput.name;
+                                    dataObj[imgColName] = res.url;
+                                }
+                                executeSaveToSheet(dataObj, currentEditId);
+                            } else {
+                                toggleLoading(false);
+                                showToast('Image upload failed: ' + res.message, 'error');
+                            }
+                        })
+                        .withFailureHandler(err => {
+                            toggleLoading(false);
+                            showToast('Connection failed: ' + err.message, 'error');
+                        })
+                        .uploadImageToDrive(base64Data, file.name);
+                } else {
                     toggleLoading(false);
-                    showToast('Connection failed: ' + err.message, 'error');
-                })
-                .uploadImageToDrive(base64Data, file.name);
-        }).catch(function (err) {
-            toggleLoading(false);
-            showToast('ไม่สามารถเตรียมรูปภาพได้: ' + (err && err.message ? err.message : err), 'error');
-        });
+                    if (hiddenImgInput) {
+                        let imgColName = hiddenImgInput.name;
+                        dataObj[imgColName] = base64Data;
+                    }
+                    executeSaveToSheet(dataObj, currentEditId);
+                }
+            }).catch(function (err) {
+                toggleLoading(false);
+                showToast('ไม่สามารถเตรียมไฟล์รูปภาพได้: ' + (err && err.message ? err.message : err), 'error');
+            });
+        }
     } else {
         if (hiddenImgInput) {
             let imgColName = hiddenImgInput.name;
