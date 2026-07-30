@@ -1465,80 +1465,238 @@ async function submitTriage() {
     }
 }
 
-function openLabOrder(visitId, patientName, hn) {
-    document.getElementById('labOrderForm').reset();
-    document.getElementById('labVisitId').value = visitId;
-    document.getElementById('labHN').value = hn;
-    document.getElementById('labVisitIdDisplay').innerText = visitId;
-    document.getElementById('labPatientName').innerText = patientName;
-    document.getElementById('labHNDisplay').innerText = hn;
+window.selectedLabCategory = 'เลือดวิทยา (HEMATOLOGY)';
+window.checkedLabState = {};
 
-    // Load custom lab packages from window.servicesData
+function isCategoryMatch(itemCategory, targetCategory) {
+    if (!targetCategory || targetCategory === 'ALL') return true;
+    const cat = (itemCategory || 'เลือดวิทยา (HEMATOLOGY)').toLowerCase().trim();
+    const target = targetCategory.toLowerCase().trim();
+    
+    if (cat === target) return true;
+
+    if (target.includes('เลือดวิทยา') || target.includes('hematology')) {
+        return cat.includes('เลือดวิทยา') || cat.includes('hematology');
+    }
+    if (target.includes('ชีวเคมี') || target.includes('biochemistry')) {
+        return cat.includes('ชีวเคมี') || cat.includes('biochemistry');
+    }
+    if (target.includes('ภูมิคุ้มกัน') || target.includes('immunology')) {
+        return cat.includes('ภูมิคุ้มกัน') || cat.includes('immunology');
+    }
+    if (target.includes('ปัสสาวะ') || target.includes('urinalysis') || target.includes('stool') || target.includes('อุจจาระ')) {
+        return cat.includes('ปัสสาวะ') || cat.includes('urinalysis') || cat.includes('stool') || cat.includes('อุจจาระ');
+    }
+    if (target.includes('อื่นๆ') || target.includes('other')) {
+        return cat.includes('อื่นๆ') || cat.includes('other');
+    }
+
+    return false;
+}
+
+function handleLabCheckboxChange(inputEl, serviceName, price) {
+    window.checkedLabState = window.checkedLabState || {};
+    if (inputEl.checked) {
+        window.checkedLabState[serviceName] = {
+            name: serviceName,
+            price: parseFloat(price) || 0
+        };
+    } else {
+        delete window.checkedLabState[serviceName];
+    }
+    updateLabTotals();
+}
+
+function switchLabCategory(categoryName, btnEl) {
+    window.selectedLabCategory = categoryName;
+    if (btnEl) {
+        document.querySelectorAll('#labCategoryTabs .lab-cat-tab').forEach(b => {
+            b.classList.remove('active', 'fw-semibold');
+            b.classList.add('text-secondary');
+            b.style.color = '';
+            b.style.borderBottom = 'none';
+        });
+        btnEl.classList.remove('text-secondary');
+        btnEl.classList.add('active', 'fw-semibold');
+        btnEl.style.color = '#0284c7';
+        btnEl.style.borderBottom = '2px solid #0284c7';
+        btnEl.style.paddingBottom = '6px';
+    }
+    renderServicesLabContainer();
+}
+
+function updateLabTotals() {
+    window.checkedLabState = window.checkedLabState || {};
+    const stateItems = Object.values(window.checkedLabState);
+    
+    // Count custom lab checkboxes in #customLabContainer if not in window.checkedLabState
+    const customBoxes = document.querySelectorAll('#customLabContainer input[name="lab"]:checked');
+    let customCount = 0;
+    let customPriceTotal = 0;
+    customBoxes.forEach(cb => {
+        if (!window.checkedLabState[cb.value]) {
+            customCount++;
+            if (cb.dataset.price) {
+                customPriceTotal += parseFloat(cb.dataset.price) || 0;
+            }
+        }
+    });
+
+    const totalItems = stateItems.length + customCount;
+    let totalPrice = customPriceTotal;
+    stateItems.forEach(item => {
+        totalPrice += (parseFloat(item.price) || 0);
+    });
+
+    const countEl = document.getElementById('labTotalItemsCount');
+    const priceEl = document.getElementById('labTotalPriceDisplay');
+    if (countEl) countEl.textContent = totalItems;
+    if (priceEl) priceEl.textContent = totalPrice.toLocaleString() + ' LAK';
+}
+
+function renderServicesLabContainer() {
     const customContainer = document.getElementById('servicesLabContainer');
-    if (customContainer) {
-        const services = window.servicesData || [];
-        if (services.length === 0) {
-            customContainer.innerHTML = '<div class="col-12"><div class="alert alert-light text-center text-muted py-4 border border-dashed rounded-3"><i class="bi bi-inbox fs-3 d-block mb-2 text-secondary"></i>ยังไม่มีรายการแพ็กเกจ<br><small>สามารถตั้งค่าได้ที่เมนู "จัดการรายการตรวจ"</small></div></div>';
-        } else {
-            customContainer.innerHTML = '';
-            services.forEach(s => {
-                const cur = s.currency === 'THB' ? 'บาท' : (s.currency || 'LAK');
-                
-                // Show sub-items if any
-                let subItemsHtml = '';
-                if (s.sub_items && s.sub_items.length > 0) {
-                    subItemsHtml = '<ul class="mb-0 text-muted small mt-2 ps-3" style="list-style-type: disc; opacity: 0.8;">';
-                    s.sub_items.forEach(item => {
-                        subItemsHtml += `<li>${item.name}</li>`;
-                    });
-                    subItemsHtml += '</ul>';
-                }
+    if (!customContainer) return;
 
-                customContainer.innerHTML += `
-                    <div class="col-md-6 mb-3">
-                        <label class="w-100 h-100 cursor-pointer" style="cursor: pointer;">
-                            <div class="card h-100 border-0 shadow-sm transition-all custom-lab-card" style="border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0 !important;">
-                                <div class="card-body p-3 d-flex align-items-start">
-                                    <div class="form-check mt-1 me-3">
-                                        <input type="checkbox" class="form-check-input shadow-none" name="lab" value="${s.name}" data-price="${s.price || 0}" style="transform: scale(1.3); cursor: pointer;">
-                                    </div>
-                                    <div class="w-100">
-                                        <div class="d-flex justify-content-between align-items-start mb-1">
-                                            <span class="fw-bold text-dark d-block" style="font-size: 1.05rem; line-height: 1.2;">${s.name}</span>
-                                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill ms-2" style="font-size: 0.85rem; white-space: nowrap;">
-                                                <i class="bi bi-tag-fill me-1"></i>${Number(s.price).toLocaleString()} ${cur}
-                                            </span>
-                                        </div>
-                                        ${s.description ? `<small class="text-secondary d-block mt-1" style="font-size: 0.85rem;">${s.description}</small>` : ''}
-                                        ${subItemsHtml}
-                                    </div>
-                                </div>
+    const services = window.servicesData || [];
+    const currentCat = window.selectedLabCategory || 'เลือดวิทยา (HEMATOLOGY)';
+
+    const filteredServices = currentCat === 'ALL'
+        ? services
+        : services.filter(s => isCategoryMatch(s.category, currentCat));
+
+    if (filteredServices.length === 0) {
+        customContainer.innerHTML = `
+            <div class="col-12">
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-folder-x fs-3 d-block mb-2 text-secondary opacity-50"></i>
+                    ยังไม่มีรายการในหมวดหมู่ "${currentCat}"<br>
+                    <small class="text-muted">สามารถตั้งค่าเพิ่มรายการได้ที่เมนู "จัดการรายการตรวจ"</small>
+                </div>
+            </div>`;
+    } else {
+        customContainer.innerHTML = filteredServices.map(s => {
+            const cur = s.currency === 'THB' ? 'บาท' : (s.currency || 'LAK');
+            const isPackage = s.sub_items && Array.isArray(s.sub_items) && s.sub_items.length > 0;
+            const isChecked = (window.checkedLabState && window.checkedLabState[s.name]) ? 'checked' : '';
+
+            const badgeTypeHtml = isPackage 
+                ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-1.5 py-0.5 rounded-pill me-1" style="font-size: 0.68rem;"><i class="bi bi-box-seam me-1"></i>แพ็กเกจ</span>`
+                : `<span class="badge bg-secondary-subtle text-secondary border px-1.5 py-0.5 rounded-pill me-1" style="font-size: 0.68rem;"><i class="bi bi-card-checklist me-1"></i>รายการเดี่ยว</span>`;
+
+            const escapedName = (s.name || '').replace(/'/g, "\\'");
+
+            if (!isPackage) {
+                return `
+                    <div class="col-md-3 col-sm-6 mb-2">
+                        <label class="d-flex align-items-center cursor-pointer w-100 p-1.5 rounded-2 hover-bg-light" style="cursor: pointer;">
+                            <div class="form-check me-2 mb-0">
+                                <input type="checkbox" class="form-check-input lab-item-checkbox shadow-none" name="lab" value="${s.name}" data-price="${s.price || 0}" ${isChecked} onchange="handleLabCheckboxChange(this, '${escapedName}', ${s.price || 0})" style="transform: scale(1.15); cursor: pointer;">
+                            </div>
+                            <div class="text-truncate" style="font-size: 0.85rem;">
+                                ${badgeTypeHtml}
+                                <span class="fw-semibold text-dark me-1">${s.name}</span>
+                                <span class="fw-bold" style="color: #0284c7;">${Number(s.price).toLocaleString()} ${cur}</span>
                             </div>
                         </label>
                     </div>
                 `;
-            });
-        }
-    }
+            }
 
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('labOrderModal')).show();
+            let subItemsHtml = '';
+            if (s.sub_items && s.sub_items.length > 0) {
+                subItemsHtml = `
+                    <div class="mt-1 ps-4">
+                        <div class="text-muted extra-small mb-1 opacity-75" style="font-size: 0.72rem;">
+                            รายการย่อย (${s.sub_items.length} รายการ):
+                        </div>
+                        <div class="d-flex flex-wrap gap-1">
+                            ${s.sub_items.map(item => `<span class="badge bg-light text-secondary border-0 px-1.5 py-0.5 fw-normal" style="font-size: 0.72rem; color: #475569;"><i class="bi bi-check2 text-success me-1"></i>${item.name}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="col-md-4 col-sm-6 mb-3">
+                    <div class="card h-100 border-0 p-2.5 shadow-sm" style="background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0 !important;">
+                        <label class="d-flex align-items-start cursor-pointer mb-0 w-100" style="cursor: pointer;">
+                            <div class="form-check me-2 mt-1 mb-0">
+                                <input type="checkbox" class="form-check-input lab-item-checkbox shadow-none" name="lab" value="${s.name}" data-price="${s.price || 0}" ${isChecked} onchange="handleLabCheckboxChange(this, '${escapedName}', ${s.price || 0})" style="transform: scale(1.15); cursor: pointer;">
+                            </div>
+                            <div class="w-100">
+                                <div class="d-flex align-items-center mb-1 flex-wrap">
+                                    ${badgeTypeHtml}
+                                    <span class="fw-bold text-dark" style="font-size: 0.9rem;">${s.name}</span>
+                                </div>
+                                ${subItemsHtml}
+                                <div class="mt-2 ps-4 fw-bold" style="color: #0284c7; font-size: 0.9rem;">
+                                    ${Number(s.price).toLocaleString()} ${cur}
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+    updateLabTotals();
 }
 
+function openLabOrder(visitId, patientName, hn) {
+    const form = document.getElementById('labOrderForm');
+    if (form) form.reset();
+
+    const vId = document.getElementById('labVisitId');
+    if (vId) vId.value = visitId;
+    const hInput = document.getElementById('labHN');
+    if (hInput) hInput.value = hn;
+    const vDisp = document.getElementById('labVisitIdDisplay');
+    if (vDisp) vDisp.innerText = visitId;
+    const pDisp = document.getElementById('labPatientName');
+    if (pDisp) pDisp.innerText = patientName;
+    const hDisp = document.getElementById('labHNDisplay');
+    if (hDisp) hDisp.innerText = hn;
+
+    const customContainer = document.getElementById('customLabContainer');
+    if (customContainer) customContainer.innerHTML = '';
+
+    window.checkedLabState = {};
+    const firstTab = document.querySelector('#labCategoryTabs .lab-cat-tab');
+    if (firstTab) {
+        switchLabCategory('เลือดวิทยา (HEMATOLOGY)', firstTab);
+    } else {
+        renderServicesLabContainer();
+    }
+
+    const modalEl = document.getElementById('labOrderModal');
+    if (modalEl) {
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+}
+
+function openDoctorLabModal(visitId, hn, patientName) {
+    openLabOrder(visitId, patientName, hn);
+}
 
 async function submitLabOrder() {
     const form = document.getElementById('labOrderForm');
     const visitId = form.visitId.value;
-    const selectedLabs = [];
-    let customPriceTotal = 0;
+    
+    window.checkedLabState = window.checkedLabState || {};
+    const selectedLabs = Object.keys(window.checkedLabState);
 
-    form.querySelectorAll('input[name="lab"]:checked').forEach((cb) => { 
-        selectedLabs.push(cb.value);
-        if (cb.dataset.price) {
-            customPriceTotal += parseFloat(cb.dataset.price);
+    // Also include custom lab checkboxes if any checked in #customLabContainer
+    form.querySelectorAll('#customLabContainer input[name="lab"]:checked').forEach((cb) => { 
+        if (!selectedLabs.includes(cb.value)) {
+            selectedLabs.push(cb.value);
         }
     });
     
-    if (selectedLabs.length === 0) { Swal.fire('แจ้งเตือน', 'กรุณาเลือกรายการ Lab อย่างน้อย 1 รายการ', 'warning'); return; }
+    if (selectedLabs.length === 0) { 
+        Swal.fire('แจ้งเตือน', 'กรุณาเลือกรายการ Lab อย่างน้อย 1 รายการ', 'warning'); 
+        return; 
+    }
 
     Swal.fire({ title: 'กำลังบันทึกส่งแล็บ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
@@ -1570,18 +1728,17 @@ function addCustomLabCheckbox() {
     const val = input.value.trim();
     if (!val) return;
 
-    // Create new checkbox element and auto-check it
     const col = document.createElement('div');
-    col.className = 'col-md-6 mb-3';
+    col.className = 'col-md-6 mb-2';
     col.innerHTML = `
         <label class="w-100 h-100 cursor-pointer" style="cursor: pointer;">
             <div class="card h-100 border-0 shadow-sm transition-all custom-lab-card" style="border-radius: 12px; background: #fff8f1; border: 1px dashed #fdba74 !important;">
                 <div class="card-body p-3 d-flex align-items-center">
                     <div class="form-check me-3 mb-0">
-                        <input type="checkbox" class="form-check-input shadow-none" name="lab" value="${val}" checked style="transform: scale(1.3); cursor: pointer;">
+                        <input type="checkbox" class="form-check-input shadow-none" name="lab" value="${val}" checked onchange="updateLabTotals()" style="transform: scale(1.3); cursor: pointer;">
                     </div>
                     <div class="w-100">
-                        <span class="fw-bold text-dark d-block" style="font-size: 1.05rem;">${val}</span>
+                        <span class="fw-bold text-dark d-block" style="font-size: 1rem;">${val}</span>
                         <small class="text-warning-emphasis">รายการเพิ่มพิเศษ</small>
                     </div>
                 </div>
@@ -1590,7 +1747,8 @@ function addCustomLabCheckbox() {
     `;
 
     container.appendChild(col);
-    input.value = ''; // clear input field
+    input.value = '';
+    updateLabTotals();
 }
 
 async function confirmPayment(visitId) {
@@ -4497,10 +4655,13 @@ function renderServicesTable(dataToRender) {
         }
         
         const cur = service.currency === 'THB' ? 'บาท' : (service.currency || 'LAK');
+        const catName = service.category || 'เลือดวิทยา (HEMATOLOGY)';
         
         const badgeTypeHtml = isPackage 
             ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-0.5 rounded-pill me-2 text-nowrap" style="font-size: 0.72rem; font-weight: 500;"><i class="bi bi-box-seam me-1"></i>แพ็กเกจ</span>`
             : `<span class="badge bg-secondary-subtle text-secondary border px-2 py-0.5 rounded-pill me-2 text-nowrap" style="font-size: 0.72rem; font-weight: 500;"><i class="bi bi-card-checklist me-1"></i>รายการเดี่ยว</span>`;
+
+        const badgeCatHtml = `<span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-0.5 rounded-pill me-2 text-nowrap" style="font-size: 0.72rem; font-weight: 500;"><i class="bi bi-folder2 me-1"></i>${catName}</span>`;
 
         const descHtml = service.description 
             ? `<span class="text-secondary" style="font-size: 0.82rem;">${service.description}</span>` 
@@ -4509,8 +4670,9 @@ function renderServicesTable(dataToRender) {
         return `
         <tr>
             <td class="ps-4 align-middle py-3">
-                <div class="d-flex align-items-center mb-1">
+                <div class="d-flex align-items-center mb-1 flex-wrap gap-1">
                     ${badgeTypeHtml}
+                    ${badgeCatHtml}
                     <span class="fw-bold text-dark" style="font-size: 0.9rem;">${service.name}</span>
                 </div>
                 ${subItemsHtml}
@@ -4539,6 +4701,7 @@ function filterServicesTable() {
     }
     const filtered = (window.servicesData || []).filter(s => 
         (s.name || '').toLowerCase().includes(query) ||
+        (s.category || '').toLowerCase().includes(query) ||
         (s.description || '').toLowerCase().includes(query) ||
         (s.price || '').toString().includes(query) ||
         (s.sub_items || []).some(sub => (sub.name || '').toLowerCase().includes(query))
@@ -4552,11 +4715,13 @@ function openAddServiceModal() {
     
     const curSelect = document.getElementById('serviceCurrency');
     if (curSelect) curSelect.value = 'LAK'; // default
+
+    const catSelect = document.getElementById('serviceCategory');
+    if (catSelect) catSelect.value = 'เลือดวิทยา (HEMATOLOGY)'; // default
     
     const tbody = document.getElementById('serviceSubItemsBody');
     if (tbody) tbody.innerHTML = '';
     
-    // Add 2 default empty rows for convenience
     addServiceSubItemRow();
     addServiceSubItemRow();
     
@@ -4576,6 +4741,9 @@ function openEditServiceModal(id) {
     const curSelect = document.getElementById('serviceCurrency');
     if (curSelect) curSelect.value = service.currency || 'LAK';
 
+    const catSelect = document.getElementById('serviceCategory');
+    if (catSelect) catSelect.value = service.category || 'เลือดวิทยา (HEMATOLOGY)';
+
     const tbody = document.getElementById('serviceSubItemsBody');
     if (tbody) {
         tbody.innerHTML = '';
@@ -4584,7 +4752,6 @@ function openEditServiceModal(id) {
                 addServiceSubItemRow(item.name, item.price);
             });
         } else {
-            // Give them at least one empty row if they have no sub-items
             addServiceSubItemRow();
         }
     }
@@ -4633,7 +4800,6 @@ function updatePackagePriceDisplay() {
     }
 }
 
-// Update display when currency changes
 document.addEventListener('DOMContentLoaded', () => {
     const curSelect = document.getElementById('serviceCurrency');
     if (curSelect) {
@@ -4647,6 +4813,7 @@ async function saveService() {
     const price = document.getElementById('servicePrice').value;
     const desc = document.getElementById('serviceDescription').value.trim();
     const currency = document.getElementById('serviceCurrency') ? document.getElementById('serviceCurrency').value : 'LAK';
+    const category = document.getElementById('serviceCategory') ? document.getElementById('serviceCategory').value : 'เลือดวิทยา (HEMATOLOGY)';
 
     const subItems = [];
     document.querySelectorAll('#serviceSubItemsBody tr').forEach(row => {
@@ -4661,6 +4828,7 @@ async function saveService() {
         name: name,
         price: parseFloat(price) || 0,
         currency: currency,
+        category: category,
         description: desc,
         sub_items: subItems,
         updated_at: new Date().toISOString()
