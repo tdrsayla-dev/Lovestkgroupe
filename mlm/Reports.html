@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -2064,7 +2064,7 @@
             if (Array.isArray(response.products)) setProducts(response.products);
             if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes);
             if (Array.isArray(response.closers)) setClosers(response.closers);
-            if (Array.isArray(response.businessTeams)) setBusinessTeams(response.businessTeams);
+            if (Array.isArray(response.businessTeams)) setBusinessTeams(response.businessTeams.map(t => ({...t, id: String(t.id || t.team_id || t.Team_ID || "").trim(), name: String(t.name || t.team_name || t.Team_Name || t.TeamName || "").trim(), status: String(t.status || t.Status || "??????").trim()})));
             if (Array.isArray(response.members)) {
                 const formattedMembers = response.members.map(m => ({
                     id: String(m.id || m.user_id || m.User_ID || '').trim(),

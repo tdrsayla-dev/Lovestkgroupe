@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -255,7 +255,7 @@
            if (Array.isArray(response.products)) setProducts(response.products);
            if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes);
            if (Array.isArray(response.closers)) setClosers(response.closers);
-           if (Array.isArray(response.members)) setMembers(response.members);
+           if (Array.isArray(response.members)) { setMembers(response.members.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name, profileUrl: m.id_card_url || m.profileImageUrl || m.profileUrl, idCardDocUrl: m.id_card_url || m.idCardDocUrl, businessTeam: m.business_team || m.businessTeam, team: m.business_team || m.team || m.businessTeam || 'T01', role: m.permission_role || m.role || m.permissionRole, status: m.status, sponsorId: m.sponsor_id || m.sponsorId, accumulatedPv: m.accumulated_pv || m.Accumulated_PV || m.accumulatedPv || m.pv || 0, phone: m.phone_number || m.phone || m.phoneNumber }))); }
            if (Array.isArray(response.customers)) setCustomers(response.customers);
            if (Array.isArray(response.systemUsers)) setSystemUsers(response.systemUsers);
            

@@ -14,17 +14,6 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script>
-    window.SUPABASE_URL='https://mfpkeyrykqnrywyksyqp.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
-    if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
-    async function supabaseSelect(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:window.SUPABASE_HEADERS});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();}
-    async function supabaseInsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('INSERT '+t+':'+r.status);return r.json();}
-    async function supabaseUpdate(t,id,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('UPDATE '+t+':'+r.status);return r.json();}
-    async function supabaseDelete(t,id){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'DELETE',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'})});if(!r.ok)throw new Error('DELETE '+t+':'+r.status);return true;}
-    async function supabaseUpsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'resolution=merge-duplicates,return=representation'}),body:JSON.stringify(d)});if(!r.ok)throw new Error('UPSERT '+t+':'+r.status);return r.json();}
-  </script>
-  <script src="CommonComponents.js"></script>
   <script>
     window.addEventListener('DOMContentLoaded', function() {
       setTimeout(function() { var l=document.getElementById('initial-loader'); if(l)l.style.display='none'; }, 600);
@@ -34,6 +23,61 @@
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
+
+  <!-- ✅ Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <!-- ✅ STK Supabase Config -->
+  <script>
+    // =====================================================================
+    // STK GROUPE - Supabase Config (MLM / Sales System Phase 2.3)
+    // =====================================================================
+    window.SUPABASE_URL      = 'https://mfpkeyrykqnrywyksyqp.supabase.co';
+    window.SUPABASE_ANON_KEY = 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
+    window.SUPABASE_REST_URL = window.SUPABASE_URL + '/rest/v1';
+    window.SUPABASE_HEADERS  = {
+      'Content-Type' : 'application/json',
+      'apikey'       : window.SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + window.SUPABASE_ANON_KEY,
+      'Prefer'       : 'return=representation'
+    };
+    // Initialize Supabase client (available globally as window.supabaseClient)
+    if (typeof supabase !== 'undefined') {
+      window.supabaseClient = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+      console.log('%c✅ Supabase Connected!', 'color:green;font-weight:bold', window.SUPABASE_URL);
+    }
+    // ---- REST Helper Functions ----
+    async function supabaseSelect(table, query) {
+      var url = window.SUPABASE_REST_URL + '/' + table + (query ? '?' + query : '');
+      var res = await fetch(url, { method: 'GET', headers: window.SUPABASE_HEADERS });
+      if (!res.ok) { var t = await res.text(); throw new Error('SELECT ' + table + ': ' + res.status + ' ' + t); }
+      return res.json();
+    }
+    async function supabaseInsert(table, data) {
+      var res = await fetch(window.SUPABASE_REST_URL + '/' + table, { method: 'POST', headers: window.SUPABASE_HEADERS, body: JSON.stringify(data) });
+      if (!res.ok) { var t = await res.text(); throw new Error('INSERT ' + table + ': ' + res.status + ' ' + t); }
+      return res.json();
+    }
+    async function supabaseUpdate(table, id, data, pk='id') {
+      var url = window.SUPABASE_REST_URL + '/' + table + '?' + pk + '=eq.' + encodeURIComponent(id);
+      var res = await fetch(url, { method: 'PATCH', headers: window.SUPABASE_HEADERS, body: JSON.stringify(data) });
+      if (!res.ok) { var t = await res.text(); throw new Error('UPDATE ' + table + ': ' + res.status + ' ' + t); }
+      return res.json();
+    }
+    async function supabaseDelete(table, id, pk='id') {
+      var h = Object.assign({}, window.SUPABASE_HEADERS, { 'Prefer': 'return=minimal' });
+      var url = window.SUPABASE_REST_URL + '/' + table + '?' + pk + '=eq.' + encodeURIComponent(id);
+      var res = await fetch(url, { method: 'DELETE', headers: h });
+      if (!res.ok) { var t = await res.text(); throw new Error('DELETE ' + table + ': ' + res.status + ' ' + t); }
+      return true;
+    }
+    async function supabaseUpsert(table, data) {
+      var h = Object.assign({}, window.SUPABASE_HEADERS, { 'Prefer': 'resolution=merge-duplicates,return=representation' });
+      var res = await fetch(window.SUPABASE_REST_URL + '/' + table, { method: 'POST', headers: h, body: JSON.stringify(data) });
+      if (!res.ok) { var t = await res.text(); throw new Error('UPSERT ' + table + ': ' + res.status + ' ' + t); }
+      return res.json();
+    }
+  </script>
+  <script src="CommonComponents.js"></script>
   <div id="initial-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999;">
     <div style="width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 24px;"></div>
     <style>@keyframes initial-spin { to { transform: rotate(360deg); } }</style>
@@ -46,15 +90,10 @@
   <script type="text/babel">
     const { useState, useMemo, useEffect, useRef, useCallback } = React;
 
-    const fallbackCustomerTypes = window.fallbackCustomerTypes || [
-       { id: 'T001', name: 'ลูกค้าใหม่', status: 'ใช้งาน' },
-       { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'ใช้งาน' }
-    ];
-    const fallbackProductsList = window.fallbackProductsList || ['SESAMIN', 'APPLE', 'KING_GOLD'];
-
     /* <?!= include('CommonComponents'); ?> */
 
     // 📌 Icons added for Team.html
+    const IconProps = { stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", fill: "none" };
     const UserIcon = ({size=20}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
     const PhoneIcon = ({size=20}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>;
     const CreditCardIcon = ({size=20}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>;
@@ -67,7 +106,7 @@
     // ==========================================
     // 📌 ส่วนจัดการข้อมูลพนักงาน (Team Management View)
     // ==========================================
-    const TeamManagementView = ({ members, setMembers, businessTeams, isAdmin, showToast, sales, products, currentUser }) => {
+    const TeamManagementView = ({ members, setMembers, businessTeams, isAdmin, showToast, sales, products }) => {
         const [showForm, setShowForm] = useState(false);
         const [isEditing, setIsEditing] = useState(false);
         const [isSubmitting, setIsSubmitting] = useState(false);
@@ -115,35 +154,6 @@
             const sheetPv = Number(selectedMember.accumulatedPV || 0); return { personalComm, teamComm, accumulatedPv: sheetPv > 0 ? sheetPv : accumulatedPv };
         }, [selectedMember, sales, products]);
 
-        const visibleMembers = useMemo(() => {
-            if (!currentUser) return members || [];
-            const role = currentUser.role || 'พนักงานทั่วไป';
-            if (role === 'ผู้ดูแลระบบ' || String(role).toLowerCase() === 'admin' || role === 'พนักงานทั่วไป') {
-                return members || [];
-            }
-            if (role === 'พนักงานการตลาด') {
-                const currId = String(currentUser.user_id || currentUser.username || currentUser.id || '').trim().toUpperCase();
-                const downlines = new Set([currId]);
-                let changed = true;
-                while (changed) {
-                    changed = false;
-                    for (const m of (members || [])) {
-                        const mId = String(m.id || m.user_id || '').trim().toUpperCase();
-                        const sponsor = String(m.referrer || m.sponsor_id || '').trim().toUpperCase();
-                        if (sponsor && downlines.has(sponsor) && !downlines.has(mId)) {
-                            downlines.add(mId);
-                            changed = true;
-                        }
-                    }
-                }
-                return (members || []).filter(m => {
-                    const mId = String(m.id || m.user_id || '').trim().toUpperCase();
-                    return downlines.has(mId);
-                });
-            }
-            return members || [];
-        }, [members, currentUser]);
-
         const initialFormState = {
           id: '', username: '', password: '1234', name: '', team: 'T01', role: 'Staff',
           startDate: getLocalISODate(), status: 'ทำงานอยู่', profileUrl: '', referrer: '',
@@ -155,7 +165,7 @@
 
         // 🟢 รายชื่อสำหรับ AutoSuggest ผู้แนะนำ (แม่ทีม)
         const referrerSuggestList = useMemo(() => {
-            const list = visibleMembers
+            const list = (members || [])
                 .filter(m => m && m.id !== formData.id && m.status === 'ทำงานอยู่')
                 .map(m => ({
                     label: `${m.id} - ${m.name}`,
@@ -163,13 +173,13 @@
                     searchText: `${m.id} ${m.name}`
                 }));
             return list;
-        }, [visibleMembers, formData.id]);
+        }, [members, formData.id]);
 
         // 🟢 ฟังก์ชันค้นหาข้อมูลแม่ทีมมาโชว์ใต้ช่องกรอก
         const foundReferrer = useMemo(() => {
             if (!formData.referrer) return null;
-            return visibleMembers.find(m => m.id.toUpperCase() === formData.referrer.toUpperCase());
-        }, [formData.referrer, visibleMembers]);
+            return (members || []).find(m => m.id.toUpperCase() === formData.referrer.toUpperCase());
+        }, [formData.referrer, members]);
 
         const handleOpenAdd = () => { 
             setIsEditing(false); 
@@ -261,112 +271,81 @@
             reader.readAsDataURL(file);
         };
 
-        const handleSaveMember = (e) => {
-           e.preventDefault();
-           if (!formData.id || !formData.name) { showToast('กรุณากรอกข้อมูลให้ครบ', 'error'); return; }
-           setIsSubmitting(true);
-           
-           const dataToSave = { 
-               ...formData, 
-               imageBase64: imageFileBase64,
-               idCardDocBase64: idDocFileBase64 
-           };
+        const handleSaveMember = async (e) => {
+            e.preventDefault();
+            setIsSubmitting(true);
 
-           if (typeof google !== 'undefined' && google.script) {
-              if (isEditing) {
-                 google.script.run
-                   .withSuccessHandler((resRaw) => {
-                       let res = resRaw;
-                       try { if (typeof resRaw === 'string') res = JSON.parse(resRaw); } catch(e){}
-                       if (res && res.status === 'error') {
-                           setIsSubmitting(false); showToast('แก้ไขล้มเหลว: ' + res.message, 'error'); return;
-                       }
+            try {
+                const finalData = { 
+                    ...formData, 
+                    profileUrl: imageFileBase64 || formData.profileUrl, 
+                    idCardDocUrl: idDocFileBase64 || formData.idCardDocUrl,
+                    accumulatedE: 250000, 
+                    accumulatedPV: 150 
+                };
 
-                       let finalProfileUrl = formData.profileUrl;
-                       let finalDocUrl = formData.idCardDocUrl;
-                       
-                       if (typeof res === 'object' && res !== null) {
-                           finalProfileUrl = res.profileUrl || formData.profileUrl;
-                           finalDocUrl = res.idCardDocUrl || formData.idCardDocUrl;
-                       } else if (res && res !== 'success' && res !== 'not_found') {
-                           finalProfileUrl = res; 
-                       }
+                const supabasePayload = {
+                    user_id: finalData.id,
+                    username: (finalData.username || finalData.id).toLowerCase(),
+                    name: finalData.name,
+                    business_team: finalData.team || finalData.businessTeam,
+                    permission_role: finalData.role || 'Staff',
+                    status: finalData.status || 'ทำงาน',
+                    id_card_url: finalData.idCardDocUrl || finalData.profileUrl,
+                    sponsor_id: finalData.referrer || finalData.sponsorId,
+                    phone_number: finalData.phone || finalData.phoneNumber,
+                    email: finalData.email,
+                    line_id: finalData.lineId,
+                    bank_name: finalData.bankName,
+                    bank_account_no: finalData.bankAccountNo,
+                    bank_account_name: finalData.bankAccountName,
+                    accumulated_pv: finalData.accumulatedPv || finalData.accumulatedPV || 0
+                };
 
-                       setMembers((members || []).map(m => m && safeUpper(m.id) === safeUpper(formData.id) ? { 
-                           ...m, 
-                           ...formData, 
-                           profileUrl: imageFileBase64 ? finalProfileUrl : formData.profileUrl,
-                           idCardDocUrl: idDocFileBase64 ? finalDocUrl : formData.idCardDocUrl
-                       } : m));
-                       setShowForm(false); setIsSubmitting(false); showToast('แก้ไขข้อมูลพนักงานสำเร็จ', 'success');
-                   })
-                   .withFailureHandler((error) => { setIsSubmitting(false); showToast('แก้ไขล้มเหลว: ' + (error ? (error.message || error) : ''), 'error'); })
-                   .updateMemberData(dataToSave);
-              } else {
-                 if ((members || []).find(m => m && safeUpper(m.id) === safeUpper(formData.id))) { setIsSubmitting(false); showToast('รหัสพนักงานซ้ำในระบบ', 'error'); return; }
-                 google.script.run
-                   .withSuccessHandler((resRaw) => {
-                       let res = resRaw;
-                       try { if (typeof resRaw === 'string') res = JSON.parse(resRaw); } catch(e){}
-                       if (res && res.status === 'error') {
-                           setIsSubmitting(false); showToast('เพิ่มล้มเหลว: ' + res.message, 'error'); return;
-                       }
-
-                       let finalProfileUrl = formData.profileUrl;
-                       let finalDocUrl = formData.idCardDocUrl;
-
-                       if (typeof res === 'object' && res !== null) {
-                           finalProfileUrl = res.profileUrl || formData.profileUrl;
-                           finalDocUrl = res.idCardDocUrl || formData.idCardDocUrl;
-                       } else if (res && res !== 'success' && res !== 'not_found') {
-                           finalProfileUrl = res;
-                       }
-
-                       setMembers([...(members || []), { 
-                           ...formData, 
-                           profileUrl: imageFileBase64 ? finalProfileUrl : formData.profileUrl,
-                           idCardDocUrl: idDocFileBase64 ? finalDocUrl : formData.idCardDocUrl 
-                       }]);
-                       setShowForm(false); setIsSubmitting(false); showToast('เพิ่มพนักงานสำเร็จ', 'success');
-                   })
-                   .withFailureHandler((error) => { setIsSubmitting(false); showToast('บันทึกล้มเหลว: ' + (error ? (error.message || error) : ''), 'error'); })
-                   .saveMemberData(dataToSave);
-              }
-           } else {
-              setTimeout(() => {
-                 const finalData = { 
-                     ...formData, 
-                     profileUrl: imageFileBase64 || formData.profileUrl, 
-                     idCardDocUrl: idDocFileBase64 || formData.idCardDocUrl,
-                     accumulatedE: 250000, 
-                     accumulatedPV: 150 
-                 };
-                 if (isEditing) setMembers((members || []).map(m => m && safeUpper(m.id) === safeUpper(formData.id) ? { ...m, ...finalData } : m));
-                 else setMembers([...(members || []), finalData]);
-                 setShowForm(false); setIsSubmitting(false); showToast('จำลองบันทึกสำเร็จ', 'success');
-              }, 500);
-           }
-        };
-
-        const executeDelete = () => {
-            const id = confirmDelete.id;
-            setConfirmDelete({ show: false, id: null, title: '' });
-            if (typeof google !== 'undefined' && google.script) {
-                google.script.run
-                  .withSuccessHandler((res) => { if (res === 'success') { setMembers((members || []).filter(m => m && m.id !== id)); showToast('ลบพนักงานสำเร็จ', 'success'); } })
-                  .withFailureHandler((err) => { showToast('ลบล้มเหลว: ' + (err ? (err.message || err) : ''), 'error'); })
-                  .deleteMemberData(id);
-            } else {
-                setMembers((members || []).filter(m => m && m.id !== id));
-                showToast('จำลองลบสำเร็จ', 'success');
+                if (isEditing) {
+                    await supabaseUpdate('stk_members', formData.id, supabasePayload, 'user_id');
+                    setMembers((members || []).map(m => m && m.id.toUpperCase() === formData.id.toUpperCase() ? { ...m, ...finalData } : m));
+                    showToast('แก้ไขข้อมูลสมาชิกเรียบร้อยแล้ว!', 'success');
+                } else {
+                    if ((members || []).find(m => m && m.id.toUpperCase() === formData.id.toUpperCase())) { 
+                        setIsSubmitting(false); 
+                        showToast('รหัสสมาชิกนี้มีอยู่ในระบบแล้ว', 'error'); 
+                        return; 
+                    }
+                    await supabaseInsert('stk_members', supabasePayload);
+                    setMembers([...(members || []), finalData]);
+                    showToast('เพิ่มสมาชิกใหม่เรียบร้อยแล้ว', 'success');
+                }
+                setShowForm(false);
+            } catch (error) {
+                showToast('เกิดข้อผิดพลาด: ' + (error.message || error), 'error');
+            } finally {
+                setIsSubmitting(false);
             }
         };
 
-        const displayedMembers = filterTeam === 'All' ? visibleMembers : visibleMembers.filter(m => {
-           let t = m && m.team;
-           if (t === 'T01' || t === 'Marketing' || t === 'Team A') return filterTeam === 'Marketing';
-           if (t === 'T02' || t === 'Center' || t === 'Team B') return filterTeam === 'Center';
-           return false;
+        const executeDelete = async () => {
+            const id = confirmDelete.id;
+            setConfirmDelete({ show: false, id: null, title: '' });
+            try {
+                await supabaseDelete('stk_members', id, 'user_id');
+                setMembers((members || []).filter(m => m && m.id !== id));
+                showToast('ลบสมาชิกเรียบร้อย', 'success');
+            } catch (error) {
+                showToast('เกิดข้อผิดพลาด: ' + (error.message || error), 'error');
+            }
+        };
+
+        const displayedMembers = filterTeam === 'All' ? (members || []) : (members || []).filter(m => {
+           if (!m) return false;
+           const targetTeamObj = (businessTeams || []).find(bt => bt.id === filterTeam || bt.name === filterTeam);
+           const targetId = targetTeamObj ? targetTeamObj.id : filterTeam;
+           const targetName = targetTeamObj ? targetTeamObj.name : filterTeam;
+           
+           return m.team === targetId || m.team === targetName || 
+                  m.businessTeam === targetId || m.businessTeam === targetName ||
+                  (targetName === 'Marketing' && (m.team === 'Team A' || m.businessTeam === 'Team A')) ||
+                  (targetName === 'Center' && (m.team === 'Team B' || m.businessTeam === 'Team B'));
         });
 
         const searchedMembers = displayedMembers
@@ -399,7 +378,7 @@
                       </div>
                       <div>
                         <label className={labelClassHud}>ชื่อผู้ใช้งาน (Username) *</label>
-                        <input type="text" required disabled={isEditing && !isAdmin} placeholder="ใช้ล็อกอินเข้าระบบ" className={`${inputClassHud} ${isEditing && !isAdmin ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`} value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
+                        <input type="text" required placeholder="ใช้ล็อกอินเข้าระบบ" className={inputClassHud} value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
                       </div>
                       <div>
                         <label className={labelClassHud}>รหัสผ่านเข้าระบบ *</label>
@@ -425,7 +404,7 @@
                       </div>
                       <div>
                         <label className={labelClassHud}>สิทธิ์การใช้งาน (Role)</label>
-                        <select disabled={!isAdmin} className={`${inputClassHud} ${!isAdmin ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`} value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
+                        <select className={inputClassHud} value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
                           <option value="Staff">พนักงานทั่วไป (Staff)</option>
                           <option value="Admin">ผู้ดูแลระบบ (Admin)</option>
                         </select>
@@ -441,7 +420,6 @@
                             data={referrerSuggestList} 
                             placeholder="พิมพ์รหัส หรือชื่อเพื่อค้นหา..." 
                             required={false} 
-                            disabled={isEditing && !isAdmin}
                         />
                         {/* 🟢 แสดงชื่อแม่ทีมที่เลือกไว้ด้านล่างเพื่อรีเช็ค */}
                         {foundReferrer ? (
@@ -707,7 +685,7 @@
                                <div className="text-sm sm:text-base font-black text-blue-800 mt-1 leading-tight whitespace-nowrap">
                                   {Number(selectedMemberStats.accumulatedPv || 0).toLocaleString()}
                                </div>
-                               <span className="text-[13px] font-bold text-blue-100">{visibleMembers.length} คน</span>
+                               <span className="text-[10px] font-bold text-blue-600 block mt-0.5">PV</span>
                             </div>
                          </div>
                       </div>
@@ -757,15 +735,23 @@
 
             {/* Filter Tabs */}
             <div className="flex gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200 w-full sm:w-fit overflow-x-auto hide-scroll">
-               <button onClick={() => setFilterTeam("All")} className={filterBtn + (filterTeam === "All" ? " bg-blue-600 text-white border-blue-600 shadow-sm" : " bg-white text-slate-700 hover:bg-slate-50 border-slate-200")}>
-                 ทั้งหมด ({visibleMembers.length})
+               <button onClick={() => setFilterTeam('All')} className={filterBtn + (filterTeam === 'All' ? ' bg-blue-600 text-white border-blue-600 shadow-sm' : ' bg-white text-slate-700 hover:bg-slate-50 border-slate-200')}>
+                 ทั้งหมด ({(members || []).length})
                </button>
-               <button onClick={() => setFilterTeam("Marketing")} className={filterBtn + (filterTeam === "Marketing" ? " bg-blue-600 text-white border-blue-600 shadow-sm" : " bg-white text-slate-700 hover:bg-slate-50 border-slate-200")}>
-                 ทีม Marketing ({visibleMembers.filter(m => { let t = m && m.team; return t === "Marketing" || t === "Team A" || t === "T01"; }).length})
-               </button>
-               <button onClick={() => setFilterTeam("Center")} className={filterBtn + (filterTeam === "Center" ? " bg-blue-600 text-white border-blue-600 shadow-sm" : " bg-white text-slate-700 hover:bg-slate-50 border-slate-200")}>
-                 ทีม Center ({visibleMembers.filter(m => { let t = m && m.team; return t === "Center" || t === "Team B" || t === "T02"; }).length})
-               </button>
+               {(businessTeams || []).filter(bt => bt.status !== 'ยกเลิก' && bt.status !== 'ปิดใช้งาน' && bt.status !== 'Disabled').map(bt => {
+                 const count = (members || []).filter(m => {
+                   if (!m) return false;
+                   return m.team === bt.id || m.team === bt.name || 
+                          m.businessTeam === bt.id || m.businessTeam === bt.name ||
+                          (bt.name === 'Marketing' && (m.team === 'Team A' || m.businessTeam === 'Team A')) ||
+                          (bt.name === 'Center' && (m.team === 'Team B' || m.businessTeam === 'Team B'));
+                 }).length;
+                 return (
+                   <button key={bt.id} onClick={() => setFilterTeam(bt.id)} className={filterBtn + (filterTeam === bt.id ? ' bg-blue-600 text-white border-blue-600 shadow-sm' : ' bg-white text-slate-700 hover:bg-slate-50 border-slate-200')}>
+                     ทีม {bt.name} ({count})
+                   </button>
+                 );
+               })}
             </div>
 
             {/* Card Grid */}
@@ -819,10 +805,7 @@
                           <span className="text-slate-700 font-extrabold line-clamp-1">
                             {(() => {
                               const teamInfo = (businessTeams || []).find(t => t.id === m?.team);
-                              if (teamInfo) return teamInfo.name;
-                              if (m?.team === 'Team A' || m?.team === 'T01' || m?.team === 'Marketing') return 'Marketing';
-                              if (m?.team === 'Team B' || m?.team === 'T02' || m?.team === 'Center') return 'Center';
-                              return m?.team || '-';
+                              return teamInfo ? teamInfo.name : (m?.team === 'Team A' ? 'Marketing' : (m?.team === 'Team B' ? 'Center' : m?.team));
                             })()}
                           </span>
                         </div>
@@ -918,95 +901,63 @@
             setShowModal(true);
         };
 
-        const handleSave = (e) => {
+        const handleSave = async (e) => {
             e.preventDefault();
-            if (!teamName.trim()) { showToast('กรุณาระบุชื่อทีม', 'error'); return; }
+            if (!teamName.trim()) { showToast('กรุณากรอกชื่อทีม', 'error'); return; }
             setIsSubmitting(true);
 
-            if (editingTeam) {
-                if (typeof google !== 'undefined' && google.script) {
-                    google.script.run
-                        .withSuccessHandler(() => {
-                            setBusinessTeams(prev => prev.map(t => t.id === editingTeam.id ? { ...t, name: teamName.trim() } : t));
-                            setIsSubmitting(false);
-                            setShowModal(false);
-                            showToast('แก้ไขชื่อทีมสำเร็จ!', 'success');
-                        })
-                        .withFailureHandler(err => {
-                            setIsSubmitting(false);
-                            showToast('เกิดข้อผิดพลาด: ' + (err.message || err), 'error');
-                        })
-                        .updateBusinessTeam(editingTeam.id, teamName.trim());
+            try {
+                if (editingTeam) {
+                    await supabaseUpdate('stk_business_teams', editingTeam.id || editingTeam.team_id, { team_name: teamName.trim() }, 'team_id');
+                    setBusinessTeams(prev => prev.map(t => (t.id === editingTeam.id || t.team_id === editingTeam.team_id) ? { ...t, name: teamName.trim(), team_name: teamName.trim() } : t));
+                    showToast('บันทึกข้อมูลเรียบร้อย!', 'success');
                 } else {
-                    setBusinessTeams(prev => prev.map(t => t.id === editingTeam.id ? { ...t, name: teamName.trim() } : t));
-                    setIsSubmitting(false);
-                    setShowModal(false);
-                    showToast('แก้ไขชื่อทีมสำเร็จ (จำลอง)', 'success');
+                    let nextIdNum = 1;
+                    const existingIds = (businessTeams || []).map(t => {
+                        const idStr = String(t.id || t.team_id || '');
+                        const match = idStr.match(/^T(\d+)$/i);
+                        return match ? parseInt(match[1], 10) : 0;
+                    });
+                    if (existingIds.length > 0) {
+                        nextIdNum = Math.max(0, ...existingIds) + 1;
+                    }
+                    const newId = 'T' + String(nextIdNum).padStart(2, '0');
+                    const dbPayload = { team_id: newId, team_name: teamName.trim(), status: 'ใช้งาน' };
+                    await supabaseInsert('stk_business_teams', dbPayload);
+                    const uiTeam = { team_id: newId, id: newId, team_name: teamName.trim(), name: teamName.trim(), status: 'ใช้งาน' };
+                    setBusinessTeams(prev => [...prev, uiTeam]);
+                    showToast('เพิ่มทีมใหม่เรียบร้อย!', 'success');
                 }
-            } else {
-                if (typeof google !== 'undefined' && google.script) {
-                    google.script.run
-                        .withSuccessHandler((resJson) => {
-                            try {
-                                const newTeam = JSON.parse(resJson);
-                                setBusinessTeams(prev => [...prev, newTeam]);
-                            } catch(e){}
-                            setIsSubmitting(false);
-                            setShowModal(false);
-                            showToast('เพิ่มทีมใหม่สำเร็จ!', 'success');
-                        })
-                        .withFailureHandler(err => {
-                            setIsSubmitting(false);
-                            showToast('เกิดข้อผิดพลาด: ' + (err.message || err), 'error');
-                        })
-                        .saveBusinessTeam(teamName.trim());
-                } else {
-                    const newTeam = { id: 'TB' + Math.floor(Math.random()*100), name: teamName.trim(), status: 'ใช้งาน' };
-                    setBusinessTeams(prev => [...prev, newTeam]);
-                    setIsSubmitting(false);
-                    setShowModal(false);
-                    showToast('เพิ่มทีมใหม่สำเร็จ (จำลอง)', 'success');
-                }
+                setShowModal(false);
+            } catch (error) {
+                showToast('เกิดข้อผิดพลาด: ' + (error.message || error), 'error');
+            } finally {
+                setIsSubmitting(false);
             }
         };
 
-        const handleToggleStatus = (team) => {
+        const handleToggleStatus = async (team) => {
             const currentStatus = team.status || 'ใช้งาน';
-            const newStatus = (currentStatus === 'ปิดใช้งาน' || currentStatus === 'Disabled') ? 'ใช้งาน' : 'ปิดใช้งาน';
+            const newStatus = (currentStatus === 'ใช้งาน' || currentStatus === 'Active') ? 'ปิดใช้งาน' : 'ใช้งาน';
             
-            setBusinessTeams(prev => prev.map(t => t.id === team.id ? { ...t, status: newStatus } : t));
-
-            if (typeof google !== 'undefined' && google.script) {
-                google.script.run
-                    .withSuccessHandler(() => {
-                        showToast(`เปลี่ยนสถานะทีม "${team.name}" เป็น ${newStatus} เรียบร้อยแล้ว`, 'info');
-                    })
-                    .withFailureHandler(err => {
-                        showToast('เกิดข้อผิดพลาด: ' + (err.message || err), 'error');
-                    })
-                    .updateBusinessTeam(team.id, null, newStatus);
-            } else {
-                showToast(`เปลี่ยนสถานะทีม "${team.name}" เป็น ${newStatus} (จำลอง)`, 'info');
+            try {
+                await supabaseUpdate('stk_business_teams', team.id, { status: newStatus }, 'team_id');
+                setBusinessTeams(prev => prev.map(t => t.id === team.id ? { ...t, status: newStatus } : t));
+                showToast('อัพเดทสถานะ ' + team.name + ' เป็น ' + newStatus + ' เรียบร้อย', 'info');
+            } catch (error) {
+                showToast('เกิดข้อผิดพลาด: ' + (error.message || error), 'error');
             }
         };
 
-        const executeDelete = () => {
+        const executeDelete = async () => {
             const id = confirmDelete.id;
-            if (typeof google !== 'undefined' && google.script) {
-                google.script.run
-                    .withSuccessHandler(() => {
-                        setBusinessTeams(prev => prev.filter(t => t.id !== id));
-                        setConfirmDelete({ show: false, id: null, title: '' });
-                        showToast('ลบทีมสำเร็จ!', 'success');
-                    })
-                    .withFailureHandler(err => {
-                        showToast('เกิดข้อผิดพลาดในการลบทีม: ' + err, 'error');
-                    })
-                    .deleteBusinessTeam(id);
-            } else {
+            try {
+                await supabaseDelete('stk_business_teams', id, 'team_id');
                 setBusinessTeams(prev => prev.filter(t => t.id !== id));
                 setConfirmDelete({ show: false, id: null, title: '' });
-                showToast('ลบทีมสำเร็จ (จำลอง)', 'success');
+                showToast('ลบข้อมูลเรียบร้อย!', 'success');
+            } catch (error) {
+                showToast('เกิดข้อผิดพลาด: ' + (error.message || error), 'error');
             }
         };
 
@@ -1127,6 +1078,14 @@
 
       const [activeSubTab, setActiveSubTab] = useState(() => {
         try {
+          const urlParams = new URLSearchParams(window.location.search);
+          const tabFromUrl = urlParams.get('tab') || urlParams.get('page');
+          if (tabFromUrl) {
+            const lower = tabFromUrl.toLowerCase();
+            if (lower === 'business_teams' || lower === 'business_team' || lower === 'teams') {
+              return 'business_teams';
+            }
+          }
           const initTab = "<?= getInitialTab() ?>".toLowerCase();
           if (initTab === 'business_teams' || initTab === 'business_team' || initTab === 'teams') {
             return 'business_teams';
@@ -1134,6 +1093,26 @@
         } catch(e) {}
         return 'members';
       });
+
+      useEffect(() => {
+        const handleLocationChange = () => {
+          try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const tabFromUrl = urlParams.get('tab') || urlParams.get('page');
+            if (tabFromUrl) {
+              const lower = tabFromUrl.toLowerCase();
+              if (lower === 'business_teams' || lower === 'business_team' || lower === 'teams') {
+                setActiveSubTab('business_teams');
+              } else if (lower === 'members' || lower === 'team') {
+                setActiveSubTab('members');
+              }
+            }
+          } catch(e) {}
+        };
+        handleLocationChange();
+        window.addEventListener('popstate', handleLocationChange);
+        return () => window.removeEventListener('popstate', handleLocationChange);
+      }, []);
 
       const [products, setProducts] = useState([]);
       const [customerTypes, setCustomerTypes] = useState(fallbackCustomerTypes);
@@ -1182,79 +1161,43 @@
         const initialLoader = document.getElementById('initial-loader');
         if (initialLoader) initialLoader.style.display = 'none';
 
-        if (typeof google !== 'undefined' && google.script) {
-           try {
-               const cachedData = localStorage.getItem('stk_app_cache_data');
-               if (cachedData) {
-                   applyDataToStates(JSON.parse(cachedData));
-                   setIsAppLoading(false);
-               }
-           } catch (e) { console.warn("Cache error", e); }
-
-           google.script.run
-             .withSuccessHandler((response) => {
-                if (response) {
-                    try { localStorage.setItem('stk_app_cache_data', JSON.stringify(response)); } catch (e) {}
-                    applyDataToStates(response);
-                }
-                setIsAppLoading(false);
-             })
-             .withFailureHandler((error) => {
-                setIsAppLoading(false);
-                showToast('การเชื่อมต่อเซิร์ฟเวอร์ขัดข้อง: ' + (error ? (error.message || error) : ''), 'error');
-             })
-             .getInitialData();
-        } else {
-           // Load real data directly from Supabase
-           Promise.all([
-             supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
-             supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
-             supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
-             supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
-             supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams'))
-           ]).then(([pRes, typeRes, cloRes, memRes, teamRes]) => {
-             const resObj = {
-               products: pRes,
-               customerTypes: typeRes,
-               closers: cloRes,
-               members: memRes,
-               businessTeams: teamRes
-             };
-             applyDataToStates(resObj);
-           }).catch(err => {
-             console.error("Supabase load error:", err);
-           }).finally(() => {
-             setIsAppLoading(false);
-           });
-        }
+        Promise.all([
+            supabaseSelect('stk_products').catch(() => []),
+            supabaseSelect('stk_customer_types').catch(() => []),
+            supabaseSelect('stk_closers').catch(() => []),
+            supabaseSelect('stk_members').catch(() => []),
+            supabaseSelect('stk_customers').catch(() => []),
+            supabaseSelect('stk_sales').catch(() => []),
+            supabaseSelect('stk_business_teams').catch(() => []),
+            supabaseSelect('stk_target_history').catch(() => [])
+        ]).then(([products, customerTypes, closers, members, customers, sales, businessTeams, targetHistory]) => {
+            const response = {
+                products: products,
+                customerTypes: customerTypes,
+                closers: closers,
+                members: members,
+                customers: customers,
+                sales: sales,
+                businessTeams: businessTeams,
+                targetHistory: targetHistory
+            };
+            try { localStorage.setItem('stk_app_cache_data', JSON.stringify(response)); } catch(e){}
+            applyDataToStates(response);
+            setIsAppLoading(false);
+        }).catch((error) => {
+            setIsAppLoading(false);
+            showToast('เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + (error.message || error), 'error');
+        });
       }, []);
 
       const applyDataToStates = (response) => {
            if (Array.isArray(response.products)) setProducts(response.products);
            if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes);
            if (Array.isArray(response.closers)) setClosers(response.closers);
-           if (Array.isArray(response.members)) {
-               const formattedMembers = response.members.map(m => ({
-                   id: String(m.id || m.user_id || m.User_ID || '').trim(),
-                   name: String(m.name || m.Name || '').trim(),
-                   referrer: String(m.referrer || m.sponsor_id || m.Sponsor_ID || '').trim(),
-                   team: String(m.team || m.business_team || m.Business_Team || 'Marketing').trim(),
-                   role: String(m.role || m.permission_role || m.Permission_Role || 'Staff').trim(),
-                   status: String(m.status || m.Status || 'ทำงานอยู่').trim(),
-                   profileUrl: m.profile_url || m.id_card_url || m.ID_Card_URL || '',
-                   phone: m.phone || m.phone_number || m.Phone_Number || '',
-                   email: m.email || m.Email || '',
-                   lineId: m.line_id || m.LINE_ID || '',
-                   bankName: m.bank_name || m.Bank_Name || '',
-                   bankAccountNo: m.bank_account_no || m.Bank_Account_No || '',
-                   bankAccountName: m.bank_account_name || m.Bank_Account_Name || '',
-                   accumulatedPV: Number(m.accumulated_pv || m.Accumulated_PV || 0)
-               })).filter(m => m.id !== '');
-               setMembers(formattedMembers);
-           }
+           if (Array.isArray(response.members)) { setMembers(response.members.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name, profileUrl: m.id_card_url || m.profileImageUrl || m.profileUrl, idCardDocUrl: m.id_card_url || m.idCardDocUrl, businessTeam: m.business_team || m.businessTeam, team: m.business_team || m.team || m.businessTeam || 'T01', role: m.permission_role || m.role || m.permissionRole, status: m.status, sponsorId: m.sponsor_id || m.sponsorId, accumulatedPv: m.accumulated_pv || m.Accumulated_PV || m.accumulatedPv || m.pv || 0, phone: m.phone_number || m.phone || m.phoneNumber }))); }
            if (Array.isArray(response.customers)) setCustomers(response.customers);
            if (Array.isArray(response.systemUsers)) setSystemUsers(response.systemUsers);
-           if (Array.isArray(response.businessTeams)) setBusinessTeams(response.businessTeams);
+           if (Array.isArray(response.businessTeams)) setBusinessTeams(response.businessTeams.map(t => ({ ...t, id: t.id || t.team_id, name: t.name || t.team_name, status: t.status })));
            if (Array.isArray(response.sales)) {
                const processedSales = response.sales.map(s => {
                    let sumF = 0, sumP = 0, sumZ = 0;
@@ -1285,11 +1228,11 @@
         localStorage.removeItem('stk_current_user');
         setCurrentUser(null);
         setIsLoggedIn(false);
-        if (typeof window !== 'undefined') window.open(resolvePageUrl(SCRIPT_URL + '?page=dashboard'), '_top');
+        if (typeof window !== 'undefined') window.open(SCRIPT_URL + '?page=dashboard', '_top');
       };
 
       return (
-        <div className="min-h-screen flex flex-col lg:flex-row font-sans bg-slate-50">
+        <div className="min-h-screen flex font-sans bg-slate-50">
           <Sidebar
             activePage={activeSubTab === 'business_teams' ? 'business_teams' : 'team'}
             onSubTabChange={(sub) => setActiveSubTab(sub)}
@@ -1347,7 +1290,6 @@
                       showToast={showToast}
                       sales={sales}
                       products={products}
-                      currentUser={currentUser}
                     />
                   )
                 ) : (

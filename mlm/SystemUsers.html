@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -547,7 +547,7 @@
            ]).then(([memRes, cloRes, teamRes, userRes]) => {
              if (Array.isArray(memRes)) setMembers(memRes);
              if (Array.isArray(cloRes)) setClosers(cloRes);
-             if (Array.isArray(teamRes)) setBusinessTeams(teamRes);
+             if (Array.isArray(teamRes)) setBusinessTeams(teamRes.map(t => ({...t, id: String(t.id || t.team_id || t.Team_ID || "").trim(), name: String(t.name || t.team_name || t.Team_Name || t.TeamName || "").trim(), status: String(t.status || t.Status || "??????").trim()})));
              if (Array.isArray(userRes)) setSystemUsers(userRes);
            }).catch(err => {
              console.error("Supabase load error:", err);
@@ -697,3 +697,4 @@
   </script>
 </body>
 </html>
+

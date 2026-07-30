@@ -20,8 +20,8 @@
     if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
     async function supabaseSelect(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:window.SUPABASE_HEADERS});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();}
     async function supabaseInsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('INSERT '+t+':'+r.status);return r.json();}
-    async function supabaseUpdate(t,id,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('UPDATE '+t+':'+r.status);return r.json();}
-    async function supabaseDelete(t,id){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'DELETE',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'})});if(!r.ok)throw new Error('DELETE '+t+':'+r.status);return true;}
+    async function supabaseUpdate(t,id,d,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'PATCH',headers:{'Content-Type':'application/json',apikey:window.SUPABASE_ANON_KEY,Authorization:'Bearer '+window.SUPABASE_ANON_KEY},body:JSON.stringify(d)});if(!r.ok)throw new Error('Supabase Error: '+r.status);return await r.text();}
+    async function supabaseDelete(t,id,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'DELETE',headers:{apikey:window.SUPABASE_ANON_KEY,Authorization:'Bearer '+window.SUPABASE_ANON_KEY}});if(!r.ok)throw new Error('Supabase Error: '+r.status);return await r.text();}
     async function supabaseUpsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'resolution=merge-duplicates,return=representation'}),body:JSON.stringify(d)});if(!r.ok)throw new Error('UPSERT '+t+':'+r.status);return r.json();}
   </script>
   <script src="CommonComponents.js"></script>
@@ -126,13 +126,21 @@
         const updateMemberPVInSupabase = async (memberId, pvChange) => {
             if (!memberId || pvChange === 0) return;
             try {
-                const memRes = await supabaseSelect('stk_members', `id=eq.${encodeURIComponent(memberId)}`);
+                let pk = 'id';
+                let memRes;
+                try { memRes = await supabaseSelect('stk_members', `id=eq.${encodeURIComponent(memberId)}`); }
+                catch(err) {
+                    try { memRes = await supabaseSelect('stk_members', `user_id=eq.${encodeURIComponent(memberId)}`); pk = 'user_id'; }
+                    catch(err2) { memRes = await supabaseSelect('stk_members', `User_ID=eq.${encodeURIComponent(memberId)}`); pk = 'User_ID'; }
+                }
+                
                 if (memRes && memRes.length > 0) {
                     const mem = memRes[0];
                     let currentPv = Number(mem.accumulated_pv || mem.Accumulated_PV || 0);
                     let newPv = currentPv + pvChange;
                     if (newPv < 0) newPv = 0;
-                    await supabaseUpdate('stk_members', memberId, { accumulated_pv: newPv });
+                    const updatePayload = mem.Accumulated_PV !== undefined ? { Accumulated_PV: newPv } : { accumulated_pv: newPv };
+                    await supabaseUpdate('stk_members', memberId, updatePayload, 'user_id');
                     console.log(`✅ Updated PV for ${memberId}: ${currentPv} -> ${newPv} (Change: ${pvChange})`);
                 }
             } catch (err) {
@@ -146,7 +154,7 @@
         const getLocalISO = (typeof window !== 'undefined' && window.getLocalISODate) ? window.getLocalISODate : () => fallbackToday;
         const getFirstDOM = (typeof window !== 'undefined' && window.getFirstDayOfMonth) ? window.getFirstDayOfMonth : () => `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
 
-        const [historyStartDate, setHistoryStartDate] = useState(getFirstDOM());
+        const [historyStartDate, setHistoryStartDate] = useState(getLocalISO());
         const [historyEndDate, setHistoryEndDate] = useState(getLocalISO());
         const [salesSearchTerm, setSalesSearchTerm] = useState('');
 
@@ -330,11 +338,12 @@
         const filteredProductsList = useMemo(() => {
             const search = catalogSearch.trim().toLowerCase();
             return (products || [])
-              .filter(p => p && p.status === 'ใช้งาน')
+              .filter(p => p && p.status !== 'เลิกขาย')
               .filter(p => {
-                  return p.name.toLowerCase().includes(search) || 
-                         p.id.toLowerCase().includes(search) || 
-                         (p.category && p.category.toLowerCase().includes(search));
+                  return String(p.name || '').toLowerCase().includes(search) || 
+                         String(p.id || '').toLowerCase().includes(search) || 
+                         String(p.barcode || '').toLowerCase().includes(search) ||
+                         (p.category && String(p.category || '').toLowerCase().includes(search));
               });
         }, [products, catalogSearch]);
 
@@ -342,7 +351,7 @@
             const search = catalogSearch.trim().toLowerCase();
             if (!search) return;
             
-            let matchedProd = (products || []).find(p => p && p.status === 'ใช้งาน' && (p.id.toLowerCase() === search || p.name.toLowerCase() === search));
+            let matchedProd = (products || []).find(p => p && p.status !== 'เลิกขาย' && (String(p.id || '').toLowerCase() === search || String(p.name || '').toLowerCase() === search || String(p.barcode || '').toLowerCase() === search));
             if (!matchedProd) {
                 const matches = filteredProductsList;
                 if (matches.length === 1) matchedProd = matches[0];
@@ -686,13 +695,20 @@
             setPayCashLAK(lCashLAK);
             setPayTransferThaiTHB(lThaiTHB);
             setPayTransferThaiBank(bThaiTHB);
-            setPayTransferLaosTHB(lLaosTHB);
+            setPayCashTHB(lCashTHB);
+            setPayCashLAK(lCashLAK);
+            setPayTransferThaiTHB(lThaiTHB);
+            setPayTransferThaiBank(bThaiTHB);
             setPayTransferLaosBankTHB(bLaosTHB);
             setPayTransferLaosLAK(lLaosLAK);
             setPayTransferLaosBankLAK(bLaosLAK);
             setPaymentNote(record.paymentNote || '');
             
-            const cust = (customers || []).find(c => c.id === record.customerId);
+            let cust = (customers || []).find(c => c && safeUpper(c.id) === safeUpper(record.customerId));
+            if (!cust && record.customerName) {
+                cust = (customers || []).find(c => c && safeUpper(c.name || c.Name) === safeUpper(record.customerName));
+            }
+            
             if (cust) {
                 setCustMode(cust.type || '');
                 const cObj = (closers || []).find(cl => cl.name === cust.closer);
@@ -701,7 +717,7 @@
                 if (cTeam === 'Team B') cTeam = 'Center';
                 setCustData({ id: cust.id, name: cust.name || '', phone: cust.phone || '', lineId: cust.lineId || '', symptom: cust.symptom || '', closer: cust.closer || '', closerTeam: cTeam });
             } else { 
-                setCustData({ id: record.customerId, name: '', phone: '', lineId: '', symptom: '', closer: '', closerTeam: '' }); 
+                setCustData({ id: record.customerId || '', name: record.customerName || '', phone: '', lineId: '', symptom: '', closer: '', closerTeam: '' }); 
             }
 
             const loadedCart = [];
@@ -716,7 +732,7 @@
                 ).map(k => k.replace(/_ราคาเต็ม$|_ราคาโปร$|_ราคาสมาชิก$|_ราคาศูนย์$/, '')),
                 ...activeProductsList
             ])];
-            allProdNamesInRecord.forEach(product => {
+            for (const product of allProdNamesInRecord) {
                 const fQty = parseInt(record[`${product}_ราคาเต็ม`], 10) || 0;
                 const pQty = parseInt(record[`${product}_ราคาโปร`], 10) || 0;
                 const mQty = parseInt(record[`${product}_ราคาสมาชิก`], 10) || 0;
@@ -727,11 +743,11 @@
                 if (pQty > 0) loadedCart.push({ productName: product, priceType: 'ราคาโปร', price: parseFloat(prodObj.pricePromo || 0), qty: pQty });
                 if (mQty > 0) loadedCart.push({ productName: product, priceType: 'ราคาสมาชิก', price: parseFloat(prodObj.priceMember || 0), qty: mQty });
                 if (zQty > 0) loadedCart.push({ productName: product, priceType: 'ราคาศูนย์', price: 0, qty: zQty });
-            });
+            } 
             setCart(loadedCart);
         };
 
-        const executeDeleteSale = () => {
+        const executeDeleteSale = async () => {
             const saleId = confirmDelete.id;
             const custId = confirmDelete.customerId;
             const record = (sales || []).find(s => s.id === saleId);
@@ -745,30 +761,76 @@
                     if (qty > 0) {
                         if (k.endsWith('_ราคาเต็ม') && k !== 'รวมชิ้นราคาเต็ม') oldCart.push({ productName: k.replace('_ราคาเต็ม', ''), priceType: 'ราคาเต็ม', qty });
                         else if (k.endsWith('_ราคาสมาชิก') && k !== 'รวมชิ้นราคาสมาชิก') oldCart.push({ productName: k.replace('_ราคาสมาชิก', ''), priceType: 'ราคาสมาชิก', qty });
+                        else if (k.endsWith('_ราคาโปร') && k !== 'รวมชิ้นราคาโปร') oldCart.push({ productName: k.replace('_ราคาโปร', ''), priceType: 'ราคาโปร', qty });
+                        else if (k.endsWith('_ราคาศูนย์') && k !== 'รวมชิ้นราคาศูนย์') oldCart.push({ productName: k.replace('_ราคาศูนย์', ''), priceType: 'ราคาศูนย์', qty });
                     }
                 });
                 pvToSubtract = calculateBillPV(oldCart, products);
+                
+                // คืนสต๊อกเมื่อลบบิล
+                {
+                    const inQtyMap = {};
+                    oldCart.forEach(item => {
+                        const p = (products || []).find(prod => prod.name === item.productName);
+                        if (p) inQtyMap[p.id] = (inQtyMap[p.id] || 0) + item.qty;
+                    });
+                    if (typeof supabaseUpdate === 'function') {
+                        for (const pid of Object.keys(inQtyMap)) {
+                            const addQty = inQtyMap[pid];
+                            const pInfo = (products || []).find(p => p.id === pid);
+                            if (pInfo && addQty > 0) {
+                                const newStock = (pInfo.current_stock || pInfo.stock || 0) + addQty;
+                                await supabaseUpdate('stk_products', pid, { current_stock: newStock }, 'product_id');
+                            }
+                        }
+                    }
+                    if (setProducts) {
+                        setProducts(prev => prev.map(p => {
+                            const add = inQtyMap[p.id] || 0;
+                            return add > 0 ? {...p, stock: p.stock + add} : p;
+                        }));
+                    }
+                }
             }
 
-            if (typeof google !== 'undefined' && google.script && google.script.run.deleteSaleRecord) {
-                google.script.run.withSuccessHandler(() => { 
-                    setSales(prev => prev.filter(s => s.id !== saleId)); 
-                    if (custId && google.script.run.deleteCustomerData) {
-                        google.script.run.deleteCustomerData(custId);
-                        setCustomers(prev => prev.filter(c => c.id !== custId));
-                    }
-                    if (memberId && pvToSubtract > 0) updateMemberPVInSupabase(memberId, -pvToSubtract);
-                    showToast('ลบรายการขายและลูกค้าสำเร็จ', 'success'); 
-                }).deleteSaleRecord(saleId);
-            } else { 
+            if (typeof supabaseDelete === 'function') {
+                supabaseDelete('stk_sales', saleId, 'order_id');
+                if (custId) supabaseDelete('stk_customers', custId, 'customer_id');
                 setSales(prev => prev.filter(s => s.id !== saleId)); 
                 setCustomers(prev => prev.filter(c => c.id !== custId));
                 if (memberId && pvToSubtract > 0) updateMemberPVInSupabase(memberId, -pvToSubtract);
-                showToast('จำลองลบรายการขายและลูกค้าสำเร็จ', 'success'); 
+                showToast('ลบข้อมูลเรียบร้อยแล้ว', 'success');
+            } else {
+                setSales(prev => prev.filter(s => s.id !== saleId)); 
+                setCustomers(prev => prev.filter(c => c.id !== custId));
+                if (memberId && pvToSubtract > 0) updateMemberPVInSupabase(memberId, -pvToSubtract);
+                showToast('ลบข้อมูลจากหน้าจอแล้ว', 'success'); 
             }
         };
 
-        const handleAdd = (e) => {
+        const handleSuccessFinish = (recordToShow = null) => {
+            if (recordToShow) {
+                setSuccessModal({ show: true, saleRecord: recordToShow });
+            } else {
+                showToast('บันทึกการขายสำเร็จ!', 'success');
+            }
+            setIsSubmitting(false);
+            setCart([]);
+            setCustData({ id: '', name: '', phone: '', lineId: '', symptom: '', closerTeam: '', closer: '' });
+            setCustMode('');
+            setMemberIdInput('');
+            setPayMode('สด');
+            setPayCashTHB('');
+            setPayCashLAK('');
+            setPayTransferThaiTHB('');
+            setPayTransferThaiBank('กสิกรไทย');
+            setPayTransferLaosTHB('');
+            setPayTransferLaosBankTHB('BCEL');
+            setPayTransferLaosLAK('');
+            setPayTransferLaosBankLAK('BCEL');
+        };
+
+                const handleAdd = async (e) => {
           e.preventDefault();
           if (!foundMember) { showToast('ระบุรหัสสมาชิกผู้ขายไม่ถูกต้อง', 'error'); return; }
           if (!custMode || String(custMode).trim() === '') { showToast('กรุณาระบุประเภทลูกค้า', 'error'); return; }
@@ -781,11 +843,15 @@
             if (!custData.closerTeam) { showToast('กรุณาเลือกทีมผู้ปิดการขาย', 'error'); return; }
             if (!custData.closer) { showToast('กรุณาระบุผู้ปิดการขาย', 'error'); return; }
             if (!finalCustomerId) {
-                let nextIdNum = 1; const cIds = (customers || []).map(c => { const match = c && c.id && c.id.match(/^C(\d+)$/i); return match ? parseInt(match[1], 10) : 0; });
+                let nextIdNum = 1;
+                const cIds = [
+                    ...(customers || []).map(c => { const match = c && c.id && c.id.match(/^C(\d+)$/i); return match ? parseInt(match[1], 10) : 0; }),
+                    ...(sales || []).map(s => { const match = s && s.customerId && s.customerId.match(/^C(\d+)$/i); return match ? parseInt(match[1], 10) : 0; })
+                ];
                 if (cIds.length > 0) nextIdNum = Math.max(0, ...cIds) + 1;
                 finalCustomerId = "C" + nextIdNum.toString().padStart(3, '0'); 
             }
-            newCustomerObj = { id: finalCustomerId, name: custData.name, phone: custData.phone, lineId: custData.lineId || '', type: custMode, symptom: custData.symptom, closer: custData.closer, memberId: foundMember.id, memberName: foundMember.name };
+            newCustomerObj = { id: finalCustomerId, name: custData.name, phone: custData.phone, lineId: custData.lineId || '', type: custMode, symptom: custData.symptom, closerTeam: custData.closerTeam, closer: custData.closer, memberId: foundMember.id, memberName: foundMember.name };
           } else {
             const originalCust = (customers || []).find(c => c && safeUpper(c.id) === safeUpper(finalCustomerId));
             if (!originalCust) { showToast('ไม่พบข้อมูลลูกค้าเก่ารหัสนี้', 'error'); return; }
@@ -871,17 +937,28 @@
               ...activeProductsList,
               ...cart.map(item => item.productName)
           ])];
+
+          if (editingSaleId) {
+             const oldRecord = (sales || []).find(s => s.id === editingSaleId);
+             if (oldRecord) {
+                 Object.keys(oldRecord).forEach(k => {
+                     if (k.endsWith('_ราคาเต็ม') || k.endsWith('_ราคาโปร') || k.endsWith('_ราคาสมาชิก') || k.endsWith('_ราคาศูนย์')) {
+                         newRecord[k] = 0;
+                     }
+                 });
+             }
+          }
+
           allProductNamesToSave.forEach(product => {
             const fQty = cart.filter(item => item.productName === product && item.priceType === 'ราคาเต็ม').reduce((sum, item) => sum + (parseInt(item.qty)||0), 0);
             const pQty = cart.filter(item => item.productName === product && item.priceType === 'ราคาโปร').reduce((sum, item) => sum + (parseInt(item.qty)||0), 0);
             const mQty = cart.filter(item => item.productName === product && item.priceType === 'ราคาสมาชิก').reduce((sum, item) => sum + (parseInt(item.qty)||0), 0);
             const zQty = cart.filter(item => item.productName === product && item.priceType === 'ราคาศูนย์').reduce((sum, item) => sum + (parseInt(item.qty)||0), 0);
             
-            // บันทึกเฉพาะสินค้าที่มีจำนวน เพื่อไม่ให้ Google Sheet มีคอลัมน์ว่างโดยไม่จำเป็น
-            if (fQty > 0) newRecord[`${product}_ราคาเต็ม`] = fQty;
-            if (pQty > 0) newRecord[`${product}_ราคาโปร`] = pQty;
-            if (mQty > 0) newRecord[`${product}_ราคาสมาชิก`] = mQty;
-            if (zQty > 0) newRecord[`${product}_ราคาศูนย์`] = zQty;
+            if (fQty > 0 || newRecord[`${product}_ราคาเต็ม`] === 0) newRecord[`${product}_ราคาเต็ม`] = fQty;
+            if (pQty > 0 || newRecord[`${product}_ราคาโปร`] === 0) newRecord[`${product}_ราคาโปร`] = pQty;
+            if (mQty > 0 || newRecord[`${product}_ราคาสมาชิก`] === 0) newRecord[`${product}_ราคาสมาชิก`] = mQty;
+            if (zQty > 0 || newRecord[`${product}_ราคาศูนย์`] === 0) newRecord[`${product}_ราคาศูนย์`] = zQty;
             
             sumFull += fQty; sumPro += pQty; sumMember += mQty; sumZero += zQty;
           });
@@ -894,6 +971,7 @@
           if (newRecord['ยอดรวมชิ้นทั้งหมด'] === 0) { showToast('กรุณาระบุจำนวนสินค้าที่จะเปิดบิลอย่างน้อย 1 ชิ้น', 'error'); return; }
           
           setIsSubmitting(true);
+          try {
 
           let pvChange = 0;
           let oldPv = 0;
@@ -919,37 +997,101 @@
 
           if (editingSaleId) {
              newRecord.id = editingSaleId;
-             if (typeof google !== 'undefined' && google.script && google.script.run.updateSaleRecord) {
-                 google.script.run.updateSaleRecord(newRecord, newCustomerObj); 
-             }
+           const supaSalesData = {
+                     order_id: newRecord.id,
+                     date: newRecord.date,
+                     seller_id: newRecord.memberId,
+                     customer_id: newRecord.customerId,
+                     member_name: newRecord.memberName,
+                     customer_name: (newCustomerObj ? newCustomerObj.name : (newRecord.customerName || '')),
+                     sale_type: newRecord.saleType,
+                     total_amount: newRecord.totalAmount,
+                     total_bottles: cart.reduce((sum, item) => sum + (parseInt(item.qty)||0), 0),
+                     status: 'Completed',
+                     recorded_by: newRecord.recordedBy,
+                     items_json: cart.map(item => ({qty: item.qty, prod: item.productName, type: item.priceType})),
+                 payment_note: newRecord.paymentNote || newRecord.payment_note
+                 };
+                 if (typeof supabaseUpsert === 'function') await supabaseUpsert('stk_sales', supaSalesData);
+
+                 if (newCustomerObj && typeof supabaseUpsert === 'function') {
+                     await supabaseUpsert('stk_customers', { customer_id: newCustomerObj.id, name: newCustomerObj.name, phone: newCustomerObj.phone, line_id: newCustomerObj.lineId || '', customer_type: newCustomerObj.type, symptom_disease: newCustomerObj.symptom, owner_member_id: newCustomerObj.memberId, closer_id: newCustomerObj.closer, extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName }, status: 'Active' });
+                 }
+
+                 const oldQtyMap = {};
+                 if (oldRecord) {
+                     Object.keys(oldRecord).forEach(k => {
+                         if ((k.endsWith('_ราคาเต็ม') || k.endsWith('_ราคาโปร') || k.endsWith('_ราคาสมาชิก') || k.endsWith('_ราคาศูนย์')) && !k.startsWith('รวมชิ้น')) {
+                             const pName = k.replace(/_ราคาเต็ม$|_ราคาโปร$|_ราคาสมาชิก$|_ราคาศูนย์$/, '');
+                             const p = (products || []).find(prod => prod.name === pName);
+                             if (p) oldQtyMap[p.id] = (oldQtyMap[p.id] || 0) + (parseInt(oldRecord[k], 10)||0);
+                         }
+                     });
+                 }
+
+                 if (typeof supabaseUpdate === 'function') {
+                     for (const pid of [...new Set([...Object.keys(oldQtyMap), ...Object.keys(qtyMap)])]) {
+                         const diff = (qtyMap[pid] || 0) - (oldQtyMap[pid] || 0);
+                         const pInfo = (products || []).find(p => p.id === pid);
+                         if (pInfo && diff !== 0) {
+                             const newStock = (pInfo.current_stock || pInfo.stock || 0) - diff;
+                             await supabaseUpdate('stk_products', pid, { current_stock: newStock }, 'product_id');
+                         }
+                     }
+                 }
+
+                 if (setProducts) {
+                     setProducts(prev => prev.map(p => {
+                         const diff = (qtyMap[p.id] || 0) - (oldQtyMap[p.id] || 0);
+                         return diff !== 0 ? {...p, stock: p.stock - diff} : p;
+                     }));
+                 }
              
              setSales(prev => prev.map(s => s.id === editingSaleId ? newRecord : s)); 
              if(newCustomerObj) {
                  setCustomers(prev => {
-                     const exists = prev.find(c => c.id === newCustomerObj.id);
-                     if(exists) return prev.map(c => c.id === newCustomerObj.id ? newCustomerObj : c);
-                     return [newCustomerObj, ...prev];
+                     const pr = prev || [];
+                     const exists = pr.find(c => c.id === newCustomerObj.id);
+                     if(exists) return pr.map(c => c.id === newCustomerObj.id ? newCustomerObj : c);
+                     return [newCustomerObj, ...pr];
                  });
              }
-             if (foundMember && foundMember.id && pvChange !== 0) updateMemberPVInSupabase(foundMember.id, pvChange);
+             if (foundMember && foundMember.id && pvChange !== 0) await updateMemberPVInSupabase(foundMember.id, pvChange, 'user_id');
              handleCancelEdit();
              setSuccessModal({ show: true, saleRecord: newRecord });
              setIsSubmitting(false);
              return;
           }
-
-          if (typeof google !== 'undefined' && google.script) {
-             const stockItems = Object.keys(qtyMap).map(pid => ({ productId: pid, quantity: qtyMap[pid] }));
-             const stockData = {
-                 items: stockItems,
-                 subType: 'เบิกขาย',
-                 notes: `บิลขาย: ${newRecord.id}`,
-                 createdBy: currentUser ? (currentUser.name || currentUser.username) : foundMember.name
+           const supaSalesData = {
+                 order_id: newRecord.id,
+                 date: newRecord.date,
+                 seller_id: newRecord.memberId,
+                 customer_id: newRecord.customerId,
+                 sale_type: newRecord.saleType,
+                 total_amount: newRecord.totalAmount,
+                 total_bottles: cart.reduce((sum, item) => sum + (parseInt(item.qty)||0), 0),
+                 status: 'Completed',
+                 recorded_by: newRecord.recordedBy,
+                 items_json: cart.map(item => ({qty: item.qty, prod: item.productName, type: item.priceType})),
+                 payment_note: newRecord.paymentNote || newRecord.payment_note
              };
+             if (typeof supabaseUpsert === 'function') await supabaseUpsert('stk_sales', supaSalesData);
 
-             google.script.run.stockOut(stockData);
-             google.script.run.saveSalesAndCustomer(newRecord, newCustomerObj);
-             if (foundMember && foundMember.id && pvChange !== 0) updateMemberPVInSupabase(foundMember.id, pvChange);
+             if (newCustomerObj && typeof supabaseUpsert === 'function') {
+                 await supabaseUpsert('stk_customers', { customer_id: newCustomerObj.id, name: newCustomerObj.name, phone: newCustomerObj.phone, line_id: newCustomerObj.lineId || '', customer_type: newCustomerObj.type, symptom_disease: newCustomerObj.symptom, owner_member_id: newCustomerObj.memberId, closer_id: newCustomerObj.closer, extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName }, status: 'Active' });
+             }
+
+             if (typeof supabaseUpdate === 'function') {
+                 for (const pid of Object.keys(qtyMap)) {
+                     const deductQty = qtyMap[pid];
+                     const pInfo = (products || []).find(p => p.id === pid);
+                     if (pInfo && deductQty > 0) {
+                         const newStock = (pInfo.current_stock || pInfo.stock || 0) - deductQty;
+                         await supabaseUpdate('stk_products', pid, { current_stock: newStock }, 'product_id');
+                     }
+                 }
+             }
+             if (foundMember && foundMember.id && pvChange !== 0) await updateMemberPVInSupabase(foundMember.id, pvChange, 'user_id');
              
              if (setProducts) {
                  setProducts(prev => prev.map(p => {
@@ -959,23 +1101,14 @@
              }
              setSales(prev => [newRecord, ...(prev || [])]); 
              if(newCustomerObj) setCustomers(prev => [newCustomerObj, ...(prev || [])]); 
-             handleSuccessFinish();
-
-          } else { 
-             setTimeout(() => { 
-               if (foundMember && foundMember.id && pvChange !== 0) updateMemberPVInSupabase(foundMember.id, pvChange);
-               if (setProducts) {
-                   setProducts(prev => prev.map(p => {
-                       const deduct = qtyMap[p.id] || 0;
-                       return deduct > 0 ? {...p, stock: p.stock - deduct} : p;
-                   }));
-               }
-               setSales(prev => [newRecord, ...(prev || [])]); 
-               if(newCustomerObj) setCustomers(prev => [newCustomerObj, ...(prev || [])]); 
-               handleSuccessFinish();
-             }, 500); 
+                          handleSuccessFinish(newRecord);
+          } catch (err) {
+              console.error("Save Error:", err);
+              showToast('เกิดข้อผิดพลาดในการบันทึก: ' + (err.message || err), 'error');
+              setIsSubmitting(false);
           }
         };
+
 
         const filteredSalesHistory = useMemo(() => {
            let result = (sales || []);
@@ -1647,12 +1780,13 @@
                             </thead>
                             <tbody>
                               {paginatedSalesHistory.map((rs, index) => {
-                                 const mName = (members || []).find(m => m && m.id === rs.memberId)?.name || rs.memberName || rs.memberId; 
+                                 const mName = (members || []).find(m => m && m.id === rs.memberId)?.name || rs.memberName || rs.memberId;
+                                 const cName = (customers || []).find(c => c && c.id === rs.customerId)?.name || rs.customerName || '';
                                  return (
                                   <tr key={index} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
                                      <td className="py-2.5 px-3 align-top border-r border-slate-100 overflow-hidden">
                                         <div className="font-bold text-blue-700 text-sm leading-tight mb-1 truncate flex justify-between items-center" title={rs.customerId}>
-                                           <span>👤 {rs.customerId || ''}</span>
+                                           <span className="truncate mr-1">&#128100; {rs.customerId || ''} <span className="text-[11px] font-bold text-orange-600">{rs.paymentNote ? " - หมายเหตุ: " + rs.paymentNote : ''}</span></span>
                                            <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-300 font-bold shadow-sm text-center">บิล:<br/><span className="text-blue-700">{rs.id}</span></span>
                                         </div>
                                         <div className="text-[10px] font-bold text-slate-500 mb-0.5 truncate" title={rs.memberId}>รหัสผู้ขาย: <span className="text-slate-800">{rs.memberId}</span></div>
@@ -1804,7 +1938,7 @@
 
       const activeProductsList = useMemo(() => {
           if (!products || products.length === 0) return fallbackProductsList;
-          return (products || []).filter(p => p && p.status === 'ใช้งาน').map(p => p.name);
+          return (products || []).filter(p => p && p.status !== 'เลิกขาย').map(p => p.name);
       }, [products]);
 
       const activeCustomerTypes = useMemo(() => {
@@ -1827,8 +1961,7 @@
             initialLoader.style.display = 'none';
         }
 
-        if (typeof google !== 'undefined' && google.script) {
-           try {
+                   try {
                const cachedData = localStorage.getItem('stk_app_cache_data');
                if (cachedData) {
                    const parsedData = JSON.parse(cachedData);
@@ -1837,20 +1970,6 @@
                }
            } catch (e) { console.warn("Cache error", e); }
 
-           google.script.run
-             .withSuccessHandler((response) => {
-                if (response) {
-                    try { localStorage.setItem('stk_app_cache_data', JSON.stringify(response)); } catch(e){}
-                    applyDataToStates(response);
-                }
-                setIsAppLoading(false); 
-             })
-             .withFailureHandler((error) => {
-                setIsAppLoading(false);
-                showToast('การเชื่อมต่อมีปัญหา: ' + (error ? (error.message || error) : ''), 'error');
-             })
-             .getInitialData(); 
-        } else {
            // Load real data directly from Supabase
            Promise.all([
              supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
@@ -1871,21 +1990,27 @@
                businessTeams: teamRes
              };
              applyDataToStates(resObj);
+             try { localStorage.setItem('stk_app_cache_data', JSON.stringify(resObj)); } catch(e){}
            }).catch(err => {
              console.error("Supabase load error:", err);
            }).finally(() => {
              setIsAppLoading(false);
            });
-        }
       }, []);
 
       const applyDataToStates = (response) => {
-           if (Array.isArray(response.products)) setProducts(response.products);
-           if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes);
-           if (Array.isArray(response.closers)) setClosers(response.closers);
-           if (Array.isArray(response.members)) setMembers(response.members);
-           if (Array.isArray(response.customers)) setCustomers(response.customers);
-           if (Array.isArray(response.systemUsers)) setSystemUsers(response.systemUsers);
+           if (Array.isArray(response.products)) setProducts(response.products.map(x => ({
+               ...x, 
+               id: x.id || x.product_id,
+               priceFull: Number(x.price_full ?? x.priceFull ?? 0) || 0,
+               priceMember: Number(x.price_member ?? x.priceMember ?? 0) || 0,
+               pricePromo: Number(x.price_promo ?? x.pricePromo ?? 0) || 0
+           })));
+           if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes.map(x => ({...x, id: x.id || x.type_id})));
+           if (Array.isArray(response.closers)) setClosers(response.closers.map(x => ({...x, id: x.id || x.closer_id})));
+           if (Array.isArray(response.members)) { setMembers(response.members.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name, profileUrl: m.id_card_url || m.profileImageUrl || m.profileUrl, idCardDocUrl: m.id_card_url || m.idCardDocUrl, businessTeam: m.business_team || m.businessTeam, team: m.business_team || m.team || m.businessTeam || 'T01', role: m.permission_role || m.role || m.permissionRole, status: m.status, sponsorId: m.sponsor_id || m.sponsorId, accumulatedPv: m.accumulated_pv || m.Accumulated_PV || m.accumulatedPv || m.pv || 0, phone: m.phone_number || m.phone || m.phoneNumber }))); }
+           if (Array.isArray(response.customers)) setCustomers(response.customers.map(x => ({...x, id: x.id || x.customer_id, lineId: x.lineId || x.line_id, closerTeam: x.closerTeam || x.closer_team, memberId: x.memberId || x.member_id, memberName: x.memberName || x.member_name})));
+           if (Array.isArray(response.systemUsers)) setSystemUsers(response.systemUsers.map(x => ({...x, id: x.id || x.user_id || x.system_user_id})));
            
            if (Array.isArray(response.sales)) {
                const processedSales = response.sales.map(s => {
@@ -1897,7 +2022,9 @@
                    
                    if (Array.isArray(itemsList) && itemsList.length > 0) {
                        itemsList.forEach(it => {
-                           const typeStr = String(it.type || '').trim();
+                           let typeStr = String(it.type || '').trim();
+                           if (typeStr === 'ราคาพิเศษ' || typeStr === 'ราคาโปรโมชั่น') typeStr = 'ราคาโปร';
+                           if (typeStr === 'ราคาแถม') typeStr = 'ราคาศูนย์';
                            const qtyNum = Number(it.qty || it.quantity || 1);
                            const pName = String(it.prod || it.productName || it.name || 'Unknown').trim();
                            
@@ -1928,6 +2055,13 @@
                    s['รวมชิ้นราคาโปร'] = sumP; 
                    s['รวมชิ้นราคาศูนย์'] = sumZ;
                    s['ยอดรวมชิ้นทั้งหมด'] = Number(s.total_bottles || 0) || (sumF + sumM + sumP + sumZ);
+                   s.customerId = s.customerId || s.customer_id;
+                   s.totalAmount = s.totalAmount || s.total_amount;
+                   s.saleType = s.saleType || s.sale_type;
+                   s.date = s.date || s.created_at;
+                   s.recordedBy = s.recordedBy || s.recorded_by;
+                   s.paymentNote = s.paymentNote || s.payment_note || s.notes;
+                   s.id = s.id || s.sale_id || s.receipt_id || s.order_id;
                    return s;
                });
                setSales(processedSales);
@@ -2031,3 +2165,5 @@
   </script>
 </body>
 </html>
+
+

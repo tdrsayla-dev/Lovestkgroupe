@@ -357,9 +357,34 @@
   };
 
   const resolvePageUrl = (href) => {
+    if (typeof window !== 'undefined' && window.location && window.location.href.startsWith('file://')) {
+      const pageFileMap = {
+        'dashboard': 'Mlm.html',
+        'reports': 'Reports.html',
+        'org_chart': 'OrgChart.html',
+        'sales': 'Sales.html',
+        'customers': 'Customers.html',
+        'system_users': 'SystemUsers.html',
+        'team': 'Team.html',
+        'business_teams': 'Team.html',
+        'stock': 'Stock.html',
+        'customer_types': 'CustomerTypes.html',
+        'closers': 'Closers.html',
+        'exchange_rate': 'ExchangeRate.html'
+      };
+      if (!href) return '#';
+      for (const [p, file] of Object.entries(pageFileMap)) {
+        if (href.includes(`page=${p}`)) {
+          return href.includes('tab=business_teams') ? 'Team.html?tab=business_teams' : file;
+        }
+      }
+      return href;
+    }
+
     if (typeof google !== 'undefined' && google.script && google.script.run) {
       return href;
     }
+    
     const pageFileMap = {
       'dashboard': 'Mlm.html',
       'reports': 'Reports.html',
@@ -832,6 +857,43 @@
   window.thBase = thBase;
   window.useDebounce = useDebounce;
   window.exportToCSV = exportToCSV;
+  const Toast = ({ toast, setToast }) => {
+    if (!toast || !toast.show) return null;
+    React.useEffect(() => {
+      const timer = setTimeout(() => {
+        if (setToast) setToast({ show: false, message: '', type: 'success' });
+      }, 3000);
+      return () => clearTimeout(timer);
+    }, [toast, setToast]);
+
+    const isSuccess = toast.type === 'success';
+    return React.createElement('div', {
+      className: `fixed bottom-5 right-5 z-[99999] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl border text-sm font-bold animation-pop ${isSuccess ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-rose-600 text-white border-rose-500'}`
+    },
+      React.createElement('span', null, toast.message)
+    );
+  };
+
+  const Header = ({ currentUser, onLogout }) => {
+    return React.createElement('header', {
+      className: "bg-white border-b border-slate-200 h-[64px] px-6 flex items-center justify-between shadow-xs z-20 shrink-0"
+    },
+      React.createElement('div', { className: "flex items-center gap-3" },
+        React.createElement('h2', { className: "text-lg font-black text-slate-800 tracking-tight" }, "STK", React.createElement('span', { className: "text-blue-600" }, "System"))
+      ),
+      React.createElement('div', { className: "flex items-center gap-4" },
+        currentUser ? React.createElement('div', { className: "flex items-center gap-3" },
+          (currentUser.profileUrl && currentUser.profileUrl !== '-') ? React.createElement('img', { src: currentUser.profileUrl, className: "w-8 h-8 rounded-full object-cover border border-slate-200" }) : React.createElement(UserCircle, { size: 32, className: "text-slate-400" }),
+          React.createElement('div', { className: "text-left hidden sm:block" },
+            React.createElement('div', { className: "text-xs font-bold text-slate-800" }, currentUser.name),
+            React.createElement('div', { className: "text-[10px] font-medium text-slate-400" }, currentUser.role)
+          ),
+          React.createElement('button', { onClick: onLogout, className: "text-xs font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 transition-colors ml-2" }, "ออกจากระบบ")
+        ) : null
+      )
+    );
+  };
+
   window.ConfirmModal = ConfirmModal;
   window.EditModal = EditModal;
   window.AutoSuggestInput = AutoSuggestInput;
@@ -842,5 +904,7 @@
   window.SidebarReportsGroup = SidebarReportsGroup;
   window.SidebarSettingsGroup = SidebarSettingsGroup;
   window.Sidebar = Sidebar;
+  window.Header = Header;
   window.LoginModal = LoginModal;
+  window.Toast = Toast;
 })();
