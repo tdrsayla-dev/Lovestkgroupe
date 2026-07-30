@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เข้าสู่ระบบ - Clinic System</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600&family=Sarabun:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- เรียกใช้งาน style.css -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="login-page">
+
+    <div class="login-card">
+        <div class="text-center mb-4">
+            <div class="login-icon">
+                <i class="ph ph-hospital"></i>
+            </div>
+            <h3 class="fw-bold text-dark">Clinic System</h3>
+            <p class="text-muted small">ลงชื่อเข้าใช้ด้วยอีเมลและรหัสผ่านพนักงาน</p>
+        </div>
+
+        <form id="loginForm">
+            <div class="mb-3">
+                <label class="form-label fw-bold text-dark small">อีเมลพนักงาน</label>
+                <div class="input-group">
+                    <span class="input-group-text border-end-0"><i class="ph ph-envelope"></i></span>
+                    <input type="email" id="loginEmail" class="form-control custom-input border-start-0 ps-0"
+                        placeholder="example@clinic.com" required>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold text-dark small">รหัสผ่าน</label>
+                <div class="input-group">
+                    <span class="input-group-text border-end-0"><i class="ph ph-lock"></i></span>
+                    <input type="password" id="loginPassword" class="form-control custom-input border-start-0 ps-0"
+                        placeholder="••••••••" required>
+                </div>
+            </div>
+
+            <!-- Checkbox: Remember Me (จดจำฉันไว้) -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div class="form-check mb-0">
+                    <input class="form-check-input" type="checkbox" id="rememberMe" style="cursor: pointer;">
+                    <label class="form-check-label text-dark small fw-semibold" for="rememberMe" style="cursor: pointer; user-select: none;">
+                        จดจำฉันไว้ (Remember Me)
+                    </label>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 py-2.5 fw-bold" id="loginBtn"
+                style="border-radius: 12px;">
+                เข้าสู่ระบบ <i class="ph ph-sign-in ms-1"></i>
+            </button>
+        </form>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://fpmstumpobbjozflkola.supabase.co';
+        const supabaseKey = 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7';
+        const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+        // โหลดข้อมูลอีเมลที่จดจำไว้ (ถ้ามี)
+        document.addEventListener("DOMContentLoaded", function () {
+            const rememberedEmail = localStorage.getItem('rememberedEmail');
+            if (rememberedEmail) {
+                document.getElementById('loginEmail').value = rememberedEmail;
+                document.getElementById('rememberMe').checked = true;
+            }
+        });
+
+        document.getElementById('loginForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value.trim();
+            const rememberMe = document.getElementById('rememberMe').checked;
+            const btn = document.getElementById('loginBtn');
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>กำลังตรวจสอบ...';
+
+            try {
+                // เช็คข้อมูลจากตาราง staff_users
+                const { data, error } = await _supabase
+                    .from('staff_users')
+                    .select('*')
+                    .eq('email', email)
+                    .eq('password_hash', password)
+                    .single();
+
+                if (error || !data) {
+                    Swal.fire({ icon: 'error', title: 'เข้าสู่ระบบไม่สำเร็จ', text: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
+                    btn.disabled = false;
+                    btn.innerHTML = 'เข้าสู่ระบบ <i class="ph ph-sign-in ms-1"></i>';
+                    return;
+                }
+
+                if (data.is_active === false) {
+                    Swal.fire({ icon: 'warning', title: 'บัญชีถูกระงับ', text: 'บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อ Admin' });
+                    btn.disabled = false;
+                    btn.innerHTML = 'เข้าสู่ระบบ <i class="ph ph-sign-in ms-1"></i>';
+                    return;
+                }
+
+                // จดจำอีเมลหากติ๊ก Remember Me
+                if (rememberMe) {
+                    localStorage.setItem('rememberedEmail', email);
+                } else {
+                    localStorage.removeItem('rememberedEmail');
+                }
+
+                // บันทึกข้อมูลลง Local Storage
+                const userName = data.full_name || data.email.split('@')[0];
+                localStorage.setItem('clinicUser', JSON.stringify({
+                    id: data.id,
+                    emp_code: data.emp_code,
+                    email: data.email,
+                    name: userName,
+                    role: data.role,
+                    permissions: data.permissions
+                }));
+
+                // นำทางไปหน้า Dashboard
+                window.location.href = 'index.html';
+
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message });
+                btn.disabled = false;
+                btn.innerHTML = 'เข้าสู่ระบบ <i class="ph ph-sign-in ms-1"></i>';
+            }
+        });
+    </script>
+</body>
+
+</html>

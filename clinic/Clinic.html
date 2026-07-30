@@ -1,0 +1,2287 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบการทำงาน - Clinic System</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600&family=Sarabun:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Supabase JS Client CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- เชื่อมโยงไฟล์ CSS -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- สคริปต์ตรวจสอบการล็อกอิน -->
+    <script>
+        const currentUserStr = localStorage.getItem('clinicUser');
+        if (!currentUserStr) {
+            window.location.href = 'login.html'; // ถ้ายังไม่ล็อกอิน ดีดไปหน้าล็อกอินทันที
+        }
+    </script>
+</head>
+
+<body class="d-flex">
+
+    <!-- SIDEBAR (เปลี่ยนแท็บเนื้อหาภายในไฟล์) -->
+    <!-- SIDEBAR -->
+    <div class="sidebar py-3 d-flex flex-column">
+        <h4 class="text-center text-white mb-3 fw-bold">
+            <i class="ph ph-hospital"></i><br>Clinic System
+        </h4>
+        <div class="sidebar-profile text-center">
+            <div class="d-flex align-items-center gap-3">
+                <div class="avatar bg-primary text-white rounded-circle d-flex align-items-center justify-content-center fw-bold"
+                    id="sidebar-avatar"
+                    style="width: 40px; height: 40px; font-size: 1.1rem; background: linear-gradient(135deg, var(--accent-orange) 0%, #f97316 100%) !important;">
+                    U
+                </div>
+                <div class="text-start">
+                    <h6 class="text-white mb-0 fw-semibold" id="sidebar-name"
+                        style="font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px;">
+                        User Name</h6>
+                    <span class="text-muted" id="sidebar-role" style="font-size: 0.75rem;"><i
+                            class="ph ph-circle-fill text-success me-1" style="font-size: 0.55rem;"></i>Role</span>
+                </div>
+            </div>
+            <!-- ปุ่มออกจากระบบ -->
+            <button class="btn btn-sm w-100 mt-3 text-white" onclick="logoutUser()"
+                style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); font-size: 0.8rem;">
+                <i class="ph ph-sign-out me-1"></i> ออกจากระบบ
+            </button>
+        </div>
+        <nav class="flex-grow-1 mt-2" id="sidebarNav">
+            <a href="javascript:void(0);" class="nav-link" id="nav-dashboard" onclick="showPage('dashboard', this)"><i class="ph ph-squares-four"></i> ภาพรวม</a>
+            <a href="javascript:void(0);" class="nav-link active" id="nav-appointments"
+                onclick="showPage('appointments', this)"><i class="ph ph-calendar-plus"></i> นัดหมายล่วงหน้า</a>
+            <a href="javascript:void(0);" class="nav-link" id="nav-registration"
+                onclick="showPage('registration', this)"><i class="ph ph-identification-card"></i> ทะเบียนผู้ป่วย</a>
+            <a href="javascript:void(0);" class="nav-link" id="nav-triage" onclick="showPage('triage', this)"><i
+                    class="ph ph-heartbeat"></i> จุดคัดกรอง</a>
+            <a href="javascript:void(0);" class="nav-link" id="nav-doctor" onclick="showPage('doctor', this)"><i
+                    class="ph ph-stethoscope"></i> ห้องตรวจแพทย์</a>
+            <a href="javascript:void(0);" class="nav-link" id="nav-payment" onclick="showPage('payment', this)"><i
+                    class="ph ph-coins"></i> จ่ายค่ารักษา</a>
+            <a href="javascript:void(0);" class="nav-link" id="nav-lab" onclick="showPage('lab', this)"><i
+                    class="ph ph-flask"></i> ห้อง Lab</a>
+            <a href="javascript:void(0);" class="nav-link" id="nav-queue" onclick="showPage('queue', this)"><i
+                    class="ph ph-list-numbers"></i> จัดคิว</a>
+            <a href="javascript:void(0);" class="nav-link" id="nav-prescription"
+                onclick="showPage('prescription', this)"><i class="ph ph-prescription"></i> อ่านผล/จัดยา</a>
+            <a href="javascript:void(0);" class="nav-link" id="nav-pharmacy" onclick="showPage('pharmacy', this)"><i
+                    class="ph ph-pill"></i> ห้องจ่ายยา</a>
+            <a href="javascript:void(0);" class="nav-link" id="nav-history" onclick="showPage('history', this)"><i
+                    class="ph ph-clock-counter-clockwise"></i> ประวัติผู้ป่วย</a>
+
+            <a class="nav-link d-flex justify-content-between align-items-center mt-2" data-bs-toggle="collapse"
+                href="#backendMenu" role="button">
+                <span><i class="ph ph-gear"></i> จัดการระบบหลังบ้าน</span>
+                <i class="bi bi-chevron-down" style="font-size: 0.75rem;"></i>
+            </a>
+            <div class="collapse" id="backendMenu">
+                <a href="javascript:void(0);" class="nav-link" id="nav-stock-drugs"
+                    onclick="showPage('stock-drugs', this)"><i class="ph ph-package"></i> คลังยา</a>
+                <a href="javascript:void(0);" class="nav-link" id="nav-stock-equip"
+                    onclick="showPage('stock-equip', this)"><i class="ph ph-archive"></i> คลังพัสดุ</a>
+                <a href="javascript:void(0);" class="nav-link" id="nav-staff" onclick="showPage('staff', this)"><i
+                        class="ph ph-users"></i> จัดการพนักงาน</a>
+                <a href="javascript:void(0);" class="nav-link" id="nav-referrals" onclick="showPage('referrals', this)"><i
+                        class="ph ph-hand-coins"></i> ระบบปันผล/ผู้แนะนำ</a>
+                <a href="javascript:void(0);" class="nav-link" id="nav-services" onclick="showPage('services', this)"><i
+                        class="ph ph-list-magnifying-glass"></i> จัดการรายการตรวจ</a>
+            </div>
+        </nav>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="content-area">
+
+        <!-- 1. ภาพรวมระบบ (Dashboard) -->
+        <div id="dashboard" class="page-section">
+            <div class="d-flex justify-content-between align-items-start align-items-md-center mb-4 flex-column flex-md-row gap-3">
+                <div class="d-flex align-items-center gap-3">
+                    <button class="btn btn-light d-md-none border shadow-sm" id="mobileMenuBtn">
+                        <i class="ph ph-list fs-4"></i>
+                    </button>
+                    <div>
+                        <h2 class="fw-bold mb-1" style="color: var(--primary-dark); font-size: 1.4rem;">ภาพรวมระบบ</h2>
+                        <p class="text-muted mb-0" style="font-size: 0.85rem;">สถานะและการวิเคราะห์ข้อมูลคลินิก</p>
+                    </div>
+                </div>
+                <div class="text-muted small fw-semibold bg-white p-2 px-3 rounded-pill shadow-sm border">
+                    <i class="ph ph-clock text-primary me-1"></i> อัปเดตล่าสุด: <span id="real-time-clock">--:--</span> น.
+                </div>
+            </div>
+
+            <!-- Stats Row -->
+            <div class="db-grid-4 mb-4">
+                <div class="db-stat-card">
+                    <div class="db-stat-title">นัดหมายวันนี้</div>
+                    <div class="db-stat-number-wrapper">
+                        <span class="db-stat-number" id="db-stat-appointments">0</span>
+                        <span class="db-stat-unit">รายการ</span>
+                    </div>
+                </div>
+                <div class="db-stat-card">
+                    <div class="db-stat-title">รอการชำระเงิน</div>
+                    <div class="db-stat-number-wrapper">
+                        <span class="db-stat-number" id="db-stat-payments">0</span>
+                        <span class="db-stat-unit">รายการ</span>
+                    </div>
+                </div>
+                <div class="db-stat-card">
+                    <div class="db-stat-title">เลื่อนนัด</div>
+                    <div class="db-stat-number-wrapper">
+                        <span class="db-stat-number" id="db-stat-rescheduled">0</span>
+                        <span class="db-stat-unit">รายการ</span>
+                    </div>
+                </div>
+                <div class="db-stat-card">
+                    <div class="db-stat-title">ผู้ป่วยทั้งหมด</div>
+                    <div class="db-stat-number-wrapper">
+                        <span class="db-stat-number" id="db-stat-patients">0</span>
+                        <span class="db-stat-unit">รายการ</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Middle Row -->
+            <div class="db-grid-3 mb-4">
+                <div class="db-card">
+                    <div class="db-card-title">นัดหมาย วันนี้</div>
+                    <div class="d-flex justify-content-between text-muted mb-2 px-1 fw-bold" style="font-size: 0.8rem;">
+                        <span style="width: 50px;">เวลา</span>
+                        <span style="flex-grow: 1; padding-left: 10px;">ชื่อ นามสกุล</span>
+                        <span style="width: 100px; text-align: right; padding-right: 16px;">สถานะ</span>
+                    </div>
+                    <div class="db-appt-list" id="db-appointments-list">
+                    </div>
+                </div>
+
+                <div class="d-flex flex-column gap-3">
+                    <div class="db-card" style="padding: 30px 24px; background-color: #e6edf8;">
+                        <div class="d-flex align-items-center justify-content-between h-100">
+                            <div class="db-chart-legend-left d-flex flex-column justify-content-center">
+                                <h4 class="fw-bold mb-2" style="font-size: 1.65rem; color: #000;">ประเภทผู้ป่วย</h4>
+                                <div class="d-flex align-items-center mb-3" style="font-size: 1rem;">
+                                    <span style="width: 8px; height: 18px; border-radius: 8px; background-color: #ff0000; margin-right: 12px;"></span>
+                                    <span class="fw-bold me-3 text-dark">โรคติดต่อ</span>
+                                    <span class="fw-bold" style="color: #ff0000;" id="pct-communicable">50%</span>
+                                </div>
+                                <div class="d-flex align-items-center" style="font-size: 1rem;">
+                                    <span style="width: 8px; height: 18px; border-radius: 8px; background-color: #16a34a; margin-right: 12px;"></span>
+                                    <span class="fw-bold me-3 text-dark">โรคไม่ติดต่อ</span>
+                                    <span class="fw-bold" style="color: #16a34a;" id="pct-non-communicable">50%</span>
+                                </div>
+                            </div>
+                            <div class="db-donut-container" style="position: relative; width: 180px; height: 180px;">
+                                <svg viewBox="0 0 36 36" class="circular-chart" style="width: 100%; height: 100%; transform: rotate(-90deg);">
+                                    <path id="circle-noncomm" class="circle-bg" stroke-dasharray="100, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#003f88" stroke-width="7"></path>
+                                    <path id="circle-comm" class="circle" stroke-dasharray="50, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#ff0000" stroke-width="7"></path>
+                                    <text x="-18" y="6" transform="rotate(90)" class="percentage" text-anchor="middle" font-size="0.85em" font-weight="bold" fill="#ff0000" id="donut-center-text">100%</text>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="db-queue-list w-100" style="height: auto; max-height: none;">
+                        <div class="db-queue-item">
+                            <span class="db-queue-name">ทะเบียนผู้ป่วย</span>
+                            <span class="db-queue-status-text">รอ</span>
+                            <span class="db-queue-count" id="db-queue-reg">0</span>
+                        </div>
+                        <div class="db-queue-item">
+                            <span class="db-queue-name">จุดคัดกรอง</span>
+                            <span class="db-queue-status-text">รอ</span>
+                            <span class="db-queue-count" id="db-queue-triage">0</span>
+                        </div>
+                        <div class="db-queue-item">
+                            <span class="db-queue-name">ห้องตรวจแพทย์</span>
+                            <span class="db-queue-status-text">รอ</span>
+                            <span class="db-queue-count" id="db-queue-doctor">0</span>
+                        </div>
+                        <div class="db-queue-item">
+                            <span class="db-queue-name">ห้อง LAB</span>
+                            <span class="db-queue-status-text">รอ</span>
+                            <span class="db-queue-count" id="db-queue-lab">0</span>
+                        </div>
+                        <div class="db-queue-item">
+                            <span class="db-queue-name">อ่านผล/จัดยา</span>
+                            <span class="db-queue-status-text">รอ</span>
+                            <span class="db-queue-count" id="db-queue-prescription">0</span>
+                        </div>
+                        <div class="db-queue-item">
+                            <span class="db-queue-name">อ่านผลตรวจ</span>
+                            <span class="db-queue-status-text">รอ</span>
+                            <span class="db-queue-count" id="db-queue-report">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="db-calendar-card mb-0 h-100">
+                    <div class="db-calendar-header">
+                        <span id="calendar-title">Month 2000</span>
+                        <div class="db-calendar-nav">
+                            <span class="db-calendar-arrow" id="btn-prev-month"><i class="bi bi-chevron-left"></i></span>
+                            <span class="db-calendar-arrow" id="btn-next-month"><i class="bi bi-chevron-right"></i></span>
+                        </div>
+                    </div>
+                    <div class="db-calendar-weekdays mt-4">
+                        <div>Mon</div>
+                        <div>Tue</div>
+                        <div>Wed</div>
+                        <div>Thu</div>
+                        <div>Fri</div>
+                        <div>Sat</div>
+                        <div>Sun</div>
+                    </div>
+                    <div class="db-calendar-days mt-2" id="calendar-days">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Row: Comparison Section -->
+            <div class="db-chart-card">
+                <div class="db-chart-layout">
+                    <div class="db-chart-panel">
+                        <h5 class="fw-bold text-dark mb-1"><i class="bi bi-bar-chart-line text-primary me-2"></i>วิเคราะห์เปรียบเทียบข้อมูล</h5>
+                        <p class="text-muted small mb-3">สรุปผลเปรียบเทียบระหว่างสถิติการนัดหมายและการเข้าพบแพทย์</p>
+                        <div class="db-panel-section mb-2">
+                            <span class="db-panel-lbl"><i class="bi bi-people-fill text-primary"></i> ผู้ป่วยลงทะเบียนเข้าตรวจ</span>
+                            <span class="db-panel-val" id="db-panel-visits-count">0</span>
+                            <span class="db-panel-trend db-trend-up"><i class="bi bi-arrow-up-short"></i> +12.5% เทียบกับเดือนก่อน</span>
+                        </div>
+                        <div class="db-panel-section">
+                            <span class="db-panel-lbl"><i class="bi bi-calendar-event-fill text-warning"></i> จำนวนจองนัดหมายทั้งหมด</span>
+                            <span class="db-panel-val" id="db-panel-appts-count">0</span>
+                            <span class="db-panel-trend db-trend-up"><i class="bi bi-arrow-up-short"></i> +8.3% เทียบกับเดือนก่อน</span>
+                        </div>
+                    </div>
+
+                    <div class="db-chart-content">
+                        <div class="db-chart-legend">
+                            <div class="db-legend-item">
+                                <span class="db-legend-dot" style="background-color: #0b3c73;"></span>
+                                <span>ผู้ป่วยลงทะเบียนเข้าตรวจ (Visits)</span>
+                            </div>
+                            <div class="db-legend-item">
+                                <span class="db-legend-dot" style="background-color: #f97316;"></span>
+                                <span>จองนัดหมาย (Appointments)</span>
+                            </div>
+                        </div>
+
+                        <div class="db-chart-container">
+                            <svg viewBox="0 0 1000 220" width="100%" height="100%" preserveAspectRatio="none">
+                                <line x1="50" y1="40" x2="930" y2="40" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="3 3" />
+                                <line x1="50" y1="85" x2="930" y2="85" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="3 3" />
+                                <line x1="50" y1="130" x2="930" y2="130" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="3 3" />
+                                <line x1="50" y1="175" x2="930" y2="175" stroke="#cbd5e1" stroke-width="1.5" />
+                                <path id="db-chart-area-visits" d="M 50 175 L 930 175 Z" fill="#2563EB" fill-opacity="0.12" />
+                                <path id="db-chart-area-appts" d="M 50 175 L 930 175 Z" fill="#f97316" fill-opacity="0.08" />
+                                <path id="db-chart-line-visits" d="M 50 175 L 930 175" fill="none" stroke="#0b3c73" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                <path id="db-chart-line-appts" d="M 50 175 L 930 175" fill="none" stroke="#f97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                <g id="db-chart-dots-visits"></g>
+                                <g id="db-chart-dots-appts"></g>
+                            </svg>
+                            <div class="db-chart-months">
+                                <span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span><span>Nov</span><span>Dec</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. ระบบนัดหมาย (Appointments) -->
+        <div id="appointments" class="page-section active">
+            <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
+                <div>
+                    <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
+                            class="bi bi-calendar-event text-primary me-2"></i>ระบบนัดหมาย</h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;">จัดการรายการนัดหมายและลงทะเบียนผู้ป่วย</p>
+                </div>
+                <div class="d-flex gap-2 align-items-center flex-wrap">
+                    <div class="input-group" style="width: 280px;">
+                        <span class="input-group-text bg-white border-end-0" style="border-radius: 10px 0 0 10px; border-color: #dee2e6;"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" id="searchAppointmentInput" class="form-control border-start-0 ps-0"
+                            placeholder="ค้นหารหัส, ชื่อผู้จอง, เบอร์โทร..." oninput="filterAppointments()"
+                            style="border-radius: 0 10px 10px 0; border-color: #dee2e6; padding: 9px 12px;">
+                    </div>
+                    <button type="button" class="btn btn-primary px-4 py-2 fw-semibold" onclick="openAddAppointmentModal()" style="border-radius: 10px; height: 42px;">
+                        <i class="bi bi-plus-lg me-1"></i> เพิ่มนัดหมาย
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-responsive table-container">
+                <table class="table table-modern" id="appointmentsTable">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">รหัสการจอง</th>
+                            <th>วันที่นัดหมาย</th>
+                            <th>เวลา</th>
+                            <th>ชื่อผู้จอง</th>
+                            <th>เบอร์โทร</th>
+                            <th>ผู้แนะนำ (Referrer)</th>
+                            <th>เรื่องที่ต้องการตรวจ</th>
+                            <th>สถานะ</th>
+                            <th class="text-center">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="9" class="text-center text-muted py-5">กำลังโหลดข้อมูล...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 3. ทะเบียนผู้ป่วย (Registration) -->
+        <div id="registration" class="page-section">
+            <div class="d-flex justify-content-between align-items-end mb-4">
+                <div>
+                    <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
+                            class="bi bi-person-lines-fill text-primary me-2"></i>ทะเบียนผู้ป่วย</h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;">ข้อมูลและประวัติการแพ้ยาของผู้ป่วยทั้งหมด</p>
+                </div>
+                <button type="button" class="btn btn-primary px-4 py-2" onclick="openAddPatientModal()">
+                    <i class="bi bi-person-plus-fill me-1"></i> ลงทะเบียนใหม่
+                </button>
+            </div>
+
+            <div class="table-responsive table-container">
+                <table class="table table-modern" id="patientsTable">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">HN</th>
+                            <th>ชื่อ-นามสกุล</th>
+                            <th>อายุ</th>
+                            <th>เบอร์โทร</th>
+                            <th>ที่อยู่</th>
+                            <th class="text-center">ประวัติแพ้ยา</th>
+                            <th class="text-center">ผู้แนะนำ (Referrer)</th>
+                            <th class="text-center">สถานะ</th>
+                            <th class="text-center">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-5">กำลังโหลดข้อมูล...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 4. จุดคัดกรอง (Triage) -->
+        <div id="triage" class="page-section">
+            <div class="d-flex justify-content-between align-items-end mb-4">
+                <div>
+                    <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
+                            class="bi bi-heart-pulse-fill text-primary me-2"></i>จุดคัดกรอง</h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;">บันทึกสัญญาณชีพเบื้องต้น</p>
+                </div>
+            </div>
+            <div class="table-responsive table-container">
+                <table class="table table-modern" id="triageTable">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">รหัส VISIT</th>
+                            <th>ชื่อ-นามสกุล</th>
+                            <th class="text-end pe-4">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="3" class="text-center text-muted py-5">กำลังโหลดข้อมูล...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 5. ห้องตรวจแพทย์ (Doctor) -->
+        <div id="doctor" class="page-section">
+            <div class="d-flex justify-content-between align-items-end mb-4">
+                <div>
+                    <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
+                            class="bi bi-stethoscope text-primary me-2"></i>ห้องตรวจแพทย์</h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;">รายการผู้ป่วยรอตรวจ และระบบสั่ง Lab</p>
+                </div>
+            </div>
+            <div class="table-responsive table-container">
+                <table class="table table-modern" id="doctorTable">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">รหัส VISIT</th>
+                            <th>ชื่อ-นามสกุล / อาการเบื้องต้น</th>
+                            <th>สัญญาณชีพเบื้องต้น</th>
+                            <th class="text-end pe-4">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-5">ไม่มีผู้ป่วยรอตรวจ</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 6. จ่ายค่ารักษา (Payment) -->
+        <div id="payment" class="page-section">
+            <div class="d-flex justify-content-between align-items-end mb-4">
+                <div>
+                    <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
+                            class="bi bi-cash-coin text-primary me-2"></i>จ่ายค่ารักษา</h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;">รายการรอชำระเงินก่อนส่งตรวจ Lab</p>
+                </div>
+            </div>
+            <div class="table-responsive table-container">
+                <table class="table table-modern" id="paymentTable">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">รหัส VISIT</th>
+                            <th>HN</th>
+                            <th>ชื่อ-นามสกุล</th>
+                            <th>รายการส่งตรวจ</th>
+                            <th>สถานะ</th>
+                            <th class="text-center">ดำเนินการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-5">ไม่มีรายการรอชำระเงิน</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 7. ห้อง Lab (Lab) -->
+        <div id="lab" class="page-section">
+            <div class="d-flex justify-content-between align-items-end mb-4">
+                <div>
+                    <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
+                            class="bi bi-virus text-primary me-2"></i>ห้อง Lab</h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;">อัปโหลดผล Lab เป็นไฟล์ PDF</p>
+                </div>
+            </div>
+            <div class="table-responsive table-container">
+                <table class="table table-modern" id="labTable">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">รหัส VISIT</th>
+                            <th>HN</th>
+                            <th>ชื่อ-นามสกุล</th>
+                            <th>รายการส่งตรวจ</th>
+                            <th>สถานะ</th>
+                            <th class="text-center">ดำเนินการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-5">ไม่มีรายการรอตรวจ Lab</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 8. จัดคิว (Queue) -->
+        <div id="queue" class="page-section">
+            <div class="d-flex justify-content-between align-items-end mb-4">
+                <div>
+                    <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
+                            class="bi bi-list-ol text-primary me-2"></i>ระบบจัดคิวอ่านผลตรวจ</h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;">
+                        บริหารคิวแพทย์และอัปเดตสถานะการตรวจแบบเรียลไทม์</p>
+                </div>
+            </div>
+
+            <div class="card border-0 mb-3" style="background-color: #f1f5f9; border-radius: 12px;">
+                <div class="card-body d-flex justify-content-between align-items-center py-3 px-4">
+                    <h6 class="fw-bold mb-0" style="color: #334155;"><i class="bi bi-people me-1"></i>
+                        รายชื่อคิวรอส่งให้คุณหมออ่านผล</h6>
+                    <button class="btn btn-sm btn-light border" onclick="loadQueueList()"><i
+                            class="bi bi-arrow-clockwise"></i> โหลดคิวใหม่</button>
+                </div>
+            </div>
+
+            <div class="table-responsive table-container">
+                <table class="table table-modern" id="queueTable">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">รหัส VISIT</th>
+                            <th>HN</th>
+                            <th>ชื่อ-นามสกุล</th>
+                            <th width="280">เลือกคุณหมอที่ต้องการส่งตรวจ</th>
+                            <th class="text-center">ดำเนินการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-5">ไม่มีรายการรอจัดคิว</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 9. อ่านผล/จัดยา (Prescription) -->
+        <div id="prescription" class="page-section">
+            <div class="d-flex justify-content-between align-items-end mb-4">
+                <div>
+                    <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
+                            class="bi bi-file-medical text-primary me-2"></i>ห้องตรวจแพทย์ (อ่านผล/จัดยา)</h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;">คุณหมอกดเรียกพบคนไข้ ดูผลแล็บ PDF
+                        และเลือกสั่งจ่ายยา</p>
+                </div>
+            </div>
+            <div class="table-responsive table-container">
+                <table class="table table-modern" id="prescriptionTable">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">รหัส VISIT</th>
+                            <th>HN</th>
+                            <th>ชื่อ-นามสกุล</th>
+                            <th>ชื่อแพทย์ผู้รับผิดชอบ</th>
+                            <th>สถานะคิว</th>
+                            <th class="text-center">ดำเนินการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-5">ไม่มีรายการรออ่านผล</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 10. ห้องจ่ายยา (Pharmacy) -->
+        <div id="pharmacy" class="page-section">
+            <div class="d-flex justify-content-between align-items-end mb-4">
+                <div>
+                    <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
+                            class="bi bi-capsule text-primary me-2"></i>ห้องจ่ายยา (Dispensing Room)</h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;">
+                        ตรวจสอบรายการยาและอาหารเสริมที่แพทย์จัดสั่งจ่ายให้กับคนไข้</p>
+                </div>
+                <div>
+                    <button class="btn btn-sm btn-outline-primary py-2 px-3 fw-bold" onclick="loadPharmacyQueue()"><i
+                            class="bi bi-arrow-clockwise"></i> รีเฟรช</button>
+                </div>
+            </div>
+            <div class="table-responsive table-container shadow-sm border"
+                style="border-radius: 12px; background: white;">
+                <table class="table table-modern align-middle" id="pharmacyTable">
+                    <thead>
+                        <tr>
+                            <th class="ps-4" width="150">รหัส VISIT</th>
+                            <th width="120">HN</th>
+                            <th width="200">ชื่อ-นามสกุล</th>
+                            <th>รายการจัดสั่งจ่ายยา / จำนวน</th>
+                            <th class="text-center" width="160">ดำเนินการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-5">ไม่มีรายการรอจ่ายยา</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div id="stock-drugs" class="page-section">
+            <div class="d-flex justify-content-between align-items-end mb-4">
+                <div>
+                    <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
+                            class="bi bi-box2-heart text-primary me-2"></i>ระบบคลังยาและอาหารเสริม</h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;">จัดการข้อมูลยา สต็อกสินค้า และกำหนดราคาจำหน่าย
+                    </p>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                <!-- ตารางรายชื่อคลังยา (ขยายเต็มหน้าจอ 100%) -->
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+                        <div
+                            class="card-header bg-white border-0 pt-4 pb-0 d-flex justify-content-between align-items-center flex-wrap gap-3">
+                            <div class="d-flex align-items-center gap-4 flex-wrap">
+                                <h5 class="fw-bold mb-0"><i class="bi bi-table text-primary me-2"></i>รายการคลังสินค้า
+                                </h5>
+                                <!-- ปุ่มสำหรับแบ่งหมวดหมู่ด่วน -->
+                                <div class="d-flex align-items-center gap-3" id="stockCategoryFilterGroup">
+                                    <a href="javascript:void(0)" class="text-decoration-none fw-bold text-primary px-1"
+                                        onclick="filterStockTable('all', this)" style="font-size: 0.92rem;">ทั้งหมด</a>
+                                    <a href="javascript:void(0)" class="text-decoration-none text-secondary px-1"
+                                        onclick="filterStockTable('ยา', this)"
+                                        style="font-size: 0.92rem;">ยารักษาโรค</a>
+                                    <a href="javascript:void(0)" class="text-decoration-none text-secondary px-1"
+                                        onclick="filterStockTable('อาหารเสริม', this)"
+                                        style="font-size: 0.92rem;">อาหารเสริม</a>
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2 align-items-center">
+                                <input type="text" id="searchStockInput" class="form-control custom-input py-1.5"
+                                    placeholder="ค้นหารหัส หรือ ชื่อยา" style="width: 280px; max-width: 280px;"
+                                    onkeyup="searchMedicineStock()">
+                                <button class="btn btn-outline-primary py-2 px-3 fw-semibold"
+                                    onclick="loadStockList()"><i class="bi bi-arrow-clockwise me-1"></i> รีเฟรช</button>
+                                <button class="btn btn-primary py-2 px-3 fw-bold"
+                                    onclick="openAddMedicineModal()">เพิ่มรายการ</button>
+                            </div>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="table-responsive table-container"
+                                style="max-height: 550px; border-radius: 8px;">
+                                <table class="table table-modern align-middle" id="stockMedsTable">
+                                    <thead>
+                                        <tr>
+                                            <th class="ps-3" width="110">รหัสสินค้า</th>
+                                            <th>ชื่อรายการ</th>
+                                            <th class="text-center" width="130">ประเภท</th>
+                                            <th class="text-center" width="90">สต็อก</th>
+                                            <th class="text-center" width="100">ราคาปกติ</th>
+                                            <th class="text-center" width="100">ราคาโปร</th>
+                                            <th class="text-center" width="130">ราคาส่ง/สมาชิก</th>
+                                            <th class="text-center" width="100">แถมฟรี</th>
+                                            <th class="text-center" width="100">จัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td colspan="9" class="text-center text-muted py-5">กำลังโหลดข้อมูลคลังยา...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal สำหรับเพิ่ม/แก้ไขรายการยาและอาหารเสริม -->
+            <div class="modal fade" id="stockMedicineModal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content" style="border-radius: 16px; border: none;">
+                        <div class="modal-header bg-white border-0 pt-4 pb-0 pe-4">
+                            <h5 class="modal-title fw-bold" id="stockFormTitle"><i
+                                    class="bi bi-pencil-square text-primary me-2"></i>เพิ่มรายการยา/อาหารเสริม</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body p-4">
+                            <form id="stockMedicineForm" onsubmit="event.preventDefault(); submitMedicineStock();">
+                                <input type="hidden" id="stockAction" value="add"> <!-- action: add/edit -->
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">รหัสสินค้า / Barcode <span
+                                            class="text-danger">*</span></label>
+                                    <input type="text" id="stockMedId" class="form-control custom-input"
+                                        placeholder="เช่น MED005, SUP005" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">ชื่อยา / อาหารเสริม <span
+                                            class="text-danger">*</span></label>
+                                    <input type="text" id="stockMedName" class="form-control custom-input"
+                                        placeholder="ชื่อทางการค้าและขนาดความแรง" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">ประเภทสินค้า</label>
+                                    <select id="stockMedType" class="form-select custom-input">
+                                        <option value="ยา">💊 ยารักษาโรค (Medicine)</option>
+                                        <option value="อาหารเสริม">🍃 อาหารเสริม (Supplement)</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">จำนวนสต็อกคงเหลือ <span
+                                            class="text-danger">*</span></label>
+                                    <input type="number" id="stockMedQty" class="form-control custom-input"
+                                        placeholder="0" min="0" required>
+                                </div>
+
+                                <!-- หมวดหมู่ราคาทั้ง 3 แบบ -->
+                                <div class="row g-2 mb-3">
+                                    <div class="col-4">
+                                        <label class="form-label fw-bold small text-muted">ราคาปกติ</label>
+                                        <input type="number" id="stockMedPriceNormal" class="form-control custom-input"
+                                            placeholder="0" min="0" required>
+                                    </div>
+                                    <div class="col-4">
+                                        <label class="form-label fw-bold small text-muted">ราคาโปร</label>
+                                        <input type="number" id="stockMedPricePromo" class="form-control custom-input"
+                                            placeholder="0" min="0" required>
+                                    </div>
+                                    <div class="col-4">
+                                        <label class="form-label fw-bold small text-muted">ราคาส่ง/สมาชิก</label>
+                                        <input type="number" id="stockMedPriceHigh" class="form-control custom-input"
+                                            placeholder="0" min="0" required>
+                                    </div>
+                                </div>
+                                <div class="mb-4 form-check">
+                                    <input type="checkbox" id="stockMedIsFree" class="form-check-input">
+                                    <label class="form-check-label fw-bold text-success" for="stockMedIsFree">🎁
+                                        อนุญาตให้แพทย์สั่งเป็นของแถมฟรีได้ (Free Gift Option)</label>
+                                </div>
+
+                                <div class="d-flex gap-2 pt-2">
+                                    <button type="button" class="btn btn-light border w-50"
+                                        data-bs-dismiss="modal">ยกเลิก</button>
+                                    <button type="submit" class="btn btn-primary w-100 py-2">บันทึกข้อมูล</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 12. คลังพัสดุ (Supply Stock) -->
+        <div id="stock-equip" class="page-section">
+            <div class="d-flex justify-content-between align-items-end mb-4">
+                <div>
+                    <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
+                            class="bi bi-boxes text-primary me-2"></i>ระบบจัดการคลังพัสดุ</h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;">ติดตามสต็อก บันทึกการเบิกจ่าย
+                        และดูประวัติการเบิกพัสดุย้อนหลัง</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary py-2 px-3 fw-bold" onclick="loadSupplyItems()"><i
+                            class="bi bi-arrow-clockwise"></i> รีเฟรช</button>
+                    <button class="btn btn-primary py-2 px-3 fw-bold" onclick="openAddSupplyModal()"><i
+                            class="bi bi-plus-lg me-1"></i> เพิ่มพัสดุ</button>
+                    <button class="btn btn-primary py-2 px-3 fw-bold" onclick="openGlobalReqModal()"><i
+                            class="bi bi-box-arrow-up me-1"></i> เบิกออก</button>
+                </div>
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="row g-3 mb-4" id="supplyStatCards">
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm text-center p-3" style="border-radius: 12px;">
+                        <div class="text-muted small mb-1">รายการพัสดุทั้งหมด</div>
+                        <div class="fw-bold fs-4 text-primary" id="statTotalItems">-</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm text-center p-3" style="border-radius: 12px;">
+                        <div class="text-muted small mb-1">พัสดุสต็อกต่ำ (≤ 5)</div>
+                        <div class="fw-bold fs-4 text-danger" id="statLowStock">-</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm text-center p-3" style="border-radius: 12px;">
+                        <div class="text-muted small mb-1">รับเข้าวันนี้ (ครั้ง)</div>
+                        <div class="fw-bold fs-4 text-success" id="statTodayIntake">-</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm text-center p-3" style="border-radius: 12px;">
+                        <div class="text-muted small mb-1">เบิกวันนี้ (ครั้ง)</div>
+                        <div class="fw-bold fs-4 text-warning" id="statTodayReq">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <ul class="nav nav-tabs mb-3 border-0" id="supplyTab">
+                <li class="nav-item">
+                    <button class="nav-link active fw-bold px-4" id="tab-supply-list"
+                        onclick="switchSupplyTab('list', this)">
+                        <i class="bi bi-list-ul me-1"></i> รายการพัสดุ
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link fw-bold px-4" onclick="switchSupplyTab('history', this)">
+                        <i class="bi bi-clock-history me-1"></i> ประวัติการเบิก
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link fw-bold px-4" onclick="switchSupplyTab('intake', this)">
+                        <i class="bi bi-box-arrow-in-down me-1"></i> ประวัติการรับเข้า
+                    </button>
+                </li>
+            </ul>
+
+            <!-- Tab: รายการพัสดุ -->
+            <div id="supplyListTab">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <input type="text" id="searchSupplyInput" class="form-control custom-input py-2"
+                        placeholder="ค้นหาชื่อพัสดุหรือประเภท..." style="max-width: 300px;"
+                        onkeyup="filterSupplyTable()">
+                </div>
+                <div class="table-responsive table-container shadow-sm border"
+                    style="border-radius: 12px; background: white;">
+                    <table class="table table-modern align-middle" id="supplyItemsTable">
+                        <thead>
+                            <tr>
+                                <th class="ps-4" width="120">รหัสพัสดุ</th>
+                                <th>ชื่อพัสดุ</th>
+                                <th class="text-center" width="130">ประเภท</th>
+                                <th class="text-center" width="110">นำเข้า</th>
+                                <th class="text-center" width="110">จำนวนทั้งหมด</th>
+                                <th class="text-center" width="120">จำนวนเบิกแล้ว</th>
+                                <th class="text-center" width="110">คงเหลือ</th>
+                                <th class="text-center" width="100">หน่วยนับ</th>
+                                <th class="text-center" width="170">จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-5">กำลังโหลดข้อมูลคลังพัสดุ...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tab: ประวัติรับเข้า -->
+            <div id="supplyIntakeTab" style="display: none;">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <input type="text" id="searchIntakeInput" class="form-control custom-input py-2"
+                        placeholder="ค้นหารหัส, ชื่อพัสดุ, ผู้รับ หรือหมายเหตุ..." style="max-width: 320px;"
+                        onkeyup="filterIntakeTable()">
+                </div>
+                <div class="table-responsive table-container shadow-sm border"
+                    style="border-radius: 12px; background: white;">
+                    <table class="table table-modern align-middle" id="supplyIntakeTable">
+                        <thead>
+                            <tr>
+                                <th class="ps-4" width="170">วันที่/เวลารับ</th>
+                                <th width="120">รหัสพัสดุ</th>
+                                <th>ชื่อพัสดุ</th>
+                                <th class="text-center" width="110">จำนวนที่รับ</th>
+                                <th class="text-center" width="100">หน่วยนับ</th>
+                                <th width="160">ผู้รับ/บันทึก</th>
+                                <th>หมายเหตุ / แหล่งที่มา</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-5">ไม่มีประวัติรับพัสดุ</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tab: ประวัติการเบิก -->
+            <div id="supplyHistoryTab" style="display: none;">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <input type="text" id="searchReqInput" class="form-control custom-input py-2"
+                        placeholder="ค้นหารหัสผู้เบิก, ชื่อผู้เบิก, พัสดุ หรือเหตุผล..." style="max-width: 320px;"
+                        onkeyup="filterReqTable()">
+                </div>
+                <div class="table-responsive table-container shadow-sm border"
+                    style="border-radius: 12px; background: white;">
+                    <table class="table table-modern align-middle" id="supplyReqTable">
+                        <thead>
+                            <tr>
+                                <th class="ps-4" width="170">วันที่/เวลาเบิก</th>
+                                <th width="120">รหัสพัสดุ</th>
+                                <th>ชื่อพัสดุ</th>
+                                <th class="text-center" width="90">จำนวนเบิก</th>
+                                <th class="text-center" width="100">หน่วยนับ</th>
+                                <th width="120">รหัสผู้เบิก</th>
+                                <th width="160">ผู้เบิก</th>
+                                <th>หมายเหตุ / เหตุผลการเบิก</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-5">ไม่มีประวัติการเบิกพัสดุ</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <!-- 11. ประวัติผู้ป่วย (Patient History) -->
+        <div id="history" class="page-section">
+            <div class="d-flex justify-content-between align-items-end mb-4">
+                <div>
+                    <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
+                            class="bi bi-clock-history text-primary me-2"></i>ประวัติการเข้าตรวจผู้ป่วย</h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;">ค้นหาและดูประวัติการเข้าตรวจ อาการ ผลแล็บ
+                        และการจัดสั่งจ่ายยาที่เสร็จสิ้นแล้ว</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <input type="text" id="searchHistoryInput" class="form-control custom-input py-2"
+                        placeholder="ค้นหา HN, ชื่อ หรือ Visit ID..." style="max-width: 280px;"
+                        onkeyup="searchPatientHistory()">
+                    <button class="btn btn-outline-primary py-2 px-3 fw-bold" onclick="loadPatientHistory()"><i
+                            class="bi bi-arrow-clockwise"></i> รีเฟรช</button>
+                </div>
+            </div>
+
+            <div class="table-responsive table-container shadow-sm border"
+                style="border-radius: 12px; background: white;">
+                <table class="table table-modern align-middle" id="historyTable">
+                    <thead>
+                        <tr>
+                            <th class="ps-4" width="140">รหัส VISIT</th>
+                            <th width="110">HN</th>
+                            <th width="180">ชื่อ-นามสกุล</th>
+                            <th width="150">วันที่ตรวจ</th>
+                            <th>อาการสำคัญ / อาการแรกรับ</th>
+                            <th class="text-center" width="140">ดำเนินการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-5">ไม่มีข้อมูลประวัติผู้ป่วย</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <!-- 12. จัดการพนักงาน (Staff Management) -->
+        <div id="staff" class="page-section">
+            <div class="d-flex justify-content-between align-items-end mb-4">
+                <div>
+                    <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
+                            class="bi bi-people-fill text-primary me-2"></i>จัดการพนักงาน / ผู้ใช้ระบบ</h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;">เพิ่ม แก้ไข
+                        และกำหนดสิทธิ์การเข้าถึงระบบของพนักงาน</p>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button type="button" class="btn btn-outline-primary px-3 py-2 fw-semibold"
+                        onclick="loadStaffUsers()">
+                        <i class="bi bi-arrow-clockwise me-1"></i> รีเฟรช
+                    </button>
+                    <button type="button" class="btn btn-success px-3 py-2 fw-semibold" data-bs-toggle="modal"
+                        data-bs-target="#addUserModal" onclick="openAddDoctorModal()">
+                        <i class="bi bi-stethoscope me-1"></i> เพิ่มคุณหมอ
+                    </button>
+                    <button type="button" class="btn btn-primary px-3 py-2 fw-semibold" data-bs-toggle="modal"
+                        data-bs-target="#addUserModal" onclick="openAddStaffModal()">
+                        <i class="bi bi-person-plus-fill me-1"></i> เพิ่มพนักงาน
+                    </button>
+                </div>
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="p-3 border rounded shadow-sm bg-white d-flex align-items-center gap-3">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center"
+                            style="width:48px;height:48px;background:linear-gradient(135deg,#3b82f6,#2563eb);">
+                            <i class="bi bi-people-fill text-white fs-5"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">พนักงานทั้งหมด</div>
+                            <div class="fw-bold fs-5" id="staffTotalCount">-</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="p-3 border rounded shadow-sm bg-white d-flex align-items-center gap-3">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center"
+                            style="width:48px;height:48px;background:linear-gradient(135deg,#10b981,#059669);">
+                            <i class="bi bi-person-check-fill text-white fs-5"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">ใช้งานอยู่</div>
+                            <div class="fw-bold fs-5" id="staffActiveCount">-</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="p-3 border rounded shadow-sm bg-white d-flex align-items-center gap-3">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center"
+                            style="width:48px;height:48px;background:linear-gradient(135deg,#f59e0b,#d97706);">
+                            <i class="bi bi-shield-fill text-white fs-5"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Admin</div>
+                            <div class="fw-bold fs-5" id="staffAdminCount">-</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="p-3 border rounded shadow-sm bg-white d-flex align-items-center gap-3">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center"
+                            style="width:48px;height:48px;background:linear-gradient(135deg,#8b5cf6,#7c3aed);">
+                            <i class="bi bi-person-fill text-white fs-5"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Staff ทั่วไป</div>
+                            <div class="fw-bold fs-5" id="staffUserCount">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search & Filter -->
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <input type="text" id="searchStaffInput" class="form-control custom-input py-2"
+                    placeholder="ค้นหารหัสพนักงาน, ชื่อ หรืออีเมล..." style="max-width: 320px;"
+                    onkeyup="filterStaffTable()">
+            </div>
+
+            <!-- Staff Table -->
+            <div class="table-responsive table-container shadow-sm border"
+                style="border-radius: 12px; background: white;">
+                <table class="table table-modern align-middle" id="staffTable">
+                    <thead>
+                        <tr>
+                            <th class="ps-4" width="140">รหัสพนักงาน</th>
+                            <th>ชื่อ-นามสกุล / อีเมล</th>
+                            <th width="140">สิทธิ์ผู้ใช้</th>
+                            <th class="text-center" width="280">ฟังก์ชันที่ใช้ได้</th>
+                            <th class="text-center" width="100"></th>
+                            <th class="text-center" width="120">สถานะ</th>
+                            <th class="text-center" width="140">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-5">กำลังโหลดข้อมูล...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 14. ระบบปันผล/ผู้แนะนำ (Referral & Dividend) -->
+        <div id="referrals" class="page-section">
+            <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
+                <div>
+                    <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;">
+                        <i class="ph ph-hand-coins text-primary me-2"></i>ระบบปันผล / ค่าแนะนำผู้ป่วย
+                    </h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;">จัดการสมาชิกผู้แนะนำ คำนวณเงินปันผล/คอมมิชชั่น และบันทึกการจ่ายเงิน</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-primary px-3 py-2 fw-semibold" onclick="loadReferralData()">
+                        <i class="bi bi-arrow-clockwise me-1"></i> รีเฟรช
+                    </button>
+                    <button type="button" class="btn btn-primary px-3 py-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#addReferrerModal">
+                        <i class="bi bi-person-plus-fill me-1"></i> เพิ่มผู้แนะนำใหม่
+                    </button>
+                </div>
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="p-3 border rounded shadow-sm bg-white d-flex align-items-center gap-3">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center text-white fs-4"
+                            style="width:50px; height:50px; background: linear-gradient(135deg, #0ea5e9, #0284c7);">
+                            <i class="ph ph-users-three"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">ผู้แนะนำทั้งหมด</div>
+                            <div class="fw-bold fs-4" id="refTotalMembersCount">0 คน</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="p-3 border rounded shadow-sm bg-white d-flex align-items-center gap-3">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center text-white fs-4"
+                            style="width:50px; height:50px; background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                            <i class="ph ph-coins"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">ยอดปันผลสะสม</div>
+                            <div class="fw-bold fs-4 text-purple" id="refTotalCommissionSum">฿0</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="p-3 border rounded shadow-sm bg-white d-flex align-items-center gap-3">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center text-white fs-4"
+                            style="width:50px; height:50px; background: linear-gradient(135deg, #10b981, #059669);">
+                            <i class="ph ph-check-circle"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">จ่ายเงินแล้ว</div>
+                            <div class="fw-bold fs-4 text-success" id="refTotalPaidSum">฿0</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="p-3 border rounded shadow-sm bg-white d-flex align-items-center gap-3">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center text-white fs-4"
+                            style="width:50px; height:50px; background: linear-gradient(135deg, #f59e0b, #d97706);">
+                            <i class="ph ph-clock-countdown"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">รอชำระ (Pending)</div>
+                            <div class="fw-bold fs-4 text-warning" id="refTotalPendingSum">฿0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Buttons -->
+            <ul class="nav nav-tabs custom-nav-tabs mb-4" id="referralTab" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="ref-members-tab" data-bs-toggle="tab" data-bs-target="#ref-members-pane" type="button" role="tab">
+                        <i class="ph ph-address-book me-1"></i> รายชื่อสมาชิกผู้แนะนำ
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="ref-logs-tab" data-bs-toggle="tab" data-bs-target="#ref-logs-pane" type="button" role="tab">
+                        <i class="ph ph-receipt me-1"></i> ประวัติค่าคอมมิชชั่น / ปันผล
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="ref-settings-tab" data-bs-toggle="tab" data-bs-target="#ref-settings-pane" type="button" role="tab">
+                        <i class="ph ph-sliders me-1"></i> ตั้งค่าเงื่อนไขปันผล
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="referralTabContent">
+                <!-- Tab 1: Referrers List -->
+                <div class="tab-pane fade show active" id="ref-members-pane" role="tabpanel">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <input type="text" id="searchReferrerInput" class="form-control custom-input py-2" placeholder="ค้นหารหัส, ชื่อ หรือเบอร์โทร..." style="max-width: 320px;" onkeyup="filterReferrersTable()">
+                    </div>
+                    <div class="table-responsive table-container shadow-sm border rounded-3 bg-white">
+                        <table class="table table-modern align-middle" id="referrersTable">
+                            <thead>
+                                <tr>
+                                    <th class="ps-4">รหัสสมาชิก</th>
+                                    <th>ชื่อ-นามสกุล</th>
+                                    <th>เบอร์โทร</th>
+                                    <th>ข้อมูลบัญชีธนาคาร</th>
+                                    <th class="text-center">ยอดแนะนำเดือนนี้ / เป้าหมาย</th>
+                                    <th class="text-end">ปันผลสะสม</th>
+                                    <th class="text-end">คงค้างรอจ่าย</th>
+                                    <th class="text-center pe-4">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted py-5">กำลังโหลดข้อมูล...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Commission History Logs -->
+                <div class="tab-pane fade" id="ref-logs-pane" role="tabpanel">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <div class="d-flex gap-2">
+                            <select id="filterLogStatus" class="form-select custom-input py-2" style="width: 180px;" onchange="renderCommissionLogsTable()">
+                                <option value="all">สถานะทั้งหมด</option>
+                                <option value="pending">รออนุมัติ / รอจ่าย</option>
+                                <option value="paid">จ่ายเงินแล้ว</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="table-responsive table-container shadow-sm border rounded-3 bg-white">
+                        <table class="table table-modern align-middle" id="commissionLogsTable">
+                            <thead>
+                                <tr>
+                                    <th class="ps-4">วันที่ทำรายการ</th>
+                                    <th>ผู้แนะนำ</th>
+                                    <th>ผู้ป่วยที่แนะนำ</th>
+                                    <th>ยอดค่าบริการ</th>
+                                    <th class="text-end">ยอดเงินปันผล</th>
+                                    <th class="text-center">สถานะ</th>
+                                    <th class="text-center pe-4">จัดการ / โอนเงิน</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-5">กำลังโหลดข้อมูล...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Commission Settings -->
+                <div class="tab-pane fade" id="ref-settings-pane" role="tabpanel">
+                    <div class="card border-0 shadow-sm rounded-3 p-4 bg-white" style="max-width: 720px;">
+                        <h5 class="fw-bold mb-3 text-dark"><i class="ph ph-gear text-primary me-2"></i>ตั้งค่ารูปแบบการจ่ายปันผล (Dividend Settings)</h5>
+                        <form id="commissionSettingsForm" onsubmit="event.preventDefault(); saveCommissionSettings();">
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">ประเภทการคิดค่าคอมมิชชั่น / ปันผล</label>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="form-check p-3 border rounded-3 bg-light cursor-pointer">
+                                            <input class="form-check-input" type="radio" name="commType" id="commTypeFixed" value="fixed" checked onchange="toggleCommTypeDisplay()">
+                                            <label class="form-check-label fw-semibold" for="commTypeFixed">
+                                                <i class="ph ph-currency-btc text-success me-1"></i> แบบคงที่ (Fixed Amount)
+                                                <div class="text-muted small fw-normal">จ่ายจำนวนเงินคงที่ต่อผู้ป่วย 1 คน</div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check p-3 border rounded-3 bg-light cursor-pointer">
+                                            <input class="form-check-input" type="radio" name="commType" id="commTypePercent" value="percentage" onchange="toggleCommTypeDisplay()">
+                                            <label class="form-check-label fw-semibold" for="commTypePercent">
+                                                <i class="ph ph-percent text-primary me-1"></i> แบบเปอร์เซ็นต์ (% Rate)
+                                                <div class="text-muted small fw-normal">คิดตาม % จากยอดรวมค่ารักษา</div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">สกุลเงินหลักที่ใช้คำนวณปันผล (Currency)</label>
+                                <select class="form-select custom-input" id="commCurrencySelect" style="max-width: 300px;" onchange="toggleCommTypeDisplay()">
+                                    <option value="THB">บาท (THB / ฿)</option>
+                                    <option value="LAK">กีบ (LAK / ₭)</option>
+                                </select>
+                                <div class="form-text text-muted small"><i class="bi bi-info-circle me-1"></i>ระบบจะแสดงผลสัญลักษณ์และหน่วยเงินตามสกุลเงินที่เลือก</div>
+                            </div>
+
+                            <div class="mb-3" id="commRateContainer">
+                                <label class="form-label fw-bold" id="commRateLabel">จำนวนเงินปันผลต่อผู้ป่วย 1 คน (บาท)</label>
+                                <div class="input-group" style="max-width: 300px;">
+                                    <input type="number" step="0.01" min="0" class="form-control custom-input" id="commValueInput" value="200" required>
+                                    <span class="input-group-text" id="commUnitAddon">บาท</span>
+                                </div>
+                            </div>
+
+                            <div class="p-3 border rounded-3 bg-light mb-4">
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" id="targetEnableSwitch" onchange="toggleTargetGoalDisplay()">
+                                    <label class="form-check-label fw-bold text-dark" for="targetEnableSwitch">
+                                        <i class="ph ph-trophy text-warning me-1"></i> เปิดใช้งานระบบโบนัสตามเป้าหมาย (Monthly Target Goal)
+                                    </label>
+                                </div>
+                                <div class="text-muted small mb-3">หากผู้แนะนำทำยอดผู้ป่วยถึงเป้าหมายประจำเดือน จะได้รับอัตราโบนัสพิเศษ</div>
+
+                                <div id="targetGoalConfigContainer" style="display: none;">
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold small">เป้าหมายจำนวนผู้ป่วย (คน/เดือน)</label>
+                                            <div class="input-group">
+                                                <input type="number" min="1" class="form-control custom-input" id="targetGoalCount" value="20" oninput="toggleCommTypeDisplay()">
+                                                <span class="input-group-text">คน / เดือน</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold small text-success" id="targetBonusLabel">อัตราโบนัสพิเศษเมื่อถึงเป้าหมาย</label>
+                                            <div class="input-group">
+                                                <input type="number" step="0.01" min="0" class="form-control custom-input border-success" id="targetBonusValue" value="10">
+                                                <span class="input-group-text bg-success text-white fw-bold" id="targetBonusAddon">%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="alert alert-info py-2 px-3 small mb-0">
+                                        <i class="bi bi-info-circle me-1"></i> <strong>เงื่อนไข:</strong> หากผู้แนะนำสะสมเคสในเดือนนี้ยังไม่ถึงเป้า จะคำนวณที่อัตราปกติ แต่หากสะสมครบตั้งแต่ <span id="targetHelpGoalDisplay" class="fw-bold text-primary">20</span> คน/เดือนขึ้นไป เคสในเดือนนั้นจะถูกคิดที่อัตราโบนัสพิเศษทันที
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="autoTriggerComm" checked>
+                                    <label class="form-check-label fw-semibold" for="autoTriggerComm">
+                                        คำนวณและบันทึกยอดปันผลให้อัตโนมัติทันทีที่ชำระเงินเสร็จสิ้นในหน้า (Payment)
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-start gap-2">
+                                <button type="submit" class="btn btn-primary px-4 py-2 fw-semibold">
+                                    <i class="bi bi-save me-1"></i> บันทึกการตั้งค่า
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    
+
+    <!-- 15. จัดการรายการตรวจ (Services / Packages) -->
+    <div id="services" class="page-section">
+        <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
+            <div>
+                <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
+                        class="bi bi-list-check text-primary me-2"></i>จัดการรายการตรวจ</h2>
+                <p class="text-muted mb-0" style="font-size: 0.85rem;">ตั้งค่าแพ็กเกจรายการตรวจสุขภาพ, Lab และราคาบริการ</p>
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                <div class="input-group" style="width: 260px;">
+                    <span class="input-group-text bg-white border-end-0" style="border-radius: 10px 0 0 10px; border-color: #dee2e6;"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" id="searchServiceInput" class="form-control border-start-0 ps-0"
+                        placeholder="ค้นหารายการตรวจ, ราคา..." oninput="filterServicesTable()"
+                        style="border-radius: 0 10px 10px 0; border-color: #dee2e6; padding: 7px 12px; font-size: 0.85rem;">
+                </div>
+                <button class="btn btn-primary px-3.5 py-2 fw-semibold" onclick="openAddServiceModal()" style="border-radius: 10px;">
+                    <i class="bi bi-plus-lg me-1"></i> เพิ่มรายการตรวจ
+                </button>
+            </div>
+        </div>
+
+        <div class="table-responsive table-container">
+            <table class="table table-modern mb-0" id="servicesTable">
+                <thead>
+                    <tr>
+                        <th class="ps-4">ชื่อแพ็กเกจ / รายการตรวจ</th>
+                        <th>ราคา (หน่วย)</th>
+                        <th>คำอธิบายเพิ่มเติม</th>
+                        <th class="text-center" style="width: 120px;">จัดการ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="4" class="text-center text-muted py-5">กำลังโหลดข้อมูล...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    </div>
+    
+    <!-- MODALS -->
+    <!-- Add/Edit Service Modal -->
+    <div class="modal fade" id="addServiceModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content" style="border-radius: 16px; border: none;">
+                <div class="modal-header bg-white border-bottom">
+                    <h4 class="modal-title fw-bold" id="addServiceModalTitle"><i class="bi bi-plus-circle text-primary me-2"></i>เพิ่มรายการตรวจ/แพ็กเกจ</h4>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 bg-white">
+                    <form id="serviceForm" onsubmit="event.preventDefault(); saveService();">
+                        <input type="hidden" id="serviceId" value="">
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-7">
+                                <label class="form-label fw-bold">ชื่อแพ็กเกจ/รายการตรวจ <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control custom-input" id="serviceName" required placeholder="เช่น แพ็กเกจตรวจสุขภาพก่อนแต่งงาน">
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label fw-bold">ราคาแพ็กเกจ <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control custom-input" id="servicePrice" required placeholder="0.00" min="0" oninput="updatePackagePriceDisplay()">
+                                    <select class="form-select custom-input" id="serviceCurrency" style="max-width: 100px;">
+                                        <option value="LAK">LAK</option>
+                                        <option value="THB">บาท</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label fw-bold mb-0 text-primary">รายการตรวจย่อยในแพ็กเกจ (Sub-items)</label>
+                                <button type="button" class="btn btn-sm btn-outline-primary fw-semibold" onclick="addServiceSubItemRow()">
+                                    <i class="bi bi-plus"></i> เพิ่มรายการ
+                                </button>
+                            </div>
+                            <div class="table-responsive border rounded-3 shadow-sm">
+                                <table class="table table-modern align-middle mb-0" id="serviceSubItemsTable">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th class="text-center text-muted" width="80">ลำดับ</th>
+                                            <th class="text-muted">รายการตรวจ</th>
+                                            <th width="150" class="text-center text-muted">ราคา</th>
+                                            <th width="80" class="text-center text-muted">ลบ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="serviceSubItemsBody">
+                                        <!-- Rows generated via JS -->
+                                    </tbody>
+                                    <tfoot class="border-top bg-light">
+                                        <tr>
+                                            <td colspan="2" class="text-end fw-bold py-3">ราคา รายการรวม:</td>
+                                            <td colspan="2" class="fw-bold text-primary fs-5 ps-3 py-3" id="packageTotalPriceDisplay">0</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">คำอธิบายเพิ่มเติม (ถ้ามี)</label>
+                            <textarea class="form-control custom-input" id="serviceDescription" rows="2" placeholder="รายละเอียดรายการตรวจในแพ็กเกจ"></textarea>
+                        </div>
+                        <div class="d-flex justify-content-end gap-2 mt-4">
+                            <button type="button" class="btn btn-light border px-4 fw-semibold" data-bs-dismiss="modal">ยกเลิก</button>
+                            <button type="submit" class="btn btn-primary px-4 fw-bold">บันทึกข้อมูล</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="addAppointmentModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content" style="border-radius: 16px; border: none;">
+                <div class="modal-header bg-white">
+                    <h4 class="modal-title fw-bold" id="addAppointmentModalTitle"><i class="bi bi-calendar-plus text-primary me-2"></i>เพิ่มการนัดหมาย</h4>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 bg-white">
+                    <form id="appointmentForm" onsubmit="event.preventDefault(); submitAppointment();">
+                        <input type="hidden" id="appointmentEditId" value="">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">รูปแบบการนัดหมาย <span class="text-danger">*</span></label>
+                            <div class="d-flex gap-3 p-2.5 border rounded-3 bg-light">
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input" type="radio" name="appointmentType" id="apptTypeDirect" value="direct" checked onchange="toggleApptReferrerField()">
+                                    <label class="form-check-label fw-semibold text-dark" for="apptTypeDirect" style="cursor: pointer;">
+                                        <i class="bi bi-person me-1"></i>นัดหมายเอง (คนไข้)
+                                    </label>
+                                </div>
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input" type="radio" name="appointmentType" id="apptTypeAssisted" value="assisted" onchange="toggleApptReferrerField()">
+                                    <label class="form-check-label fw-semibold text-primary" for="apptTypeAssisted" style="cursor: pointer;">
+                                        <i class="bi bi-person-badge-fill me-1"></i>นัดหมายผ่านผู้ช่วย / พยาบาล
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3"><label class="form-label fw-bold">รหัสการจอง</label><input type="text"
+                                class="form-control custom-input bg-light" id="displayApptId" readonly
+                                placeholder="กำลังสร้างรหัส..."></div>
+                        <div class="mb-3"><label class="form-label fw-bold">ชื่อ-นามสกุล (ผู้จอง)</label><input
+                                type="text" class="form-control custom-input" name="guestName" required></div>
+                        <div class="mb-3"><label class="form-label fw-bold">เบอร์โทรศัพท์</label><input type="text"
+                                class="form-control custom-input" name="guestPhone" required></div>
+                        <div class="row mb-3">
+                            <div class="col-6"><label class="form-label fw-bold">วันที่นัดหมาย</label><input type="date"
+                                    class="form-control custom-input" name="appointmentDate" required></div>
+                            <div class="col-6"><label class="form-label fw-bold">เวลา</label><input type="time"
+                                    class="form-control custom-input" name="appointmentTime" required></div>
+                        </div>
+                        <div class="mb-3"><label class="form-label fw-bold">อาการที่ต้องการตรวจ</label><input
+                                type="text" class="form-control custom-input" name="reason" required></div>
+                        <!-- ช่องระบุผู้แนะนำ (แสดงผลเฉพาะกรณีนัดผ่านผู้ช่วย/พยาบาล) -->
+                        <div class="mb-3" id="apptReferredByContainer" style="display: none;">
+                            <label class="form-label fw-bold text-primary"><i class="ph ph-hand-coins me-1"></i>ผู้แนะนำ (Referrer)</label>
+                            <select class="form-select custom-input" name="ReferredBy" id="apptReferredBySelect">
+                                <option value="">-- ไม่ระบุผู้แนะนำ --</option>
+                            </select>
+                        </div>
+                        <input type="hidden" name="status" value="รอ">
+                        <div class="d-flex justify-content-end gap-2 mt-4"><button type="button"
+                                class="btn btn-light border" data-bs-dismiss="modal">ยกเลิก</button><button
+                                type="submit" class="btn btn-primary px-4">บันทึกนัดหมาย</button></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="addPatientModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content" style="border-radius: 16px; border: none;">
+                <div class="modal-header bg-white">
+                    <h4 class="modal-title fw-bold" id="addPatientModalTitle">เพิ่มประวัติผู้ป่วยใหม่</h4><button type="button" class="btn-close"
+                        data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 bg-white">
+                    <form id="patientForm" onsubmit="event.preventDefault(); submitPatient();">
+                        <input type="hidden" id="patientEditHn" value="">
+                        <div class="row mb-3">
+                            <div class="col-md-6"><label class="form-label fw-bold">ชื่อ-นามสกุล <span
+                                        class="text-danger">*</span></label><input type="text"
+                                    class="form-control custom-input" name="FullName" required></div>
+                            <div class="col-md-4"><label class="form-label fw-bold">วันเกิด <span
+                                        class="text-danger">*</span></label><input type="date"
+                                    class="form-control custom-input" name="DOB" required onchange="calculateAge()">
+                            </div>
+                            <div class="col-md-2"><label class="form-label fw-bold">อายุ (ปี)</label><input
+                                    type="number" class="form-control custom-input bg-light" name="Age" readonly></div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-4"><label class="form-label fw-bold">หมู่บ้าน</label><input type="text"
+                                    class="form-control custom-input" name="Village"></div>
+                            <div class="col-md-4"><label class="form-label fw-bold">เมือง / ตำบล</label>
+                                <select class="form-select custom-input" name="District" id="patientDistrictSelect" disabled>
+                                    <option value="">-- กรุณาเลือกแขวง / จังหวัดก่อน --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4"><label class="form-label fw-bold">แขวง / จังหวัด</label>
+                                <select class="form-select custom-input" name="Province" id="patientProvinceSelect" onchange="onPatientProvinceChange()">
+                                    <option value="">-- เลือกแขวง / จังหวัด --</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-4"><label class="form-label fw-bold">อาชีพ</label><input type="text"
+                                    class="form-control custom-input" name="Job"></div>
+                            <div class="col-md-4"><label class="form-label fw-bold">เบอร์โทรศัพท์ <span
+                                        class="text-danger">*</span></label><input type="text"
+                                    class="form-control custom-input" name="Tel" required></div>
+                            <div class="col-md-4"><label class="form-label fw-bold">เบอร์ติดต่อฉุกเฉิน</label><input
+                                    type="text" class="form-control custom-input" name="EmergencyTel"></div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6"><label class="form-label fw-bold">โรคประจำตัว</label><input
+                                    type="text" class="form-control custom-input" name="PastHistory"></div>
+                            <div class="col-md-6"><label class="form-label fw-bold">ประวัติการแพ้ยา</label><input
+                                    type="text" class="form-control custom-input" name="Allergies"></div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <label class="form-label fw-bold text-primary"><i class="ph ph-hand-coins me-1"></i>ผู้แนะนำผู้ป่วย (Referrer / Dividend)</label>
+                                <select class="form-select custom-input" name="ReferredBy" id="patientReferredBySelect">
+                                    <option value="">-- ไม่ระบุผู้แนะนำ (ไม่มีค่าปันผล) --</option>
+                                </select>
+                            </div>
+                        </div>
+                        <input type="hidden" name="appointmentId" id="linkAppointmentId">
+                        <div class="d-flex justify-content-end gap-2 mt-4"><button type="button"
+                                class="btn btn-light border" data-bs-dismiss="modal">ยกเลิก</button><button
+                                type="submit" class="btn btn-primary px-4">บันทึกข้อมูล</button></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="triageModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 16px; border: none;">
+                <div class="modal-header bg-white">
+                    <h5 class="modal-title fw-bold">บันทึกข้อมูลจุดคัดกรอง</h5><button type="button" class="btn-close"
+                        data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 bg-white">
+                    <form id="triageForm" onsubmit="event.preventDefault(); submitTriage();">
+                        <input type="hidden" id="triageVisitId" name="visitId">
+                        <div class="row g-3">
+                            <div class="col-md-4"><label class="form-label small fw-bold">อุณหภูมิ (°C)</label><input
+                                    type="number" step="0.1" class="form-control custom-input" name="temp"></div>
+                            <div class="col-md-4"><label class="form-label small fw-bold">ความดัน (mmHg)</label><input
+                                    type="text" class="form-control custom-input" name="bp"></div>
+                            <div class="col-md-4"><label class="form-label small fw-bold">ชีพจร (bpm)</label><input
+                                    type="number" class="form-control custom-input" name="pulse"></div>
+                            <div class="col-md-4"><label class="form-label small fw-bold">น้ำหนัก (กก.)</label><input
+                                    type="number" step="0.1" class="form-control custom-input" id="triageWeight"
+                                    name="weight" oninput="calculateBMI()"></div>
+                            <div class="col-md-4"><label class="form-label small fw-bold">ส่วนสูง (ซม.)</label><input
+                                    type="number" step="0.1" class="form-control custom-input" id="triageHeight"
+                                    name="height" oninput="calculateBMI()"></div>
+                            <div class="col-md-4"><label class="form-label small fw-bold">BMI</label><input type="text"
+                                    class="form-control custom-input bg-light text-muted" id="triageBMI" name="bmi"
+                                    readonly></div>
+                            <div class="col-md-4"><label class="form-label small fw-bold">ค่าออกซิเจน (%)</label><input
+                                    type="number" class="form-control custom-input" name="spo2"></div>
+                            <div class="col-md-8"><label class="form-label small fw-bold">อาการเบื้องต้น</label><input
+                                    type="text" class="form-control custom-input" name="symptom"></div>
+                        </div>
+                        <div class="d-flex justify-content-end gap-2 mt-4"><button type="button"
+                                class="btn btn-light border px-4" data-bs-dismiss="modal">ยกเลิก</button><button
+                                type="submit" class="btn btn-primary px-4">ส่งเข้าห้องตรวจ</button></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="modal fade" id="labOrderModal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content" style="border-radius: 12px; border: none;">
+                <div class="modal-header bg-white">
+                    <h5 class="modal-title fw-bold">บันทึกข้อมูลส่งแล็บ (Lab Order)</h5><button type="button"
+                        class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 bg-white">
+                    <form id="labOrderForm" onsubmit="event.preventDefault(); submitLabOrder();">
+                        <input type="hidden" id="labVisitId" name="visitId"><input type="hidden" id="labHN" name="hn">
+                        <div class="d-flex justify-content-end mb-4 border-bottom pb-2">
+                            <div class="d-flex text-muted small">
+                                <div class="me-4">รหัส VISIT <strong id="labVisitIdDisplay" class="text-dark">-</strong>
+                                </div>
+                                <div class="me-4">ชื่อ-นามสกุล <strong id="labPatientName" class="text-dark">-</strong>
+                                </div>
+                                <div>HN <strong id="labHNDisplay" class="text-dark">-</strong></div>
+                            </div>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <div class="mb-4">
+                                    <h6 class="lab-section-title text-success"><i class="bi bi-star-fill text-warning me-2"></i>รายการตรวจ / แพ็กเกจ (Services & Packages)</h6>
+                                    <div class="row g-3" id="servicesLabContainer">
+                                        <!-- Checkboxes from DB will render here -->
+                                        <div class="col-12"><span class="text-muted small">กำลังโหลดข้อมูล...</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ส่วนสำหรับเพิ่มรายการตรวจอื่นๆ เองแบบลอยตัว -->
+                        <div class="mt-4 border-top pt-3">
+                            <label class="form-label small fw-bold">ระบุรายการตรวจแล็บเพิ่มเติม</label>
+                            <div class="row g-2">
+                                <div class="col-md-9 col-sm-8">
+                                    <input type="text" id="customLabInput" class="form-control custom-input"
+                                        placeholder="ระบุชื่อตรวจแล็บเพิ่มเติม เช่น COVID-19 ATK, Urine Exam...">
+                                </div>
+                                <div class="col-md-3 col-sm-4">
+                                    <button type="button" class="btn btn-outline-primary w-100"
+                                        style="padding: 10px 15px;" onclick="addCustomLabCheckbox()"><i
+                                            class="bi bi-plus-lg"></i> เพิ่มปุ่มตรวจ</button>
+                                </div>
+                            </div>
+                            <div id="customLabContainer" class="row g-0 mt-3">
+                                <!-- ปุ่มตรวจที่เพิ่มเข้ามาใหม่จะแสดงตรงนี้และถูกเลือกอัตโนมัติ -->
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 mt-4"><button type="button" class="btn btn-light"
+                                data-bs-dismiss="modal">ยกเลิก</button><button type="submit"
+                                class="btn btn-primary px-4">ส่งข้อมูลเข้าห้องการเงิน</button></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="labUploadModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content" style="border-radius: 16px; border: none;">
+                <div class="modal-header bg-white">
+                    <h4 class="modal-title fw-bold">อัปโหลดผลตรวจ Lab (PDF)</h4><button type="button" class="btn-close"
+                        data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 bg-white">
+                    <form id="labUploadForm" onsubmit="event.preventDefault(); submitLabUpload();">
+                        <input type="hidden" id="uploadVisitId" name="visitId">
+                        <div class="mb-3"><label class="form-label fw-bold">เลือกไฟล์ผลตรวจ (.pdf เท่านั้น) <span
+                                    class="text-danger">*</span></label><input type="file"
+                                class="form-control custom-input" id="pdfFile" accept=".pdf" required></div>
+                        <div class="d-flex justify-content-end gap-2 mt-4"><button type="button"
+                                class="btn btn-light border" data-bs-dismiss="modal">ยกเลิก</button><button
+                                type="submit" class="btn btn-primary px-4">อัปโหลด & ส่งจัดคิว</button></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="prescribeModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content" style="border-radius: 16px; border: none;">
+                <div class="modal-header bg-white">
+                    <h4 class="modal-title fw-bold"><i
+                            class="bi bi-file-medical text-primary me-2"></i>อ่านผลแล็บและสั่งจ่ายยา</h4><button
+                        type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 bg-white">
+                    <input type="hidden" id="rxVisitId"><input type="hidden" id="rxHN"><input type="hidden"
+                        id="rxPatientName">
+                    <div class="d-flex justify-content-between align-items-center mb-3 p-3 rounded border bg-light">
+                        <div class="small text-muted">รหัส VISIT <strong id="rxVisitIdDisplay"
+                                class="text-dark ms-1">-</strong> | คนไข้: <strong id="rxPatientNameDisplay"
+                                class="text-dark ms-1">-</strong></div>
+                        <div><a href="#" id="rxPdfBtn" target="_blank" class="btn btn-sm btn-danger px-3"><i
+                                    class="bi bi-file-pdf"></i> เปิดดูผล Lab</a></div>
+                    </div>
+                    <h6 class="fw-bold mb-2">รายการสั่งจ่ายยา/อาหารเสริม</h6>
+                    <div class="row g-2 mb-3">
+                        <!-- ตัวกรองหมวดหมู่ -->
+                        <div class="col-md-3">
+                            <select id="rxCategorySelect" class="form-select custom-input"
+                                onchange="filterMedsByCategory()">
+                                <option value="all">ทั้งหมด (All)</option>
+                                <option value="ยา">💊 ยารักษาโรค (Medicines)</option>
+                                <option value="อาหารเสริม">🍃 อาหารเสริม (Supplements)</option>
+                            </select>
+                        </div>
+                        <!-- ดร็อปดาวน์เลือกยา -->
+                        <div class="col-md-5">
+                            <select id="rxMedSelect" class="form-select custom-input" onchange="onMedSelectChange()">
+                                <option value="">-- เลือกรายการยา/อาหารเสริม --</option>
+                            </select>
+                        </div>
+                        <!-- เลือกประเภทราคา -->
+                        <div class="col-md-2">
+                            <select id="rxPriceTierSelect" class="form-select custom-input">
+                                <option value="normal">ราคาปกติ</option>
+                                <option value="promo">ราคาโปร</option>
+                                <option value="high">ราคาส่ง/สมาชิก</option>
+                                <option value="free">แถมฟรี</option>
+                            </select>
+                        </div>
+                        <!-- ระบุจำนวน -->
+                        <div class="col-md-1">
+                            <input type="number" id="rxMedQty" class="form-control custom-input" value="1" min="1">
+                        </div>
+                        <!-- ปุ่มเพิ่ม -->
+                        <div class="col-md-1">
+                            <button type="button" class="btn btn-primary w-100 h-100 p-0" onclick="addMedToRx()"><i
+                                    class="bi bi-plus-lg"></i></button>
+                        </div>
+                    </div>
+                    <div class="table-responsive border rounded mb-4" style="max-height: 180px;">
+                        <table class="table table-hover mb-0" id="rxMedsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3">ชื่อยา/อาหารเสริม</th>
+                                    <th class="text-center" width="120">ประเภทราคา</th>
+                                    <th class="text-end" width="100">ราคา/ชิ้น</th>
+                                    <th class="text-center" width="80">จำนวน</th>
+                                    <th class="text-end" width="100">รวม</th>
+                                    <th class="text-center" width="60">ลบ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-3">ยังไม่มีรายการยา/อาหารเสริม</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2"><button type="button" class="btn btn-light border"
+                            data-bs-dismiss="modal">ยกเลิก</button><button type="button" class="btn btn-success px-4"
+                            onclick="submitPrescription()">เสร็จสิ้น & ส่งห้องจ่ายยา</button></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: เพิ่ม/แก้ไข/รับเข้าพัสดุ -->
+    <div class="modal fade" id="supplyItemModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content" style="border-radius: 16px; border: none;">
+                <div class="modal-header bg-white">
+                    <h4 class="modal-title fw-bold" id="supplyItemModalTitle"><i
+                            class="bi bi-boxes text-primary me-2"></i>จัดการคลังพัสดุ</h4>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 bg-white">
+                    <!-- Dropdown เลือกโหมด (แสดงเฉพาะตอนกด เพิ่มพัสดุ จากปุ่มด้านบน) -->
+                    <div class="mb-3" id="supplyModeContainer">
+                        <label class="form-label fw-bold">เลือกการดำเนินการ</label>
+                        <select class="form-select custom-input" id="supplyMode" onchange="toggleSupplyMode()">
+                            <option value="new">ลงทะเบียนพัสดุใหม่</option>
+                            <option value="intake">นำเข้าพัสดุสะสมเพิ่ม (Intake)</option>
+                        </select>
+                    </div>
+
+                    <form id="supplyItemForm" onsubmit="event.preventDefault(); saveSupplyItem();">
+                        <input type="hidden" id="supplyItemId">
+
+                        <!-- โหมดลงทะเบียนใหม่ / แก้ไข -->
+                        <div id="supplyNewFormFields">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">ชื่อพัสดุ <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control custom-input" id="supplyName" required
+                                    placeholder="เช่น ถุงมือยาง, หน้ากากอนามัย">
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="form-label fw-bold">ประเภท</label>
+                                    <select class="form-select custom-input" id="supplyType">
+                                        <option value="วัสดุสิ้นเปลือง">วัสดุสิ้นเปลือง</option>
+                                        <option value="ครุภัณฑ์">ครุภัณฑ์</option>
+                                        <option value="อุปกรณ์การแพทย์">อุปกรณ์การแพทย์</option>
+                                        <option value="เอกสาร/แบบฟอร์ม">เอกสาร/แบบฟอร์ม</option>
+                                        <option value="อื่นๆ">อื่นๆ</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label fw-bold">หน่วยนับ</label>
+                                    <input type="text" class="form-control custom-input" id="supplyUnit"
+                                        placeholder="เช่น ชิ้น, กล่อง, แพ็ค">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <label class="form-label fw-bold">จำนวนสต็อกตั้งต้น <span
+                                            class="text-danger">*</span></label>
+                                    <input type="number" class="form-control custom-input" id="supplyTotal" min="0"
+                                        value="0" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">หมายเหตุ</label>
+                                <input type="text" class="form-control custom-input" id="supplyNote"
+                                    placeholder="หมายเหตุเพิ่มเติม (ไม่บังคับ)">
+                            </div>
+                        </div>
+
+                        <!-- โหมดนำเข้าสะสมเพิ่มสำหรับพัสดุที่มีอยู่แล้ว -->
+                        <div id="supplyIntakeFormFields" style="display: none;">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">เลือกพัสดุที่จะนำเข้าสะสม <span
+                                        class="text-danger">*</span></label>
+                                <select class="form-select custom-input" id="intakeSelectId"
+                                    onchange="onIntakeSelectChange()">
+                                    <option value="">-- เลือกพัสดุ --</option>
+                                </select>
+                            </div>
+                            <div class="p-3 border rounded mb-3 bg-light" id="intakeSelectInfo" style="display: none;">
+                                <div class="text-muted small">ประเภท: <strong id="intakeInfoType"
+                                        class="text-dark">-</strong></div>
+                                <div class="text-muted small mt-1">คงเหลือเดิม: <strong id="intakeInfoRemain"
+                                        class="text-primary">-</strong> <span id="intakeInfoUnit"
+                                        class="text-muted"></span></div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">จำนวนที่นำเข้าสะสมเพิ่ม <span
+                                        class="text-danger">*</span></label>
+                                <input type="number" class="form-control custom-input" id="intakeSelectQty" min="1"
+                                    value="1">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">ผู้รับ / ผู้บันทึก <span
+                                        class="text-danger">*</span></label>
+                                <input type="text" class="form-control custom-input" id="intakeSelectReceiver"
+                                    placeholder="ชื่อ-นามสกุล">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">หมายเหตุ / แหล่งที่มา</label>
+                                <textarea class="form-control custom-input" id="intakeSelectRemark" rows="2"
+                                    placeholder="ระบุเหตุผลหรือรายละเอียดการรับเข้า (ไม่บังคับ)"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 mt-4">
+                            <button type="button" class="btn btn-light border" data-bs-dismiss="modal">ยกเลิก</button>
+                            <button type="submit" class="btn btn-primary px-4 fw-bold">บันทึก</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: เบิกพัสดุ (ใช้งานทั้งรายแถวและปุ่มบน) -->
+    <div class="modal fade" id="supplyReqModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content" style="border-radius: 16px; border: none;">
+                <div class="modal-header bg-white">
+                    <h4 class="modal-title fw-bold"><i class="bi bi-box-arrow-up text-warning me-2"></i>เบิกพัสดุ</h4>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 bg-white">
+                    <form id="supplyReqForm" onsubmit="event.preventDefault(); submitSupplyRequest();">
+                        <input type="hidden" id="reqItemId">
+
+                        <!-- ช่องเลือกพัสดุ (กรณีเปิดจากปุ่ม เบิกออก ด้านบน) -->
+                        <div class="mb-3" id="reqSelectContainer" style="display: none;">
+                            <label class="form-label fw-bold">เลือกพัสดุที่ต้องการเบิก <span
+                                    class="text-danger">*</span></label>
+                            <select class="form-select custom-input" id="reqSelectId" onchange="onReqSelectChange()">
+                                <option value="">-- เลือกพัสดุ --</option>
+                            </select>
+                        </div>
+
+                        <div class="p-3 border rounded mb-3 bg-light" id="reqInfoContainer">
+                            <div class="text-muted small">พัสดุ: <strong id="reqItemName" class="text-dark">-</strong>
+                            </div>
+                            <div class="text-muted small mt-1">คงเหลือ: <strong id="reqItemRemain"
+                                    class="text-success">-</strong> <span id="reqItemUnit" class="text-muted"></span>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">จำนวนที่ต้องการเบิก <span
+                                    class="text-danger">*</span></label>
+                            <input type="number" class="form-control custom-input" id="reqQty" min="1" value="1"
+                                required>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label class="form-label fw-bold">รหัสผู้เบิก <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control custom-input" id="reqRequesterCode" required
+                                    placeholder="เช่น EMP001" onkeyup="lookupRequesterByCode()">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-bold">ชื่อผู้เบิก <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control custom-input" id="reqRequester" required
+                                    placeholder="ชื่อ-นามสกุล หรือตำแหน่ง">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">หมายเหตุ / เหตุผลการเบิก</label>
+                            <textarea class="form-control custom-input" id="reqRemark" rows="2"
+                                placeholder="ระบุเหตุผลหรือรายละเอียดการเบิก (ไม่บังคับ)"></textarea>
+                        </div>
+                        <div class="d-flex justify-content-end gap-2 mt-4">
+                            <button type="button" class="btn btn-light border" data-bs-dismiss="modal">ยกเลิก</button>
+                            <button type="submit" class="btn btn-warning px-4 fw-bold text-white">ยืนยันการเบิก</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: เพิ่ม/แก้ไขผู้ใช้ระบบ -->
+    <div class="modal fade" id="addUserModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content"
+                style="border-radius:18px; border:none; box-shadow:0 20px 60px rgba(0,0,0,0.18);">
+
+                <!-- Header -->
+                <div class="modal-header border-0 px-4 pt-4 pb-2">
+                    <div class="d-flex align-items-center gap-3">
+                        <div
+                            style="width:44px;height:44px;background:linear-gradient(135deg,#4f8ef7,#2563eb);border-radius:12px;display:flex;align-items:center;justify-content:center;">
+                            <i class="bi bi-person-plus-fill text-white fs-5"></i>
+                        </div>
+                        <div>
+                            <h5 class="modal-title fw-bold text-dark mb-0" id="addUserModalTitle">เพิ่มผู้ใช้ระบบ</h5>
+                            <div class="text-muted small">กรอกข้อมูลและกำหนดสิทธิ์การใช้งาน</div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+
+                <div class="modal-body px-4 py-3">
+                    <form id="addUserForm" onsubmit="event.preventDefault(); submitStaffUser();">
+                        <input type="hidden" id="editUserId">
+
+                        <!-- Row 0: ชื่อ-นามสกุล -->
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-dark small mb-1">ชื่อ-นามสกุล <span
+                                    class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="userFullName" required
+                                placeholder="เช่น นพ. สมชาย ใจดี หรือ น.ส. อารียา สุขใจ"
+                                style="border-radius:10px;border:1.5px solid #dee2e6;padding:10px 14px;">
+                        </div>
+
+                        <!-- Row 1: รหัสพนักงาน + อีเมล -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold text-dark small mb-1">รหัสพนักงาน <span
+                                        class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="userEmpCode" required
+                                    placeholder="เช่น EMP001"
+                                    style="border-radius:10px;border:1.5px solid #dee2e6;padding:10px 14px;">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold text-dark small mb-1">อีเมล <span
+                                        class="text-danger">*</span></label>
+                                <input type="email" class="form-control" id="userEmail" required
+                                    placeholder="example@clinic.com"
+                                    style="border-radius:10px;border:1.5px solid #dee2e6;padding:10px 14px;">
+                            </div>
+                        </div>
+
+                        <!-- Row 2: รหัสผ่าน + ตำแหน่ง -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold text-dark small mb-1">
+                                    รหัสผ่าน <span class="text-danger" id="pwdRequired">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="userPassword"
+                                        placeholder="อย่างน้อย 6 ตัวอักษร"
+                                        style="border-radius:10px 0 0 10px;border:1.5px solid #dee2e6;border-right:none;padding:10px 14px;">
+                                    <button class="btn btn-outline-secondary" type="button"
+                                        onclick="togglePwdVisibility()"
+                                        style="border-radius:0 10px 10px 0;border:1.5px solid #dee2e6;border-left:none;">
+                                        <i class="bi bi-eye" id="pwdEyeIcon"></i>
+                                    </button>
+                                </div>
+                                <div class="text-muted" id="pwdHint"
+                                    style="display:none;font-size:0.78rem;margin-top:4px;">
+                                    <i class="bi bi-info-circle me-1"></i>ปล่อยว่างหากไม่ต้องการเปลี่ยนรหัสผ่าน
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold text-dark small mb-1">ตำแหน่ง / Role <span
+                                        class="text-danger">*</span></label>
+                                <select class="form-select" id="userRole" required
+                                    style="border-radius:10px;border:1.5px solid #dee2e6;padding:10px 14px;">
+                                    <option value="">-- เลือกตำแหน่ง --</option>
+                                    <option value="admin">🛡️ Admin (ผู้ดูแลระบบ)</option>
+                                    <option value="doctor">🩺 Doctor (แพทย์)</option>
+                                    <option value="nurse">💉 Nurse (พยาบาล)</option>
+                                    <option value="pharmacist">💊 Pharmacist (เภสัชกร)</option>
+                                    <option value="staff">👤 Staff (พนักงานทั่วไป)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Permission Section -->
+                        <div
+                            style="background:#f0f5ff;border:1.5px solid #c7d9fd;border-radius:14px;padding:16px;margin-bottom:16px;">
+                            <div class="d-flex align-items-center justify-content-between mb-3">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div
+                                        style="width:32px;height:32px;background:#dde9ff;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                                        <i class="bi bi-shield-check text-primary"></i>
+                                    </div>
+                                    <span class="fw-bold text-primary"
+                                        style="font-size:0.95rem;">สิทธิ์การใช้งานระบบ</span>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-primary btn-sm px-3"
+                                        onclick="selectAllPermissions(true)"
+                                        style="border-radius:8px;font-size:0.8rem;">
+                                        <i class="bi bi-check2-all me-1"></i>เลือกทั้งหมด
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm px-3"
+                                        onclick="selectAllPermissions(false)"
+                                        style="border-radius:8px;font-size:0.8rem;">
+                                        <i class="bi bi-x-lg me-1"></i>ล้างทั้งหมด
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="row g-2" id="permissionCheckboxes">
+                                <!-- render by JS -->
+                            </div>
+                        </div>
+
+                        <!-- Footer Buttons -->
+                        <div class="d-flex justify-content-end gap-2 pt-1">
+                            <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal"
+                                style="border-radius:10px;">
+                                ยกเลิก
+                            </button>
+                            <button type="submit" class="btn btn-primary px-5 fw-bold" id="saveUserBtn"
+                                style="border-radius:10px;background:linear-gradient(135deg,#4f8ef7,#2563eb);border:none;">
+                                <i class="bi bi-person-plus-fill me-1"></i>เพิ่มผู้ใช้ระบบ
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: ดูรายละเอียดประวัติผู้ป่วย -->
+
+    <div class="modal fade" id="historyDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content" style="border-radius: 16px; border: none;">
+                <div class="modal-header bg-white">
+                    <h4 class="modal-title fw-bold text-dark"><i
+                            class="bi bi-clock-history text-primary me-2"></i>รายละเอียดการตรวจรักษา</h4>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 bg-white">
+                    <div class="d-flex justify-content-between align-items-center mb-3 p-3 rounded border bg-light">
+                        <div class="small text-muted">รหัส VISIT: <strong id="histVisitId"
+                                class="text-dark ms-1">-</strong> | วันที่ตรวจ: <strong id="histDate"
+                                class="text-dark ms-1">-</strong></div>
+                        <div id="histPdfContainer"></div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <div class="p-3 border rounded h-100" style="background: #fafafa;">
+                                <h6 class="fw-bold mb-3 text-primary"><i
+                                        class="bi bi-person-fill me-1"></i>ข้อมูลผู้ป่วย</h6>
+                                <p class="mb-1 text-muted">ชื่อ-นามสกุล: <strong id="histPatientName"
+                                        class="text-dark">-</strong></p>
+                                <p class="mb-1 text-muted">HN (รหัสผู้ป่วย): <strong id="histHN"
+                                        class="text-dark">-</strong></p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-3 border rounded h-100" style="background: #fafafa;">
+                                <h6 class="fw-bold mb-3 text-primary"><i
+                                        class="bi bi-heart-pulse-fill me-1"></i>สัญญาณชีพ (Vital Signs)</h6>
+                                <div class="row g-2 text-muted small">
+                                    <div class="col-6">อุณหภูมิ: <strong id="histTemp" class="text-dark">-</strong> °C
+                                    </div>
+                                    <div class="col-6">ความดัน (BP): <strong id="histBP" class="text-dark">-</strong>
+                                        mmHg</div>
+                                    <div class="col-6">ชีพจร (Pulse): <strong id="histPulse"
+                                            class="text-dark">-</strong> ครั้ง/นาที</div>
+                                    <div class="col-6">SpO2: <strong id="histSpo2" class="text-dark">-</strong> %</div>
+                                    <div class="col-6">น้ำหนัก: <strong id="histWeight" class="text-dark">-</strong> กก.
+                                    </div>
+                                    <div class="col-6">ส่วนสูง: <strong id="histHeight" class="text-dark">-</strong> ซม.
+                                    </div>
+                                    <div class="col-12">BMI: <strong id="histBMI" class="text-dark">-</strong></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-3 border rounded mb-4" style="background: #fafafa;">
+                        <h6 class="fw-bold mb-2 text-primary"><i
+                                class="bi bi-exclamation-triangle-fill me-1"></i>อาการแรกรับ / อาการสำคัญ</h6>
+                        <p class="mb-0 text-dark" id="histSymptom">-</p>
+                    </div>
+
+                    <div id="histLabContainer" class="p-3 border rounded mb-4"
+                        style="display: none; background: #fafafa;">
+                        <h6 class="fw-bold mb-2 text-primary"><i class="bi bi-virus me-1"></i>รายการตรวจทางห้องแล็บ (Lab
+                            Tests)</h6>
+                        <p class="mb-0 text-dark" id="histLabTests">-</p>
+                    </div>
+
+                    <h6 class="fw-bold mb-2 text-dark"><i
+                            class="bi bi-capsule-indicator text-primary me-2"></i>รายการสั่งจ่ายยา/อาหารเสริม</h6>
+                    <div class="table-responsive border rounded" style="max-height: 200px;">
+                        <table class="table table-hover mb-0" id="histMedsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3">ชื่อยา/อาหารเสริม</th>
+                                    <th class="text-center" width="120">ประเภทราคา</th>
+                                    <th class="text-center" width="80">จำนวน</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-3">ไม่มีรายการยา/อาหารเสริมสั่งจ่าย
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="d-flex justify-content-end mt-4">
+                        <button type="button" class="btn btn-primary px-4 fw-bold"
+                            data-bs-dismiss="modal">ปิดหน้าต่าง</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: เพิ่ม/แก้ไขสมาชิกผู้แนะนำ -->
+    <div class="modal fade" id="addReferrerModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 16px; border: none;">
+                <div class="modal-header bg-white">
+                    <h5 class="modal-title fw-bold" id="addReferrerModalTitle">
+                        <i class="ph ph-user-plus text-primary me-2"></i>เพิ่มสมาชิกผู้แนะนำใหม่
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 bg-white">
+                    <form id="referrerForm" onsubmit="event.preventDefault(); saveReferrer();">
+                        <input type="hidden" id="referrerEditId">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">รหัสสมาชิก / รหัสผู้แนะนำ</label>
+                            <input type="text" class="form-control custom-input" id="refCode" placeholder="เช่น REF-001 (หากเว้นว่าง ระบบจะสร้างให้อัตโนมัติ)">
+                            <div class="form-text text-muted small"><i class="bi bi-info-circle me-1"></i>สามารถกำหนดรหัสสมาชิกเองได้เพื่อให้ตรงกับระบบเดิม</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">ชื่อ-นามสกุล <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control custom-input" id="refFullName" required placeholder="เช่น นายสมชาย ใจดี">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">เบอร์โทรศัพท์ <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control custom-input" id="refPhone" required placeholder="081-234-5678">
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-5">
+                                <label class="form-label fw-bold">ธนาคาร</label>
+                                <select class="form-select custom-input" id="refBankName">
+                                    <option value="กสิกรไทย (KBANK)">กสิกรไทย (KBANK)</option>
+                                    <option value="ไทยพาณิชย์ (SCB)">ไทยพาณิชย์ (SCB)</option>
+                                    <option value="กรุงเทพ (BBL)">กรุงเทพ (BBL)</option>
+                                    <option value="กรุงไทย (KTB)">กรุงไทย (KTB)</option>
+                                    <option value="กรุงศรี (BAY)">กรุงศรี (BAY)</option>
+                                    <option value="ออมสิน (GSB)">ออมสิน (GSB)</option>
+                                    <option value="พร้อมเพย์ (PromptPay)">พร้อมเพย์ (PromptPay)</option>
+                                    <option value="อื่นๆ">อื่นๆ</option>
+                                </select>
+                            </div>
+                            <div class="col-md-7">
+                                <label class="form-label fw-bold">เลขที่บัญชี / เบอร์พร้อมเพย์</label>
+                                <input type="text" class="form-control custom-input" id="refBankAccount" placeholder="xxx-x-xxxxx-x">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">หมายเหตุ / สังกัด</label>
+                            <input type="text" class="form-control custom-input" id="refNotes" placeholder="เช่น อาสาสมัครหมู่บ้าน, สมาชิกทั่วไป">
+                        </div>
+                        <div class="d-flex justify-content-end gap-2 mt-4">
+                            <button type="button" class="btn btn-light border px-4" data-bs-dismiss="modal">ยกเลิก</button>
+                            <button type="submit" class="btn btn-primary px-4">บันทึกข้อมูล</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: บันทึกการจ่ายเงินค่าคอมมิชชั่น / ปันผล -->
+    <div class="modal fade" id="payCommissionModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 16px; border: none;">
+                <div class="modal-header bg-white">
+                    <h5 class="modal-title fw-bold">
+                        <i class="ph ph-check-square-offset text-success me-2"></i>บันทึกการจ่ายเงินปันผล
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 bg-white">
+                    <form id="payoutForm" onsubmit="event.preventDefault(); executePayout();">
+                        <input type="hidden" id="payoutLogId">
+                        <div class="p-3 bg-light rounded-3 mb-3 border">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="text-muted">ผู้แนะนำ:</span>
+                                <strong id="payoutRefName">-</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="text-muted">บัญชีโอนเงิน:</span>
+                                <span id="payoutRefBank" class="fw-semibold">-</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="text-muted">ผู้ป่วยเคส:</span>
+                                <span id="payoutPatientName">-</span>
+                            </div>
+                            <hr class="my-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-bold">ยอดเงินปันผลที่ต้องจ่าย:</span>
+                                <span class="fs-4 fw-bold text-success" id="payoutAmountDisplay">฿0</span>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">ช่องทางการจ่ายเงิน</label>
+                            <select class="form-select custom-input" id="payoutMethod">
+                                <option value="โอนเงินผ่านธนาคาร">โอนเงินผ่านธนาคาร (Bank Transfer)</option>
+                                <option value="เงินสด">เงินสด (Cash)</option>
+                                <option value="พร้อมเพย์">พร้อมเพย์ (PromptPay)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">เลขที่อ้างอิง / หมายเหตุการโอน</label>
+                            <input type="text" class="form-control custom-input" id="payoutRefCode" placeholder="เช่น รหัสอ้างอิงสลิป หรือ Note">
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 mt-4">
+                            <button type="button" class="btn btn-light border px-4" data-bs-dismiss="modal">ยกเลิก</button>
+                            <button type="submit" class="btn btn-success px-4 fw-bold">ยืนยันการจ่ายเงิน</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="function.js"></script>
+
+    <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            // ดึงค่า page จาก URL ตัวอย่าง: clinic.html?page=triage
+            const urlParams = new URLSearchParams(window.location.search);
+            const targetPage = urlParams.get('page') || 'dashboard';
+
+            if (targetPage) {
+                const navEl = document.getElementById('nav-' + targetPage);
+                if (navEl) {
+                    showPage(targetPage, navEl);
+                } else {
+                    showPage('dashboard', document.getElementById('nav-dashboard'));
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>
