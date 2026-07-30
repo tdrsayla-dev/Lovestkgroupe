@@ -244,19 +244,14 @@ function renderEmployeeRatingForm(rowData = {}) {
         const empId = safeGet(['Employees Id', 'employee_id', 'emp_id']) || '';
         const empName = safeGet(['Employees Name', 'employee_name', 'first_name', 'name']) || '';
         const ratingDate = safeGet(['Ranting Date', 'rating_date', 'date']) || new Date().toISOString().slice(0, 10);
-        const starPoint = parseInt(safeGet(['Star Point', 'star_point', 'rating', 'score'])) || 0;
+        let rawStarVal = parseFloat(safeGet(['Star Point', 'star_point', 'rating', 'score'])) || 0;
+        let displayScore = (rawStarVal > 0 && rawStarVal <= 5) ? rawStarVal * 100 : (rawStarVal || '');
         const category = safeGet(['Category ', 'category']) || '';
         const comment = safeGet(['Comment', 'comment', 'remark']) || '';
         const giveBy = safeGet(['Give By', 'give_by']) || '';
         const status = safeGet(['Status', 'status']) || 'Active';
 
-        console.log("[renderEmployeeRatingForm] parsed values:", { ratingId, empId, empName, ratingDate, starPoint, category, comment, giveBy, status });
-
-        const allCats = ['ตรงต่อเวลา', 'ทำยอดขายได้ดี', 'ช่วยเหลือเพื่อนร่วมงาน', 'บริการลูกค้าดี', 'ทำงานเป็นทีม', 'แก้ปัญหาได้ดี', 'ทำงานเกินเป้าหมาย', 'สร้างไอเดียใหม่', 'ไม่ขาดงาน', 'พนักงานดีเด่นประจำเดือน'];
-        const categoryTagsHtml = allCats.map(c => {
-            const escaped = String(c).replace(/'/g, "\\'");
-            return `<span class="cursor-pointer text-[11px] px-2.5 py-1 rounded-full bg-white text-gray-700 hover:bg-brandindigo hover:text-white transition-all font-medium border border-gray-200 shadow-sm" onclick="document.getElementById('rating-category-input').value='${escaped}'">${c}</span>`;
-        }).join('');
+        console.log("[renderEmployeeRatingForm] parsed values:", { ratingId, empId, empName, ratingDate, displayScore, category, comment, giveBy, status });
 
         const formFields = document.getElementById('form-fields');
         console.log("[renderEmployeeRatingForm] formFields element:", formFields);
@@ -276,16 +271,37 @@ function renderEmployeeRatingForm(rowData = {}) {
                     
                     <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="rating_date_label">${t('rating_date_label')}</span> <span class="text-brandindigo">*</span></label><input type="date" name="Ranting Date" value="${String(ratingDate).slice(0, 10)}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"></div>
                     
-                    <div class="col-span-1 sm:col-span-2"><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="star_point_label">${t('star_point_label')}</span> <span class="text-brandindigo">*</span></label><div class="flex flex-col items-center justify-center bg-gray-50 p-4 rounded-xl border border-gray-200 min-h-[88px]"><div class="flex">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= starPoint ? 'fa-solid fa-star text-yellow-400' : 'fa-regular fa-star text-gray-300'} text-4xl cursor-pointer hover:scale-110 transition-transform mx-1" onclick="if(typeof setFormStarRating === 'function') setFormStarRating(${i})" id="form-star-${i}"></i>`).join('')}</div><p id="form-star-text" class="mt-2 text-sm font-bold text-brandindigo" data-i18n="${starPoint > 0 ? '' : 'click_to_rate'}">${starPoint > 0 ? starPoint + ' / 5' : t('click_to_rate')}</p></div><input type="hidden" name="Star Point" id="hidden-star-input" value="${starPoint || ''}" required></div>
+                    <div class="col-span-1 sm:col-span-2">
+                        <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            <span>ให้คะแนน (Score Points)</span> <span class="text-brandindigo">*</span>
+                        </label>
+                        <div class="bg-gray-50/80 p-4 rounded-2xl border border-gray-200 space-y-3">
+                            <div class="flex items-center gap-3">
+                                <input type="number" min="0" max="1000" step="1" name="Star Point" id="rating-score-input"
+                                    value="${displayScore || ''}" required placeholder="พิมพ์คะแนน (เช่น 100, 250, 500)..."
+                                    oninput="if(typeof updateFormStarPreview === 'function') updateFormStarPreview(this.value)"
+                                    class="bg-white border border-gray-300 text-gray-900 font-extrabold text-base rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 shadow-sm transition-colors">
+                                <span class="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-3 py-3 rounded-xl whitespace-nowrap">
+                                    100 Score = 1 Star
+                                </span>
+                            </div>
+                            <div class="flex items-center justify-between px-2 pt-2 border-t border-gray-200/80">
+                                <div id="form-star-preview-icons" class="flex items-center gap-1">
+                                    ${renderFormStarPreviewIconsHtml(displayScore)}
+                                </div>
+                                <span id="form-star-preview-text" class="text-xs font-extrabold text-brandindigo">
+                                    ${displayScore ? `${displayScore} คะแนน = ${(displayScore / 100).toFixed(1)} ดาว` : '100 คะแนน = 1.0 ดาว'}
+                                </span>
+                            </div>
+                        </div>
+                        <input type="hidden" id="hidden-star-input" value="${displayScore || ''}">
+                    </div>
                     
                     <div>
                         <label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="category_label">${t('category_label')}</span> <span class="text-brandindigo">*</span></label>
                         <input type="text" id="rating-category-input" name="Category " value="${String(category).replace(/"/g, '&quot;')}" required
                             class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"
-                            placeholder="พิมพ์หมวดหมู่ หรือกดเลือกจากแถบด้านล่าง...">
-                        <div class="mt-2 flex flex-wrap gap-1.5 max-h-[85px] overflow-y-auto p-1 bg-gray-50 rounded-xl border border-gray-100">
-                            ${categoryTagsHtml}
-                        </div>
+                            placeholder="พิมพ์หมวดหมู่การประเมิน...">
                     </div>
                     
                     <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="comment_label">${t('comment_label')}</span> <span class="text-brandindigo">*</span></label><input type="text" name="Comment" value="${String(comment).replace(/"/g, '&quot;')}" required placeholder="${t('enter_comment')}" data-i18n-placeholder="enter_comment" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm"></div>
@@ -304,6 +320,45 @@ function renderEmployeeRatingForm(rowData = {}) {
         document.getElementById('form-fields').innerHTML = `<div class="col-span-full text-center p-4"><p class="text-red-500 font-bold mb-2">เกิดข้อผิดพลาดในการสร้างฟอร์ม</p><p class="text-xs text-gray-500">Error: ${err.message}</p></div>`;
     }
 }
+
+function renderFormStarPreviewIconsHtml(scoreVal) {
+    const pts = parseFloat(scoreVal) || 0;
+    const starVal = Math.min(5, Math.max(0, pts / 100));
+    let html = '';
+    for (let i = 1; i <= 5; i++) {
+        let pct = 0;
+        if (starVal >= i) pct = 100;
+        else if (starVal > i - 1) pct = Math.round((starVal - (i - 1)) * 100);
+        html += `
+            <div class="relative inline-block text-xl">
+                <i class="fa-solid fa-star text-gray-200"></i>
+                ${pct > 0 ? `
+                    <div class="absolute top-0 left-0 overflow-hidden h-full text-[#FACC15] transition-all duration-200" style="width: ${pct}%">
+                        <i class="fa-solid fa-star"></i>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+    return html;
+}
+
+window.updateFormStarPreview = function(val) {
+    const pts = parseFloat(val) || 0;
+    const hiddenInput = document.getElementById('hidden-star-input');
+    if (hiddenInput) hiddenInput.value = pts;
+
+    const iconsContainer = document.getElementById('form-star-preview-icons');
+    if (iconsContainer) {
+        iconsContainer.innerHTML = renderFormStarPreviewIconsHtml(pts);
+    }
+
+    const textEl = document.getElementById('form-star-preview-text');
+    if (textEl) {
+        const calculatedStars = (pts / 100).toFixed(1);
+        textEl.innerText = `${pts} คะแนน = ${calculatedStars} ดาว`;
+    }
+};
 
 function loadRatingStaffOptions(selectedEmpId, selectedGiveBy) {
     const staffCache = tableCache['staff'] || tableCache['Staff'];
@@ -472,8 +527,9 @@ function openFormModal(rowDataStr = null) {
             if (editingRecordId === '-') editingRecordId = null;
 
             let isNewFromQR = rowData['Ranting_Id'] === '' || rowData['rating_id'] === '';
+            const isPlaceholderId = editingRecordId === 'สร้างอัตโนมัติ (Auto)' || editingRecordId === 'Auto Generated';
 
-            if (editingRecordId && !isNewFromQR && String(editingRecordId).trim() !== '' && !String(editingRecordId).startsWith('NEW-')) {
+            if (editingRecordId && !isNewFromQR && !isPlaceholderId && String(editingRecordId).trim() !== '') {
                 document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-pen-to-square text-brandindigo mr-3"></i> <span data-i18n="edit_record">${t('edit_record')}</span>`;
             } else {
                 document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-plus text-brandindigo mr-3"></i> <span data-i18n="add_record">${t('add_record')}</span>`;
@@ -509,7 +565,7 @@ function openFormModal(rowDataStr = null) {
         const lw = h.toLowerCase().trim();
 
         if (lw === 'signature' || lw === 'dept_head_sign' || lw === 'approver_sign' || lw === 'dept_head_img' || lw === 'approver_img' || lw === 'currency') return;
-        if (lw === 'status' && currentSheet.toLowerCase() !== 'staff' && currentSheet.toLowerCase() !== 'training') return;
+        if (lw === 'status' && currentSheet.toLowerCase() !== 'staff' && currentSheet.toLowerCase() !== 'training' && !currentSheet.toLowerCase().includes('asset')) return;
 
         const val = rowData ? (rowData[h] || '') : '';
         const safeVal = String(val).replace(/"/g, '&quot;');
@@ -523,12 +579,22 @@ function openFormModal(rowDataStr = null) {
             const allMenus = [
                 { id: 'dashboard', name: 'Dashboard (หน้าหลัก)' },
                 { id: 'scan', name: 'Time Tracking (ลงเวลา)' },
+                { id: 'FB_Budget_Form', name: 'FB Budget Form (ฟอร์มขอเบิกงบ)' },
+                { id: 'FB_Budget_List', name: 'FB Budget List (รายการเบิกงบ)' },
+                { id: 'FB_Budget_Report', name: 'FB Budget Report (รายงานเบิกงบ)' },
                 { id: 'Leave application', name: 'Leave Requests (คำขอลา)' },
                 { id: 'Budget Request', name: 'Budget Requests (ขออนุมัติงบ)' },
+                { id: 'chart-of-accounts', name: 'Chart of Accounts (ผังบัญชี)' },
+                { id: 'expense-vouchers', name: 'Expense Vouchers (บันทึกค่าใช้จ่าย)' },
+                { id: 'general-ledger', name: 'General Ledger (สมุดบัญชีทั่วไป)' },
+                { id: 'invoices', name: 'Invoices & AR (ใบแจ้งหนี้)' },
+                { id: 'financial-reports', name: 'Financial Reports (รายงานการเงิน)' },
                 { id: 'Fingerprint_Logs', name: 'Attendance Logs (ประวัติลงเวลา)' },
                 { id: 'staff', name: 'Staff Directory (รายชื่อพนักงาน)' },
                 { id: 'digital-card', name: 'Digital Card (บัตรพนักงาน)' },
                 { id: 'Organization ', name: 'Organization (ข้อมูลองค์กร)' },
+                { id: 'Employees Ranting', name: 'Employee Rating (ประเมินพนักงาน / STK WOW)' },
+                { id: 'KPI Records ', name: 'KPI Records (บันทึก KPI)' },
                 { id: 'Organization Structure ', name: 'Org Structure (แผนผัง)' },
                 { id: 'Department ', name: 'Department (แผนก)' },
                 { id: 'Asset_Tracking', name: 'Assets (ทรัพย์สิน)' },
@@ -539,8 +605,7 @@ function openFormModal(rowDataStr = null) {
                 { id: 'orientation', name: 'Orientation (ปฐมนิเทศ)' },
                 { id: 'Policy ', name: 'Policy (นโยบาย)' },
                 { id: 'user', name: 'Users Management (จัดการผู้ใช้งาน)' },
-                { id: 'Employees Ranting', name: 'Employee Rating (ประเมินพนักงาน)' },
-                { id: 'KPI Records ', name: 'KPI Records (บันทึก KPI)' }
+                { id: 'company-settings', name: 'Company Settings (ตั้งค่าบริษัท)' }
             ];
 
             let checkedValues = typeof parsePermissionsList === 'function' ? parsePermissionsList(val) : (val ? val.split(',').map(v => String(v).trim().toLowerCase()) : []);
@@ -972,6 +1037,18 @@ function openAttendanceEditModalByDate(empId, dateStr) {
                                     <option value="Ongoing" ${String(val).toLowerCase().includes('ongoing') ? 'selected' : ''}>Ongoing</option>
                                     <option value="Completed" ${String(val).toLowerCase().includes('complete') ? 'selected' : ''}>Completed</option>
                                     <option value="Cancelled" ${String(val).toLowerCase().includes('cancel') ? 'selected' : ''}>Cancelled</option>
+                                </select></div>
+                            `);
+        }
+        else if (lw === 'status' && currentSheet.toLowerCase().includes('asset')) {
+            const vLower = String(val).toLowerCase();
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="status_label">${t('status_label')}</span> <span class="text-brandindigo">*</span></label>
+                                <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
+                                    <option value="Active" ${(!val || val === '-' || vLower === 'active' || vLower.includes('ใช้งาน') || vLower.includes('ໃຊ້ງານ')) ? 'selected' : ''}>Active (กำลังใช้งานอยู่)</option>
+                                    <option value="Under Repair" ${(vLower.includes('repair') || vLower.includes('ซ่อม') || vLower.includes('ສ້ອມ')) ? 'selected' : ''}>Under Repair (กำลังซ่อม)</option>
+                                    <option value="Broken" ${(vLower.includes('broken') || vLower.includes('พัง') || vLower.includes('ເພແລ້ວ') || vLower.includes('เสีย')) ? 'selected' : ''}>Broken (พังแล้ว)</option>
+                                    <option value="Inactive" ${(vLower.includes('inactive') || vLower.includes('ยกเลิก')) ? 'selected' : ''}>Inactive (ยกเลิกใช้งาน)</option>
                                 </select></div>
                             `);
         }
@@ -1586,14 +1663,22 @@ function executeSaveToSheet(dataObj, currentEditId) {
             key === 'asset_id' || key === 'course_id' || key === 'department_id' ||
             key === 'organization_id' || key === 'orgid' || key === 'category_id' ||
             key === 'point_id' || key === 'ranting_id' || key === 'rating_id' || key === 'kpi_id' ||
-            key === 'id_budget' || key === 'budget_id';
+            key === 'id_budget' || key === 'budget_id' || key === 'news_id' || key === 'announcement_id' ||
+            key === 'document_id' || key === 'policy_code' || key === 'org_id';
     });
-    if (businessIdCol && !String(dataObj[businessIdCol] || '').trim()) {
-        const isDept = currentSheet.toLowerCase().includes('department');
-        const prefix = isDept ? 'DEPT' : 'NEW';
-        const randomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+    if (businessIdCol && (!dataObj[businessIdCol] || String(dataObj[businessIdCol]).trim() === '' || dataObj[businessIdCol] === 'สร้างอัตโนมัติ (Auto)' || dataObj[businessIdCol] === 'Auto Generated')) {
+        const sheetLw = currentSheet.toLowerCase().trim();
+        let prefix = 'NEW';
+        if (sheetLw.includes('department')) prefix = 'DEPT';
+        else if (sheetLw.includes('news')) prefix = 'NEWS';
+        else if (sheetLw.includes('announc')) prefix = 'ANN';
+        else if (sheetLw.includes('doc')) prefix = 'DOC';
+        else if (sheetLw.includes('policy')) prefix = 'POL';
+        else if (sheetLw.includes('training')) prefix = 'COURSE';
+        else if (sheetLw.includes('asset')) prefix = 'ASSET';
 
-        if (isDept) {
+        const randomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+        if (prefix === 'DEPT') {
             dataObj[businessIdCol] = `${prefix}-${randomCode}`;
         } else {
             dataObj[businessIdCol] = `${prefix}-${Date.now()}-${randomCode}`;
@@ -1601,18 +1686,16 @@ function executeSaveToSheet(dataObj, currentEditId) {
     }
 
     if (!currentEditId) {
-        const idCol = businessIdCol;
-        if (idCol && (!dataObj[idCol] || dataObj[idCol] === 'สร้างอัตโนมัติ (Auto)' || dataObj[idCol] === 'Auto Generated')) {
-            if (currentSheet.toLowerCase().includes('department')) {
-                dataObj[idCol] = 'DEPT-' + Math.random().toString(36).substring(2, 7).toUpperCase();
-            } else {
-                dataObj[idCol] = 'NEW-' + new Date().getTime();
-            }
-        }
         rawData.unshift(dataObj);
     } else {
-        const rowIndex = rawData.findIndex(r => getRecordId(r) === currentEditId);
-        if (rowIndex > -1) { Object.keys(dataObj).forEach(k => rawData[rowIndex][k] = dataObj[k]); }
+        const rowIndex = rawData.findIndex(r => String(getRecordId(r) || '').trim() === String(currentEditId || '').trim());
+        if (rowIndex > -1) {
+            Object.keys(dataObj).forEach(k => {
+                if (dataObj[k] !== undefined && dataObj[k] !== null && dataObj[k] !== '') {
+                    rawData[rowIndex][k] = dataObj[k];
+                }
+            });
+        }
     }
 
     if (currentSheet.toLowerCase() === 'user' || currentSheet.toLowerCase() === 'users') {
@@ -2404,10 +2487,16 @@ window.submitDirectBillApproval = async function (e) {
     // Re-render bill modal details immediately with updated signatures
     showBillDetailsModal(encodeURIComponent(JSON.stringify(activeRow)));
 
+    // Refresh Facebook Budget dashboard if open or available
+    if (typeof window.loadFacebookBudgetDashboard === 'function') {
+        try { window.loadFacebookBudgetDashboard(); } catch (e) { }
+    }
+
     // Update Supabase Database permanently with signatures & images
     try {
         const payload = {
-            signature: newStatus
+            signature: newStatus,
+            status: newStatus
         };
         if (activeRow.dept_head_sign || activeRow.Dept_Head_Sign) payload.dept_head_sign = activeRow.dept_head_sign || activeRow.Dept_Head_Sign;
         if (activeRow.approver_sign || activeRow.Approver_Sign) payload.approver_sign = activeRow.approver_sign || activeRow.Approver_Sign;
@@ -2426,8 +2515,21 @@ window.submitDirectBillApproval = async function (e) {
             await bridge.updateRow('budget_requests', 'budget_id', targetRecordId, { signature: newStatus });
         }
 
+        // Also update facebook_budget_requests if applicable
+        const empId = activeRow.Employee_ID || activeRow.employee_id || activeRow.member_id;
+        const fbPayload = { status: newStatus, approved_by: signFormatted };
+        if (targetRecordId) {
+            await bridge.updateRow('facebook_budget_requests', 'id', targetRecordId, fbPayload).catch(() => {});
+        }
+        if (empId) {
+            await bridge.updateRow('facebook_budget_requests', 'member_id', empId, fbPayload).catch(() => {});
+        }
+
         if (typeof fetchData === 'function') {
             fetchData('Budget Request', true);
+        }
+        if (typeof window.loadFacebookBudgetDashboard === 'function') {
+            window.loadFacebookBudgetDashboard();
         }
     } catch (err) {
         console.warn('Direct approval save warning:', err);

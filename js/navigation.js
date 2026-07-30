@@ -103,6 +103,10 @@ function navigate(pageId, title, sheetName = '') {
         else if (pageId === 'digital-card') { loadDigitalCard(); }
         else if (pageId === 'company-settings') { loadCompanySettings(); }
         else if (pageId === 'staff-dashboard') { loadStaffDashboard(); }
+        else if (pageId === 'facebook-budget') {
+            if (typeof switchFbTab === 'function') switchFbTab('dashboard');
+            else if (typeof loadFacebookBudgetDashboard === 'function') loadFacebookBudgetDashboard();
+        }
         else if (pageId === 'chart-of-accounts') { if (typeof loadChartOfAccounts === 'function') loadChartOfAccounts(); }
         else if (pageId === 'expense-vouchers') { if (typeof loadExpenseVouchers === 'function') loadExpenseVouchers(); }
         else if (pageId === 'general-ledger') { if (typeof loadGeneralLedger === 'function') loadGeneralLedger(); }

@@ -504,10 +504,10 @@ function renderTable(data) {
                 if (statusLower.includes('complete') || statusLower.includes('กำลังใช้งาน') || statusLower.includes('ໃຊ້ງານ') || statusLower === 'active') {
                     statusColor = 'text-green-500';
                 }
-                else if (statusLower.includes('cancel') || statusLower.includes('เพแล้ว') || statusLower.includes('ເພແລ້ວ') || statusLower.includes('เสีย') || statusLower.includes('inactive')) {
+                else if (statusLower.includes('cancel') || statusLower.includes('เพแล้ว') || statusLower.includes('ເພແລ້ວ') || statusLower.includes('เสีย') || statusLower.includes('inactive') || statusLower.includes('broken') || statusLower.includes('พัง')) {
                     statusColor = 'text-red-500';
                 }
-                else if (statusLower.includes('ongoing') || statusLower.includes('กำลังซ่อม') || statusLower.includes('ສ້ອມ') || statusLower.includes('ซ่อม')) {
+                else if (statusLower.includes('ongoing') || statusLower.includes('กำลังซ่อม') || statusLower.includes('ສ້ອມ') || statusLower.includes('ซ่อม') || statusLower.includes('repair')) {
                     statusColor = 'text-orange-500';
                 }
 
@@ -1099,13 +1099,21 @@ function renderEmployeeRatingPageFromScratch(ratingRows) {
     const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
     let role = 'Staff';
     let loggedInEmpId = '';
+    let userPerms = [];
     if (sessionStr) {
         try {
             const sessionData = JSON.parse(sessionStr);
             role = sessionData.role || 'Staff';
             loggedInEmpId = String(sessionData.empId || sessionData.employeeId || sessionData.username || '').trim().toUpperCase();
+            if (sessionData.permissions) {
+                userPerms = typeof parsePermissionsList === 'function' ? parsePermissionsList(sessionData.permissions) : sessionData.permissions;
+            }
         } catch (e) { }
     }
+
+    const sheetName = typeof currentSheet !== 'undefined' && currentSheet ? currentSheet : 'Employees Ranting';
+    const canEdit = role === 'Admin' || (typeof hasActionPermission === 'function' ? hasActionPermission(sheetName, 'edit', userPerms) : (role !== 'Staff'));
+    const canDelete = role === 'Admin' || (typeof hasActionPermission === 'function' ? hasActionPermission(sheetName, 'delete', userPerms) : (role !== 'Staff'));
 
     const cardWrapper = document.getElementById('card-wrapper');
     if (!cardWrapper) return;
@@ -1154,14 +1162,17 @@ function renderEmployeeRatingPageFromScratch(ratingRows) {
         const empId = String(getFuzzyValue(row, ['employees id', 'employee_id', 'emp_id'])).trim();
         if (!empId || empId === '-') return;
         const key = empId.toLowerCase();
-        const stars = Math.max(0, Math.min(5, parseFloat(getFuzzyValue(row, ['star point', 'star_point', 'rating', 'score'])) || 0));
+        let pts = parseFloat(getFuzzyValue(row, ['star point', 'star_point', 'rating', 'score'])) || 0;
+        if (pts > 0 && pts <= 5) {
+            pts = pts * 100; // 1 star = 100 points
+        }
 
         if (!ratingByEmp[key]) ratingByEmp[key] = { total: 0, count: 0, latestComment: '', latestRowId: '', categoryScores: {} };
-        ratingByEmp[key].total += stars;
+        ratingByEmp[key].total += pts;
         ratingByEmp[key].count += 1;
 
         const category = getFuzzyValue(row, ['Category ', 'category']);
-        if (category && category !== '-') ratingByEmp[key].categoryScores[String(category).trim()] = stars;
+        if (category && category !== '-') ratingByEmp[key].categoryScores[String(category).trim()] = pts;
 
         const comment = getFuzzyValue(row, ['comment', 'review', 'remark']);
         if (comment && comment !== '-') ratingByEmp[key].latestComment = comment;
@@ -1227,12 +1238,27 @@ function renderEmployeeRatingPageFromScratch(ratingRows) {
         const department = getFuzzyValue(staff, ['department_id', 'department']) || 'General';
         const photo = normalizeRatingPhoto(getFuzzyValue(staff, ['photos', 'photo', 'profile', 'image', 'pic']), firstName);
         const stat = ratingByEmp[empId.toLowerCase()] || { total: 0, count: 0, latestComment: '', latestRowId: '', categoryScores: {} };
-        const avg = stat.count ? Math.round((stat.total / stat.count) * 10) / 10 : 0;
+        const totalPoints = stat.total;
+        const starVal = Math.min(5, Math.max(0, totalPoints / 100));
 
-        let starsHtml = '';
+        let starsHtml = '<div class="flex items-center justify-center gap-1.5 my-2" title="' + Math.round(totalPoints) + ' คะแนน = ' + (Math.round(starVal * 10) / 10) + ' ดาว">';
         for (let i = 1; i <= 5; i++) {
-            starsHtml += i <= Math.round(avg) ? '<i class="fa-solid fa-star text-[#FACC15] text-2xl mx-1"></i>' : '<i class="fa-regular fa-star text-gray-200 text-2xl mx-1"></i>';
+            let pct = 0;
+            if (starVal >= i) pct = 100;
+            else if (starVal > i - 1) pct = Math.round((starVal - (i - 1)) * 100);
+            
+            starsHtml += `
+                <div class="relative inline-block text-2xl">
+                    <i class="fa-solid fa-star text-gray-200"></i>
+                    ${pct > 0 ? `
+                        <div class="absolute top-0 left-0 overflow-hidden h-full text-[#FACC15] transition-all duration-300" style="width: ${pct}%">
+                            <i class="fa-solid fa-star"></i>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
         }
+        starsHtml += '</div>';
 
         const safeEmp = escapeHtml(empId);
         const safeName = escapeHtml(firstName);
@@ -1244,55 +1270,64 @@ function renderEmployeeRatingPageFromScratch(ratingRows) {
 
         const safeRowId = String(stat.latestRowId || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
-        const barsHtml = getRatingCategories().map(cat => {
-            const val = Math.max(0, Math.min(5, parseFloat(stat.categoryScores[cat]) || 0));
-            const pct = Math.round((val / 5) * 100);
-            return `<div class="flex items-center justify-between text-xs mb-3"><span class="w-[45%] ${pct ? 'text-gray-700 font-bold' : 'text-gray-400 font-medium'} truncate">${escapeHtml(cat)}</span><div class="w-[45%] h-1.5 bg-gray-100 flex-1 mx-3 overflow-hidden rounded-full shadow-inner"><div class="h-full ${pct ? 'bg-gradient-to-r from-brandindigo to-brandpurple' : 'bg-gray-200'} rounded-full" style="width:${pct}%"></div></div><span class="w-[10%] text-right text-gray-500 font-bold text-[10px]">${pct}%</span></div>`;
-        }).join('');
-
         html += `
-                    <div class="bg-white rounded-3xl hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group relative border border-gray-200 w-full max-w-[360px] mx-auto pb-5">
+                    <div class="bg-white rounded-3xl hover:shadow-2xl transition-all duration-300 overflow-hidden flex flex-col group relative border border-gray-200 w-full max-w-[320px] mx-auto pb-5">
                         
-                        <div class="absolute top-3 right-3 flex gap-0.5 z-20 bg-white/95 backdrop-blur-md rounded-lg shadow-lg p-1 border border-gray-100 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                            <button onclick="showRatingHistory('${safeEmp}', '${safeNameJs}')" class="text-gray-500 hover:bg-blue-50 hover:text-blue-600 w-7 h-7 rounded-md flex items-center justify-center transition-colors" title="ประวัติการให้ดาว"><i class="fa-solid fa-clock-rotate-left text-[13px]"></i></button>
-                            <button onclick="showEmpQRCode('${safeEmp}', '${safeNameUrl}')" class="text-gray-500 hover:bg-indigo-50 hover:text-brandindigo w-7 h-7 rounded-md flex items-center justify-center transition-colors" title="QR Code"><i class="fa-solid fa-qrcode text-[13px]"></i></button>
-                            
-                            ${role !== 'Staff' ? `<button onclick="addRatingForEmpId('${safeEmp}', '${safeNameJs}', event)" class="text-gray-500 hover:bg-emerald-50 hover:text-emerald-600 w-7 h-7 rounded-md flex items-center justify-center transition-colors" title="ให้ดาว"><i class="fa-solid fa-star text-[13px]"></i></button>` : ''}
-                            
-                            ${stat.latestRowId && role !== 'Staff' ? `<button onclick="editRatingByRowId('${safeRowId}', event)" class="text-gray-500 hover:bg-indigo-50 hover:text-brandindigo w-7 h-7 rounded-md flex items-center justify-center transition-colors" title="แก้ไขคะแนนล่าสุด"><i class="fa-solid fa-pen-to-square text-[13px]"></i></button>` : ''}
-                            
-                            ${stat.latestRowId && (canDelete || canEdit) ? `<button onclick="event.stopPropagation(); deleteRecord('${safeRowId}')" class="text-gray-500 hover:bg-red-50 hover:text-red-600 w-7 h-7 rounded-md flex items-center justify-center transition-colors" title="ลบ"><i class="fa-solid fa-trash text-[13px]"></i></button>` : ''}
+                        <!-- Purple Banner Top -->
+                        <div class="h-[120px] w-full bg-gradient-to-r from-purple-600 via-indigo-600 to-brandindigo relative overflow-hidden">
+                            <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
                         </div>
-
-                        <div class="h-[100px] w-full bg-gradient-to-r from-brandindigo to-brandpurple"></div>
-                        <div class="relative -mt-[50px] flex justify-center z-10">
-                            <div class="w-[100px] h-[100px] rounded-full border-4 border-white overflow-hidden bg-gray-50 shadow-md">
+                        
+                        <!-- Circular Avatar Overlapping Top Banner -->
+                        <div class="relative -mt-[48px] flex justify-center z-10">
+                            <div class="w-[96px] h-[96px] rounded-full border-4 border-white overflow-hidden bg-white shadow-xl shadow-purple-500/10">
                                 <img src="${photo}" onerror="this.src='https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&bold=true&name=${encodeURIComponent(firstName)}'" class="w-full h-full object-cover" alt="Profile">
                             </div>
                         </div>
-                        <div class="text-center px-6 mt-3">
-                            <h2 class="text-xl font-bold text-gray-900 mb-1.5 tracking-tight">${safeName}</h2>
-                            <div class="flex items-center justify-center gap-2 flex-wrap">
-                                <span class="text-[10px] font-bold text-brandindigo bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 uppercase tracking-widest">${safePosition}</span>
-                                <span class="text-[11px] text-gray-400 font-medium">ID: ${safeEmp}</span>
+
+                        <!-- Name & Badges -->
+                        <div class="text-center px-5 mt-2">
+                            <h2 class="text-xl font-extrabold text-gray-900 mb-1.5 tracking-tight">${safeName}</h2>
+                            <div class="flex items-center justify-center gap-1.5 flex-wrap">
+                                <span class="text-[10px] font-extrabold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-md border border-indigo-100 uppercase tracking-wider">${safePosition}</span>
+                                <span class="text-[10px] font-semibold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md">ID: ${safeEmp}</span>
+                                <span class="text-[10px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md">${safeDept}</span>
                             </div>
-                            <p class="text-[11px] text-gray-400 mt-1 font-bold">${safeDept}</p>
                         </div>
 
-                        <div class="flex justify-center items-center mt-5 mb-5 bg-gray-50/50 py-2.5 mx-6 rounded-xl border border-gray-100" title="Overall Average Rating">
+                        <!-- Proportional Star Rating Display -->
+                        <div class="px-5 mt-3 text-center">
                             ${starsHtml}
+                            <p class="text-[11px] font-extrabold text-indigo-600 tracking-wide mt-1">
+                                ${Math.round(totalPoints)} Score = ${(Math.round(starVal * 10) / 10)} Star
+                            </p>
+                            <h3 class="text-2xl font-black tracking-wider uppercase text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600 mt-0.5 mb-2">STK WOW</h3>
                         </div>
 
-                        <div class="px-7 flex-1 flex flex-col justify-center">
-                            ${barsHtml}
+                        <!-- Action Toolbar Row at Bottom of Card -->
+                        <div class="flex justify-center items-center gap-2 px-4 mt-auto pt-3 border-t border-gray-100">
+                            <button onclick="showRatingHistory('${safeEmp}', '${safeNameJs}')" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-blue-50 text-gray-500 hover:text-blue-600 flex items-center justify-center transition-all shadow-sm" title="ประวัติการให้ดาว">
+                                <i class="fa-solid fa-clock-rotate-left text-xs"></i>
+                            </button>
+                            <button onclick="showEmpQRCode('${safeEmp}', '${safeNameUrl}')" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-indigo-50 text-gray-500 hover:text-brandindigo flex items-center justify-center transition-all shadow-sm" title="QR Code">
+                                <i class="fa-solid fa-qrcode text-xs"></i>
+                            </button>
+                            ${role !== 'Staff' ? `
+                                <button onclick="addRatingForEmpId('${safeEmp}', '${safeNameJs}', event)" class="w-8 h-8 rounded-full bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white flex items-center justify-center transition-all shadow-sm" title="ให้ดาว">
+                                    <i class="fa-solid fa-star text-xs"></i>
+                                </button>
+                            ` : ''}
+                            ${stat.latestRowId && role !== 'Staff' ? `
+                                <button onclick="editRatingByRowId('${safeRowId}', event)" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-purple-50 text-gray-500 hover:text-purple-600 flex items-center justify-center transition-all shadow-sm" title="แก้ไขคะแนนล่าสุด">
+                                    <i class="fa-solid fa-pen-to-square text-xs"></i>
+                                </button>
+                            ` : ''}
+                            ${stat.latestRowId && (canDelete || canEdit) ? `
+                                <button onclick="event.stopPropagation(); deleteRecord('${safeRowId}')" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-600 flex items-center justify-center transition-all shadow-sm" title="ลบ">
+                                    <i class="fa-solid fa-trash text-xs"></i>
+                                </button>
+                            ` : ''}
                         </div>
-
-                        ${stat.latestComment !== '-' ? `
-                        <div class="px-6 mt-4">
-                            <div class="text-xs text-gray-500 italic text-center bg-gray-50 p-3 rounded-xl border border-gray-100" title="${safeComment}">
-                                <i class="fa-solid fa-quote-left text-gray-300 mr-1.5"></i>${stat.latestComment}<i class="fa-solid fa-quote-right text-gray-300 ml-1.5"></i>
-                            </div>
-                        </div>` : '<div class="mt-4"></div>'}
 
                     </div>`;
     });

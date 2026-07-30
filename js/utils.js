@@ -95,7 +95,19 @@ function isMenuPermissionChecked(menuId, checkedList) {
         }
 
         // Domain-specific menu aliases
-        if (target.includes('budget') && itemNorm.includes('budget')) return true;
+        if (target.includes('fbbudget') || itemNorm.includes('fbbudget') || target.includes('facebookbudget') || itemNorm.includes('facebookbudget')) {
+            if ((target.includes('fbbudget') || target.includes('facebookbudget')) && (itemNorm.includes('fbbudget') || itemNorm.includes('facebookbudget'))) {
+                if (target.includes('form') && itemNorm.includes('form')) return true;
+                if (target.includes('list') && itemNorm.includes('list')) return true;
+                if (target.includes('report') && itemNorm.includes('report')) return true;
+                if (!target.includes('form') && !target.includes('list') && !target.includes('report')) return true;
+                if (!itemNorm.includes('form') && !itemNorm.includes('list') && !itemNorm.includes('report')) return true;
+            }
+        } else if (target.includes('budget') && itemNorm.includes('budget')) {
+            if (!target.includes('fbbudget') && !target.includes('facebookbudget') && !itemNorm.includes('fbbudget') && !itemNorm.includes('facebookbudget')) {
+                return true;
+            }
+        }
         if (target.includes('leave') && itemNorm.includes('leave')) return true;
         if (target.includes('digital') && itemNorm.includes('digital')) return true;
         if ((target.includes('orientat') || target.includes('orentat')) && (itemNorm.includes('orientat') || itemNorm.includes('orentat'))) return true;
@@ -452,15 +464,19 @@ function getRecordId(row) {
     if (sName.includes('log') || sName.includes('attendance')) targetKeys = ['log_id', 'id'];
     else if (sName.includes('asset')) targetKeys = ['asset_id', 'id'];
     else if (sName.includes('training')) targetKeys = ['course_id', 'id'];
+    else if (sName.includes('news')) targetKeys = ['news_id', 'id'];
+    else if (sName.includes('announc')) targetKeys = ['announcement_id', 'id'];
+    else if (sName.includes('doc')) targetKeys = ['document_id', 'id'];
+    else if (sName.includes('policy')) targetKeys = ['policy_code', 'id'];
     else if (sName.includes('department')) targetKeys = ['department_id', 'id'];
     else if (sName.includes('organization')) targetKeys = ['organization id', 'organization_id', 'id'];
     else if (sName.includes('ranting') || sName.includes('rating')) targetKeys = ['ranting_id', 'rating_id', 'id'];
     else if (sName.includes('budget')) targetKeys = ['id_budget', 'budget_id', 'id'];
-    else targetKeys = ['id_leave', 'leave_id', 'log_id', 'asset_id', 'course_id', 'department_id', 'employee_id', 'emp_id', 'ranting_id', 'rating_id', 'id_budget', 'budget_id', 'id'];
+    else targetKeys = ['news_id', 'announcement_id', 'document_id', 'policy_code', 'id_leave', 'leave_id', 'log_id', 'asset_id', 'course_id', 'department_id', 'employee_id', 'emp_id', 'ranting_id', 'rating_id', 'id_budget', 'budget_id', 'id'];
 
     for (let key of targetKeys) {
         let foundKey = Object.keys(row).find(k => String(k).toLowerCase().trim() === key);
-        if (foundKey) return row[foundKey];
+        if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null && String(row[foundKey]).trim() !== '') return row[foundKey];
     }
     return Object.values(row)[0];
 }
@@ -498,6 +514,10 @@ function getEmployeeRatingHeaders() {
 function ensureHeadersForSheet(sheetName, headers) {
     const cleaned = (headers || []).map(h => String(h)).filter(h => h.trim() !== '');
     if (isEmployeeRatingSheet(sheetName) && cleaned.length === 0) return getEmployeeRatingHeaders();
+    if (String(sheetName || '').toLowerCase().includes('asset')) {
+        const hasStatus = cleaned.some(h => String(h).toLowerCase().trim() === 'status');
+        if (!hasStatus) cleaned.push('Status');
+    }
     return cleaned;
 }
 
