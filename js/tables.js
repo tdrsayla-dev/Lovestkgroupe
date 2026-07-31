@@ -302,7 +302,7 @@ function renderTable(data) {
 
         if (isRatingPage && role === 'Staff') {
             if (topBar) topBar.style.display = 'none';
-        } else if (isRatingPage && role !== 'Staff') {
+        } else {
             if (topBar) topBar.style.display = '';
         }
 
@@ -462,12 +462,7 @@ function renderTable(data) {
                 };
             }
 
-            if (role === 'Staff' && sessionEmpId) {
-                data = data.filter(row => {
-                    const empId = String(getFuzzyValue(row, ['employee_id', 'employee', 'ผู้ถือครอง', 'ລະຫັດພະນັກງານ']) || '').trim().toUpperCase();
-                    return empId === sessionEmpId;
-                });
-            }
+
 
             data.forEach(row => {
                 const isEmpty = currentHeaders.every(h => !row[h] || String(row[h]).trim() === '');

@@ -100,8 +100,15 @@ function isMenuPermissionChecked(menuId, checkedList) {
                 if (target.includes('form') && itemNorm.includes('form')) return true;
                 if (target.includes('list') && itemNorm.includes('list')) return true;
                 if (target.includes('report') && itemNorm.includes('report')) return true;
-                if (!target.includes('form') && !target.includes('list') && !target.includes('report')) return true;
-                if (!itemNorm.includes('form') && !itemNorm.includes('list') && !itemNorm.includes('report')) return true;
+                // Generic itemNorm (facebook-budget) grants access to specific target (FB_Budget_Report)
+                if ((target.includes('form') || target.includes('list') || target.includes('report')) && (!itemNorm.includes('form') && !itemNorm.includes('list') && !itemNorm.includes('report'))) {
+                    return true;
+                }
+                // Generic target (facebook-budget for sidebar button) matches any fbbudget sub-menu permission
+                if (!target.includes('form') && !target.includes('list') && !target.includes('report')) {
+                    return true;
+                }
+                return false;
             }
         } else if (target.includes('budget') && itemNorm.includes('budget')) {
             if (!target.includes('fbbudget') && !target.includes('facebookbudget') && !itemNorm.includes('fbbudget') && !itemNorm.includes('facebookbudget')) {

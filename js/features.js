@@ -867,6 +867,7 @@ function showRatingHistory(empId, empName) {
             let date = getFuzzyValue(row, ['ranting date', 'date', 'วันที่', 'เดือน']) || '-';
             let category = getFuzzyValue(row, ['category', 'หมวดหมู่']) || '-';
             let stars = parseFloat(getFuzzyValue(row, ['star point', 'star_point', 'ดาว', 'rating', 'score'])) || 0;
+            if (stars > 5) stars = stars / 100;
             let giver = getFuzzyValue(row, ['give by', 'given by', 'ผู้ประเมิน', 'ผู้ให้', 'หัวหน้า', 'give_by']) || 'ไม่ระบุตัวตน';
             let comment = getFuzzyValue(row, ['comment', 'review', 'ความคิดเห็น', 'ข้อเสนอแนะ', 'remark']);
 

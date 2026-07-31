@@ -604,6 +604,7 @@ function renderDashboardTopRatings() {
 
         let name = getFuzzyValue(row, ['Employees Name', 'employees name', 'name', 'ชื่อ', 'full_name']) || empId;
         let stars = parseFloat(getFuzzyValue(row, ['Star Point', 'star point', 'star_point', 'rating', 'score', 'ดาว'])) || 0;
+        if (stars > 5) stars = stars / 100;
 
         if (!empStats[empId]) empStats[empId] = { id: empId, name: name, totalStars: 0, count: 0 };
         empStats[empId].totalStars += stars;

@@ -511,12 +511,14 @@ function openFormModal(rowDataStr = null) {
     const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
     let role = 'Staff';
     let loggedInEmpId = '';
+    let userPerms = [];
 
     if (sessionStr) {
         try {
             const sessionData = JSON.parse(sessionStr);
             role = sessionData.role || 'Staff';
             loggedInEmpId = String(sessionData.empId || '').toLowerCase().trim();
+            if (sessionData.permissions) userPerms = parsePermissionsList(sessionData.permissions);
         } catch (e) { }
     }
 
@@ -541,6 +543,20 @@ function openFormModal(rowDataStr = null) {
         }
     } else {
         document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-plus text-brandindigo mr-3"></i> <span data-i18n="add_record">${t('add_record')}</span>`;
+    }
+
+    if (editingRecordId) {
+        const canEditCurrentSheet = role === 'Admin' || (typeof hasActionPermission === 'function' ? hasActionPermission(currentSheet, 'edit', userPerms) : (role !== 'Staff'));
+        if (!canEditCurrentSheet) {
+            showToast('คุณไม่มีสิทธิ์แก้ไขข้อมูลในหน้านี้', 'error');
+            return;
+        }
+    } else {
+        const canAddCurrentSheet = role === 'Admin' || (typeof hasActionPermission === 'function' ? (hasActionPermission(currentSheet, 'add', userPerms) || hasActionPermission(currentSheet, 'edit', userPerms)) : (role !== 'Staff' || currentSheet === 'Leave application' || currentSheet.includes('Budget')));
+        if (!canAddCurrentSheet) {
+            showToast('คุณไม่มีสิทธิ์เพิ่มข้อมูลในหน้านี้', 'error');
+            return;
+        }
     }
 
     const formFields = document.getElementById('form-fields');
@@ -1462,6 +1478,26 @@ function compressImageFile(file, maxDim = 480, quality = 0.72) {
  * ===================================================================== */
 function submitData(e) {
     e.preventDefault();
+
+    const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+    let userRole = 'Staff', userPerms = [];
+    if (sessionStr) {
+        try {
+            const s = JSON.parse(sessionStr);
+            userRole = s.role || 'Staff';
+            if (s.permissions) userPerms = parsePermissionsList(s.permissions);
+        } catch (err) { }
+    }
+
+    const isEditMode = Boolean(editingRecordId);
+    const requiredAction = isEditMode ? 'edit' : 'add';
+    const canSubmit = userRole === 'Admin' || (typeof hasActionPermission === 'function' ? (hasActionPermission(currentSheet, requiredAction, userPerms) || (requiredAction === 'add' && hasActionPermission(currentSheet, 'edit', userPerms))) : (userRole !== 'Staff' || (requiredAction === 'add' && (currentSheet === 'Leave application' || currentSheet.includes('Budget')))));
+
+    if (!canSubmit) {
+        showToast(`คุณไม่มีสิทธิ์${isEditMode ? 'แก้ไข' : 'เพิ่ม'}ข้อมูลในหน้านี้`, 'error');
+        return;
+    }
+
     const dataObj = {};
     let permissionsArray = [];
     let permKeyName = '';
@@ -1491,6 +1527,15 @@ function submitData(e) {
             dataObj[k] = v;
         }
     });
+
+    if (typeof isEmployeeRatingSheet === 'function' && isEmployeeRatingSheet(currentSheet)) {
+        let ratingKey = Object.keys(dataObj).find(k => ['star point', 'star_point', 'rating', 'score'].includes(k.toLowerCase().trim())) || 'Star Point';
+        let scoreVal = parseFloat(dataObj[ratingKey]) || 0;
+        let starVal = scoreVal > 5 ? (scoreVal / 100) : scoreVal;
+        dataObj[ratingKey] = starVal;
+        if (dataObj['Star Point'] !== undefined) dataObj['Star Point'] = starVal;
+        if (dataObj['star_point'] !== undefined) dataObj['star_point'] = starVal;
+    }
 
     if (permKeyName) dataObj[permKeyName] = permissionsArray.join(', ');
 
@@ -1748,6 +1793,21 @@ function executeSaveToSheet(dataObj, currentEditId) {
 }
 
 function deleteRecord(id) {
+    const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+    let role = 'Staff', userPerms = [];
+    if (sessionStr) {
+        try {
+            const s = JSON.parse(sessionStr);
+            role = s.role || 'Staff';
+            if (s.permissions) userPerms = parsePermissionsList(s.permissions);
+        } catch (e) { }
+    }
+    const canDelete = role === 'Admin' || (typeof hasActionPermission === 'function' ? hasActionPermission(currentSheet, 'delete', userPerms) : (role !== 'Staff'));
+    if (!canDelete) {
+        showToast('คุณไม่มีสิทธิ์ลบข้อมูลในหน้านี้', 'error');
+        return;
+    }
+
     showConfirmModal(
         'Confirm Deletion',
         `Are you sure you want to delete record <b>${id}</b>?<br><span class="text-[11px] text-gray-500 mt-2 block uppercase tracking-widest font-medium">This action cannot be undone</span>`,
