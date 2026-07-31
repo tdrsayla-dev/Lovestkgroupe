@@ -146,6 +146,14 @@
       text-shadow: 0 0 10px rgba(96, 165, 250, 0.6);
     }
 
+    .mobile-nav-icon {
+      display: none;
+    }
+
+    .nav-text {
+      display: inline;
+    }
+
     .btn-hr-system-login {
       display: inline-flex;
       align-items: center;
@@ -193,42 +201,77 @@
         top: 0;
         left: 0;
         right: 0;
-        background: rgba(9, 44, 99, 0.95) !important;
+        height: 60px !important;
+        background: #041438 !important;
         backdrop-filter: blur(16px);
         -webkit-backdrop-filter: blur(16px);
         border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-        padding: 0.6rem 0.5rem !important;
+        padding: 0 !important;
         z-index: 10000;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        display: flex !important;
+        align-items: center !important;
       }
 
       .nav-container {
         justify-content: center;
-        padding: 0 0.5rem;
+        padding: 0 0.25rem;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 100% !important;
       }
 
       .nav-links {
         display: flex !important;
-        flex-wrap: wrap !important;
-        justify-content: center !important;
-        gap: 0.35rem 0.6rem !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        justify-content: space-around !important;
+        align-items: center !important;
+        width: 100% !important;
+        height: 100% !important;
+        max-width: 520px;
+        margin: 0 auto !important;
+        padding: 0 !important;
+        gap: 0 !important;
+        list-style: none !important;
+      }
+
+      .nav-links li {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
       }
 
       .nav-links a {
-        font-size: 0.8rem !important;
-        font-weight: 600 !important;
-        padding: 0.3rem 0.65rem !important;
-        background: rgba(255, 255, 255, 0.08);
-        border-radius: 20px;
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        color: #ffffff !important;
-        display: inline-block;
+        font-size: 1.3rem !important;
+        padding: 0.5rem !important;
+        background: transparent !important;
+        border: none !important;
+        border-radius: 0 !important;
+        color: rgba(255, 255, 255, 0.8) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 100%;
+        height: 100%;
       }
 
       .nav-links a:hover,
-      .nav-links a:focus {
-        background: var(--primary-light);
+      .nav-links a:focus,
+      .nav-links a:active {
+        background: transparent !important;
         color: #ffffff !important;
+      }
+
+      .nav-links a .nav-text {
+        display: none !important;
+      }
+
+      .nav-links a .mobile-nav-icon {
+        display: inline-block !important;
+        font-size: 1.35rem !important;
       }
 
       .hamburger {
@@ -256,8 +299,36 @@
       }
 
       .about-grid {
-        grid-template-columns: 1fr;
-        gap: 2rem;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 1.5rem !important;
+      }
+
+      .about-content {
+        display: contents !important;
+      }
+
+      .about-header {
+        order: 1 !important;
+        width: 100% !important;
+        text-align: left !important;
+        margin-bottom: 0.5rem !important;
+      }
+
+      .about-header .section-title {
+        font-size: 2.1rem !important;
+        line-height: 1.25 !important;
+        margin-bottom: 1rem !important;
+      }
+
+      .about-visual {
+        order: 2 !important;
+        width: 100% !important;
+      }
+
+      .mv-cards {
+        order: 3 !important;
+        width: 100% !important;
       }
 
       .services-grid {
@@ -2133,13 +2204,13 @@
   <header id="navbar">
     <div class="nav-container">
       <ul class="nav-links">
-        <li><a href="#hero">หน้าแรก</a></li>
-        <li><a href="#services">บริการ</a></li>
-        <li><a href="#about">เกี่ยวกับเรา</a></li>
-        <li><a href="#news">ข่าวสาร</a></li>
-        <li><a href="#career">ร่วมงาน</a></li>
-        <li><a href="#team">ทีมงาน</a></li>
-        <li><a href="#footer-section" onclick="event.preventDefault(); document.querySelector('footer').scrollIntoView({behavior:'smooth'})">ติดต่อเรา</a></li>
+        <li><a href="#hero" title="หน้าแรก"><i class="fa-solid fa-house mobile-nav-icon"></i><span class="nav-text">หน้าแรก</span></a></li>
+        <li><a href="#services" title="บริการ"><i class="fa-solid fa-briefcase mobile-nav-icon"></i><span class="nav-text">บริการ</span></a></li>
+        <li><a href="#about" title="เกี่ยวกับเรา"><i class="fa-regular fa-compass mobile-nav-icon"></i><span class="nav-text">เกี่ยวกับเรา</span></a></li>
+        <li><a href="#news" title="ข่าวสาร"><i class="fa-regular fa-newspaper mobile-nav-icon"></i><span class="nav-text">ข่าวสาร</span></a></li>
+        <li><a href="#team" title="ทีมงาน"><i class="fa-solid fa-user-group mobile-nav-icon"></i><span class="nav-text">ทีมงาน</span></a></li>
+        <li><a href="#career" title="ร่วมงาน"><i class="fa-regular fa-user mobile-nav-icon"></i><span class="nav-text">ร่วมงาน</span></a></li>
+        <li><a href="#footer-section" title="ติดต่อเรา" onclick="event.preventDefault(); document.querySelector('footer').scrollIntoView({behavior:'smooth'})"><i class="fa-regular fa-comment-dots mobile-nav-icon"></i><span class="nav-text">ติดต่อเรา</span></a></li>
       </ul>
     </div>
   </header>
@@ -2170,28 +2241,26 @@
           <div class="about-visual-inner">
             <div class="about-big-icon about-big-icon-emoji" id="about-logo-container">🏢</div>
             <h3 style="font-size:1.5rem;font-weight:700;margin-bottom:0.5rem;position:relative;z-index:1"
-              id="about-card-title">Love STK
-              Groupe</h3>
+              id="about-card-title">LOVE STK GROUPE</h3>
             <p style="color:var(--text-secondary);font-size:0.9rem;font-weight:300;position:relative;z-index:1"
               id="about-card-desc">
-              องค์กรที่เชื่อมั่นในคุณค่าของความรัก ความสามัคคี และการเติบโตร่วมกัน
+              ผู้นำกลุ่มธุรกิจเพื่อสุขภาพและนวัตกรรมที่เป็นมิตรต่อสิ่งแวดล้อมแห่งประเทศลาว LOVE STK GROUPE คือกลุ่มบริษัทชั้นนำในประเทศลาวที่ดำเนินธุรกิจอย่างมั่นคงและเติบโตอย่างต่อเนื่องมานานกว่า 8 ปี มุ่งมั่นสู่การเป็นผู้สร้างสรรค์ระบบนิเวศทางธุรกิจ (BUSINESS ECOSYSTEM) ที่ยกระดับคุณภาพชีวิตของผู้คน ควบคู่ไปกับการดูแลรักษาสิ่งแวดล้อมอย่างยั่งยืน
             </p>
-
-
           </div>
         </div>
 
-        <div class="reveal" style="transition-delay:0.15s">
-          <div class="section-badge"><i class="fas fa-info-circle"></i> เกี่ยวกับเรา</div>
-          <h2 class="section-title" style="margin-bottom:2rem">พันธกิจ วิสัยทัศน์<br />และค่านิยม</h2>
+        <div class="about-content reveal" style="transition-delay:0.15s">
+          <div class="about-header">
+            <div class="section-badge"><i class="fas fa-info-circle"></i> เกี่ยวกับเรา</div>
+            <h2 class="section-title" style="margin-bottom:2rem">พันธกิจ วิสัยทัศน์<br />และค่านิยม</h2>
+          </div>
 
           <div class="mv-cards">
             <div class="mv-card">
               <div class="mv-icon purple"><i class="fas fa-eye"></i></div>
               <div>
                 <div class="mv-label">วิสัยทัศน์</div>
-                <div class="mv-text" id="vision-text">เป็นองค์กรที่สร้างแรงบันดาลใจและคุณค่าที่ยั่งยืนให้กับสังคม
-                  ด้วยนวัตกรรมและทีมงานที่มีความสุข</div>
+                <div class="mv-text" id="vision-text">ที่สุดแห่งโครงสร้างรากฐานด้านศาสตร์ชะลอวัยธรรมชาติบำบัดและนวัตกรรมสุขภาพหนึ่งเดียวในประเทศลาว (LAOS' ULTIMATE ARCHITECTURE OF LONGEVITY AND HEALTH INNOVATION)</div>
               </div>
             </div>
             <div class="mv-card">
@@ -2200,9 +2269,9 @@
                 <div class="mv-label">พันธกิจ</div>
                 <div class="mv-text" id="mission-text">
                   <ul class="list-disc pl-4 space-y-1.5" style="list-style-type:disc">
-                    <li id="mission-mastering">พัฒนาคนและองค์กรให้เติบโตไปพร้อมกัน</li>
-                    <li id="mission-commanding">สร้างสภาพแวดล้อมที่เอื้อต่อการทำงานด้วยความสุขและประสิทธิภาพสูงสุด</li>
-                    <li id="mission-unifying">สร้างเครือข่ายความร่วมมือที่ดี</li>
+                    <li id="mission-mastering">ขับเคลื่อนศูนย์การแพทย์ชะลอวัยอันดับหนึ่ง เพื่อยกระดับคุณภาพชีวิตของผู้คนในประเทศลาว (MASTERING LONGEVITY)</li>
+                    <li id="mission-commanding">ครอบครองสิทธิ์สารอาหารนวัตกรรมระดับโลก ผสานพลังผลิตร่วมกับ 6 โรงงานพันธมิตรชั้นนำ (COMMANDING INNOVATION)</li>
+                    <li id="mission-unifying">เชื่อมต่อเครือข่ายทางการแพทย์และโรงพยาบาลพาร์ทเนอร์ เพื่อส่งต่อการดูแลรักษาที่สมบูรณ์แบบ (UNIFYING ALLIANCES)</li>
                   </ul>
                 </div>
               </div>
@@ -2211,8 +2280,7 @@
               <div class="mv-icon amber"><i class="fas fa-heart"></i></div>
               <div>
                 <div class="mv-label">ค่านิยมหลัก</div>
-                <div class="mv-text" id="values-desc">Love · Team · Knowledge — ความรัก ความร่วมมือ
-                  และการเรียนรู้ที่ไม่หยุดยั้ง คือรากฐานของทุกสิ่งที่เราทำ</div>
+                <div class="mv-text" id="values-desc">Love · System Team · Knowledge — ความรัก ความร่วมมือ และระบบ การเรียนรู้ที่ไม่หยุดยั้ง คือรากฐานของทุกสิ่งที่เราทำ</div>
               </div>
             </div>
           </div>
@@ -2477,6 +2545,7 @@
     }
 
     </script>
+    <script src="company.js"></script>
     <script src="js/i18n.js"></script>
     <script>
     // ─────────────────────────────────────────
@@ -2503,8 +2572,8 @@
     // =========================================
     // SUPABASE CONFIG
     // =========================================
-    const SUPABASE_URL = 'https://mfpkeyrykqnrywyksyqp.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
+    const SUPABASE_URL = window.SUPABASE_URL || 'https://qqyotianqcgpdzrfgjif.supabase.co';
+    const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxeW90aWFucWNncGR6cmZnamlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwNDQ1MzcsImV4cCI6MjA5ODYyMDUzN30.6VlHbimuMkg0UtxCw2cbU5mN_c9zPmizNuzrL5tCtME';
 
     const apiCache = {};
 
@@ -3030,23 +3099,33 @@
     // LOAD TEAM FROM STAFF DIRECTORY (FILTERED BY Position_ID)
     // =========================================
     async function loadTeam() {
-      // ดึงข้อมูลพนักงานทั้งหมดผ่าน Supabase API
-      const rows = await supabaseFetch('staff', '&limit=200');
+      // ดึงข้อมูลพนักงานทั้งหมดผ่าน Supabase API หรือ Local Cache
+      let rows = await supabaseFetch('staff', '&limit=200');
+      if (!Array.isArray(rows) || rows.length === 0) {
+        try {
+          const cached = localStorage.getItem('stk_app_cache_data');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && Array.isArray(parsed.staff)) rows = parsed.staff;
+          }
+        } catch (e) {}
+      }
+
       if (!Array.isArray(rows) || rows.length === 0) return;
 
-      // กรองเฉพาะพนักงานที่มีสิทธิและประเภทตำแหน่งงานบริหารที่กำหนด
-      const allowedRoles = ['ceo', 'coo', 'cfo', 'director', 'ผู้อำนวยการ'];
+      // กรองเฉพาะผู้บริหารระดับสูง (CEO, CFO, COO) เท่านั้น
+      const allowedRoles = ['ceo', 'coo', 'cfo'];
 
       const filteredRows = rows.filter(row => {
         // กรองสถานะ Active
         const statusVal = String(row.Status || row.status || '').toLowerCase().trim();
-        const isActive = statusVal === 'active' || statusVal === '' || statusVal === '-';
+        const isActive = statusVal === 'active' || statusVal === '' || statusVal === '-' || statusVal === 'ปกติ';
 
-        // กรองตำแหน่งงานจากคอลัมน์ Position_ID
-        const positionId = String(row.Position_ID || row.position_id || row['Position_ID'] || row.role || row.position || '').toLowerCase().trim();
-        const isLeader = allowedRoles.some(role => positionId.includes(role));
+        // กรองตำแหน่งงานจากคอลัมน์ Position_ID (เฉพาะ CEO, CFO, COO)
+        const positionId = String(row.Position_ID || row.position_id || row['Position_ID'] || row.role || row.position || row.Position || row['ตำแหน่ง'] || '').toLowerCase().trim();
+        const isExecutive = allowedRoles.some(role => positionId.includes(role));
 
-        return isActive && isLeader;
+        return isActive && isExecutive;
       });
 
       // หากไม่พบรายชื่อผู้ประเมินหรือพนักงานระดับบริหาร ให้เก็บสเตตัส Mock หน้าเดิมไว้
@@ -3059,7 +3138,7 @@
         const lastName = row.Last_Name || row.last_name || row['Last_Name'] || '';
         const fullName = row.name || row['Name'] || `${firstName} ${lastName}`.trim() || 'สมาชิกทีมงาน';
 
-        const role = row.Position_ID || row.position_id || row['Position_ID'] || row.role || row.position || 'เจ้าหน้าที่';
+        const role = row.Position_ID || row.position_id || row['Position_ID'] || row.role || row.position || row.Position || 'เจ้าหน้าที่';
 
         let photo = row.Photos || row.photos || row.Photo || row.photo || '';
 
@@ -3151,10 +3230,58 @@
     // LOAD COMPANY PROFILE & SUBSIDIARIES (Dynamic with Fallback)
     // =========================================
     async function loadCompanyProfile() {
-      // 1. Load initial fallback from company.js (window.COMPANY_DATA)
-      const data = window.COMPANY_DATA || {};
+      // 1. Load initial fallback from company.js (window.COMPANY_DATA) or localStorage
+      let data = { ...(window.COMPANY_DATA || {}) };
+      try {
+        const localInfo = localStorage.getItem('stk_company_info');
+        if (localInfo) {
+          const infoRows = JSON.parse(localInfo);
+          if (Array.isArray(infoRows)) {
+            infoRows.forEach(row => {
+              const key = String(row.key || '').trim();
+              const val = String(row.value || '').trim();
+              if (key === 'about_title') { if (!data.about) data.about = {}; data.about.title = val; }
+              else if (key === 'about_desc') { if (!data.about) data.about = {}; data.about.description = val; }
+              else if (key === 'vision') { data.vision = val; }
+              else if (key === 'mission_mastering') { if (!data.mission) data.mission = {}; data.mission.mastering = val; }
+              else if (key === 'mission_commanding') { if (!data.mission) data.mission = {}; data.mission.commanding = val; }
+              else if (key === 'mission_unifying') { if (!data.mission) data.mission = {}; data.mission.unifying = val; }
+              else if (key === 'company_logo') { data.company_logo = val; }
+              else if (key === 'values_desc') { data.values_desc = val; }
+              else if (key === 'subsidiaries_desc') { data.subsidiaries_desc = val; }
+              else if (key === 'careers') {
+                try {
+                  const parsed = JSON.parse(val);
+                  if (Array.isArray(parsed) && parsed.length > 0) data.careers = parsed;
+                } catch (e) {}
+              }
+            });
+          }
+        }
 
-      // Bind to UI immediately using fallback
+        const localSubs = localStorage.getItem('stk_subsidiaries');
+        if (localSubs) {
+          const subRows = JSON.parse(localSubs);
+          if (Array.isArray(subRows) && subRows.length > 0) {
+            data.subsidiaries = subRows.map(row => ({
+              id: row.id || '',
+              name: row.name || row.Name || '',
+              title: row.title || row.Title || '',
+              description: row.description || row.Description || '',
+              emoji: row.emoji || row.Emoji || '🏢',
+              sort_order: Number(row.sort_order || 99)
+            }));
+          }
+        }
+
+        const localCareers = localStorage.getItem('stk_careers');
+        if (localCareers) {
+          const parsed = JSON.parse(localCareers);
+          if (Array.isArray(parsed) && parsed.length > 0) data.careers = parsed;
+        }
+      } catch (e) {}
+
+      // Bind to UI immediately using fallback / localStorage
       bindCompanyProfileUI(data);
 
       // 2. Try to fetch fresh online data from Supabase
@@ -3194,10 +3321,15 @@
               onlineData.values_desc = val;
             } else if (key === 'careers') {
               try {
-                onlineData.careers = JSON.parse(val);
+                const parsed = JSON.parse(val);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  onlineData.careers = parsed;
+                }
               } catch (e) {
                 console.warn('Failed to parse careers JSON', e);
               }
+            } else if (key === 'subsidiaries_desc') {
+              onlineData.subsidiaries_desc = val;
             }
           });
         }
@@ -3212,6 +3344,14 @@
             emoji: row.emoji || row.Emoji || '🏢',
             sort_order: Number(row.sort_order || 99)
           }));
+        }
+
+        // Fallback check if careers or subsidiaries missing from online response
+        if (!Array.isArray(onlineData.careers) || onlineData.careers.length === 0) {
+          onlineData.careers = data.careers || (window.COMPANY_DATA && window.COMPANY_DATA.careers) || [];
+        }
+        if (!Array.isArray(onlineData.subsidiaries) || onlineData.subsidiaries.length === 0) {
+          onlineData.subsidiaries = data.subsidiaries || (window.COMPANY_DATA && window.COMPANY_DATA.subsidiaries) || [];
         }
 
         // Re-bind to UI with fresh online data
@@ -3385,10 +3525,20 @@
 
         data.subsidiaries.forEach((sub) => {
           let logoHtml = '';
-          if (sub.emoji && (sub.emoji.startsWith('http') || sub.emoji.startsWith('data:image'))) {
-            logoHtml = `<img src="${sub.emoji}" style="width: 80%; height: 80%; object-fit: contain;" />`;
+          const emojiVal = String(sub.emoji || sub.logo || sub.icon || '').trim();
+
+          if (emojiVal && (emojiVal.startsWith('http') || emojiVal.startsWith('data:image') || emojiVal.startsWith('blob:') || emojiVal.includes('/') || emojiVal.includes('.'))) {
+            // Uploaded image, Data URL, or file path from HR Website Settings
+            logoHtml = `<img src="${emojiVal}" style="width: 80%; height: 80%; object-fit: contain; max-height: 50px;" alt="${escapeHtml(sub.name || '')}" />`;
+          } else if (emojiVal && emojiVal.startsWith('<svg')) {
+            // Raw SVG markup uploaded or entered in HR Website Settings
+            logoHtml = emojiVal;
+          } else if (emojiVal && emojiVal !== '🏢' && logoSvgs[sub.id] === undefined) {
+            // Custom Emoji or custom text icon
+            logoHtml = `<div style="font-size:2.4rem; display:flex; align-items:center; justify-content:center; height:100%; width:100%;">${emojiVal}</div>`;
           } else {
-            logoHtml = logoSvgs[sub.id] || `<div style="font-size:2.2rem; display:flex; align-items:center; justify-content:center; height:100%; width:100%;">${sub.emoji || '🏢'}</div>`;
+            // Fallback to default vector SVG if no custom logo/image uploaded in HR Website Settings
+            logoHtml = logoSvgs[sub.id] || `<div style="font-size:2.2rem; display:flex; align-items:center; justify-content:center; height:100%; width:100%;">${emojiVal || '🏢'}</div>`;
           }
           const nodeClass = nodeClassMap[sub.id] || 'sub-node';
 
@@ -3419,7 +3569,7 @@
       if (careersContainer) {
         let careersList = data.careers;
         if (!Array.isArray(careersList) || careersList.length === 0) {
-          careersList = [
+          careersList = (window.COMPANY_DATA && window.COMPANY_DATA.careers) || [
             { title: 'นักพัฒนาซอฟต์แวร์', dept: 'แผนกเทคโนโลยี', badge: '2 อัตรา' },
             { title: 'เจ้าหน้าที่ฝ่าย HR', dept: 'ทรัพยากรบุคคล', badge: '1 อัตรา' },
             { title: 'ผู้จัดการการตลาด', dept: 'การตลาด', badge: '1 อัตรา' }

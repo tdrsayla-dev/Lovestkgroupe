@@ -984,10 +984,33 @@
             }
 
             if (method === 'getCompanyProfile') {
-                const [infoRows, subRows] = await Promise.all([
-                    bridge.getTableData('company_info', { select: '*' }),
-                    bridge.getTableData('subsidiaries', { select: '*' })
-                ]);
+                let infoRows = [];
+                let subRows = [];
+                try {
+                    const res = await Promise.all([
+                        bridge.getTableData('company_info', { select: '*' }),
+                        bridge.getTableData('subsidiaries', { select: '*' })
+                    ]);
+                    infoRows = res[0] || [];
+                    subRows = res[1] || [];
+                } catch (e) {
+                    console.warn('[Company Profile] Supabase table fetch failed (tables may be missing in Supabase):', e);
+                }
+
+                if (!Array.isArray(infoRows) || infoRows.length === 0) {
+                    try {
+                        const localInfo = localStorage.getItem('stk_company_info');
+                        if (localInfo) infoRows = JSON.parse(localInfo);
+                    } catch (e) {}
+                }
+
+                if (!Array.isArray(subRows) || subRows.length === 0) {
+                    try {
+                        const localSubs = localStorage.getItem('stk_subsidiaries');
+                        if (localSubs) subRows = JSON.parse(localSubs);
+                    } catch (e) {}
+                }
+
                 if (Array.isArray(subRows)) {
                     subRows.sort((a, b) => Number(a.sort_order || 99) - Number(b.sort_order || 99));
                 }
@@ -996,30 +1019,39 @@
 
             if (method === 'saveCompanyProfile') {
                 const [infoUpdates, subUpdates, deletedSubIds] = args;
-                if (Array.isArray(infoUpdates)) {
-                    for (const row of infoUpdates) {
-                        const updated = await bridge.updateRow('company_info', 'key', row.key, { value: row.value });
-                        if (!Array.isArray(updated) || updated.length === 0) {
-                            // Key doesn't exist yet (e.g. 'careers'), insert it
-                            await bridge.insertRows('company_info', [{ key: row.key, value: row.value }]);
+                try {
+                    localStorage.setItem('stk_company_info', JSON.stringify(infoUpdates || []));
+                    localStorage.setItem('stk_subsidiaries', JSON.stringify(subUpdates || []));
+                } catch (e) {}
+
+                try {
+                    if (Array.isArray(infoUpdates)) {
+                        for (const row of infoUpdates) {
+                            const updated = await bridge.updateRow('company_info', 'key', row.key, { value: row.value });
+                            if (!Array.isArray(updated) || updated.length === 0) {
+                                // Key doesn't exist yet (e.g. 'careers'), insert it
+                                await bridge.insertRows('company_info', [{ key: row.key, value: row.value }]);
+                            }
                         }
                     }
-                }
-                if (Array.isArray(subUpdates) && subUpdates.length > 0) {
-                    const rowsToUpsert = subUpdates.map(row => ({
-                        id: row.id,
-                        name: row.name,
-                        title: row.title,
-                        description: row.description,
-                        emoji: row.emoji,
-                        sort_order: Number(row.sort_order || 99)
-                    }));
-                    await bridge.insertRows('subsidiaries', rowsToUpsert, { upsert: true, onConflict: 'id' });
-                }
-                if (Array.isArray(deletedSubIds) && deletedSubIds.length > 0) {
-                    for (const id of deletedSubIds) {
-                        await bridge.deleteRow('subsidiaries', 'id', id);
+                    if (Array.isArray(subUpdates) && subUpdates.length > 0) {
+                        const rowsToUpsert = subUpdates.map(row => ({
+                            id: row.id,
+                            name: row.name,
+                            title: row.title,
+                            description: row.description,
+                            emoji: row.emoji,
+                            sort_order: Number(row.sort_order || 99)
+                        }));
+                        await bridge.insertRows('subsidiaries', rowsToUpsert, { upsert: true, onConflict: 'id' });
                     }
+                    if (Array.isArray(deletedSubIds) && deletedSubIds.length > 0) {
+                        for (const id of deletedSubIds) {
+                            await bridge.deleteRow('subsidiaries', 'id', id);
+                        }
+                    }
+                } catch (dbErr) {
+                    console.warn('[saveCompanyProfile] Supabase database update failed (tables may be missing), saved locally to LocalStorage.', dbErr);
                 }
                 return { success: true };
             }
@@ -3285,8 +3317,8 @@
                             });
                             
                              // 2. ดึงข้อมูลยอดขายฝั่ง MLM และข้อมูลสมาชิก MLM (stk_members)
-                            const mlmUrl = 'https://mfpkeyrykqnrywyksyqp.supabase.co';
-                            const mlmKey = 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
+                            const mlmUrl = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_URL) || window.SUPABASE_URL || 'https://qqyotianqcgpdzrfgjif.supabase.co';
+                            const mlmKey = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_ANON_KEY) || window.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxeW90aWFucWNncGR6cmZnamlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwNDQ1MzcsImV4cCI6MjA5ODYyMDUzN30.6VlHbimuMkg0UtxCw2cbU5mN_c9zPmizNuzrL5tCtME';
                             
                             let salesMap = {};
                             let mlmMembersMap = {};
