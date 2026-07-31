@@ -360,6 +360,13 @@
                 if (mapped === 'is_evaluator') {
                     val = String(val).toLowerCase() === 'true' || val === true;
                 }
+                if (mapped === 'star_point') {
+                    let numVal = parseFloat(val) || 0;
+                    if (numVal > 5) {
+                        numVal = numVal / 100;
+                    }
+                    val = numVal;
+                }
                 if (val === '') {
                     val = null;
                 }
@@ -2851,7 +2858,7 @@
                         const exportWrap = document.getElementById('fb-export-wrap');
                         const titleEl = document.getElementById('fb-section-title');
 
-                        let sessionStr = sessionStorage.getItem('currentUser') || localStorage.getItem('currentUser');
+                        let sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session') || sessionStorage.getItem('currentUser') || localStorage.getItem('currentUser');
                         let role = 'Staff';
                         let userPerms = [];
                         if (sessionStr) {
@@ -2864,14 +2871,14 @@
                             } catch (e) { }
                         }
 
-                        const hasFbExplicit = Array.isArray(userPerms) && userPerms.some(p => {
-                            const str = String(p || '').toLowerCase();
-                            return str.includes('fb_budget') || str.includes('facebook-budget');
+                        const hasFbSubMenuPerms = Array.isArray(userPerms) && userPerms.some(p => {
+                            const s = String(p || '').toLowerCase();
+                            return s.includes('fb_budget_form') || s.includes('fb_budget_list') || s.includes('fb_budget_report');
                         });
 
-                        const hasFormPerm = role === 'Admin' || !hasFbExplicit || (typeof isMenuPermissionChecked === 'function' && (isMenuPermissionChecked('FB_Budget_Form', userPerms) || isMenuPermissionChecked('facebook-budget', userPerms)));
-                        const hasListPerm = role === 'Admin' || !hasFbExplicit || (typeof isMenuPermissionChecked === 'function' && (isMenuPermissionChecked('FB_Budget_List', userPerms) || isMenuPermissionChecked('facebook-budget', userPerms)));
-                        const hasReportPerm = role === 'Admin' || !hasFbExplicit || (typeof isMenuPermissionChecked === 'function' && (isMenuPermissionChecked('FB_Budget_Report', userPerms) || isMenuPermissionChecked('facebook-budget', userPerms)));
+                        const hasFormPerm = role === 'Admin' || (hasFbSubMenuPerms ? (typeof isMenuPermissionChecked === 'function' && isMenuPermissionChecked('FB_Budget_Form', userPerms)) : (typeof isMenuPermissionChecked === 'function' && isMenuPermissionChecked('facebook-budget', userPerms)));
+                        const hasListPerm = role === 'Admin' || (hasFbSubMenuPerms ? (typeof isMenuPermissionChecked === 'function' && isMenuPermissionChecked('FB_Budget_List', userPerms)) : (typeof isMenuPermissionChecked === 'function' && isMenuPermissionChecked('facebook-budget', userPerms)));
+                        const hasReportPerm = role === 'Admin' || (hasFbSubMenuPerms ? (typeof isMenuPermissionChecked === 'function' && isMenuPermissionChecked('FB_Budget_Report', userPerms)) : (typeof isMenuPermissionChecked === 'function' && isMenuPermissionChecked('facebook-budget', userPerms)));
 
                         if (btnForm) btnForm.style.display = hasFormPerm ? '' : 'none';
                         if (btnDash) btnDash.style.display = hasListPerm ? '' : 'none';
@@ -2984,6 +2991,22 @@
 
                     window.editFbBudget = function(encodedFbRow) {
                         try {
+                            const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+                            let userRole = 'Staff', userPerms = [];
+                            if (sessionStr) {
+                                try {
+                                    const s = JSON.parse(sessionStr);
+                                    userRole = s.role || 'Staff';
+                                    if (s.permissions) userPerms = typeof parsePermissionsList === 'function' ? parsePermissionsList(s.permissions) : s.permissions;
+                                } catch (e) { }
+                            }
+                            const canEditFb = userRole === 'Admin' || (typeof hasActionPermission === 'function' ? (hasActionPermission('FB_Budget_List', 'edit', userPerms) || hasActionPermission('FB_Budget_Form', 'edit', userPerms) || hasActionPermission('facebook-budget', 'edit', userPerms)) : (userRole !== 'Staff'));
+                            if (!canEditFb) {
+                                if (typeof showToast === 'function') showToast('คุณไม่มีสิทธิ์แก้ไขรายการเบิกงบ Facebook', 'error');
+                                else alert('คุณไม่มีสิทธิ์แก้ไขรายการเบิกงบ Facebook');
+                                return;
+                            }
+
                             let b = typeof encodedFbRow === 'object' ? encodedFbRow : JSON.parse(decodeURIComponent(encodedFbRow));
                             editingFbId = b.raw_id || b.id || b.Id_Budget;
                             
@@ -3009,6 +3032,26 @@
 
                     async function submitFacebookBudget(e) {
                         e.preventDefault();
+                        const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+                        let userRole = 'Staff', userPerms = [];
+                        if (sessionStr) {
+                            try {
+                                const s = JSON.parse(sessionStr);
+                                userRole = s.role || 'Staff';
+                                if (s.permissions) userPerms = typeof parsePermissionsList === 'function' ? parsePermissionsList(s.permissions) : s.permissions;
+                            } catch (err) { }
+                        }
+
+                        const isEditMode = Boolean(editingFbId);
+                        const requiredAct = isEditMode ? 'edit' : 'add';
+                        const canSubmitFb = userRole === 'Admin' || (typeof hasActionPermission === 'function' ? (hasActionPermission('FB_Budget_Form', requiredAct, userPerms) || hasActionPermission('FB_Budget_List', requiredAct, userPerms) || hasActionPermission('facebook-budget', requiredAct, userPerms)) : true);
+
+                        if (!canSubmitFb) {
+                            if (typeof showToast === 'function') showToast(`คุณไม่มีสิทธิ์${isEditMode ? 'แก้ไข' : 'สร้าง'}รายการเบิกงบ Facebook`, 'error');
+                            else alert(`คุณไม่มีสิทธิ์${isEditMode ? 'แก้ไข' : 'สร้าง'}รายการเบิกงบ Facebook`);
+                            return;
+                        }
+
                         const btn = document.getElementById('fb_submit_btn');
                         btn.disabled = true;
                         btn.innerText = 'กำลังบันทึก...';
@@ -3053,6 +3096,22 @@
                     }
 
                     window.deleteFbBudget = function(id) {
+                        const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+                        let userRole = 'Staff', userPerms = [];
+                        if (sessionStr) {
+                            try {
+                                const s = JSON.parse(sessionStr);
+                                userRole = s.role || 'Staff';
+                                if (s.permissions) userPerms = typeof parsePermissionsList === 'function' ? parsePermissionsList(s.permissions) : s.permissions;
+                            } catch (e) { }
+                        }
+                        const canDeleteFb = userRole === 'Admin' || (typeof hasActionPermission === 'function' ? (hasActionPermission('FB_Budget_List', 'delete', userPerms) || hasActionPermission('FB_Budget_Form', 'delete', userPerms) || hasActionPermission('facebook-budget', 'delete', userPerms)) : (userRole !== 'Staff'));
+                        if (!canDeleteFb) {
+                            if (typeof showToast === 'function') showToast('คุณไม่มีสิทธิ์ลบรายการเบิกงบ Facebook', 'error');
+                            else alert('คุณไม่มีสิทธิ์ลบรายการเบิกงบ Facebook');
+                            return;
+                        }
+
                         if (!id || id === 'undefined' || String(id).startsWith('FB-')) {
                             if (typeof showToast === 'function') showToast('ไม่สามารถลบรายการจำลองได้', 'error');
                             else alert('ไม่สามารถลบรายการจำลองได้');
@@ -3177,6 +3236,18 @@
                         if (tbody) tbody.innerHTML = '';
                         if (reportTbody) reportTbody.innerHTML = '';
                         if (loading) loading.classList.remove('hidden');
+
+                        const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+                        let userRole = 'Staff', userPerms = [];
+                        if (sessionStr) {
+                            try {
+                                const s = JSON.parse(sessionStr);
+                                userRole = s.role || 'Staff';
+                                if (s.permissions) userPerms = typeof parsePermissionsList === 'function' ? parsePermissionsList(s.permissions) : s.permissions;
+                            } catch (e) { }
+                        }
+                        const canEditFb = userRole === 'Admin' || (typeof hasActionPermission === 'function' ? (hasActionPermission('FB_Budget_List', 'edit', userPerms) || hasActionPermission('facebook-budget', 'edit', userPerms)) : (userRole !== 'Staff'));
+                        const canDeleteFb = userRole === 'Admin' || (typeof hasActionPermission === 'function' ? (hasActionPermission('FB_Budget_List', 'delete', userPerms) || hasActionPermission('facebook-budget', 'delete', userPerms)) : (userRole !== 'Staff'));
 
                         // Set default date range if empty
                         const sInput = document.getElementById('fb_start_date');
@@ -3519,15 +3590,19 @@
                                             </td>
                                             <td class="p-4 text-center">
                                                 <div class="flex items-center justify-center space-x-2">
-                                                    <button onclick="editFbBudget('${encodedFbRow}')" class="p-1 text-blue-600 hover:text-blue-800 transition" title="แก้ไข">
-                                                        <i class="fa-regular fa-pen-to-square text-base"></i>
-                                                    </button>
+                                                    ${canEditFb ? `
+                                                        <button onclick="editFbBudget('${encodedFbRow}')" class="p-1 text-blue-600 hover:text-blue-800 transition" title="แก้ไข">
+                                                            <i class="fa-regular fa-pen-to-square text-base"></i>
+                                                        </button>
+                                                    ` : ''}
                                                     <button onclick="window.showBillDetailsModal('${encodedRow}')" class="p-1 text-purple-600 hover:text-purple-800 transition" title="ดูใบขออนุมัติ">
                                                         <i class="fa-solid fa-file-invoice text-base"></i>
                                                     </button>
-                                                    <button onclick="deleteFbBudget('${b.id}')" class="p-1 text-rose-500 hover:text-rose-700 transition" title="ลบ">
-                                                        <i class="fa-regular fa-trash-can text-base"></i>
-                                                    </button>
+                                                    ${canDeleteFb ? `
+                                                        <button onclick="deleteFbBudget('${b.id}')" class="p-1 text-rose-500 hover:text-rose-700 transition" title="ลบ">
+                                                            <i class="fa-regular fa-trash-can text-base"></i>
+                                                        </button>
+                                                    ` : ''}
                                                 </div>
                                             </td>
                                         </tr>
@@ -3675,15 +3750,19 @@
                                             </td>
                                             <td class="p-4 text-center">
                                                 <div class="flex items-center justify-center space-x-2">
-                                                    <button onclick="editFbBudget('${encodedFbRow}')" class="p-1 text-blue-600 hover:text-blue-800 transition" title="แก้ไข">
-                                                        <i class="fa-regular fa-pen-to-square text-base"></i>
-                                                    </button>
+                                                    ${canEditFb ? `
+                                                        <button onclick="editFbBudget('${encodedFbRow}')" class="p-1 text-blue-600 hover:text-blue-800 transition" title="แก้ไข">
+                                                            <i class="fa-regular fa-pen-to-square text-base"></i>
+                                                        </button>
+                                                    ` : ''}
                                                     <button onclick="window.showBillDetailsModal('${encodedRow}')" class="p-1 text-purple-600 hover:text-purple-800 transition" title="ดูใบขออนุมัติ">
                                                         <i class="fa-solid fa-file-invoice text-base"></i>
                                                     </button>
-                                                    <button onclick="deleteFbBudget('${lastReq.id}')" class="p-1 text-rose-500 hover:text-rose-700 transition" title="ลบ">
-                                                        <i class="fa-regular fa-trash-can text-base"></i>
-                                                    </button>
+                                                    ${canDeleteFb ? `
+                                                        <button onclick="deleteFbBudget('${lastReq.id}')" class="p-1 text-rose-500 hover:text-rose-700 transition" title="ลบ">
+                                                            <i class="fa-regular fa-trash-can text-base"></i>
+                                                        </button>
+                                                    ` : ''}
                                                 </div>
                                             </td>
                                         </tr>
