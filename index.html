@@ -2481,55 +2481,31 @@
   <!-- ===== JAVASCRIPT ===== -->
   <script src="company.js"></script>
   <script>
+    function getAppRootPath() {
+      let path = window.location.pathname;
+      if (path.endsWith('.html') || path.endsWith('.htm')) {
+        path = path.substring(0, path.lastIndexOf('/') + 1);
+      }
+      path = path.replace(/\/(clinic|Clinic|mlm|project-phase23)(\/.*)?$/i, '/');
+      if (!path.endsWith('/')) {
+        path += '/';
+      }
+      return path;
+    }
+
     function goToClinic(e) {
       if (e) e.preventDefault();
-      let path = window.location.pathname;
-      if (path.includes('/mlm/')) {
-        var base = path.substring(0, path.indexOf('/mlm/'));
-        window.location.href = window.location.origin + base + '/clinic/login.html';
-        return;
-      }
-      if (path.includes('/project-phase23/')) {
-        var base = path.substring(0, path.indexOf('/project-phase23/'));
-        window.location.href = window.location.origin + base + '/clinic/login.html';
-        return;
-      }
-      let dir = path.substring(0, path.lastIndexOf('/') + 1);
-      window.location.href = window.location.origin + dir + 'clinic/login.html';
+      window.location.href = window.location.origin + getAppRootPath() + 'clinic/login.html';
     }
 
     function goToHr(e) {
       if (e) e.preventDefault();
-      let path = window.location.pathname;
-      if (path.includes('/mlm/')) {
-        var base = path.substring(0, path.indexOf('/mlm/'));
-        window.location.href = window.location.origin + base + '/login.html';
-        return;
-      }
-      if (path.includes('/project-phase23/')) {
-        var base = path.substring(0, path.indexOf('/project-phase23/'));
-        window.location.href = window.location.origin + base + '/login.html';
-        return;
-      }
-      let dir = path.substring(0, path.lastIndexOf('/') + 1);
-      window.location.href = window.location.origin + dir + 'login.html';
+      window.location.href = window.location.origin + getAppRootPath() + 'login.html';
     }
 
     function goToMlm(e) {
       if (e) e.preventDefault();
-      let path = window.location.pathname;
-      if (path.includes('/mlm/')) {
-        var base = path.substring(0, path.indexOf('/mlm/'));
-        window.location.href = window.location.origin + base + '/mlm/Mlm.html';
-        return;
-      }
-      if (path.includes('/project-phase23/')) {
-        var base = path.substring(0, path.indexOf('/project-phase23/'));
-        window.location.href = window.location.origin + base + '/mlm/Mlm.html';
-        return;
-      }
-      let dir = path.substring(0, path.lastIndexOf('/') + 1);
-      window.location.href = window.location.origin + dir + 'mlm/Mlm.html';
+      window.location.href = window.location.origin + getAppRootPath() + 'mlm/Mlm.html';
     }
 
     </script>
