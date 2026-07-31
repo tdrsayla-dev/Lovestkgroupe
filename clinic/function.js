@@ -3901,9 +3901,9 @@ function applyUserPermissions(currentUser) {
     if (isIndexPage && !hasDashboardAccess) {
         const firstAllowedKey = allMenuKeys.find(k => k !== 'dashboard' && permissions.includes(k));
         if (firstAllowedKey) {
-            window.location.href = `clinic.html?page=${firstAllowedKey}`;
+            window.location.href = `Clinic.html?page=${firstAllowedKey}`;
         } else {
-            window.location.href = `clinic.html`;
+            window.location.href = `Clinic.html`;
         }
         return;
     }
