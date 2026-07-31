@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>จัดการผู้ปิดการขาย (Closers) - LOVE STK GROUPE</title>
+  <title>ผู้ปิดการขาย (Closers) - LOVE STK GROUPE</title>
   <!-- Standalone & GAS Libraries -->
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
@@ -14,39 +14,24 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
-  <!-- ✅ Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <!-- ✅ STK Supabase Config -->
   <script>
-    window.SUPABASE_URL      = 'https://mfpkeyrykqnrywyksyqp.supabase.co';
-    window.SUPABASE_ANON_KEY = 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
-    window.SUPABASE_REST_URL = window.SUPABASE_URL + '/rest/v1';
-    window.SUPABASE_HEADERS  = { 'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation' };
-    if (typeof supabase !== 'undefined') { window.supabaseClient = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY); console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL); }
-    async function supabaseSelect(table,query){var url=window.SUPABASE_REST_URL+'/'+table+(query?'?'+query:'');var res=await fetch(url,{method:'GET',headers:window.SUPABASE_HEADERS});if(!res.ok){var t=await res.text();throw new Error('SELECT '+table+': '+res.status+' '+t);}return res.json();}
-    async function supabaseInsert(table,data){var res=await fetch(window.SUPABASE_REST_URL+'/'+table,{method:'POST',headers:window.SUPABASE_HEADERS,body:JSON.stringify(data)});if(!res.ok){var t=await res.text();throw new Error('INSERT '+table+': '+res.status+' '+t);}return res.json();}
-    async function supabaseUpdate(table,id,data){var res=await fetch(window.SUPABASE_REST_URL+'/'+table+'?id=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(data)});if(!res.ok){var t=await res.text();throw new Error('UPDATE '+table+': '+res.status+' '+t);}return res.json();}
-    async function supabaseDelete(table,id){var h=Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'});var res=await fetch(window.SUPABASE_REST_URL+'/'+table+'?id=eq.'+encodeURIComponent(id),{method:'DELETE',headers:h});if(!res.ok){var t=await res.text();throw new Error('DELETE '+table+': '+res.status+' '+t);}return true;}
-    async function supabaseUpsert(table,data){var h=Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'resolution=merge-duplicates,return=representation'});var res=await fetch(window.SUPABASE_REST_URL+'/'+table,{method:'POST',headers:h,body:JSON.stringify(data)});if(!res.ok){var t=await res.text();throw new Error('UPSERT '+table+': '+res.status+' '+t);}return res.json();}
+    window.SUPABASE_URL='https://mfpkeyrykqnrywyksyqp.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
+    if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
+    async function supabaseSelect(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:window.SUPABASE_HEADERS});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();}
+    async function supabaseInsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('INSERT '+t+':'+r.status);return r.json();}
+    async function supabaseUpdate(t,id,d,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('UPDATE '+t+':'+r.status);return r.json();}
+    async function supabaseDelete(t,id,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'DELETE',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'})});if(!r.ok)throw new Error('DELETE '+t+':'+r.status);return true;}
   </script>
   <script src="CommonComponents.js"></script>
-  <script>
-    window.addEventListener('DOMContentLoaded', function() {
-      setTimeout(function() {
-        var loader = document.getElementById('initial-loader');
-        if (loader) loader.style.display = 'none';
-      }, 600);
-    });
-  </script>
-  <!-- <?!= include('Includes'); ?> -->
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
   <div id="initial-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999;">
     <div style="width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 24px;"></div>
     <style>@keyframes initial-spin { to { transform: rotate(360deg); } }</style>
-    <h2 style="font-size: 1.75rem; font-weight: 800; color: #1e40af; margin: 0; letter-spacing: -0.025em;">STK<span style="color: #475569;">System</span></h2>
-    <p style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 8px;">กำลังโหลดระบบจัดการข้อมูล...</p>
+    <h2 style="font-size: 1.75rem; font-weight: 800; color: #1e40af; margin: 0; letter-spacing: -0.025em;">LOVE <span style="color: #475569;">STK GROUPE</span></h2>
+    <p style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 8px;">กำลังโหลดข้อมูลผู้ปิดการขาย...</p>
   </div>
 
   <div id="root"></div>
@@ -54,26 +39,14 @@
   <script type="text/babel">
     const { useState, useMemo, useEffect, useRef, useCallback } = React;
 
-    const fallbackCustomerTypes = window.fallbackCustomerTypes || [
-       { id: 'T001', name: 'ลูกค้าใหม่', status: 'ใช้งาน' },
-       { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'ใช้งาน' }
-    ];
-    const fallbackProductsList = window.fallbackProductsList || ['SESAMIN', 'APPLE', 'KING_GOLD'];
-
-    /* <?!= include('CommonComponents'); ?> */
-
-
-    // ==========================================
-    // 📌 Closers Management View Component
-    // ==========================================
-    const ClosersManagementView = ({ closers, setClosers, isAdmin, showToast }) => {
+    const ClosersManagementView = ({ closers, setClosers, businessTeams, isAdmin, showToast }) => {
         const [showForm, setShowForm] = useState(false);
         const [isEditing, setIsEditing] = useState(false);
         const [isSubmitting, setIsSubmitting] = useState(false);
         const [searchTerm, setSearchTerm] = useState(''); 
         const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null, title: '' });
         
-        const initialFormState = { id: '', name: '', team: 'Marketing', status: 'ใช้งาน' };
+        const initialFormState = { id: '', name: '', team: 'ทีมแพทย์/คลินิก', status: 'ใช้งาน' };
         const [formData, setFormData] = useState(initialFormState);
 
         const handleOpenAdd = () => {
@@ -83,64 +56,81 @@
           setFormData({ ...initialFormState, id: "C" + nextIdNum.toString().padStart(3, '0') });
           setShowForm(true);
         };
-        const handleOpenEdit = (closer) => { 
-           setIsEditing(true); 
-           let editingTeam = closer.team;
-           if (editingTeam === 'Team A') editingTeam = 'Marketing';
-           if (editingTeam === 'Team B') editingTeam = 'Center';
-           setFormData({ ...closer, team: editingTeam }); 
-           setShowForm(true); 
-        };
+        const handleOpenEdit = (closer) => { setIsEditing(true); setFormData({ team: 'ทีมแพทย์/คลินิก', ...closer }); setShowForm(true); };
 
         const handleSave = (e) => {
-           e.preventDefault(); if (!formData.id || !formData.name) return; setIsSubmitting(true);
-           if (typeof google !== 'undefined' && google.script) {
-              if(isEditing) {
-                 google.script.run.withSuccessHandler(() => {
-                     setClosers((closers || []).map(p => p && safeUpper(p.id) === safeUpper(formData.id) ? formData : p)); setShowForm(false); setIsSubmitting(false); showToast('แก้ไขสำเร็จ', 'success');
-                 }).updateCloserData(formData); 
-              } else {
-                 google.script.run.withSuccessHandler(() => {
-                      setClosers([...(closers || []), formData]); setShowForm(false); setIsSubmitting(false); showToast('เพิ่มสำเร็จ', 'success');
-                 }).saveCloserData(formData); 
-              }
-           } else {
-              setTimeout(() => { if(isEditing) setClosers((closers || []).map(p => p && safeUpper(p.id) === safeUpper(formData.id) ? formData : p)); else setClosers([...(closers || []), formData]); setShowForm(false); setIsSubmitting(false); showToast('จำลองบันทึกสำเร็จ', 'success'); }, 500);
+           e.preventDefault(); 
+           if (!formData.id || !formData.name) return; 
+           setIsSubmitting(true);
+           
+           if (window.SUPABASE_REST_URL) {
+              const supaData = { closer_id: formData.id, name: formData.name, team: formData.team || 'ทีมแพทย์/คลินิก', status: formData.status };
+              const req = isEditing 
+                ? supabaseUpdate('stk_closers', formData.id, supaData, 'closer_id')
+                : supabaseInsert('stk_closers', supaData);
+
+              req.then(() => {
+                 if(isEditing) setClosers((closers || []).map(p => p && safeUpper(p.id) === safeUpper(formData.id) ? formData : p)); 
+                 else setClosers([...(closers || []), formData]); 
+                 setShowForm(false); 
+                 setIsSubmitting(false); 
+                 showToast(isEditing ? 'แก้ไขผู้ปิดการขายสำเร็จ' : 'เพิ่มผู้ปิดการขายสำเร็จ', 'success');
+              }).catch(err => {
+                 setIsSubmitting(false);
+                 showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
+              });
            }
         };
+
         const executeDelete = () => { 
             const id = confirmDelete.id; 
-            if (typeof google !== 'undefined' && google.script) { google.script.run.withSuccessHandler(()=>{setClosers((closers || []).filter(p => p && p.id !== id)); showToast('ลบสำเร็จ', 'success');}).deleteCloserData(id); } else { setClosers((closers || []).filter(p => p && p.id !== id)); showToast('จำลองลบสำเร็จ', 'success');} 
+            supabaseDelete('stk_closers', id, 'closer_id').then(() => {
+               setClosers((closers || []).filter(p => p && p.id !== id)); 
+               showToast('ลบผู้ปิดการขายสำเร็จ', 'success');
+            }).catch(err => {
+               showToast('ลบล้มเหลว: ' + err.message, 'error');
+            });
         };
 
-        const filteredClosers = (closers || []).filter(p => p && ((p.id && String(p.id).toLowerCase().includes(searchTerm.toLowerCase())) || (p.name && String(p.name).toLowerCase().includes(searchTerm.toLowerCase()))));
+        const filteredClosers = (closers || []).filter(p => p && ((p.id && String(p.id).toLowerCase().includes(searchTerm.toLowerCase())) || (p.name && String(p.name).toLowerCase().includes(searchTerm.toLowerCase())) || (p.team && String(p.team).toLowerCase().includes(searchTerm.toLowerCase()))));
 
         return (
           <div className="space-y-6 animation-fade-in relative w-full">
-            <ConfirmModal isOpen={confirmDelete.show} onClose={() => setConfirmDelete({show: false, id: null, title: ''})} onConfirm={executeDelete} title="ยืนยันการลบผู้ปิดการขาย" message={`คุณต้องการลบรายชื่อ "${confirmDelete.title}" ใช่หรือไม่?`} />
+            <ConfirmModal isOpen={confirmDelete.show} onClose={() => setConfirmDelete({show: false, id: null, title: ''})} onConfirm={executeDelete} title="ยืนยันการลบผู้ปิดการขาย" message={`คุณต้องการลบ "${confirmDelete.title}" ใช่หรือไม่?`} />
             
-            <EditModal isOpen={showForm} onClose={() => setShowForm(false)} title={isEditing ? 'แก้ไขผู้ปิดการขาย' : 'เพิ่มรายชื่อผู้ปิดการขาย'} icon={Headset}>
+            <EditModal isOpen={showForm} onClose={() => setShowForm(false)} title={isEditing ? 'แก้ไขผู้ปิดการขาย' : 'เพิ่มผู้ปิดการขายใหม่'} icon={Headset}>
                 <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div><label className={labelClassHud}>รหัส (ID)</label><input type="text" disabled={isEditing} className={inputClassHud} value={formData.id} onChange={e=>setFormData({...formData,id:e.target.value})}/></div>
-                  <div><label className={labelClassHud}>ชื่อผู้ปิดการขาย</label><input type="text" className={`${inputClassHud}`} value={formData.name} onChange={e=>setFormData({...formData,name:e.target.value})}/></div>
-                  <div><label className={labelClassHud}>ทีมที่สังกัด</label><select className={inputClassHud} value={formData.team} onChange={e=>setFormData({...formData,team:e.target.value})}><option value="Marketing">ทีม Marketing</option><option value="Center">ทีม Center</option></select></div>
+                  <div><label className={labelClassHud}>รหัสผู้ปิดการขาย</label><input type="text" disabled={isEditing} className={inputClassHud} value={formData.id} onChange={e=>setFormData({...formData,id:e.target.value})}/></div>
+                  <div><label className={labelClassHud}>ชื่อ - นามสกุล (หมอ / เซลส์ผู้ปิดการขาย)</label><input type="text" required className={inputClassHud} value={formData.name} onChange={e=>setFormData({...formData,name:e.target.value})}/></div>
+                  <div>
+                    <label className={labelClassHud}>สังกัด / ทีมการทำงาน</label>
+                    <select className={inputClassHud} value={formData.team} onChange={e=>setFormData({...formData,team:e.target.value})}>
+                      <option value="ทีมแพทย์/คลินิก">🩺 ทีมแพทย์ / คลินิกที่ปรึกษา</option>
+                      <option value="ทีมผู้เชี่ยวชาญปิดการขาย">🎧 ทีมผู้เชี่ยวชาญปิดการขาย (Closer)</option>
+                      <option value="ฝ่ายการตลาด (Marketing)">📢 ฝ่ายการตลาด (Marketing)</option>
+                      <option value="ฝ่ายขายส่วนกลาง (Central Sales)">🏢 ฝ่ายขายส่วนกลาง (Central Sales)</option>
+                      {(businessTeams || []).map(t => (
+                        <option key={t.id || t.name} value={t.name}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
                   <div><label className={labelClassHud}>สถานะ</label><select className={inputClassHud} value={formData.status} onChange={e=>setFormData({...formData,status:e.target.value})}><option value="ใช้งาน">ใช้งาน</option><option value="ไม่ใช้งาน">ไม่ใช้งาน</option></select></div>
-                  <div className="col-span-1 md:col-span-2 text-right pt-4 border-t border-slate-100 mt-2 flex justify-end gap-3"><button type="button" onClick={()=>setShowForm(false)} className={btnClassSecondary}>ยกเลิก</button><button type="submit" disabled={isSubmitting} className={btnClassPrimary}>{isSubmitting ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</button></div>
+                  <div className="md:col-span-2 text-right pt-4 border-t border-slate-100 mt-2 flex justify-end gap-3"><button type="button" onClick={()=>setShowForm(false)} className={btnClassSecondary}>ยกเลิก</button><button type="submit" disabled={isSubmitting} className={btnClassPrimary}>{isSubmitting ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</button></div>
                 </form>
             </EditModal>
 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <h2 className="text-2xl font-bold text-slate-800">จัดการผู้ปิดการขาย (Closers)</h2>
-              <div className="flex w-full sm:w-auto items-center gap-3">
+               <h2 className="text-2xl font-bold text-slate-800">จัดการข้อมูลผู้ปิดการขาย (Closers)</h2>
+               <div className="flex w-full sm:w-auto items-center gap-3">
                  <div className="flex items-center bg-slate-50/30 focus-within:bg-white border border-slate-200 rounded-xl px-3 shadow-sm focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 transition-all duration-300 flex-1 sm:w-72 h-[38px] sm:h-[40px]">
                     <SearchIcon size={18} className="text-slate-400 shrink-0" />
-                    <input type="text" placeholder="ค้นหารหัส หรือ ชื่อ..." className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                    <input type="text" placeholder="ค้นหารหัส, ชื่อ, สังกัด..." className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                  </div>
-                 <button onClick={handleOpenAdd} className={`${btnClassPrimary} shrink-0`}><Plus size={18}/> เพิ่มรายชื่อ</button>
-              </div>
+                 <button onClick={handleOpenAdd} className={`${btnClassPrimary} shrink-0`}><Plus size={18}/> เพิ่มผู้ปิดการขาย</button>
+               </div>
             </div>
-            
-            <div className="bg-indigo-50 p-4 rounded-2xl shadow-sm border border-indigo-100 flex items-center gap-3"><Info size={24} className="text-indigo-500 shrink-0"/><p className="text-sm text-indigo-800 font-medium">จัดการรายชื่อและทีมของผู้ปิดการขาย (Closer) เพื่อไปแสดงในฟอร์มบันทึกการขาย</p></div>
+
+            <div className="bg-purple-50 p-4 rounded-2xl shadow-sm border border-purple-100 flex items-center gap-3"><Info size={24} className="text-purple-500 shrink-0"/><p className="text-sm text-purple-800 font-medium">จัดการรายชื่อหมอและผู้ปิดการขาย พร้อมระบุสังกัดทีมการทำงานสำหรับแสดงในหน้าป้อนข้อมูลการขาย</p></div>
             
             <div className={`${boxWrapper} p-0 overflow-hidden`}>
               <div className="overflow-x-auto">
@@ -148,26 +138,30 @@
                   <thead>
                     <tr>
                       <th className={tableHeaderClass}>รหัส</th>
-                      <th className={tableHeaderClass}>ชื่อ</th>
-                      <th className={tableHeaderClass}>ทีมสังกัด</th>
+                      <th className={tableHeaderClass}>ชื่อ - นามสกุล</th>
+                      <th className={tableHeaderClass}>สังกัด / ทีมการทำงาน</th>
                       <th className={tableHeaderClass}>สถานะ</th>
                       <th className={`${tableHeaderClass} text-center`}>จัดการ</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredClosers.map(p=>(
-                      <tr key={p?.id || Math.random()} className="hover:bg-blue-50/50 transition-colors">
+                    {filteredClosers.map((p, index)=>(
+                      <tr key={p?.id || `closer-${index}`} className="hover:bg-blue-50/50 transition-colors">
                         <td className={tableCellClass}>{p?.id}</td>
-                        <td className={`${tableCellClass} font-bold text-blue-700`}>{p?.name}</td>
-                        <td className={tableCellClass}><span className={`text-[11px] px-3 py-1.5 border rounded-lg font-bold ${p?.team === 'Marketing' || p?.team === 'Team A' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-fuchsia-50 border-fuchsia-200 text-fuchsia-700'}`}>{p?.team === 'Team A' ? 'Marketing' : (p?.team === 'Team B' ? 'Center' : p?.team)}</span></td>
+                        <td className={`${tableCellClass} text-blue-700 font-bold`}>{p?.name}</td>
+                        <td className={tableCellClass}>
+                          <span className="text-xs font-bold px-3 py-1 bg-purple-50 border border-purple-200 text-purple-700 rounded-lg inline-flex items-center gap-1.5">
+                            🏢 {p?.team || 'ทีมแพทย์/คลินิก'}
+                          </span>
+                        </td>
                         <td className={tableCellClass}><span className="text-[11px] font-bold px-3 py-1.5 bg-slate-100 border border-slate-200 text-slate-600 rounded-lg">{p?.status}</span></td>
                         <td className={`${tableCellClass} text-center`}>
-                          <button onClick={()=>handleOpenEdit(p)} className="text-blue-500 hover:text-blue-700 mx-2 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm transition-colors"><Edit size={16}/></button>
-                          {isAdmin && <button onClick={()=>setConfirmDelete({show: true, id: p.id, title: p.name})} className="text-red-500 hover:text-red-700 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm transition-colors"><Trash2 size={16}/></button>}
+                          <button onClick={()=>handleOpenEdit(p)} className="text-blue-500 hover:text-blue-700 mx-2 transition-colors bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm"><Edit size={16}/></button>
+                          {isAdmin && <button onClick={()=>setConfirmDelete({show: true, id: p.id, title: p.name})} className="text-red-500 hover:text-red-700 transition-colors bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm"><Trash2 size={16}/></button>}
                         </td>
                       </tr>
                     ))}
-                    {filteredClosers.length === 0 && <tr><td colSpan="5" className="p-10 text-center text-slate-500 font-bold bg-slate-50/50">ไม่พบข้อมูลที่ค้นหา</td></tr>}
+                    {filteredClosers.length === 0 && <tr><td colSpan="5" className="p-10 text-center text-slate-500 font-bold bg-slate-50/50">ไม่พบข้อมูลผู้ปิดการขาย</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -176,36 +170,20 @@
         );
     };
 
-    // ==========================================
-    // 📌 React App (Main Component)
-    // ==========================================
     const App = () => {
       const [isLoggedIn, setIsLoggedIn] = useState(false);
       const [currentUser, setCurrentUser] = useState(null);
       const [showLoginModal, setShowLoginModal] = useState(false);
       
-      const [products, setProducts] = useState([]);
-      const [customerTypes, setCustomerTypes] = useState(fallbackCustomerTypes);
       const [closers, setClosers] = useState([]);
-      const [members, setMembers] = useState([]);
-      const [customers, setCustomers] = useState([]);
-      const [sales, setSales] = useState([]);
-      const [systemUsers, setSystemUsers] = useState([]);
+      const [businessTeams, setBusinessTeams] = useState([]);
       const [isAppLoading, setIsAppLoading] = useState(true);
       const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-        try {
-          return localStorage.getItem('stk_sidebar_collapsed') === 'true';
-        } catch(e) {
-          return false;
-        }
+        try { return localStorage.getItem('stk_sidebar_collapsed') === 'true'; } catch(e) { return false; }
       });
       
       const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
-      const showToast = (message, type = 'success') => {
-        setToast({ show: true, message, type });
-      };
-
-      const SCRIPT_URL = "<?= getScriptUrl() ?>";
+      const showToast = (message, type = 'success') => { setToast({ show: true, message, type }); };
 
       const isAdmin = currentUser && (
           String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
@@ -216,84 +194,38 @@
       useEffect(() => {
         const savedUserStr = localStorage.getItem('stk_current_user');
         if (savedUserStr) {
-          const user = JSON.parse(savedUserStr);
-          setCurrentUser(user);
-          setIsLoggedIn(true);
+          try {
+            const user = JSON.parse(savedUserStr);
+            setCurrentUser(user);
+            setIsLoggedIn(true);
+          } catch(e) { localStorage.removeItem('stk_current_user'); }
         } else {
           setShowLoginModal(true);
         }
 
         const initialLoader = document.getElementById('initial-loader');
-        if (initialLoader) {
-            initialLoader.style.display = 'none';
-        }
+        if (initialLoader) initialLoader.style.display = 'none';
 
-        if (typeof google !== 'undefined' && google.script) {
-           try {
-               const cachedData = localStorage.getItem('stk_app_cache_data');
-               if (cachedData) {
-                   const parsedData = JSON.parse(cachedData);
-                   applyDataToStates(parsedData);
-                   setIsAppLoading(false);
-               }
-           } catch (e) { console.warn("Cache error", e); }
-
-           google.script.run
-             .withSuccessHandler((response) => {
-                if (response) {
-                    try { localStorage.setItem('stk_app_cache_data', JSON.stringify(response)); } catch(e){}
-                    applyDataToStates(response);
-                }
-                setIsAppLoading(false); 
-             })
-             .withFailureHandler((error) => {
-                setIsAppLoading(false);
-                showToast('การเชื่อมต่อเซิร์ฟเวอร์ขัดข้อง: ' + (error ? (error.message || error) : ''), 'error');
-             })
-             .getInitialData(); 
-        } else {
-           // Load real data directly from Supabase
-           Promise.all([
-             supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
-             supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
-             supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types'))
-           ]).then(([cloRes, pRes, typeRes]) => {
-             if (Array.isArray(cloRes)) setClosers(cloRes);
-             if (Array.isArray(pRes)) setProducts(pRes);
-             if (Array.isArray(typeRes)) setCustomerTypes(typeRes);
-           }).catch(err => {
+        Promise.all([
+          supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
+          supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams'))
+        ]).then(([cloRes, teamRes]) => {
+             if (Array.isArray(cloRes)) {
+               const formatted = cloRes.map(c => ({
+                 id: c.closer_id || c.id,
+                 name: c.name,
+                 team: c.team || 'ทีมแพทย์/คลินิก',
+                 status: c.status || 'ใช้งาน'
+               }));
+               setClosers(formatted);
+             }
+             if (Array.isArray(teamRes)) setBusinessTeams(teamRes);
+          }).catch(err => {
              console.error("Supabase load error:", err);
-           }).finally(() => {
+          }).finally(() => {
              setIsAppLoading(false);
-           });
-        }
+          });
       }, []);
-
-      const applyDataToStates = (response) => {
-           if (Array.isArray(response.products)) setProducts(response.products);
-           if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes);
-           if (Array.isArray(response.closers)) setClosers(response.closers);
-           if (Array.isArray(response.members)) { setMembers(response.members.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name, profileUrl: m.id_card_url || m.profileImageUrl || m.profileUrl, idCardDocUrl: m.id_card_url || m.idCardDocUrl, businessTeam: m.business_team || m.businessTeam, team: m.business_team || m.team || m.businessTeam || 'T01', role: m.permission_role || m.role || m.permissionRole, status: m.status, sponsorId: m.sponsor_id || m.sponsorId, accumulatedPv: m.accumulated_pv || m.Accumulated_PV || m.accumulatedPv || m.pv || 0, phone: m.phone_number || m.phone || m.phoneNumber }))); }
-           if (Array.isArray(response.customers)) setCustomers(response.customers);
-           if (Array.isArray(response.systemUsers)) setSystemUsers(response.systemUsers);
-           
-           if (Array.isArray(response.sales)) {
-               const processedSales = response.sales.map(s => {
-                   let sumF = 0, sumP = 0, sumZ = 0;
-                   Object.keys(s).forEach(k => {
-                       if (k !== 'รวมชิ้นราคาเต็ม' && k !== 'รวมชิ้นราคาโปร' && k !== 'รวมชิ้นราคาศูนย์' && k !== 'ยอดรวมชิ้นทั้งหมด') {
-                           if (k.endsWith('_ราคาเต็ม')) sumF += (parseInt(s[k]) || 0);
-                           else if (k.endsWith('_ราคาโปร')) sumP += (parseInt(s[k]) || 0);
-                           else if (k.endsWith('_ราคาศูนย์')) sumZ += (parseInt(s[k]) || 0);
-                       }
-                   });
-                   s['รวมชิ้นราคาเต็ม'] = sumF; s['รวมชิ้นราคาโปร'] = sumP; s['รวมชิ้นราคาศูนย์'] = sumZ;
-                   s['ยอดรวมชิ้นทั้งหมด'] = sumF + sumP + sumZ;
-                   return s;
-               });
-               setSales(processedSales);
-           }
-      };
 
       const handleLoginSuccess = (user) => {
         localStorage.setItem('stk_current_user', JSON.stringify(user));
@@ -307,9 +239,8 @@
         localStorage.removeItem('stk_current_user');
         setCurrentUser(null);
         setIsLoggedIn(false);
-        if (typeof window !== 'undefined') {
-          window.open(resolvePageUrl(SCRIPT_URL + '?page=dashboard'), '_top');
-        }
+        const targetUrl = typeof resolvePageUrl === 'function' ? resolvePageUrl('?page=dashboard') : 'Mlm.html';
+        if (typeof window !== 'undefined') window.location.href = targetUrl;
       };
 
       return (
@@ -323,7 +254,7 @@
             onLogout={handleLogout} 
             showLoginModal={showLoginModal} 
             setShowLoginModal={setShowLoginModal} 
-            SCRIPT_URL={SCRIPT_URL}
+            SCRIPT_URL=""
             setIsAppLoading={setIsAppLoading}
             isSidebarCollapsed={isSidebarCollapsed}
             setIsSidebarCollapsed={setIsSidebarCollapsed}
@@ -355,7 +286,8 @@
                 ) : isLoggedIn ? (
                   <ClosersManagementView 
                     closers={closers} 
-                    setClosers={setClosers} 
+                    setClosers={setClosers}
+                    businessTeams={businessTeams} 
                     isAdmin={isAdmin} 
                     showToast={showToast} 
                   />
@@ -370,13 +302,13 @@
 
             <footer className="w-full text-center py-6 mt-auto border-t border-slate-200/50 no-print shrink-0">
                <p className="text-[11px] font-bold text-slate-400 opacity-60 hover:opacity-100 transition-opacity">
-                  &copy; {new Date().getFullYear()} STK Sales Management System. Developed by Sackda Southammavong.
+                  &copy; {new Date().getFullYear()} STK Sales Management System.
                </p>
             </footer>
 
           </main>
 
-          <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} onLoginSuccess={handleLoginSuccess} systemUsers={systemUsers} />
+          <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} onLoginSuccess={handleLoginSuccess} systemUsers={[]} />
 
         </div>
       );

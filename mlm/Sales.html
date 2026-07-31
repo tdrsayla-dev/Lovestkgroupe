@@ -30,7 +30,7 @@
       setTimeout(function() { var l=document.getElementById('initial-loader'); if(l)l.style.display='none'; }, 600);
     });
   </script>
-  <?!= include('Includes'); ?>
+  <!-- <?!= include('Includes'); ?> -->
   <style>
     /* ล็อกหน้าจอสำหรับ POS ไม่ให้เด้งขึ้นลง */
     .pos-layout { height: calc(100vh - 100px); min-height: 500px; }
@@ -721,8 +721,6 @@
             }
 
             const loadedCart = [];
-            // แก้ไข Bug: โหลดสินค้าจาก record ทั้งหมด ไม่ใช่แค่ activeProductsList
-            // เพื่อรองรับสินค้าใหม่หรือสินค้าที่ถูกปิดใช้งานหลังบันทึกบิล
             const allProdNamesInRecord = [...new Set([
                 ...Object.keys(record).filter(k => 
                     (k.endsWith('_ราคาเต็ม') && k !== 'รวมชิ้นราคาเต็ม') ||
@@ -767,7 +765,6 @@
                 });
                 pvToSubtract = calculateBillPV(oldCart, products);
                 
-                // คืนสต๊อกเมื่อลบบิล
                 {
                     const inQtyMap = {};
                     oldCart.forEach(item => {
@@ -830,7 +827,7 @@
             setPayTransferLaosBankLAK('BCEL');
         };
 
-                const handleAdd = async (e) => {
+        const handleAdd = async (e) => {
           e.preventDefault();
           if (!foundMember) { showToast('ระบุรหัสสมาชิกผู้ขายไม่ถูกต้อง', 'error'); return; }
           if (!custMode || String(custMode).trim() === '') { showToast('กรุณาระบุประเภทลูกค้า', 'error'); return; }
@@ -931,8 +928,6 @@
           };
           
           let sumFull = 0, sumPro = 0, sumMember = 0, sumZero = 0;
-          // แก้ไข Bug: รวมสินค้าจาก cart ทั้งหมด ไม่ใช่แค่ activeProductsList
-          // กรณีสินค้าใหม่หรือสถานะไม่ใช่ 'ใช้งาน' ต้องถูกบันทึกด้วย
           const allProductNamesToSave = [...new Set([
               ...activeProductsList,
               ...cart.map(item => item.productName)
@@ -1019,6 +1014,7 @@
                  }
 
                  const oldQtyMap = {};
+                 const oldRecord = (sales || []).find(s => s.id === editingSaleId);
                  if (oldRecord) {
                      Object.keys(oldRecord).forEach(k => {
                          if ((k.endsWith('_ราคาเต็ม') || k.endsWith('_ราคาโปร') || k.endsWith('_ราคาสมาชิก') || k.endsWith('_ราคาศูนย์')) && !k.startsWith('รวมชิ้น')) {
@@ -1101,7 +1097,7 @@
              }
              setSales(prev => [newRecord, ...(prev || [])]); 
              if(newCustomerObj) setCustomers(prev => [newCustomerObj, ...(prev || [])]); 
-                          handleSuccessFinish(newRecord);
+             handleSuccessFinish(newRecord);
           } catch (err) {
               console.error("Save Error:", err);
               showToast('เกิดข้อผิดพลาดในการบันทึก: ' + (err.message || err), 'error');
@@ -1220,13 +1216,12 @@
         };
 
         const renderSalesForm = () => (
-          // 🟢 สัดส่วน 50:50 บีบช่องว่างเพื่อให้กล่องอยู่พอดีเป๊ะในหน้าเดียว 100%
           <div className="flex flex-col xl:flex-row gap-4 w-full h-[calc(100vh-120px)] min-h-[650px] mb-0 relative">
              
-             {/* 🟢 LEFT COLUMN (50%): Customer + Payment */}
+             {/* LEFT COLUMN (50%): Customer + Payment */}
              <div className="w-full xl:w-1/2 flex flex-col gap-3 h-full shrink-0 relative">
                 
-                {/* 📋 Customer Box (กระชับระยะห่างช่องไฟให้มากที่สุด) */}
+                {/* Customer Box */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm w-full shrink-0">
                    <div 
                       onClick={() => setIsCustomerExpanded(!isCustomerExpanded)}
@@ -1234,7 +1229,7 @@
                    >
                       <div className="flex items-center gap-1.5">
                          <UserCircle size={16} className="text-blue-600 shrink-0" /> 
-                         <h4 className="font-extrabold text-[13px] text-slate-800">ข้อมูลผู้ขาย & ลูกค้า</h4>
+                         <h4 className="font-extrabold text-[13px] text-slate-800">ข้อมูลผู้ขาย &amp; ลูกค้า</h4>
                       </div>
                       <div className="flex items-center gap-2">
                          {!isCustomerExpanded && foundMember && (
@@ -1304,7 +1299,7 @@
                    )}
                 </div>
 
-                {/* 💳 Payment Box (อยู่ด้านล่างสุดของฝั่งซ้าย - กลับมาเรียงบนล่างตามสั่ง แต่ลดความสูงขอบบนล่างลง) */}
+                {/* Payment Box */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-lg shrink-0 flex flex-col mt-auto z-20 w-full">
                     <div className="flex flex-col bg-slate-50 border border-slate-200 rounded-lg p-2 shadow-sm gap-1 mb-1.5">
                         <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold border-b border-slate-200 pb-1">
@@ -1334,7 +1329,6 @@
                         ))}
                     </div>
 
-                    {/* 🟢 ช่องเงินสดและเงินโอนจะเรียงบนล่างตามเดิมแล้วครับ */}
                     {(payMode === 'สด' || payMode === 'สด+โอน') && (
                         <div className="bg-green-50/50 p-2 rounded-lg border border-green-200 space-y-1 mb-1.5">
                             <label className="text-[9px] font-black text-green-700 flex items-center gap-1"><Coins size={10}/> รับเงินสด (บาท/กีบ)</label>
@@ -1440,7 +1434,6 @@
                         );
                     })()}
 
-                    {/* 🟢 ย้ายปุ่มไปฝั่งขวาแล้ว สามารถขยายกล่องหมายเหตุให้ยาวขึ้น (กว้างๆ พิมพ์สบาย) */}
                     <textarea 
                         rows="3" 
                         placeholder="หมายเหตุ / รายละเอียดจ่ายเงิน..." 
@@ -1451,7 +1444,7 @@
                 </div>
              </div>
 
-             {/* 🟢 RIGHT COLUMN (50%): Floating Search + Cart + ปุ่มบันทึกบิล */}
+             {/* RIGHT COLUMN (50%): Floating Search + Cart + ปุ่มบันทึกบิล */}
              <div className="w-full xl:w-1/2 flex flex-col gap-4 h-full shrink-0 relative">
                 
                 <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm shrink-0 relative z-50">
@@ -1573,7 +1566,6 @@
                    </div>
                 </div>
 
-                {/* 🟢 ปุ่มบันทึกบิลย้ายมาวางให้เด่นๆ อยู่ล่างสุดฝั่งขวาเลยครับ */}
                 <button type="button" onClick={handleAdd} disabled={isSubmitting || cart.length === 0} className={`w-full py-4 rounded-2xl font-black text-[16px] shadow-lg transition-all shrink-0 mt-1 ${isSubmitting || cart.length === 0 ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300' : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 hover:-translate-y-0.5'}`}>
                     {isSubmitting ? 'กำลังบันทึก...' : editingSaleId ? '💾 บันทึกแก้ไขบิล' : '💳 บันทึกบิลชำระเงิน'}
                 </button>
@@ -1961,41 +1953,40 @@
             initialLoader.style.display = 'none';
         }
 
-                   try {
-               const cachedData = localStorage.getItem('stk_app_cache_data');
-               if (cachedData) {
-                   const parsedData = JSON.parse(cachedData);
-                   applyDataToStates(parsedData);
-                   setIsAppLoading(false);
-               }
-           } catch (e) { console.warn("Cache error", e); }
+        try {
+            const cachedData = localStorage.getItem('stk_app_cache_data');
+            if (cachedData) {
+                const parsedData = JSON.parse(cachedData);
+                applyDataToStates(parsedData);
+                setIsAppLoading(false);
+            }
+        } catch (e) { console.warn("Cache error", e); }
 
-           // Load real data directly from Supabase
-           Promise.all([
-             supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
-             supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
-             supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
-             supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
-             supabaseSelect('stk_customers').catch(() => supabaseSelect('customers')),
-             supabaseSelect('stk_sales').catch(() => supabaseSelect('sales')),
-             supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams'))
-           ]).then(([pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes]) => {
-             const resObj = {
-               products: pRes,
-               customerTypes: typeRes,
-               closers: cloRes,
-               members: memRes,
-               customers: custRes,
-               sales: saleRes,
-               businessTeams: teamRes
-             };
-             applyDataToStates(resObj);
-             try { localStorage.setItem('stk_app_cache_data', JSON.stringify(resObj)); } catch(e){}
-           }).catch(err => {
-             console.error("Supabase load error:", err);
-           }).finally(() => {
-             setIsAppLoading(false);
-           });
+        Promise.all([
+          supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
+          supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
+          supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
+          supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
+          supabaseSelect('stk_customers').catch(() => supabaseSelect('customers')),
+          supabaseSelect('stk_sales').catch(() => supabaseSelect('sales')),
+          supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams'))
+        ]).then(([pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes]) => {
+          const resObj = {
+            products: pRes,
+            customerTypes: typeRes,
+            closers: cloRes,
+            members: memRes,
+            customers: custRes,
+            sales: saleRes,
+            businessTeams: teamRes
+          };
+          applyDataToStates(resObj);
+          try { localStorage.setItem('stk_app_cache_data', JSON.stringify(resObj)); } catch(e){}
+        }).catch(err => {
+          console.error("Supabase load error:", err);
+        }).finally(() => {
+          setIsAppLoading(false);
+        });
       }, []);
 
       const applyDataToStates = (response) => {
@@ -2028,7 +2019,6 @@
                            const qtyNum = Number(it.qty || it.quantity || 1);
                            const pName = String(it.prod || it.productName || it.name || 'Unknown').trim();
                            
-                           // Flatten into object keys so Sales.html can render the items table / modal easily
                            s[`${pName}_${typeStr}`] = qtyNum;
                            
                            if (typeStr === 'ราคาเต็ม') sumF += qtyNum;
@@ -2082,9 +2072,8 @@
         localStorage.removeItem('stk_current_user');
         setCurrentUser(null);
         setIsLoggedIn(false);
-        if (typeof window !== 'undefined') {
-          window.open(resolvePageUrl(SCRIPT_URL + '?page=dashboard'), '_top');
-        }
+        const targetUrl = typeof resolvePageUrl === 'function' ? resolvePageUrl('?page=dashboard') : 'Mlm.html';
+        if (typeof window !== 'undefined') window.location.href = targetUrl;
       };
 
       return (
@@ -2165,5 +2154,3 @@
   </script>
 </body>
 </html>
-
-

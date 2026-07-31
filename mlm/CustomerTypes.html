@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>จัดการประเภทลูกค้า - LOVE STK GROUPE</title>
+  <title>ประเภทลูกค้า (Customer Types) - LOVE STK GROUPE</title>
   <!-- Standalone & GAS Libraries -->
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
@@ -20,17 +20,10 @@
     if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
     async function supabaseSelect(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:window.SUPABASE_HEADERS});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();}
     async function supabaseInsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('INSERT '+t+':'+r.status);return r.json();}
-    async function supabaseUpdate(t,id,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('UPDATE '+t+':'+r.status);return r.json();}
-    async function supabaseDelete(t,id){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'DELETE',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'})});if(!r.ok)throw new Error('DELETE '+t+':'+r.status);return true;}
-    async function supabaseUpsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'resolution=merge-duplicates,return=representation'}),body:JSON.stringify(d)});if(!r.ok)throw new Error('UPSERT '+t+':'+r.status);return r.json();}
+    async function supabaseUpdate(t,id,d,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('UPDATE '+t+':'+r.status);return r.json();}
+    async function supabaseDelete(t,id,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'DELETE',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'})});if(!r.ok)throw new Error('DELETE '+t+':'+r.status);return true;}
   </script>
   <script src="CommonComponents.js"></script>
-  <script>
-    window.addEventListener('DOMContentLoaded', function() {
-      setTimeout(function() { var l=document.getElementById('initial-loader'); if(l)l.style.display='none'; }, 600);
-    });
-  </script>
-  <!-- <?!= include('Includes'); ?> -->
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
@@ -38,7 +31,7 @@
     <div style="width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 24px;"></div>
     <style>@keyframes initial-spin { to { transform: rotate(360deg); } }</style>
     <h2 style="font-size: 1.75rem; font-weight: 800; color: #1e40af; margin: 0; letter-spacing: -0.025em;">LOVE <span style="color: #475569;">STK GROUPE</span></h2>
-    <p style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 8px;">กำลังโหลดระบบจัดการข้อมูล...</p>
+    <p style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 8px;">กำลังโหลดระบบจัดการประเภทลูกค้า...</p>
   </div>
 
   <div id="root"></div>
@@ -50,10 +43,6 @@
        { id: 'T001', name: 'ลูกค้าใหม่', status: 'ใช้งาน' },
        { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'ใช้งาน' }
     ];
-    const fallbackProductsList = window.fallbackProductsList || ['SESAMIN', 'APPLE', 'KING_GOLD'];
-
-    /* <?!= include('CommonComponents'); ?> */
-
 
     // ==========================================
     // 📌 Customer Types Management View Component
@@ -78,68 +67,81 @@
         const handleOpenEdit = (type) => { setIsEditing(true); setFormData({ ...type }); setShowForm(true); };
 
         const handleSave = (e) => {
-           e.preventDefault(); if (!formData.id || !formData.name) return; setIsSubmitting(true);
-           if (typeof google !== 'undefined' && google.script) {
-              if(isEditing) {
-                 google.script.run.withSuccessHandler(() => {
-                     setCustomerTypes((customerTypes || []).map(p => p && safeUpper(p.id) === safeUpper(formData.id) ? formData : p)); setShowForm(false); setIsSubmitting(false); showToast('แก้ไขสำเร็จ', 'success');
-                 }).updateCustomerTypeData(formData); 
-              } else {
-                 google.script.run.withSuccessHandler(() => {
-                      setCustomerTypes([...(customerTypes || []), formData]); setShowForm(false); setIsSubmitting(false); showToast('เพิ่มสำเร็จ', 'success');
-                 }).saveCustomerTypeData(formData); 
-              }
-           } else {
-              setTimeout(() => { if(isEditing) setCustomerTypes((customerTypes || []).map(p => p && safeUpper(p.id) === safeUpper(formData.id) ? formData : p)); else setCustomerTypes([...(customerTypes || []), formData]); setShowForm(false); setIsSubmitting(false); showToast('จำลองสำเร็จ', 'success'); }, 500);
+           e.preventDefault(); 
+           if (!formData.id || !formData.name) return; 
+           setIsSubmitting(true);
+           
+           if (window.SUPABASE_REST_URL) {
+              const supaData = { type_id: formData.id, name: formData.name, status: formData.status };
+              const req = isEditing 
+                ? supabaseUpdate('stk_customer_types', formData.id, supaData, 'type_id')
+                : supabaseInsert('stk_customer_types', supaData);
+
+              req.then(() => {
+                 if(isEditing) setCustomerTypes((customerTypes || []).map(p => p && safeUpper(p.id) === safeUpper(formData.id) ? formData : p)); 
+                 else setCustomerTypes([...(customerTypes || []), formData]); 
+                 setShowForm(false); 
+                 setIsSubmitting(false); 
+                 showToast(isEditing ? 'แก้ไขประเภทลูกค้าสำเร็จ' : 'เพิ่มประเภทลูกค้าสำเร็จ', 'success');
+              }).catch(err => {
+                 setIsSubmitting(false);
+                 showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
+              });
            }
         };
+
         const executeDelete = () => { 
             const id = confirmDelete.id; 
-            if (typeof google !== 'undefined' && google.script) { google.script.run.withSuccessHandler(()=>{setCustomerTypes((customerTypes || []).filter(p => p && p.id !== id)); showToast('ลบสำเร็จ', 'success');}).deleteCustomerTypeData(id); } else { setCustomerTypes((customerTypes || []).filter(p => p && p.id !== id)); showToast('จำลองลบสำเร็จ', 'success');} 
+            supabaseDelete('stk_customer_types', id, 'type_id').then(() => {
+               setCustomerTypes((customerTypes || []).filter(p => p && p.id !== id)); 
+               showToast('ลบประเภทลูกค้าสำเร็จ', 'success');
+            }).catch(err => {
+               showToast('ลบล้มเหลว: ' + err.message, 'error');
+            });
         };
 
         const filteredTypes = (customerTypes || []).filter(p => p && ((p.id && String(p.id).toLowerCase().includes(searchTerm.toLowerCase())) || (p.name && String(p.name).toLowerCase().includes(searchTerm.toLowerCase()))));
 
         return (
           <div className="space-y-6 animation-fade-in relative w-full">
-            <ConfirmModal isOpen={confirmDelete.show} onClose={() => setConfirmDelete({show: false, id: null, title: ''})} onConfirm={executeDelete} title="ยืนยันการลบประเภทลูกค้า" message={`คุณต้องการลบหมวดหมู่ "${confirmDelete.title}" ใช่หรือไม่?`} />
+            <ConfirmModal isOpen={confirmDelete.show} onClose={() => setConfirmDelete({show: false, id: null, title: ''})} onConfirm={executeDelete} title="ยืนยันการลบประเภทลูกค้า" message={`คุณต้องการลบประเภทลูกค้า "${confirmDelete.title}" ใช่หรือไม่?`} />
             
-            <EditModal isOpen={showForm} onClose={() => setShowForm(false)} title={isEditing ? 'แก้ไขประเภทลูกค้า' : 'เพิ่มประเภทใหม่'} icon={Tags}>
+            <EditModal isOpen={showForm} onClose={() => setShowForm(false)} title={isEditing ? 'แก้ไขประเภทลูกค้า' : 'เพิ่มประเภทลูกค้าใหม่'} icon={Tags}>
                 <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div><label className={labelClassHud}>รหัสประเภท</label><input type="text" disabled={isEditing} className={inputClassHud} value={formData.id} onChange={e=>setFormData({...formData,id:e.target.value})}/></div>
-                  <div><label className={labelClassHud}>ชื่อประเภท</label><input type="text" className={inputClassHud} value={formData.name} onChange={e=>setFormData({...formData,name:e.target.value})}/></div>
+                  <div><label className={labelClassHud}>ชื่อประเภทลูกค้า</label><input type="text" required className={inputClassHud} value={formData.name} onChange={e=>setFormData({...formData,name:e.target.value})}/></div>
                   <div><label className={labelClassHud}>สถานะ</label><select className={inputClassHud} value={formData.status} onChange={e=>setFormData({...formData,status:e.target.value})}><option value="ใช้งาน">ใช้งาน</option><option value="ไม่ใช้งาน">ไม่ใช้งาน</option></select></div>
                   <div className="md:col-span-3 text-right pt-4 border-t border-slate-100 mt-2 flex justify-end gap-3"><button type="button" onClick={()=>setShowForm(false)} className={btnClassSecondary}>ยกเลิก</button><button type="submit" disabled={isSubmitting} className={btnClassPrimary}>{isSubmitting ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</button></div>
                 </form>
             </EditModal>
 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-               <h2 className="text-2xl font-bold text-slate-800">จัดการประเภทลูกค้า (Categories)</h2>
+               <h2 className="text-2xl font-bold text-slate-800">จัดการประเภทลูกค้า (Customer Types)</h2>
                <div className="flex w-full sm:w-auto items-center gap-3">
                  <div className="flex items-center bg-slate-50/30 focus-within:bg-white border border-slate-200 rounded-xl px-3 shadow-sm focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 transition-all duration-300 flex-1 sm:w-72 h-[38px] sm:h-[40px]">
                     <SearchIcon size={18} className="text-slate-400 shrink-0" />
-                    <input type="text" placeholder="ค้นหารหัส หรือ ชื่อ..." className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                    <input type="text" placeholder="ค้นหารหัส หรือ ชื่อประเภท..." className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                  </div>
-                 <button onClick={handleOpenAdd} className={`${btnClassPrimary} shrink-0`}><Plus size={18}/> เพิ่มประเภท</button>
+                 <button onClick={handleOpenAdd} className={`${btnClassPrimary} shrink-0`}><Plus size={18}/> เพิ่มประเภทลูกค้า</button>
                </div>
             </div>
 
-            <div className="bg-orange-50 p-4 rounded-2xl shadow-sm border border-orange-100 flex items-center gap-3"><Info size={24} className="text-orange-500 shrink-0"/><p className="text-sm text-orange-800 font-medium">จัดการหมวดหมู่ลูกค้าที่จะแสดงเป็นตัวเลือกในหน้าป้อนข้อมูลการขาย</p></div>
+            <div className="bg-blue-50 p-4 rounded-2xl shadow-sm border border-blue-100 flex items-center gap-3"><Info size={24} className="text-blue-500 shrink-0"/><p className="text-sm text-blue-800 font-medium">จัดการหมวดหมู่และประเภทลูกค้าที่จะแสดงเป็นตัวเลือกในการป้อนข้อมูลการขาย</p></div>
             
             <div className={`${boxWrapper} p-0 overflow-hidden`}>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
                     <tr>
-                      <th className={tableHeaderClass}>รหัส</th>
-                      <th className={tableHeaderClass}>ชื่อประเภท</th>
+                      <th className={tableHeaderClass}>รหัสประเภท</th>
+                      <th className={tableHeaderClass}>ชื่อประเภทลูกค้า</th>
                       <th className={tableHeaderClass}>สถานะ</th>
                       <th className={`${tableHeaderClass} text-center`}>จัดการ</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredTypes.map(p=>(
-                      <tr key={p?.id || Math.random()} className="hover:bg-blue-50/50 transition-colors">
+                    {filteredTypes.map((p, index)=>(
+                      <tr key={p?.id || `type-${index}`} className="hover:bg-blue-50/50 transition-colors">
                         <td className={tableCellClass}>{p?.id}</td>
                         <td className={`${tableCellClass} text-blue-700 font-bold`}>{p?.name}</td>
                         <td className={tableCellClass}><span className="text-[11px] font-bold px-3 py-1.5 bg-slate-100 border border-slate-200 text-slate-600 rounded-lg">{p?.status}</span></td>
@@ -149,7 +151,7 @@
                         </td>
                       </tr>
                     ))}
-                    {filteredTypes.length === 0 && <tr><td colSpan="4" className="p-10 text-center text-slate-500 font-bold bg-slate-50/50">ไม่พบข้อมูลที่ค้นหา</td></tr>}
+                    {filteredTypes.length === 0 && <tr><td colSpan="4" className="p-10 text-center text-slate-500 font-bold bg-slate-50/50">ไม่พบข้อมูลประเภทลูกค้า</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -166,13 +168,7 @@
       const [currentUser, setCurrentUser] = useState(null);
       const [showLoginModal, setShowLoginModal] = useState(false);
       
-      const [products, setProducts] = useState([]);
       const [customerTypes, setCustomerTypes] = useState(fallbackCustomerTypes);
-      const [closers, setClosers] = useState([]);
-      const [members, setMembers] = useState([]);
-      const [customers, setCustomers] = useState([]);
-      const [sales, setSales] = useState([]);
-      const [systemUsers, setSystemUsers] = useState([]);
       const [isAppLoading, setIsAppLoading] = useState(true);
       const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
         try {
@@ -187,8 +183,6 @@
         setToast({ show: true, message, type });
       };
 
-      const SCRIPT_URL = "<?= getScriptUrl() ?>";
-
       const isAdmin = currentUser && (
           String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
           String(currentUser.role).trim().toLowerCase() === 'admin'
@@ -198,9 +192,11 @@
       useEffect(() => {
         const savedUserStr = localStorage.getItem('stk_current_user');
         if (savedUserStr) {
-          const user = JSON.parse(savedUserStr);
-          setCurrentUser(user);
-          setIsLoggedIn(true);
+          try {
+            const user = JSON.parse(savedUserStr);
+            setCurrentUser(user);
+            setIsLoggedIn(true);
+          } catch(e) { localStorage.removeItem('stk_current_user'); }
         } else {
           setShowLoginModal(true);
         }
@@ -210,72 +206,22 @@
             initialLoader.style.display = 'none';
         }
 
-        if (typeof google !== 'undefined' && google.script) {
-           try {
-               const cachedData = localStorage.getItem('stk_app_cache_data');
-               if (cachedData) {
-                   const parsedData = JSON.parse(cachedData);
-                   applyDataToStates(parsedData);
-                   setIsAppLoading(false);
-               }
-           } catch (e) { console.warn("Cache error", e); }
-
-           google.script.run
-             .withSuccessHandler((response) => {
-                if (response) {
-                    try { localStorage.setItem('stk_app_cache_data', JSON.stringify(response)); } catch(e){}
-                    applyDataToStates(response);
-                }
-                setIsAppLoading(false); 
-             })
-             .withFailureHandler((error) => {
-                setIsAppLoading(false);
-                showToast('การเชื่อมต่อเซิร์ฟเวอร์ขัดข้อง: ' + (error ? (error.message || error) : ''), 'error');
-             })
-             .getInitialData(); 
-        } else {
-           // Load real data directly from Supabase
-           Promise.all([
-             supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
-             supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
-             supabaseSelect('stk_closers').catch(() => supabaseSelect('closers'))
-           ]).then(([typeRes, pRes, cloRes]) => {
-             if (Array.isArray(typeRes)) setCustomerTypes(typeRes);
-             if (Array.isArray(pRes)) setProducts(pRes);
-             if (Array.isArray(cloRes)) setClosers(cloRes);
-           }).catch(err => {
+        supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types'))
+          .then(typeRes => {
+             if (Array.isArray(typeRes)) {
+               const formatted = typeRes.map(t => ({
+                 id: t.type_id || t.id,
+                 name: t.name,
+                 status: t.status || 'ใช้งาน'
+               }));
+               setCustomerTypes(formatted);
+             }
+          }).catch(err => {
              console.error("Supabase load error:", err);
-           }).finally(() => {
+          }).finally(() => {
              setIsAppLoading(false);
-           });
-        }
+          });
       }, []);
-
-      const applyDataToStates = (response) => {
-           if (Array.isArray(response.products)) setProducts(response.products);
-           if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes);
-           if (Array.isArray(response.closers)) setClosers(response.closers);
-           if (Array.isArray(response.members)) { setMembers(response.members.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name, profileUrl: m.id_card_url || m.profileImageUrl || m.profileUrl, idCardDocUrl: m.id_card_url || m.idCardDocUrl, businessTeam: m.business_team || m.businessTeam, team: m.business_team || m.team || m.businessTeam || 'T01', role: m.permission_role || m.role || m.permissionRole, status: m.status, sponsorId: m.sponsor_id || m.sponsorId, accumulatedPv: m.accumulated_pv || m.Accumulated_PV || m.accumulatedPv || m.pv || 0, phone: m.phone_number || m.phone || m.phoneNumber }))); }
-           if (Array.isArray(response.customers)) setCustomers(response.customers);
-           if (Array.isArray(response.systemUsers)) setSystemUsers(response.systemUsers);
-           
-           if (Array.isArray(response.sales)) {
-               const processedSales = response.sales.map(s => {
-                   let sumF = 0, sumP = 0, sumZ = 0;
-                   Object.keys(s).forEach(k => {
-                       if (k !== 'รวมชิ้นราคาเต็ม' && k !== 'รวมชิ้นราคาโปร' && k !== 'รวมชิ้นราคาศูนย์' && k !== 'ยอดรวมชิ้นทั้งหมด') {
-                           if (k.endsWith('_ราคาเต็ม')) sumF += (parseInt(s[k]) || 0);
-                           else if (k.endsWith('_ราคาโปร')) sumP += (parseInt(s[k]) || 0);
-                           else if (k.endsWith('_ราคาศูนย์')) sumZ += (parseInt(s[k]) || 0);
-                       }
-                   });
-                   s['รวมชิ้นราคาเต็ม'] = sumF; s['รวมชิ้นราคาโปร'] = sumP; s['รวมชิ้นราคาศูนย์'] = sumZ;
-                   s['ยอดรวมชิ้นทั้งหมด'] = sumF + sumP + sumZ;
-                   return s;
-               });
-               setSales(processedSales);
-           }
-      };
 
       const handleLoginSuccess = (user) => {
         localStorage.setItem('stk_current_user', JSON.stringify(user));
@@ -289,9 +235,8 @@
         localStorage.removeItem('stk_current_user');
         setCurrentUser(null);
         setIsLoggedIn(false);
-        if (typeof window !== 'undefined') {
-          window.open(resolvePageUrl(SCRIPT_URL + '?page=dashboard'), '_top');
-        }
+        const targetUrl = typeof resolvePageUrl === 'function' ? resolvePageUrl('?page=dashboard') : 'Mlm.html';
+        if (typeof window !== 'undefined') window.location.href = targetUrl;
       };
 
       return (
@@ -305,7 +250,7 @@
             onLogout={handleLogout} 
             showLoginModal={showLoginModal} 
             setShowLoginModal={setShowLoginModal} 
-            SCRIPT_URL={SCRIPT_URL}
+            SCRIPT_URL=""
             setIsAppLoading={setIsAppLoading}
             isSidebarCollapsed={isSidebarCollapsed}
             setIsSidebarCollapsed={setIsSidebarCollapsed}
@@ -352,13 +297,13 @@
 
             <footer className="w-full text-center py-6 mt-auto border-t border-slate-200/50 no-print shrink-0">
                <p className="text-[11px] font-bold text-slate-400 opacity-60 hover:opacity-100 transition-opacity">
-                  &copy; {new Date().getFullYear()} STK Sales Management System. Developed by Sackda Southammavong.
+                  &copy; {new Date().getFullYear()} STK Sales Management System.
                </p>
             </footer>
 
           </main>
 
-          <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} onLoginSuccess={handleLoginSuccess} systemUsers={systemUsers} />
+          <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} onLoginSuccess={handleLoginSuccess} systemUsers={[]} />
 
         </div>
       );

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -20,24 +20,17 @@
     if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
     async function supabaseSelect(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:window.SUPABASE_HEADERS});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();}
     async function supabaseInsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('INSERT '+t+':'+r.status);return r.json();}
-    async function supabaseUpdate(t,id,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('UPDATE '+t+':'+r.status);return r.json();}
-    async function supabaseDelete(t,id){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'DELETE',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'})});if(!r.ok)throw new Error('DELETE '+t+':'+r.status);return true;}
-    async function supabaseUpsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'resolution=merge-duplicates,return=representation'}),body:JSON.stringify(d)});if(!r.ok)throw new Error('UPSERT '+t+':'+r.status);return r.json();}
+    async function supabaseUpdate(t,id,d,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('UPDATE '+t+':'+r.status);return r.json();}
+    async function supabaseDelete(t,id,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'DELETE',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'})});if(!r.ok)throw new Error('DELETE '+t+':'+r.status);return true;}
   </script>
   <script src="CommonComponents.js"></script>
-  <script>
-    window.addEventListener('DOMContentLoaded', function() {
-      setTimeout(function() { var l=document.getElementById('initial-loader'); if(l)l.style.display='none'; }, 600);
-    });
-  </script>
-  <?!= include('Includes'); ?>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
   <div id="initial-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999;">
     <div style="width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 24px;"></div>
     <style>@keyframes initial-spin { to { transform: rotate(360deg); } }</style>
-    <h2 style="font-size: 1.75rem; font-weight: 800; color: #1e40af; margin: 0; letter-spacing: -0.025em;">STK<span style="color: #475569;">System</span></h2>
+    <h2 style="font-size: 1.75rem; font-weight: 800; color: #1e40af; margin: 0; letter-spacing: -0.025em;">LOVE <span style="color: #475569;">STK GROUPE</span></h2>
     <p style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 8px;">กำลังโหลดระบบจัดการข้อมูล...</p>
   </div>
 
@@ -46,18 +39,6 @@
   <script type="text/babel">
     const { useState, useMemo, useEffect, useRef, useCallback } = React;
 
-    const fallbackCustomerTypes = window.fallbackCustomerTypes || [
-       { id: 'T001', name: 'ลูกค้าใหม่', status: 'ใช้งาน' },
-       { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'ใช้งาน' }
-    ];
-    const fallbackProductsList = window.fallbackProductsList || ['SESAMIN', 'APPLE', 'KING_GOLD'];
-
-    /* <?!= include('CommonComponents'); ?> */
-
-
-    // ==========================================
-    // 📌 Exchange Rate Configuration Component
-    // ==========================================
     const ExchangeRateConfigView = ({ systemSettings, setSystemSettings, exchangeRateHistory, setExchangeRateHistory, showToast, currentUser, isAdmin }) => {
         const [rateInput, setRateInput] = useState(systemSettings?.exchange_rate || 700);
         const [isSaving, setIsSaving] = useState(false);
@@ -79,42 +60,32 @@
             
             setIsSaving(true);
             const updaterName = currentUser ? (currentUser.name || currentUser.username) : 'Admin';
-            
-            if (typeof google !== 'undefined' && google.script) {
-                google.script.run
-                    .withSuccessHandler((res) => {
-                        setIsSaving(false);
-                        if (res === 'success') {
-                            showToast(`อัปเดตอัตราแลกเปลี่ยนเป็น ${val} กีบ/บาท สำเร็จ`, 'success');
-                            setSystemSettings(prev => ({ ...prev, exchange_rate: val }));
-                            
-                            // Prepend new history record locally
-                            const nowStr = getLocalISODateTimeStr();
-                            setExchangeRateHistory(prev => [
-                                { timestamp: nowStr, rate: val, updatedBy: updaterName },
-                                ...prev
-                            ]);
-                        } else {
-                            showToast('บันทึกล้มเหลว: ' + res, 'error');
-                        }
-                    })
-                    .withFailureHandler((err) => {
-                        setIsSaving(false);
-                        showToast('เกิดข้อผิดพลาดในการบันทึก: ' + err, 'error');
-                    })
-                    .saveExchangeRateWithHistory(val, updaterName);
+            const nowStr = getLocalISODateTimeStr();
+
+            if (window.SUPABASE_REST_URL) {
+               const supaData = { rate: val, updated_by: updaterName, timestamp: nowStr };
+               supabaseInsert('stk_exchange_rate_history', supaData).then(() => {
+                  setIsSaving(false);
+                  showToast(`อัปเดตอัตราแลกเปลี่ยนเป็น ${val} กีบ/บาท สำเร็จ`, 'success');
+                  setSystemSettings(prev => ({ ...prev, exchange_rate: val }));
+                  setExchangeRateHistory(prev => [
+                     { timestamp: nowStr, rate: val, updatedBy: updaterName },
+                     ...prev
+                  ]);
+               }).catch(err => {
+                  setIsSaving(false);
+                  showToast('บันทึกล้มเหลว: ' + err.message, 'error');
+               });
             } else {
                 setTimeout(() => {
                     setIsSaving(false);
                     setSystemSettings(prev => ({ ...prev, exchange_rate: val }));
-                    
-                    const nowStr = getLocalISODateTimeStr();
                     setExchangeRateHistory(prev => [
                         { timestamp: nowStr, rate: val, updatedBy: updaterName },
                         ...prev
                     ]);
-                    showToast(`จำลองอัปเดตอัตราแลกเปลี่ยนสำเร็จ: 1 ฿ = ${val} ₭`, 'success');
-                }, 800);
+                    showToast(`อัปเดตอัตราแลกเปลี่ยนสำเร็จ: 1 ฿ = ${val} ₭`, 'success');
+                }, 500);
             }
         };
 
@@ -134,9 +105,9 @@
                 const term = searchTerm.toLowerCase().trim();
                 if (!term) return true;
                 return (
-                    item.timestamp.toLowerCase().includes(term) ||
+                    (item.timestamp && String(item.timestamp).toLowerCase().includes(term)) ||
                     String(item.rate).includes(term) ||
-                    item.updatedBy.toLowerCase().includes(term)
+                    (item.updatedBy && String(item.updatedBy).toLowerCase().includes(term))
                 );
             });
         }, [exchangeRateHistory, searchTerm]);
@@ -148,7 +119,6 @@
               <p className="text-sm text-slate-500 mt-1">จัดการอัตราการแลกเปลี่ยนสกุลเงินกีบลาว (LAK) ต่อบาทไทย (THB) และตรวจสอบประวัติการเปลี่ยนแปลงทั้งหมด</p>
             </div>
 
-            {/* Current Config Form */}
             <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-3xl p-6 text-white shadow-xl shadow-amber-500/10 border border-amber-400/20">
               <form onSubmit={handleSave} className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                 <div className="space-y-2">
@@ -184,7 +154,7 @@
                     <button
                       type="submit"
                       disabled={isSaving}
-                      className="bg-white hover:bg-amber-550 text-amber-700 hover:text-amber-800 font-extrabold py-4 px-6 rounded-2xl shadow-lg transition-all text-sm disabled:opacity-60 whitespace-nowrap active:scale-95"
+                      className="bg-white hover:bg-amber-50 text-amber-700 hover:text-amber-800 font-extrabold py-4 px-6 rounded-2xl shadow-lg transition-all text-sm disabled:opacity-60 whitespace-nowrap active:scale-95"
                     >
                       {isSaving ? '⏳ กำลังบันทึก...' : '💾 บันทึกอัตราแลกเปลี่ยน'}
                     </button>
@@ -193,7 +163,6 @@
               </form>
             </div>
 
-            {/* History List */}
             <div className={`${boxWrapper} flex-1 flex flex-col min-h-[400px] relative`}>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5 border-b border-slate-100 pb-5">
                  <h3 className={titleClass}><Activity size={24} className="text-amber-500"/> ประวัติการเปลี่ยนแปลง (Update History)</h3>
@@ -202,7 +171,7 @@
                     <SearchIcon size={18} className="text-slate-400 shrink-0" />
                     <input 
                       type="text" 
-                      placeholder="ค้นหาวันที่, อัตรา หรือชื่อ..." 
+                      placeholder="ค้นหาวันที่, อัตรา หรือชื่อผู้บันทึก..." 
                       className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" 
                       value={searchTerm} 
                       onChange={e => setSearchTerm(e.target.value)} 
@@ -229,13 +198,13 @@
                             <td className={`${tableCellClass} font-semibold text-slate-600 text-center`}>{item.timestamp}</td>
                             <td className={`${tableCellClass} text-center`}>
                               <span className="inline-flex items-center px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-xs font-black">
-                                1 ฿ = {item.rate.toLocaleString()} ₭
+                                1 ฿ = {Number(item.rate || 0).toLocaleString()} ₭
                               </span>
                             </td>
                             <td className={`${tableCellClass} font-extrabold text-slate-700 text-center`}>
                               <div className="flex items-center justify-center gap-1.5">
                                 <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                                {item.updatedBy || 'ไม่ระบุ'}
+                                {item.updatedBy || item.updated_by || 'ไม่ระบุ'}
                               </div>
                             </td>
                           </tr>
@@ -260,16 +229,12 @@
         );
     };
 
-
-    // ==========================================
-    // 📌 Main App Wrapper Component
-    // ==========================================
     const App = () => {
       const [isLoggedIn, setIsLoggedIn] = useState(false);
       const [currentUser, setCurrentUser] = useState(null);
       const [showLoginModal, setShowLoginModal] = useState(false);
       
-      const [systemSettings, setSystemSettings] = useState(null);
+      const [systemSettings, setSystemSettings] = useState({ exchange_rate: 700 });
       const [exchangeRateHistory, setExchangeRateHistory] = useState([]);
       const [systemUsers, setSystemUsers] = useState([]);
       const [isAppLoading, setIsAppLoading] = useState(true);
@@ -289,7 +254,6 @@
         }
       }, []);
 
-      const SCRIPT_URL = '<?= getScriptUrl() ?>';
       const currentUserProfileUrl = 'https://ui-avatars.com/api/?name=Admin&background=3b82f6&color=ffffff&rounded=true&bold=true';
       const isAdmin = currentUser && (
         String(currentUser.role).trim() === 'ผู้ดูแลระบบ' ||
@@ -297,7 +261,6 @@
       );
 
       useEffect(() => {
-        // Restore session
         try {
           const savedUser = localStorage.getItem('stk_current_user');
           if (savedUser) {
@@ -314,52 +277,29 @@
             initialLoader.style.display = 'none';
         }
 
-        // Fetch initial data
-        if (typeof google !== 'undefined' && google.script) {
-           google.script.run
-             .withSuccessHandler((response) => {
-                if (response) {
-                    try { localStorage.setItem('stk_app_cache_data', JSON.stringify(response)); } catch(e){}
-                    applyDataToStates(response);
-                }
-                setIsAppLoading(false); 
-             })
-             .withFailureHandler((error) => {
-                setIsAppLoading(false);
-                showToast('การเชื่อมต่อเซิร์ฟเวอร์ขัดข้อง: ' + (error ? (error.message || error) : ''), 'error');
-             })
-             .getInitialData(); 
-        } else {
-           // Load real data directly from Supabase
-           Promise.all([
-             supabaseSelect('stk_exchange_rate_history').catch(() => supabaseSelect('exchange_rate_history')),
-             supabaseSelect('stk_system_settings').catch(() => supabaseSelect('system_settings'))
-           ]).then(([rateRes, setRes]) => {
-             if (Array.isArray(rateRes)) setExchangeRateHistory(rateRes);
-             if (setRes) {
-               const settingsObj = {};
-               if (Array.isArray(setRes)) setRes.forEach(s => settingsObj[s.key] = s.value);
-               setSystemSettings(settingsObj);
-             }
-           }).catch(err => {
-             console.error("Supabase load error:", err);
-           }).finally(() => {
-             setIsAppLoading(false);
-           });
-        }
+        Promise.all([
+          supabaseSelect('stk_exchange_rate_history').catch(() => supabaseSelect('exchange_rate_history')),
+          supabaseSelect('stk_system_settings').catch(() => supabaseSelect('system_settings'))
+        ]).then(([rateRes, setRes]) => {
+          if (Array.isArray(rateRes)) {
+            const formattedHistory = rateRes.map(r => ({
+              timestamp: r.timestamp || r.created_at,
+              rate: Number(r.rate || 700),
+              updatedBy: r.updated_by || r.updatedBy || 'ไม่ระบุ'
+            }));
+            setExchangeRateHistory(formattedHistory);
+          }
+          if (setRes) {
+            const settingsObj = {};
+            if (Array.isArray(setRes)) setRes.forEach(s => settingsObj[s.key || s.setting_key] = s.value || s.setting_value);
+            setSystemSettings(settingsObj);
+          }
+        }).catch(err => {
+          console.error("Supabase load error:", err);
+        }).finally(() => {
+          setIsAppLoading(false);
+        });
       }, []);
-
-      const applyDataToStates = (response) => {
-           if (response.systemSettings) {
-               setSystemSettings(response.systemSettings);
-           }
-           if (Array.isArray(response.exchangeRateHistory)) {
-               setExchangeRateHistory(response.exchangeRateHistory);
-           }
-           if (Array.isArray(response.systemUsers)) {
-               setSystemUsers(response.systemUsers);
-           }
-      };
 
       const handleLoginSuccess = (user) => {
         localStorage.setItem('stk_current_user', JSON.stringify(user));
@@ -373,9 +313,8 @@
         localStorage.removeItem('stk_current_user');
         setCurrentUser(null);
         setIsLoggedIn(false);
-        if (typeof window !== 'undefined') {
-          window.open(resolvePageUrl(SCRIPT_URL + '?page=dashboard'), '_top');
-        }
+        const targetUrl = typeof resolvePageUrl === 'function' ? resolvePageUrl('?page=dashboard') : 'Mlm.html';
+        if (typeof window !== 'undefined') window.location.href = targetUrl;
       };
 
       return (
@@ -389,7 +328,7 @@
             onLogout={handleLogout} 
             showLoginModal={showLoginModal} 
             setShowLoginModal={setShowLoginModal} 
-            SCRIPT_URL={SCRIPT_URL}
+            SCRIPT_URL=""
             setIsAppLoading={setIsAppLoading}
             isSidebarCollapsed={isSidebarCollapsed}
             setIsSidebarCollapsed={setIsSidebarCollapsed}
@@ -439,7 +378,7 @@
 
             <footer className="w-full text-center py-6 mt-auto border-t border-slate-200/50 no-print shrink-0">
                <p className="text-[11px] font-bold text-slate-400 opacity-60 hover:opacity-100 transition-opacity">
-                  &copy; {new Date().getFullYear()} STK Sales Management System. Developed by Sackda Southammavong.
+                  &copy; {new Date().getFullYear()} STK Sales Management System.
                </p>
             </footer>
 

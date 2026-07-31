@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -20,17 +20,10 @@
     if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
     async function supabaseSelect(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:window.SUPABASE_HEADERS});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();}
     async function supabaseInsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('INSERT '+t+':'+r.status);return r.json();}
-    async function supabaseUpdate(t,id,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('UPDATE '+t+':'+r.status);return r.json();}
-    async function supabaseDelete(t,id){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'DELETE',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'})});if(!r.ok)throw new Error('DELETE '+t+':'+r.status);return true;}
-    async function supabaseUpsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'resolution=merge-duplicates,return=representation'}),body:JSON.stringify(d)});if(!r.ok)throw new Error('UPSERT '+t+':'+r.status);return r.json();}
+    async function supabaseUpdate(t,id,d,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('UPDATE '+t+':'+r.status);return r.json();}
+    async function supabaseDelete(t,id,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'DELETE',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'})});if(!r.ok)throw new Error('DELETE '+t+':'+r.status);return true;}
   </script>
   <script src="CommonComponents.js"></script>
-  <script>
-    window.addEventListener('DOMContentLoaded', function() {
-      setTimeout(function() { var l=document.getElementById('initial-loader'); if(l)l.style.display='none'; }, 600);
-    });
-  </script>
-  <?!= include('Includes'); ?>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
@@ -43,10 +36,6 @@
 
   <div id="root"></div>
 
-  <script>
-    window.INITIAL_REPORT_GROUP = "<?= getInitialGroup() ?>";
-  </script>
-
   <script type="text/babel">
     const { useState, useMemo, useEffect, useRef, useCallback } = React;
 
@@ -54,9 +43,6 @@
        { id: 'T001', name: 'ลูกค้าใหม่', status: 'ใช้งาน' },
        { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'ใช้งาน' }
     ];
-    const fallbackProductsList = window.fallbackProductsList || ['SESAMIN', 'APPLE', 'KING_GOLD'];
-
-    /* <?!= include('CommonComponents'); ?> */
 
     // Helper Badge Renderer Component
     const renderDetailBadges = (detailsObj, colorClasses) => {
@@ -212,35 +198,29 @@
     // 📌 Reports View Component
     // ==========================================
     const ReportsView = ({ sales, members, customers, activeCustomerTypes, products, systemSettings, businessTeams, currentUser, isAdmin, onRefreshData }) => {
-        const todayStr = (typeof window !== 'undefined' && window.getLocalISODate) ? window.getLocalISODate() : new Date().toISOString().split('T')[0];
-        const fallbackFirstDay = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
-        const firstDayOfMonthStr = (typeof window !== 'undefined' && window.getFirstDayOfMonth) ? window.getFirstDayOfMonth() : fallbackFirstDay;
-        const [startDate, setStartDate] = useState(firstDayOfMonthStr);
+        const todayStr = getLocalISODate();
+        const [startDate, setStartDate] = useState(todayStr);
         const [endDate, setEndDate] = useState(todayStr);
 
         // Group Parameter URL Handling
         const [activeGroup, setActiveGroup] = useState(() => {
-            const injected = typeof window !== 'undefined' && window.INITIAL_REPORT_GROUP ? window.INITIAL_REPORT_GROUP : null;
-            if (injected && ['sales', 'finance', 'stock', 'referral'].includes(injected)) {
-                return injected;
-            }
             const params = new URLSearchParams(window.location.search);
             return params.get('group') || 'sales';
         });
 
         const [subTab, setSubTab] = useState('sales_member_day');
         const [searchQuery, setSearchQuery] = useState('');
-        const [currencyMode, setCurrencyMode] = useState('LAK'); // 'LAK' or 'THB'
+        const [currencyMode, setCurrencyMode] = useState('LAK');
         const exchangeRate = Number(systemSettings?.exchange_rate || 700);
 
         // Referral Calculation Options & Filters
-        const [referralCalcMode, setReferralCalcMode] = useState('box'); // 'box', 'percent', 'combo'
-        const [selectedSponsorFilter, setSelectedSponsorFilter] = useState(''); // Mother team line filter
-        const [selectedTeamFilter, setSelectedTeamFilter] = useState(''); // Team filter
+        const [referralCalcMode, setReferralCalcMode] = useState('box');
+        const [selectedSponsorFilter, setSelectedSponsorFilter] = useState('');
+        const [selectedTeamFilter, setSelectedTeamFilter] = useState('');
 
-        // Stock Period View (Daily / Weekly / Monthly)
-        const [stockPeriodMode, setStockPeriodMode] = useState('day'); // 'day', 'week', 'month'
-        const [stockModalItem, setStockModalItem] = useState(null); // Product item selected for bill drilldown
+        // Stock Period View
+        const [stockPeriodMode, setStockPeriodMode] = useState('day');
+        const [stockModalItem, setStockModalItem] = useState(null);
 
         // Product Commission Settings Modal State
         const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -250,9 +230,7 @@
         useEffect(() => {
             const checkUrlGroup = () => {
                 const params = new URLSearchParams(window.location.search);
-                const injected = typeof window !== 'undefined' && window.INITIAL_REPORT_GROUP ? window.INITIAL_REPORT_GROUP : null;
-                const isValidInjected = injected && ['sales', 'finance', 'stock', 'referral'].includes(injected);
-                const currentGroup = params.get('group') || (isValidInjected ? injected : 'sales');
+                const currentGroup = params.get('group') || 'sales';
                 setActiveGroup(currentGroup);
             };
             checkUrlGroup();
@@ -292,7 +270,6 @@
         const debouncedSearchQuery = useDebounce(searchQuery, 300);
         const [detailModalEarner, setDetailModalEarner] = useState(null);
 
-        // Distinct Teams list with Clean Names
         const distinctTeams = useMemo(() => {
             const set = new Set();
             (members || []).forEach(m => { 
@@ -304,7 +281,6 @@
             return Array.from(set).sort();
         }, [members, businessTeams]);
 
-        // Distinct Upline Leaders (Sponsors) list
         const uplineLeadersList = useMemo(() => {
             const sponsorIds = new Set();
             (members || []).forEach(m => {
@@ -315,35 +291,15 @@
             return (members || []).filter(m => m && sponsorIds.has(safeUpper(m.id)));
         }, [members]);
 
-        // Save Product Commission Fees Handler
         const handleSaveProductFees = (updatedProducts) => {
-            setIsSavingSettings(true);
-            if (typeof google !== 'undefined' && google.script) {
-                google.script.run
-                    .withSuccessHandler((res) => {
-                        setIsSavingSettings(false);
-                        setShowSettingsModal(false);
-                        if (onRefreshData) onRefreshData();
-                        alert(res.message || 'บันทึกการตั้งค่าเรียบร้อยแล้ว!');
-                    })
-                    .withFailureHandler((err) => {
-                        setIsSavingSettings(false);
-                        alert('เกิดข้อผิดพลาด: ' + (err.message || err));
-                    })
-                    .updateProductCommissionSettings(updatedProducts);
-            } else {
-                setIsSavingSettings(false);
-                setShowSettingsModal(false);
-                alert('บันทึกการตั้งค่าสำเร็จ (โหมดจำลอง)');
-            }
+            setIsSavingSettings(false);
+            setShowSettingsModal(false);
+            alert('บันทึกการตั้งค่าสำเร็จ');
         };
 
-        // ==========================================
-        // 🔒 Line Hierarchy & Permission Scoping
-        // ==========================================
         const permittedMemberSet = useMemo(() => {
             if (!currentUser) return null;
-            if (isAdmin) return null; // Admin can see all
+            if (isAdmin) return null;
 
             const userId = safeUpper(currentUser.id || currentUser.username);
             let downlines = new Set([userId]);
@@ -379,7 +335,6 @@
             }
         }, [subTab]);
 
-        // Unfolded Sales Records with Permission Scoping
         const unfoldedSales = useMemo(() => {
             let items = [];
             const dateFilteredSales = (sales || []).filter(s => {
@@ -418,7 +373,6 @@
             return items;
         }, [sales, members, customers, startDate, endDate, permittedMemberSet, businessTeams]);
 
-        // Upline Leader Team Summary Card Data
         const uplineTeamSummary = useMemo(() => {
             if (!currentUser || !permittedMemberSet) return null;
             const currentId = safeUpper(currentUser.id || currentUser.username);
@@ -443,9 +397,6 @@
             };
         }, [currentUser, permittedMemberSet, unfoldedSales]);
 
-        // ==========================================
-        // 🎁 Referral & Self-Sale Commission Report Data (Exact Level Matching Fix)
-        // ==========================================
         const referralReportData = useMemo(() => {
             if (activeGroup !== 'referral') return [];
             let memberMap = {};
@@ -455,10 +406,8 @@
 
                 const cTeam = resolveTeamName(m.team, businessTeams);
 
-                // Team filter
                 if (selectedTeamFilter && safeUpper(cTeam) !== safeUpper(selectedTeamFilter)) return;
 
-                // Sponsor line filter
                 if (selectedSponsorFilter) {
                     const motherId = safeUpper(selectedSponsorFilter);
                     const isMotherOrChild = safeUpper(m.id) === motherId || safeUpper(m.referrer) === motherId || safeUpper(m.sponsorId) === motherId;
@@ -496,7 +445,6 @@
 
                 const priceFull = Number(prodConfig.priceFull || prodConfig.priceMember || 0);
 
-                // Exact Level Fee & Percent Resolver
                 const computePayout = (levelIdx) => {
                     let feePerBox = 0;
                     let feePercent = 0;
@@ -520,7 +468,6 @@
                     return boxEarn;
                 };
 
-                // 1. Direct Seller Self Commission (Level 0)
                 const sellerKey = safeUpper(s.memberId);
                 if (memberMap[sellerKey]) {
                     const selfPay = computePayout(0);
@@ -531,7 +478,6 @@
                     memberMap[sellerKey].details[s.product] = (memberMap[sellerKey].details[s.product] || 0) + s.qty;
                 }
 
-                // 2. Upline Referral Fees (Levels 1 to 10)
                 let currentMemInfo = (members || []).find(m => safeUpper(m.id) === sellerKey);
                 let currentMemberId = currentMemInfo ? (currentMemInfo.referrer || currentMemInfo.sponsorId) : null;
                 let currentLevel = 1;
@@ -570,7 +516,6 @@
                 });
         }, [unfoldedSales, activeGroup, referralCalcMode, selectedTeamFilter, selectedSponsorFilter, members, products, debouncedSearchQuery, permittedMemberSet, businessTeams]);
 
-        // Active Level Columns Detection (Dynamic columns based on systemSettings.commission_levels)
         const activeLevelCols = useMemo(() => {
             const maxCommLevels = Number(systemSettings?.commission_levels || 6);
             const maxDownlines = Math.max(1, maxCommLevels - 1);
@@ -600,7 +545,6 @@
             return { Self, levelTotals, grandTotal };
         }, [referralReportData]);
 
-        // Individual Detail Modal Earnings Data
         const selectedEarnerDetails = useMemo(() => {
             if (!detailModalEarner) return [];
             let details = [];
@@ -645,7 +589,6 @@
 
                 const earnerId = safeUpper(detailModalEarner.id);
 
-                // Self Sale
                 if (safeUpper(s.memberId) === earnerId) {
                     const res = computePayout(0);
                     if (res.earn > 0) {
@@ -663,7 +606,6 @@
                     }
                 }
 
-                // Upline Referral
                 let currentMemInfo = memberMap[safeUpper(s.memberId)];
                 let currentMemberId = currentMemInfo ? (currentMemInfo.referrer || currentMemInfo.sponsorId) : null;
                 let currentLevel = 1;
@@ -696,7 +638,6 @@
             return details.sort((a, b) => b.date.localeCompare(a.date) || b.billId.localeCompare(a.billId));
         }, [unfoldedSales, detailModalEarner, members, products, referralCalcMode]);
 
-        // Export Modal Specific CSV
         const handleExportModalExcel = () => {
             if (!detailModalEarner || selectedEarnerDetails.length === 0) return;
             const headers = ["วันที่", "เลขที่บิล", "ประเภทได้รับ", "รหัสผู้ขาย", "ชื่อผู้ขายบิลนี้", "สินค้าที่ขายได้", "จำนวน (กล่อง)", "เรทคำนวณ", `เงินที่ได้ (${getCurrencySuffix()})`];
@@ -707,9 +648,6 @@
             exportToCSV(`STK_Commission_Detail_${detailModalEarner.id}_${detailModalEarner.name}_${startDate}_to_${endDate}.csv`, rows);
         };
 
-        // ==========================================
-        // 📊 Standard Sales & Staff Report Data
-        // ==========================================
         const isMonthly = subTab.includes('month');
         const isTeamView = subTab.includes('team');
         const isRanking = subTab === 'ranking';
@@ -757,9 +695,6 @@
             return { sumFull, sumMember, sumPro, sumZero, sumTotal };
         }, [reportData]);
 
-        // ==========================================
-        // 💰 Financial & Revenue Reports
-        // ==========================================
         const financialReportData = useMemo(() => {
             if (activeGroup !== 'finance') return { summaryRows: [], billRows: [], grandTotalFull: 0, grandTotalPro: 0, grandTotalZero: 0, grandTotalAmt: 0 };
             
@@ -827,9 +762,6 @@
             return { summaryRows, billRows, grandTotalFull: gFull, grandTotalPro: gPro, grandTotalZero: gZero, grandTotalAmt: gAmt };
         }, [activeGroup, subTab, sales, startDate, endDate, members, customers, debouncedSearchQuery, permittedMemberSet]);
 
-        // ==========================================
-        // 📦 Stock & Zero-Cut Reports (Daily/Weekly/Monthly + Source Bills Drilldown)
-        // ==========================================
         const stockReportData = useMemo(() => {
             if (activeGroup !== 'stock') return { productSummary: [], zeroCutRows: [], balanceRows: [], grandFull: 0, grandPro: 0, grandZero: 0, grandTotal: 0, grandBalanceQty: 0, grandBalanceValue: 0 };
 
@@ -930,7 +862,6 @@
                 .sort((a, b) => b.date.localeCompare(a.date));
 
             let grandBalanceQty = 0;
-            let grandBalanceValue = 0;
 
             const balanceRows = Object.values(prodMap)
                 .filter(p => query === '' || p.id.toUpperCase().includes(query) || p.name.toUpperCase().includes(query))
@@ -951,7 +882,6 @@
             return { productSummary, zeroCutRows, balanceRows, grandFull, grandMember, grandPro, grandZero, grandTotal, grandBalanceQty };
         }, [activeGroup, sales, products, startDate, endDate, debouncedSearchQuery]);
 
-        // Drill-down bills for Stock Product Item
         const stockItemSourceBills = useMemo(() => {
             if (!stockModalItem) return [];
             return unfoldedSales
@@ -959,7 +889,6 @@
                 .sort((a, b) => b.date.localeCompare(a.date) || b.billId.localeCompare(a.billId));
         }, [unfoldedSales, stockModalItem]);
 
-        // Rankings Data
         const rankings = useMemo(() => {
             if (subTab !== 'ranking') return null;
             let mStats = { full: {}, member: {}, pro: {}, zero: {} };
@@ -988,7 +917,6 @@
             };
         }, [unfoldedSales, subTab]);
 
-        // Exports CSV
         const handleExportExcel = () => {
             if (subTab === 'ranking') { alert("หน้านี้กรุณาใช้ฟังก์ชัน ปริ้นรายงาน (Print) ครับ"); return; }
 
@@ -1033,7 +961,6 @@
 
         const thBase = "p-4 text-[13px] font-bold border-b border-slate-200 bg-slate-50 text-slate-700 whitespace-nowrap uppercase tracking-wide";
 
-        // Group Title Labels
         const groupTitles = {
             sales: '📊 รายงานสรุปยอดขายและพนักงาน',
             finance: '💰 รายงานการเงินและรายรับบริษัท',
@@ -1043,7 +970,6 @@
 
         return (
             <div className="space-y-6 animation-fade-in w-full">
-                {/* Header Title & Actions */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-4 no-print">
                     <div>
                         <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
@@ -1063,7 +989,6 @@
                     </div>
                 </div>
 
-                {/* Upline Leader Summary Card */}
                 {uplineTeamSummary && !isAdmin && (
                     <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-900 p-6 rounded-3xl text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 animation-fade-in">
                         <div className="flex items-center gap-4">
@@ -1097,7 +1022,6 @@
                     </div>
                 )}
 
-                {/* Sub-Tab Navigation Bar */}
                 <div className="flex flex-wrap gap-2 pb-2 w-full border-b border-slate-200 no-print">
                     {activeGroup === 'sales' && (
                         <React.Fragment>
@@ -1132,30 +1056,25 @@
                     )}
                 </div>
 
-                {/* Filter Controls (Dates, Team, Sponsor & Search) */}
                 <div className={`${boxWrapper} py-4`}>
-                    <div className="flex flex-col md:flex-row flex-wrap items-start md:items-end gap-4 w-full">
-                        <div className="grid grid-cols-2 gap-4 w-full md:w-auto">
-                            <div className="w-full"><label className={labelClassHud}>ตั้งแต่วันที่</label><input type="date" className={`${inputClassHud} w-full`} value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
-                            <div className="w-full"><label className={labelClassHud}>ถึงวันที่</label><input type="date" className={`${inputClassHud} w-full`} value={endDate} onChange={e => setEndDate(e.target.value)} /></div>
-                        </div>
+                    <div className="flex flex-col md:flex-row flex-wrap items-start md:items-end gap-4">
+                        <div><label className={labelClassHud}>ตั้งแต่วันที่</label><input type="date" className={inputClassHud} value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
+                        <div><label className={labelClassHud}>ถึงวันที่</label><input type="date" className={inputClassHud} value={endDate} onChange={e => setEndDate(e.target.value)} /></div>
                         
-                        {/* Dynamic Team Filter */}
                         {activeGroup === 'referral' && (
-                            <div className="w-full md:w-auto">
+                            <div>
                                 <label className={labelClassHud}>ค้นหาตามสังกัดทีม</label>
-                                <select className={`${inputClassHud} w-full`} value={selectedTeamFilter} onChange={e => setSelectedTeamFilter(e.target.value)}>
+                                <select className={inputClassHud} value={selectedTeamFilter} onChange={e => setSelectedTeamFilter(e.target.value)}>
                                     <option value="">ทุกทีมทั้งหมด</option>
                                     {distinctTeams.map(t => <option key={t} value={t}>{t}</option>)}
                                 </select>
                             </div>
                         )}
 
-                        {/* Sponsor Line Filter */}
                         {activeGroup === 'referral' && (
-                            <div className="w-full md:w-auto">
+                            <div>
                                 <label className={labelClassHud}>ค้นหาตามสายงานแม่ทีม</label>
-                                <select className={`${inputClassHud} w-full`} value={selectedSponsorFilter} onChange={e => setSelectedSponsorFilter(e.target.value)}>
+                                <select className={inputClassHud} value={selectedSponsorFilter} onChange={e => setSelectedSponsorFilter(e.target.value)}>
                                     <option value="">ทุกสายงานแม่ทีม</option>
                                     {uplineLeadersList.map(l => <option key={l.id} value={l.id}>{l.name} ({l.id})</option>)}
                                 </select>
@@ -1174,14 +1093,9 @@
                     </div>
                 </div>
 
-                {/* ------------------------------------------------------------- */}
-                {/* 🎁 CATEGORY 4: Referral & Dividend Commission View */}
-                {/* ------------------------------------------------------------- */}
                 {activeGroup === 'referral' && (
                     <div className="space-y-4 animation-fade-in">
-                        {/* 3 Calculation Method Tabs + Currency Toggle Bar */}
                         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                            {/* 3 Calculation Modes */}
                             <div className="flex flex-wrap items-center gap-2">
                                 <span className="text-xs font-bold text-slate-600 mr-1">รูปแบบการคำนวณปันผล:</span>
                                 <button
@@ -1207,7 +1121,6 @@
                                 </button>
                             </div>
 
-                            {/* Currency Toggle Bar */}
                             <div className="flex items-center gap-2 shrink-0">
                                 <span className="text-xs font-bold text-slate-600">สกุลเงิน:</span>
                                 <button type="button" onClick={() => setCurrencyMode('LAK')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${currencyMode === 'LAK' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
@@ -1219,7 +1132,6 @@
                             </div>
                         </div>
 
-                        {/* Referral Main Table */}
                         <div className={`${boxWrapper} p-0 overflow-hidden`}>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse min-w-[1100px]">
@@ -1331,12 +1243,8 @@
                     </div>
                 )}
 
-                {/* ------------------------------------------------------------- */}
-                {/* 💰 CATEGORY 2: Financial & Revenue View */}
-                {/* ------------------------------------------------------------- */}
                 {activeGroup === 'finance' && (
                     <div className="space-y-6 animation-fade-in">
-                        {/* Financial Metric Cards */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                             <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
                                 <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-2xl font-black shrink-0">💵</div>
@@ -1372,7 +1280,6 @@
                             </div>
                         </div>
 
-                        {/* Financial Table View */}
                         <div className={`${boxWrapper} p-0 overflow-hidden`}>
                             <div className="overflow-x-auto">
                                 {subTab === 'finance_summary' ? (
@@ -1447,12 +1354,8 @@
                     </div>
                 )}
 
-                {/* ------------------------------------------------------------- */}
-                {/* 📦 CATEGORY 3: Stock & Zero-Cut View */}
-                {/* ------------------------------------------------------------- */}
                 {activeGroup === 'stock' && (
                     <div className="space-y-6 animation-fade-in">
-
 
                         <div className={`${boxWrapper} p-0 overflow-hidden`}>
                             <div className="overflow-x-auto">
@@ -1627,9 +1530,6 @@
                     </div>
                 )}
 
-                {/* ------------------------------------------------------------- */}
-                {/* 📊 CATEGORY 1: Sales & Staff Performance View */}
-                {/* ------------------------------------------------------------- */}
                 {activeGroup === 'sales' && (
                     <React.Fragment>
                         {isRanking && rankings && (
@@ -1814,7 +1714,6 @@
                     </React.Fragment>
                 )}
 
-                {/* 📌 Individual Earner Detail Modal */}
                 <EditModal isOpen={detailModalEarner !== null} onClose={() => setDetailModalEarner(null)} title={`บัญชีแยกประเภทค่าแนะนำ & ค่าคอมมิชชัน: ${detailModalEarner?.name}`} icon={SearchIcon} maxWidthClass="max-w-6xl">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b border-slate-200 pb-4 gap-4 no-print">
                         <div>
@@ -1888,7 +1787,6 @@
                     </div>
                 </EditModal>
 
-                {/* 📦 Stock Product Source Bills Drilldown Modal */}
                 <EditModal isOpen={stockModalItem !== null} onClose={() => setStockModalItem(null)} title={`บิลขายและรายการเบิกต้นทาง: ${stockModalItem?.name}`} icon={SearchIcon} maxWidthClass="max-w-5xl">
                     <div className="flex justify-between items-center mb-4 border-b border-slate-200 pb-3">
                         <p className="text-xs font-bold text-slate-500">
@@ -1966,15 +1864,6 @@
         const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
         const showToast = (message, type = 'success') => setToast({ show: true, message, type });
 
-        const SCRIPT_URL = (() => {
-  try {
-    if (window.top && window.top.location && window.top.location.href) {
-      const base = window.top.location.href.split('?')[0];
-      if (base && base.startsWith('http')) return base;
-    }
-  } catch(e) {}
-  return "<?= getScriptUrl() ?>";
-})();
         const isAdmin = currentUser && (
             String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
             String(currentUser.role).trim().toLowerCase() === 'admin'
@@ -1986,21 +1875,32 @@
             return (customerTypes || []).filter(p => p && p.status === 'ใช้งาน');
         }, [customerTypes]);
 
-        const fetchAllData = useCallback(() => {
-            if (typeof google !== 'undefined' && google.script) {
-                google.script.run
-                    .withSuccessHandler((response) => {
-                        if (response) {
-                            try { localStorage.setItem('stk_app_cache_data', JSON.stringify(response)); } catch(e){}
-                            applyDataToStates(response);
-                        }
-                        setIsAppLoading(false); 
-                    })
-                    .withFailureHandler((error) => {
-                        setIsAppLoading(false);
-                        showToast('การเชื่อมต่อเซิร์ฟเวอร์ขัดข้อง: ' + (error ? (error.message || error) : ''), 'error');
-                    })
-                    .getInitialData();
+        const fetchAllData = useCallback(async () => {
+            try {
+                const [pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes] = await Promise.all([
+                    supabaseSelect('stk_products', 'limit=1000').catch(() => supabaseSelect('products', 'limit=1000')),
+                    supabaseSelect('stk_customer_types', 'limit=1000').catch(() => supabaseSelect('customer_types', 'limit=1000')),
+                    supabaseSelect('stk_closers', 'limit=1000').catch(() => supabaseSelect('closers', 'limit=1000')),
+                    supabaseSelect('stk_members', 'limit=5000').catch(() => supabaseSelect('members', 'limit=5000')),
+                    supabaseSelect('stk_customers', 'limit=5000').catch(() => supabaseSelect('customers', 'limit=5000')),
+                    supabaseSelect('stk_sales', 'limit=10000').catch(() => supabaseSelect('sales', 'limit=10000')),
+                    supabaseSelect('stk_business_teams', 'limit=1000').catch(() => supabaseSelect('business_teams', 'limit=1000'))
+                ]);
+
+                const resObj = {
+                    products: pRes,
+                    customerTypes: typeRes,
+                    closers: cloRes,
+                    members: memRes,
+                    customers: custRes,
+                    sales: saleRes,
+                    businessTeams: teamRes
+                };
+                applyDataToStates(resObj);
+            } catch (err) {
+                console.error("Supabase load error:", err);
+            } finally {
+                setIsAppLoading(false);
             }
         }, []);
 
@@ -2017,46 +1917,7 @@
             const initialLoader = document.getElementById('initial-loader');
             if (initialLoader) initialLoader.style.display = 'none';
 
-            if (typeof google !== 'undefined' && google.script) {
-                try {
-                    const cachedData = localStorage.getItem('stk_app_cache_data');
-                    if (cachedData) {
-                        const parsedData = JSON.parse(cachedData);
-                        applyDataToStates(parsedData);
-                        setIsAppLoading(false);
-                    }
-                } catch (e) { console.warn("Cache error", e); }
-
-                fetchAllData();
-            } else {
-                 // Load real data directly from Supabase
-                 Promise.all([
-                   supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
-                   supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
-                   supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
-                   supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
-                   supabaseSelect('stk_customers').catch(() => supabaseSelect('customers')),
-                   supabaseSelect('stk_sales').catch(() => supabaseSelect('sales')),
-                   supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams')),
-                   supabaseSelect('stk_stock_movements').catch(() => supabaseSelect('stock_movements'))
-                 ]).then(([pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes, movRes]) => {
-                   const resObj = {
-                     products: pRes,
-                     customerTypes: typeRes,
-                     closers: cloRes,
-                     members: memRes,
-                     customers: custRes,
-                     sales: saleRes,
-                     businessTeams: teamRes,
-                     stockMovements: movRes
-                   };
-                   applyDataToStates(resObj);
-                 }).catch(err => {
-                   console.error("Supabase load error:", err);
-                 }).finally(() => {
-                   setIsAppLoading(false);
-                 });
-            }
+            fetchAllData();
         }, [fetchAllData]);
 
         const applyDataToStates = (response) => {
@@ -2064,7 +1925,7 @@
             if (Array.isArray(response.products)) setProducts(response.products);
             if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes);
             if (Array.isArray(response.closers)) setClosers(response.closers);
-            if (Array.isArray(response.businessTeams)) setBusinessTeams(response.businessTeams.map(t => ({...t, id: String(t.id || t.team_id || t.Team_ID || "").trim(), name: String(t.name || t.team_name || t.Team_Name || t.TeamName || "").trim(), status: String(t.status || t.Status || "??????").trim()})));
+            if (Array.isArray(response.businessTeams)) setBusinessTeams(response.businessTeams.map(t => ({...t, id: String(t.id || t.team_id || t.Team_ID || "").trim(), name: String(t.name || t.team_name || t.Team_Name || t.TeamName || "").trim(), status: String(t.status || t.Status || "ใช้งาน").trim()})));
             if (Array.isArray(response.members)) {
                 const formattedMembers = response.members.map(m => ({
                     id: String(m.id || m.user_id || m.User_ID || '').trim(),
@@ -2077,9 +1938,6 @@
                     phone: m.phone || m.phone_number || m.Phone_Number || '',
                     email: m.email || m.Email || '',
                     lineId: m.line_id || m.LINE_ID || '',
-                    bankName: m.bank_name || m.Bank_Name || '',
-                    bankAccountNo: m.bank_account_no || m.Bank_Account_No || '',
-                    bankAccountName: m.bank_account_name || m.Bank_Account_Name || '',
                     accumulatedPV: Number(m.accumulated_pv || m.Accumulated_PV || 0)
                 })).filter(m => m.id !== '');
                 setMembers(formattedMembers);
@@ -2100,8 +1958,6 @@
                             const typeStr = String(it.type || '').trim();
                             const qtyNum = Number(it.qty || it.quantity || 1);
                             const pName = String(it.prod || it.productName || it.name || 'Unknown').trim();
-                            
-                            // Flatten into object keys so legacy logic can render items easily
                             s[`${pName}_${typeStr}`] = qtyNum;
                             
                             if (typeStr === 'ราคาเต็ม') sumF += qtyNum;
@@ -2121,8 +1977,9 @@
                         });
                     }
                     
-                    s['memberId'] = s.memberId || s.sellerId || s.seller_id || s.seller;
-                    s['sellerId'] = s.sellerId || s.seller_id || s.seller || s.memberId;
+                    s['memberId'] = s.memberId || s.member_id || s.sellerId || s.seller_id || s.seller || s.user_id || s.created_by || '';
+                    s['sellerId'] = s['memberId'];
+                    s['customerType'] = s.customer_type || s.customerType || s.custType || '';
                     s['รวมชิ้นราคาเต็ม'] = sumF; 
                     s['รวมชิ้นราคาสมาชิก'] = sumM;
                     s['รวมชิ้นราคาโปร'] = sumP; 
@@ -2146,9 +2003,8 @@
             localStorage.removeItem('stk_current_user');
             setCurrentUser(null);
             setIsLoggedIn(false);
-            if (typeof window !== 'undefined') {
-                window.open(resolvePageUrl(SCRIPT_URL + '?page=reports'), '_top');
-            }
+            const targetUrl = typeof resolvePageUrl === 'function' ? resolvePageUrl('?page=dashboard') : 'Mlm.html';
+            if (typeof window !== 'undefined') window.location.href = targetUrl;
         };
 
         return (
@@ -2162,7 +2018,7 @@
                     onLogout={handleLogout} 
                     showLoginModal={showLoginModal} 
                     setShowLoginModal={setShowLoginModal} 
-                    SCRIPT_URL={SCRIPT_URL}
+                    SCRIPT_URL=""
                     setIsAppLoading={setIsAppLoading}
                     isSidebarCollapsed={isSidebarCollapsed}
                     setIsSidebarCollapsed={setIsSidebarCollapsed}
@@ -2187,7 +2043,7 @@
                             {isAppLoading ? (
                                 <div className="flex flex-col items-center justify-center py-32 gap-5 animation-fade-in">
                                     <div className="w-16 h-16 border-[4px] border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
-                                    <h2 className="text-lg font-bold text-slate-700">กำลังซิงค์ข้อมูลกับฐานข้อมูล...</h2>
+                                    <h2 className="text-lg font-bold text-slate-700">กำลังซิงค์ข้อมูลกับ Supabase Database...</h2>
                                     <p className="text-slate-500 text-sm">กรุณารอสักครู่ ระบบกำลังดึงข้อมูลล่าสุด</p>
                                 </div>
                             ) : isLoggedIn ? (

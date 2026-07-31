@@ -156,15 +156,15 @@
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
   };
 
-  const inputClassHud = "w-full border border-slate-200 bg-slate-50/30 focus:bg-white px-4 py-2.5 rounded-xl outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400/80 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:bg-slate-100/50 disabled:text-slate-400 transition-all duration-300 shadow-sm shadow-slate-100/40";
-  const labelClassHud = "block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-1";
-  const btnClassPrimary = "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-2.5 rounded-xl text-[13px] font-bold transition-all duration-300 shadow-md shadow-blue-500/10 hover:shadow-lg hover:shadow-blue-500/20 hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 h-[38px] sm:h-[40px]";
-  const btnClassSecondary = "bg-white hover:bg-slate-50 text-slate-600 border border-slate-200/80 px-6 py-2.5 rounded-xl text-[13px] font-bold transition-all duration-300 shadow-sm shadow-slate-100/50 hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 h-[38px] sm:h-[40px]";
-  const boxWrapper = "bg-white p-6 sm:p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.015)] border border-slate-100/80 w-full mb-6 transition-all duration-300";
-  const tableHeaderClass = "bg-slate-50/60 border-b border-slate-100 px-4 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap";
-  const tableCellClass = "px-4 py-4 text-[13px] font-medium text-slate-700 border-b border-slate-100/80 whitespace-nowrap transition-colors";
-  const titleClass = "text-xl sm:text-2xl font-black text-slate-800 flex items-center gap-3 tracking-tight";
-  const thBase = "p-4 text-[13px] font-bold border-b border-slate-200 bg-slate-50 text-slate-700 whitespace-nowrap uppercase tracking-wide";
+  const inputClassHud = "w-full border border-slate-200 bg-slate-50/50 focus:bg-white px-4 py-2.5 rounded-xl outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100 disabled:text-slate-400 transition-all duration-200 shadow-sm";
+  const labelClassHud = "block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 pl-1";
+  const btnClassPrimary = "bg-slate-800 hover:bg-slate-900 text-white px-5 py-2 rounded-xl text-[13px] font-bold transition-all duration-200 shadow-sm hover:shadow flex items-center justify-center gap-2 h-[38px] sm:h-[40px] cursor-pointer";
+  const btnClassSecondary = "bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-5 py-2 rounded-xl text-[13px] font-bold transition-all duration-200 shadow-sm flex items-center justify-center gap-2 h-[38px] sm:h-[40px] cursor-pointer";
+  const boxWrapper = "bg-white p-6 sm:p-7 rounded-2xl shadow-sm border border-slate-200/80 w-full mb-6 transition-all duration-200";
+  const tableHeaderClass = "bg-slate-100/70 border-b border-slate-200 px-4 py-3 text-[11px] font-bold text-slate-600 uppercase tracking-wider whitespace-nowrap";
+  const tableCellClass = "px-4 py-3.5 text-[13px] font-medium text-slate-700 border-b border-slate-100 whitespace-nowrap transition-colors";
+  const titleClass = "text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-3 tracking-tight";
+  const thBase = "p-3.5 text-[12px] font-bold border-b border-slate-200 bg-slate-100/70 text-slate-700 whitespace-nowrap uppercase tracking-wide";
 
   function useDebounce(value, delay) {
     const [debouncedValue, setDebouncedValue] = React.useState(value);
@@ -203,7 +203,7 @@
   const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {
     if (!isOpen) return null;
     return React.createElement('div', {
-      className: "fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[1000] flex items-center justify-center p-4 animation-fade-in",
+      className: "fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[1000] flex items-center justify-center p-2 sm:p-4 animation-fade-in",
       onClick: onClose
     }, React.createElement('div', {
       className: "bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 animation-pop text-center border border-slate-100",
@@ -222,7 +222,7 @@
   const EditModal = ({ isOpen, onClose, title, children, icon: Icon, maxWidthClass = "max-w-4xl" }) => {
     if (!isOpen) return null;
     return React.createElement('div', {
-      className: "fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[990] flex items-center justify-center p-4 sm:p-6 animation-fade-in"
+      className: "fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[990] flex items-center justify-center p-2 sm:p-6 animation-fade-in"
     }, React.createElement('div', {
       className: `bg-white rounded-3xl shadow-2xl w-full ${maxWidthClass} max-h-[90vh] flex flex-col animation-pop border border-slate-100 relative`,
       onClick: e => e.stopPropagation()
@@ -357,6 +357,9 @@
   };
 
   const resolvePageUrl = (href) => {
+    if (!href) return '#';
+    
+    // 1. กรณีเป็น file:// (Local Machine)
     if (typeof window !== 'undefined' && window.location && window.location.href.startsWith('file://')) {
       const pageFileMap = {
         'dashboard': 'Mlm.html',
@@ -372,7 +375,6 @@
         'closers': 'Closers.html',
         'exchange_rate': 'ExchangeRate.html'
       };
-      if (!href) return '#';
       for (const [p, file] of Object.entries(pageFileMap)) {
         if (href.includes(`page=${p}`)) {
           return href.includes('tab=business_teams') ? 'Team.html?tab=business_teams' : file;
@@ -381,48 +383,66 @@
       return href;
     }
 
+    // 2. กรณี Google Apps Script
     if (typeof google !== 'undefined' && google.script && google.script.run) {
       return href;
     }
     
+    // 3. กรณี Web Server จริง (HTTPS / HTTP): ตรวจว่า URL ในบราวเซอร์ใช้นามสกุล .html หรือเป็น Clean URL
+    const pathname = (typeof window !== 'undefined' && window.location) ? window.location.pathname : '';
+    const hasHtmlExt = pathname.toLowerCase().endsWith('.html');
+    
     const pageFileMap = {
-      'dashboard': 'Mlm.html',
-      'reports': 'Reports.html',
-      'org_chart': 'OrgChart.html',
-      'sales': 'Sales.html',
-      'customers': 'Customers.html',
-      'system_users': 'SystemUsers.html',
-      'team': 'Team.html',
-      'business_teams': 'Team.html',
-      'stock': 'Stock.html',
-      'customer_types': 'CustomerTypes.html',
-      'closers': 'Closers.html',
-      'exchange_rate': 'ExchangeRate.html'
+      'dashboard': hasHtmlExt ? 'Mlm.html' : 'Mlm',
+      'reports': hasHtmlExt ? 'Reports.html' : 'Reports',
+      'org_chart': hasHtmlExt ? 'OrgChart.html' : 'OrgChart',
+      'sales': hasHtmlExt ? 'Sales.html' : 'Sales',
+      'customers': hasHtmlExt ? 'Customers.html' : 'Customers',
+      'system_users': hasHtmlExt ? 'SystemUsers.html' : 'SystemUsers',
+      'team': hasHtmlExt ? 'Team.html' : 'Team',
+      'business_teams': hasHtmlExt ? 'Team.html' : 'Team',
+      'stock': hasHtmlExt ? 'Stock.html' : 'Stock',
+      'customer_types': hasHtmlExt ? 'CustomerTypes.html' : 'CustomerTypes',
+      'closers': hasHtmlExt ? 'Closers.html' : 'Closers',
+      'exchange_rate': hasHtmlExt ? 'ExchangeRate.html' : 'ExchangeRate'
     };
-    if (!href) return '#';
+
     for (const [p, file] of Object.entries(pageFileMap)) {
       if (href.includes(`page=${p}`)) {
-        return href.includes('tab=business_teams') ? 'Team.html?tab=business_teams' : file;
+        if (p === 'reports') {
+          const matchGroup = href.match(/group=([^&]+)/);
+          if (matchGroup) {
+            return `${file}?group=${matchGroup[1]}`;
+          }
+        }
+        return href.includes('tab=business_teams') ? `${file}?tab=business_teams` : file;
       }
     }
     return href;
   };
 
-  const SidebarItem = ({ icon: Icon, label, id, activeTab, href, onTabClick, isSidebarCollapsed }) => React.createElement('a', {
-    href: resolvePageUrl(href),
-    onClick: (e) => {
-      if (activeTab === id) {
-        e.preventDefault();
-        return;
-      }
-      onTabClick();
+  const SidebarItem = ({ icon: Icon, label, id, activeTab, href, onTabClick, isSidebarCollapsed }) => {
+    const targetUrl = resolvePageUrl(href);
+    const currentPath = (typeof window !== 'undefined' && window.location) ? window.location.pathname.toLowerCase() : '';
+    const cleanTarget = targetUrl.split('?')[0].replace(/\.html$/i, '').toLowerCase();
+    const isCurrentPage = activeTab === id || (currentPath !== '' && currentPath.endsWith(cleanTarget));
+
+    return React.createElement('a', {
+      href: targetUrl,
+      onClick: (e) => {
+        if (isCurrentPage) {
+          e.preventDefault();
+          return;
+        }
+        if (onTabClick) onTabClick(e, targetUrl);
+      },
+      className: `group w-full flex items-center px-4 py-3 rounded-xl transition-all duration-200 ${isSidebarCollapsed ? 'justify-center' : 'gap-3.5 text-left'} ${isCurrentPage ? 'bg-blue-600/90 text-white font-bold shadow-sm' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'}`,
+      title: isSidebarCollapsed ? label : ''
     },
-    className: `group w-full flex items-center px-4 py-3.5 rounded-xl transition-all duration-300 ${isSidebarCollapsed ? 'justify-center' : 'gap-3.5 text-left'} ${activeTab === id ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/20' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-100'}`,
-    title: isSidebarCollapsed ? label : ''
-  },
-    React.createElement('div', { className: "shrink-0 animate-icon-wiggle transition-colors" }, React.createElement(Icon, { size: 22 })),
-    !isSidebarCollapsed ? React.createElement('span', { className: "font-bold whitespace-nowrap truncate transition-transform duration-300 group-hover:translate-x-1" }, label) : null
-  );
+      React.createElement('div', { className: "shrink-0 animate-icon-wiggle transition-colors" }, React.createElement(Icon, { size: 22 })),
+      !isSidebarCollapsed ? React.createElement('span', { className: "font-bold whitespace-nowrap truncate transition-transform duration-300 group-hover:translate-x-1" }, label) : null
+    );
+  };
 
   const SidebarReportsGroup = ({ activeTab, isSidebarCollapsed, handleTabClick, SCRIPT_URL, currentUser }) => {
     const perm = getUserPagePermission(currentUser, 'reports');
@@ -454,10 +474,10 @@
         React.createElement('div', { className: `transition-transform duration-300 ${isOpen ? 'rotate-180' : ''} text-slate-500` }, React.createElement(ChevronDown, { size: 16 }))
       ),
       isOpen ? React.createElement('div', { className: "pl-4 ml-5 border-l border-slate-800 space-y-1 relative animation-slide-down", style: { animationDuration: '0.2s' } },
-        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=sales'), onClick: handleTabClick, className: "flex items-center px-4 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all hover:translate-x-1" }, "📊 ยอดขาย & พนักงาน"),
-        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=finance'), onClick: handleTabClick, className: "flex items-center px-4 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all hover:translate-x-1" }, "💰 การเงิน & รายรับ"),
-        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=stock'), onClick: handleTabClick, className: "flex items-center px-4 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all hover:translate-x-1" }, "📦 สต๊อก & สินค้าตัดศูนย์"),
-        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'), onClick: handleTabClick, className: "flex items-center px-4 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all hover:translate-x-1" }, "🎁 ค่าแนะนำ & ปันผล")
+        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=sales'), onClick: (e) => handleTabClick(e, resolvePageUrl(SCRIPT_URL + '?page=reports&group=sales')), className: "flex items-center px-4 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all hover:translate-x-1" }, "📊 ยอดขาย & พนักงาน"),
+        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=finance'), onClick: (e) => handleTabClick(e, resolvePageUrl(SCRIPT_URL + '?page=reports&group=finance')), className: "flex items-center px-4 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all hover:translate-x-1" }, "💰 การเงิน & รายรับ"),
+        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=stock'), onClick: (e) => handleTabClick(e, resolvePageUrl(SCRIPT_URL + '?page=reports&group=stock')), className: "flex items-center px-4 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all hover:translate-x-1" }, "📦 สต๊อก & สินค้าตัดศูนย์"),
+        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'), onClick: (e) => handleTabClick(e, resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral')), className: "flex items-center px-4 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all hover:translate-x-1" }, "🎁 ค่าแนะนำ & ปันผล")
       ) : null
     );
   };
@@ -578,8 +598,25 @@
 
     const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
-    const handleTabClick = () => {
-      if (setIsAppLoading) setIsAppLoading(true);
+    const handleTabClick = (e, targetUrl) => {
+      setIsMobileMenuOpen(false);
+      if (targetUrl) {
+        if (typeof window !== 'undefined') {
+          const currentUrl = window.location.pathname.split('/').pop() + window.location.search;
+          if (currentUrl === targetUrl) {
+            if (e) e.preventDefault();
+            return;
+          }
+          const currentPath = window.location.pathname.split('/').pop();
+          const targetPath = targetUrl.split('?')[0].split('/').pop();
+          if (currentPath === targetPath && targetUrl.includes('?')) {
+            if (e) e.preventDefault();
+            window.history.pushState(null, '', targetUrl);
+            window.dispatchEvent(new PopStateEvent('popstate'));
+            return;
+          }
+        }
+      }
     };
 
     const canDashboard = getUserPagePermission(currentUser, 'dashboard') !== 'none';
@@ -622,7 +659,7 @@
           )
         )
       ),
-      React.createElement('div', { className: "lg:hidden bg-slate-900 border-b border-slate-800 sticky top-0 z-20 px-4 py-3 flex justify-between items-center shadow-sm h-[60px] no-print" },
+      React.createElement('div', { className: "lg:hidden bg-slate-900 border-b border-slate-800 sticky top-0 z-20 px-4 py-3 flex justify-between items-center shadow-sm h-[60px] w-full shrink-0 no-print" },
         React.createElement('h1', { className: "text-lg font-black text-white tracking-tight" }, "LOVE ", React.createElement('span', { className: "text-blue-500" }, "STK GROUPE")),
         React.createElement('button', { onClick: () => setIsMobileMenuOpen(true), className: "p-2 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors" }, React.createElement(Menu, { size: 24 }))
       ),
@@ -777,9 +814,9 @@
     };
 
     return React.createElement('div', {
-      className: "fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[1000] flex items-center justify-center p-4 animation-fade-in"
+      className: "fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[1000] flex items-center justify-center p-2 sm:p-4 animation-fade-in"
     }, React.createElement('div', {
-      className: "bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 animation-pop border border-slate-100 relative overflow-hidden",
+      className: "bg-white rounded-3xl shadow-2xl w-full max-w-sm p-5 sm:p-8 animation-pop border border-slate-100 relative overflow-hidden",
       onClick: e => e.stopPropagation()
     },
       React.createElement('div', { className: "absolute -top-16 -right-16 w-32 h-32 bg-blue-500 rounded-full blur-3xl opacity-20" }),

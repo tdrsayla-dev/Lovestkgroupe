@@ -3,11 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>พนักงาน (Team) - LOVE STK GROUPE</title>
+  <title>Team - LOVE STK GROUPE</title>
   <!-- Standalone & GAS Libraries -->
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
-    body { font-family: 'Inter', 'IBM Plex Sans Thai', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; }
+    @import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
+    body { font-family: 'Sukhumvit Set', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
+    @media (min-width: 1024px) {
+      aside.lg\:flex { display: flex !important; position: fixed !important; top: 0; left: 0; height: 100vh; z-index: 30; }
+      main.lg\:ml-64 { margin-left: 16rem !important; }
+      main.lg\:ml-20 { margin-left: 5rem !important; }
+      div.lg\:hidden { display: none !important; }
+    }
+    @media (max-width: 1023.98px) {
+      aside.hidden.lg\:flex { display: none !important; }
+      div.lg\:hidden { display: flex !important; }
+      main { margin-left: 0 !important; width: 100% !important; }
+    }
   </style>
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -16,21 +27,16 @@
   <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
   <script>
     window.addEventListener('DOMContentLoaded', function() {
-      setTimeout(function() { var l=document.getElementById('initial-loader'); if(l)l.style.display='none'; }, 600);
+      var l=document.getElementById("initial-loader"); if(l)l.style.display="none";
     });
   </script>
-  <?!= include('Includes'); ?>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
-
-  <!-- ✅ Supabase JS Client -->
+  <!--  Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <!-- ✅ STK Supabase Config -->
+  <!-- STK Supabase Config -->
   <script>
-    // =====================================================================
-    // STK GROUPE - Supabase Config (MLM / Sales System Phase 2.3)
-    // =====================================================================
     window.SUPABASE_URL      = 'https://mfpkeyrykqnrywyksyqp.supabase.co';
     window.SUPABASE_ANON_KEY = 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
     window.SUPABASE_REST_URL = window.SUPABASE_URL + '/rest/v1';
@@ -40,12 +46,10 @@
       'Authorization': 'Bearer ' + window.SUPABASE_ANON_KEY,
       'Prefer'       : 'return=representation'
     };
-    // Initialize Supabase client (available globally as window.supabaseClient)
     if (typeof supabase !== 'undefined') {
       window.supabaseClient = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
-      console.log('%c✅ Supabase Connected!', 'color:green;font-weight:bold', window.SUPABASE_URL);
+      console.log('%c Supabase Connected!', 'color:green;font-weight:bold', window.SUPABASE_URL);
     }
-    // ---- REST Helper Functions ----
     async function supabaseSelect(table, query) {
       var url = window.SUPABASE_REST_URL + '/' + table + (query ? '?' + query : '');
       var res = await fetch(url, { method: 'GET', headers: window.SUPABASE_HEADERS });
@@ -78,6 +82,7 @@
     }
   </script>
   <script src="CommonComponents.js"></script>
+
   <div id="initial-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999;">
     <div style="width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 24px;"></div>
     <style>@keyframes initial-spin { to { transform: rotate(360deg); } }</style>
@@ -90,9 +95,7 @@
   <script type="text/babel">
     const { useState, useMemo, useEffect, useRef, useCallback } = React;
 
-    /* <?!= include('CommonComponents'); ?> */
-
-    // 📌 Icons added for Team.html
+    // Icons added for Team.html
     const IconProps = { stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", fill: "none" };
     const UserIcon = ({size=20}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
     const PhoneIcon = ({size=20}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>;
@@ -106,7 +109,33 @@
     // ==========================================
     // 📌 ส่วนจัดการข้อมูลพนักงาน (Team Management View)
     // ==========================================
-    const TeamManagementView = ({ members, setMembers, businessTeams, isAdmin, showToast, sales, products }) => {
+
+    // ✅ Helper: BFS หา ID ทั้งหมดใน downline รวมตัวเอง
+    const getAllDownlineIds = (membersList, rootId) => {
+        const result = new Set();
+        const rootUp = String(rootId || '').trim().toUpperCase();
+        if (!rootUp) return result;
+        // build children map
+        const childMap = new Map();
+        (membersList || []).forEach(m => {
+            const ref = String(m.referrer || m.sponsor_id || m.sponsorId || '').trim().toUpperCase();
+            const mid = String(m.id || '').trim().toUpperCase();
+            if (ref && ref !== mid) {
+                if (!childMap.has(ref)) childMap.set(ref, []);
+                childMap.get(ref).push(mid);
+            }
+        });
+        const queue = [rootUp];
+        while (queue.length > 0) {
+            const current = queue.shift();
+            if (result.has(current)) continue;
+            result.add(current);
+            (childMap.get(current) || []).forEach(c => queue.push(c));
+        }
+        return result;
+    };
+
+    const TeamManagementView = ({ members, setMembers, businessTeams, isAdmin, showToast, sales, products, currentUser }) => {
         const [showForm, setShowForm] = useState(false);
         const [isEditing, setIsEditing] = useState(false);
         const [isSubmitting, setIsSubmitting] = useState(false);
@@ -140,7 +169,6 @@
                         const givePv = Number(p.givePv || 0);
                         const selfFee = Number(p.selfFee || 0);
 
-                        // Strict PV Rule: PV awarded ONLY for Full Price or Member Price items!
                         if (givePv > 0) {
                             accumulatedPv += ((fullQty + memQty) * givePv);
                         }
@@ -163,7 +191,6 @@
         };
         const [formData, setFormData] = useState(initialFormState);
 
-        // 🟢 รายชื่อสำหรับ AutoSuggest ผู้แนะนำ (แม่ทีม)
         const referrerSuggestList = useMemo(() => {
             const list = (members || [])
                 .filter(m => m && m.id !== formData.id && m.status === 'ทำงานอยู่')
@@ -175,7 +202,6 @@
             return list;
         }, [members, formData.id]);
 
-        // 🟢 ฟังก์ชันค้นหาข้อมูลแม่ทีมมาโชว์ใต้ช่องกรอก
         const foundReferrer = useMemo(() => {
             if (!formData.referrer) return null;
             return (members || []).find(m => m.id.toUpperCase() === formData.referrer.toUpperCase());
@@ -183,7 +209,11 @@
 
         const handleOpenAdd = () => { 
             setIsEditing(false); 
-            setFormData(initialFormState); 
+            let defaultReferrer = '';
+            if (!isAdmin && currentUser && (currentUser.id || currentUser.username)) {
+                defaultReferrer = currentUser.id || currentUser.username;
+            }
+            setFormData({ ...initialFormState, referrer: defaultReferrer }); 
             setPreviewImage(null); 
             setImageFileBase64(null); 
             setIdDocPreviewImage(null);
@@ -290,7 +320,7 @@
                     name: finalData.name,
                     business_team: finalData.team || finalData.businessTeam,
                     permission_role: finalData.role || 'Staff',
-                    status: finalData.status || 'ทำงาน',
+                    status: finalData.status || 'ทำงานอยู่',
                     id_card_url: finalData.idCardDocUrl || finalData.profileUrl,
                     sponsor_id: finalData.referrer || finalData.sponsorId,
                     phone_number: finalData.phone || finalData.phoneNumber,
@@ -330,13 +360,22 @@
             try {
                 await supabaseDelete('stk_members', id, 'user_id');
                 setMembers((members || []).filter(m => m && m.id !== id));
-                showToast('ลบสมาชิกเรียบร้อย', 'success');
+                showToast('ลบสมาชิกเรียบร้อยแล้ว', 'success');
             } catch (error) {
                 showToast('เกิดข้อผิดพลาด: ' + (error.message || error), 'error');
             }
         };
 
-        const displayedMembers = filterTeam === 'All' ? (members || []) : (members || []).filter(m => {
+        // ✅ กรองสายงาน: non-admin เห็นเฉพาะตัวเองและ downline ของตัวเอง
+        const currentUserId = String(currentUser?.id || '').trim().toUpperCase();
+        const isScopeOwn = !isAdmin && !!currentUserId;
+        const scopedMembers = useMemo(() => {
+            if (!isScopeOwn) return members || [];
+            const allowedIds = getAllDownlineIds(members || [], currentUserId);
+            return (members || []).filter(m => m && allowedIds.has(String(m.id || '').trim().toUpperCase()));
+        }, [members, isScopeOwn, currentUserId]);
+
+        const displayedMembers = filterTeam === 'All' ? scopedMembers : scopedMembers.filter(m => {
            if (!m) return false;
            const targetTeamObj = (businessTeams || []).find(bt => bt.id === filterTeam || bt.name === filterTeam);
            const targetId = targetTeamObj ? targetTeamObj.id : filterTeam;
@@ -369,8 +408,15 @@
                 <form onSubmit={handleSaveMember} className="space-y-6">
 
                   {/* ส่วนที่ 1: ข้อมูลบัญชีเข้าระบบ */}
+                  {/* ✅ canEditSensitive: Admin ทำได้ทุกอย่าง, non-admin lock ฟิลด์สำคัญ */}
+                  {(() => {
+                    const canEditSensitive = isAdmin;
+                    const lockedInput = inputClassHud + " bg-slate-100 text-slate-500 cursor-not-allowed select-none";
+                    return (
                   <div>
-                    <h3 className="text-sm font-extrabold text-blue-600 mb-3 flex items-center gap-2 bg-blue-50 py-1.5 px-3 rounded-lg"><UserIcon size={16}/> ข้อมูลบัญชีเข้าระบบ</h3>
+                    <h3 className="text-sm font-extrabold text-blue-600 mb-3 flex items-center gap-2 bg-blue-50 py-1.5 px-3 rounded-lg"><UserIcon size={16}/> ข้อมูลบัญชีเข้าระบบ
+                      {!canEditSensitive && isEditing && <span className="ml-2 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">🔒 เฉพาะ Admin แก้ไขได้</span>}
+                    </h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className={labelClassHud}>รหัสสมาชิก *</label>
@@ -378,16 +424,22 @@
                       </div>
                       <div>
                         <label className={labelClassHud}>ชื่อผู้ใช้งาน (Username) *</label>
-                        <input type="text" required placeholder="ใช้ล็อกอินเข้าระบบ" className={inputClassHud} value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
+                        <input type="text" required disabled={isEditing && !canEditSensitive} placeholder="ใช้สำหรับล็อกอินเข้าระบบ" className={isEditing && !canEditSensitive ? lockedInput : inputClassHud} value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
                       </div>
                       <div>
                         <label className={labelClassHud}>รหัสผ่านเข้าระบบ *</label>
-                        <input type="text" required placeholder="รหัสผ่านเข้าใช้งาน" className={inputClassHud} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                        <input type="text" required disabled={isEditing && !canEditSensitive} placeholder="รหัสผ่านเข้าใช้งาน" className={isEditing && !canEditSensitive ? lockedInput : inputClassHud} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
                       </div>
                     </div>
                   </div>
+                    );
+                  })()}
 
                   {/* ส่วนที่ 2: ข้อมูลส่วนตัวและสังกัดทีม */}
+                  {(() => {
+                    const canEditSensitive = isAdmin;
+                    const lockedInput = inputClassHud + " bg-slate-100 text-slate-500 cursor-not-allowed";
+                    return (
                   <div>
                     <h3 className="text-sm font-extrabold text-blue-600 mb-3 flex items-center gap-2 bg-blue-50 py-1.5 px-3 rounded-lg"><Contact size={16}/> ข้อมูลพนักงานและสังกัดทีม</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -396,38 +448,41 @@
                         <input type="text" required placeholder="ชื่อเต็มภาษาไทย" className={inputClassHud} value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                       </div>
                       <div>
-                        <label className={labelClassHud}>สังกัดทีม</label>
-                        <select className={inputClassHud} value={formData.team} onChange={e => setFormData({...formData, team: e.target.value})}>
-                          {(businessTeams || []).map(t => (<option key={t.id} value={t.id}>{t.name}</option>))}
-                          {(businessTeams || []).length === 0 && (<><option value="T01">Marketing</option><option value="T02">Center</option></>)}
+                        <label className={labelClassHud}>สังกัดทีม {!canEditSensitive && isEditing && <span className="text-amber-500 text-[10px]">🔒</span>}</label>
+                        <select disabled={isEditing && !canEditSensitive} className={isEditing && !canEditSensitive ? lockedInput : inputClassHud} value={formData.team} onChange={e => setFormData({...formData, team: e.target.value})}>
+                          {(businessTeams || []).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                          {(businessTeams || []).length === 0 && <><option value="T01">Marketing</option><option value="T02">Center</option></>}
                         </select>
                       </div>
                       <div>
-                        <label className={labelClassHud}>สิทธิ์การใช้งาน (Role)</label>
-                        <select className={inputClassHud} value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
-                          <option value="Staff">พนักงานทั่วไป (Staff)</option>
-                          <option value="Admin">ผู้ดูแลระบบ (Admin)</option>
+                        <label className={labelClassHud}>สิทธิ์การเข้าใช้งาน (Role) {!canEditSensitive && isEditing && <span className="text-amber-500 text-[10px]">🔒</span>}</label>
+                        <select disabled={isEditing && !canEditSensitive} className={isEditing && !canEditSensitive ? lockedInput : inputClassHud} value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
+                          <option value="พนักงานทั่วไป">พนักงานทั่วไป (Staff)</option>
+                          <option value="พนักงานการตลาด">พนักงานการตลาด (Marketing)</option>
+                          <option value="ผู้ดูแลระบบ">ผู้ดูแลระบบ (Admin)</option>
                         </select>
                       </div>
                       
-                      {/* 🟢 อัปเกรด: ช่องผู้แนะนำ (แม่ทีม) เป็นแบบ AutoSuggest */}
                       <div className="relative">
-                        <label className={labelClassHud + " text-indigo-700"}>ผู้แนะนำ (แม่ทีม)</label>
-                        <AutoSuggestInput 
-                            value={formData.referrer} 
-                            onChange={val => setFormData({...formData, referrer: val})} 
-                            onSelect={val => setFormData({...formData, referrer: val})} 
-                            data={referrerSuggestList} 
-                            placeholder="พิมพ์รหัส หรือชื่อเพื่อค้นหา..." 
-                            required={false} 
-                        />
-                        {/* 🟢 แสดงชื่อแม่ทีมที่เลือกไว้ด้านล่างเพื่อรีเช็ค */}
+                        <label className={labelClassHud + " text-indigo-700"}>ผู้แนะนำ (แม่ทีม) {!canEditSensitive && isEditing && <span className="text-amber-500 text-[10px]">🔒</span>}</label>
+                        {isEditing && !canEditSensitive ? (
+                          <input type="text" disabled className={lockedInput} value={formData.referrer} />
+                        ) : (
+                          <AutoSuggestInput 
+                              value={formData.referrer} 
+                              onChange={val => setFormData({...formData, referrer: val})} 
+                              onSelect={val => setFormData({...formData, referrer: val})} 
+                              data={referrerSuggestList} 
+                              placeholder="พิมพ์รหัส หรือชื่อเพื่อค้นหา..." 
+                              required={false} 
+                          />
+                        )}
                         {foundReferrer ? (
                             <div className="text-[10px] font-bold text-emerald-600 mt-1.5 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 inline-block truncate max-w-full shadow-sm">
-                                👤 {foundReferrer.name}
+                                 {foundReferrer.name}
                             </div>
                         ) : formData.referrer.length > 0 ? (
-                            <div className="text-[10px] font-bold text-red-500 mt-1.5">❌ ไม่พบรหัสแม่ทีมนี้ในระบบ</div>
+                            <div className="text-[10px] font-bold text-red-500 mt-1.5">ไม่พบรหัสแม่ทีมนี้ในระบบ</div>
                         ) : (
                             <div className="text-[10px] font-bold text-slate-400 mt-1.5">- บริษัทรับตรง (ไม่มีแม่ทีม) -</div>
                         )}
@@ -447,6 +502,8 @@
                       </div>
                     </div>
                   </div>
+                    );
+                  })()}
 
                   {/* ส่วนที่ 3: ข้อมูลการติดต่อ */}
                   <div>
@@ -473,7 +530,7 @@
 
                   {/* ส่วนที่ 4: ข้อมูลบัญชีธนาคาร */}
                   <div>
-                    <h3 className="text-sm font-extrabold text-blue-600 mb-3 flex items-center gap-2 bg-blue-50 py-1.5 px-3 rounded-lg"><CreditCardIcon size={16}/> ข้อมูลบัญชีธนาคาร (รับเงินคอมมิชชัน)</h3>
+                    <h3 className="text-sm font-extrabold text-blue-600 mb-3 flex items-center gap-2 bg-blue-50 py-1.5 px-3 rounded-lg"><CreditCardIcon size={16}/> ข้อมูลบัญชีธนาคาร (รับเงินคอมมิชชั่น)</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className={labelClassHud}>ชื่อธนาคาร</label>
@@ -509,7 +566,6 @@
                                <label className={labelClassHud}>อัปโหลดไฟล์รูปภาพเอกสาร (แนบไฟล์จากเครื่อง)</label>
                                <input type="file" accept="image/*" onChange={handleIdDocImageChange} className="w-full text-sm text-slate-600 file:mr-4 file:py-2.5 file:px-6 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 file:transition-colors file:shadow-md cursor-pointer file:cursor-pointer bg-white border border-slate-200 rounded-xl" />
                            </div>
-                           <p className="text-[10px] text-slate-400 mt-2">* หมายเหตุ: โปรดเพิ่มคอลัมน์ "ID_Card_Number" และ "ID_Doc_URL" ในฐานข้อมูล (Google Sheets) เพื่อให้ระบบเก็บบันทึกได้อย่างสมบูรณ์</p>
                        </div>
                        <div className="flex items-center justify-center h-full min-h-[160px]">
                           {idDocPreviewImage ? (
@@ -526,7 +582,6 @@
                     </div>
                   </div>
 
-                  {/* อัปโหลดรูปโปรไฟล์ */}
                   <div className="flex flex-col sm:flex-row gap-5 items-center bg-blue-50/50 p-5 rounded-2xl border border-blue-100 shadow-inner mt-4">
                       <div className="flex-1 w-full">
                         <label className={labelClassHud}>อัปโหลดรูปโปรไฟล์พนักงาน</label>
@@ -551,10 +606,8 @@
               <EditModal isOpen={!!selectedMember} onClose={() => setSelectedMember(null)} title="บัตรประจำตัวพนักงาน (Identity Card)" icon={Contact} maxWidthClass="max-w-4xl">
                  <div className="space-y-6 py-2">
 
-                   {/* Premium Signature Card */}
                    <div className="w-full bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-xl flex flex-col md:flex-row relative min-h-[220px]">
 
-                      {/* Left — Avatar */}
                       <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 flex flex-col items-center justify-center shrink-0 w-full md:w-64 text-white relative">
                          <div className="absolute top-0 left-0 w-24 h-24 bg-white/5 rounded-full blur-2xl"></div>
                          <div className="relative">
@@ -566,7 +619,7 @@
                                 onError={(e) => { e.target.onerror = null; e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedMember.name || "")}&background=eff6ff&color=1d4ed8&rounded=true&bold=true`; }}
                               />
                            </div>
-                           <span className={`absolute bottom-1.5 right-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider shadow-md ${selectedMember.status === "ทำงานอยู่" || selectedMember.status === "ใช้งาน" ? "bg-emerald-500 text-white" : selectedMember.status === "พักงาน" ? "bg-amber-500 text-white" : "bg-red-500 text-white"}`}>
+                           <span className={`absolute bottom-1.5 right-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider shadow-md ${selectedMember.status === "ทำงานอยู่" || selectedMember.status === "เข้าใช้งาน" ? "bg-emerald-500 text-white" : selectedMember.status === "พักงาน" ? "bg-amber-500 text-white" : "bg-red-500 text-white"}`}>
                               {selectedMember.status}
                            </span>
                          </div>
@@ -577,7 +630,6 @@
                          </div>
                       </div>
 
-                      {/* Right — Info */}
                       <div className="p-8 flex-1 flex flex-col justify-between">
                          <div>
                             <div className="border-b-2 border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -641,7 +693,6 @@
                       </div>
                    </div>
 
-                   {/* Bank & Wallet Cards */}
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-2">
                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">ข้อมูลบัญชีธนาคาร</span>
@@ -680,7 +731,7 @@
                                </div>
                                <span className="text-[10px] font-bold text-purple-600 block mt-0.5">LAK (กีบ)</span>
                             </div>
-                            <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 p-2.5 rounded-xl border border-blue-100 shadow-sm text-center" title="คิดเฉพาะสินค้าขายราคาเต็ม หรือ ราคาสมาชิก เท่านั้น">
+                            <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 p-2.5 rounded-xl border border-blue-100 shadow-sm text-center" title="คิดเฉพาะยอดขายราคาเต็ม หรือ ราคาสมาชิก เท่านั้น">
                                <span className="text-[9px] font-bold text-blue-700 block uppercase leading-none">PV สะสม</span>
                                <div className="text-sm sm:text-base font-black text-blue-800 mt-1 leading-tight whitespace-nowrap">
                                   {Number(selectedMemberStats.accumulatedPv || 0).toLocaleString()}
@@ -701,7 +752,7 @@
                                 <div className="text-slate-800 font-black text-base">{selectedMember.idCardNumber || 'ไม่ได้ระบุ'}</div>
                                 {selectedMember.idCardDocUrl && String(selectedMember.idCardDocUrl).trim().length > 5 && String(selectedMember.idCardDocUrl).trim() !== '-' && (
                                     <a href={selectedMember.idCardDocUrl} target="_blank" className="text-blue-600 hover:underline text-[11px] font-bold inline-flex items-center gap-1 mt-2 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
-                                        🔗 ดูรูปขนาดเต็ม (คลิก)
+                                        🔗 ดูรูปภาพเต็ม (คลิก)
                                     </a>
                                 )}
                             </div>
@@ -733,13 +784,14 @@
               </div>
             </div>
 
-            {/* Filter Tabs */}
-            <div className="flex gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200 w-full sm:w-fit overflow-x-auto hide-scroll">
+            {/* Filter Tabs — แสดงเฉพาะ Admin */}
+             {isAdmin && (
+              <div className="flex gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200 w-full sm:w-fit overflow-x-auto hide-scroll">
                <button onClick={() => setFilterTeam('All')} className={filterBtn + (filterTeam === 'All' ? ' bg-blue-600 text-white border-blue-600 shadow-sm' : ' bg-white text-slate-700 hover:bg-slate-50 border-slate-200')}>
-                 ทั้งหมด ({(members || []).length})
+                 ทั้งหมด ({scopedMembers.length})
                </button>
-               {(businessTeams || []).filter(bt => bt.status !== 'ยกเลิก' && bt.status !== 'ปิดใช้งาน' && bt.status !== 'Disabled').map(bt => {
-                 const count = (members || []).filter(m => {
+               {(businessTeams || []).filter(bt => bt.status !== 'ยกเลิก' && bt.status !== 'ปิดเข้าใช้งาน' && bt.status !== 'Disabled').map(bt => {
+                 const count = scopedMembers.filter(m => {
                    if (!m) return false;
                    return m.team === bt.id || m.team === bt.name || 
                           m.businessTeam === bt.id || m.businessTeam === bt.name ||
@@ -753,13 +805,14 @@
                  );
                })}
             </div>
+            )}
 
             {/* Card Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {searchedMembers.map((m) => {
                 const refInfo = (members || []).find(mem => mem && mem.id === m.referrer);
                 const refName = refInfo ? refInfo.name : '-';
-                const isWorking = m.status === 'ทำงานอยู่' || m.status === 'ใช้งาน';
+                const isWorking = m.status === 'ทำงานอยู่' || m.status === 'เข้าใช้งาน';
 
                 return (
                   <div
@@ -796,7 +849,15 @@
                       <h3 className="text-[15px] font-black text-slate-800 line-clamp-1 leading-tight mb-1">{m?.name}</h3>
 
                       {/* Role */}
-                      <p className="text-[11px] font-bold text-blue-600 mb-4">{m?.role === 'Admin' ? 'Project Manager (Admin)' : 'Staff (ทีมงาน)'}</p>
+                      <p className="text-[11px] font-bold text-blue-600 mb-4">
+                        {(() => {
+                          const r = String(m?.role || '').trim();
+                          if (r === 'Admin' || r === 'ผู้ดูแลระบบ') return 'Admin (ผู้ดูแลระบบ)';
+                          if (r === 'พนักงานการตลาด' || r === 'Marketing') return 'Marketing (พนักงานการตลาด)';
+                          if (r === 'พนักงานทั่วไป' || r === 'Staff') return 'Staff (พนักงานทั่วไป)';
+                          return r || 'Staff (ทีมงาน)';
+                        })()}
+                      </p>
 
                       {/* Team & Start Date */}
                       <div className="grid grid-cols-2 gap-4 w-full text-left pt-3 border-t border-slate-100 text-xs mt-auto">
@@ -830,15 +891,17 @@
                       </div>
                     </div>
 
-                    {/* Action Buttons */}
+                    {/* Action Buttons — แก้ไขได้เฉพาะ: Admin ทุกคน, non-admin เฉพาะตัวเอง */}
                     <div className="flex justify-end gap-2 w-full mt-4 pt-3 border-t border-slate-100">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleOpenEdit(m); }}
-                        title="แก้ไข"
-                        className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 p-2 rounded-xl border border-slate-200 shadow-sm transition-all"
-                      >
-                        <Edit size={14}/>
-                      </button>
+                      {(isAdmin || String(m?.id || '').trim().toUpperCase() === currentUserId) && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleOpenEdit(m); }}
+                          title="แก้ไข"
+                          className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 p-2 rounded-xl border border-slate-200 shadow-sm transition-all"
+                        >
+                          <Edit size={14}/>
+                        </button>
+                      )}
                       {isAdmin && (
                         <button
                           onClick={(e) => { e.stopPropagation(); setConfirmDelete({ show: true, id: m.id, title: m.name }); }}
@@ -863,7 +926,7 @@
     };
 
     // ==========================================
-    // 🏢 ส่วนจัดการข้อมูลทีมสังกัด (Business Teams Management View)
+    // 📌 ส่วนจัดการข้อมูลทีมสังกัด (Business Teams Management View)
     // ==========================================
     const BusinessTeamsManagementView = ({ businessTeams, setBusinessTeams, members, isAdmin, showToast }) => {
         const [showModal, setShowModal] = useState(false);
@@ -922,9 +985,9 @@
                         nextIdNum = Math.max(0, ...existingIds) + 1;
                     }
                     const newId = 'T' + String(nextIdNum).padStart(2, '0');
-                    const dbPayload = { team_id: newId, team_name: teamName.trim(), status: 'ใช้งาน' };
+                    const dbPayload = { team_id: newId, team_name: teamName.trim(), status: 'เข้าใช้งาน' };
                     await supabaseInsert('stk_business_teams', dbPayload);
-                    const uiTeam = { team_id: newId, id: newId, team_name: teamName.trim(), name: teamName.trim(), status: 'ใช้งาน' };
+                    const uiTeam = { team_id: newId, id: newId, team_name: teamName.trim(), name: teamName.trim(), status: 'เข้าใช้งาน' };
                     setBusinessTeams(prev => [...prev, uiTeam]);
                     showToast('เพิ่มทีมใหม่เรียบร้อย!', 'success');
                 }
@@ -937,13 +1000,13 @@
         };
 
         const handleToggleStatus = async (team) => {
-            const currentStatus = team.status || 'ใช้งาน';
-            const newStatus = (currentStatus === 'ใช้งาน' || currentStatus === 'Active') ? 'ปิดใช้งาน' : 'ใช้งาน';
+            const currentStatus = team.status || 'เข้าใช้งาน';
+            const newStatus = (currentStatus === 'เข้าใช้งาน' || currentStatus === 'Active') ? 'ปิดเข้าใช้งาน' : 'เข้าใช้งาน';
             
             try {
                 await supabaseUpdate('stk_business_teams', team.id, { status: newStatus }, 'team_id');
                 setBusinessTeams(prev => prev.map(t => t.id === team.id ? { ...t, status: newStatus } : t));
-                showToast('อัพเดทสถานะ ' + team.name + ' เป็น ' + newStatus + ' เรียบร้อย', 'info');
+                showToast('อัปเดตสถานะ ' + team.name + ' เป็น ' + newStatus + ' เรียบร้อย', 'info');
             } catch (error) {
                 showToast('เกิดข้อผิดพลาด: ' + (error.message || error), 'error');
             }
@@ -990,14 +1053,14 @@
                                     <th className={thBase}>รหัสทีม</th>
                                     <th className={thBase}>ชื่อทีมสังกัด</th>
                                     <th className={`${thBase} text-center`}>จำนวนสมาชิกพนักงาน</th>
-                                    <th className={`${thBase} text-center`}>สถานะการใช้งาน</th>
+                                    <th className={`${thBase} text-center`}>สถานะการเข้าใช้งาน</th>
                                     {isAdmin && <th className={`${thBase} text-center w-24`}>จัดการ</th>}
                                 </tr>
                             </thead>
                             <tbody>
                                 {filteredTeams.map((team, idx) => {
                                     const mCount = getMemberCount(team.id, team.name);
-                                    const isTeamDisabled = team.status === 'ปิดใช้งาน' || team.status === 'Disabled';
+                                    const isTeamDisabled = team.status === 'ปิดเข้าใช้งาน' || team.status === 'Disabled';
                                     return (
                                         <tr key={team.id || idx} className={`border-b border-slate-100 transition-colors ${isTeamDisabled ? 'bg-slate-50/60 opacity-85' : 'hover:bg-slate-50'}`}>
                                             <td className="p-4 text-sm font-bold text-blue-600 whitespace-nowrap">{team.id}</td>
@@ -1019,10 +1082,10 @@
                                                         ? 'bg-slate-200 text-slate-600 hover:bg-slate-300 border border-slate-300'
                                                         : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300'
                                                     }`}
-                                                    title="คลิกเพื่อเปิดหรือปิดการใช้งานทีมนี้ในหน้าหลัก"
+                                                    title="เปิดหรือปิดการเข้าใช้งานทีมนี้ในหน้าหลัก"
                                                 >
                                                     <span className={`w-2 h-2 rounded-full ${isTeamDisabled ? 'bg-slate-500' : 'bg-emerald-500 animate-pulse'}`}></span>
-                                                    {isTeamDisabled ? '🔴 ปิดใช้งาน (ซ่อนอยู่)' : '🟢 เปิดใช้งาน'}
+                                                    {isTeamDisabled ? 'ปิดเข้าใช้งาน (ซ่อนอยู่)' : 'เปิดเข้าใช้งาน'}
                                                 </button>
                                             </td>
                                             {isAdmin && (
@@ -1063,7 +1126,7 @@
                     </form>
                 </EditModal>
 
-                <ConfirmModal isOpen={confirmDelete.show} onClose={() => setConfirmDelete({ show: false, id: null, title: '' })} onConfirm={executeDelete} title="ยืนยันการลบทีมสังกัด" message={`คุณแน่ใจหรือไม่ว่าต้องการลบทีม "${confirmDelete.title}" ออกจากระบบ?`} />
+                <ConfirmModal isOpen={confirmDelete.show} onClose={() => setConfirmDelete({ show: false, id: null, title: '' })} onConfirm={executeDelete} title="ยืนยันการลบทีมสังกัด" message={`คุณต้องการลบทีมสังกัด "${confirmDelete.title}" ออกจากระบบใช่หรือไม่?`} />
             </div>
         );
     };
@@ -1085,10 +1148,6 @@
             if (lower === 'business_teams' || lower === 'business_team' || lower === 'teams') {
               return 'business_teams';
             }
-          }
-          const initTab = "<?= getInitialTab() ?>".toLowerCase();
-          if (initTab === 'business_teams' || initTab === 'business_team' || initTab === 'teams') {
-            return 'business_teams';
           }
         } catch(e) {}
         return 'members';
@@ -1122,7 +1181,7 @@
       const [sales, setSales] = useState([]);
       const [systemUsers, setSystemUsers] = useState([]);
       const [businessTeams, setBusinessTeams] = useState([]);
-      const [isAppLoading, setIsAppLoading] = useState(true);
+      const [isAppLoading, setIsAppLoading] = useState(false);
       const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
         try { return localStorage.getItem('stk_sidebar_collapsed') === 'true'; } catch (e) { return false; }
       });
@@ -1130,15 +1189,7 @@
       const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
       const showToast = (message, type = 'success') => { setToast({ show: true, message, type }); };
 
-      const SCRIPT_URL = (() => {
-  try {
-    if (window.top && window.top.location && window.top.location.href) {
-      const base = window.top.location.href.split('?')[0];
-      if (base && base.startsWith('http')) return base;
-    }
-  } catch(e) {}
-  return "<?= getScriptUrl() ?>";
-})();
+      const SCRIPT_URL = "";
 
       const isAdmin = currentUser && (
           String(currentUser.role).trim() === 'ผู้ดูแลระบบ' ||
@@ -1228,11 +1279,12 @@
         localStorage.removeItem('stk_current_user');
         setCurrentUser(null);
         setIsLoggedIn(false);
-        if (typeof window !== 'undefined') window.open(SCRIPT_URL + '?page=dashboard', '_top');
+        const targetUrl = typeof resolvePageUrl === 'function' ? resolvePageUrl('?page=dashboard') : 'Mlm.html';
+        if (typeof window !== 'undefined') window.location.href = targetUrl;
       };
 
       return (
-        <div className="min-h-screen flex font-sans bg-slate-50">
+        <div className="min-h-screen flex flex-col lg:flex-row font-sans bg-slate-50 w-full">
           <Sidebar
             activePage={activeSubTab === 'business_teams' ? 'business_teams' : 'team'}
             onSubTabChange={(sub) => setActiveSubTab(sub)}
@@ -1269,7 +1321,7 @@
                 {isAppLoading ? (
                   <div className="flex flex-col items-center justify-center py-32 gap-5 animation-fade-in">
                     <div className="w-16 h-16 border-[4px] border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
-                    <h2 className="text-lg font-bold text-slate-700">กำลังซิงค์ข้อมูลกับฐานข้อมูล...</h2>
+                    <h2 className="text-lg font-bold text-slate-700">กำลังโหลดข้อมูล...</h2>
                     <p className="text-slate-500 text-sm">กรุณารอสักครู่ ระบบกำลังดึงข้อมูลล่าสุด</p>
                   </div>
                 ) : isLoggedIn ? (
@@ -1290,11 +1342,12 @@
                       showToast={showToast}
                       sales={sales}
                       products={products}
+                      currentUser={currentUser}
                     />
                   )
                 ) : (
                   <div className="flex flex-col items-center justify-center py-32 gap-5 animation-fade-in">
-                    <h2 className="text-xl font-black text-red-500">กรุณาเข้าสู่ระบบก่อนใช้งาน</h2>
+                    <h2 className="text-xl font-black text-red-500">กรุณาเข้าสู่ระบบก่อนเข้าใช้งาน</h2>
                     <button onClick={() => setShowLoginModal(true)} className={btnClassPrimary}>เข้าสู่ระบบ</button>
                   </div>
                 )}

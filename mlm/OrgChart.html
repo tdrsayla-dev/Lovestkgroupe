@@ -5,8 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>โครงสร้างทีมขาย (Sales Team Hierarchy) - LOVE STK GROUPE</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
-    body { font-family: 'Inter', 'IBM Plex Sans Thai', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; }
+    @import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
+    body { font-family: 'Sukhumvit Set', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
+    @media (min-width: 1024px) {
+      aside.lg\:flex { display: flex !important; position: fixed !important; top: 0; left: 0; height: 100vh; z-index: 30; }
+      main.lg\:ml-64 { margin-left: 16rem !important; }
+      main.lg\:ml-20 { margin-left: 5rem !important; }
+      div.lg\:hidden { display: none !important; }
+    }
+    @media (max-width: 1023.98px) {
+      aside.hidden.lg\:flex { display: none !important; }
+      div.lg\:hidden { display: flex !important; }
+      main { margin-left: 0 !important; width: 100% !important; }
+    }
     
     .tree-line-vertical { width: 2px; height: 24px; background-color: #cbd5e1; margin: 0 auto; }
     .tree-line-horizontal { height: 2px; background-color: #cbd5e1; position: absolute; top: 0; }
@@ -75,6 +86,22 @@
             });
         }
         return _cachedChildrenMap.get(String(parentId).trim().toUpperCase()) || [];
+    };
+
+    // ✅ Helper: Get all downline member IDs (including self) for a given rootId
+    const getAllDownlineIds = (membersList, rootId) => {
+        const result = new Set();
+        const rootUp = String(rootId || '').trim().toUpperCase();
+        if (!rootUp) return result;
+        const queue = [rootUp];
+        while (queue.length > 0) {
+            const current = queue.shift();
+            if (result.has(current)) continue;
+            result.add(current);
+            const children = getChildren(membersList, current);
+            children.forEach(c => queue.push(String(c.id || '').trim().toUpperCase()));
+        }
+        return result;
     };
 
     // 🏷️ Categorize products into 4 clean category names & rates
@@ -324,7 +351,7 @@
         }, [personalSalesList, downlineSalesList, products, isLeaderWithTeam]);
 
         return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animation-fade-in overflow-y-auto">
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm animation-fade-in overflow-y-auto">
                 <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden my-auto">
                     
                     {/* 🟣 Modal Header (Gradient Header) */}
@@ -694,10 +721,17 @@
     };
 
     // 🟢 Flexible Employee Card Component (Match Screenshot Layout with Level Badges)
-    const EmployeeCardNode = ({ node, allMembers, onSelect, onOpenDetail, memberSales, teamMap, level = 0 }) => {
+    const EmployeeCardNode = ({ node, allMembers, onSelect, onOpenDetail, memberSales, teamMap, level = 0, currentUser, isAdmin }) => {
         const children = getChildren(allMembers, node.id);
         const hasChildren = children.length > 0;
         const isLeader = hasChildren || node.role === 'หัวหน้าสายงาน' || node.role === 'Leader';
+
+        // ✅ ตรวจว่า card นี้คือตัว currentUser เองหรือเปล่า
+        const currentUserId = String(currentUser?.id || '').trim().toUpperCase();
+        const nodeId = String(node.id || '').trim().toUpperCase();
+        const isSelf = !!currentUserId && currentUserId === nodeId;
+        // อนุญาตกดดูรายละเอียด: admin กดได้ทุกคน, non-admin กดได้เฉพาะตัวเอง
+        const canOpenDetail = isAdmin || isSelf;
 
         return (
             <div className="flex flex-col items-center">
@@ -713,7 +747,7 @@
                 {/* Main Card Box */}
                 <div 
                     onClick={() => onSelect(node)}
-                    className="p-4 w-64 rounded-3xl border border-slate-200 bg-white hover:border-blue-300 hover:shadow-xl transition-all duration-300 relative z-10 cursor-pointer flex flex-col items-center shadow-md"
+                    className="p-4 w-full max-w-[260px] sm:w-64 rounded-3xl border border-slate-200 bg-white hover:border-blue-300 hover:shadow-xl transition-all duration-300 relative z-10 cursor-pointer flex flex-col items-center shadow-md"
                 >
                     {/* Top Role Badge */}
                     <div className="mb-2">
@@ -757,15 +791,21 @@
                             </div>
                         )}
 
-                        {/* Action Button */}
+                        {/* Action Button — ล็อคถ้าไม่ใช่ตัวเองและไม่ใช่ Admin */}
                         <div className="pt-2">
-                            <button 
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); onSelect(node); if(onOpenDetail) onOpenDetail(node); }}
-                                className="w-full py-1.5 bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 text-[10px] font-black rounded-xl transition-all border border-blue-200/60 shadow-xs flex items-center justify-center gap-1"
-                            >
-                                📊 คลิกดูผลงานและสายงาน
-                            </button>
+                            {canOpenDetail ? (
+                                <button 
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); onSelect(node); if(onOpenDetail) onOpenDetail(node); }}
+                                    className="w-full py-1.5 bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 text-[10px] font-black rounded-xl transition-all border border-blue-200/60 shadow-xs flex items-center justify-center gap-1"
+                                >
+                                    📊 คลิกดูผลงานและสายงาน
+                                </button>
+                            ) : (
+                                <div className="w-full py-1.5 bg-slate-50 text-slate-400 text-[10px] font-bold rounded-xl border border-slate-200 flex items-center justify-center gap-1 cursor-not-allowed">
+                                    🔒 ไม่มีสิทธิ์ดูรายละเอียด
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -785,6 +825,8 @@
                                     onOpenDetail={onOpenDetail}
                                     teamMap={teamMap}
                                     level={level + 1}
+                                    currentUser={currentUser}
+                                    isAdmin={isAdmin}
                                 />
                             ))}
                         </div>
@@ -849,13 +891,24 @@
             return salesMap;
         }, [members, sales]);
 
+        // ✅ สิทธิ์สายงาน: ถ้าไม่ใช่ Admin ให้กรองเฉพาะตัวเองและ downline
+        const currentUserId = String(currentUser?.id || '').trim().toUpperCase();
+        const isScopeOwn = !isAdmin && !!currentUserId;
+
+        const scopedMembers = useMemo(() => {
+            if (!isScopeOwn) return members || [];
+            const allowedIds = getAllDownlineIds(members || [], currentUserId);
+            return (members || []).filter(m => allowedIds.has(String(m.id || '').trim().toUpperCase()));
+        }, [members, isScopeOwn, currentUserId]);
+
         const rootMembers = useMemo(() => {
-            return (members || []).filter(m => {
+            return (scopedMembers).filter(m => {
                 const ref = String(m.referrer || '').trim().toUpperCase();
                 const mid = String(m.id || '').trim().toUpperCase();
-                return !ref || ref === mid || !(members || []).some(p => String(p.id).trim().toUpperCase() === ref);
+                // ถ้า scoped: root คือตัว currentUser เอง หรือคนที่ referrer ไม่มีใน scopedMembers
+                return !ref || ref === mid || !(scopedMembers).some(p => String(p.id).trim().toUpperCase() === ref);
             });
-        }, [members]);
+        }, [scopedMembers]);
 
         // Filter root members by search query
         const filteredRootMembers = useMemo(() => {
@@ -961,19 +1014,23 @@
                     </button>
                 </div>
 
-                {/* 🌳 Responsive Flexible Grid Layout Container */}
-                <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8 w-full min-h-[600px] flex flex-col items-center">
-                    
-                    {/* Top Root Header Card: STK Sales Management */}
-                    <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-800 text-white rounded-3xl p-6 w-80 text-center shadow-xl border-2 border-white/20 relative z-10 flex flex-col items-center mb-2">
-                        <div className="w-16 h-16 rounded-full bg-white text-blue-700 flex items-center justify-center font-black text-xl mb-3 shadow-md">
-                            🏢
-                        </div>
-                        <h2 className="text-xl font-black tracking-tight">STK Sales Management</h2>
-                        <p className="text-xs text-blue-200 font-bold mt-1">โครงสร้างสายงานในระบบ</p>
-                    </div>
 
-                    <div className="w-0.5 h-6 bg-slate-300 mb-4"></div>
+                {/* 🌳 Responsive Flexible Grid Layout Container */}
+                <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8 w-full overflow-x-auto flex flex-col items-center">
+                    
+                    {/* Top Root Header Card: STK Sales Management — แสดงเฉพาะ Admin */}
+                    {isAdmin && (
+                        <>
+                            <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-800 text-white rounded-3xl p-6 w-full max-w-xs sm:w-80 text-center shadow-xl border-2 border-white/20 relative z-10 flex flex-col items-center mb-2">
+                                <div className="w-16 h-16 rounded-full bg-white text-blue-700 flex items-center justify-center font-black text-xl mb-3 shadow-md">
+                                    🏢
+                                </div>
+                                <h2 className="text-xl font-black tracking-tight">STK Sales Management</h2>
+                                <p className="text-xs text-blue-200 font-bold mt-1">โครงสร้างสายงานในระบบ</p>
+                            </div>
+                            <div className="w-0.5 h-6 bg-slate-300 mb-4"></div>
+                        </>
+                    )}
 
                     {/* Responsive Flexible Wrap Grid for Employee Cards */}
                     <div className="flex flex-wrap justify-center items-start gap-6 sm:gap-8 w-full">
@@ -981,12 +1038,14 @@
                             <EmployeeCardNode 
                                 key={r.id} 
                                 node={r} 
-                                allMembers={members} 
+                                allMembers={scopedMembers} 
                                 memberSales={memberSalesMap}
                                 onSelect={m => setSelectedMember(m)}
                                 onOpenDetail={m => { setSelectedMember(m); setDetailModalOpen(true); }}
                                 teamMap={teamMap}
                                 level={0}
+                                currentUser={currentUser}
+                                isAdmin={isAdmin}
                             />
                         ))}
                     </div>
@@ -998,7 +1057,7 @@
                     onClose={() => setDetailModalOpen(false)}
                     member={selectedMember}
                     sales={sales}
-                    members={members}
+                    members={scopedMembers}
                     products={products}
                     customerTypes={customerTypes}
                     systemSettings={systemSettings}
@@ -1157,7 +1216,7 @@
       };
 
       return (
-        <div className="min-h-screen bg-slate-100 flex font-sans antialiased text-slate-800 w-full">
+        <div className="min-h-screen bg-slate-100 flex flex-col lg:flex-row font-sans antialiased text-slate-800 w-full">
           <Toast toast={toast} setToast={setToast} />
           
           <Sidebar 
@@ -1168,15 +1227,21 @@
             currentUserProfileUrl={currentUserProfileUrl}
             currentUser={currentUser}
             isLoggedIn={isLoggedIn}
-            onLogout={() => { localStorage.removeItem('stk_current_user'); setIsLoggedIn(false); setCurrentUser(null); setShowLoginModal(true); }}
+            onLogout={() => { 
+              localStorage.removeItem('stk_current_user'); 
+              setIsLoggedIn(false); 
+              setCurrentUser(null); 
+              const targetUrl = typeof resolvePageUrl === 'function' ? resolvePageUrl('?page=dashboard') : 'Mlm.html';
+              if (typeof window !== 'undefined') window.location.href = targetUrl;
+            }}
             showLoginModal={showLoginModal}
             setShowLoginModal={setShowLoginModal}
             setIsAppLoading={setIsAppLoading}
           />
 
-          <main className={`flex-1 transition-all duration-300 flex flex-col min-h-screen ${isSidebarCollapsed ? 'ml-20' : 'ml-64'}`}>
+          <main className={`flex-1 flex flex-col min-h-screen bg-slate-50 transition-all duration-300 relative ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} w-full overflow-x-hidden`}>
 
-            <div className="p-4 sm:p-6 lg:p-8 flex-1 w-full">
+            <div className="p-3 sm:p-6 lg:p-8 flex-1 w-full">
               <div className="w-full">
                 {isAppLoading ? (
                   <div className="flex flex-col items-center justify-center py-32 gap-3 animation-fade-in">

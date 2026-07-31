@@ -1,6 +1,6 @@
-﻿<style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
-  body { font-family: 'Inter', 'IBM Plex Sans Thai', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; }
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
+  body { font-family: 'Sukhumvit Set', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; }
   .animation-fade-in { animation: fadeIn 0.2s ease-out; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
   .animation-slide-up { animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
@@ -19,7 +19,7 @@
   .hide-scroll::-webkit-scrollbar { display: none; }
   .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
 
-  /* 📌 เอฟเฟคใหม่: เส้นพลังงานวิ่งสวนกันแบบสมูท (Smooth Glowing Lines) */
+  /* Y"O ?อY?Y"fหม^: ?ส?Tzลั??าTวิ^?สวTกัTแssสมู- (Smooth Glowing Lines) */
   @keyframes orbit-cw {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
@@ -30,14 +30,14 @@
   }
   .animate-orbit-cw {
       animation: orbit-cw 6s linear infinite;
-      transform-origin: 18px 18px; /* หมุนรอบจุดศูนย์กลาง SVG */
+      transform-origin: 18px 18px; /* หมุTรอs^ุ"ศูTยOกลา? SVG */
   }
   .animate-orbit-ccw {
       animation: orbit-ccw 9s linear infinite;
-      transform-origin: 18px 18px; /* หมุนรอบจุดศูนย์กลาง SVG */
+      transform-origin: 18px 18px; /* หมุTรอs^ุ"ศูTยOกลา? SVG */
   }
 
-  /* 📌 เอฟเฟคไอคอนเมนูด้านซ้าย (ดุ๊กดิ๊กน่ารักๆ) */
+  /* Y"O ?อY?Y""อ"อT?มTู"?าT<?าย ("ุSก"ิSกT^ารัก?) */
   @keyframes icon-wiggle {
       0%, 100% { transform: rotate(0deg) scale(1); }
       25% { transform: rotate(-12deg) scale(1.15); }
@@ -48,7 +48,74 @@
       animation: icon-wiggle 0.5s ease-in-out;
   }
 
-  /* 📌 CSS สำหรับการพิมพ์รายงาน (Print) */
+  /* Responsive & Multi-Platform Compatibility Fixes */
+  html, body {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Production & Server Layout Protections for Sidebar & Main Content */
+  @media (min-width: 1024px) {
+    aside.lg\:flex {
+      display: flex !important;
+      position: fixed !important;
+      top: 0;
+      left: 0;
+      height: 100vh;
+      z-index: 30;
+    }
+    main.lg\:ml-64 {
+      margin-left: 16rem !important;
+    }
+    main.lg\:ml-20 {
+      margin-left: 5rem !important;
+    }
+    div.lg\:hidden {
+      display: none !important;
+    }
+  }
+  @media (max-width: 1023.98px) {
+    aside.hidden.lg\:flex {
+      display: none !important;
+    }
+    div.lg\:hidden {
+      display: flex !important;
+    }
+    main {
+      margin-left: 0 !important;
+      width: 100% !important;
+    }
+  }
+
+  /* Responsive input & modal fixes */
+  input, select, textarea, button {
+    font-size: 16px; /* Prevent iOS zoom-in on focus */
+  }
+  @media (min-width: 640px) {
+    input, select, textarea, button {
+      font-size: 14px;
+    }
+  }
+
+  /* Table & Container responsive auto-wrapper */
+  .table-responsive, .tree-responsive {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Touch friendly scrollbars for horizontal lists */
+  .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+  /* CSS for Print */
   @media print {
       body { background-color: white !important; }
       aside, header, .no-print, .print-hide { display: none !important; }
@@ -64,3 +131,5 @@
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin defer></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin defer></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" defer></script>
+
+
