@@ -4610,13 +4610,36 @@ async function executePayout() {
 // ระบบจัดการรายการตรวจ / Services & Packages
 // =====================================
 
+function saveServicesLocalData() {
+    try {
+        localStorage.setItem('hr_services_data', JSON.stringify(window.servicesData || []));
+    } catch (e) {
+        console.error('Save services local data error:', e);
+    }
+}
+
 async function loadServicesData() {
+    const cached = localStorage.getItem('hr_services_data');
+    if (cached) {
+        try {
+            window.servicesData = JSON.parse(cached);
+            renderServicesTable();
+        } catch(e) {}
+    }
+
     try {
         const { data, error } = await _supabase.from('services').select('*').order('created_at', { ascending: false });
-        if (error) throw error;
-        
-        window.servicesData = data || [];
-        renderServicesTable();
+        if (!error && data && data.length > 0) {
+            window.servicesData = data.map(item => {
+                const existing = (window.servicesData || []).find(s => s.id === item.id);
+                if (existing && existing.category && !item.category) {
+                    item.category = existing.category;
+                }
+                return item;
+            });
+            saveServicesLocalData();
+            renderServicesTable();
+        }
     } catch (e) {
         console.error('Error loading services:', e);
         if (!window.servicesData) window.servicesData = [];
@@ -4844,6 +4867,7 @@ async function saveService() {
             if (index !== -1) {
                 window.servicesData[index] = { ...window.servicesData[index], ...payload };
             }
+            saveServicesLocalData();
             Swal.fire('สำเร็จ', 'อัปเดตรายการตรวจเรียบร้อย', 'success');
         } else {
             payload.id = generateId('SRV');
@@ -4853,6 +4877,7 @@ async function saveService() {
             
             window.servicesData = window.servicesData || [];
             window.servicesData.unshift(payload);
+            saveServicesLocalData();
             Swal.fire('สำเร็จ', 'เพิ่มรายการตรวจเรียบร้อย', 'success');
         }
 
@@ -4872,6 +4897,7 @@ async function saveService() {
                 window.servicesData[index] = { ...window.servicesData[index], ...payload };
             }
         }
+        saveServicesLocalData();
         renderServicesTable();
         bootstrap.Modal.getOrCreateInstance(document.getElementById('addServiceModal')).hide();
         Swal.fire('สำเร็จ (ออฟไลน์)', 'บันทึกข้อมูลเรียบร้อยแล้ว (ไม่สามารถต่อฐานข้อมูลได้)', 'success');
@@ -4896,11 +4922,13 @@ async function deleteService(id) {
             if (error) throw error;
             
             window.servicesData = window.servicesData.filter(s => s.id !== id);
+            saveServicesLocalData();
             renderServicesTable();
             Swal.fire('ลบแล้ว!', 'ข้อมูลถูกลบเรียบร้อย', 'success');
         } catch (e) {
             console.error('Delete service error', e);
             window.servicesData = window.servicesData.filter(s => s.id !== id);
+            saveServicesLocalData();
             renderServicesTable();
             Swal.fire('ลบแล้ว (ออฟไลน์)!', 'ข้อมูลถูกลบเรียบร้อย (ไม่สามารถต่อฐานข้อมูลได้)', 'success');
         }
