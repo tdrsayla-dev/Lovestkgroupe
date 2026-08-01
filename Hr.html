@@ -2783,7 +2783,7 @@
                                 <button onclick="exportFbReportPDF()" class="w-full text-left px-4 py-2 hover:bg-rose-50 text-rose-600 flex items-center gap-2">
                                     <i class="fa-solid fa-file-pdf"></i> PDF Document
                                 </button>
-                                <button onclick="window.print()" class="w-full text-left px-4 py-2 hover:bg-blue-50 text-blue-600 flex items-center gap-2">
+                                <button onclick="exportFbReportPDF()" class="w-full text-left px-4 py-2 hover:bg-blue-50 text-blue-600 flex items-center gap-2">
                                     <i class="fa-solid fa-print"></i> Print Report
                                 </button>
                             </div>
@@ -2961,8 +2961,77 @@
                     };
 
                     window.exportFbReportPDF = function() {
-                        window.print();
+                        let printContent = '';
+                        const reportSec = document.getElementById('fb-budget-report');
+                        const dashSec = document.getElementById('fb-budget-dashboard');
+
+                        if (reportSec && !reportSec.classList.contains('hidden')) {
+                            printContent = reportSec.innerHTML;
+                        } else if (dashSec && !dashSec.classList.contains('hidden')) {
+                            printContent = dashSec.innerHTML;
+                        }
+
+                        if (!printContent) {
+                            alert('No content to print');
+                            return;
+                        }
+
+                        let printFrame = document.getElementById('fb-print-iframe');
+                        if (printFrame && document.body.contains(printFrame)) {
+                            document.body.removeChild(printFrame);
+                        }
+
+                        printFrame = document.createElement('iframe');
+                        printFrame.id = 'fb-print-iframe';
+                        printFrame.style.position = 'fixed';
+                        printFrame.style.right = '0';
+                        printFrame.style.bottom = '0';
+                        printFrame.style.width = '0';
+                        printFrame.style.height = '0';
+                        printFrame.style.border = '0';
+                        document.body.appendChild(printFrame);
+
+                        const doc = printFrame.contentWindow.document;
+                        doc.open();
+                        doc.write(`
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                                <title>Facebook Budget Report</title>
+                                <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;600;700&display=swap" rel="stylesheet">
+                                <style>
+                                    @page { size: A4 landscape; margin: 8mm; }
+                                    body { margin: 0; padding: 0; font-family: 'Prompt', 'Inter', sans-serif; background: #fff; color: #1e293b; }
+                                    table { width: 100%; border-collapse: collapse; page-break-inside: auto; margin-top: 15px; }
+                                    tr { page-break-inside: avoid; page-break-after: auto; border-bottom: 1px solid #e2e8f0; }
+                                    th, td { padding: 8px 10px; font-size: 11px; text-align: left; }
+                                    th { background-color: #f1f5f9 !important; color: #475569 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: bold; }
+                                    h3 { font-size: 16px; margin-bottom: 10px; color: #1e293b; font-weight: bold; }
+                                    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                                    /* Hide interactive elements and action columns */
+                                    th:last-child, td:last-child, td button { display: none !important; }
+                                    .fa-spinner { display: none !important; }
+                                    .text-right { text-align: right !important; }
+                                    .text-center { text-align: center !important; }
+                                    .text-emerald-600 { color: #059669 !important; }
+                                    .text-purple-600 { color: #7c3aed !important; }
+                                    .text-rose-600 { color: #e11d48 !important; }
+                                    .text-blue-600 { color: #2563eb !important; }
+                                </style>
+                            </head>
+                            <body>
+                                ${printContent}
+                            </body>
+                            </html>
+                        `);
+                        doc.close();
+
+                        setTimeout(() => {
+                            printFrame.contentWindow.focus();
+                            printFrame.contentWindow.print();
+                        }, 250);
                     };
+
 
                     window.clearFbDateFilter = function() {
                         const sInput = document.getElementById('fb_start_date');
@@ -3317,8 +3386,8 @@
                             });
                             
                              // 2. ดึงข้อมูลยอดขายฝั่ง MLM และข้อมูลสมาชิก MLM (stk_members)
-                            const mlmUrl = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_URL) || window.SUPABASE_URL || 'https://qqyotianqcgpdzrfgjif.supabase.co';
-                            const mlmKey = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_ANON_KEY) || window.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxeW90aWFucWNncGR6cmZnamlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwNDQ1MzcsImV4cCI6MjA5ODYyMDUzN30.6VlHbimuMkg0UtxCw2cbU5mN_c9zPmizNuzrL5tCtME';
+                            const mlmUrl = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_URL) || window.MLM_SUPABASE_URL || 'https://mfpkeyrykqnrywyksyqp.supabase.co';
+                            const mlmKey = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_ANON_KEY) || window.MLM_SUPABASE_ANON_KEY || 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
                             
                             let salesMap = {};
                             let mlmMembersMap = {};
@@ -3329,112 +3398,130 @@
                                     fetch(`${mlmUrl}/rest/v1/stk_products?select=*`, { headers }).catch(() => null),
                                     fetch(`${mlmUrl}/rest/v1/sales?select=*`, { headers }).catch(() => null),
                                     fetch(`${mlmUrl}/rest/v1/stk_sales?select=*`, { headers }).catch(() => null),
-                                    fetch(`${mlmUrl}/rest/v1/stk_members?select=user_id,name`, { headers }).catch(() => null)
+                                    fetch(`${mlmUrl}/rest/v1/stk_members?select=*`, { headers }).catch(() => null)
                                 ]);
                                 
                                 if (loadId !== window.currentFbLoadId) return;
 
                                 const products = prodRes && prodRes.ok ? await prodRes.json() : [];
-                                let sales = salesRes && salesRes.ok ? await salesRes.json() : [];
-                                if ((!sales || sales.length === 0) && stkSalesRes && stkSalesRes.ok) {
-                                    sales = await stkSalesRes.json();
+                                let sales = stkSalesRes && stkSalesRes.ok ? await stkSalesRes.json() : null;
+                                if (!sales) {
+                                    sales = salesRes && salesRes.ok ? await salesRes.json() : [];
                                 }
+                                const membersList = memRes && memRes.ok ? await memRes.json() : [];
 
-                                const cleanProdName = (name) => String(name || '').replace(/\(.*?\)/g, '').trim().toUpperCase();
+                                (membersList || []).forEach(m => {
+                                    const uid = String(m.id || m.user_id || m.User_ID || '').trim().toUpperCase();
+                                    if (uid && (m.name || m.First_Name)) {
+                                        const fullName = m.name || (m.First_Name + ' ' + (m.Last_Name || '')).trim();
+                                        mlmMembersMap[uid] = fullName;
+                                    }
+                                });
 
-                                // Default fallback rates per product name if DB field is missing
-                                const defaultSelfFeeMap = {
-                                    'SESAMIN': 200000, 'APPLE': 200000, 'KING_GOLD': 200000, 'PINE_NEEDLE_OIL': 200000,
-                                    'COCO_BOOM': 200000, 'CORDESTAR_PLUS': 200000, 'ORYZA': 200000, 'COLLAGEN': 200000,
-                                    'COFFEE_ARABICA': 20000, 'STK COFFEE': 20000,
-                                    'BALANCE': 150000, 'KUT-SO': 150000, 'ZINC': 150000, 'LUTEIN': 150000, 'L-GLUTA': 150000, 'LIPO C': 150000,
-                                    'ANTI DARK SPOT SERUM': 70000, 'ACNE SERUM': 70000, 'MILK SUNCREAM': 70000, 'TONER': 70000, 'UNDERARM CREAM': 70000
+                                // Build downline team structure (Parent -> Children -> Downlines)
+                                const getDirectChildren = (parentId) => {
+                                    const pId = String(parentId || '').trim().toUpperCase();
+                                    if (!pId) return [];
+                                    return (membersList || []).filter(m => {
+                                        const ref = String(m.referrer || m.sponsor_id || m.Sponsor_ID || '').trim().toUpperCase();
+                                        const mid = String(m.id || m.user_id || m.User_ID || '').trim().toUpperCase();
+                                        return ref === pId && ref !== mid;
+                                    });
                                 };
 
-                                const getProductSelfFee = (p) => {
-                                    const fee = Number(p.Self_Fee || p.self_fee || p.selfFee || p.directFee || p.level0Fee || 0);
-                                    if (fee > 0) return fee;
-                                    const cleanName = cleanProdName(p.Name || p.name || p.id || p.Product_ID);
-                                    for (const [k, v] of Object.entries(defaultSelfFeeMap)) {
-                                        if (cleanName.includes(k) || k.includes(cleanName)) return v;
+                                const getDownlineIdsSet = (parentId) => {
+                                    const visited = new Set();
+                                    const queue = [String(parentId || '').trim().toUpperCase()];
+                                    const result = new Set();
+                                    while (queue.length > 0) {
+                                        const current = queue.shift();
+                                        if (!current || visited.has(current)) continue;
+                                        visited.add(current);
+                                        if (current !== parentId) result.add(current);
+                                        const children = getDirectChildren(current);
+                                        children.forEach(c => {
+                                            const cid = String(c.id || c.user_id || c.User_ID || '').trim().toUpperCase();
+                                            if (cid) queue.push(cid);
+                                        });
                                     }
-                                    return 0;
+                                    return result;
+                                };
+
+                                const downlineMap = {};
+                                (membersList || []).forEach(m => {
+                                    const uid = String(m.id || m.user_id || m.User_ID || '').trim().toUpperCase();
+                                    if (uid) downlineMap[uid] = getDownlineIdsSet(uid);
+                                });
+
+                                const getProductCategoryAndRate = (prodName, dbProductsList) => {
+                                    const cleanName = String(prodName || '').trim().toUpperCase();
+
+                                    if (Array.isArray(dbProductsList)) {
+                                        const found = dbProductsList.find(p => String(p.name || p.product_name || p.id || '').trim().toUpperCase() === cleanName);
+                                        if (found) {
+                                            const cat = String(found.category || '').trim();
+                                            const selfFee = Number(found.self_fee || 200000);
+                                            const l1Fee = Number(found.level_1_fee || 100000);
+                                            return { categoryKey: cat, categoryName: `หมวด ${cat}`, rate: selfFee, l1Rate: l1Fee };
+                                        }
+                                    }
+
+                                    if (cleanName.includes('COFFEE') || cleanName.includes('ARABICA')) {
+                                        return { categoryKey: 'Coffee', categoryName: 'หมวด Coffee', rate: 20000, l1Rate: 10000 };
+                                    }
+                                    if (cleanName.includes('SERUM') || cleanName.includes('SUNCREAM') || cleanName.includes('TONER') || cleanName.includes('CREAM') || cleanName.includes('APPLE') || cleanName.includes('ZINC')) {
+                                        return { categoryKey: 'Cosmetic', categoryName: 'หมวด Cosmetic', rate: 70000, l1Rate: 30000 };
+                                    }
+                                    if (cleanName.includes('GLUTA') || cleanName.includes('COLLAGEN') || cleanName.includes('BALANCE') || cleanName.includes('KUT-SO') || cleanName.includes('LIPO') || cleanName.includes('LUTEIN') || cleanName.includes('ORYZA')) {
+                                        return { categoryKey: 'Supplement02', categoryName: 'หมวด Supplement 02', rate: 150000, l1Rate: 50000 };
+                                    }
+                                    return { categoryKey: 'Supplement', categoryName: 'หมวด Supplement', rate: 200000, l1Rate: 100000 };
                                 };
 
                                 (sales || []).forEach(s => {
-                                    const sid = String(s.seller_id || s.sellerId || s.seller || s.memberId || s.user_id || '').trim().toUpperCase();
-                                    if (!sid) return;
-                                    if (!salesMap[sid]) salesMap[sid] = 0;
+                                    const sellerId = String(s.seller_id || s.sellerId || s.seller || s.memberId || s.user_id || s.marketing || '').trim().toUpperCase();
+                                    if (!sellerId) return;
+                                    if (!salesMap[sellerId]) salesMap[sellerId] = 0;
                                     
                                     let itemsList = [];
                                     if (s.items_json) {
                                         try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e) {}
                                     }
 
-                                    // Process items_json array
                                     if (Array.isArray(itemsList) && itemsList.length > 0) {
                                         itemsList.forEach(it => {
-                                            const typeStr = String(it.type || '').trim();
-                                            if (typeStr === 'ราคาเต็ม' || typeStr === 'ราคาสมาชิก' || !typeStr) {
-                                                const qtyNum = Number(it.qty || it.quantity || 1);
-                                                const rawItemName = String(it.prod || it.name || it.product_name || '').trim();
-                                                const cleanItemName = cleanProdName(rawItemName);
-                                                
-                                                let fee = 0;
-                                                const matchedProd = (products || []).find(p => {
-                                                    const pClean = cleanProdName(p.Name || p.name || '');
-                                                    const idClean = cleanProdName(p.Product_ID || p.product_id || p.id || '');
-                                                    return cleanItemName === pClean || cleanItemName === idClean || (pClean && cleanItemName.includes(pClean)) || (pClean && pClean.includes(cleanItemName));
-                                                });
+                                            const q = Number(it.qty || it.quantity || 1);
+                                            const pName = String(it.prod || it.productName || it.name || '').trim();
+                                            const catInfo = getProductCategoryAndRate(pName, products);
 
-                                                if (matchedProd) {
-                                                    fee = getProductSelfFee(matchedProd);
+                                            // 1. Personal Sales LAK
+                                            salesMap[sellerId] += (q * catInfo.rate);
+
+                                            // 2. Downline Team Sales Dividend LAK
+                                            Object.keys(downlineMap).forEach(uplineId => {
+                                                if (downlineMap[uplineId] && downlineMap[uplineId].has(sellerId)) {
+                                                    salesMap[uplineId] = (salesMap[uplineId] || 0) + (q * catInfo.l1Rate);
                                                 }
-                                                if (fee === 0) {
-                                                    for (const [k, v] of Object.entries(defaultSelfFeeMap)) {
-                                                        if (cleanItemName.includes(k) || k.includes(cleanItemName)) {
-                                                            fee = v;
-                                                            break;
-                                                        }
-                                                    }
-                                                }
-                                                salesMap[sid] += (qtyNum * fee);
+                                            });
+                                        });
+                                    } else {
+                                        const q = Number(s['ยอดรวมชิ้นทั้งหมด'] || 1);
+                                        
+                                        // Legacy records logic exactly like OrgChart.html
+                                        salesMap[sellerId] += (q * 200000);
+                                        
+                                        Object.keys(downlineMap).forEach(uplineId => {
+                                            if (downlineMap[uplineId] && downlineMap[uplineId].has(sellerId)) {
+                                                salesMap[uplineId] = (salesMap[uplineId] || 0) + (q * 100000);
                                             }
                                         });
                                     }
-
-                                    // Check product columns directly on sales record (e.g. s[pName + '_ราคาสมาชิก'])
-                                    (products || []).forEach(p => {
-                                        const pName = p.Name || p.name || '';
-                                        if (!pName) return;
-                                        const fullQty = Number(s[`${pName}_ราคาเต็ม`] || 0);
-                                        const memQty = Number(s[`${pName}_ราคาสมาชิก`] || 0);
-                                        const normalQty = fullQty + memQty;
-                                        if (normalQty > 0 && (!itemsList || itemsList.length === 0)) {
-                                            const fee = getProductSelfFee(p);
-                                            salesMap[sid] += (normalQty * fee);
-                                        }
-                                    });
                                 });
-
-                                if (memRes && memRes.ok) {
-                                    const mems = await memRes.json();
-                                    (mems || []).forEach(m => {
-                                        const uid = String(m.user_id || m.id || m.member_id || '').trim().toUpperCase();
-                                        if (uid && m.name) mlmMembersMap[uid] = String(m.name).trim();
-                                    });
-                                }
                             } catch(mlmErr) {
                                 console.warn('MLM fetch failed, proceeding with local data:', mlmErr);
                             }
 
                             if (loadId !== window.currentFbLoadId) return;
-
-                            // Guarantee L03709 sales value matches MLM net dividend (4,390,000 LAK including team referral commissions)
-                            salesMap['L03709'] = Math.max(salesMap['L03709'] || 0, 4390000);
-                            if (!mlmMembersMap['L03709']) {
-                                mlmMembersMap['L03709'] = 'MS CHERRY LOUANGPHAN';
-                            }
 
                             // If facebook_budget_requests is empty in HR DB, generate display rows for members with MLM sales
                             if (!budgets || budgets.length === 0) {
@@ -3444,8 +3531,8 @@
                                     id: 'FB-' + mId,
                                     member_id: mId,
                                     campaign_name: 'เบิกงบประมาณ Facebook',
-                                    amount: 500000,
-                                    currency: 'THB',
+                                    amount: 1000000,
+                                    currency: 'LAK',
                                     clinic_fee: 0,
                                     request_date: todayISO,
                                     status: 'Pending'
@@ -3485,15 +3572,16 @@
                                     }
 
                                     const amt = Number(b.amount || 0);
-                                    const curr = String(b.currency || 'THB').toUpperCase().trim();
+                                    const curr = String(b.currency || 'LAK').toUpperCase().trim();
 
                                     let amtInLAK = amt;
                                     if (curr === 'USD' || curr === '$') {
                                         amtInLAK = amt * 24500;
-                                    } else if (curr === 'THB') {
+                                    } else if (curr === 'THB' || curr === '฿') {
                                         amtInLAK = amt * 700;
                                     }
 
+                                    b._amtInLAK = amtInLAK;
                                     runningBalLAKMap[mId] -= amtInLAK;
                                     b._remainingBalLAK = runningBalLAKMap[mId];
                                 });
@@ -3529,30 +3617,21 @@
                                     const salesLAK = salesMap[mId] || 0;
                                     const clinicFee = Number(b.clinic_fee || 0);
                                     const amt = Number(b.amount || 0);
-                                    const curr = String(b.currency || 'THB').toUpperCase().trim();
-                                    
-                                    const remainingLAK = b._remainingBalLAK || 0;
-                                    let netVal = remainingLAK;
+                                    const curr = String(b.currency || 'LAK').toUpperCase().trim();
+
+                                    let usedLAK = amt;
                                     if (curr === 'USD' || curr === '$') {
-                                        netVal = remainingLAK / 24500;
-                                    } else if (curr === 'THB') {
-                                        netVal = remainingLAK / 700;
+                                        usedLAK = amt * 24500;
+                                    } else if (curr === 'THB' || curr === '฿') {
+                                        usedLAK = amt * 700;
                                     }
 
-                                    function fmtMoney(num, c) {
-                                        const val = Math.abs(Number(num || 0));
-                                        if (c === 'USD' || c === '$') {
-                                            return `$${val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
-                                        } else if (c === 'LAK' || c === 'กีบ' || c === 'กิ๊บ' || c === '₭') {
-                                            return `${val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} ₭`;
-                                        } else {
-                                            return `฿${val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
-                                        }
-                                    }
+                                    // Direct math formula: Net Received = Total MLM + Clinic Fee - Disbursed Amount
+                                    const netLAK = (salesLAK + clinicFee) - usedLAK;
 
-                                    const budgetDisplayStr = fmtMoney(amt, curr);
-                                    const netDisplayStr = (netVal < 0 ? '-' : '') + fmtMoney(netVal, curr);
+                                    const budgetDisplayStr = `${usedLAK.toLocaleString()} ₭`;
                                     const clinicDisplayStr = `${clinicFee.toLocaleString()} ₭`;
+                                    const netDisplayStr = `${netLAK < 0 ? '-' : ''}${Math.abs(netLAK).toLocaleString()} ₭`;
 
                                     const statusInfo = window.getFbBudgetStatusInfo ? window.getFbBudgetStatusInfo(b) : {
                                         primaryId: b.id || ('FB-' + mId),
@@ -3647,12 +3726,12 @@
                                 budgets.forEach(b => {
                                     const mId = String(b.member_id || '').trim().toUpperCase();
                                     const amt = Number(b.amount || 0);
-                                    const curr = String(b.currency || 'THB').toUpperCase().trim();
+                                    const curr = String(b.currency || 'LAK').toUpperCase().trim();
                                     
                                     let amtInLAK = amt;
                                     if (curr === 'USD' || curr === '$') {
                                         amtInLAK = amt * 24500;
-                                    } else if (curr === 'THB') {
+                                    } else if (curr === 'THB' || curr === '฿') {
                                         amtInLAK = amt * 700;
                                     }
 
@@ -3707,27 +3786,14 @@
                                     const [yStr, mStr, dStr] = isoDateStr.split('-');
                                     const dateStr = `${dStr}/${mStr}/${yStr}`;
 
+                                    const curr = item.primaryCurr || 'LAK';
                                     const salesLAK = salesMap[mId] || 0;
                                     const totalClinicFeeLAK = item.totalClinicFeeLAK;
                                     const totalBudgetLAK = item.totalBudgetLAK;
                                     const netLAK = (salesLAK + totalClinicFeeLAK) - totalBudgetLAK;
 
-                                    const curr = item.primaryCurr || 'THB';
-
                                     let budgetDisplayStr = `${totalBudgetLAK.toLocaleString()} ₭`;
                                     let netDisplayStr = `${netLAK < 0 ? '-' : ''}${Math.abs(netLAK).toLocaleString()} ₭`;
-
-                                    if (curr === 'THB') {
-                                        const budgetTHB = totalBudgetLAK / 700;
-                                        const netTHB = netLAK / 700;
-                                        budgetDisplayStr = `฿${budgetTHB.toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:2})}`;
-                                        netDisplayStr = `${netTHB < 0 ? '-' : ''}฿${Math.abs(netTHB).toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:2})}`;
-                                    } else if (curr === 'USD' || curr === '$') {
-                                        const budgetUSD = totalBudgetLAK / 24500;
-                                        const netUSD = netLAK / 24500;
-                                        budgetDisplayStr = `$${budgetUSD.toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:2})}`;
-                                        netDisplayStr = `${netUSD < 0 ? '-' : ''}$${Math.abs(netUSD).toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:2})}`;
-                                    }
 
                                     const isApproved = !item.hasPending;
                                     const statusText = isApproved ? 'อนุมัติแล้ว' : 'รอการอนุมัติ';
