@@ -209,8 +209,8 @@
         const [payTransferThaiBank, setPayTransferThaiBank] = useState('กสิกรไทย');
         const [payTransferLaosTHB, setPayTransferLaosTHB] = useState('');
         const [payTransferLaosBankTHB, setPayTransferLaosBankTHB] = useState('BCEL');
-        const [payTransferLaosLAK, setPayTransferLaosBankLAK] = useState('');
-        const [payTransferLaosBankLAK, setPayTransferLaosBankLAK2] = useState('BCEL');
+        const [payTransferLaosLAK, setPayTransferLaosLAK] = useState('');
+        const [payTransferLaosBankLAK, setPayTransferLaosBankLAK] = useState('BCEL');
         const [paymentNote, setPaymentNote] = useState('');
         const exchangeRate = parseFloat(systemSettings?.exchange_rate) || 700;
 
@@ -421,8 +421,8 @@
             setPayTransferThaiBank('กสิกรไทย');
             setPayTransferLaosTHB('');
             setPayTransferLaosBankTHB('BCEL');
-            setPayTransferLaosBankLAK('');
-            setPayTransferLaosBankLAK2('BCEL');
+            setPayTransferLaosLAK('');
+            setPayTransferLaosBankLAK('BCEL');
             setPaymentNote('');
         };
 
@@ -710,7 +710,7 @@
             setPayTransferThaiBank(bThaiTHB);
             setPayTransferLaosBankTHB(bLaosTHB);
             setPayTransferLaosLAK(lLaosLAK);
-            setPayTransferLaosBankLAK2(bLaosLAK);
+            setPayTransferLaosBankLAK(bLaosLAK);
             setPaymentNote(record.paymentNote || '');
             
             let cust = (customers || []).find(c => c && safeUpper(c.id) === safeUpper(record.customerId));
@@ -833,7 +833,7 @@
             setPayTransferLaosTHB('');
             setPayTransferLaosBankTHB('BCEL');
             setPayTransferLaosLAK('');
-            setPayTransferLaosBankLAK2('BCEL');
+            setPayTransferLaosBankLAK('BCEL');
         };
 
         const handleAdd = async (e) => {
