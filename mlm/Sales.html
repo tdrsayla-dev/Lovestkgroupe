@@ -6,8 +6,19 @@
   <title>ป้อนข้อมูลขาย (Sales) - LOVE STK GROUPE</title>
   <!-- Standalone & GAS Libraries -->
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
-    body { font-family: 'Inter', 'IBM Plex Sans Thai', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; }
+    @import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
+    body { font-family: 'Sukhumvit Set', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
+    @media (min-width: 1024px) {
+      aside.lg\:flex { display: flex !important; position: fixed !important; top: 0; left: 0; height: 100vh; z-index: 30; }
+      main.lg\:ml-64 { margin-left: 16rem !important; }
+      main.lg\:ml-20 { margin-left: 5rem !important; }
+      div.lg\:hidden { display: none !important; }
+    }
+    @media (max-width: 1023.98px) {
+      aside.hidden.lg\:flex { display: none !important; }
+      div.lg\:hidden { display: flex !important; }
+      main { margin-left: 0 !important; width: 100% !important; }
+    }
   </style>
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -32,8 +43,10 @@
   </script>
   <!-- <?!= include('Includes'); ?> -->
   <style>
-    /* ล็อกหน้าจอสำหรับ POS ไม่ให้เด้งขึ้นลง */
-    .pos-layout { height: calc(100vh - 100px); min-height: 500px; }
+    /* ล็อกหน้าจอสำหรับ POS ไม่ให้เด้งขึ้นลง (ทำงานเฉพาะจอใหญ่) */
+    @media (min-width: 1280px) {
+      .pos-layout { height: calc(100vh - 100px); min-height: 500px; }
+    }
     .custom-scrollbar::-webkit-scrollbar { width: 6px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
@@ -196,8 +209,8 @@
         const [payTransferThaiBank, setPayTransferThaiBank] = useState('กสิกรไทย');
         const [payTransferLaosTHB, setPayTransferLaosTHB] = useState('');
         const [payTransferLaosBankTHB, setPayTransferLaosBankTHB] = useState('BCEL');
-        const [payTransferLaosLAK, setPayTransferLaosLAK] = useState('');
-        const [payTransferLaosBankLAK, setPayTransferLaosBankLAK] = useState('BCEL');
+        const [payTransferLaosLAK, setPayTransferLaosBankLAK] = useState('');
+        const [payTransferLaosBankLAK, setPayTransferLaosBankLAK2] = useState('BCEL');
         const [paymentNote, setPaymentNote] = useState('');
         const exchangeRate = parseFloat(systemSettings?.exchange_rate) || 700;
 
@@ -408,8 +421,8 @@
             setPayTransferThaiBank('กสิกรไทย');
             setPayTransferLaosTHB('');
             setPayTransferLaosBankTHB('BCEL');
-            setPayTransferLaosLAK('');
-            setPayTransferLaosBankLAK('BCEL');
+            setPayTransferLaosBankLAK('');
+            setPayTransferLaosBankLAK2('BCEL');
             setPaymentNote('');
         };
 
@@ -695,13 +708,9 @@
             setPayCashLAK(lCashLAK);
             setPayTransferThaiTHB(lThaiTHB);
             setPayTransferThaiBank(bThaiTHB);
-            setPayCashTHB(lCashTHB);
-            setPayCashLAK(lCashLAK);
-            setPayTransferThaiTHB(lThaiTHB);
-            setPayTransferThaiBank(bThaiTHB);
             setPayTransferLaosBankTHB(bLaosTHB);
             setPayTransferLaosLAK(lLaosLAK);
-            setPayTransferLaosBankLAK(bLaosLAK);
+            setPayTransferLaosBankLAK2(bLaosLAK);
             setPaymentNote(record.paymentNote || '');
             
             let cust = (customers || []).find(c => c && safeUpper(c.id) === safeUpper(record.customerId));
@@ -824,7 +833,7 @@
             setPayTransferLaosTHB('');
             setPayTransferLaosBankTHB('BCEL');
             setPayTransferLaosLAK('');
-            setPayTransferLaosBankLAK('BCEL');
+            setPayTransferLaosBankLAK2('BCEL');
         };
 
         const handleAdd = async (e) => {
@@ -1216,10 +1225,10 @@
         };
 
         const renderSalesForm = () => (
-          <div className="flex flex-col xl:flex-row gap-4 w-full h-[calc(100vh-120px)] min-h-[650px] mb-0 relative">
+          <div className="flex flex-col xl:flex-row gap-4 w-full xl:h-[calc(100vh-120px)] xl:min-h-[650px] mb-0 relative">
              
              {/* LEFT COLUMN (50%): Customer + Payment */}
-             <div className="w-full xl:w-1/2 flex flex-col gap-3 h-full shrink-0 relative">
+             <div className="w-full xl:w-1/2 flex flex-col gap-3 xl:h-full relative">
                 
                 {/* Customer Box */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm w-full shrink-0">
@@ -1300,7 +1309,7 @@
                 </div>
 
                 {/* Payment Box */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-lg shrink-0 flex flex-col mt-auto z-20 w-full">
+                <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-lg shrink-0 flex flex-col xl:mt-auto z-20 w-full">
                     <div className="flex flex-col bg-slate-50 border border-slate-200 rounded-lg p-2 shadow-sm gap-1 mb-1.5">
                         <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold border-b border-slate-200 pb-1">
                             <span>รวมราคาปกติ:</span>
@@ -1445,7 +1454,7 @@
              </div>
 
              {/* RIGHT COLUMN (50%): Floating Search + Cart + ปุ่มบันทึกบิล */}
-             <div className="w-full xl:w-1/2 flex flex-col gap-4 h-full shrink-0 relative">
+             <div className="w-full xl:w-1/2 flex flex-col gap-4 xl:h-full relative">
                 
                 <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm shrink-0 relative z-50">
                     <div className="flex items-center gap-2">
@@ -1494,7 +1503,7 @@
                     )}
                 </div>
 
-                <div className="flex-1 flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden z-10 min-h-[300px]">
+                <div className="h-[350px] sm:h-[400px] xl:h-auto xl:flex-1 flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden z-10">
                    <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
                       <h4 className="font-extrabold text-[15px] text-slate-800 flex items-center gap-2">
                          <ShoppingCart size={20} className="text-blue-600" /> ตะกร้าสินค้า ({cart.length})
@@ -1737,144 +1746,6 @@
                 )}
               </div>
             )}
-
-            <div className={`${boxWrapper} flex flex-col relative mt-[15vh] shrink-0`}>
-               <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-5 mb-5 border-b border-slate-100 pb-5">
-                  <h3 className={titleClass}><ShoppingCart size={24} className="text-blue-500"/> ประวัติการขาย (Sales History)</h3>
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full xl:w-auto">
-                     <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200 shadow-sm w-full sm:w-auto overflow-x-auto">
-                        <span className="text-[13px] font-bold text-slate-500 pl-1 shrink-0">ค้นหาวันที่:</span>
-                        <input type="date" className="bg-white border border-slate-200 focus:border-blue-500 rounded-lg px-3 py-1.5 text-[13px] font-bold text-blue-600 outline-none focus:ring-4 focus:ring-blue-100 transition-all duration-300 min-w-[120px] shadow-sm" value={historyStartDate} onChange={e => setHistoryStartDate(e.target.value)} />
-                        <span className="text-[13px] font-bold text-slate-400">-</span>
-                        <input type="date" className="bg-white border border-slate-200 focus:border-blue-500 rounded-lg px-3 py-1.5 text-[13px] font-bold text-blue-600 outline-none focus:ring-4 focus:ring-blue-100 transition-all duration-300 min-w-[120px] shadow-sm" value={historyEndDate} onChange={e => setHistoryEndDate(e.target.value)} />
-                     </div>
-                     <div className="flex items-center bg-slate-50/30 focus-within:bg-white border border-slate-200 rounded-xl px-3 shadow-sm focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 transition-all duration-300 flex-1 sm:w-64 h-[38px] sm:h-[40px]">
-                        <SearchIcon size={18} className="text-slate-400 shrink-0" />
-                        <input type="text" placeholder="ค้นหาบิล, ชื่อ, รหัส..." className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={salesSearchTerm} onChange={e => setSalesSearchTerm(e.target.value)} />
-                     </div>
-                  </div>
-               </div>
-               
-               {saleTab === 'B2M' ? (
-                   <React.Fragment>
-                       <div className="w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm mb-2">
-                         <table className="w-full text-left min-w-[1000px] border-collapse relative">
-                            <thead className="bg-slate-50 shadow-sm border-b border-slate-200">
-                              <tr>
-                                <th className={tableHeaderClass}>ข้อมูลบิล / ลูกค้า</th>
-                                <th className={`${tableHeaderClass} text-center text-green-700 border-l border-slate-200 w-[12%]`}>ชิ้น (ราคาเต็ม)</th>
-                                <th className={`${tableHeaderClass} text-center text-purple-700 border-l border-slate-200 w-[12%]`}>ชิ้น (ราคาสมาชิก)</th>
-                                <th className={`${tableHeaderClass} text-center text-orange-700 border-l border-slate-200 w-[12%]`}>ชิ้น (ราคาโปร)</th>
-                                <th className={`${tableHeaderClass} text-center text-slate-500 border-l border-slate-200 w-[12%]`}>ชิ้น (ราคาศูนย์)</th>
-                                <th className={`${tableHeaderClass} text-center text-blue-800 border-l border-slate-200 bg-blue-50 w-[180px]`}>TOTAL</th>
-                                {isAdmin && <th className={`${tableHeaderClass} text-center border-l border-slate-200 w-[100px]`}>จัดการ</th>}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {paginatedSalesHistory.map((rs, index) => {
-                                 const mName = (members || []).find(m => m && m.id === rs.memberId)?.name || rs.memberName || rs.memberId;
-                                 const cName = (customers || []).find(c => c && c.id === rs.customerId)?.name || rs.customerName || '';
-                                 return (
-                                  <tr key={index} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
-                                     <td className="py-2.5 px-3 align-top border-r border-slate-100 overflow-hidden">
-                                        <div className="font-bold text-blue-700 text-sm leading-tight mb-1 truncate flex justify-between items-center" title={rs.customerId}>
-                                           <span className="truncate mr-1">&#128100; {rs.customerId || ''} <span className="text-[11px] font-bold text-orange-600">{rs.paymentNote ? " - หมายเหตุ: " + rs.paymentNote : ''}</span></span>
-                                           <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-300 font-bold shadow-sm text-center">บิล:<br/><span className="text-blue-700">{rs.id}</span></span>
-                                        </div>
-                                        <div className="text-[10px] font-bold text-slate-500 mb-0.5 truncate" title={rs.memberId}>รหัสผู้ขาย: <span className="text-slate-800">{rs.memberId}</span></div>
-                                        <div className="text-[12px] font-bold text-slate-800 mb-1.5 whitespace-normal leading-tight" title={mName}>{mName}</div>
-                                       
-                                        <div className="flex flex-col gap-1 mt-1">
-                                          <div className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 inline-block w-fit rounded border border-blue-100">{formatDbDateForFilter(rs.date)}</div>
-                                          <div className="text-[9px] font-bold text-slate-400 flex items-center gap-1 border-t border-slate-100 pt-1 w-fit">
-                                             <UserCircle size={10}/> ผู้คีย์: <span className="text-indigo-600">{rs.recordedBy || 'ไม่ระบุ'}</span>
-                                          </div>
-                                        </div>
-
-                                        <div className="mt-2 border-t border-slate-100 pt-2 pr-2 flex flex-col gap-1.5">
-                                          <button 
-                                             type="button"
-                                             onClick={() => setViewBillDetail(rs)} 
-                                             className="flex items-center justify-center bg-white hover:bg-blue-50 text-blue-600 border border-slate-200 hover:border-blue-300 px-2 py-1.5 rounded transition-colors shadow-sm gap-1 text-[10px] font-bold w-full" 
-                                          >
-                                             <Eye size={12} /> 👁️ ดูรายละเอียด
-                                          </button>
-                                          <button 
-                                             type="button"
-                                             onClick={() => handlePrintReceiptPopup(rs)} 
-                                             className="flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-1.5 rounded transition-colors shadow-sm gap-1 text-[10px] font-bold w-full" 
-                                          >
-                                             <PrinterIcon size={12} /> 🖨️ สั่งพิมพ์บิล
-                                          </button>
-                                        </div>
-                                    </td>
-                                    {renderRecordCells(rs)}
-                                    {isAdmin && (
-                                      <td className="p-2 align-middle text-center border-l border-slate-100 bg-slate-50/50">
-                                        <div className="flex flex-col items-center justify-center gap-1.5">
-                                            <button onClick={() => handleEditSale(rs)} className="flex items-center justify-center gap-1 w-full text-[11px] font-bold text-blue-600 hover:text-blue-700 transition-colors bg-white py-1 rounded border border-slate-200 shadow-sm" title="แก้ไข"><Edit size={12}/> แก้ไข</button>
-                                            <button onClick={() => setConfirmDelete({show: true, id: rs.id, customerId: rs.customerId, title: `บิล ${rs.id} ลูกค้า ${rs.customerId}`})} className="flex items-center justify-center gap-1 w-full text-[11px] font-bold text-red-500 hover:text-red-700 transition-colors bg-white py-1 rounded border border-slate-200 shadow-sm" title="ลบ"><Trash2 size={12}/> ลบ</button>
-                                        </div>
-                                      </td>
-                                    )}
-                                 </tr>
-                               )
-                             })}
-                             {paginatedSalesHistory.length === 0 && <tr><td colSpan={isAdmin?7:6} className="p-12 text-center text-slate-500 font-bold text-sm bg-slate-50/50">ไม่พบประวัติการขายในช่วงเวลาที่ค้นหา</td></tr>}
-                           </tbody>
-                           <tfoot className="bg-slate-100 border-t-[3px] border-slate-300 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-                              <tr>
-                                 <td className="py-3 px-3 align-middle text-right border-r border-slate-200">
-                                    <div className="font-black text-slate-800 text-xs">รวมทั้งหมด</div>
-                                    <div className="text-[10px] font-bold text-slate-500 bg-white inline-block px-1.5 py-0.5 rounded border border-slate-200 mt-0.5">{tableTotals.count} บิล</div>
-                                 </td>
-                                 <td className="p-2 align-middle text-center border-l border-slate-200 bg-green-50/70">
-                                    <div className="font-black text-lg text-green-700">{tableTotals.totalFull}</div>
-                                    <div className="text-[9px] font-bold text-green-600">ชิ้น (ราคาเต็ม)</div>
-                                 </td>
-                                 <td className="p-2 align-middle text-center border-l border-slate-200 bg-purple-50/70">
-                                    <div className="font-black text-lg text-purple-700">{tableTotals.totalMember}</div>
-                                    <div className="text-[9px] font-bold text-purple-600">ชิ้น (ราคาสมาชิก)</div>
-                                 </td>
-                                 <td className="p-2 align-middle text-center border-l border-slate-200 bg-orange-50/70">
-                                    <div className="font-black text-lg text-orange-700">{tableTotals.totalPro}</div>
-                                    <div className="text-[9px] font-bold text-orange-600">ชิ้น (ราคาโปร)</div>
-                                 </td>
-                                 <td className="p-2 align-middle text-center border-l border-slate-200 bg-slate-50/90">
-                                    <div className="font-black text-lg text-slate-600">{tableTotals.totalZero}</div>
-                                    <div className="text-[9px] font-bold text-slate-500">ชิ้น (ราคาศูนย์)</div>
-                                 </td>
-                                 <td className="p-2 align-middle text-center border-l border-slate-300 bg-blue-100/60">
-                                    <div className="font-black text-2xl text-blue-800 drop-shadow-sm">{tableTotals.grandTotal}</div>
-                                    <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mt-0.5 mb-1">จำนวนกล่องรวม</div>
-                                    <div className="text-[11px] font-black text-emerald-700 bg-white py-1 px-1.5 rounded border border-emerald-200 shadow-sm mx-1">มูลค่า: ฿{tableTotals.totalAmountTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
-                                 </td>
-                                 {isAdmin && <td className="bg-slate-100 border-l border-slate-200"></td>}
-                              </tr>
-                            </tfoot>
-                         </table>
-                       </div>
-
-                       {totalSalesPages > 1 && (
-                         <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm gap-2">
-                            <span className="text-[11px] sm:text-xs font-bold text-slate-500">
-                                แสดง {((salesPage - 1) * SALES_PER_PAGE) + 1} ถึง {Math.min(salesPage * SALES_PER_PAGE, filteredSalesHistory.length)} จากทั้งหมด {filteredSalesHistory.length} รายการ
-                            </span>
-                            <div className="flex items-center gap-1.5">
-                                <button onClick={() => setSalesPage(p => Math.max(1, p - 1))} disabled={salesPage === 1} className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-slate-100 text-slate-700 text-[11px] sm:text-[12px] font-bold rounded border border-slate-200 disabled:opacity-50 hover:bg-slate-200 transition-colors shadow-sm">ก่อนหน้า</button>
-                                <span className="text-[11px] sm:text-[12px] font-bold text-blue-700 bg-blue-50 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded border border-blue-200 shadow-sm">หน้า {salesPage} / {totalSalesPages}</span>
-                                <button onClick={() => setSalesPage(p => Math.min(totalSalesPages, p + 1))} disabled={salesPage === totalSalesPages} className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-slate-100 text-slate-700 text-[11px] sm:text-[12px] font-bold rounded border border-slate-200 disabled:opacity-50 hover:bg-slate-200 transition-colors shadow-sm">ถัดไป</button>
-                            </div>
-                         </div>
-                       )}
-                   </React.Fragment>
-               ) : (
-                   <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-sm">
-                       <h3 className="text-xl font-black text-slate-400 mb-2">ประวัติการขายโหมด {saleTab}</h3>
-                       <p className="text-slate-400 text-sm">ยังไม่มีข้อมูลประวัติการขายสำหรับโหมดนี้ หรือระบบกำลังอยู่ระหว่างการพัฒนา</p>
-                   </div>
-               )}
-            </div>
           </div>
         );
     };
@@ -1912,15 +1783,7 @@
         setToast({ show: true, message, type });
       };
 
-      const SCRIPT_URL = (() => {
-  try {
-    if (window.top && window.top.location && window.top.location.href) {
-      const base = window.top.location.href.split('?')[0];
-      if (base && base.startsWith('http')) return base;
-    }
-  } catch(e) {}
-  return "<?= getScriptUrl() ?>";
-})();
+      const SCRIPT_URL = '';
 
       const isAdmin = currentUser && (
           String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
@@ -2072,8 +1935,7 @@
         localStorage.removeItem('stk_current_user');
         setCurrentUser(null);
         setIsLoggedIn(false);
-        const targetUrl = typeof resolvePageUrl === 'function' ? resolvePageUrl('?page=dashboard') : 'Mlm.html';
-        if (typeof window !== 'undefined') window.location.href = targetUrl;
+        if (typeof window !== 'undefined') window.location.href = 'Mlm.html';
       };
 
       return (
@@ -2109,7 +1971,7 @@
             )}
 
             <div className="p-3 sm:p-5 flex-1 w-full relative z-0 custom-scrollbar">
-              <div className="w-full relative z-10 h-full flex flex-col min-h-0 pos-layout">
+              <div className="w-full relative z-10 xl:h-full flex flex-col min-h-0 pos-layout">
                 {isAppLoading ? (
                   <div className="flex flex-col items-center justify-center py-32 gap-5 animation-fade-in flex-1">
                     <div className="w-16 h-16 border-[4px] border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>

@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบจัดการบิล (Orders Management) - LOVE STK GROUPE</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
+    body { font-family: 'Sukhumvit Set', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
+    @media (min-width: 1024px) {
+      aside.lg\:flex { display: flex !important; position: fixed !important; top: 0; left: 0; height: 100vh; z-index: 30; }
+      main.lg\:ml-64 { margin-left: 16rem !important; }
+      main.lg\:ml-20 { margin-left: 5rem !important; }
+      div.lg\:hidden { display: none !important; }
+    }
+    @media (max-width: 1023.98px) {
+      aside.hidden.lg\:flex { display: none !important; }
+      div.lg\:hidden { display: flex !important; }
+      main { margin-left: 0 !important; width: 100% !important; }
+    }
+  </style>
+  <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+    window.SUPABASE_URL='https://mfpkeyrykqnrywyksyqp.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
+    if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
+    async function supabaseSelect(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:window.SUPABASE_HEADERS});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();}
+    async function supabaseInsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('INSERT '+t+':'+r.status);return r.json();}
+    async function supabaseUpdate(t,id,d,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('UPDATE '+t+':'+r.status);return r.json();}
+    async function supabaseDelete(t,id,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'DELETE',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'})});if(!r.ok)throw new Error('DELETE '+t+':'+r.status);return true;}
+  </script>
+  <script src="CommonComponents.js"></script>
+</head>
+<body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
+
+  <div id="initial-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999;">
+    <div style="width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 24px;"></div>
+    <style>@keyframes initial-spin { to { transform: rotate(360deg); } }</style>
+    <h2 style="font-size: 1.75rem; font-weight: 800; color: #1e40af; margin: 0; letter-spacing: -0.025em;">STK<span style="color: #475569;">System</span></h2>
+    <p style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 8px;">กำลังโหลดระบบจัดการบิล...</p>
+  </div>
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect, useRef } = React;
+
+    const IconProps = { fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" };
+    const SearchIcon = ({ size = 20 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
+    const Eye = ({ size = 20 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>;
+    const PrinterIcon = ({ size = 20 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>;
+    const Edit = ({ size = 20 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+    const Trash2 = ({ size = 20 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>;
+    const CheckCircle = ({ size = 20 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
+    const X = ({ size = 20 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
+    const FileText = ({ size = 20 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>;
+
+    const SALES_PER_PAGE = 15;
+
+    const formatDbDateForFilter = (raw) => {
+        if (!raw) return '';
+        try {
+            if (raw.includes('T')) return raw.split('T')[0];
+            if (raw.includes(' ')) return raw.split(' ')[0];
+            return raw;
+        } catch(e) { return raw; }
+    };
+
+    const OrdersView = ({ sales, setSales, members, customers, isAdmin, showToast, currentUser }) => {
+        const todayStr = typeof getLocalISODate === 'function' ? getLocalISODate() : new Date().toISOString().split('T')[0];
+        const [salesSearchTerm, setSalesSearchTerm] = useState('');
+        const [historyStartDate, setHistoryStartDate] = useState(todayStr);
+        const [historyEndDate, setHistoryEndDate] = useState(todayStr);
+        const [salesPage, setSalesPage] = useState(1);
+        const [viewBillDetail, setViewBillDetail] = useState(null);
+        const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null, title: '' });
+
+        const filteredSalesHistory = useMemo(() => {
+           let result = (sales || []);
+           result = result.sort((a, b) => String(b.id || '').localeCompare(String(a.id || '')));
+
+           if (historyStartDate) result = result.filter(s => formatDbDateForFilter(s.date) >= historyStartDate);
+           if (historyEndDate) result = result.filter(s => formatDbDateForFilter(s.date) <= historyEndDate);
+
+           if (salesSearchTerm.trim() !== '') {
+               const st = salesSearchTerm.toLowerCase();
+               result = result.filter(s => {
+                  const sCustId = s.customerId ? s.customerId.toLowerCase() : '';
+                  const sMemId = s.memberId ? s.memberId.toLowerCase() : '';
+                  const sMemName = s.memberName ? s.memberName.toLowerCase() : '';
+                  const sIdStr = s.id ? s.id.toString() : '';
+                  return sCustId.includes(st) || sMemId.includes(st) || sMemName.includes(st) || sIdStr.includes(st);
+               });
+           }
+           return result;
+        }, [sales, historyStartDate, historyEndDate, salesSearchTerm]);
+
+        const totalSalesPages = Math.max(1, Math.ceil(filteredSalesHistory.length / SALES_PER_PAGE));
+        const paginatedSalesHistory = useMemo(() => {
+            return filteredSalesHistory.slice((salesPage - 1) * SALES_PER_PAGE, salesPage * SALES_PER_PAGE);
+        }, [filteredSalesHistory, salesPage]);
+
+        useEffect(() => { setSalesPage(1); }, [historyStartDate, historyEndDate, salesSearchTerm]);
+
+        const tableTotals = useMemo(() => {
+            let totalFull = 0, totalMember = 0, totalPro = 0, totalZero = 0, grandTotal = 0, totalAmountTHB = 0;
+            filteredSalesHistory.forEach(s => {
+               let rowF = 0, rowM = 0, rowP = 0, rowZ = 0;
+
+               let itemsList = [];
+               if (s.items_json) {
+                   try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
+               }
+
+               if (Array.isArray(itemsList) && itemsList.length > 0) {
+                   itemsList.forEach(it => {
+                       const qty = parseInt(it.qty) || 0;
+                       if (qty > 0) {
+                           const type = it.type || it.priceType || 'ราคาเต็ม';
+                           if (type === 'ราคาเต็ม') rowF += qty;
+                           else if (type === 'ราคาสมาชิก') rowM += qty;
+                           else if (type === 'ราคาโปร') rowP += qty;
+                           else if (type === 'ราคาศูนย์') rowZ += qty;
+                           else rowF += qty;
+                       }
+                   });
+               } else {
+                   Object.keys(s).forEach(key => {
+                       const qty = parseInt(s[key]) || 0;
+                       if (qty > 0) {
+                           if (key.endsWith('_ราคาเต็ม') && key !== 'รวมชิ้นราคาเต็ม') rowF += qty;
+                           else if (key.endsWith('_ราคาสมาชิก') && key !== 'รวมชิ้นราคาสมาชิก') rowM += qty;
+                           else if (key.endsWith('_ราคาโปร') && key !== 'รวมชิ้นราคาโปร') rowP += qty;
+                           else if (key.endsWith('_ราคาศูนย์') && key !== 'รวมชิ้นราคาศูนย์') rowZ += qty;
+                       }
+                   });
+               }
+
+               const recordedBottles = parseInt(s.total_bottles || s.totalBottles) || 0;
+               const rowTotalQty = (rowF + rowM + rowP + rowZ) > 0 ? (rowF + rowM + rowP + rowZ) : recordedBottles;
+
+               totalFull += rowF; totalMember += rowM; totalPro += rowP; totalZero += rowZ;
+               grandTotal += rowTotalQty;
+               totalAmountTHB += parseFloat(s.totalAmount || s.total_amount || 0);
+            });
+            return { totalFull, totalMember, totalPro, totalZero, grandTotal, totalAmountTHB, count: filteredSalesHistory.length };
+        }, [filteredSalesHistory]);
+
+        const handlePrintReceiptPopup = (saleRecord) => {
+            if (!saleRecord) return;
+            const printWindow = window.open('', '_blank', 'width=800,height=900');
+            if (!printWindow) return;
+            const mName = (members || []).find(m => m && m.id === saleRecord.memberId)?.name || saleRecord.memberName || saleRecord.memberId;
+            const cName = (customers || []).find(c => c && c.id === saleRecord.customerId)?.name || saleRecord.customerName || saleRecord.customerId;
+
+            let itemsList = [];
+            if (saleRecord.items_json) {
+                try { itemsList = typeof saleRecord.items_json === 'string' ? JSON.parse(saleRecord.items_json) : saleRecord.items_json; } catch(e){}
+            }
+            if (!Array.isArray(itemsList) || itemsList.length === 0) {
+                Object.keys(saleRecord).forEach(key => {
+                    const qty = parseInt(saleRecord[key]) || 0;
+                    if (qty > 0) {
+                        if (key.endsWith('_ราคาเต็ม') && key !== 'รวมชิ้นราคาเต็ม') itemsList.push({prod: key.replace('_ราคาเต็ม',''), type: 'ราคาเต็ม', qty});
+                        else if (key.endsWith('_ราคาสมาชิก') && key !== 'รวมชิ้นราคาสมาชิก') itemsList.push({prod: key.replace('_ราคาสมาชิก',''), type: 'ราคาสมาชิก', qty});
+                        else if (key.endsWith('_ราคาโปร') && key !== 'รวมชิ้นราคาโปร') itemsList.push({prod: key.replace('_ราคาโปร',''), type: 'ราคาโปร', qty});
+                        else if (key.endsWith('_ราคาศูนย์') && key !== 'รวมชิ้นราคาศูนย์') itemsList.push({prod: key.replace('_ราคาศูนย์',''), type: 'ราคาศูนย์', qty});
+                    }
+                });
+            }
+
+            const htmlStr = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <title>ใบเสร็จรับเงิน - ${saleRecord.id}</title>
+              <style>
+                body { font-family: 'Sarabun', sans-serif; padding: 20px; color: #1e293b; max-width: 400px; margin: 0 auto; }
+                .text-center { text-align: center; }
+                .font-bold { font-weight: bold; }
+                .border-b { border-bottom: 1px dashed #cbd5e1; padding-bottom: 10px; margin-bottom: 10px; }
+                .flex { display: flex; justify-content: space-between; }
+                .mt-2 { margin-top: 8px; }
+                .text-sm { font-size: 13px; }
+                .text-xs { font-size: 11px; color: #64748b; }
+              </style>
+            </head>
+            <body onload="window.print();">
+              <div class="text-center border-b">
+                 <h2 style="margin:0; font-size: 20px;">LOVE STK GROUPE</h2>
+                 <p class="text-xs" style="margin:4px 0;">ใบเสร็จรับเงิน / Receipt</p>
+                 <p class="text-xs">เลขที่บิล: ${saleRecord.id}</p>
+                 <p class="text-xs">วันที่: ${formatDbDateForFilter(saleRecord.date)}</p>
+              </div>
+              <div class="border-b text-sm">
+                 <div class="flex"><span>ลูกค้า:</span> <span class="font-bold">${cName}</span></div>
+                 <div class="flex"><span>ผู้คีย์รายการ:</span> <span>${saleRecord.recordedBy || 'Admin'}</span></div>
+                 <div class="flex"><span>ช่องทางชำระ:</span> <span>${saleRecord.saleType || 'เงินสด'}</span></div>
+              </div>
+              <div class="border-b text-sm">
+                 ${itemsList.map(it => `<div class="flex" style="margin-bottom:4px;"><span>${it.prod} (${it.type}) x${it.qty}</span></div>`).join('')}
+              </div>
+              <div class="text-sm font-bold">
+                 <div class="flex" style="font-size: 16px;"><span>ยอดรวมสุทธิ:</span> <span>฿${parseFloat(saleRecord.totalAmount || 0).toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>
+              </div>
+              <div class="text-center text-xs mt-2" style="margin-top: 30px;">
+                 <p>ขอบคุณที่ใช้บริการ LOVE STK GROUPE</p>
+              </div>
+            </body>
+            </html>`;
+            printWindow.document.write(htmlStr);
+            printWindow.document.close();
+        };
+
+        const executeDeleteSale = async () => {
+            if (!confirmDelete.id) return;
+            try {
+                await supabaseDelete('stk_sales', confirmDelete.id, 'order_id');
+                setSales(prev => prev.filter(s => s.id !== confirmDelete.id));
+                showToast('ลบบิลเรียบร้อยแล้ว', 'success');
+            } catch(e) {
+                showToast('เกิดข้อผิดพลาดในการลบ: ' + e.message, 'error');
+            } finally {
+                setConfirmDelete({ show: false, id: null, title: '' });
+            }
+        };
+
+        const renderRecordCells = (record) => {
+            let fullItems = []; let memberItems = []; let proItems = []; let zeroItems = [];
+            
+            // 1. Try parsing items_json first
+            let itemsList = [];
+            if (record.items_json) {
+                try {
+                    itemsList = typeof record.items_json === 'string' ? JSON.parse(record.items_json) : record.items_json;
+                } catch(e) {}
+            }
+
+            if (Array.isArray(itemsList) && itemsList.length > 0) {
+                itemsList.forEach(it => {
+                    const qty = parseInt(it.qty) || 0;
+                    if (qty > 0) {
+                        const name = it.prod || it.productName || 'สินค้า';
+                        const type = it.type || it.priceType || 'ราคาเต็ม';
+                        if (type === 'ราคาเต็ม') fullItems.push({name, qty});
+                        else if (type === 'ราคาสมาชิก') memberItems.push({name, qty});
+                        else if (type === 'ราคาโปร') proItems.push({name, qty});
+                        else if (type === 'ราคาศูนย์') zeroItems.push({name, qty});
+                        else fullItems.push({name, qty});
+                    }
+                });
+            } else {
+                // 2. Fallback to legacy column properties
+                Object.keys(record).forEach(key => {
+                    const qty = parseInt(record[key]) || 0;
+                    if (qty > 0) {
+                        const cleanProdName = (raw) => raw.replace(/\(.*?\)/g, '').trim();
+                        if (key.endsWith('_ราคาเต็ม') && key !== 'รวมชิ้นราคาเต็ม') fullItems.push({name: cleanProdName(key.replace('_ราคาเต็ม', '')), qty});
+                        else if (key.endsWith('_ราคาสมาชิก') && key !== 'รวมชิ้นราคาสมาชิก') memberItems.push({name: cleanProdName(key.replace('_ราคาสมาชิก', '')), qty});
+                        else if (key.endsWith('_ราคาโปร') && key !== 'รวมชิ้นราคาโปร') proItems.push({name: cleanProdName(key.replace('_ราคาโปร', '')), qty});
+                        else if (key.endsWith('_ราคาศูนย์') && key !== 'รวมชิ้นราคาศูนย์') zeroItems.push({name: cleanProdName(key.replace('_ราคาศูนย์', '')), qty});
+                    }
+                });
+            }
+
+            const recordedBottles = parseInt(record.total_bottles || record.totalBottles) || 0;
+            const calculatedQty = [...fullItems, ...memberItems, ...proItems, ...zeroItems].reduce((sum, item) => sum + item.qty, 0);
+            const totalQtyInRow = calculatedQty > 0 ? calculatedQty : recordedBottles;
+
+            const renderList = (items, textClass) => {
+                if(items.length === 0) return <span className="text-slate-300 text-xs text-center block">-</span>;
+                return (
+                    <div className="flex flex-col gap-1 w-full">
+                        {items.map((it, i) => (
+                            <div key={i} className="flex justify-between items-center text-[11px] bg-white px-2.5 py-1 rounded-xl shadow-xs border border-slate-100">
+                                <span className="font-bold text-slate-700 truncate mr-2" title={it.name}>{it.name}</span>
+                                <span className={`font-black ${textClass}`}>x{it.qty}</span>
+                            </div>
+                        ))}
+                    </div>
+                )
+            }
+
+            return (
+              <React.Fragment>
+                  <td className="p-3 bg-green-50/20 border-l border-slate-100 align-top">{renderList(fullItems, 'text-green-600')}</td>
+                  <td className="p-3 bg-purple-50/20 border-l border-slate-100 align-top">{renderList(memberItems, 'text-purple-600')}</td>
+                  <td className="p-3 bg-orange-50/20 border-l border-slate-100 align-top">{renderList(proItems, 'text-orange-600')}</td>
+                  <td className="p-3 bg-slate-50/40 border-l border-slate-100 align-top">{renderList(zeroItems, 'text-slate-600')}</td>
+                  <td className="p-4 align-middle text-center border-l border-blue-200 bg-blue-50/40 w-[180px]">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">รวมทั้งหมด</div>
+                    <div className="font-black text-3xl text-blue-700 drop-shadow-xs leading-none">
+                        {totalQtyInRow} <span className="text-[13px] font-bold text-blue-500">ชิ้น</span>
+                    </div>
+                    <div className="text-[12px] font-black text-emerald-700 mt-2 bg-white py-1.5 px-2 rounded-xl border border-emerald-200 shadow-xs">
+                        มูลค่า: ฿{parseFloat(record.totalAmount || record.total_amount || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
+                    </div>
+                  </td>
+              </React.Fragment>
+            );
+        };
+
+        return (
+          <div className="w-full flex flex-col gap-6 animation-fade-in">
+             <ConfirmModal isOpen={confirmDelete.show} onClose={() => setConfirmDelete({show: false, id: null, title: ''})} onConfirm={executeDeleteSale} title="ยืนยันการลบประวัติการขาย" message={`คุณต้องการลบข้อมูลบิล "${confirmDelete.title}" ใช่หรือไม่? (ไม่สามารถกู้คืนได้)`} />
+
+             {/* Modal รายละเอียดบิล */}
+             <EditModal isOpen={viewBillDetail !== null} onClose={() => setViewBillDetail(null)} title={`รายละเอียดบิล ${viewBillDetail?.id || ''}`} icon={FileText} maxWidthClass="max-w-2xl">
+                {viewBillDetail && (
+                    <div className="flex flex-col gap-5 p-2">
+                        <div className="flex justify-between items-center bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                            <div>
+                                <span className="text-xs text-blue-600 font-bold">เลขที่บิล:</span>
+                                <h3 className="text-lg font-black text-slate-800">{viewBillDetail.id}</h3>
+                            </div>
+                            <div className="text-right">
+                                <span className="text-xs text-slate-500 font-bold">วันที่ทำรายการ:</span>
+                                <p className="text-sm font-bold text-slate-700">{formatDbDateForFilter(viewBillDetail.date)}</p>
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2 text-xs font-semibold">
+                           <div className="flex justify-between"><span className="text-slate-500">ลูกค้า:</span> <span className="font-bold text-slate-800">{viewBillDetail.customerName || viewBillDetail.customerId}</span></div>
+                           <div className="flex justify-between"><span className="text-slate-500">ผู้คีย์รายการ:</span> <span className="font-bold text-indigo-600">{viewBillDetail.recordedBy || 'Admin'}</span></div>
+                           <div className="flex justify-between"><span className="text-slate-500">ช่องทางชำระเงิน:</span> <span className="font-bold text-emerald-600">{viewBillDetail.saleType}</span></div>
+                           <div className="flex justify-between border-t border-slate-200/60 pt-2"><span className="text-slate-500">ยอดรวมสุทธิ:</span> <span className="font-black text-blue-700 text-sm">฿{parseFloat(viewBillDetail.totalAmount || viewBillDetail.total_amount || 0).toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>
+                           {viewBillDetail.paymentNote && <div className="text-amber-700 bg-amber-50 p-2 rounded-xl border border-amber-200 mt-2 whitespace-pre-line">📝 {viewBillDetail.paymentNote}</div>}
+                        </div>
+
+                        {/* รายการสินค้าในบิล */}
+                        <div className="bg-white rounded-2xl border border-slate-200 p-3 space-y-2">
+                           <span className="text-xs font-black text-slate-700 block mb-1">🛒 รายการสินค้าในบิล:</span>
+                           {(() => {
+                              let items = [];
+                              if (viewBillDetail.items_json) {
+                                 try { items = typeof viewBillDetail.items_json === 'string' ? JSON.parse(viewBillDetail.items_json) : viewBillDetail.items_json; } catch(e){}
+                              }
+                              if (!Array.isArray(items) || items.length === 0) {
+                                 Object.keys(viewBillDetail).forEach(key => {
+                                    const qty = parseInt(viewBillDetail[key]) || 0;
+                                    if (qty > 0) {
+                                       if (key.endsWith('_ราคาเต็ม') && key !== 'รวมชิ้นราคาเต็ม') items.push({prod: key.replace('_ราคาเต็ม',''), type: 'ราคาเต็ม', qty});
+                                       else if (key.endsWith('_ราคาสมาชิก') && key !== 'รวมชิ้นราคาสมาชิก') items.push({prod: key.replace('_ราคาสมาชิก',''), type: 'ราคาสมาชิก', qty});
+                                       else if (key.endsWith('_ราคาโปร') && key !== 'รวมชิ้นราคาโปร') items.push({prod: key.replace('_ราคาโปร',''), type: 'ราคาโปร', qty});
+                                       else if (key.endsWith('_ราคาศูนย์') && key !== 'รวมชิ้นราคาศูนย์') items.push({prod: key.replace('_ราคาศูนย์',''), type: 'ราคาศูนย์', qty});
+                                    }
+                                 });
+                              }
+                              if (items.length === 0) return <div className="text-xs text-slate-400 font-bold p-2 text-center">ไม่มีข้อมูลรายการสินค้าช่อย่อย (บันทึก {viewBillDetail.total_bottles || 0} ชิ้น)</div>;
+                              return items.map((it, idx) => (
+                                 <div key={idx} className="flex justify-between items-center bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100 text-xs font-bold">
+                                    <span className="text-slate-800">{it.prod || it.productName} <span className="text-[10px] text-blue-600 font-normal">({it.type || it.priceType})</span></span>
+                                    <span className="text-blue-700 font-black">x{it.qty}</span>
+                                 </div>
+                              ));
+                           })()}
+                        </div>
+
+                        <div className="flex justify-end gap-3 pt-2">
+                            <button onClick={() => setViewBillDetail(null)} className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl border border-slate-200 transition-colors">ปิดหน้าต่าง</button>
+                            <button onClick={() => { handlePrintReceiptPopup(viewBillDetail); setViewBillDetail(null); }} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-sm transition-colors flex items-center gap-2"><PrinterIcon size={18}/> พิมพ์บิลนี้</button>
+                        </div>
+                    </div>
+                )}
+             </EditModal>
+
+             {/* Header */}
+             <div className="bg-white p-6 rounded-3xl shadow-xs border border-slate-200/80 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                   <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                     <FileText size={28} className="text-blue-600"/> ระบบจัดการบิล (Order Management)
+                   </h2>
+                   <p className="text-xs font-bold text-slate-400 mt-1">ค้นหา ตรวจสอบ พิมพ์ใบเสร็จย้อนหลัง หรือจัดการบิลการสั่งซื้อทั้งหมดในระบบ</p>
+                </div>
+                <button onClick={() => window.location.href = 'Sales.html'} className="px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-sm rounded-2xl shadow-md transition-all flex items-center gap-2">
+                   ➕ คีย์ขายบิลใหม่ (New Sale)
+                </button>
+             </div>
+
+             {/* Main Card */}
+             <div className="bg-white p-6 sm:p-7 rounded-3xl shadow-xs border border-slate-200/80 w-full">
+                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-6 border-b border-slate-100 pb-4">
+                   <div className="flex items-center gap-2">
+                      <span className="bg-blue-50 text-blue-700 font-black px-3 py-1 rounded-xl text-xs border border-blue-200">
+                         ทั้งหมด {tableTotals.count} รายการ
+                      </span>
+                   </div>
+
+                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full xl:w-auto">
+                      <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200/80 shadow-xs w-full sm:w-auto overflow-x-auto">
+                          <span className="text-[12px] font-bold text-slate-500 pl-1 shrink-0">ช่วงวันที่:</span>
+                          <input type="date" className="bg-white border border-slate-200 focus:border-blue-500 rounded-xl px-3 py-1.5 text-[12px] font-bold text-blue-600 outline-none shadow-xs" value={historyStartDate} onChange={e => setHistoryStartDate(e.target.value)} />
+                         <span className="text-[12px] font-bold text-slate-400">-</span>
+                         <input type="date" className="bg-white border border-slate-200 focus:border-blue-500 rounded-xl px-3 py-1.5 text-[12px] font-bold text-blue-600 outline-none shadow-xs" value={historyEndDate} onChange={e => setHistoryEndDate(e.target.value)} />
+                      </div>
+                      <div className="flex items-center bg-slate-50 border border-slate-200/80 rounded-2xl px-3 shadow-xs focus-within:border-blue-500 focus-within:bg-white transition-all flex-1 sm:w-64 h-[40px]">
+                         <SearchIcon size={18} className="text-slate-400 shrink-0" />
+                         <input type="text" placeholder="ค้นหาเลขบิล, ชื่อลูกค้า, พนักงาน..." className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={salesSearchTerm} onChange={e => setSalesSearchTerm(e.target.value)} />
+                      </div>
+                   </div>
+                </div>
+
+                <div className="w-full overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-xs mb-4">
+                  <table className="w-full text-left min-w-[1000px] border-collapse relative">
+                     <thead className="bg-slate-50/90 border-b border-slate-200">
+                       <tr>
+                         <th className="p-3.5 text-xs font-black text-slate-700 uppercase tracking-wider">ข้อมูลบิล / ลูกค้า</th>
+                         <th className="p-3 text-xs font-black text-center text-green-700 uppercase tracking-wider border-l border-slate-200 w-[12%]">ชิ้น (ราคาเต็ม)</th>
+                         <th className="p-3 text-xs font-black text-center text-purple-700 uppercase tracking-wider border-l border-slate-200 w-[12%]">ชิ้น (ราคาสมาชิก)</th>
+                         <th className="p-3 text-xs font-black text-center text-orange-700 uppercase tracking-wider border-l border-slate-200 w-[12%]">ชิ้น (ราคาโปร)</th>
+                         <th className="p-3 text-xs font-black text-center text-slate-500 uppercase tracking-wider border-l border-slate-200 w-[12%]">ชิ้น (ราคาศูนย์)</th>
+                         <th className="p-3 text-xs font-black text-center text-blue-900 uppercase tracking-wider border-l border-slate-200 bg-blue-50/80 w-[180px]">ยอดรวม</th>
+                         {isAdmin && <th className="p-3 text-xs font-black text-center uppercase tracking-wider border-l border-slate-200 w-[110px]">จัดการบิล</th>}
+                       </tr>
+                     </thead>
+                     <tbody className="divide-y divide-slate-100">
+                       {paginatedSalesHistory.map((rs, index) => {
+                          const mName = (members || []).find(m => m && m.id === rs.memberId)?.name || rs.memberName || rs.memberId;
+                          const cName = (customers || []).find(c => c && c.id === rs.customerId)?.name || rs.customerName || '';
+                          return (
+                           <tr key={index} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-3 px-3.5 align-top border-r border-slate-100 overflow-hidden">
+                                 <div className="font-bold text-blue-700 text-sm leading-tight mb-1 truncate flex justify-between items-center" title={rs.customerId}>
+                                    <span className="truncate mr-1">👤 {rs.customerId || ''} <span className="text-[11px] font-bold text-slate-700">({cName || 'ลูกค้าใหม่'})</span></span>
+                                    <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md border border-blue-200 font-bold shadow-xs text-center">บิล: <span className="font-black">{rs.id}</span></span>
+                                 </div>
+                                 <div className="text-[10px] font-bold text-slate-400 mb-0.5 truncate">ผู้ขาย: <span className="text-slate-700 font-semibold">{mName} ({rs.memberId})</span></div>
+                                
+                                 <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                   <div className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">{formatDbDateForFilter(rs.date)}</div>
+                                   <div className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">ผู้คีย์: {rs.recordedBy || 'Admin'}</div>
+                                 </div>
+
+                                 {rs.paymentNote && (
+                                     <div className="text-[10px] text-amber-700 bg-amber-50/80 border border-amber-200 rounded-lg p-1.5 mt-2 font-medium whitespace-pre-line">
+                                         📝 {rs.paymentNote}
+                                     </div>
+                                 )}
+
+                                 <div className="mt-2.5 border-t border-slate-100 pt-2 flex gap-2">
+                                   <button 
+                                      type="button"
+                                      onClick={() => setViewBillDetail(rs)} 
+                                      className="flex-1 flex items-center justify-center bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-2 py-1.5 rounded-xl transition-colors shadow-xs gap-1 text-[11px] font-bold" 
+                                   >
+                                      <Eye size={13} className="text-blue-600"/> ดูรายละเอียด
+                                   </button>
+                                   <button 
+                                      type="button"
+                                      onClick={() => handlePrintReceiptPopup(rs)} 
+                                      className="flex-1 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-1.5 rounded-xl transition-colors shadow-xs gap-1 text-[11px] font-bold" 
+                                   >
+                                      <PrinterIcon size={13} /> พิมพ์บิล
+                                   </button>
+                                 </div>
+                              </td>
+                              {renderRecordCells(rs)}
+                              {isAdmin && (
+                                <td className="p-2.5 align-middle text-center border-l border-slate-100 bg-slate-50/30">
+                                  <div className="flex flex-col items-center justify-center gap-2">
+                                      <button onClick={() => window.location.href = `Sales.html?editId=${rs.id}`} className="flex items-center justify-center gap-1 w-full text-[11px] font-bold text-blue-600 hover:bg-blue-50 transition-colors bg-white py-1.5 rounded-xl border border-slate-200 shadow-xs" title="แก้ไข"><Edit size={12}/> แก้ไขบิล</button>
+                                      <button onClick={() => setConfirmDelete({show: true, id: rs.id, customerId: rs.customerId, title: `บิล ${rs.id} ลูกค้า ${rs.customerId}`})} className="flex items-center justify-center gap-1 w-full text-[11px] font-bold text-red-500 hover:bg-red-50 transition-colors bg-white py-1.5 rounded-xl border border-slate-200 shadow-xs" title="ลบ"><Trash2 size={12}/> ลบบิล</button>
+                                  </div>
+                                </td>
+                              )}
+                           </tr>
+                         )
+                       })}
+                       {paginatedSalesHistory.length === 0 && <tr><td colSpan={isAdmin?7:6} className="p-12 text-center text-slate-400 font-bold text-sm bg-slate-50/30">ไม่พบประวัติการขายในช่วงเวลาที่ค้นหา</td></tr>}
+                     </tbody>
+                     <tfoot className="bg-slate-50 border-t-2 border-slate-200">
+                        <tr>
+                           <td className="py-3 px-3.5 align-middle text-right border-r border-slate-200">
+                              <div className="font-black text-slate-800 text-xs">รวมทั้งหมด ({tableTotals.count} บิล)</div>
+                           </td>
+                           <td className="p-2 align-middle text-center border-l border-slate-200 bg-green-50/50">
+                              <div className="font-black text-base text-green-700">{tableTotals.totalFull}</div>
+                              <div className="text-[9px] font-bold text-green-600 uppercase">ชิ้นราคาเต็ม</div>
+                           </td>
+                           <td className="p-2 align-middle text-center border-l border-slate-200 bg-purple-50/50">
+                              <div className="font-black text-base text-purple-700">{tableTotals.totalMember}</div>
+                              <div className="text-[9px] font-bold text-purple-600 uppercase">ชิ้นราคาสมาชิก</div>
+                           </td>
+                           <td className="p-2 align-middle text-center border-l border-slate-200 bg-orange-50/50">
+                              <div className="font-black text-base text-orange-700">{tableTotals.totalPro}</div>
+                              <div className="text-[9px] font-bold text-orange-600 uppercase">ชิ้นราคาโปร</div>
+                           </td>
+                           <td className="p-2 align-middle text-center border-l border-slate-200 bg-slate-100/50">
+                              <div className="font-black text-base text-slate-600">{tableTotals.totalZero}</div>
+                              <div className="text-[9px] font-bold text-slate-500 uppercase">ชิ้นราคาศูนย์</div>
+                           </td>
+                           <td className="p-2.5 align-middle text-center border-l border-slate-200 bg-blue-50/60">
+                              <div className="font-black text-xl text-blue-900 leading-none">{tableTotals.grandTotal} ชิ้น</div>
+                              <div className="text-[11px] font-black text-emerald-700 bg-white py-1 px-2 rounded-lg border border-emerald-200 mt-1 shadow-xs inline-block">฿{tableTotals.totalAmountTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                           </td>
+                           {isAdmin && <td className="bg-slate-50 border-l border-slate-200"></td>}
+                        </tr>
+                     </tfoot>
+                   </table>
+                 </div>
+
+                 {totalSalesPages > 1 && (
+                   <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs gap-2">
+                      <span className="text-xs font-semibold text-slate-500">
+                          แสดง {((salesPage - 1) * SALES_PER_PAGE) + 1} ถึง {Math.min(salesPage * SALES_PER_PAGE, filteredSalesHistory.length)} จากทั้งหมด {filteredSalesHistory.length} รายการ
+                      </span>
+                      <div className="flex items-center gap-2">
+                          <button onClick={() => setSalesPage(p => Math.max(1, p - 1))} disabled={salesPage === 1} className="px-3 py-1.5 bg-white text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-xs">ก่อนหน้า</button>
+                          <span className="text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-200 shadow-xs">หน้า {salesPage} / {totalSalesPages}</span>
+                          <button onClick={() => setSalesPage(p => Math.min(totalSalesPages, p + 1))} disabled={salesPage === totalSalesPages} className="px-3 py-1.5 bg-white text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-xs">ถัดไป</button>
+                      </div>
+                   </div>
+                 )}
+             </div>
+          </div>
+        );
+    };
+
+    const App = () => {
+      const [isLoggedIn, setIsLoggedIn] = useState(false);
+      const [currentUser, setCurrentUser] = useState(null);
+      const [showLoginModal, setShowLoginModal] = useState(false);
+      const [sales, setSales] = useState([]);
+      const [members, setMembers] = useState([]);
+      const [customers, setCustomers] = useState([]);
+      const [systemUsers, setSystemUsers] = useState([]);
+      const [isAppLoading, setIsAppLoading] = useState(true);
+      const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => localStorage.getItem('stk_sidebar_collapsed') === 'true');
+      const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
+      const showToast = (message, type = 'success') => setToast({ show: true, message, type });
+
+      const SCRIPT_URL = (() => {
+        try { if (window.top && window.top.location && window.top.location.href.startsWith('http')) return window.top.location.href.split('?')[0]; } catch(e){}
+        return "<?= getScriptUrl() ?>";
+      })();
+
+      const isAdmin = currentUser && (String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || String(currentUser.role).trim().toLowerCase() === 'admin');
+      const currentUserProfileUrl = currentUser?.profileUrl || '';
+
+      useEffect(() => {
+        const savedUserStr = localStorage.getItem('stk_current_user');
+        if (savedUserStr) {
+          setCurrentUser(JSON.parse(savedUserStr));
+          setIsLoggedIn(true);
+        } else {
+          setShowLoginModal(true);
+        }
+
+        const initialLoader = document.getElementById('initial-loader');
+        if (initialLoader) initialLoader.style.display = 'none';
+
+        Promise.all([
+          supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
+          supabaseSelect('stk_customers').catch(() => supabaseSelect('customers')),
+          supabaseSelect('stk_sales').catch(() => supabaseSelect('sales'))
+        ]).then(([memRes, custRes, saleRes]) => {
+          if (Array.isArray(memRes)) setMembers(memRes.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name })));
+          if (Array.isArray(custRes)) setCustomers(custRes.map(x => ({ ...x, id: x.id || x.customer_id })));
+          if (Array.isArray(saleRes)) setSales(saleRes.map(s => ({
+             ...s,
+             id: s.id || s.sale_id || s.receipt_id || s.order_id,
+             customerId: s.customerId || s.customer_id,
+             memberId: s.memberId || s.sellerId || s.seller_id,
+             totalAmount: s.totalAmount || s.total_amount,
+             saleType: s.saleType || s.sale_type,
+             date: s.date || s.created_at,
+             recordedBy: s.recordedBy || s.recorded_by,
+             paymentNote: s.paymentNote || s.payment_note
+          })));
+        }).finally(() => setIsAppLoading(false));
+      }, []);
+
+      const handleLoginSuccess = (user) => {
+        localStorage.setItem('stk_current_user', JSON.stringify(user));
+        setCurrentUser(user);
+        setIsLoggedIn(true);
+        setShowLoginModal(false);
+        showToast('เข้าสู่ระบบสำเร็จ!', 'success');
+      };
+
+      const handleLogout = () => {
+        localStorage.removeItem('stk_current_user');
+        setCurrentUser(null);
+        setIsLoggedIn(false);
+        window.location.href = resolvePageUrl('?page=dashboard');
+      };
+
+      return (
+        <div className="min-h-screen flex flex-col lg:flex-row font-sans bg-slate-50">
+          <Sidebar 
+            activePage="orders" 
+            isLoggedIn={isLoggedIn} 
+            currentUser={currentUser} 
+            currentUserProfileUrl={currentUserProfileUrl} 
+            isAdmin={isAdmin} 
+            onLogout={handleLogout} 
+            showLoginModal={showLoginModal} 
+            setShowLoginModal={setShowLoginModal} 
+            SCRIPT_URL={SCRIPT_URL}
+            setIsAppLoading={setIsAppLoading}
+            isSidebarCollapsed={isSidebarCollapsed}
+            setIsSidebarCollapsed={setIsSidebarCollapsed}
+          />
+          
+          <main className={`flex-1 flex flex-col min-h-screen bg-slate-50 transition-all duration-300 relative ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} w-full overflow-x-hidden p-4 lg:p-8`}>
+             {toast.show && (
+              <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-[9999] flex items-center justify-center p-4">
+                 <div className={`bg-white rounded-3xl shadow-xl p-8 max-w-sm w-full text-center border-t-4 ${toast.type === 'error' ? 'border-red-500' : 'border-emerald-500'}`}>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">{toast.type === 'error' ? 'เกิดข้อผิดพลาด' : 'สำเร็จ!'}</h3>
+                    <p className="text-slate-600 font-medium text-sm mb-6">{toast.message}</p>
+                    <button onClick={() => setToast({ ...toast, show: false })} className="w-full py-2.5 rounded-xl font-bold bg-slate-100 text-slate-700 hover:bg-slate-200">ตกลง</button>
+                 </div>
+              </div>
+             )}
+
+             {isAppLoading ? (
+               <div className="flex flex-col items-center justify-center py-32 gap-4 flex-1">
+                 <div className="w-12 h-12 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+                 <p className="text-slate-500 text-sm font-bold">กำลังโหลดรายการบิล...</p>
+               </div>
+             ) : (
+               <OrdersView 
+                 sales={sales} 
+                 setSales={setSales} 
+                 members={members} 
+                 customers={customers} 
+                 isAdmin={isAdmin} 
+                 showToast={showToast} 
+                 currentUser={currentUser} 
+               />
+             )}
+          </main>
+
+          <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} onLoginSuccess={handleLoginSuccess} systemUsers={systemUsers} />
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

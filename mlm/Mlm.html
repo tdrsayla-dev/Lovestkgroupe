@@ -179,17 +179,17 @@
 
             setTargetHistory(prev => [newLogObj, ...(prev || [])]);
 
-            if (typeof google !== 'undefined' && google.script) {
-                google.script.run
-                    .withSuccessHandler(resStr => {
-                        try {
-                            const res = JSON.parse(resStr);
-                            if (res.status === 'success' && res.record) {
-                                setTargetHistory(prev => prev.map(item => item.id === newLogObj.id ? res.record : item));
-                            }
-                        } catch(e) {}
-                    })
-                    .saveTargetHistory(num, type, memberId, 'ผู้ดูแลระบบ (Admin)', notes);
+            if (typeof window.supabaseInsert === 'function') {
+                const sbPayload = {
+                    period: newLogObj.period,
+                    target_value: newLogObj.targetValue,
+                    target_type: newLogObj.targetType,
+                    member_id: newLogObj.memberId,
+                    set_by: newLogObj.setBy,
+                    notes: newLogObj.notes
+                };
+                window.supabaseInsert('stk_target_history', sbPayload)
+                    .catch(err => console.error("Error saving target history to Supabase:", err));
             }
         };
 
@@ -1214,57 +1214,32 @@
             initialLoader.style.display = 'none';
         }
 
-        if (typeof google !== 'undefined' && google.script) {
-           try {
-               const cachedData = localStorage.getItem('stk_app_cache_data');
-               if (cachedData) {
-                   const parsedData = JSON.parse(cachedData);
-                   applyDataToStates(parsedData);
-                   setIsAppLoading(false);
-               }
-           } catch (e) { console.warn("Cache error", e); }
-
-           google.script.run
-             .withSuccessHandler((response) => {
-                if (response) {
-                    try { localStorage.setItem('stk_app_cache_data', JSON.stringify(response)); } catch(e){}
-                    applyDataToStates(response);
-                }
-                setIsAppLoading(false); 
-             })
-             .withFailureHandler((error) => {
-                setIsAppLoading(false);
-                showToast('การเชื่อมต่อเซิร์ฟเวอร์ขัดข้อง: ' + (error ? (error.message || error) : ''), 'error');
-             })
-             .getInitialData(); 
-        } else {
-           Promise.all([
-             supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
-             supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
-             supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
-             supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
-             supabaseSelect('stk_customers').catch(() => supabaseSelect('customers')),
-             supabaseSelect('stk_sales').catch(() => supabaseSelect('sales')),
-             supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams')),
-             supabaseSelect('stk_target_history').catch(() => supabaseSelect('target_history'))
-           ]).then(([pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes, tgtRes]) => {
-             const resObj = {
-               products: pRes,
-               customerTypes: typeRes,
-               closers: cloRes,
-               members: memRes,
-               customers: custRes,
-               sales: saleRes,
-               businessTeams: teamRes,
-               targetHistory: tgtRes
-             };
-             applyDataToStates(resObj);
-           }).catch(err => {
-             console.error("Supabase load error:", err);
-           }).finally(() => {
-             setIsAppLoading(false);
-           });
-        }
+        Promise.all([
+          supabaseSelect('stk_products').catch(() => []),
+          supabaseSelect('stk_customer_types').catch(() => []),
+          supabaseSelect('stk_closers').catch(() => []),
+          supabaseSelect('stk_members').catch(() => []),
+          supabaseSelect('stk_customers').catch(() => []),
+          supabaseSelect('stk_sales').catch(() => []),
+          supabaseSelect('stk_business_teams').catch(() => []),
+          supabaseSelect('stk_target_history').catch(() => [])
+        ]).then(([pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes, tgtRes]) => {
+          const resObj = {
+            products: pRes,
+            customerTypes: typeRes,
+            closers: cloRes,
+            members: memRes,
+            customers: custRes,
+            sales: saleRes,
+            businessTeams: teamRes,
+            targetHistory: tgtRes
+          };
+          applyDataToStates(resObj);
+        }).catch(err => {
+          console.error("Supabase load error:", err);
+        }).finally(() => {
+          setIsAppLoading(false);
+        });
       }, []);
 
       const applyDataToStates = (response) => {

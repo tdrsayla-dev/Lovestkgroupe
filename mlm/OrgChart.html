@@ -135,10 +135,37 @@
     const MemberPerformanceDetailModal = ({ isOpen, onClose, member, sales, members, products, customerTypes, systemSettings, teamMap, startDate, endDate }) => {
         if (!isOpen || !member) return null;
 
-        const [modalStartDate, setModalStartDate] = useState(startDate || '');
-        const [modalEndDate, setModalEndDate] = useState(endDate || '');
+        const getDefaultMonthRange = () => {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+            return { start: `${y}-${m}-01`, end: `${y}-${m}-${String(lastDay).padStart(2, '0')}` };
+        };
+        const defRange = getDefaultMonthRange();
+        const [modalStartDate, setModalStartDate] = useState(startDate || defRange.start);
+        const [modalEndDate, setModalEndDate] = useState(endDate || defRange.end);
 
         const mId = useMemo(() => String(member.id || '').trim().toUpperCase(), [member]);
+
+        // 🔄 Live-fetch accumulated PV from Supabase — ดึงสดเมื่อเปิด Modal
+        const [livePV, setLivePV] = useState(null); // null = loading
+        useEffect(() => {
+            if (!mId) return;
+            setLivePV(null); // reset to loading state
+            // member.id ถูก map มาจาก user_id แล้วในขั้นตอน applyDataToStates
+            supabaseSelect('stk_members', `user_id=eq.${encodeURIComponent(mId)}&select=accumulated_pv&limit=1`)
+                .then(rows => {
+                    if (Array.isArray(rows) && rows.length > 0) {
+                        setLivePV(Number(rows[0].accumulated_pv || 0));
+                    } else {
+                        setLivePV(Number(member.accumulatedPV || 0));
+                    }
+                })
+                .catch(() => setLivePV(Number(member.accumulatedPV || 0)));
+        }, [mId]);
+
+        const memberAccumulatedPV = livePV !== null ? livePV : Number(member.accumulatedPV || 0);
 
         // Get downlines in all levels with level depth breakdown
         const getDownlinesWithLevels = useCallback((parentId, depth = 1, visited = new Set()) => {
@@ -297,25 +324,7 @@
         const downlineTotalBoxes = useMemo(() => Object.values(downlineCategorized).reduce((acc, c) => acc + c.totalQty, 0), [downlineCategorized]);
         const groupTotalBoxes = personalTotalBoxes + downlineTotalBoxes;
 
-        // 🏆 Accumulated PV from Member DB + Sales
-        const memberAccumulatedPV = useMemo(() => {
-            let dbPV = Number(member.accumulatedPV || member.accumulated_pv || member.Accumulated_PV || 0);
-            let salesPV = 0;
-            personalSalesList.forEach(s => {
-                let itemsList = [];
-                if (s.items_json) {
-                    try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
-                }
-                if (Array.isArray(itemsList) && itemsList.length > 0) {
-                    itemsList.forEach(it => {
-                        salesPV += Number(it.qty || it.quantity || 1);
-                    });
-                } else {
-                    salesPV += Number(s['ยอดรวมชิ้นทั้งหมด'] || 1);
-                }
-            });
-            return Math.max(dbPV, salesPV);
-        }, [member, personalSalesList]);
+
 
         // 4 Price Types Totals across whole team
         const totalFullBoxes = useMemo(() => Object.values(totalTeamCategorized).reduce((acc, c) => acc + c.fullQty, 0), [totalTeamCategorized]);
@@ -442,12 +451,18 @@
                                 </div>
                             )}
 
-                            {/* 🏆 PV ACCUMULATED KPI CARD */}
+                            {/* 🏆 PV ACCUMULATED KPI CARD — แสดงเฉพาะเมื่อมีข้อมูลใน DB */}
+                            {/* 🏆 PV ACCUMULATED KPI CARD — แสดงเฉพาะเมื่อมีข้อมูลใน DB หรือกำลังโหลด */}
+                            {(livePV === null || memberAccumulatedPV > 0) && (
                             <div className="bg-purple-50/80 border border-purple-200/80 p-3.5 rounded-2xl text-center shadow-xs relative overflow-hidden">
                                 <span className="text-[11px] font-bold text-purple-700 block">⭐ แต้ม PV สะสม</span>
-                                <span className="text-2xl sm:text-3xl font-black text-purple-800 mt-1 block font-mono">{memberAccumulatedPV}</span>
-                                <span className="text-[10px] text-purple-600 font-bold">PV (ดึงจาก DB สมาชิก)</span>
+                                {livePV === null ? (
+                                    <span className="text-sm text-purple-400 mt-1 block animate-pulse">กำลังโหลด...</span>
+                                ) : (
+                                    <span className="text-2xl sm:text-3xl font-black text-purple-800 mt-1 block font-mono">{memberAccumulatedPV.toLocaleString()}</span>
+                                )}
                             </div>
+                            )}
 
                             <div className="bg-amber-50/80 border border-amber-100 p-3.5 rounded-2xl text-center shadow-xs">
                                 <span className="text-[11px] font-bold text-amber-600 block">ทีมงานใต้ดูแล</span>
@@ -484,8 +499,8 @@
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 font-bold">
-                                            {Object.values(personalCategorized).map((cat, idx) => (
-                                                <tr key={cat.key} className={cat.totalQty > 0 ? 'bg-blue-50/20' : ''}>
+                                            {Object.values(personalCategorized).filter(cat => cat.totalQty > 0).map((cat, idx) => (
+                                                <tr key={cat.key} className="bg-blue-50/20">
                                                     <td className="p-2.5 text-center text-slate-400">{idx + 1}</td>
                                                     <td className="p-2.5 text-slate-800">{cat.name}</td>
                                                     <td className="p-2.5 text-center text-blue-600 font-black">{cat.totalQty}</td>
@@ -493,6 +508,9 @@
                                                     <td className="p-2.5 text-right text-emerald-600 font-black font-mono">{cat.totalLAK.toLocaleString()} LAK</td>
                                                 </tr>
                                             ))}
+                                            {Object.values(personalCategorized).every(cat => cat.totalQty === 0) && (
+                                                <tr><td colSpan="5" className="p-4 text-center text-slate-400 text-xs">ยังไม่มียอดขายในช่วงเวลาที่เลือก</td></tr>
+                                            )}
                                         </tbody>
                                     </table>
                                 </div>
@@ -521,8 +539,8 @@
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100 font-bold">
-                                                {Object.values(downlineCategorized).map((cat, idx) => (
-                                                    <tr key={cat.key} className={cat.totalQty > 0 ? 'bg-pink-50/20' : ''}>
+                                                {Object.values(downlineCategorized).filter(cat => cat.totalQty > 0).map((cat, idx) => (
+                                                    <tr key={cat.key} className="bg-pink-50/20">
                                                         <td className="p-2.5 text-center text-slate-400">{idx + 1}</td>
                                                         <td className="p-2.5 text-slate-800">{cat.name}</td>
                                                         <td className="p-2.5 text-center text-pink-600 font-black">{cat.totalQty}</td>
@@ -530,6 +548,9 @@
                                                         <td className="p-2.5 text-right text-pink-600 font-black font-mono">{cat.totalLAK.toLocaleString()} LAK</td>
                                                     </tr>
                                                 ))}
+                                                {Object.values(downlineCategorized).every(cat => cat.totalQty === 0) && (
+                                                    <tr><td colSpan="5" className="p-4 text-center text-slate-400 text-xs">ลูกทีมยังไม่มียอดขายในช่วงเวลาที่เลือก</td></tr>
+                                                )}
                                             </tbody>
                                         </table>
                                     </div>
@@ -846,8 +867,16 @@
         // Filter Bar States
         const [bonusCondition, setBonusCondition] = useState('แผนที่ 1 (% จากยอดรวม)');
         const [selectedCategory, setSelectedCategory] = useState('📦 สินค้าทั้งหมด');
-        const [startDate, setStartDate] = useState('');
-        const [endDate, setEndDate] = useState('');
+        const getDefaultMonthRange = () => {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+            return { start: `${y}-${m}-01`, end: `${y}-${m}-${String(lastDay).padStart(2, '0')}` };
+        };
+        const defMonthRange = getDefaultMonthRange();
+        const [startDate, setStartDate] = useState(defMonthRange.start);
+        const [endDate, setEndDate] = useState(defMonthRange.end);
 
         const teamMap = useMemo(() => {
             const map = {};
@@ -1007,7 +1036,7 @@
                     </div>
 
                     <button 
-                        onClick={() => { setSearchQuery(''); setStartDate(''); setEndDate(''); }}
+                        onClick={() => { const r = getDefaultMonthRange(); setSearchQuery(''); setStartDate(r.start); setEndDate(r.end); }}
                         className="px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1"
                     >
                         <span>🔄 รีเฟรช</span>

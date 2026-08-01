@@ -1,54 +1,39 @@
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
-  body { font-family: 'Sukhumvit Set', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; }
-  .animation-fade-in { animation: fadeIn 0.2s ease-out; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-  .animation-slide-up { animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-  @keyframes slideUp { from { opacity: 0; transform: translateY(30px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
-  .animation-pop { animation: pop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-  @keyframes pop { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
-  @keyframes floatCard { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
-  .animate-float-1 { animation: floatCard 3s ease-in-out infinite; }
-  .animate-float-2 { animation: floatCard 3.5s ease-in-out infinite 0.5s; }
-  .animate-float-3 { animation: floatCard 4s ease-in-out infinite 1s; }
-  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  
+  :root {
+    --bg-main: #f8fafc;
+    --card-bg: #ffffff;
+    --border-color: #e2e8f0;
+  }
+
+  body { 
+    font-family: 'Sukhumvit Set', 'Sarabun', 'Noto Sans Lao', -apple-system, BlinkMacSystemFont, sans-serif; 
+    background-color: var(--bg-main); 
+    color: #0f172a; 
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .animation-fade-in { animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  
+  .animation-slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  
+  .animation-pop { animation: pop 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  @keyframes pop { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
   ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  
   input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   .hide-scroll::-webkit-scrollbar { display: none; }
   .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
 
-  /* Y"O ?อY?Y"fหม^: ?ส?Tzลั??าTวิ^?สวTกัTแssสมู- (Smooth Glowing Lines) */
-  @keyframes orbit-cw {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-  }
-  @keyframes orbit-ccw {
-      0% { transform: rotate(360deg); }
-      100% { transform: rotate(0deg); }
-  }
-  .animate-orbit-cw {
-      animation: orbit-cw 6s linear infinite;
-      transform-origin: 18px 18px; /* หมุTรอs^ุ"ศูTยOกลา? SVG */
-  }
-  .animate-orbit-ccw {
-      animation: orbit-ccw 9s linear infinite;
-      transform-origin: 18px 18px; /* หมุTรอs^ุ"ศูTยOกลา? SVG */
-  }
-
-  /* Y"O ?อY?Y""อ"อT?มTู"?าT<?าย ("ุSก"ิSกT^ารัก?) */
-  @keyframes icon-wiggle {
-      0%, 100% { transform: rotate(0deg) scale(1); }
-      25% { transform: rotate(-12deg) scale(1.15); }
-      50% { transform: rotate(12deg) scale(1.15); }
-      75% { transform: rotate(-6deg) scale(1.15); }
-  }
-  .group:hover .animate-icon-wiggle {
-      animation: icon-wiggle 0.5s ease-in-out;
-  }
-
-  /* Responsive & Multi-Platform Compatibility Fixes */
+  /* Responsive & Multi-Platform Compatibility Protection */
   html, body {
     width: 100%;
     max-width: 100vw;
@@ -59,37 +44,12 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* Production & Server Layout Protections for Sidebar & Main Content */
-  @media (min-width: 1024px) {
-    aside.lg\:flex {
-      display: flex !important;
-      position: fixed !important;
-      top: 0;
-      left: 0;
-      height: 100vh;
-      z-index: 30;
-    }
-    main.lg\:ml-64 {
-      margin-left: 16rem !important;
-    }
-    main.lg\:ml-20 {
-      margin-left: 5rem !important;
-    }
-    div.lg\:hidden {
-      display: none !important;
-    }
-  }
-  @media (max-width: 1023.98px) {
-    aside.hidden.lg\:flex {
-      display: none !important;
-    }
-    div.lg\:hidden {
-      display: flex !important;
-    }
-    main {
-      margin-left: 0 !important;
-      width: 100% !important;
-    }
+  /* Table & Container responsive auto-wrapper */
+  .table-responsive, .tree-responsive {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   /* Responsive input & modal fixes */
@@ -101,19 +61,6 @@
       font-size: 14px;
     }
   }
-
-  /* Table & Container responsive auto-wrapper */
-  .table-responsive, .tree-responsive {
-    width: 100%;
-    max-width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  /* Touch friendly scrollbars for horizontal lists */
-  .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
-  .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
-  .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 
   /* CSS for Print */
   @media print {
@@ -131,5 +78,51 @@
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin defer></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin defer></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+  window.SUPABASE_URL      = 'https://mfpkeyrykqnrywyksyqp.supabase.co';
+  window.SUPABASE_ANON_KEY = 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
+  window.SUPABASE_REST_URL = window.SUPABASE_URL + '/rest/v1';
+  window.SUPABASE_HEADERS  = {
+    'Content-Type' : 'application/json',
+    'apikey'       : window.SUPABASE_ANON_KEY,
+    'Authorization': 'Bearer ' + window.SUPABASE_ANON_KEY,
+    'Prefer'       : 'return=representation'
+  };
+  if (typeof supabase !== 'undefined') {
+    window.supabaseClient = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+    console.log('%c Supabase Connected!', 'color:green;font-weight:bold', window.SUPABASE_URL);
+  }
+  async function supabaseSelect(table, query) {
+    var url = window.SUPABASE_REST_URL + '/' + table + (query ? '?' + query : '');
+    var res = await fetch(url, { method: 'GET', headers: window.SUPABASE_HEADERS });
+    if (!res.ok) { var t = await res.text(); throw new Error('SELECT ' + table + ': ' + res.status + ' ' + t); }
+    return res.json();
+  }
+  async function supabaseInsert(table, data) {
+    var res = await fetch(window.SUPABASE_REST_URL + '/' + table, { method: 'POST', headers: window.SUPABASE_HEADERS, body: JSON.stringify(data) });
+    if (!res.ok) { var t = await res.text(); throw new Error('INSERT ' + table + ': ' + res.status + ' ' + t); }
+    return res.json();
+  }
+  async function supabaseUpdate(table, id, data, pk='id') {
+    var url = window.SUPABASE_REST_URL + '/' + table + '?' + pk + '=eq.' + encodeURIComponent(id);
+    var res = await fetch(url, { method: 'PATCH', headers: window.SUPABASE_HEADERS, body: JSON.stringify(data) });
+    if (!res.ok) { var t = await res.text(); throw new Error('UPDATE ' + table + ': ' + res.status + ' ' + t); }
+    return res.json();
+  }
+  async function supabaseDelete(table, id, pk='id') {
+    var h = Object.assign({}, window.SUPABASE_HEADERS, { 'Prefer': 'return=minimal' });
+    var url = window.SUPABASE_REST_URL + '/' + table + '?' + pk + '=eq.' + encodeURIComponent(id);
+    var res = await fetch(url, { method: 'DELETE', headers: h });
+    if (!res.ok) { var t = await res.text(); throw new Error('DELETE ' + table + ': ' + res.status + ' ' + t); }
+    return true;
+  }
+  async function supabaseUpsert(table, data) {
+    var h = Object.assign({}, window.SUPABASE_HEADERS, { 'Prefer': 'resolution=merge-duplicates,return=representation' });
+    var res = await fetch(window.SUPABASE_REST_URL + '/' + table, { method: 'POST', headers: h, body: JSON.stringify(data) });
+    if (!res.ok) { var t = await res.text(); throw new Error('UPSERT ' + table + ': ' + res.status + ' ' + t); }
+    return res.json();
+  }
+</script>
 
 

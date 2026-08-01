@@ -321,14 +321,14 @@
                     business_team: finalData.team || finalData.businessTeam,
                     permission_role: finalData.role || 'Staff',
                     status: finalData.status || 'ทำงานอยู่',
-                    id_card_url: finalData.idCardDocUrl || finalData.profileUrl,
-                    sponsor_id: finalData.referrer || finalData.sponsorId,
-                    phone_number: finalData.phone || finalData.phoneNumber,
-                    email: finalData.email,
-                    line_id: finalData.lineId,
-                    bank_name: finalData.bankName,
-                    bank_account_no: finalData.bankAccountNo,
-                    bank_account_name: finalData.bankAccountName,
+                    id_card_url: finalData.idCardDocUrl || '',
+                    sponsor_id: finalData.referrer || finalData.sponsorId || '',
+                    phone_number: finalData.phone || finalData.phoneNumber || '',
+                    email: finalData.email || '',
+                    line_id: finalData.lineId || '',
+                    bank_name: finalData.bankName || '',
+                    bank_account_no: finalData.bankAccountNo || '',
+                    bank_account_name: finalData.bankAccountName || '',
                     accumulated_pv: finalData.accumulatedPv || finalData.accumulatedPV || 0
                 };
 
@@ -1245,7 +1245,30 @@
            if (Array.isArray(response.products)) setProducts(response.products);
            if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes);
            if (Array.isArray(response.closers)) setClosers(response.closers);
-           if (Array.isArray(response.members)) { setMembers(response.members.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name, profileUrl: m.id_card_url || m.profileImageUrl || m.profileUrl, idCardDocUrl: m.id_card_url || m.idCardDocUrl, businessTeam: m.business_team || m.businessTeam, team: m.business_team || m.team || m.businessTeam || 'T01', role: m.permission_role || m.role || m.permissionRole, status: m.status, sponsorId: m.sponsor_id || m.sponsorId, accumulatedPv: m.accumulated_pv || m.Accumulated_PV || m.accumulatedPv || m.pv || 0, phone: m.phone_number || m.phone || m.phoneNumber }))); }
+           if (Array.isArray(response.members)) { 
+             setMembers(response.members.map(m => ({ 
+               ...m, 
+               id: m.id || m.user_id || m.member_id, 
+               name: m.name, 
+               profileUrl: m.profile_url || m.profileImageUrl || m.profileUrl || m.id_card_url, 
+               idCardDocUrl: m.id_doc_url || m.id_card_doc_url || m.idCardDocUrl || m.id_card_url || '', 
+               businessTeam: m.business_team || m.businessTeam, 
+               team: m.business_team || m.team || m.businessTeam || 'T01', 
+               role: m.permission_role || m.role || m.permissionRole, 
+               status: m.status, 
+               sponsorId: m.sponsor_id || m.sponsorId, 
+               referrer: m.referrer || m.sponsor_id || m.sponsorId || '',
+               accumulatedPv: m.accumulated_pv || m.Accumulated_PV || m.accumulatedPv || m.pv || 0, 
+               phone: m.phone_number || m.phone || m.phoneNumber || '',
+               email: m.email || '',
+               address: m.address || '',
+               lineId: m.line_id || m.lineId || '',
+               bankName: m.bank_name || m.bankName || '',
+               bankAccountNo: m.bank_account_no || m.bankAccountNo || '',
+               bankAccountName: m.bank_account_name || m.bankAccountName || '',
+               idCardNumber: m.id_card_number || m.idCardNumber || ''
+             }))); 
+           }
            if (Array.isArray(response.customers)) setCustomers(response.customers);
            if (Array.isArray(response.systemUsers)) setSystemUsers(response.systemUsers);
            if (Array.isArray(response.businessTeams)) setBusinessTeams(response.businessTeams.map(t => ({ ...t, id: t.id || t.team_id, name: t.name || t.team_name, status: t.status })));
