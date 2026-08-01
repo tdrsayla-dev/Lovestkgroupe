@@ -699,6 +699,14 @@ function saveCompanySettings() {
             { key: 'map_label', value: document.getElementById('comp-map-label').value }
         ];
 
+        try {
+            localStorage.setItem('stk_company_info', JSON.stringify(infoUpdates));
+            localStorage.setItem('stk_subsidiaries', JSON.stringify(finalSubUpdates));
+            localStorage.setItem('stk_careers', JSON.stringify(jobsUpdates));
+        } catch (e) {
+            console.warn('[Company Profile] LocalStorage caching failed:', e);
+        }
+
         google.script.run.withSuccessHandler(res => {
             toggleLoading(false);
             if (res.success) {
