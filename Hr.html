@@ -334,7 +334,7 @@
             announcements: { ID: 'announcement_id', Date: 'announcement_date', Type: 'type', Topic: 'topic', Photo: 'photo', Status: 'status' },
             news: { ID: 'news_id', Date: 'news_date', Type: 'type', Topic: 'topic', Content: 'content', Photo: 'photo', Status: 'status', Audience: 'audience' },
             departments: { Department_ID: 'department_id', Department_Name: 'department_name', Manager_ID: 'manager_id', 'Employees count': 'employees_count', Status: 'status' },
-            leave_applications: { Id_Leave: 'leave_id', Employee_ID: 'employee_id', Prefix: 'prefix', First_Name: 'first_name', Last_Name: 'last_name', Department_ID: 'department_id', Position_ID: 'position_id', Contact: 'contact', 'Object ': 'object', 'Type ': 'leave_type', Start_Date: 'start_date', End_Date: 'end_date', Total_Days: 'total_days', 'Work Handover': 'work_handover', Signature: 'signature', Photo: 'photo' },
+            leave_applications: { Id_Leave: 'leave_id', id_leave: 'leave_id', leave_id: 'leave_id', Employee_ID: 'employee_id', employee_id: 'employee_id', Prefix: 'prefix', prefix: 'prefix', First_Name: 'first_name', first_name: 'first_name', Last_Name: 'last_name', last_name: 'last_name', Department_ID: 'department_id', department_id: 'department_id', Position_ID: 'position_id', position_id: 'position_id', Contact: 'contact', contact: 'contact', 'Object ': 'object', Object: 'object', object: 'object', 'Type ': 'leave_type', Type: 'leave_type', leave_type: 'leave_type', Start_Date: 'start_date', start_date: 'start_date', End_Date: 'end_date', end_date: 'end_date', Total_Days: 'total_days', total_days: 'total_days', 'Work Handover': 'work_handover', work_handover: 'work_handover', Signature: 'signature', signature: 'signature', Photo: 'photo', photo: 'photo' },
             asset_tracking: { Asset_ID: 'asset_id', Asset_Name: 'asset_name', Employee_ID: 'employee_id', Department_ID: 'department_id', 'Date_Started using': 'date_started_using', Date_Broken: 'date_broken', Photo: 'photo', Note: 'note', Status: 'status' },
             training: { Course_ID: 'course_id', Course_Name: 'course_name', Trainer: 'trainer', Format: 'format', Star_Date: 'start_date', End_Date: 'end_date', Participants: 'participants', photo: 'photo', 'link ': 'link', Status: 'status' },
             organization: { 'Organization ID': 'organization_id', 'Organization Name': 'organization_name', 'Business Type': 'business_type', 'Registration Number': 'registration_number', 'Tax ID': 'tax_id', Address: 'address', Country: 'country', 'Phone Number': 'phone_number', Email: 'email', Website: 'website', Logo: 'logo', 'CEO / Director': 'ceo_director', 'Founded Date': 'founded_date', Status: 'status' },
@@ -352,10 +352,17 @@
             const map = COL_MAP[table] || {};
             const out = {};
             Object.keys(dataObj || {}).forEach(k => {
-                if (Object.keys(map).length > 0 && !map[k]) {
-                    return;
+                let mapped = map[k];
+                if (!mapped && Object.keys(map).length > 0) {
+                    const cleanK = String(k).trim().toLowerCase().replace(/[\s_]/g, '');
+                    for (let mKey in map) {
+                        if (String(mKey).trim().toLowerCase().replace(/[\s_]/g, '') === cleanK || String(map[mKey]).trim().toLowerCase().replace(/[\s_]/g, '') === cleanK) {
+                            mapped = map[mKey];
+                            break;
+                        }
+                    }
                 }
-                const mapped = map[k] || k;
+                if (!mapped) mapped = k;
                 let val = dataObj[k];
                 if (mapped === 'is_evaluator') {
                     val = String(val).toLowerCase() === 'true' || val === true;
@@ -3568,7 +3575,7 @@
                                     const clinicFeeLAK = Number(b.clinic_fee || 0);
 
                                     if (runningBalLAKMap[mId] === undefined) {
-                                        runningBalLAKMap[mId] = salesLAK + clinicFeeLAK;
+                                        runningBalLAKMap[mId] = salesLAK; // Initialize with total sales only
                                     }
 
                                     const amt = Number(b.amount || 0);
@@ -3582,7 +3589,16 @@
                                     }
 
                                     b._amtInLAK = amtInLAK;
-                                    runningBalLAKMap[mId] -= amtInLAK;
+
+                                    // Do not deduct/add rejected requests from the running balance
+                                    const rawStatusLower = String(b.status || '').toLowerCase();
+                                    const isRejected = rawStatusLower.includes('reject') || rawStatusLower.includes('ไม่อนุมัติ') || rawStatusLower.includes('ยกเลิก');
+                                    
+                                    if (!isRejected) {
+                                        runningBalLAKMap[mId] += clinicFeeLAK; // Clinic fee adds to available balance
+                                        runningBalLAKMap[mId] -= amtInLAK;     // Request amount deducts from available balance
+                                    }
+                                    
                                     b._remainingBalLAK = runningBalLAKMap[mId];
                                 });
 
@@ -3626,8 +3642,8 @@
                                         usedLAK = amt * 700;
                                     }
 
-                                    // Direct math formula: Net Received = Total MLM + Clinic Fee - Disbursed Amount
-                                    const netLAK = (salesLAK + clinicFee) - usedLAK;
+                                    // Use the running balance calculated previously
+                                    const netLAK = b._remainingBalLAK !== undefined ? b._remainingBalLAK : ((salesLAK + clinicFee) - usedLAK);
 
                                     const budgetDisplayStr = `${usedLAK.toLocaleString()} ₭`;
                                     const clinicDisplayStr = `${clinicFee.toLocaleString()} ₭`;
