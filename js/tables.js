@@ -990,7 +990,7 @@ function renderTable(data) {
                         }
                     } else if (currentSheet === 'Leave application' && lw === 'signature') {
                         const rowId = getRecordId(row);
-                        if (role !== 'Staff') {
+                        if (canEdit || role !== 'Staff') {
                             val = `
                                     <div class="flex items-center space-x-3">
                                         <span class="px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest ${color}">${displayText}</span>

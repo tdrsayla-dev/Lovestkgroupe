@@ -1013,19 +1013,35 @@ function approveLeaveFromDashboard(id, colName, selectElement) {
 function filterDataForUser(data) {
     if (!Array.isArray(data)) return [];
     const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
-    let role = 'Staff', username = '', empId = '';
+    let role = 'Staff', username = '', empId = '', userPerms = [];
     if (sessionStr) {
         try {
             const sessionData = JSON.parse(sessionStr);
             role = sessionData.role || 'Staff';
             username = sessionData.username || '';
             empId = sessionData.empId || '';
+            if (sessionData.permissions) {
+                userPerms = typeof parsePermissionsList === 'function' ? parsePermissionsList(sessionData.permissions) : String(sessionData.permissions).split(',').map(p => p.trim().toLowerCase());
+            }
         } catch (e) { }
     }
 
     if (role !== 'Staff') return data;
 
     const s = String(currentSheet || '').toLowerCase().trim();
+
+    // Check permissions: If user has view, edit, delete, or master permission for the current sheet, allow viewing all data
+    if (userPerms.length > 0) {
+        const canViewAll = userPerms.includes('all') ||
+                           userPerms.includes('admin') ||
+                           (typeof hasActionPermission === 'function' && (
+                               hasActionPermission(currentSheet, 'view', userPerms) ||
+                               hasActionPermission(currentSheet, 'edit', userPerms) ||
+                               hasActionPermission(currentSheet, 'delete', userPerms)
+                           )) ||
+                           (typeof isMasterPermissionChecked === 'function' && isMasterPermissionChecked(currentSheet, userPerms));
+        if (canViewAll) return data;
+    }
 
     if (s.includes('ranting') || s.includes('rating') || s.includes('announc') || s.includes('news') || s.includes('train') || s.includes('asset') || s.includes('doc') || s.includes('policy') || s.includes('organ') || s.includes('dept') || s.includes('department')) {
         return data;
