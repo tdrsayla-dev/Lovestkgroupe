@@ -100,10 +100,57 @@ function renderTable(data) {
             });
         }
 
-        let calMonthInput = document.getElementById('calendarMonth');
-        let calEmpInput = document.getElementById('calendarEmpId');
+        let shiftFilter = document.getElementById('attendance-shift-filter') ? document.getElementById('attendance-shift-filter').value.trim() : '';
+        if (shiftFilter) {
+            const cleanFilter = shiftFilter.replace(/^0/, '');
+            const assignments = loadShiftAssignments();
+            const configs = loadShiftConfigs();
 
-        if (!calMonthInput.value) {
+            // 🥇 Priority 1: ใช้ assignment ที่ HR กำหนดไว้
+            const matchingShiftIds = new Set(
+                configs.filter(c => c.start.includes(shiftFilter) || c.start.replace(/^0/, '').includes(cleanFilter)).map(c => c.id)
+            );
+            const assignedEmpIds = new Set();
+            Object.entries(assignments).forEach(([empId, shiftId]) => {
+                if (matchingShiftIds.has(shiftId)) assignedEmpIds.add(empId.toUpperCase());
+            });
+
+            if (assignedEmpIds.size > 0) {
+                // ใช้ assignment-based (แม่นยำ 100%)
+                data = data.filter(r => {
+                    const empId = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').toUpperCase().trim();
+                    return assignedEmpIds.has(empId);
+                });
+            } else {
+                // 🥈 Fallback: กรองระดับพนักงานจาก Shift_Start ใน log
+                const empIdsWithShift = new Set();
+                data.forEach(r => {
+                    let sStart = String(r.Shift_Start || r.shift_start || r['Shift Start'] || r['เวลาเข้างาน'] || '').trim();
+                    if (!sStart || sStart === '-') return;
+                    const cleanStart = sStart.replace(/^0/, '');
+                    if (sStart.includes(shiftFilter) || cleanStart.includes(cleanFilter)) {
+                        const empId = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').toUpperCase().trim();
+                        if (empId) empIdsWithShift.add(empId);
+                    }
+                });
+                if (empIdsWithShift.size > 0) {
+                    data = data.filter(r => {
+                        const empId = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').toUpperCase().trim();
+                        return empIdsWithShift.has(empId);
+                    });
+                } else {
+                    data = [];
+                }
+            }
+        }
+
+
+        let calMonthInput = document.getElementById('calendarMonth');
+        let calYearInput = document.getElementById('calendarYear');
+        let calEmpInput = document.getElementById('calendarEmpId');
+        let periodMode = window._attendancePeriodMode || 'month';
+
+        if (periodMode === 'month' && !calMonthInput.value) {
             let d = new Date();
             calMonthInput.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         }
@@ -115,11 +162,20 @@ function renderTable(data) {
         }
 
         let targetEmp = calEmpInput.value.toUpperCase().trim();
-        let tYear = parseInt(calMonthInput.value.split('-')[0]);
-        let tMonth = parseInt(calMonthInput.value.split('-')[1]);
+        let tYear, tMonth;
+
+        if (periodMode === 'year') {
+            tYear = parseInt(calYearInput ? calYearInput.value : new Date().getFullYear());
+            tMonth = null; // ไม่กรองเดือน — ดึงทั้งปี
+        } else {
+            tYear = parseInt(calMonthInput.value.split('-')[0]);
+            tMonth = parseInt(calMonthInput.value.split('-')[1]);
+        }
+
         let sumLate = 0, sumEarly = 0, sumAbsent = 0, sumOT = 0;
 
         if (tYear && tMonth) {
+            // Monthly mode: กรองเฉพาะเดือนนั้น
             data = data.filter(row => {
                 let rDate = getFuzzyValue(row, ['date', 'วันที่']);
                 if (!rDate || rDate === '-') return false;
@@ -129,9 +185,21 @@ function renderTable(data) {
                 if (p2.length === 3 && parseInt(p2[1]) === tMonth && parseInt(p2[0]) === tYear) return true;
                 return false;
             });
+        } else if (tYear && !tMonth) {
+            // Yearly mode: กรองเฉพาะปีนั้น (ทุกเดือน)
+            data = data.filter(row => {
+                let rDate = getFuzzyValue(row, ['date', 'วันที่']);
+                if (!rDate || rDate === '-') return false;
+                let p = String(rDate).split('/');
+                if (p.length === 3 && parseInt(p[2]) === tYear) return true;
+                let p2 = String(rDate).split('-');
+                if (p2.length === 3 && parseInt(p2[0]) === tYear) return true;
+                return false;
+            });
         }
 
         if (targetEmp && tYear && tMonth) {
+            // Monthly mode with employee: show calendar + fill missing days
             let empLogs = data.filter(r => String(r.Employee_ID || r.Emp_ID).toUpperCase().trim() === targetEmp);
             let absentCount = renderAttendanceCalendar(tYear, tMonth, empLogs, targetEmp);
 
@@ -140,6 +208,22 @@ function renderTable(data) {
             let eDate = `${tYear}-${String(tMonth).padStart(2, '0')}-${String(eDateObj.getDate()).padStart(2, '0')}`;
 
             data = fillMissingDays(empLogs, sDate, eDate, targetEmp);
+        } else if (targetEmp && tYear && !tMonth) {
+            // Yearly mode with employee: fill missing days for all 12 months
+            let empLogs = data.filter(r => String(r.Employee_ID || r.Emp_ID).toUpperCase().trim() === targetEmp);
+            let allYearData = [];
+            for (let m = 1; m <= 12; m++) {
+                let sDate = `${tYear}-${String(m).padStart(2, '0')}-01`;
+                let eDateObj = new Date(tYear, m, 0);
+                let eDate = `${tYear}-${String(m).padStart(2, '0')}-${String(eDateObj.getDate()).padStart(2, '0')}`;
+                let filled = fillMissingDays(empLogs, sDate, eDate, targetEmp);
+                allYearData.push(...filled);
+            }
+            data = allYearData;
+            // ซ่อนปฏิทินรายเดือนในโหมดรายปี
+            if (document.getElementById('attendance-calendar-grid')) {
+                document.getElementById('attendance-calendar-grid').innerHTML = `<div class="col-span-7 text-center py-8 text-indigo-400 text-xs font-bold uppercase tracking-widest border border-dashed border-indigo-200 rounded-xl bg-indigo-50">📅 โหมดสรุปรายปี ${tYear} — แสดงข้อมูลทั้งปี</div>`;
+            }
 
             data.forEach(row => {
                 let late = parseFloat(row.Late_Hours || row.late_hours || 0) || 0;
@@ -160,8 +244,10 @@ function renderTable(data) {
                 sumLate += late;
                 sumEarly += early;
                 sumOT += ot;
+                let yearlyStatus = String(getFuzzyValue(row, ['attendance_status', 'status'])).toLowerCase();
+                if (yearlyStatus.includes('missing') || yearlyStatus.includes('absent') || yearlyStatus.includes('ขาด')) sumAbsent++;
             });
-            sumAbsent = absentCount;
+            // sumAbsent นับจาก status string เรียบร้อยแล้วข้างต้น
         } else {
             if (document.getElementById('attendance-calendar-grid')) {
                 document.getElementById('attendance-calendar-grid').innerHTML = '<div class="col-span-7 text-center py-8 text-gray-400 text-xs font-bold uppercase tracking-widest border border-dashed border-gray-200 rounded-xl">Specify an Employee ID to view calendar</div>';
@@ -1356,20 +1442,38 @@ function getActiveTableExportData() {
     }
 
     let calMonthInput = document.getElementById('calendarMonth');
+    let calYearInput = document.getElementById('calendarYear');
+    let periodMode = window._attendancePeriodMode || 'month';
     let tYear = new Date().getFullYear();
-    let tMonth = new Date().getMonth() + 1;
-    if (calMonthInput && calMonthInput.value.trim()) {
-        const mp = calMonthInput.value.trim().split('-');
-        if (mp.length === 2) {
-            tYear = parseInt(mp[0], 10);
-            tMonth = parseInt(mp[1], 10);
+    let tMonth = (periodMode === 'year') ? null : (new Date().getMonth() + 1);
+
+    if (periodMode === 'year') {
+        tYear = parseInt(calYearInput && calYearInput.value ? calYearInput.value : tYear);
+        // กรองรายปีในข้อมูลก่อน fillMissingDays
+        dataToExport = dataToExport.filter(row => {
+            let rDate = String(row.Date || row.date || '');
+            let p = rDate.split('/');
+            if (p.length === 3 && parseInt(p[2]) === tYear) return true;
+            let p2 = rDate.split('-');
+            if (p2.length === 3 && parseInt(p2[0]) === tYear) return true;
+            return false;
+        });
+    } else {
+        if (calMonthInput && calMonthInput.value.trim()) {
+            const mp = calMonthInput.value.trim().split('-');
+            if (mp.length === 2) {
+                tYear = parseInt(mp[0], 10);
+                tMonth = parseInt(mp[1], 10);
+            }
         }
     }
 
     if (currentSheet === 'Fingerprint_Logs' || currentSheet === 'Attendance_Logs') {
-        let sDate = `${tYear}-${String(tMonth).padStart(2, '0')}-01`;
-        let eDateObj = new Date(tYear, tMonth, 0);
-        let eDate = `${tYear}-${String(tMonth).padStart(2, '0')}-${String(eDateObj.getDate()).padStart(2, '0')}`;
+        // Determine date range: monthly = 1 month, yearly = full 12 months
+        let rangeMonths = (periodMode === 'year') ? [...Array(12).keys()].map(i => i + 1) : [tMonth];
+        let sDate = periodMode === 'year' ? `${tYear}-01-01` : `${tYear}-${String(tMonth).padStart(2, '0')}-01`;
+        let eDateObj = periodMode === 'year' ? new Date(tYear, 12, 0) : new Date(tYear, tMonth, 0);
+        let eDate = periodMode === 'year' ? `${tYear}-12-31` : `${tYear}-${String(tMonth).padStart(2, '0')}-${String(eDateObj.getDate()).padStart(2, '0')}`;
 
         if (empIdFilter) {
             let empLogs = dataToExport.filter(r => {
@@ -1423,6 +1527,48 @@ function getActiveTableExportData() {
             const rEmp = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').trim().toUpperCase();
             return rEmp === empIdFilter || rEmp.includes(empIdFilter);
         });
+    }
+
+    let shiftFilter = document.getElementById('attendance-shift-filter') ? document.getElementById('attendance-shift-filter').value.trim() : '';
+    if (shiftFilter) {
+        const cleanFilter = shiftFilter.replace(/^0/, '');
+        const assignments = loadShiftAssignments();
+        const configs = loadShiftConfigs();
+
+        const matchingShiftIds = new Set(
+            configs.filter(c => c.start.includes(shiftFilter) || c.start.replace(/^0/, '').includes(cleanFilter)).map(c => c.id)
+        );
+        const assignedEmpIds = new Set();
+        Object.entries(assignments).forEach(([empId, shiftId]) => {
+            if (matchingShiftIds.has(shiftId)) assignedEmpIds.add(empId.toUpperCase());
+        });
+
+        if (assignedEmpIds.size > 0) {
+            dataToExport = dataToExport.filter(r => {
+                const empId = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').toUpperCase().trim();
+                return assignedEmpIds.has(empId);
+            });
+        } else {
+            // Fallback: employee-level log-based filter
+            const empIdsWithShift = new Set();
+            dataToExport.forEach(r => {
+                let sStart = String(r.Shift_Start || r.shift_start || r['Shift Start'] || r['เวลาเข้างาน'] || '').trim();
+                if (!sStart || sStart === '-') return;
+                const cleanStart = sStart.replace(/^0/, '');
+                if (sStart.includes(shiftFilter) || cleanStart.includes(cleanFilter)) {
+                    const empId = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').toUpperCase().trim();
+                    if (empId) empIdsWithShift.add(empId);
+                }
+            });
+            if (empIdsWithShift.size > 0) {
+                dataToExport = dataToExport.filter(r => {
+                    const empId = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').toUpperCase().trim();
+                    return empIdsWithShift.has(empId);
+                });
+            } else {
+                dataToExport = [];
+            }
+        }
     }
 
     // Sort FIRST by Employee_ID (grouped sequentially per staff), SECOND by Date
@@ -1570,8 +1716,19 @@ function openExportPreviewModal(type, targetSheetName = null) {
 
     let monthFilterStr = 'ทั้งหมด (All Period)';
     const calMonthInput = document.getElementById('calendarMonth');
-    if (calMonthInput && calMonthInput.value.trim()) {
+    const calYearInput = document.getElementById('calendarYear');
+    const periodMode = window._attendancePeriodMode || 'month';
+
+    if (periodMode === 'year' && calYearInput && calYearInput.value) {
+        const y = parseInt(calYearInput.value);
+        monthFilterStr = `📅 สรุปรายปี ปี ${y} (พ.ศ. ${y + 543})`;
+    } else if (calMonthInput && calMonthInput.value.trim()) {
         monthFilterStr = calMonthInput.value.trim();
+    }
+    const shiftSelect = document.getElementById('attendance-shift-filter');
+    if (shiftSelect && shiftSelect.value.trim()) {
+        const selectedOptText = shiftSelect.options[shiftSelect.selectedIndex] ? shiftSelect.options[shiftSelect.selectedIndex].text : shiftSelect.value;
+        monthFilterStr += ` | กะเวลา: ${selectedOptText}`;
     }
     periodText.innerText = monthFilterStr;
     countText.innerText = `${data.length} รายการ`;
@@ -2076,4 +2233,474 @@ function printAttendanceReport() {
         printFrame.contentWindow.focus();
         printFrame.contentWindow.print();
     }, 250);
+}
+
+/* =====================================================================
+ * ⚙️ SHIFT SETTINGS MODAL — ฟังก์ชันตั้งค่ากะเวลาเข้างาน
+ * เก็บข้อมูลใน localStorage['hr_shift_configs']
+ * ===================================================================== */
+
+const SHIFT_STORAGE_KEY = 'hr_shift_configs';
+
+/** โหลด shift configs จาก localStorage */
+function loadShiftConfigs() {
+    try {
+        const raw = localStorage.getItem(SHIFT_STORAGE_KEY);
+        if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    // default shifts ถ้ายังไม่มีการตั้งค่า
+    return [
+        { id: 's1', start: '08:00', end: '17:00', label: 'กะเช้า (8 โมง)' },
+        { id: 's2', start: '09:00', end: '17:00', label: 'กะเช้า (9 โมง)' }
+    ];
+}
+
+/** บันทึก shift configs ลง localStorage */
+function saveShiftConfigs(configs) {
+    localStorage.setItem(SHIFT_STORAGE_KEY, JSON.stringify(configs));
+}
+
+/** สร้าง unique id */
+function genShiftId() {
+    return 's_' + Date.now().toString(36);
+}
+
+/** โหลด options เข้า dropdown #attendance-shift-filter */
+function populateShiftDropdown() {
+    const sel = document.getElementById('attendance-shift-filter');
+    if (!sel) return;
+    const configs = loadShiftConfigs();
+    // เก็บค่าที่เลือกอยู่ก่อน
+    const prevVal = sel.value;
+    sel.innerHTML = `<option value="">กะเวลาทั้งหมด (All Shifts)</option>`;
+    configs.forEach(cfg => {
+        const opt = document.createElement('option');
+        opt.value = cfg.start;
+        opt.textContent = `${cfg.start} - ${cfg.end}${cfg.label ? '  (' + cfg.label + ')' : ''}`;
+        sel.appendChild(opt);
+    });
+    // คืนค่าที่เลือกไว้ถ้ายังอยู่ใน list
+    if ([...sel.options].some(o => o.value === prevVal)) sel.value = prevVal;
+}
+
+/** เปิด Modal */
+function openShiftSettingsModal() {
+    const modal = document.getElementById('shift-settings-modal');
+    if (!modal) return;
+    renderShiftConfigList();
+    renderEmployeeAssignmentList(); // โหลดรายชื่อพนักงานด้วยเสมอ
+    switchShiftTab('config'); // เริ่มที่แท็บ 1 เสมอ
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+/** ปิด Modal */
+function closeShiftSettingsModal() {
+    const modal = document.getElementById('shift-settings-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+/** Render รายการกะเวลาใน Modal */
+function renderShiftConfigList() {
+    const listEl = document.getElementById('shift-config-list');
+    const emptyMsg = document.getElementById('shift-empty-msg');
+    if (!listEl) return;
+    const configs = loadShiftConfigs();
+    listEl.innerHTML = '';
+
+    if (!configs.length) {
+        emptyMsg && emptyMsg.classList.remove('hidden');
+        return;
+    }
+    emptyMsg && emptyMsg.classList.add('hidden');
+
+    configs.forEach((cfg, idx) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm group hover:border-indigo-300 transition-all';
+        row.innerHTML = `
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-indigo-600 font-bold text-xs">
+                    ${idx + 1}
+                </div>
+                <div>
+                    <p class="font-bold text-gray-800 text-sm font-mono">${cfg.start} – ${cfg.end}</p>
+                    ${cfg.label ? `<p class="text-gray-400 text-xs mt-0.5">${cfg.label}</p>` : ''}
+                </div>
+            </div>
+            <button onclick="deleteShiftConfig('${cfg.id}')"
+                class="text-gray-300 hover:text-rose-500 transition-colors text-sm opacity-0 group-hover:opacity-100">
+                <i class="fa-solid fa-trash-can"></i>
+            </button>
+        `;
+        listEl.appendChild(row);
+    });
+}
+
+/** เพิ่มกะเวลาใหม่ */
+function addShiftConfig() {
+    const startEl = document.getElementById('shift-new-start');
+    const endEl = document.getElementById('shift-new-end');
+    const labelEl = document.getElementById('shift-new-label');
+
+    const start = startEl ? startEl.value.trim() : '';
+    const end = endEl ? endEl.value.trim() : '';
+    const label = labelEl ? labelEl.value.trim() : '';
+
+    if (!start || !end) {
+        alert('กรุณาระบุเวลาเข้างานและเวลาเลิกงาน');
+        return;
+    }
+    if (start >= end) {
+        alert('เวลาเข้างานต้องน้อยกว่าเวลาเลิกงาน');
+        return;
+    }
+
+    const configs = loadShiftConfigs();
+    // ตรวจสอบซ้ำ
+    const dup = configs.find(c => c.start === start && c.end === end);
+    if (dup) {
+        alert(`กะเวลา ${start} - ${end} มีอยู่แล้วครับ`);
+        return;
+    }
+
+    configs.push({ id: genShiftId(), start, end, label });
+    saveShiftConfigs(configs);
+    renderShiftConfigList();
+
+    // reset form
+    if (startEl) startEl.value = '08:00';
+    if (endEl) endEl.value = '17:00';
+    if (labelEl) labelEl.value = '';
+}
+
+/** ลบกะเวลา */
+function deleteShiftConfig(id) {
+    let configs = loadShiftConfigs();
+    const target = configs.find(c => c.id === id);
+    if (!target) return;
+    if (!confirm(`ลบกะเวลา ${target.start} - ${target.end} ใช่ไหมครับ?`)) return;
+    configs = configs.filter(c => c.id !== id);
+    saveShiftConfigs(configs);
+    renderShiftConfigList();
+}
+
+/** บันทึกและใช้งาน — อัพเดต dropdown แล้วปิด modal */
+function applyShiftSettings() {
+    saveAllEmployeeShiftAssignments(); // บันทึกการกำหนดกะของพนักงาน
+    populateShiftDropdown();
+    closeShiftSettingsModal();
+    // re-render ตารางถ้ามีข้อมูล
+    if (typeof renderTable === 'function' && tableCache[currentSheet] && tableCache[currentSheet].data) {
+        renderTable(tableCache[currentSheet].data);
+    }
+}
+
+// ✅ Auto-init: โหลด dropdown เมื่อ DOM พร้อม
+document.addEventListener('DOMContentLoaded', function () {
+    populateShiftDropdown();
+});
+// fallback ถ้า DOMContentLoaded ผ่านไปแล้ว
+if (document.readyState !== 'loading') {
+    populateShiftDropdown();
+    initYearSelector();
+}
+
+/* =====================================================================
+ * 📅 PERIOD MODE (Monthly / Yearly Toggle)
+ * ===================================================================== */
+
+/** สลับโหมด: 'month' หรือ 'year' */
+function setPeriodMode(mode) {
+    window._attendancePeriodMode = mode;
+
+    const btnMonth = document.getElementById('btn-period-month');
+    const btnYear = document.getElementById('btn-period-year');
+    const monthPicker = document.getElementById('calendarMonth');
+    const yearPicker = document.getElementById('calendarYear');
+
+    if (mode === 'year') {
+        // Active: year
+        if (btnYear) {
+            btnYear.classList.add('bg-white', 'text-indigo-600', 'shadow-sm');
+            btnYear.classList.remove('text-gray-500');
+        }
+        if (btnMonth) {
+            btnMonth.classList.remove('bg-white', 'text-indigo-600', 'shadow-sm');
+            btnMonth.classList.add('text-gray-500');
+        }
+        if (monthPicker) monthPicker.classList.add('hidden');
+        if (yearPicker) yearPicker.classList.remove('hidden');
+    } else {
+        // Active: month
+        window._attendancePeriodMode = 'month';
+        if (btnMonth) {
+            btnMonth.classList.add('bg-white', 'text-indigo-600', 'shadow-sm');
+            btnMonth.classList.remove('text-gray-500');
+        }
+        if (btnYear) {
+            btnYear.classList.remove('bg-white', 'text-indigo-600', 'shadow-sm');
+            btnYear.classList.add('text-gray-500');
+        }
+        if (monthPicker) monthPicker.classList.remove('hidden');
+        if (yearPicker) yearPicker.classList.add('hidden');
+    }
+
+    // Re-render table
+    if (typeof renderTable === 'function' && tableCache[currentSheet] && tableCache[currentSheet].data) {
+        renderTable(tableCache[currentSheet].data);
+    }
+}
+
+/** สร้าง options ในปี selector (ปีปัจจุบัน ย้อนหลัง 10 ปี) */
+function initYearSelector() {
+    const sel = document.getElementById('calendarYear');
+    if (!sel) return;
+    const currentYear = new Date().getFullYear();
+    sel.innerHTML = '';
+    for (let y = currentYear; y >= currentYear - 10; y--) {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = `ปี ${y} (${y + 543})`; // แสดงทั้ง ค.ศ. และ พ.ศ.
+        if (y === currentYear) opt.selected = true;
+        sel.appendChild(opt);
+    }
+}
+
+// Init on DOM ready
+document.addEventListener('DOMContentLoaded', initYearSelector);
+
+/* =====================================================================
+ * 👥 SHIFT ASSIGNMENT SYSTEM — กำหนดกะเวลาให้พนักงานรายคน
+ * เก็บใน localStorage['hr_shift_assignments']
+ * Format: { "EMP001": "s1", "EMP002": "s2" }
+ * ===================================================================== */
+
+const SHIFT_ASSIGN_KEY = 'hr_shift_assignments';
+
+/** โหลด assignment จาก localStorage */
+function loadShiftAssignments() {
+    try {
+        const raw = localStorage.getItem(SHIFT_ASSIGN_KEY);
+        return raw ? JSON.parse(raw) : {};
+    } catch (e) { return {}; }
+}
+
+/** บันทึก assignment ลง localStorage */
+function saveShiftAssignments(data) {
+    localStorage.setItem(SHIFT_ASSIGN_KEY, JSON.stringify(data));
+}
+
+/** แสดงรายชื่อพนักงานพร้อม dropdown เลือกกะ */
+function renderEmployeeAssignmentList() {
+    const listEl = document.getElementById('shift-assign-list');
+    const emptyEl = document.getElementById('shift-assign-empty');
+    if (!listEl) return;
+
+    // ดึงรายชื่อพนักงานจากทุกแหล่งใน tableCache (staff, logs, users ฯลฯ)
+    const empMap = new Map();
+
+    function extractName(obj) {
+        if (!obj) return '';
+        // ดึง empId ก่อนเพื่อหลีกเลี่ยงการเอา empId มาแสดงเป็นชื่อ
+        const empIdStr = String(obj.Employee_ID || obj.employee_id || obj.Emp_ID || obj.emp_id || obj.User_ID || obj.user_id || '').toUpperCase().trim();
+
+        // ใช้ getFuzzyValue เหมือนกับที่ใช้ทั่วทั้ง codebase
+        if (typeof getFuzzyValue === 'function') {
+            const first = getFuzzyValue(obj, ['first_name', 'name', 'full_name', 'Employees Name', 'employee_name', 'ชื่อ', 'ชื่อ-นามสกุล', 'Full_Name', 'fullname', 'Firstname_TH', 'Name_TH', 'display_name']);
+            const last  = getFuzzyValue(obj, ['last_name', 'นามสกุล', 'Lastname']);
+            const firstStr = (first && first !== '-') ? String(first).trim() : '';
+            const lastStr  = (last  && last  !== '-') ? String(last).trim()  : '';
+            const combined = [firstStr, lastStr].filter(Boolean).join(' ').trim();
+            if (combined && combined.toUpperCase() !== empIdStr) return combined;
+        }
+
+        // fallback: ค้นชื่อด้วย property access โดยตรง
+        const possibleName =
+            obj.name || obj.Full_Name || obj.full_name || obj.fullname || obj.Fullname ||
+            obj['ชื่อ-นามสกุล'] || obj['ชื่อ'] || obj.Name || obj.Firstname_TH ||
+            obj.Name_TH || obj.display_name || obj.DisplayName ||
+            obj['ชื่อพนักงาน'] || obj['ชื่อ-สกุล'] || obj.first_name || obj.FirstName || '';
+        if (possibleName && String(possibleName).trim() !== '' && String(possibleName).trim().toUpperCase() !== empIdStr) {
+            return String(possibleName).trim();
+        }
+        return '';
+    }
+
+    // สแกนข้อมูลจากทุกตารางที่มีอยู่ใน tableCache
+    Object.keys(tableCache).forEach(key => {
+        const cacheEntry = tableCache[key];
+        if (cacheEntry && Array.isArray(cacheEntry.data)) {
+            cacheEntry.data.forEach(r => {
+                const empId = String(r.Employee_ID || r.employee_id || r.Emp_ID || r.emp_id || r.employeeId || r.User_ID || r.user_id || '').toUpperCase().trim();
+                if (empId && empId !== 'UNDEFINED' && empId !== 'NULL' && empId !== 'UNASSIGNED') {
+                    const name = extractName(r);
+                    if (!empMap.has(empId)) {
+                        empMap.set(empId, { empId, name });
+                    } else if (name && !empMap.get(empId).name) {
+                        empMap.get(empId).name = name;
+                    }
+                }
+            });
+        }
+    });
+
+    // 📌 โหลดข้อมูล staff จากเซิร์ฟเวอร์อัตโนมัติหากยังไม่มีข้อมูลชื่อพนักงานใน cache
+    const hasMissingNames = Array.from(empMap.values()).some(e => !e.name);
+    const hasStaffCache = tableCache['staff'] && Array.isArray(tableCache['staff'].data) && tableCache['staff'].data.length > 0;
+
+    if ((!hasStaffCache || hasMissingNames) && typeof google !== 'undefined' && google.script && google.script.run && !window._fetchingStaffForShift) {
+        window._fetchingStaffForShift = true;
+        google.script.run.withSuccessHandler(res => {
+            window._fetchingStaffForShift = false;
+            if (res && res.success && Array.isArray(res.data)) {
+                tableCache['staff'] = { headers: res.headers || [], data: res.data };
+                renderEmployeeAssignmentList();
+            }
+        }).withFailureHandler(() => {
+            window._fetchingStaffForShift = false;
+        }).getSheetData('staff');
+    }
+
+    const employees = Array.from(empMap.values());
+    employees.sort((a, b) => a.empId.localeCompare(b.empId, undefined, { numeric: true }));
+
+    if (!employees.length) {
+        listEl.innerHTML = '';
+        emptyEl && emptyEl.classList.remove('hidden');
+        return;
+    }
+    emptyEl && emptyEl.classList.add('hidden');
+
+    const configs = loadShiftConfigs();
+    const assignments = loadShiftAssignments();
+
+    // สร้าง options สำหรับ shift dropdown
+    const shiftOptionsHtml = `
+        <option value="">— ยังไม่กำหนด —</option>
+        ${configs.map(c => `<option value="${c.id}">${c.start} - ${c.end}${c.label ? ' (' + c.label + ')' : ''}</option>`).join('')}
+    `;
+
+    listEl.innerHTML = employees.map(emp => {
+        const assigned = assignments[emp.empId] || '';
+        const assignedCfg = configs.find(c => c.id === assigned);
+        const badgeHtml = assignedCfg
+            ? `<span class="text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">${assignedCfg.start}</span>`
+            : `<span class="text-[10px] text-gray-300">-</span>`;
+
+        const displayName = emp.name || '-';
+
+        return `
+        <div class="emp-assign-row flex items-center justify-between bg-white border border-gray-200 rounded-xl px-3 py-2.5 hover:border-indigo-200 transition-all"
+             data-empid="${emp.empId}" data-name="${displayName.toLowerCase()}">
+            <div class="flex items-center gap-2.5 flex-1 min-w-0">
+                <div class="w-7 h-7 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-indigo-600 font-bold text-xs flex-shrink-0">
+                    ${emp.empId.slice(0, 2)}
+                </div>
+                <div class="min-w-0">
+                    <p class="font-bold text-gray-800 text-xs truncate">${emp.empId}</p>
+                    <p class="text-gray-400 text-[10px] truncate" title="${displayName}">${displayName}</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 ml-2">
+                ${badgeHtml}
+                <select data-empid="${emp.empId}"
+                    onchange="quickAssignShift(this)"
+                    class="bg-gray-50 border border-gray-200 text-gray-700 text-xs font-medium rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none cursor-pointer">
+                    ${shiftOptionsHtml}
+                </select>
+            </div>
+        </div>`;
+    }).join('');
+
+    // ตั้งค่าที่บันทึกไว้ให้กับ dropdown
+    listEl.querySelectorAll('select[data-empid]').forEach(sel => {
+        const empId = sel.getAttribute('data-empid');
+        if (assignments[empId]) sel.value = assignments[empId];
+    });
+
+    // เรียก filter เผื่อว่ามีคำค้นหาค้างอยู่
+    filterEmployeeAssignList();
+}
+
+/** กรองรายชื่อพนักงานตาม search */
+function filterEmployeeAssignList() {
+    const q = (document.getElementById('shift-assign-search')?.value || '').toLowerCase().trim();
+    document.querySelectorAll('.emp-assign-row').forEach(row => {
+        const empId = (row.getAttribute('data-empid') || '').toLowerCase();
+        const name = (row.getAttribute('data-name') || '').toLowerCase();
+        row.classList.toggle('hidden', q && !empId.includes(q) && !name.includes(q));
+    });
+}
+
+/** บันทึกการกำหนดกะแบบ real-time เมื่อเลือก dropdown */
+function quickAssignShift(selectEl) {
+    const empId = selectEl.getAttribute('data-empid');
+    const shiftId = selectEl.value;
+    if (!empId) return;
+    const assignments = loadShiftAssignments();
+    if (shiftId) {
+        assignments[empId] = shiftId;
+    } else {
+        delete assignments[empId];
+    }
+    saveShiftAssignments(assignments);
+    // แสดง badge "บันทึกแล้ว"
+    const badge = document.getElementById('shift-assign-saved-badge');
+    if (badge) {
+        badge.classList.remove('hidden');
+        clearTimeout(badge._hideTimer);
+        badge._hideTimer = setTimeout(() => badge.classList.add('hidden'), 2500);
+    }
+    // อัพเดต badge ใน row
+    const row = selectEl.closest('.emp-assign-row');
+    if (row) {
+        const configs = loadShiftConfigs();
+        const assignedCfg = configs.find(c => c.id === shiftId);
+        const badgeEl = row.querySelector('span[class*="font-mono"], span[class*="text-gray"]');
+        if (badgeEl && assignedCfg) {
+            badgeEl.className = 'text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full';
+            badgeEl.textContent = assignedCfg.start;
+        } else if (badgeEl) {
+            badgeEl.className = 'text-[10px] text-gray-300';
+            badgeEl.textContent = '-';
+        }
+    }
+}
+
+/** บันทึก assignment ทั้งหมดจาก dropdown ใน list (เรียกตอนกด บันทึกและใช้งาน) */
+function saveAllEmployeeShiftAssignments() {
+    const assignments = loadShiftAssignments();
+    document.querySelectorAll('select[data-empid]').forEach(sel => {
+        const empId = sel.getAttribute('data-empid');
+        const shiftId = sel.value;
+        if (empId && shiftId) {
+            assignments[empId] = shiftId;
+        } else if (empId) {
+            delete assignments[empId];
+        }
+    });
+    saveShiftAssignments(assignments);
+}
+
+/** สลับแท็บใน modal */
+function switchShiftTab(tab) {
+    const tabConfig = document.getElementById('shift-tab-config');
+    const tabAssign = document.getElementById('shift-tab-assign');
+    const btnConfig = document.getElementById('shift-tab-btn-config');
+    const btnAssign = document.getElementById('shift-tab-btn-assign');
+
+    if (tab === 'assign') {
+        tabConfig && tabConfig.classList.add('hidden');
+        tabAssign && tabAssign.classList.remove('hidden');
+        btnConfig && (btnConfig.className = 'flex-1 py-3 text-xs font-bold text-gray-400 border-b-2 border-transparent transition-all hover:text-indigo-500');
+        btnAssign && (btnAssign.className = 'flex-1 py-3 text-xs font-bold text-indigo-600 border-b-2 border-indigo-600 transition-all');
+        renderEmployeeAssignmentList(); // refresh
+    } else {
+        tabAssign && tabAssign.classList.add('hidden');
+        tabConfig && tabConfig.classList.remove('hidden');
+        btnAssign && (btnAssign.className = 'flex-1 py-3 text-xs font-bold text-gray-400 border-b-2 border-transparent transition-all hover:text-indigo-500');
+        btnConfig && (btnConfig.className = 'flex-1 py-3 text-xs font-bold text-indigo-600 border-b-2 border-indigo-600 transition-all');
+    }
 }
