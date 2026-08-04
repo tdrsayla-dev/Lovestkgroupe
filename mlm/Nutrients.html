@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>สั่งจ่ายสารอาหาร - LOVE STK GROUPE</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
+    body { font-family: 'Sukhumvit Set', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
+    @media (min-width: 1024px) {
+      aside.lg\:flex { display: flex !important; position: fixed !important; top: 0; left: 0; height: 100vh; z-index: 30; }
+      main.lg\:ml-64 { margin-left: 16rem !important; }
+      main.lg\:ml-20 { margin-left: 5rem !important; }
+      div.lg\:hidden { display: none !important; }
+    }
+    @media (max-width: 1023.98px) {
+      aside.hidden.lg\:flex { display: none !important; }
+      div.lg\:hidden { display: flex !important; }
+      main { margin-left: 0 !important; width: 100% !important; }
+    }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  </style>
+  <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script>
+    window.SUPABASE_URL='https://mfpkeyrykqnrywyksyqp.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
+    if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
+  </script>
+  <script src="CommonComponents.js"></script>
+</head>
+<body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white bg-slate-50">
+
+  <div id="initial-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999;">
+    <div style="width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top-color: #047857; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 24px;"></div>
+    <style>@keyframes initial-spin { to { transform: rotate(360deg); } }</style>
+    <h2 style="font-size: 1.75rem; font-weight: 800; color: #047857; margin: 0; letter-spacing: -0.025em;">LOVE <span style="color: #2563eb;">STK GROUPE</span></h2>
+    <p style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 8px;">กำลังโหลดระบบสั่งจ่ายสารอาหาร...</p>
+  </div>
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect } = React;
+
+    const IconProps = { fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" };
+    const SearchIcon = ({ size = 18 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
+    const FilterIcon = ({ size = 18 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>;
+    const CalendarIcon = ({ size = 18 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>;
+    const PillIcon = ({ size = 20 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>;
+    const CheckCircle = ({ size = 18 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
+    const RefreshCw = ({ size = 18 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>;
+    const InboxIcon = ({ size = 48 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>;
+
+    // ฟังก์ชันช่วยแปลงชื่อประเภทราคา (เช่น ราคาส่ง/สมาชิก, ราคาโปร, ราคาปกติ, แถมฟรี)
+    function getItemTypeLabel(item) {
+      const typeVal = item.type || item.priceType || item.tier || '';
+      const nameVal = item.name || '';
+
+      if (typeVal === 'high' || typeVal === 'ส่ง/สมาชิก' || typeVal === 'ราคาส่ง/สมาชิก' || nameVal.includes('(ส่ง/สมาชิก)')) {
+        return 'ราคาส่ง/สมาชิก';
+      }
+      if (typeVal === 'promo' || typeVal === 'โปร' || typeVal === 'ราคาโปร' || nameVal.includes('(โปร)')) {
+        return 'ราคาโปร';
+      }
+      if (typeVal === 'free' || typeVal === 'แถมฟรี' || nameVal.includes('(แถมฟรี)')) {
+        return 'แถมฟรี';
+      }
+      if (typeVal && typeVal !== 'ONE' && typeVal !== 'ปกติ' && typeVal !== 'normal') {
+        return typeVal;
+      }
+      return 'ราคาปกติ';
+    }
+
+    function NutrientsView() {
+      const [orders, setOrders] = useState([]);
+      const [searchTerm, setSearchTerm] = useState('');
+      const [startDate, setStartDate] = useState('');
+      const [endDate, setEndDate] = useState('');
+      const [loading, setLoading] = useState(true);
+
+      // โหลดข้อมูลสั่งจ่ายสารอาหารจาก Supabase และ LocalStorage (แสดงเฉพาะรายการที่สั่งจากคลินิกจริงเท่านั้น)
+      const fetchOrders = async () => {
+        setLoading(true);
+        let fetchedList = [];
+
+        // 1. ดึงจาก Supabase Table `stk_nutrient_orders`
+        if (window.supabaseClient) {
+          try {
+            const { data, error } = await window.supabaseClient
+              .from('stk_nutrient_orders')
+              .select('*')
+              .order('created_at', { ascending: false });
+
+            if (!error && data && data.length > 0) {
+              fetchedList = data.map(item => ({
+                id: item.id || item.order_id || `ORD-${item.visit_id}`,
+                visit_id: item.visit_id || item.rxVisitId || '-',
+                hn: item.hn || item.customer_id || '-',
+                customer_name: item.customer_name || item.patient_name || 'ลูกค้าคลินิก',
+                recorded_by: item.recorded_by || item.seller_id || '-',
+                date: item.created_at || item.date || new Date().toISOString(),
+                status: item.status || 'รอดำเนินการ',
+                items: typeof item.items === 'string' ? JSON.parse(item.items) : (item.items || [])
+              }));
+            }
+          } catch (err) {
+            console.warn('Supabase fetch nutrient orders error:', err);
+          }
+        }
+
+        // 2. ดึงจาก LocalStorage (stk_nutrient_orders และ clinic_mlm_orders ที่ถูกส่งจากคลินิก)
+        try {
+          const localNutrient = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
+          const localClinicMlm = JSON.parse(localStorage.getItem('clinic_mlm_orders') || '[]');
+
+          const rawCombined = [...localNutrient, ...localClinicMlm];
+          
+          const parsedLocal = rawCombined.map((item, idx) => {
+            let parsedItems = [];
+            try {
+              parsedItems = typeof item.items === 'string' ? JSON.parse(item.items) : (item.items || item.products || []);
+              if (typeof parsedItems === 'string') parsedItems = JSON.parse(parsedItems);
+            } catch(e) { parsedItems = []; }
+
+            const vId = item.visit_id || (item.payment_note && item.payment_note.match(/VISIT:\s*([^\)\s]+)/) ? item.payment_note.match(/VISIT:\s*([^\)\s]+)/)[1] : null) || item.rxVisitId || `VIS-${item.id}`;
+            
+            return {
+              id: item.id || item.sale_id || item.order_id || `ORD-CLINIC-${vId}`,
+              visit_id: vId,
+              hn: item.hn || item.customer_id || '-',
+              customer_name: item.customer_name || item.patientName || item.patient_name || '-',
+              recorded_by: item.recorded_by || item.seller_id || '-',
+              date: item.created_at || item.date || new Date().toISOString(),
+              status: item.status || 'รอดำเนินการ',
+              items: Array.isArray(parsedItems) ? parsedItems.map(it => ({
+                id: it.id,
+                name: it.name || it.product_name || it.title || 'สารอาหาร',
+                source: it.source || it.sourceLabel || 'คลังยา',
+                type: it.type || it.priceType || it.tier || 'ราคาปกติ',
+                priceType: it.priceType || it.type || it.tier || 'ราคาปกติ',
+                tier: it.tier || 'normal',
+                qty: Number(it.qty || it.quantity || 1),
+                price: Number(it.price || it.unit_price || 0),
+                total: Number(it.total || (it.price * it.qty) || 0)
+              })) : []
+            };
+          });
+
+          // รวมข้อมูลเฉพาะที่มีจริง โดยตัดตัวซ้ำ
+          const idMap = new Map();
+          [...fetchedList, ...parsedLocal].forEach(o => {
+            if (o.visit_id && o.visit_id !== '-' && !idMap.has(o.id)) {
+              idMap.set(o.id, o);
+            }
+          });
+
+          const mergedList = Array.from(idMap.values());
+          setOrders(mergedList);
+        } catch (ex) {
+          console.warn('LocalStorage parse error:', ex);
+          setOrders(fetchedList);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      useEffect(() => {
+        fetchOrders();
+        const handleStorageChange = () => fetchOrders();
+        window.addEventListener('storage', handleStorageChange);
+        return () => window.removeEventListener('storage', handleStorageChange);
+      }, []);
+
+      // กรองรายการตามคำค้นหา และ ช่วงเวลา
+      const filteredOrders = useMemo(() => {
+        return orders.filter(ord => {
+          const search = searchTerm.trim().toLowerCase();
+          const matchSearch = !search || 
+            (ord.visit_id && ord.visit_id.toLowerCase().includes(search)) ||
+            (ord.hn && ord.hn.toLowerCase().includes(search)) ||
+            (ord.customer_name && ord.customer_name.toLowerCase().includes(search)) ||
+            (ord.items && ord.items.some(i => (i.name || '').toLowerCase().includes(search)));
+
+          const ordDate = ord.date ? ord.date.split('T')[0] : '';
+          const matchStart = !startDate || ordDate >= startDate;
+          const matchEnd = !endDate || ordDate <= endDate;
+
+          return matchSearch && matchStart && matchEnd;
+        });
+      }, [orders, searchTerm, startDate, endDate]);
+
+      // ฟังก์ชันดำเนินการสร้าง "ร่างใบสั่งซื้อ" / "จ่ายยาเสร็จสิ้น"
+      const handleCreateDraftOrder = (order) => {
+        Swal.fire({
+          title: 'ยืนยันสร้างร่างใบสั่งซื้อ',
+          html: `
+            <div class="text-left text-sm space-y-2 p-2">
+              <p><strong>รหัส VISIT:</strong> <span class="text-blue-600 font-bold">${order.visit_id}</span></p>
+              <p><strong>HN:</strong> ${order.hn}</p>
+              <p><strong>ชื่อคนไข้:</strong> ${order.customer_name}</p>
+              <p><strong>ผู้บันทึก:</strong> ${order.recorded_by}</p>
+              <hr/>
+              <p class="font-bold text-slate-700">รายการสารอาหาร:</p>
+              <ul class="list-disc pl-5 text-xs text-slate-600 space-y-1">
+                ${order.items.map(i => `<li>${i.name} (${getItemTypeLabel(i)}) x ${i.qty} = ${((i.price || 0) * (i.qty || 1)).toLocaleString()} ฿</li>`).join('')}
+              </ul>
+              <div class="mt-3 p-2 bg-emerald-50 rounded-lg border border-emerald-200 flex justify-between items-center font-bold text-emerald-800">
+                <span>ราคารวมทั้งหมด:</span>
+                <span>${order.items.reduce((s, i) => s + ((i.price || 0) * (i.qty || 1)), 0).toLocaleString()} ฿</span>
+              </div>
+            </div>
+          `,
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonColor: '#047857',
+          cancelButtonColor: '#64748b',
+          confirmButtonText: 'ร่างใบสั่งซื้อใน M&M',
+          cancelButtonText: 'ยกเลิก'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            try {
+              const pendingSale = {
+                visit_id: order.visit_id,
+                hn: order.hn,
+                customer_name: order.customer_name,
+                recorded_by: order.recorded_by,
+                items: order.items
+              };
+              localStorage.setItem('stk_pending_sale', JSON.stringify(pendingSale));
+            } catch (ex) {}
+
+            Swal.fire({
+              icon: 'success',
+              title: 'ส่งข้อมูลเข้าสู่หน้าขายเรียบร้อย!',
+              text: `กำลังนำข้อมูลสำหรับ ${order.customer_name} (VISIT: ${order.visit_id}) ไปเปิดบิลที่หน้าป้อนข้อมูลขาย (Sales)...`,
+              confirmButtonColor: '#047857',
+              timer: 1200,
+              showConfirmButton: false
+            }).then(() => {
+              const targetUrl = window.resolvePageUrl ? window.resolvePageUrl('Sales.html') : 'Sales.html';
+              window.location.href = targetUrl;
+            });
+          }
+        });
+      };
+
+      return (
+        <div class="min-h-screen bg-slate-50 flex flex-col">
+          {/* Header Bar */}
+          <div class="bg-white border-b border-slate-200 px-6 py-5 shadow-xs">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 max-w-7xl mx-auto">
+              <div>
+                <h1 class="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2.5">
+                  <span class="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
+                    <PillIcon size={26} />
+                  </span>
+                  สั่งจ่ายสารอาหาร
+                </h1>
+                <p class="text-xs font-semibold text-slate-500 mt-1">
+                  รายการคำสั่งจ่ายสารอาหารเสริมจากระบบคลินิก (Clinic System Integration)
+                </p>
+              </div>
+
+              {/* Filtering Controls */}
+              <div class="flex flex-wrap items-center gap-3">
+                {/* Search Box */}
+                <div class="relative min-w-[220px]">
+                  <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <SearchIcon size={18} />
+                  </span>
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="ค้นหารายการ..."
+                    class="pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent w-full shadow-xs"
+                  />
+                </div>
+
+                {/* Date Range Selector */}
+                <div class="flex items-center bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-xs gap-2">
+                  <span class="text-xs font-bold text-slate-500 whitespace-nowrap">ช่วงเวลาตามสาย:</span>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    class="text-xs font-semibold text-slate-700 border-none bg-transparent focus:outline-none"
+                  />
+                  <span class="text-slate-400 text-xs">-</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    class="text-xs font-semibold text-slate-700 border-none bg-transparent focus:outline-none"
+                  />
+                </div>
+
+                {/* Filter Button & Refresh */}
+                <button
+                  onClick={fetchOrders}
+                  class="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors border border-slate-200 shadow-xs"
+                  title="รีเฟรชข้อมูล"
+                >
+                  <RefreshCw size={16} />
+                  <span>ตัวกรอง</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Table Content */}
+          <div class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6">
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+              <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left border-collapse">
+                  <thead>
+                    <tr class="bg-slate-50/90 border-b border-slate-200 text-xs font-bold text-slate-700">
+                      <th class="py-4 px-4 w-32 border-r border-slate-200/60">รหัส VISIT</th>
+                      <th class="py-4 px-4 w-28 border-r border-slate-200/60">HN</th>
+                      <th class="py-4 px-4 w-36 border-r border-slate-200/60">ชื่อ-นามสกุล</th>
+                      <th class="py-4 px-4 border-r border-slate-200/60">รายการจัดสั่งจ่ายยา / จำนวน</th>
+                      <th class="py-4 px-4 text-center w-36">ดำเนินการ</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-200 text-xs font-medium text-slate-800">
+                    {loading ? (
+                      <tr>
+                        <td colSpan="5" class="py-12 text-center text-slate-400 font-semibold">
+                          <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-emerald-500 border-t-transparent mb-2"></div>
+                          <p>กำลังดึงข้อมูลสารอาหารจากระบบ...</p>
+                        </td>
+                      </tr>
+                    ) : filteredOrders.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" class="py-16 text-center text-slate-400 font-semibold">
+                          <div class="flex flex-col items-center justify-center gap-2">
+                            <div class="p-3 bg-slate-100 text-slate-400 rounded-full mb-1">
+                              <InboxIcon size={36} />
+                            </div>
+                            <p class="text-sm font-bold text-slate-600">ยังไม่มีรายการสั่งจ่ายสารอาหารจากคลินิก</p>
+                            <p class="text-xs text-slate-400">รายการจะปรากฏที่นี่โดยอัตโนมัติ เมื่อมีการกดปุ่ม "สารอาหาร" จากระบบคลินิกเท่านั้น</p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredOrders.map((ord, index) => (
+                        <tr key={ord.id || index} class="hover:bg-slate-50/60 transition-colors">
+                          {/* รหัส VISIT */}
+                          <td class="py-4 px-4 font-bold text-slate-900 align-middle whitespace-nowrap border-r border-slate-100">
+                            {ord.visit_id}
+                          </td>
+
+                          {/* HN */}
+                          <td class="py-4 px-4 text-slate-700 font-semibold align-middle whitespace-nowrap border-r border-slate-100">
+                            {ord.hn}
+                          </td>
+
+                          {/* ชื่อ-นามสกุล */}
+                          <td class="py-4 px-4 font-bold text-slate-900 align-middle whitespace-nowrap border-r border-slate-100">
+                            {ord.customer_name}
+                          </td>
+
+                          {/* รายการจัดสั่งจ่ายยา / จำนวน - Inner Nested Table 100% ตาม Mockup */}
+                          <td class="p-2 align-middle border-r border-slate-100">
+                            <div class="rounded-xl border border-slate-200/80 overflow-hidden bg-white shadow-xs">
+                              <table class="w-full text-left border-collapse">
+                                <thead>
+                                  <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-700">
+                                    <th class="py-2 px-3 border-r border-slate-200/60">ชื่อยา/อาหารเสริม</th>
+                                    <th class="py-2 px-3 text-center w-28 border-r border-slate-200/60">ประเภท</th>
+                                    <th class="py-2 px-3 text-center w-16 border-r border-slate-200/60">จำนวน</th>
+                                    <th class="py-2 px-3 text-right w-24 border-r border-slate-200/60">ราคา</th>
+                                    <th class="py-2 px-3 text-right w-24">รวมราคา</th>
+                                  </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 text-xs font-semibold text-slate-700">
+                                  {ord.items && ord.items.map((item, idx) => {
+                                    const unitPrice = Number(item.price || 1300);
+                                    const qty = Number(item.qty || 1);
+                                    const subtotal = Number(item.total || (unitPrice * qty));
+                                    const itemSource = item.source || 'คลังยา';
+                                    const priceTypeBadge = getItemTypeLabel(item);
+
+                                    return (
+                                      <tr key={idx} class="hover:bg-slate-50/80 transition-colors">
+                                        {/* ชื่อยา/อาหารเสริม + Tag */}
+                                        <td class="py-2.5 px-3 border-r border-slate-100 align-middle">
+                                          <div class="flex items-center gap-2">
+                                            <span class="font-bold text-slate-800">{item.name}</span>
+                                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">
+                                              {itemSource}
+                                            </span>
+                                          </div>
+                                        </td>
+
+                                        {/* ประเภท (เช่น ราคาส่ง/สมาชิก, ราคาโปร, ราคาปกติ, แถมฟรี) */}
+                                        <td class="py-2.5 px-3 text-center border-r border-slate-100 align-middle">
+                                          <span class={`inline-block px-2.5 py-0.5 rounded-md text-[11px] font-bold shadow-2xs ${
+                                            priceTypeBadge === 'ราคาส่ง/สมาชิก' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                                            priceTypeBadge === 'ราคาโปร' ? 'bg-purple-100 text-purple-800 border border-purple-200' :
+                                            priceTypeBadge === 'แถมฟรี' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                                            'bg-slate-100 text-slate-700 border border-slate-200'
+                                          }`}>
+                                            {priceTypeBadge}
+                                          </span>
+                                        </td>
+
+                                        {/* จำนวน */}
+                                        <td class="py-2.5 px-3 text-center font-bold text-slate-800 border-r border-slate-100 align-middle">
+                                          {qty}
+                                        </td>
+
+                                        {/* ราคา */}
+                                        <td class="py-2.5 px-3 text-right text-slate-600 border-r border-slate-100 align-middle">
+                                          {unitPrice.toLocaleString()}
+                                        </td>
+
+                                        {/* รวมราคา */}
+                                        <td class="py-2.5 px-3 text-right font-bold text-slate-900 align-middle">
+                                          {subtotal.toLocaleString()}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </td>
+
+                          {/* ดำเนินการ - ปุ่มสร้างร่างใบสั่งซื้อ / จ่ายยาเสร็จสิ้น */}
+                          <td class="py-4 px-4 text-center align-middle whitespace-nowrap">
+                            <button
+                              onClick={() => handleCreateDraftOrder(ord)}
+                              class="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-xs shadow-emerald-200 transition-all transform active:scale-95"
+                            >
+                              <CheckCircle size={15} />
+                              ร่างใบสั่งซื้อ
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Root App Wrapper Component with Sidebar & Navigation
+    function App() {
+      const SidebarComp = window.Sidebar || (window.CommonComponents ? window.CommonComponents.Sidebar : null);
+      const LoginModalComp = window.LoginModal || (window.CommonComponents ? window.CommonComponents.LoginModal : null);
+
+      const [currentUser, setCurrentUser] = useState(() => {
+        try {
+          const userStr = localStorage.getItem('stk_current_user') || localStorage.getItem('stk_user');
+          if (userStr) return JSON.parse(userStr);
+        } catch(e) {}
+        return { name: 'Administrator', role: 'ผู้ดูแลระบบ' };
+      });
+      const [isLoggedIn, setIsLoggedIn] = useState(true);
+      const [showLoginModal, setShowLoginModal] = useState(false);
+      const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+        try { return localStorage.getItem('stk_sidebar_collapsed') === 'true'; } catch(e) { return false; }
+      });
+
+      const SCRIPT_URL = (() => {
+        try { if (window.top && window.top.location && window.top.location.href.startsWith('http')) return window.top.location.href.split('?')[0]; } catch(e){}
+        return "";
+      })();
+
+      useEffect(() => {
+        const loader = document.getElementById('initial-loader');
+        if (loader) {
+          loader.style.opacity = '0';
+          setTimeout(() => loader.remove(), 300);
+        }
+      }, []);
+
+      const handleLoginSuccess = (user) => {
+        localStorage.setItem('stk_current_user', JSON.stringify(user));
+        setCurrentUser(user);
+        setIsLoggedIn(true);
+        setShowLoginModal(false);
+      };
+
+      const handleLogout = () => {
+        localStorage.removeItem('stk_current_user');
+        localStorage.removeItem('stk_user');
+        setCurrentUser(null);
+        setIsLoggedIn(false);
+        if (window.resolvePageUrl) window.location.href = window.resolvePageUrl('?page=dashboard');
+      };
+
+      return (
+        <div class="min-h-screen bg-slate-50 flex">
+          {/* Sidebar Navigation */}
+          {SidebarComp ? (
+            <SidebarComp
+              activePage="nutrients"
+              isLoggedIn={isLoggedIn}
+              currentUser={currentUser}
+              isAdmin={true}
+              onLogout={handleLogout}
+              showLoginModal={showLoginModal}
+              setShowLoginModal={setShowLoginModal}
+              SCRIPT_URL={SCRIPT_URL}
+              isSidebarCollapsed={isSidebarCollapsed}
+              setIsSidebarCollapsed={setIsSidebarCollapsed}
+            />
+          ) : null}
+
+          {/* Main View */}
+          <main class={`flex-1 flex flex-col min-h-screen bg-slate-50 transition-all duration-300 relative ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} w-full overflow-x-hidden`}>
+            <NutrientsView />
+          </main>
+
+          {LoginModalComp ? (
+            <LoginModalComp
+              isOpen={showLoginModal}
+              onClose={() => setShowLoginModal(false)}
+              onLoginSuccess={handleLoginSuccess}
+            />
+          ) : null}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

@@ -100,6 +100,10 @@
     React.createElement('circle', { cx: "11", cy: "11", r: "8" }),
     React.createElement('line', { x1: "21", y1: "21", x2: "16.65", y2: "16.65" })
   );
+  const PillIcon = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('path', { d: "m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z" }),
+    React.createElement('path', { d: "m8.5 8.5 7 7" })
+  );
   const Eye = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
     React.createElement('path', { d: "M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" }),
     React.createElement('circle', { cx: "12", cy: "12", r: "3" })
@@ -348,12 +352,12 @@
 
     const defaultRolePermissions = {
         'พนักงานการตลาด': {
-            dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'none', orders: 'none', customers: 'none',
+            dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'none', nutrients: 'none', orders: 'none', customers: 'none',
             team: 'edit', business_teams: 'none', stock: 'none', customer_types: 'none', closers: 'none',
             exchange_rate: 'none', system_users: 'none'
         },
         'พนักงานทั่วไป': {
-            dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'edit', orders: 'edit', customers: 'view',
+            dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'edit', nutrients: 'edit', orders: 'edit', customers: 'view',
             team: 'none', business_teams: 'none', stock: 'none', customer_types: 'none', closers: 'none',
             exchange_rate: 'none', system_users: 'none'
         }
@@ -373,6 +377,7 @@
         'reports': 'Reports.html',
         'org_chart': 'OrgChart.html',
         'sales': 'Sales.html',
+        'nutrients': 'Nutrients.html',
         'orders': 'Orders.html',
         'customers': 'Customers.html',
         'system_users': 'SystemUsers.html',
@@ -399,8 +404,6 @@
       return href;
     }
 
-
-    
     // 3. กรณี Web Server จริง (HTTPS / HTTP): ตรวจว่า URL ในบราวเซอร์ใช้นามสกุล .html หรือเป็น Clean URL
     const pathname = (typeof window !== 'undefined' && window.location) ? window.location.pathname : '';
     const hasHtmlExt = pathname.toLowerCase().endsWith('.html');
@@ -410,6 +413,7 @@
       'reports': hasHtmlExt ? 'Reports.html' : 'Reports',
       'org_chart': hasHtmlExt ? 'OrgChart.html' : 'OrgChart',
       'sales': hasHtmlExt ? 'Sales.html' : 'Sales',
+      'nutrients': hasHtmlExt ? 'Nutrients.html' : 'Nutrients',
       'orders': hasHtmlExt ? 'Orders.html' : 'Orders',
       'customers': hasHtmlExt ? 'Customers.html' : 'Customers',
       'system_users': hasHtmlExt ? 'SystemUsers.html' : 'SystemUsers',
@@ -666,6 +670,7 @@
             canOrgChart ? React.createElement(SidebarItem, { icon: GitBranch, label: "ผังองค์กรสายงาน", id: "org_chart", activeTab: activePage, href: SCRIPT_URL + '?page=org_chart', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
             (canSales || canCustomers) ? React.createElement('div', { className: "pt-3 pb-1.5" }, React.createElement('p', { className: `text-[10px] font-black text-slate-500 uppercase tracking-widest ${isSidebarCollapsed ? 'text-center' : 'px-4'}` }, "ธุรกรรมประจำวัน")) : null,
             canSales ? React.createElement(SidebarItem, { icon: ShoppingCart, label: "ป้อนข้อมูลขาย (Sales)", id: "sales", activeTab: activePage, href: SCRIPT_URL + '?page=sales', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
+            canSales ? React.createElement(SidebarItem, { icon: PillIcon, label: "สารอาหาร", id: "nutrients", activeTab: activePage, href: SCRIPT_URL + '?page=nutrients', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
             canSales ? React.createElement(SidebarItem, { icon: FileText, label: "จัดการบิล (Orders)", id: "orders", activeTab: activePage, href: SCRIPT_URL + '?page=orders', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
             canCustomers ? React.createElement(SidebarItem, { icon: Contact, label: "ข้อมูลลูกค้า (Customers)", id: "customers", activeTab: activePage, href: SCRIPT_URL + '?page=customers', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
             React.createElement(SidebarSettingsGroup, { activeTab: activePage, isSidebarCollapsed: isSidebarCollapsed, isAdmin: isAdmin, handleTabClick: handleTabClick, SCRIPT_URL: SCRIPT_URL, currentUser: currentUser })
@@ -749,6 +754,7 @@
             canOrgChart ? React.createElement(SidebarItem, { icon: GitBranch, label: "ผังองค์กรสายงาน", id: "org_chart", activeTab: activePage, href: SCRIPT_URL + '?page=org_chart', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
             (canSales || canCustomers) ? React.createElement('div', { className: "pt-3 pb-1.5" }, React.createElement('p', { className: "text-[10px] font-black text-slate-500 uppercase tracking-widest px-4" }, "ธุรกรรมประจำวัน")) : null,
             canSales ? React.createElement(SidebarItem, { icon: ShoppingCart, label: "ป้อนข้อมูลขาย (Sales)", id: "sales", activeTab: activePage, href: SCRIPT_URL + '?page=sales', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
+            canSales ? React.createElement(SidebarItem, { icon: PillIcon, label: "สารอาหาร", id: "nutrients", activeTab: activePage, href: SCRIPT_URL + '?page=nutrients', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
             canSales ? React.createElement(SidebarItem, { icon: FileText, label: "จัดการบิล (Orders)", id: "orders", activeTab: activePage, href: SCRIPT_URL + '?page=orders', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
             canCustomers ? React.createElement(SidebarItem, { icon: Contact, label: "ข้อมูลลูกค้า (Customers)", id: "customers", activeTab: activePage, href: SCRIPT_URL + '?page=customers', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
             React.createElement(SidebarSettingsGroup, { activeTab: activePage, isSidebarCollapsed: false, isAdmin: isAdmin, handleTabClick: handleTabClick, SCRIPT_URL: SCRIPT_URL, currentUser: currentUser })

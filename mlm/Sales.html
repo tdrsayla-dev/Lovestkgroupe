@@ -216,6 +216,75 @@
 
         const [isCustomerExpanded, setIsCustomerExpanded] = useState(true);
 
+        useEffect(() => {
+            try {
+                const pendingSaleStr = localStorage.getItem('stk_pending_sale');
+                if (pendingSaleStr) {
+                    const pending = JSON.parse(pendingSaleStr);
+                    localStorage.removeItem('stk_pending_sale');
+
+                    if (pending && pending.recorded_by) {
+                        setMemberIdInput(pending.recorded_by);
+                    }
+
+                    if (pending && (pending.hn || pending.customer_name)) {
+                        setCustData(prev => ({
+                            ...prev,
+                            id: pending.hn || prev.id || '',
+                            name: pending.customer_name || prev.name || ''
+                        }));
+                        setCustMode('ลูกค้าใหม่');
+                    }
+
+                    if (pending && Array.isArray(pending.items) && pending.items.length > 0) {
+                        const newCart = pending.items.map(it => {
+                            const rawName = it.name || '';
+                            const cleanName = rawName.replace(/\s*\([^)]*\)\s*/g, '').trim();
+                            const prodObj = (products || []).find(p => 
+                                p.name === cleanName || 
+                                p.name.toLowerCase() === cleanName.toLowerCase() ||
+                                cleanName.toLowerCase().includes(p.name.toLowerCase())
+                            ) || { name: cleanName || rawName, priceFull: it.price, pricePromo: it.price, priceMember: it.price };
+
+                            let mappedPriceType = 'ราคาโปร';
+                            const typeStr = String(it.type || it.priceType || '');
+                            if (typeStr.includes('สมาชิก') || typeStr.includes('ส่ง') || rawName.includes('สมาชิก') || rawName.includes('ส่ง')) {
+                                mappedPriceType = 'ราคาสมาชิก';
+                            } else if (typeStr.includes('โปร') || rawName.includes('โปร')) {
+                                mappedPriceType = 'ราคาโปร';
+                            } else if (typeStr.includes('แถม') || typeStr.includes('ฟรี') || rawName.includes('แถม')) {
+                                mappedPriceType = 'ราคาศูนย์';
+                            } else if (typeStr.includes('เต็ม') || typeStr.includes('ปกติ')) {
+                                mappedPriceType = 'ราคาเต็ม';
+                            }
+
+                            let unitPrice = Number(it.price || 0);
+                            if (!unitPrice) {
+                                if (mappedPriceType === 'ราคาเต็ม') unitPrice = parseFloat(prodObj.priceFull || 0);
+                                else if (mappedPriceType === 'ราคาโปร') unitPrice = parseFloat(prodObj.pricePromo || 0);
+                                else if (mappedPriceType === 'ราคาสมาชิก') unitPrice = parseFloat(prodObj.priceMember || 0);
+                                else if (mappedPriceType === 'ราคาศูนย์') unitPrice = 0;
+                            }
+
+                            return {
+                                productName: prodObj.name || cleanName || rawName,
+                                priceType: mappedPriceType,
+                                price: unitPrice,
+                                qty: Number(it.qty || 1)
+                            };
+                        });
+                        setCart(newCart);
+                    }
+
+                    if (showToast) {
+                        showToast(`โหลดข้อมูลสั่งจ่ายสารอาหาร VISIT: ${pending.visit_id || ''} เข้าสู่หน้าขายเรียบร้อย!`, 'success');
+                    }
+                }
+            } catch(e) {
+                console.warn('Error loading pending sale:', e);
+            }
+        }, [products]);
+
         const formatDisplayNumber = (val) => {
             if (val === '' || val === null || val === undefined) return '';
             const parts = val.toString().split('.');
@@ -480,20 +549,21 @@
             let totalDiscountAmount = 0; 
             let totalItemQuantity = 0;
 
-            Object.keys(rs).forEach(key => {
-                const qty = parseInt(rs[key]) || 0;
-                if (qty > 0) {
-                    let productName = ''; let priceType = ''; let unitPrice = 0;
-                    
-                    if (key.endsWith('_ราคาเต็ม') && key !== 'รวมชิ้นราคาเต็ม') { productName = key.replace('_ราคาเต็ม', ''); priceType = 'ราคาเต็ม'; } 
-                    else if (key.endsWith('_ราคาโปร') && key !== 'รวมชิ้นราคาโปร') { productName = key.replace('_ราคาโปร', ''); priceType = 'ราคาโปร'; } 
-                    else if (key.endsWith('_ราคาสมาชิก') && key !== 'รวมชิ้นราคาสมาชิก') { productName = key.replace('_ราคาสมาชิก', ''); priceType = 'ราคาสมาชิก'; } 
-                    else if (key.endsWith('_ราคาศูนย์') && key !== 'รวมชิ้นราคาศูนย์') { productName = key.replace('_ราคาศูนย์', ''); priceType = 'ราคาศูนย์'; }
-                    
-                    if (productName) {
+            let itemsList = [];
+            if (rs.items_json) {
+                try { itemsList = typeof rs.items_json === 'string' ? JSON.parse(rs.items_json) : rs.items_json; } catch(e){}
+            }
+
+            if (Array.isArray(itemsList) && itemsList.length > 0) {
+                itemsList.forEach(it => {
+                    const qty = parseInt(it.qty || it.quantity || 1);
+                    if (qty > 0) {
+                        const productName = it.prod || it.productName || it.name || 'สินค้า';
+                        const priceType = it.type || it.priceType || 'ราคาเต็ม';
                         const prodObj = (products || []).find(p => p.name === productName) || {};
                         let fullPrice = parseFloat(prodObj.priceFull || 0);
 
+                        let unitPrice = 0;
                         if (priceType === 'ราคาเต็ม') unitPrice = fullPrice;
                         else if (priceType === 'ราคาโปร') unitPrice = parseFloat(prodObj.pricePromo || 0);
                         else if (priceType === 'ราคาสมาชิก') unitPrice = parseFloat(prodObj.priceMember || 0);
@@ -513,8 +583,46 @@
                             name: productName, priceType, qty, unitPrice, fullPrice, total: itemTotal, discount: itemDiscount
                         });
                     }
-                }
-            });
+                });
+            }
+
+            if (items.length === 0) {
+                Object.keys(rs).forEach(key => {
+                    const qty = parseInt(rs[key]) || 0;
+                    if (qty > 0) {
+                        let productName = ''; let priceType = ''; let unitPrice = 0;
+                        
+                        if (key.endsWith('_ราคาเต็ม') && key !== 'รวมชิ้นราคาเต็ม') { productName = key.replace('_ราคาเต็ม', ''); priceType = 'ราคาเต็ม'; } 
+                        else if (key.endsWith('_ราคาโปร') && key !== 'รวมชิ้นราคาโปร') { productName = key.replace('_ราคาโปร', ''); priceType = 'ราคาโปร'; } 
+                        else if (key.endsWith('_ราคาสมาชิก') && key !== 'รวมชิ้นราคาสมาชิก') { productName = key.replace('_ราคาสมาชิก', ''); priceType = 'ราคาสมาชิก'; } 
+                        else if (key.endsWith('_ราคาศูนย์') && key !== 'รวมชิ้นราคาศูนย์') { productName = key.replace('_ราคาศูนย์', ''); priceType = 'ราคาศูนย์'; }
+                        
+                        if (productName) {
+                            const prodObj = (products || []).find(p => p.name === productName) || {};
+                            let fullPrice = parseFloat(prodObj.priceFull || 0);
+
+                            if (priceType === 'ราคาเต็ม') unitPrice = fullPrice;
+                            else if (priceType === 'ราคาโปร') unitPrice = parseFloat(prodObj.pricePromo || 0);
+                            else if (priceType === 'ราคาสมาชิก') unitPrice = parseFloat(prodObj.priceMember || 0);
+                            else if (priceType === 'ราคาศูนย์') unitPrice = 0;
+                            
+                            if (fullPrice < unitPrice) fullPrice = unitPrice;
+
+                            const itemTotal = unitPrice * qty;
+                            const itemBaseTotal = fullPrice * qty;
+                            const itemDiscount = itemBaseTotal - itemTotal;
+
+                            totalBaseAmount += itemBaseTotal;
+                            totalDiscountAmount += itemDiscount;
+                            totalItemQuantity += qty;
+
+                            items.push({ 
+                                name: productName, priceType, qty, unitPrice, fullPrice, total: itemTotal, discount: itemDiscount
+                            });
+                        }
+                    }
+                });
+            }
 
             const typeOrder = { 'ราคาเต็ม': 1, 'ราคาสมาชิก': 2, 'ราคาโปร': 3, 'ราคาศูนย์': 4 };
             items.sort((a, b) => (typeOrder[a.priceType] || 99) - (typeOrder[b.priceType] || 99));
@@ -570,75 +678,154 @@
                   <html>
                   <head>
                     <meta charset="utf-8">
-                    <title>Receipt ${rs.id}</title>
+                    <title>ใบเสร็จรับเงิน Receipt - ${rs.id}</title>
                     <style>
-                      @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700;800&display=swap');
-                      body { font-family: 'Sarabun', sans-serif; width: 76mm; margin: 0 auto; padding: 4mm; font-size: 11px; color: #1e293b; line-height: 1.4; }
-                      .text-center { text-align: center; } .text-right { text-align: right; } .bold { font-weight: bold; }
-                      .header { margin-bottom: 4mm; } .header h1 { font-size: 16px; margin: 0; font-weight: 800; color: #1e3a8a; }
-                      .divider { border-top: 1px dashed #94a3b8; margin: 3mm 0; }
-                      .meta-table, .items-table { width: 100%; border-collapse: collapse; margin-bottom: 2mm; }
-                      .meta-table td { padding: 3px 0; font-size: 10px; vertical-align: top; }
-                      .items-table th { border-bottom: 1px solid #1e293b; text-align: left; padding: 4px 0; font-size: 10px; color: #475569;}
-                      .total-row td { padding: 3px 0; font-size: 11px; }
-                      .signatures { display: table; width: 100%; margin-top: 25px; text-align: center; font-size: 9px; color: #475569; }
-                      .sig-box { display: table-cell; width: 33.33%; vertical-align: bottom; padding: 0 4px; }
-                      .sig-line { border-bottom: 1px dashed #64748b; width: 90%; margin: 0 auto 5px auto; }
+                      @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap');
+                      body { font-family: 'Sarabun', sans-serif; background-color: #f1f5f9; margin: 0; padding: 0; color: #1e293b; }
+                      
+                      .control-bar {
+                        background: #0f172a; color: white; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                      }
+                      .control-group { display: flex; align-items: center; gap: 12px; }
+                      .btn { padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer; border: none; font-family: inherit; transition: all 0.2s; }
+                      .btn-primary { background: #2563eb; color: white; } .btn-primary:hover { background: #1d4ed8; }
+                      .btn-size { background: #334155; color: #f8fafc; border: 1px solid #475569; }
+                      .btn-size.active { background: #3b82f6; color: white; border-color: #60a5fa; }
+                      
+                      .paper-container { display: flex; justify-content: center; padding: 24px; }
+                      .receipt-paper { background: white; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); border-radius: 8px; box-sizing: border-box; transition: all 0.3s; }
+                      
+                      /* thermal 80mm default */
+                      .paper-thermal { width: 80mm; min-height: 140mm; padding: 5mm 6mm; font-size: 11px; }
+                      /* A4 size */
+                      .paper-a4 { width: 210mm; min-height: 297mm; padding: 15mm 20mm; font-size: 13px; border-radius: 4px; }
+
+                      .text-center { text-align: center; } .text-right { text-align: right; } .bold { font-weight: 700; }
+                      .header h1 { font-size: 18px; margin: 0; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
+                      .paper-a4 .header h1 { font-size: 26px; }
+                      .divider { border-top: 1px dashed #cbd5e1; margin: 8px 0; }
+                      .paper-a4 .divider { margin: 16px 0; }
+                      
+                      .meta-table, .items-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+                      .meta-table td { padding: 3px 0; font-size: 11px; vertical-align: top; }
+                      .paper-a4 .meta-table td { padding: 5px 0; font-size: 13px; }
+                      
+                      .items-table th { border-bottom: 2px solid #0f172a; text-align: left; padding: 6px 4px; font-size: 11px; color: #334155; }
+                      .paper-a4 .items-table th { padding: 10px 8px; font-size: 13px; }
+                      .items-table td { padding: 6px 4px; border-bottom: 1px solid #e2e8f0; font-size: 11px; vertical-align: middle; }
+                      .paper-a4 .items-table td { padding: 10px 8px; font-size: 13px; }
+                      
+                      .total-row td { padding: 4px 0; font-size: 11px; }
+                      .paper-a4 .total-row td { padding: 6px 0; font-size: 14px; }
+                      .signatures { display: flex; justify-content: space-between; margin-top: 30px; text-align: center; font-size: 10px; color: #475569; }
+                      .paper-a4 .signatures { margin-top: 60px; font-size: 12px; }
+                      .sig-box { flex: 1; padding: 0 8px; }
+                      .sig-line { border-bottom: 1px dashed #94a3b8; margin: 0 auto 8px auto; height: 35px; width: 80%; }
+                      
+                      @media print {
+                        .control-bar { display: none !important; }
+                        body { background: white !important; }
+                        .paper-container { padding: 0 !important; }
+                        .receipt-paper { box-shadow: none !important; border-radius: 0 !important; }
+                        @page { margin: 0; }
+                      }
                     </style>
                   </head>
                   <body>
-                    <div class="header text-center">
-                      <h1>LOVE STK GROUPE</h1>
-                      <p style="margin: 2px 0; font-size: 10px; color: #64748b;">ระบบจัดการงานขายและข้อมูลบิล</p>
+                    <div class="control-bar">
+                      <div class="control-group">
+                        <span style="font-weight:700; font-size: 14px;">🖨️ เลือกขนาดกระดาษพิมพ์:</span>
+                        <button class="btn btn-size active" id="btn-thermal" onclick="setSize('thermal')">📄 บิลสลิปความร้อน (80mm)</button>
+                        <button class="btn btn-size" id="btn-a4" onclick="setSize('a4')">📑 กระดาษ A4</button>
+                      </div>
+                      <div class="control-group">
+                        <button class="btn btn-primary" onclick="window.print()" style="font-size: 15px; padding: 10px 24px;">🖨️ สั่งพิมพ์ใบเสร็จ</button>
+                      </div>
                     </div>
-                    <div class="divider"></div>
-                    <table class="meta-table">
-                      <tr><td class="bold" style="width: 38%;">เลขที่บิล:</td><td style="width: 62%; font-weight: bold; color: #0f172a;">${rs.id}</td></tr>
-                      <tr><td class="bold">วันที่:</td><td>${formatDbDateForFilter(rs.date)}</td></tr>
-                      <tr><td class="bold">ลูกค้า:</td><td>${custName || '-'} (${rs.customerId || '-'})</td></tr>
-                      <tr><td class="bold">ผู้ขาย (เจ้าของเคส):</td><td>${rs.memberName}</td></tr>
-                      <tr><td class="bold">ผู้ปิดการขาย:</td><td>${custObj.closer || '-'}</td></tr>
-                      <tr><td class="bold">พนักงานผู้คีย์ขาย:</td><td>${rs.recordedBy || '-'}</td></tr>
-                    </table>
-                    <div class="divider"></div>
-                    <table class="items-table">
-                      <thead><tr><th style="width: 50%;">สินค้า</th><th style="width: 15%; text-align: center;">จำนวน</th><th style="width: 35%; text-align: right;">รวม</th></tr></thead>
-                      <tbody>${itemsHtml}</tbody>
-                      <tfoot>
-                        <tr>
-                            <td style="text-align: right; font-weight: bold; padding: 4px 0; border-top: 1px solid #e2e8f0;">รวมชิ้นทั้งหมด:</td>
-                            <td style="text-align: center; font-weight: bold; padding: 4px 0; border-top: 1px solid #e2e8f0; color: #1e3a8a;">${totalItemQuantity}</td>
-                            <td style="border-top: 1px solid #e2e8f0;"></td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                    <div class="divider"></div>
-                    <table class="meta-table">
-                      <tr class="total-row"><td>รวมเป็นเงิน:</td><td class="text-right">฿${totalBaseAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
-                      ${totalDiscountAmount > 0 ? `<tr class="total-row"><td>ส่วนลดทั้งหมด:</td><td class="text-right" style="color: #ef4444;">- ฿${totalDiscountAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>` : ''}
-                      <tr class="total-row bold"><td style="padding-top: 4px;">ยอดรวมสุทธิ (THB):</td><td class="text-right" style="padding-top: 4px; font-size: 14px; color: #1e3a8a;">฿${(rs.totalAmount || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
-                      <tr class="total-row"><td>ราคาเงินกีบ (LAK):</td><td class="text-right">${((rs.totalAmount || 0) * rate).toLocaleString()} ₭</td></tr>
-                    </table>
-                    <div class="divider"></div>
-                    <table class="meta-table">
-                      <tr class="bold"><td colspan="2" style="font-size: 11px; color: #1e3a8a; padding-bottom: 2px;">💰 การชำระเงิน (Payment)</td></tr>
-                      ${paymentBreakdownHtml}
-                    </table>
-                    
-                    <div class="signatures">
-                        <div class="sig-box"><div class="sig-line"></div>ลายเซ็นลูกค้า</div>
-                        <div class="sig-box"><div class="sig-line"></div>ลายเซ็นผู้จ่ายยา</div>
-                        <div class="sig-box"><div class="sig-line"></div>พนักงานเคาน์เตอร์</div>
+
+                    <div class="paper-container">
+                      <div class="receipt-paper paper-thermal" id="paper">
+                        <div class="header text-center">
+                          <h1>LOVE STK GROUPE</h1>
+                          <p style="margin: 3px 0; font-size: 11px; color: #475569; font-weight: 600;">ใบเสร็จรับเงิน / Receipt</p>
+                        </div>
+                        <div class="divider"></div>
+                        <table class="meta-table">
+                          <tr><td class="bold" style="width: 38%;">เลขที่บิล:</td><td style="width: 62%; font-weight: 700; color: #0f172a;">${rs.id}</td></tr>
+                          <tr><td class="bold">วันที่:</td><td>${formatDbDateForFilter(rs.date)}</td></tr>
+                          <tr><td class="bold">ลูกค้า:</td><td>${custName || '-'} (${rs.customerId || '-'})</td></tr>
+                          <tr><td class="bold">ผู้ขาย (เคส):</td><td>${rs.memberName}</td></tr>
+                          <tr><td class="bold">ผู้ปิดการขาย:</td><td>${custObj.closer || '-'}</td></tr>
+                          <tr><td class="bold">พนักงานบันทึก:</td><td>${rs.recordedBy || '-'}</td></tr>
+                        </table>
+                        <div class="divider"></div>
+                        <table class="items-table">
+                          <thead>
+                            <tr>
+                              <th style="width: 45%;">รายการสินค้า</th>
+                              <th style="width: 20%; text-align: right;">ราคา/หน่วย</th>
+                              <th style="width: 15%; text-align: center;">จำนวน</th>
+                              <th style="width: 20%; text-align: right;">รวมเงิน</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            ${items.map(item => `
+                              <tr>
+                                <td>
+                                  <div class="bold" style="color: #0f172a;">${item.name}</div>
+                                  <div style="font-size: 9px; color: #64748b;">[${item.priceType}]</div>
+                                </td>
+                                <td style="text-align: right; font-family: monospace;">฿${item.unitPrice.toLocaleString()}</td>
+                                <td style="text-align: center; font-weight: 700;">${item.qty}</td>
+                                <td style="text-align: right; font-weight: 700; font-family: monospace; color: #0f172a;">฿${item.total.toLocaleString()}</td>
+                              </tr>
+                            `).join('')}
+                          </tbody>
+                          <tfoot>
+                            <tr>
+                              <td colspan="2" style="text-align: right; font-weight: 700; padding-top: 8px; border-top: 2px solid #0f172a;">รวมจำนวนทั้งหมด:</td>
+                              <td style="text-align: center; font-weight: 800; padding-top: 8px; border-top: 2px solid #0f172a; color: #1e3a8a;">${totalItemQuantity}</td>
+                              <td style="border-top: 2px solid #0f172a;"></td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                        <div class="divider"></div>
+                        <table class="meta-table">
+                          <tr class="total-row"><td>ยอดรวมราคาสินค้า:</td><td class="text-right">฿${totalBaseAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
+                          ${totalDiscountAmount > 0 ? `<tr class="total-row"><td>ส่วนลดรวม:</td><td class="text-right" style="color: #ef4444; font-weight:700;">- ฿${totalDiscountAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>` : ''}
+                          <tr class="total-row bold"><td style="padding-top: 4px; font-size: 13px;">ยอดรวมสุทธิ (THB):</td><td class="text-right" style="padding-top: 4px; font-size: 15px; color: #1e3a8a; font-family: monospace;">฿${(rs.totalAmount || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
+                          <tr class="total-row"><td>คิดเป็นเงินกีบ (LAK):</td><td class="text-right" style="font-weight: 700;">${((rs.totalAmount || 0) * rate).toLocaleString()} ₭</td></tr>
+                        </table>
+                        <div class="divider"></div>
+                        <table class="meta-table">
+                          <tr class="bold"><td colspan="2" style="font-size: 11px; color: #1e3a8a; padding-bottom: 2px;">💳 รายละเอียดการชำระเงิน</td></tr>
+                          ${paymentBreakdownHtml}
+                        </table>
+                        
+                        <div class="signatures">
+                            <div class="sig-box"><div class="sig-line"></div>ลายเซ็นลูกค้า</div>
+                            <div class="sig-box"><div class="sig-line"></div>ผู้จ่ายสินค้า/ยา</div>
+                            <div class="sig-box"><div class="sig-line"></div>พนักงานแคชเชียร์</div>
+                        </div>
+                        <div class="text-center" style="font-size: 11px; margin-top: 20px; color: #475569;"><p class="bold" style="color: #0f172a; margin:0;">ขอบพระคุณที่อุดหนุน LOVE STK GROUPE</p></div>
+                      </div>
                     </div>
-                    <div class="text-center" style="font-size: 10px; margin-top: 5mm; color: #475569;"><p class="bold" style="color: #0f172a;">ขอบคุณที่ใช้บริการค่ะ</p></div>
-                    
+
                     <script>
-                      window.addEventListener('load', function() {
-                          setTimeout(function() {
-                              window.print();
-                              setTimeout(function(){ window.close(); }, 500);
-                          }, 500);
-                      });
+                      function setSize(size) {
+                        const paper = document.getElementById('paper');
+                        const btnThermal = document.getElementById('btn-thermal');
+                        const btnA4 = document.getElementById('btn-a4');
+                        if(size === 'a4') {
+                          paper.className = 'receipt-paper paper-a4';
+                          btnA4.className = 'btn btn-size active';
+                          btnThermal.className = 'btn btn-size';
+                        } else {
+                          paper.className = 'receipt-paper paper-thermal';
+                          btnThermal.className = 'btn btn-size active';
+                          btnA4.className = 'btn btn-size';
+                        }
+                      }
                     <\/script>
                   </body>
                   </html>
@@ -1272,7 +1459,7 @@
                             </div>
                             <div className="flex-[1.5] bg-slate-50 p-1.5 rounded-lg border border-slate-100">
                                <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">{isOldCustomerMode ? 'ลูกค้าเก่า *' : 'รหัสลูกค้า'}</label>
-                               {isOldCustomerMode ? (<AutoSuggestInput value={custData.id} onChange={handleOldCustomerChange} onSelect={handleOldCustomerChange} data={customersSuggestList} placeholder="รหัส/เบอร์โทร..." required={true} />) : (<div className="w-full border border-dashed border-slate-300 px-1 py-1 rounded-md bg-slate-100 text-slate-400 text-[11px] font-bold text-center">สร้างอัตโนมัติ</div>)}
+                               {isOldCustomerMode ? (<AutoSuggestInput value={custData.id} onChange={handleOldCustomerChange} onSelect={handleOldCustomerChange} data={customersSuggestList} placeholder="รหัส/เบอร์โทร..." required={true} />) : custData.id ? (<input type="text" className="w-full bg-white border border-slate-200 rounded-md text-[11px] py-1.5 px-2 font-bold text-blue-700 outline-none focus:border-blue-500 shadow-sm" value={custData.id} onChange={e => setCustData({...custData, id: e.target.value})} placeholder="รหัสลูกค้า / HN" />) : (<div className="w-full border border-dashed border-slate-300 px-1 py-1 rounded-md bg-slate-100 text-slate-400 text-[11px] font-bold text-center">สร้างอัตโนมัติ</div>)}
                             </div>
                          </div>
 
