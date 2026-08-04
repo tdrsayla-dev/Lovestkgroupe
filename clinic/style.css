@@ -1,29 +1,30 @@
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&family=Kanit:wght@400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap');
 
 :root {
-    /* Brand Colors (Primary & Secondary Theme) */
+    /* Brand Colors (Primary & Accent) */
     --primary-color: #003f88;
     --primary-dark: #002855;
-    --primary-light: #33659f;
+    --primary-light: #2563eb;
 
     --secondary-color: #ffffff;
 
+    --accent-orange: #f97316;
+    --accent-orange-dark: #ea580c;
+    --accent-orange-light: #fef3c7;
 
-    --accent-orange-light: #f9d400;
+    --bg-main: #f8fafc;
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --border-color: #e2e8f0;
 
-    --bg-main: var(--secondary-color);
-    --text-main: #1e293b;
-    --text-muted: #ffffff;
-    --border-color: rgba(25, 4, 147, 0.548);
-
-    /* Tinted shadows to match the primary blue */
-    --card-shadow: 0 4px 20px -2px rgba(0, 63, 136, 0.06), 0 2px 10px -1px rgba(0, 63, 136, 0.04);
-    --card-hover-shadow: 0 20px 25px -5px rgba(0, 63, 136, 0.12), 0 10px 10px -5px rgba(0, 63, 136, 0.08);
+    /* Minimalist Layered Ambient Shadows */
+    --card-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.04), 0 2px 6px -1px rgba(15, 23, 42, 0.02);
+    --card-hover-shadow: 0 16px 32px -4px rgba(15, 23, 42, 0.08), 0 4px 12px -2px rgba(15, 23, 42, 0.04);
 }
 
 body {
     background: var(--bg-main) !important;
-    font-family: 'Sukhumvit Set', 'Noto Sans Lao', 'Kanit', 'Sarabun', 'Outfit', sans-serif !important;
+    font-family: 'Sukhumvit Set', 'Outfit', 'Kanit', 'Sarabun', 'Noto Sans Lao', sans-serif !important;
     overflow-x: hidden;
     color: var(--text-main);
     font-size: 0.92rem;
@@ -73,12 +74,12 @@ h5 {
 .sidebar {
     height: 100vh;
     overflow-y: auto;
-    background: linear-gradient(180deg, var(--primary-color) 0%, var(--primary-dark) 100%) !important;
-    box-shadow: 10px 0 30px rgba(0, 63, 136, 0.15);
+    background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%) !important;
+    box-shadow: 10px 0 30px rgba(15, 23, 42, 0.15);
     z-index: 1000;
     position: fixed;
     width: 260px;
-    border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -289,47 +290,47 @@ h5 {
     white-space: nowrap;
 }
 
-/* Modern Badges */
+/* Minimalist Rounded Pill Badges */
 .badge-soft-warning {
-    background-color: var(--accent-orange-light);
-    color: var(--accent-orange-dark);
-    padding: 4px 10px;
-    border-radius: 6px;
+    background-color: #fef3c7;
+    color: #d97706;
+    padding: 5px 12px;
+    border-radius: 9999px;
     font-weight: 600;
-    border: 1px solid rgba(249, 115, 22, 0.15);
+    border: 1px solid #fde68a;
     font-size: 0.78rem;
     white-space: nowrap;
 }
 
 .badge-soft-success {
-    background-color: #f0fdf4;
-    color: #16a34a;
-    padding: 4px 10px;
-    border-radius: 6px;
+    background-color: #dcfce7;
+    color: #15803d;
+    padding: 5px 12px;
+    border-radius: 9999px;
     font-weight: 600;
-    border: 1px solid rgba(22, 163, 74, 0.15);
+    border: 1px solid #bbf7d0;
     font-size: 0.78rem;
     white-space: nowrap;
 }
 
 .badge-soft-danger {
-    background-color: #fef2f2;
-    color: #dc2626;
-    padding: 4px 10px;
-    border-radius: 6px;
+    background-color: #fee2e2;
+    color: #b91c1c;
+    padding: 5px 12px;
+    border-radius: 9999px;
     font-weight: 600;
-    border: 1px solid rgba(220, 38, 38, 0.15);
+    border: 1px solid #fecaca;
     font-size: 0.78rem;
     white-space: nowrap;
 }
 
 .badge-soft-info {
-    background-color: #f0f9ff;
-    color: var(--primary-color);
-    padding: 4px 10px;
-    border-radius: 6px;
+    background-color: #e0f2fe;
+    color: #0369a1;
+    padding: 5px 12px;
+    border-radius: 9999px;
     font-weight: 600;
-    border: 1px solid rgba(0, 63, 136, 0.15);
+    border: 1px solid #bae6fd;
     font-size: 0.78rem;
     white-space: nowrap;
 }
@@ -386,7 +387,7 @@ h5 {
 .btn-warning {
     background: linear-gradient(135deg, var(--accent-orange) 0%, #f97316 100%) !important;
     border: none !important;
-    color: var(--secondary-color) !important;
+    color: #ffffff !important;
     box-shadow: 0 4px 14px rgba(249, 115, 22, 0.25);
 }
 
@@ -394,6 +395,7 @@ h5 {
 .btn-warning:focus,
 .btn-warning:active {
     background: linear-gradient(135deg, var(--accent-orange-dark) 0%, var(--accent-orange) 100%) !important;
+    color: #ffffff !important;
     box-shadow: 0 6px 20px rgba(249, 115, 22, 0.4) !important;
     transform: translateY(-1px);
 }
@@ -1263,4 +1265,656 @@ body.login-page {
     border-bottom-color: var(--primary-color, #2563eb);
     background: transparent;
     font-weight: 600;
+}
+
+/* =========================================
+   Mobile & Smartphone Responsive Adaptations
+   ========================================= */
+
+/* Mobile Top Navigation Header */
+.mobile-header {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    color: #ffffff;
+    padding: 0 16px;
+    z-index: 1030;
+    box-shadow: 0 2px 12px rgba(0, 63, 136, 0.25);
+}
+
+.mobile-header .mobile-title {
+    font-size: 1.1rem;
+    font-family: 'Kanit', sans-serif;
+    color: #ffffff;
+}
+
+/* Sidebar Overlay Backdrop */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(2px);
+    z-index: 1040;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.sidebar-overlay.show {
+    display: block;
+    opacity: 1;
+}
+
+/* Media Queries for Tablets & Smartphones (< 992px) */
+@media (max-width: 991.98px) {
+    .mobile-header {
+        display: flex;
+    }
+
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: -280px;
+        width: 270px;
+        height: 100vh;
+        z-index: 1050;
+        transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 5px 0 25px rgba(0, 0, 0, 0.3);
+    }
+
+    .sidebar.show {
+        left: 0;
+    }
+
+    .content-area {
+        margin-left: 0 !important;
+        width: 100% !important;
+        padding: 16px !important;
+        margin-top: 56px;
+        height: calc(100vh - 56px);
+    }
+
+    /* Page section header layout */
+    .page-section .d-flex.justify-content-between.align-items-end,
+    .page-section .d-flex.justify-content-between.align-items-center {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 12px;
+    }
+
+    /* Table Container & Touch Scrollability */
+    .table-container {
+        padding: 12px !important;
+        border-radius: 12px !important;
+        margin-bottom: 16px;
+    }
+
+    .table-responsive {
+        width: 100% !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+        border-radius: 8px;
+    }
+
+    .table-modern th,
+    .table-modern td {
+        white-space: nowrap !important;
+        padding: 10px 12px !important;
+        font-size: 0.85rem !important;
+    }
+
+    .table-modern .btn {
+        padding: 5px 10px !important;
+        font-size: 0.8rem !important;
+        white-space: nowrap;
+    }
+
+    /* Form Controls & Inputs on Mobile */
+    .form-control,
+    .form-select,
+    .custom-input {
+        font-size: 0.9rem !important;
+    }
+
+    /* Stat Cards & Grid Items */
+    .stat-card {
+        padding: 16px !important;
+        margin-bottom: 12px;
+    }
+
+    /* Modals Responsive Layout */
+    .modal-dialog {
+        margin: 10px !important;
+        max-width: calc(100% - 20px) !important;
+    }
+
+    .modal-content {
+        border-radius: 16px !important;
+    }
+
+    .modal-body {
+        padding: 16px !important;
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+
+    /* Flex Containers Wrap on Mobile */
+    .d-flex.gap-2,
+    .d-flex.gap-3 {
+        flex-wrap: wrap;
+    }
+}
+
+/* Extra small smartphones (< 576px) */
+@media (max-width: 575.98px) {
+    .content-area {
+        padding: 12px !important;
+    }
+
+    h2 {
+        font-size: 1.3rem !important;
+    }
+
+    .btn {
+        font-size: 0.85rem;
+    }
+}
+
+/* ==========================================================================
+   Patient Registration Modern UI Styles
+   ========================================================================== */
+.registration-header-card {
+    background: #ffffff;
+    border-radius: 18px;
+    padding: 20px 24px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.03);
+    margin-bottom: 20px;
+}
+
+.reg-icon-box {
+    width: 50px;
+    height: 50px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    color: #2563eb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.15);
+    flex-shrink: 0;
+}
+
+.reg-search-box {
+    position: relative;
+    min-width: 250px;
+}
+
+.reg-search-box .bi-search {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    font-size: 0.95rem;
+    z-index: 5;
+    pointer-events: none;
+}
+
+.reg-search-input {
+    padding-left: 40px !important;
+    padding-right: 16px !important;
+    height: 42px;
+    border-radius: 12px !important;
+    border: 1px solid #e2e8f0 !important;
+    background-color: #f8fafc !important;
+    font-size: 0.88rem !important;
+    transition: all 0.2s ease;
+}
+
+.reg-search-input:focus {
+    background-color: #ffffff !important;
+    border-color: #2563eb !important;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1) !important;
+}
+
+.reg-date-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 0 14px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.reg-date-box:focus-within {
+    background: #ffffff;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+}
+
+.reg-date-input {
+    border: none !important;
+    background: transparent !important;
+    font-size: 0.84rem !important;
+    color: #334155 !important;
+    font-weight: 500;
+    padding: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+    max-width: 125px;
+}
+
+.btn-add-patient {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    color: #ffffff !important;
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 9px 20px;
+    height: 42px;
+    border-radius: 12px;
+    border: none;
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.btn-add-patient:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
+    background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+}
+
+.hn-badge {
+    background-color: #eff6ff;
+    color: #1e40af;
+    font-weight: 700;
+    font-family: 'Kanit', monospace;
+    font-size: 0.82rem;
+    padding: 4px 10px;
+    border-radius: 8px;
+    border: 1px solid #dbeafe;
+    letter-spacing: 0.3px;
+    display: inline-block;
+}
+
+.patient-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+    color: #4338ca;
+    font-weight: 700;
+    font-size: 0.88rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(67, 56, 202, 0.15);
+}
+
+.allergy-badge-danger {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.78rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.08);
+}
+
+.allergy-badge-safe {
+    background: #f0fdf4;
+    color: #16a34a;
+    border: 1px solid #bbf7d0;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-weight: 500;
+    font-size: 0.78rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.referrer-badge-custom {
+    background: #f5f3ff;
+    color: #6d28d9;
+    border: 1px solid #ddd6fe;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-weight: 500;
+    font-size: 0.78rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.status-pill {
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.78rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.status-pill.warning {
+    background: #fffbeb;
+    color: #d97706;
+    border: 1px solid #fde68a;
+}
+
+.status-pill.info {
+    background: #f0f9ff;
+    color: #0284c7;
+    border: 1px solid #bae6fd;
+}
+
+.status-pill.primary {
+    background: #eff6ff;
+    color: #2563eb;
+    border: 1px solid #bfdbfe;
+}
+
+.status-pill.success {
+    background: #f0fdf4;
+    color: #16a34a;
+    border: 1px solid #bbf7d0;
+}
+
+.status-pill.secondary {
+    background: #f8fafc;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+}
+
+.status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-dot.warning { background-color: #f59e0b; box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2); }
+.status-dot.info { background-color: #0ea5e9; box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2); }
+.status-dot.primary { background-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
+.status-dot.success { background-color: #22c55e; box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2); }
+.status-dot.secondary { background-color: #94a3b8; }
+
+.btn-send-triage {
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+    color: #ffffff !important;
+    font-weight: 600;
+    font-size: 0.8rem;
+    padding: 6px 16px;
+    border-radius: 20px;
+    border: none;
+    box-shadow: 0 3px 10px rgba(2, 132, 199, 0.25);
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.btn-send-triage:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 14px rgba(2, 132, 199, 0.35);
+    background: linear-gradient(135deg, #0369a1 0%, #075985 100%);
+}
+
+.btn-sent-done {
+    background: #f1f5f9 !important;
+    color: #64748b !important;
+    border: 1px solid #e2e8f0 !important;
+    font-size: 0.8rem;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: not-allowed;
+}
+
+.btn-circle-action {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #64748b;
+    font-size: 0.88rem;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.btn-circle-action.edit:hover {
+    background: #eff6ff;
+    color: #2563eb;
+    border-color: #bfdbfe;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.15);
+}
+
+.btn-circle-action.delete:hover {
+    background: #fef2f2;
+    color: #dc2626;
+    border-color: #fecaca;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.15);
+}
+
+/* =========================================
+   Patient Registration Exact UI Matching
+========================================= */
+.patient-reg-header-icon {
+    width: 38px;
+    height: 38px;
+    background: #e0edff;
+    color: #0b3c73;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+}
+
+.patient-date-picker-box {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 3px 10px;
+    display: inline-flex;
+    align-items: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.patient-search-box {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 5px 12px;
+    width: 240px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.btn-reg-new {
+    background: #0b3c73 !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    font-size: 0.88rem !important;
+    padding: 8px 18px !important;
+    box-shadow: 0 2px 6px rgba(11, 60, 115, 0.25);
+    transition: all 0.2s ease;
+}
+
+.btn-reg-new:hover {
+    background: #002855 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(11, 60, 115, 0.35);
+}
+
+/* Pill Badges exact design */
+.badge-allergy-danger {
+    background-color: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    display: inline-block;
+}
+
+.badge-allergy-none {
+    color: #94a3b8;
+    font-size: 0.85rem;
+}
+
+.badge-referrer-blue {
+    background-color: #e0edff;
+    color: #0b3c73;
+    border: 1px solid #bfdbfe;
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.badge-status-waiting {
+    background-color: #e0f2fe;
+    color: #0284c7;
+    border: 1px solid #bae6fd;
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+}
+
+.badge-status-payment {
+    background-color: #e0edff;
+    color: #0b3c73;
+    border: 1px solid #bfdbfe;
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+}
+
+.badge-status-unsubmitted {
+    background-color: #f1f5f9;
+    color: #64748b;
+    border: 1px solid #cbd5e1;
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+}
+
+.badge-status-done {
+    background-color: #dcfce7;
+    color: #16a34a;
+    border: 1px solid #bbf7d0;
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+}
+
+/* Action Buttons exact design */
+.btn-action-sent {
+    background: #94a3b8 !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 6px !important;
+    font-size: 0.8rem !important;
+    padding: 5px 14px !important;
+    font-weight: 500;
+    cursor: not-allowed;
+}
+
+.btn-action-send {
+    background: #0b3c73 !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 6px !important;
+    font-size: 0.8rem !important;
+    padding: 5px 14px !important;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btn-action-send:hover {
+    background: #002855 !important;
+    color: #ffffff !important;
+}
+
+.btn-action-square {
+    width: 31px;
+    height: 31px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #475569;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.btn-action-square:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #0f172a;
+}
+
+.btn-action-square.delete {
+    border-color: #fca5a5;
+    color: #ef4444;
+}
+
+.btn-action-square.delete:hover {
+    background: #fef2f2;
+    border-color: #f87171;
+    color: #dc2626;
 }
