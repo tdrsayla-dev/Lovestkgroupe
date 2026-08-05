@@ -143,7 +143,7 @@
 
     .nav-links a:hover {
       color: #60a5fa;
-      text-shadow: 0 0 10px rgba(96, 165, 250, 0.6);
+      text-shadow: none;
     }
 
     .mobile-nav-icon {
@@ -254,31 +254,50 @@
         font-size: 0.72rem !important;
         padding: 0.35rem 0.5rem !important;
         background: transparent !important;
-        border: 1px solid transparent !important;
-        border-radius: 12px !important;
-        color: rgba(255, 255, 255, 0.75) !important;
+        border: none !important;
+        border-radius: 0 !important;
+        color: rgba(255, 255, 255, 0.6) !important;
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
         justify-content: center !important;
-        width: 90%;
-        height: 85%;
+        width: 100% !important;
+        height: 100% !important;
         text-decoration: none !important;
         gap: 3px !important;
         transition: all 0.2s ease !important;
+        box-shadow: none !important;
+        outline: none !important;
       }
 
       .nav-links a:hover,
       .nav-links a:focus,
       .nav-links a.active {
-        background: rgba(96, 165, 250, 0.15) !important;
-        border-color: rgba(96, 165, 250, 0.3) !important;
+        background: transparent !important;
+        border: none !important;
+        border-color: transparent !important;
         color: #ffffff !important;
-        box-shadow: 0 0 12px rgba(96, 165, 250, 0.25);
+        box-shadow: none !important;
+        text-shadow: none !important;
+        outline: none !important;
+      }
+
+      .nav-links a .mobile-nav-icon {
+        display: block !important;
+        font-size: 1.25rem !important;
+        color: rgba(255, 255, 255, 0.6) !important;
+        transition: color 0.2s ease !important;
       }
 
       .nav-links a:hover .mobile-nav-icon,
       .nav-links a.active .mobile-nav-icon {
+        color: #60a5fa !important;
+        text-shadow: none !important;
+        filter: none !important;
+      }
+
+      .nav-links a:hover .nav-text,
+      .nav-links a.active .nav-text {
         color: #60a5fa !important;
       }
 
