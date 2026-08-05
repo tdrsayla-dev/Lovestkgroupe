@@ -356,14 +356,23 @@
       .about-header {
         order: 1 !important;
         width: 100% !important;
-        text-align: left !important;
-        margin-bottom: 0.5rem !important;
+        text-align: center !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        margin-bottom: 1.5rem !important;
+      }
+
+      .about-header .section-badge {
+        margin: 0 auto 0.75rem auto !important;
       }
 
       .about-header .section-title {
         font-size: 2.1rem !important;
         line-height: 1.25 !important;
         margin-bottom: 1rem !important;
+        text-align: center !important;
       }
 
       .about-visual {
@@ -2429,19 +2438,18 @@
   </header>
 
   <!-- ===== HERO ===== -->
-  <section id="hero" style="min-height: 80vh; display: flex; align-items: center; justify-content: center;">
-    <div class="hero-bg"></div>
-    <div class="hero-grid-lines"></div>
-    <canvas id="hero-particles-canvas" style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2;"></canvas>
+  <section id="hero" style="position: relative; min-height: 85vh; display: flex; align-items: center; justify-content: center; overflow: hidden; background-color: #07214a;">
+    <!-- Dynamic Clean Background Image Slider Container (No Mockups - Real Data Only) -->
+    <div id="hero-slider-bg" style="position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1;"></div>
 
-    <div class="hero-content">
-      <h1 class="hero-title" style="margin-bottom: 0;">
-        ร่วมสร้าง<span class="gradient-text">อนาคต</span><br />
-        ไปด้วยกัน
-      </h1>
-    </div>
+    <!-- Navigation Arrows (Clean & Sharp) -->
+    <button id="hero-prev-btn" onclick="prevHeroSlide()" style="position: absolute; left: 20px; top: 50%; transform: translateY(-50%); z-index: 10; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.3); color: #ffffff; width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(6px); transition: all 0.3s;" aria-label="Previous Slide"><i class="fa-solid fa-chevron-left"></i></button>
+    <button id="hero-next-btn" onclick="nextHeroSlide()" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); z-index: 10; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.3); color: #ffffff; width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(6px); transition: all 0.3s;" aria-label="Next Slide"><i class="fa-solid fa-chevron-right"></i></button>
 
-    <div class="hero-scroll-indicator" onclick="document.getElementById('about').scrollIntoView({behavior: 'smooth'})">
+    <!-- Pagination Dots -->
+    <div id="hero-slider-dots" style="position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10; display: flex; gap: 8px;"></div>
+
+    <div class="hero-scroll-indicator" onclick="document.getElementById('about').scrollIntoView({behavior: 'smooth'})" style="z-index: 10;">
       <i class="fas fa-chevron-down"></i>
     </div>
   </section>
@@ -2463,9 +2471,9 @@
         </div>
 
         <div class="about-content reveal" style="transition-delay:0.15s">
-          <div class="about-header">
-            <div class="section-badge"><i class="fas fa-info-circle"></i> เกี่ยวกับเรา</div>
-            <h2 class="section-title" style="margin-bottom:2rem">พันธกิจ วิสัยทัศน์<br />และค่านิยม</h2>
+          <div class="about-header" style="text-align:center !important; display:flex !important; flex-direction:column !important; align-items:center !important; justify-content:center !important; width:100% !important; margin-bottom:1.5rem !important;">
+            <div class="section-badge" style="margin:0 auto 0.75rem auto !important;"><i class="fas fa-info-circle"></i> เกี่ยวกับเรา</div>
+            <h2 class="section-title" style="margin-bottom:1.5rem; text-align:center !important;">พันธกิจ วิสัยทัศน์ และค่านิยม</h2>
           </div>
 
           <div class="mv-cards">
@@ -3426,6 +3434,12 @@
               else if (key === 'company_logo') { data.company_logo = val; }
               else if (key === 'values_desc') { data.values_desc = val; }
               else if (key === 'subsidiaries_desc') { data.subsidiaries_desc = val; }
+              else if (key === 'hero_slides') {
+                try {
+                  const parsed = JSON.parse(val);
+                  if (Array.isArray(parsed) && parsed.length > 0) data.hero_slides = parsed;
+                } catch (e) {}
+              }
               else if (key === 'careers') {
                 try {
                   const parsed = JSON.parse(val);
@@ -3434,6 +3448,14 @@
               }
             });
           }
+        }
+
+        const localHeroSlides = localStorage.getItem('stk_hero_slides');
+        if (localHeroSlides) {
+          try {
+            const parsed = JSON.parse(localHeroSlides);
+            if (Array.isArray(parsed) && parsed.length > 0) data.hero_slides = parsed;
+          } catch (e) {}
         }
 
         const localSubs = localStorage.getItem('stk_subsidiaries');
@@ -3496,6 +3518,13 @@
               onlineData.company_logo = val;
             } else if (key === 'values_desc') {
               onlineData.values_desc = val;
+            } else if (key === 'hero_slides') {
+              try {
+                const parsed = JSON.parse(val);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  onlineData.hero_slides = parsed;
+                }
+              } catch (e) {}
             } else if (key === 'careers') {
               try {
                 const parsed = JSON.parse(val);
@@ -3538,8 +3567,200 @@
       }
     }
 
+    // ── HERO SLIDER ENGINE ──
+    let currentHeroSlide = 0;
+    let heroSlidesData = [];
+    let heroSlideTimer = null;
+
+    function initHeroSlider(slides) {
+      const sliderBg = document.getElementById('hero-slider-bg');
+      const dotsContainer = document.getElementById('hero-slider-dots');
+      const prevBtn = document.getElementById('hero-prev-btn');
+      const nextBtn = document.getElementById('hero-next-btn');
+
+      if (!slides || slides.length === 0) {
+        if (sliderBg) sliderBg.innerHTML = '';
+        if (dotsContainer) dotsContainer.style.display = 'none';
+        if (prevBtn) prevBtn.style.display = 'none';
+        if (nextBtn) nextBtn.style.display = 'none';
+        stopHeroAutoplay();
+        heroSlidesData = [];
+        return;
+      }
+
+      const newJson = JSON.stringify(slides);
+      const oldJson = JSON.stringify(heroSlidesData);
+      
+      // If slider is ALREADY initialized with identical slide data, DO NOT WIPE/RE-RENDER (prevents flicker!)
+      if (heroSlidesData.length > 0 && newJson === oldJson && document.querySelector('.hero-slide-item')) {
+        return;
+      }
+
+      heroSlidesData = slides;
+      currentHeroSlide = 0;
+      stopHeroAutoplay();
+
+      if (!sliderBg) return;
+      sliderBg.innerHTML = '';
+      if (dotsContainer) dotsContainer.innerHTML = '';
+
+      slides.forEach((slide, idx) => {
+        const imgUrl = slide.image || slide.url || '';
+        
+        // Preload image in background
+        if (imgUrl) {
+          const imgPreload = new Image();
+          imgPreload.src = imgUrl;
+        }
+
+        const slideDiv = document.createElement('div');
+        slideDiv.className = `hero-slide-item ${idx === 0 ? 'active' : ''}`;
+        slideDiv.style.cssText = `
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          background-image: url('${imgUrl}');
+          background-size: cover;
+          background-position: center;
+          opacity: ${idx === 0 ? 1 : 0};
+          transition: opacity 0.8s ease-in-out;
+          will-change: opacity;
+        `;
+        sliderBg.appendChild(slideDiv);
+
+        if (dotsContainer && slides.length > 1) {
+          const dot = document.createElement('button');
+          dot.className = `hero-dot ${idx === 0 ? 'active' : ''}`;
+          dot.style.cssText = `
+            width: ${idx === 0 ? '24px' : '8px'};
+            height: 8px;
+            border-radius: 4px;
+            background: ${idx === 0 ? '#60a5fa' : 'rgba(255,255,255,0.4)'};
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+          `;
+          dot.setAttribute('aria-label', `Go to slide ${idx + 1}`);
+          dot.onclick = () => goToHeroSlide(idx);
+          dotsContainer.appendChild(dot);
+        }
+      });
+
+      if (slides.length <= 1) {
+        if (prevBtn) prevBtn.style.display = 'none';
+        if (nextBtn) nextBtn.style.display = 'none';
+        if (dotsContainer) dotsContainer.style.display = 'none';
+      } else {
+        if (prevBtn) prevBtn.style.display = 'flex';
+        if (nextBtn) nextBtn.style.display = 'flex';
+        if (dotsContainer) dotsContainer.style.display = 'flex';
+      }
+
+      updateHeroSlideText(0);
+      startHeroAutoplay();
+    }
+
+    function updateHeroSlideText(idx) {
+      if (!heroSlidesData[idx]) return;
+      const slide = heroSlidesData[idx];
+      const titleEl = document.getElementById('hero-display-title');
+      const subtitleEl = document.getElementById('hero-display-subtitle');
+
+      if (titleEl && slide.title) {
+        if (titleEl.innerHTML !== slide.title) {
+          titleEl.style.opacity = '0';
+          setTimeout(() => {
+            titleEl.innerHTML = slide.title;
+            titleEl.style.opacity = '1';
+          }, 200);
+        } else {
+          titleEl.style.opacity = '1';
+        }
+      }
+      if (subtitleEl) {
+        if (slide.subtitle) {
+          if (subtitleEl.textContent !== slide.subtitle) {
+            subtitleEl.style.opacity = '0';
+            setTimeout(() => {
+              subtitleEl.textContent = slide.subtitle;
+              subtitleEl.style.display = 'block';
+              subtitleEl.style.opacity = '1';
+            }, 200);
+          } else {
+            subtitleEl.style.display = 'block';
+            subtitleEl.style.opacity = '1';
+          }
+        } else {
+          subtitleEl.style.display = 'none';
+        }
+      }
+    }
+
+    function goToHeroSlide(idx) {
+      if (!heroSlidesData || heroSlidesData.length === 0) return;
+      const slideItems = document.querySelectorAll('.hero-slide-item');
+      const dots = document.querySelectorAll('.hero-dot');
+      if (!slideItems.length) return;
+
+      slideItems[currentHeroSlide].style.opacity = '0';
+      if (dots[currentHeroSlide]) {
+        dots[currentHeroSlide].style.width = '8px';
+        dots[currentHeroSlide].style.background = 'rgba(255,255,255,0.4)';
+      }
+
+      currentHeroSlide = (idx + heroSlidesData.length) % heroSlidesData.length;
+
+      slideItems[currentHeroSlide].style.opacity = '1';
+      if (dots[currentHeroSlide]) {
+        dots[currentHeroSlide].style.width = '24px';
+        dots[currentHeroSlide].style.background = '#60a5fa';
+      }
+
+      updateHeroSlideText(currentHeroSlide);
+      resetHeroAutoplay();
+    }
+
+    window.nextHeroSlide = function() {
+      goToHeroSlide(currentHeroSlide + 1);
+    };
+
+    window.prevHeroSlide = function() {
+      goToHeroSlide(currentHeroSlide - 1);
+    };
+
+    function startHeroAutoplay() {
+      stopHeroAutoplay();
+      if (heroSlidesData.length > 1) {
+        heroSlideTimer = setInterval(() => {
+          goToHeroSlide(currentHeroSlide + 1);
+        }, 5000);
+      }
+    }
+
+    function stopHeroAutoplay() {
+      if (heroSlideTimer) clearInterval(heroSlideTimer);
+    }
+
+    function resetHeroAutoplay() {
+      stopHeroAutoplay();
+      startHeroAutoplay();
+    }
+
     function bindCompanyProfileUI(data) {
       if (!data) return;
+
+      // 00. Hero Slider (Real Data Only)
+      let slides = data.hero_slides;
+      if (!slides || !Array.isArray(slides) || slides.length === 0) {
+        try {
+          slides = JSON.parse(localStorage.getItem('stk_hero_slides') || '[]');
+        } catch (e) {}
+      }
+      if (!slides || !Array.isArray(slides)) {
+        slides = [];
+      }
+      initHeroSlider(slides);
 
       // 0. Update Company Logo (if available)
       const logoUrl = data.company_logo || '';

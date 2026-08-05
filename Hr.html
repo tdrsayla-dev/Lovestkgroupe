@@ -2422,6 +2422,22 @@
                                 </div>
                             </div>
 
+                            <!-- ส่วนที่ 1.5: รูปภาพแบนเนอร์สไลด์หน้าแรก (Hero Slider Images) -->
+                            <div class="mt-8 space-y-6">
+                                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-indigo-50 pb-2">
+                                    <div>
+                                        <h4 class="text-sm font-bold text-brandindigo uppercase tracking-wider"><i class="fa-solid fa-images mr-1.5"></i>รูปภาพแบนเนอร์สไลด์หน้าแรก (Hero Slider Images)</h4>
+                                        <p class="text-xs text-gray-500 mt-0.5">จัดการรูปภาพสไลด์แบนเนอร์ด้านบนสุดของหน้าเว็บหลัก (index.html)</p>
+                                    </div>
+                                    <button type="button" onclick="addNewHeroSlideCard()" class="bg-indigo-50 hover:bg-indigo-100 text-brandindigo text-xs font-bold py-2 px-4 rounded-xl transition-all shadow-sm flex items-center gap-1.5">
+                                        <i class="fa-solid fa-plus"></i>เพิ่มรูปสไลด์ใหม่
+                                    </button>
+                                </div>
+                                <div id="hero-slides-list-container" class="space-y-4">
+                                    <!-- Dynamic hero slide cards render here -->
+                                </div>
+                            </div>
+
                             <!-- คำอธิบายกลุ่มธุรกิจในเครือ (Subsidiaries Section Description) -->
                             <div class="space-y-1 mt-6">
                                 <label class="text-xs font-bold text-gray-600">คำอธิบายกลุ่มธุรกิจในเครือ (Subsidiaries
