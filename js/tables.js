@@ -80,6 +80,9 @@ function renderTable(data) {
 
     // 📌 Logic สำหรับตารางประวัติการลงเวลา + ปฏิทิน
     if (currentSheet === 'Fingerprint_Logs') {
+        if (typeof applyEmployeeShiftAssignmentsToLogs === 'function') {
+            applyEmployeeShiftAssignmentsToLogs(data);
+        }
         summaryDiv.classList.remove('hidden');
         if (calSec) calSec.classList.remove('hidden');
         if (addDataBtn) addDataBtn.classList.add('hidden');
@@ -173,6 +176,7 @@ function renderTable(data) {
         }
 
         let sumLate = 0, sumEarly = 0, sumAbsent = 0, sumOT = 0;
+        let sumEarlyIn = 0, sumLateOut = 0;
 
         if (tYear && tMonth) {
             // Monthly mode: กรองเฉพาะเดือนนั้น
@@ -224,63 +228,78 @@ function renderTable(data) {
             if (document.getElementById('attendance-calendar-grid')) {
                 document.getElementById('attendance-calendar-grid').innerHTML = `<div class="col-span-7 text-center py-8 text-indigo-400 text-xs font-bold uppercase tracking-widest border border-dashed border-indigo-200 rounded-xl bg-indigo-50">📅 โหมดสรุปรายปี ${tYear} — แสดงข้อมูลทั้งปี</div>`;
             }
-
-            data.forEach(row => {
-                let late = parseFloat(row.Late_Hours || row.late_hours || 0) || 0;
-                let early = parseFloat(row.Early_Leave_Hours || row.early_leave_hours || 0) || 0;
-                let ot = parseFloat(row.OT_Amount || row.ot_amount || 0) || 0;
-
-                if (late === 0 && row.Check_In && row.Check_In !== '-' && row.Shift_Start && row.Shift_Start !== '-') {
-                    let inMins = parseInt(String(row.Check_In).split(':')[0] || 0) * 60 + parseInt(String(row.Check_In).split(':')[1] || 0);
-                    let startMins = parseInt(String(row.Shift_Start).split(':')[0] || 0) * 60 + parseInt(String(row.Shift_Start).split(':')[1] || 0);
-                    if (inMins > startMins) late = (inMins - startMins) / 60;
-                }
-                if (early === 0 && row.Check_Out && row.Check_Out !== '-' && row.Shift_End && row.Shift_End !== '-') {
-                    let outMins = parseInt(String(row.Check_Out).split(':')[0] || 0) * 60 + parseInt(String(row.Check_Out).split(':')[1] || 0);
-                    let endMins = parseInt(String(row.Shift_End).split(':')[0] || 0) * 60 + parseInt(String(row.Shift_End).split(':')[1] || 0);
-                    if (outMins < endMins && outMins > 0) early = (endMins - outMins) / 60;
-                }
-
-                sumLate += late;
-                sumEarly += early;
-                sumOT += ot;
-                let yearlyStatus = String(getFuzzyValue(row, ['attendance_status', 'status'])).toLowerCase();
-                if (yearlyStatus.includes('missing') || yearlyStatus.includes('absent') || yearlyStatus.includes('ขาด')) sumAbsent++;
-            });
-            // sumAbsent นับจาก status string เรียบร้อยแล้วข้างต้น
         } else {
             if (document.getElementById('attendance-calendar-grid')) {
                 document.getElementById('attendance-calendar-grid').innerHTML = '<div class="col-span-7 text-center py-8 text-gray-400 text-xs font-bold uppercase tracking-widest border border-dashed border-gray-200 rounded-xl">Specify an Employee ID to view calendar</div>';
             }
-
-            data.forEach(row => {
-                let late = parseFloat(row.Late_Hours || row.late_hours || 0) || 0;
-                let early = parseFloat(row.Early_Leave_Hours || row.early_leave_hours || 0) || 0;
-                let ot = parseFloat(row.OT_Amount || row.ot_amount || 0) || 0;
-                let status = String(getFuzzyValue(row, ['attendance_status', 'status'])).toLowerCase();
-
-                if (late === 0 && row.Check_In && row.Check_In !== '-' && row.Shift_Start && row.Shift_Start !== '-') {
-                    let inMins = parseInt(String(row.Check_In).split(':')[0] || 0) * 60 + parseInt(String(row.Check_In).split(':')[1] || 0);
-                    let startMins = parseInt(String(row.Shift_Start).split(':')[0] || 0) * 60 + parseInt(String(row.Shift_Start).split(':')[1] || 0);
-                    if (inMins > startMins) late = (inMins - startMins) / 60;
-                }
-                if (early === 0 && row.Check_Out && row.Check_Out !== '-' && row.Shift_End && row.Shift_End !== '-') {
-                    let outMins = parseInt(String(row.Check_Out).split(':')[0] || 0) * 60 + parseInt(String(row.Check_Out).split(':')[1] || 0);
-                    let endMins = parseInt(String(row.Shift_End).split(':')[0] || 0) * 60 + parseInt(String(row.Shift_End).split(':')[1] || 0);
-                    if (outMins < endMins && outMins > 0) early = (endMins - outMins) / 60;
-                }
-
-                sumLate += late;
-                sumEarly += early;
-                sumOT += ot;
-                if (status.includes('missing') || status.includes('absent') || status.includes('ขาด')) sumAbsent++;
-            });
         }
 
-        document.getElementById('filter-late').innerText = (Math.round(sumLate * 100) / 100);
-        document.getElementById('filter-early').innerText = (Math.round(sumEarly * 100) / 100);
-        document.getElementById('filter-absent').innerText = sumAbsent;
-        document.getElementById('filter-ot').innerText = new Intl.NumberFormat('th-TH').format(sumOT);
+        // 📌 คำนวณยอดสรุปสำหรับ Stat Cards 7 กล่องจาก data ของพนักงานหรือมุมมองที่เลือก
+        data.forEach(row => {
+            let checkIn = row.Check_In || row.check_in || (typeof getFuzzyValue === 'function' ? getFuzzyValue(row, ['Check_In', 'check_in', 'in']) : '');
+            let checkOut = row.Check_Out || row.check_out || (typeof getFuzzyValue === 'function' ? getFuzzyValue(row, ['Check_Out', 'check_out', 'out']) : '');
+            let shiftStart = row.Shift_Start || row.shift_start || (typeof getFuzzyValue === 'function' ? getFuzzyValue(row, ['Shift_Start', 'shift_start', 'start']) : '');
+            let shiftEnd = row.Shift_End || row.shift_end || (typeof getFuzzyValue === 'function' ? getFuzzyValue(row, ['Shift_End', 'shift_end', 'end']) : '');
+
+            let late = 0;
+            let earlyIn = 0;
+            if (checkIn && checkIn !== '-' && shiftStart && shiftStart !== '-') {
+                let inMins = parseInt(String(checkIn).split(':')[0] || 0) * 60 + parseInt(String(checkIn).split(':')[1] || 0);
+                let startMins = parseInt(String(shiftStart).split(':')[0] || 0) * 60 + parseInt(String(shiftStart).split(':')[1] || 0);
+                if (inMins > startMins) {
+                    late = (inMins - startMins) / 60;
+                } else if (inMins < startMins) {
+                    earlyIn = (startMins - inMins) / 60;
+                }
+            } else {
+                late = parseFloat(row.Late_Hours || row.late_hours || 0) || 0;
+            }
+
+            let early = 0;
+            let lateOut = 0;
+            if (checkOut && checkOut !== '-' && shiftEnd && shiftEnd !== '-') {
+                let outMins = parseInt(String(checkOut).split(':')[0] || 0) * 60 + parseInt(String(checkOut).split(':')[1] || 0);
+                let endMins = parseInt(String(shiftEnd).split(':')[0] || 0) * 60 + parseInt(String(shiftEnd).split(':')[1] || 0);
+                if (outMins < endMins && outMins > 0) {
+                    early = (endMins - outMins) / 60;
+                } else if (outMins > endMins) {
+                    lateOut = (outMins - endMins) / 60;
+                }
+            } else {
+                early = parseFloat(row.Early_Leave_Hours || row.early_leave_hours || 0) || 0;
+            }
+
+            let ot = parseFloat(row.OT_Amount || row.ot_amount || 0) || 0;
+            let rowStatus = String(getFuzzyValue(row, ['attendance_status', 'status'])).toLowerCase();
+
+            sumLate += late;
+            sumEarly += early;
+            sumEarlyIn += earlyIn;
+            sumLateOut += lateOut;
+            sumOT += ot;
+            if (rowStatus.includes('missing') || rowStatus.includes('absent') || rowStatus.includes('ขาด')) sumAbsent++;
+        });
+
+        const roundVal = v => Math.round(v * 100) / 100;
+        const netOffset = (sumEarlyIn + sumLateOut) - (sumLate + sumEarly);
+
+        if (document.getElementById('filter-late')) document.getElementById('filter-late').innerText = roundVal(sumLate);
+        if (document.getElementById('filter-early')) document.getElementById('filter-early').innerText = roundVal(sumEarly);
+        if (document.getElementById('filter-early-in')) document.getElementById('filter-early-in').innerText = roundVal(sumEarlyIn);
+        if (document.getElementById('filter-late-out')) document.getElementById('filter-late-out').innerText = roundVal(sumLateOut);
+        if (document.getElementById('filter-absent')) document.getElementById('filter-absent').innerText = sumAbsent;
+        if (document.getElementById('filter-ot')) document.getElementById('filter-ot').innerText = new Intl.NumberFormat('th-TH').format(sumOT);
+
+        const netEl = document.getElementById('filter-net-balance');
+        if (netEl) {
+            const formattedNet = (netOffset >= 0 ? '+' : '') + roundVal(netOffset);
+            netEl.innerText = formattedNet;
+            if (netOffset >= 0) {
+                netEl.className = 'text-xl font-black text-purple-600';
+            } else {
+                netEl.className = 'text-xl font-black text-rose-600';
+            }
+        }
 
         if (tableDateFilter) tableDateFilter.classList.add('hidden');
 
@@ -1469,6 +1488,9 @@ function getActiveTableExportData() {
     }
 
     if (currentSheet === 'Fingerprint_Logs' || currentSheet === 'Attendance_Logs') {
+        if (typeof applyEmployeeShiftAssignmentsToLogs === 'function') {
+            applyEmployeeShiftAssignmentsToLogs(dataToExport);
+        }
         // Determine date range: monthly = 1 month, yearly = full 12 months
         let rangeMonths = (periodMode === 'year') ? [...Array(12).keys()].map(i => i + 1) : [tMonth];
         let sDate = periodMode === 'year' ? `${tYear}-01-01` : `${tYear}-${String(tMonth).padStart(2, '0')}-01`;
@@ -1623,16 +1645,16 @@ function calculateAttendanceSummary(data) {
         let rowDate = (typeof parseDateStr === 'function') ? parseDateStr(rawDateStr) : null;
         let isPastOrToday = rowDate ? (rowDate <= today) : true;
 
-        if (late === 0 && checkIn && checkIn !== '-' && shiftStart && shiftStart !== '-') {
+        if (checkIn && checkIn !== '-' && shiftStart && shiftStart !== '-') {
             let inMins = parseInt(String(checkIn).split(':')[0] || 0) * 60 + parseInt(String(checkIn).split(':')[1] || 0);
             let startMins = parseInt(String(shiftStart).split(':')[0] || 0) * 60 + parseInt(String(shiftStart).split(':')[1] || 0);
-            if (inMins > startMins) late = (inMins - startMins) / 60;
+            late = inMins > startMins ? (inMins - startMins) / 60 : 0;
         }
 
-        if (early === 0 && checkOut && checkOut !== '-' && shiftEnd && shiftEnd !== '-') {
+        if (checkOut && checkOut !== '-' && shiftEnd && shiftEnd !== '-') {
             let outMins = parseInt(String(checkOut).split(':')[0] || 0) * 60 + parseInt(String(checkOut).split(':')[1] || 0);
             let endMins = parseInt(String(shiftEnd).split(':')[0] || 0) * 60 + parseInt(String(shiftEnd).split(':')[1] || 0);
-            if (outMins < endMins && outMins > 0) early = (endMins - outMins) / 60;
+            early = (outMins < endMins && outMins > 0) ? (endMins - outMins) / 60 : 0;
         }
 
         totalLateHrs += late;
@@ -2380,10 +2402,31 @@ function deleteShiftConfig(id) {
     let configs = loadShiftConfigs();
     const target = configs.find(c => c.id === id);
     if (!target) return;
-    if (!confirm(`ลบกะเวลา ${target.start} - ${target.end} ใช่ไหมครับ?`)) return;
-    configs = configs.filter(c => c.id !== id);
-    saveShiftConfigs(configs);
-    renderShiftConfigList();
+
+    if (typeof showConfirmModal === 'function') {
+        showConfirmModal(
+            'ยืนยันการลบกะเวลา',
+            `คุณต้องการลบกะเวลา <strong class="font-mono text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">${target.start} - ${target.end}</strong> ใช่หรือไม่?`,
+            () => {
+                let currentConfigs = loadShiftConfigs();
+                currentConfigs = currentConfigs.filter(c => c.id !== id);
+                saveShiftConfigs(currentConfigs);
+                renderShiftConfigList();
+                if (typeof showToast === 'function') {
+                    showToast(`ลบกะเวลา ${target.start} - ${target.end} เรียบร้อยแล้ว`, 'success');
+                }
+            },
+            null,
+            true,
+            'ตกลง',
+            'ยกเลิก'
+        );
+    } else {
+        if (!confirm(`ลบกะเวลา ${target.start} - ${target.end} ใช่ไหมครับ?`)) return;
+        configs = configs.filter(c => c.id !== id);
+        saveShiftConfigs(configs);
+        renderShiftConfigList();
+    }
 }
 
 /** บันทึกและใช้งาน — อัพเดต dropdown แล้วปิด modal */
@@ -2492,11 +2535,45 @@ function saveShiftAssignments(data) {
     localStorage.setItem(SHIFT_ASSIGN_KEY, JSON.stringify(data));
 }
 
+/** อัปเดต Shift_Start และ Shift_End ของ log ตาม shift ที่กำหนดไว้ให้พนักงานแต่ละคน */
+function applyEmployeeShiftAssignmentsToLogs(rows) {
+    if (!Array.isArray(rows) || !rows.length) return rows;
+    const assignments = typeof loadShiftAssignments === 'function' ? loadShiftAssignments() : {};
+    const configs = typeof loadShiftConfigs === 'function' ? loadShiftConfigs() : [];
+    if (!configs.length || !Object.keys(assignments).length) return rows;
+
+    rows.forEach(r => {
+        const empId = String(r.Employee_ID || r.employee_id || r.Emp_ID || r.emp_id || '').toUpperCase().trim();
+        if (!empId) return;
+        const shiftId = assignments[empId];
+        if (shiftId) {
+            const cfg = configs.find(c => c.id === shiftId || c.start === shiftId);
+            if (cfg) {
+                if ('Shift_Start' in r) r.Shift_Start = cfg.start;
+                if ('shift_start' in r) r.shift_start = cfg.start;
+                if ('Shift Start' in r) r['Shift Start'] = cfg.start;
+                if (!r.Shift_Start && !r.shift_start && !r['Shift Start']) r.Shift_Start = cfg.start;
+
+                if ('Shift_End' in r) r.Shift_End = cfg.end;
+                if ('shift_end' in r) r.shift_end = cfg.end;
+                if ('Shift End' in r) r['Shift End'] = cfg.end;
+                if (!r.Shift_End && !r.shift_end && !r['Shift End']) r.Shift_End = cfg.end;
+            }
+        }
+    });
+    return rows;
+}
+
 /** แสดงรายชื่อพนักงานพร้อม dropdown เลือกกะ */
 function renderEmployeeAssignmentList() {
     const listEl = document.getElementById('shift-assign-list');
     const emptyEl = document.getElementById('shift-assign-empty');
     if (!listEl) return;
+
+    // ถ้าผู้ใช็กำลังคลิกหรือเปิด dropdown select อยู่ ห้าม re-render ทำลาย DOM
+    if (document.activeElement && document.activeElement.tagName === 'SELECT' && listEl.contains(document.activeElement)) {
+        return;
+    }
 
     // ดึงรายชื่อพนักงานจากทุกแหล่งใน tableCache (staff, logs, users ฯลฯ)
     const empMap = new Map();
@@ -2584,10 +2661,10 @@ function renderEmployeeAssignmentList() {
 
     listEl.innerHTML = employees.map(emp => {
         const assigned = assignments[emp.empId] || '';
-        const assignedCfg = configs.find(c => c.id === assigned);
+        const assignedCfg = configs.find(c => c.id === assigned || c.start === assigned);
         const badgeHtml = assignedCfg
-            ? `<span class="text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">${assignedCfg.start}</span>`
-            : `<span class="text-[10px] text-gray-300">-</span>`;
+            ? `<span class="badge-item text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">${assignedCfg.start}</span>`
+            : `<span class="badge-item text-[10px] text-gray-300">-</span>`;
 
         const displayName = emp.name || '-';
 
@@ -2604,20 +2681,28 @@ function renderEmployeeAssignmentList() {
                 </div>
             </div>
             <div class="flex items-center gap-2 ml-2">
-                ${badgeHtml}
+                <div class="badge-container shrink-0">${badgeHtml}</div>
                 <select data-empid="${emp.empId}"
                     onchange="quickAssignShift(this)"
-                    class="bg-gray-50 border border-gray-200 text-gray-700 text-xs font-medium rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none cursor-pointer">
+                    class="bg-gray-50 border border-gray-200 text-gray-700 text-xs font-medium rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none cursor-pointer min-w-[140px] z-10 relative">
                     ${shiftOptionsHtml}
                 </select>
             </div>
         </div>`;
     }).join('');
 
-    // ตั้งค่าที่บันทึกไว้ให้กับ dropdown
+    // ตั้งค่าที่บันทึกไว้ให้กับ dropdown (รองรับทั้ง id และ start time)
     listEl.querySelectorAll('select[data-empid]').forEach(sel => {
         const empId = sel.getAttribute('data-empid');
-        if (assignments[empId]) sel.value = assignments[empId];
+        if (assignments[empId]) {
+            const val = assignments[empId];
+            const matchingCfg = configs.find(c => c.id === val || c.start === val);
+            if (matchingCfg) {
+                sel.value = matchingCfg.id;
+            } else {
+                sel.value = val;
+            }
+        }
     });
 
     // เรียก filter เผื่อว่ามีคำค้นหาค้างอยู่
@@ -2657,14 +2742,14 @@ function quickAssignShift(selectEl) {
     const row = selectEl.closest('.emp-assign-row');
     if (row) {
         const configs = loadShiftConfigs();
-        const assignedCfg = configs.find(c => c.id === shiftId);
-        const badgeEl = row.querySelector('span[class*="font-mono"], span[class*="text-gray"]');
-        if (badgeEl && assignedCfg) {
-            badgeEl.className = 'text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full';
-            badgeEl.textContent = assignedCfg.start;
-        } else if (badgeEl) {
-            badgeEl.className = 'text-[10px] text-gray-300';
-            badgeEl.textContent = '-';
+        const assignedCfg = configs.find(c => c.id === shiftId || c.start === shiftId);
+        const badgeContainer = row.querySelector('.badge-container');
+        if (badgeContainer) {
+            if (assignedCfg) {
+                badgeContainer.innerHTML = `<span class="badge-item text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">${assignedCfg.start}</span>`;
+            } else {
+                badgeContainer.innerHTML = `<span class="badge-item text-[10px] text-gray-300">-</span>`;
+            }
         }
     }
 }

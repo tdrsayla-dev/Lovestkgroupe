@@ -214,7 +214,14 @@ const translations = {
     photo_label: 'Profile Photo',
     enter_bank_name: 'Bank Name',
     enter_account_name: 'Account Name',
-    enter_account_number: 'Account Number'
+    enter_account_number: 'Account Number',
+    stat_late_hrs: 'Late (Hrs)',
+    stat_early_hrs: 'Early (Hrs)',
+    stat_early_in_hrs: 'Early In (Hrs)',
+    stat_late_out_hrs: 'Late Out (Hrs)',
+    stat_net_offset_hrs: 'Net Offset (Hrs)',
+    stat_absent: 'Absent',
+    stat_ot_amount: 'OT Amount'
   },
   'la': {
     menu_main: 'ເມນູຫຼັກ',
@@ -427,7 +434,14 @@ const translations = {
     photo_label: 'ຮູບໂປຣໄຟລ໌',
     enter_bank_name: 'ຊື່ທະນາຄານ...',
     enter_account_name: 'ຊື່ບັນຊີ...',
-    enter_account_number: 'ເລກບັນຊີ...'
+    enter_account_number: 'ເລກບັນຊີ...',
+    stat_late_hrs: 'ມາຊ້າ (ຊມ.)',
+    stat_early_hrs: 'ກັບກ່ອນ (ຊມ.)',
+    stat_early_in_hrs: 'ມາກ່ອນເວລາ (ຊມ.)',
+    stat_late_out_hrs: 'ຢູ່ຫຼັງເລີກວຽກ (ຊມ.)',
+    stat_net_offset_hrs: 'ເວລາສຸທິ / ຫັກລົບ (ຊມ.)',
+    stat_absent: 'ຂາດການ',
+    stat_ot_amount: 'ຈຳນວນເງິນ OT'
   },
   'th': {
     // Main Menu
@@ -635,7 +649,14 @@ const translations = {
     photo_label: 'รูปโปรไฟล์',
     enter_bank_name: 'ชื่อธนาคาร...',
     enter_account_name: 'ชื่อบัญชี...',
-    enter_account_number: 'เลขบัญชี...'
+    enter_account_number: 'เลขบัญชี...',
+    stat_late_hrs: 'มาสาย (ชม.)',
+    stat_early_hrs: 'กลับก่อน (ชม.)',
+    stat_early_in_hrs: 'มาล่วงหน้า (ชม.)',
+    stat_late_out_hrs: 'อยู่หลังเลิกงาน (ชม.)',
+    stat_net_offset_hrs: 'เวลาสุทธิ / หักลบ (ชม.)',
+    stat_absent: 'ขาดงาน',
+    stat_ot_amount: 'ยอดรวมค่า OT'
   }
 };
 

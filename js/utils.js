@@ -243,8 +243,15 @@ function fillMissingDays(rawData, startDateStr, endDateStr, targetEmpId) {
 
             if (isOnLeave) statusLabel = "ON LEAVE";
 
+            const assignments = typeof loadShiftAssignments === 'function' ? loadShiftAssignments() : {};
+            const configs = typeof loadShiftConfigs === 'function' ? loadShiftConfigs() : [];
+            const empShiftId = assignments[targetEmpId.toUpperCase().trim()] || assignments[targetEmpId];
+            const empShiftCfg = (empShiftId && configs.length) ? configs.find(c => c.id === empShiftId || c.start === empShiftId) : null;
+            const shiftStartVal = empShiftCfg ? empShiftCfg.start : '-';
+            const shiftEndVal = empShiftCfg ? empShiftCfg.end : '-';
+
             completeList.push({
-                Log_ID: '-', Employee_ID: targetEmpId, Full_Name: empName, Date: dateStr, Shift_Start: '-', Shift_End: '-',
+                Log_ID: '-', Employee_ID: targetEmpId, Full_Name: empName, Date: dateStr, Shift_Start: shiftStartVal, Shift_End: shiftEndVal,
                 Check_In: '-', Check_Out: '-', Attendance_Status: statusLabel, Late_Hours: '-', Early_Leave_Hours: '-', OT_Amount: '-'
             });
         }
@@ -378,25 +385,39 @@ let confirmCancelCallback = null;
 /* =====================================================================
  * 📌 ส่วนที่ 3: MODALS & ALERTS (ฟังก์ชันหน้าต่างแจ้งเตือนและยืนยัน)
  * ===================================================================== */
-function showConfirmModal(title, message, onOk, onCancel = null, isDanger = true) {
+function showConfirmModal(title, message, onOk, onCancel = null, isDanger = true, okText = 'ตกลง', cancelText = 'ยกเลิก') {
     const modal = document.getElementById('confirm-modal');
+    if (!modal) {
+        if (confirm(`${title}\n${message.replace(/<[^>]*>/g, '')}`)) {
+            if (onOk) onOk();
+        } else {
+            if (onCancel) onCancel();
+        }
+        return;
+    }
     const modalBox = modal.querySelector('div.bg-white');
 
-    document.getElementById('confirm-title').innerText = title;
-    document.getElementById('confirm-message').innerHTML = message;
+    const titleEl = document.getElementById('confirm-title');
+    const msgEl = document.getElementById('confirm-message');
+    if (titleEl) titleEl.innerText = title;
+    if (msgEl) msgEl.innerHTML = message;
 
     const iconBg = document.getElementById('confirm-icon-bg');
     const icon = document.getElementById('confirm-icon');
     const btnOk = document.getElementById('btn-confirm-ok');
+    const btnCancel = document.getElementById('btn-confirm-cancel');
+
+    if (btnOk && okText) btnOk.innerText = okText;
+    if (btnCancel && cancelText) btnCancel.innerText = cancelText;
 
     if (isDanger) {
-        iconBg.className = "w-20 h-20 rounded-full bg-red-50 border border-red-100 text-red-500 flex items-center justify-center mx-auto mb-6 transition-colors shadow-md";
-        icon.className = "fa-solid fa-trash-can text-4xl";
-        btnOk.className = "px-5 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-bold transition-colors shadow-lg shadow-red-600/20 w-1/2";
+        if (iconBg) iconBg.className = "w-20 h-20 rounded-full bg-red-50 border border-red-100 text-red-500 flex items-center justify-center mx-auto mb-6 transition-colors shadow-md";
+        if (icon) icon.className = "fa-solid fa-trash-can text-4xl";
+        if (btnOk) btnOk.className = "px-5 py-3 bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-red-600/20 w-1/2 cursor-pointer";
     } else {
-        iconBg.className = "w-20 h-20 rounded-full bg-indigo-50 border border-indigo-100 text-brandindigo flex items-center justify-center mx-auto mb-6 transition-colors shadow-md";
-        icon.className = "fa-solid fa-circle-question text-4xl";
-        btnOk.className = "px-5 py-3 bg-gradient-to-r from-brandindigo to-brandpurple hover:brightness-110 text-white rounded-xl text-sm font-bold transition-colors shadow-lg shadow-indigo-500/20 w-1/2";
+        if (iconBg) iconBg.className = "w-20 h-20 rounded-full bg-indigo-50 border border-indigo-100 text-brandindigo flex items-center justify-center mx-auto mb-6 transition-colors shadow-md";
+        if (icon) icon.className = "fa-solid fa-circle-question text-4xl";
+        if (btnOk) btnOk.className = "px-5 py-3 bg-gradient-to-r from-brandindigo to-brandpurple hover:brightness-110 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-indigo-500/20 w-1/2 cursor-pointer";
     }
 
     confirmOkCallback = onOk;
@@ -405,8 +426,10 @@ function showConfirmModal(title, message, onOk, onCancel = null, isDanger = true
     modal.classList.remove('hidden');
     void modal.offsetWidth;
     modal.classList.remove('opacity-0');
-    modalBox.classList.remove('scale-95');
-    modalBox.classList.add('scale-100');
+    if (modalBox) {
+        modalBox.classList.remove('scale-95');
+        modalBox.classList.add('scale-100');
+    }
 }
 
 function hideConfirmModal() {
