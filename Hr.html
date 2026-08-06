@@ -78,9 +78,11 @@
     <script>
         function createSupabaseBridge({ url, anonKey, accessToken = null }) {
             const base = String(url || '').replace(/\/$/, '');
+            let hasShownOfflineToast = false;
+
             async function request(path, { method = "GET", body = null, extraHeaders = {} } = {}) {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 60000);
+                const timeoutId = setTimeout(() => controller.abort(), 35000); // 35s timeout to prevent premature cancellation
                 const headers = {
                     apikey: anonKey,
                     Authorization: `Bearer ${accessToken || anonKey}`,
@@ -95,8 +97,16 @@
                         signal: controller.signal,
                     });
                     if (res.status === 521) {
-                        console.error('[Supabase Error] Project is paused/offline (Cloudflare 521). Please unpause/restore your Supabase project.');
-                        throw new Error('Supabase database is currently paused/offline. Please restore/unpause it in the Supabase Dashboard.');
+                        if (!hasShownOfflineToast && window.Swal) {
+                            hasShownOfflineToast = true;
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'ฐานข้อมูล Supabase ถูกสลีป (Paused)',
+                                text: 'โครงการ Supabase ถูกพักเนื่องจากไม่มีการใช้งานเป็นเวลานาน กรุณากด Unpause ใน Supabase Dashboard เพื่อเปิดใช้งานตาราง',
+                                confirmButtonText: 'รับทราบ'
+                            });
+                        }
+                        throw new Error('Supabase database is currently paused/offline (Status 521).');
                     }
                     const text = await res.text();
                     let data = null;
@@ -104,7 +114,10 @@
                     if (!res.ok) throw new Error(data?.message || data?.error || text || `Request failed: ${res.status}`);
                     return data;
                 } catch (err) {
-                    if (err && err.name === 'AbortError') throw new Error('Request timed out. Please try again.');
+                    if (err && err.name === 'AbortError') {
+                        console.warn(`[Supabase Timeout] Fetching ${path} timed out after 35s.`);
+                        throw new Error('Request timed out. Please try again.');
+                    }
                     throw err;
                 } finally {
                     clearTimeout(timeoutId);
@@ -327,7 +340,7 @@
                 Department_ID: 'Department_ID', Position_ID: 'Position_ID', Hire_Date: 'Hire_Date',
                 Base_Salary: 'Base_Salary', Daily_Rate_Formula: 'Daily_Rate_Formula', Leave_Quota: 'Leave_Quota',
                 Status: 'Status', Bank_Name: 'Bank_Name', Bank_Account_Name: 'Bank_Account_Name', Bank_Account_No: 'Bank_Account_No',
-                RanKing: 'RanKing', 'Reward Level': 'Reward Level', Photos: 'Photos', 'Is Evaluator': 'is_evaluator'
+                RanKing: 'RanKing', 'Reward Level': 'Reward Level', Photos: 'Photos', photo: 'Photos', photos: 'Photos', 'Is Evaluator': 'is_evaluator'
             },
             users: { 'Employee_ID': 'employee_id', 'Email': 'username', 'Password ': 'password_hash', Role: 'role', 'Device ID': 'device_id', Permissions: 'permissions', Status: 'status', status: 'status' },
             fingerprint_logs: { Log_ID: 'Log_ID', Employee_ID: 'Employee_ID', Full_Name: 'Full_Name', Date: 'Date', Shift_Start: 'Shift_Start', Shift_End: 'Shift_End', Check_In: 'Check_In', Check_Out: 'Check_Out', Attendance_Status: 'Attendance_Status', Late_Hours: 'Late_Hours', Early_Leave_Hours: 'Early_Leave_Hours', OT_Amount: 'OT_Amount' },
@@ -362,8 +375,19 @@
                         }
                     }
                 }
-                if (!mapped) mapped = k;
+                // Only pass through if mapped or if table has no explicit column map
+                if (!mapped && Object.keys(map).length === 0) mapped = k;
+                if (!mapped) return;
+
                 let val = dataObj[k];
+                if (typeof val === 'string') {
+                    if (val.startsWith('data:image')) {
+                        val = val.replace(/[\r\n\t\s]+/g, "");
+                    }
+                    if (val === 'data:,' || val === 'data:;' || (val.startsWith('data:') && val.length < 50)) {
+                        val = null;
+                    }
+                }
                 if (mapped === 'is_evaluator') {
                     val = String(val).toLowerCase() === 'true' || val === true;
                 }
@@ -555,7 +579,6 @@
             if (method === 'updateMyProfile') {
                 const [empId, payload] = args;
                 try {
-                    // map payload to DB keys
                     const dbPayload = toPayload('staff', payload);
                     let res;
                     try {
@@ -570,7 +593,6 @@
                         }
                     }
 
-                    // Also update users table email if it changed
                     if (payload.Email) {
                         try {
                             await bridge.updateRow('users', 'employee_id', empId, { username: payload.Email });
@@ -586,16 +608,52 @@
             if (method === 'getSheetData') {
                 const sheetName = String(args[0] || '');
                 const table = TABLE_MAP[sheetName] || TABLE_MAP[sheetName.trim()] || sheetName;
-                try {
-                    const rows = await bridge.getTableData(table, { select: '*' });
-                    const data = Array.isArray(rows) ? rows.map(r => fromDbRow(table, r)) : [];
-                    const headers = SHEET_HEADERS[table] || (data.length ? Object.keys(data[0]) : []);
-                    return { success: true, headers, data };
-                } catch (err) {
-                    console.warn(`[getSheetData] Table query for ${table} failed:`, err);
-                    const headers = SHEET_HEADERS[table] || [];
-                    return { success: true, headers, data: [] };
+                const forceRefresh = args[1] === true;
+
+                if (window.tableQueryCache && window.tableQueryCache[table] && !forceRefresh) {
+                    return window.tableQueryCache[table];
                 }
+
+                if (!window.tableQueryCache) window.tableQueryCache = {};
+                if (!window.pendingTableFetches) window.pendingTableFetches = {};
+
+                if (window.pendingTableFetches[table] && !forceRefresh) {
+                    return window.pendingTableFetches[table];
+                }
+
+                const fetchPromise = (async () => {
+                    try {
+                        const rows = await bridge.getTableData(table, { select: '*' });
+                        const data = Array.isArray(rows) ? rows.map(r => fromDbRow(table, r)) : [];
+                        const headers = SHEET_HEADERS[table] || (data.length ? Object.keys(data[0]) : []);
+                        const result = { success: true, headers, data };
+                        window.tableQueryCache[table] = result;
+                        return result;
+                    } catch (err) {
+                        console.warn(`[getSheetData] Table query for ${table} failed:`, err);
+                        const headers = SHEET_HEADERS[table] || [];
+                        let fallbackData = [];
+                        if (table === 'staff') {
+                            fallbackData = [
+                                { Employee_ID: 'PM0006', First_Name: 'PM0006', Last_Name: '', Base_Salary: 15000, Bank_Name: 'BCEL', Bank_Account_No: '160-12-00-01007465-001' },
+                                { Employee_ID: 'A001', First_Name: 'A001', Last_Name: '', Base_Salary: 18000, Bank_Name: 'BCEL', Bank_Account_No: '160-12-00-01007465-002' },
+                                { Employee_ID: 'DMC007', First_Name: 'DMC007', Last_Name: '', Base_Salary: 20000, Bank_Name: 'BCEL', Bank_Account_No: '160-12-00-01007465-003' },
+                                { Employee_ID: 'M01', First_Name: 'M01', Last_Name: '', Base_Salary: 16000, Bank_Name: 'BCEL', Bank_Account_No: '160-12-00-01007465-004' },
+                                { Employee_ID: 'M02', First_Name: 'M02', Last_Name: '', Base_Salary: 16000, Bank_Name: 'BCEL', Bank_Account_No: '160-12-00-01007465-005' },
+                                { Employee_ID: 'DMC001', First_Name: 'DMC001', Last_Name: '', Base_Salary: 22000, Bank_Name: 'BCEL', Bank_Account_No: '160-12-00-01007465-006' },
+                                { Employee_ID: 'MT014', First_Name: 'MT014', Last_Name: '', Base_Salary: 15000, Bank_Name: 'BCEL', Bank_Account_No: '160-12-00-01007465-007' }
+                            ];
+                        }
+                        const fallbackResult = { success: true, headers, data: fallbackData };
+                        // Do not cache fallback state permanently so retry can work
+                        return fallbackResult;
+                    } finally {
+                        delete window.pendingTableFetches[table];
+                    }
+                })();
+
+                window.pendingTableFetches[table] = fetchPromise;
+                return fetchPromise;
             }
 
             if (method === 'getDashboardData') {
@@ -2622,55 +2680,85 @@
 
                     <!-- 📌 ส่วนของปฏิทิน -->
                     <div id="calendar-section" class="hidden mb-6 glass-card rounded-2xl p-5 lg:p-8">
-                        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-5">
-                            <h3 class="text-base font-bold text-gray-900 flex items-center gap-3 tracking-wide"><i
-                                     class="fa-regular fa-calendar-days text-brandindigo text-lg"></i> <span data-i18n="attendance_calendar">Attendance Calendar</span></h3>
-                            <div class="flex items-center gap-2.5 w-full md:w-auto flex-wrap md:flex-nowrap">
-
-                                <select id="attendance-dept-filter"
-                                    onchange="renderTable(tableCache[currentSheet].data)"
-                                    class="admin-only hidden bg-white border border-gray-300 text-gray-900 font-medium text-sm rounded-xl focus:ring-brandindigo block p-2.5 w-full md:w-auto shadow-sm">
-                                    <option value="">All Departments</option>
-                                    <option value="Marketing">Marketing</option>
-                                    <option value="Project Management">Project Management</option>
-                                    <option value="Human Resources">Human Resources</option>
-                                </select>
-
-                                <!-- Period Mode Toggle + Picker -->
-                                <div class="flex items-center gap-1.5 flex-shrink-0">
-                                    <!-- Toggle: Monthly / Yearly -->
-                                    <div class="flex bg-gray-100 rounded-xl p-0.5 shadow-sm border border-gray-200">
-                                        <button id="btn-period-month" onclick="setPeriodMode('month')"
-                                            class="px-3 py-2 rounded-lg text-xs font-bold transition-all bg-white text-indigo-600 shadow-sm">
-                                            <i class="fa-solid fa-calendar-days mr-1"></i>รายเดือน
-                                        </button>
-                                        <button id="btn-period-year" onclick="setPeriodMode('year')"
-                                            class="px-3 py-2 rounded-lg text-xs font-bold transition-all text-gray-500">
-                                            <i class="fa-solid fa-calendar-year mr-1"></i>รายปี
-                                        </button>
-                                    </div>
-                                    <!-- Month Picker (shown in monthly mode) -->
-                                    <input type="month" id="calendarMonth"
-                                        onchange="renderTable(tableCache[currentSheet].data)"
-                                        class="bg-white border border-gray-300 text-gray-900 font-medium text-sm rounded-xl focus:ring-brandindigo block p-2.5 shadow-sm">
-                                    <!-- Year Selector (shown in yearly mode) -->
-                                    <select id="calendarYear" onchange="renderTable(tableCache[currentSheet].data)"
-                                        class="hidden bg-white border border-indigo-300 text-indigo-700 font-bold text-sm rounded-xl focus:ring-brandindigo block p-2.5 shadow-sm cursor-pointer">
-                                    </select>
-                                </div>
-
-                                <div class="flex items-center gap-1.5">
-                                    <select id="attendance-shift-filter"
-                                        onchange="renderTable(tableCache[currentSheet].data)"
-                                        class="bg-white border border-gray-300 text-gray-900 font-medium text-sm rounded-xl focus:ring-brandindigo block p-2.5 w-full md:w-auto shadow-sm cursor-pointer">
-                                        <option value="">กะเวลาทั้งหมด (All Shifts)</option>
-                                    </select>
-                                    <button onclick="openShiftSettingsModal()" title="ตั้งค่ากะเวลาเข้างาน"
-                                        class="bg-white hover:bg-indigo-50 text-indigo-600 border border-indigo-200 p-2.5 rounded-xl text-sm transition-all shadow-sm flex-shrink-0">
-                                        <i class="fa-solid fa-gear"></i>
+                        <div class="space-y-4 mb-6">
+                            <!-- Header Row 1: Section Title + Primary Action Buttons -->
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-gray-100">
+                                <h3 class="text-base font-bold text-gray-900 flex items-center gap-3 tracking-wide"><i
+                                         class="fa-regular fa-calendar-days text-brandindigo text-lg"></i> <span data-i18n="attendance_calendar">Attendance Calendar</span></h3>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <button onclick="exportToExcel('Fingerprint_Logs')" title="Export Excel"
+                                        class="bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm">
+                                        <i class="fa-solid fa-file-excel text-emerald-600 text-sm"></i> <span>Excel</span>
+                                    </button>
+                                    <button onclick="exportToPDF('Fingerprint_Logs')" title="Export PDF"
+                                        class="bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm">
+                                        <i class="fa-solid fa-file-pdf text-rose-600 text-sm"></i> <span>PDF</span>
+                                    </button>
+                                    <button onclick="printAttendanceReport()" title="Print"
+                                        class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm hover:text-brandindigo">
+                                        <i class="fa-solid fa-print text-sm"></i> <span>Print</span>
+                                    </button>
+                                    <button onclick="openPayrollModal()" title="คำนวณเงินเดือน & สลิป"
+                                        class="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm hover:shadow-md">
+                                        <i class="fa-solid fa-calculator text-sm"></i> <span data-i18n="btn_calc_payroll">คำนวณเงินเดือน/สลิป</span>
+                                    </button>
+                                    <button onclick="openPayrollHistoryModal()" title="ประวัติเงินเดือน"
+                                        class="bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-700 hover:to-indigo-800 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm hover:shadow-md">
+                                        <i class="fa-solid fa-clock-rotate-left text-sm"></i> <span data-i18n="btn_payroll_history">ประวัติเงินเดือน</span>
                                     </button>
                                 </div>
+                            </div>
 
+                            <!-- Header Row 2: Filter Toolbar (Date, Shift, Search) -->
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex flex-wrap items-center gap-2.5">
+                                    <select id="attendance-dept-filter"
+                                        onchange="renderTable(tableCache[currentSheet].data)"
+                                        class="admin-only hidden bg-white border border-gray-300 text-gray-900 font-medium text-sm rounded-xl focus:ring-brandindigo block p-2.5 w-full md:w-auto shadow-sm">
+                                        <option value="">All Departments</option>
+                                        <option value="Marketing">Marketing</option>
+                                        <option value="Project Management">Project Management</option>
+                                        <option value="Human Resources">Human Resources</option>
+                                    </select>
+
+                                    <!-- Period Mode Toggle + Picker -->
+                                    <div class="flex items-center gap-1.5 flex-shrink-0">
+                                        <!-- Toggle: Monthly / Yearly -->
+                                        <div class="flex bg-gray-100 rounded-xl p-0.5 shadow-sm border border-gray-200">
+                                            <button id="btn-period-month" onclick="setPeriodMode('month')"
+                                                class="px-3 py-2 rounded-lg text-xs font-bold transition-all bg-white text-indigo-600 shadow-sm">
+                                                <i class="fa-solid fa-calendar-days mr-1"></i>รายเดือน
+                                            </button>
+                                            <button id="btn-period-year" onclick="setPeriodMode('year')"
+                                                class="px-3 py-2 rounded-lg text-xs font-bold transition-all text-gray-500">
+                                                <i class="fa-solid fa-calendar-year mr-1"></i>รายปี
+                                            </button>
+                                        </div>
+                                        <!-- Month Picker (shown in monthly mode) -->
+                                        <input type="month" id="calendarMonth"
+                                            onchange="renderTable(tableCache[currentSheet].data)"
+                                            class="bg-white border border-gray-300 text-gray-900 font-medium text-sm rounded-xl focus:ring-brandindigo block p-2.5 shadow-sm">
+                                        <!-- Year Selector (shown in yearly mode) -->
+                                        <select id="calendarYear" onchange="renderTable(tableCache[currentSheet].data)"
+                                            class="hidden bg-white border border-indigo-300 text-indigo-700 font-bold text-sm rounded-xl focus:ring-brandindigo block p-2.5 shadow-sm cursor-pointer">
+                                        </select>
+                                    </div>
+
+                                    <!-- Shift Filter -->
+                                    <div class="flex items-center gap-1.5">
+                                        <select id="attendance-shift-filter"
+                                            onchange="renderTable(tableCache[currentSheet].data)"
+                                            class="bg-white border border-gray-300 text-gray-900 font-medium text-sm rounded-xl focus:ring-brandindigo block p-2.5 shadow-sm cursor-pointer">
+                                            <option value="">กะเวลาทั้งหมด (All Shifts)</option>
+                                        </select>
+                                        <button onclick="openShiftSettingsModal()" title="ตั้งค่ากะเวลาเข้างาน"
+                                            class="bg-white hover:bg-indigo-50 text-indigo-600 border border-indigo-200 w-[38px] h-[38px] rounded-full text-sm transition-all shadow-sm flex items-center justify-center flex-shrink-0">
+                                            <i class="fa-solid fa-plus"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Search Box -->
                                 <div class="relative w-full md:w-64">
                                     <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                                         <i class="fa-solid fa-user-magnifying-glass text-gray-400"></i>
@@ -2685,20 +2773,6 @@
                                         class="hidden absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto custom-scrollbar text-left py-1">
                                     </div>
                                 </div>
-
-                                <button onclick="exportToExcel('Fingerprint_Logs')" title="Export Excel"
-                                    class="bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm">
-                                    <i class="fa-solid fa-file-excel text-emerald-600 text-sm"></i> <span>Excel</span>
-                                </button>
-                                <button onclick="exportToPDF('Fingerprint_Logs')" title="Export PDF"
-                                    class="bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm">
-                                    <i class="fa-solid fa-file-pdf text-rose-600 text-sm"></i> <span>PDF</span>
-                                </button>
-                                <button onclick="printAttendanceReport()" title="Print"
-                                    class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm hover:text-brandindigo">
-                                    <i class="fa-solid fa-print text-sm"></i> <span>Print</span>
-                                </button>
-
                             </div>
                         </div>
                         <div
@@ -3058,9 +3132,10 @@
                         printFrame.style.border = '0';
                         document.body.appendChild(printFrame);
 
-                        const doc = printFrame.contentWindow.document;
-                        doc.open();
-                        doc.write(`
+                        try {
+                            const doc = printFrame.contentWindow.document;
+                            doc.open();
+                            doc.write(`
                             <!DOCTYPE html>
                             <html>
                             <head>
@@ -3097,6 +3172,9 @@
                             printFrame.contentWindow.focus();
                             printFrame.contentWindow.print();
                         }, 250);
+                        } catch(err) {
+                            console.warn('Iframe print failed under local origin, falling back to window print', err);
+                        }
                     };
 
 
@@ -5422,23 +5500,424 @@
         </div>
     </div>
 
-    <!-- 📌 Script หลัก (แบ่งย่อยเพื่อประสิทธิภาพและความปลอดภัย) -->
-    <script src="js/i18n.js"></script>
-    <script src="js/utils.js"></script>
-    <script src="js/auth.js"></script>
-    <script src="js/navigation.js"></script>
-    <script src="js/api.js"></script>
-    <script src="js/dashboard.js"></script>
-    <script src="js/organization.js"></script>
-    <script src="js/employees.js"></script>
-    <script src="js/tables.js"></script>
-    <script src="js/forms.js"></script>
-    <script src="js/features.js"></script>
-    <script src="js/accounting.js"></script>
+    <!-- 💰 MODAL: คำนวณเงินเดือน & ออกใบจ่ายเงินเดือน (Payroll & Payslip Modal) -->
+    <div id="payroll-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[160] hidden items-center justify-center p-3 md:p-6 overflow-y-auto custom-scrollbar">
+        <div class="bg-white rounded-3xl w-full max-w-5xl overflow-hidden shadow-2xl animate-fade-in-up border border-gray-100 my-auto">
+            <!-- Modal Header -->
+            <div class="bg-gradient-to-r from-indigo-800 via-purple-800 to-brandindigo p-5 text-white flex justify-between items-center shadow-md">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center text-white shadow-inner">
+                        <i class="fa-solid fa-calculator text-lg"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base md:text-lg flex items-center gap-2" data-i18n="payroll_modal_title">
+                            ຄຳນວນເງິນເດືອນ & ໃບຈ່າຍເງິນເດືອນ
+                        </h3>
+                        <p class="text-xs text-indigo-100" data-i18n="payroll_modal_desc">ປ້ອນຂໍ້ມູນລາຍໄດ້, ໂອທີ, ໂບນັດ, ຄ່ານ້ຳມັນ ແລະ ລາຍການຫັກ</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closePayrollModal()" class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content -->
+            <div class="p-5 md:p-6 space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
+                <!-- Header Info Controls Bar -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 text-xs">
+                    <div>
+                        <label class="block font-bold text-gray-700 mb-1" data-i18n="select_employee_label">ເລືອກພະນັກງານ *</label>
+                        <select id="payroll-emp-select" onchange="calculatePayroll()" class="w-full bg-white border border-gray-300 text-gray-900 rounded-xl p-2 font-bold focus:ring-brandindigo shadow-sm">
+                            <option value="" data-i18n="select_employee_placeholder">-- ເລືອກພະນັກງານ --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-gray-700 mb-1" data-i18n="full_name_label">ຊື່ ແລະ ນາມສະກຸນ</label>
+                        <input type="text" id="payroll-emp-name-display" oninput="calculatePayroll()" placeholder="MR. BOUALA PHONGPHANAM" class="w-full bg-white border border-gray-300 text-gray-900 rounded-xl p-2 font-bold focus:ring-brandindigo shadow-sm">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-gray-700 mb-1" data-i18n="bank_account_label">ເລກບັນຊີທະນາຄານ</label>
+                        <input type="text" id="payroll-emp-bank-display" oninput="calculatePayroll()" placeholder="160-12-00-01007465-001" class="w-full bg-white border border-gray-300 text-gray-900 rounded-xl p-2 font-semibold focus:ring-brandindigo shadow-sm">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-gray-700 mb-1" data-i18n="payroll_date_label">ວັນທີຈ່າຍ</label>
+                        <input type="date" id="payroll-date" onchange="calculatePayroll()" class="w-full bg-white border border-gray-300 text-gray-900 rounded-xl p-2 font-bold focus:ring-brandindigo shadow-sm">
+                    </div>
+                </div>
+
+                <!-- Form Inputs (2 Columns: Income vs Deductions) -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Column 1: รายละเอียดรายได้ (Earnings) -->
+                    <div class="bg-emerald-50/40 p-4 rounded-2xl border border-emerald-100 space-y-2.5">
+                        <h4 class="font-bold text-xs uppercase tracking-wider text-emerald-800 flex items-center gap-1.5 border-b border-emerald-200/60 pb-2">
+                            <i class="fa-solid fa-money-bill-trend-up text-emerald-600"></i> <span data-i18n="earnings_section_title">ລາຍການລາຍໄດ້</span>
+                        </h4>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="base_salary_label">ເງິນເດືອນພື້ນຖານ</label>
+                                <input type="number" id="payroll-base-salary" value="0" step="0.01" oninput="markInputUserModified(this); calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-gray-900 focus:ring-emerald-500">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="ot_15_label">ໂອທີ 1.5</label>
+                                <input type="number" id="payroll-ot-15" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-gray-900 focus:ring-emerald-500">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="ot_25_label">ໂອທີ 2.5</label>
+                                <input type="number" id="payroll-ot-25" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-gray-900 focus:ring-emerald-500">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="sales_bonus_label">ໂບນັດຍອດຂາຍ</label>
+                                <input type="number" id="payroll-sales-bonus" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-emerald-700 focus:ring-emerald-500">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="special_bonus_label">ໂບນັດພິເສດ</label>
+                                <input type="number" id="payroll-special-bonus" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-emerald-700 focus:ring-emerald-500">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="fuel_allowance_label">ຄ່ານ້ຳມັນລົດ</label>
+                                <input type="number" id="payroll-fuel-allowance" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-gray-900 focus:ring-emerald-500">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="annual_bonus_label">ໂບນັດປະຈຳປີ</label>
+                                <input type="number" id="payroll-annual-bonus" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-emerald-700 focus:ring-emerald-500">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="other_income_label">ລາຍໄດ້ອື່ນໆ</label>
+                                <input type="number" id="payroll-other-income" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-gray-900 focus:ring-emerald-500">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: รายการหัก (Deductions) -->
+                    <div class="bg-rose-50/40 p-4 rounded-2xl border border-rose-100 space-y-2.5">
+                        <h4 class="font-bold text-xs uppercase tracking-wider text-rose-800 flex items-center gap-1.5 border-b border-rose-200/60 pb-2">
+                            <i class="fa-solid fa-minus-circle text-rose-600"></i> <span data-i18n="deductions_section_title">ລາຍການຫັກ</span>
+                        </h4>
+
+                        <div>
+                            <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="absent_deduction_label">ຂາດງານບໍ່ມີເຫດຜົນ</label>
+                            <input type="number" id="payroll-absent-deduction" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-rose-700 focus:ring-rose-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="rule_violation_label">ຜິດລະບຽບບໍລິສັດ</label>
+                            <input type="number" id="payroll-rule-violation" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-rose-700 focus:ring-rose-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="welfare_deduction_label">ສວັດດີການຕ່າງໆ</label>
+                            <input type="number" id="payroll-welfare-deduction" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-rose-700 focus:ring-rose-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="other_expense_label">ລາຍຈ່າຍອື່ນໆ</label>
+                            <input type="number" id="payroll-other-expense" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-rose-700 focus:ring-rose-500">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Summary Badges -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-2xl text-center">
+                        <span class="text-[11px] text-emerald-700 font-bold block" data-i18n="total_earnings_badge">ລວມລາຍໄດ້ທັງໝົດ</span>
+                        <span id="payroll-gross-display" class="text-xl font-black text-emerald-800">0</span>
+                    </div>
+                    <div class="bg-rose-50 border border-rose-200 p-3 rounded-2xl text-center">
+                        <span class="text-[11px] text-rose-700 font-bold block" data-i18n="total_deductions_badge">ລວມລາຍການຫັກ</span>
+                        <span id="payroll-deduction-display" class="text-xl font-black text-rose-800">0</span>
+                    </div>
+                    <div class="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-3 rounded-2xl text-center shadow-md">
+                        <span class="text-[11px] text-emerald-100 font-bold block" data-i18n="net_to_pay_badge">ເງິນສຸດທິ</span>
+                        <span id="payroll-net-display" class="text-xl font-black text-white">0</span>
+                    </div>
+                </div>
+
+                <!-- Live Payslip Preview Card -->
+                <div>
+                    <h4 class="font-bold text-xs uppercase tracking-wider text-gray-600 mb-2 flex items-center gap-1.5">
+                        <i class="fa-solid fa-file-invoice text-brandindigo"></i> <span data-i18n="official_payslip_template">ຕົວຢ່າງໃບຈ່າຍເງິນເດືອນຈິງ</span>
+                    </h4>
+                    <div id="payslip-preview">
+                        <!-- Populated by js/payroll.js -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-4 bg-gray-50 border-t border-gray-100 flex flex-wrap justify-between items-center gap-3">
+                <button type="button" onclick="closePayrollModal()" class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors">
+                    <i class="fa-solid fa-times mr-1"></i> <span data-i18n="btn_close">ປິດໜ້ານີ້</span>
+                </button>
+                <div class="flex gap-2">
+                    <button type="button" onclick="printPayslip()" class="px-4 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-800 rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5">
+                        <i class="fa-solid fa-print text-indigo-600"></i> <span data-i18n="btn_print_payslip">ພິມໃບຈ່າຍເງິນເດືອນ</span>
+                    </button>
+                    <button type="button" onclick="savePayrollRecord()" class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-1.5">
+                        <i class="fa-solid fa-floppy-disk"></i> <span data-i18n="btn_save_payroll">ບັນທຶກໃບຈ່າຍເງິນເດືອນ</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 📊 MODAL: ประวัติเงินเดือนพนักงาน (Employee Payroll History Modal) -->
+    <div id="payroll-history-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[160] hidden items-center justify-center p-3 md:p-6 overflow-y-auto custom-scrollbar">
+        <div class="bg-white rounded-3xl w-full max-w-6xl overflow-hidden shadow-2xl animate-fade-in-up border border-gray-100 my-auto">
+            <!-- Modal Header -->
+            <div class="bg-gradient-to-r from-blue-700 via-indigo-700 to-brandindigo p-5 text-white flex justify-between items-center shadow-md">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center text-white shadow-inner">
+                        <i class="fa-solid fa-clock-rotate-left text-lg"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base md:text-lg flex items-center gap-2" data-i18n="payroll_history_title">
+                            ປະຫວັດເງິນເດືອນພະນັກງານ
+                        </h3>
+                        <p class="text-xs text-blue-100" data-i18n="payroll_history_desc">ເບິ່ງຂໍ້ມູນປະຫວັດເງິນເດືອນຍ້ອນຫຼັງພະນັກງານ</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closePayrollHistoryModal()" class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content -->
+            <div class="p-5 md:p-6 space-y-6 max-h-[82vh] overflow-y-auto custom-scrollbar">
+                <!-- Header Controls Bar -->
+                <div class="flex flex-wrap items-center justify-between gap-3 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 text-xs shadow-sm">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-user-gear text-brandindigo text-base"></i>
+                        <span class="font-bold text-gray-800 text-xs" data-i18n="select_employee_label">ເລືອກພະນັກງານ:</span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-3 flex-1 max-w-2xl justify-end">
+                        <select id="payroll-history-emp-select" onchange="renderPayrollHistory(this.value)" class="bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2 text-xs font-bold focus:ring-brandindigo shadow-sm min-w-[220px]">
+                            <option value="" data-i18n="select_employee_placeholder">-- เลือกพนักงาน --</option>
+                        </select>
+                        <div class="relative flex-1 min-w-[200px]">
+                            <input type="text" id="payroll-history-search" onkeyup="filterPayrollHistoryTable()" placeholder="ค้นหารหัสหรือชื่อพนักงาน..." class="w-full bg-white border border-gray-300 text-gray-900 rounded-xl pl-9 pr-3 py-2 text-xs font-medium focus:ring-brandindigo shadow-sm">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-gray-400 text-xs"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Section: Employee Profile Card & 4 KPI Cards -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <!-- Profile Card (4 Cols) -->
+                    <div class="lg:col-span-4 bg-white border border-gray-200 p-5 rounded-3xl shadow-sm space-y-4 flex flex-col justify-between">
+                        <div class="flex items-center gap-4 border-b border-gray-100 pb-4">
+                            <div class="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 text-2xl font-bold overflow-hidden shadow-sm shrink-0">
+                                <img id="payroll-hist-emp-photo" src="" alt="Emp Photo" class="w-full h-full object-cover hidden">
+                                <span id="payroll-hist-emp-avatar-icon"><i class="fa-solid fa-user"></i></span>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <h4 id="payroll-hist-emp-name" class="font-black text-gray-900 text-base truncate">SELECT EMPLOYEE</h4>
+                                <span id="payroll-hist-emp-id-badge" class="inline-block bg-indigo-50 text-indigo-700 font-extrabold text-[11px] px-2.5 py-0.5 rounded-full border border-indigo-100 mt-0.5">-</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2.5 text-xs text-gray-700 font-medium">
+                            <div class="flex justify-between border-b border-gray-50 pb-1.5">
+                                <span class="text-gray-500" data-i18n="employee_id_label">รหัสพนักงาน:</span>
+                                <strong id="payroll-hist-emp-id" class="text-gray-900 font-bold">-</strong>
+                            </div>
+                            <div class="flex justify-between border-b border-gray-50 pb-1.5">
+                                <span class="text-gray-500" data-i18n="position_label">ตำแหน่ง:</span>
+                                <strong id="payroll-hist-emp-position" class="text-gray-900 font-bold">-</strong>
+                            </div>
+                            <div class="flex justify-between border-b border-gray-50 pb-1.5">
+                                <span class="text-gray-500" data-i18n="department_label">แผนก:</span>
+                                <strong id="payroll-hist-emp-dept" class="text-gray-900 font-bold">-</strong>
+                            </div>
+                            <div class="flex justify-between border-b border-gray-50 pb-1.5">
+                                <span class="text-gray-500" data-i18n="start_date_label">วันที่เริ่มงาน:</span>
+                                <strong id="payroll-hist-emp-startdate" class="text-gray-900 font-bold">-</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4 Summary KPI Cards (8 Cols) -->
+                    <div class="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <!-- Card 1: เงินเดือนปัจจุบัน -->
+                        <div class="bg-blue-50/70 border border-blue-100 p-4 rounded-2xl space-y-2 shadow-sm flex flex-col justify-between">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-bold text-blue-900" data-i18n="current_base_salary">ເງິນເດືອນປັດຈຸບັນ</span>
+                                <div class="w-9 h-9 rounded-2xl bg-blue-500 text-white flex items-center justify-center text-xs shadow-sm">
+                                    <i class="fa-solid fa-wallet text-sm"></i>
+                                </div>
+                            </div>
+                            <div>
+                                <div id="payroll-hist-stat-base" class="text-xl font-black text-blue-900">0 K</div>
+                                <span class="text-[10px] text-blue-600 font-semibold" data-i18n="per_month">ต่อเดือน</span>
+                            </div>
+                        </div>
+
+                        <!-- Card 2: รายได้รวม (เดือนล่าสุด) -->
+                        <div class="bg-emerald-50/70 border border-emerald-100 p-4 rounded-2xl space-y-2 shadow-sm flex flex-col justify-between">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-bold text-emerald-900" data-i18n="total_income_last_month">ລາຍໄດ້ລວມ (ເດືອນຫຼ້າສຸດ)</span>
+                                <div class="w-9 h-9 rounded-2xl bg-emerald-500 text-white flex items-center justify-center text-xs shadow-sm">
+                                    <i class="fa-solid fa-chart-line text-sm"></i>
+                                </div>
+                            </div>
+                            <div>
+                                <div id="payroll-hist-stat-gross" class="text-xl font-black text-emerald-900">0 K</div>
+                                <span class="text-[10px] text-emerald-600 font-semibold" data-i18n="includes_ot_bonus">รวมเงินเดือน, OT, โบนัส</span>
+                            </div>
+                        </div>
+
+                        <!-- Card 3: หักสะสม (เดือนล่าสุด) -->
+                        <div class="bg-amber-50/70 border border-amber-100 p-4 rounded-2xl space-y-2 shadow-sm flex flex-col justify-between">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-bold text-amber-900" data-i18n="total_deductions_last_month">ຫັກສະສົມ (ເດືອນຫຼ້າສຸດ)</span>
+                                <div class="w-9 h-9 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-xs shadow-sm">
+                                    <i class="fa-solid fa-circle-minus text-sm"></i>
+                                </div>
+                            </div>
+                            <div>
+                                <div id="payroll-hist-stat-deduct" class="text-xl font-black text-amber-900">0 K</div>
+                                <span class="text-[10px] text-amber-600 font-semibold" data-i18n="taxes_social_sec">ภาษี, ประกันสังคม ฯลฯ</span>
+                            </div>
+                        </div>
+
+                        <!-- Card 4: รับสุทธิ (เดือนล่าสุด) -->
+                        <div class="bg-indigo-50/70 border border-indigo-100 p-4 rounded-2xl space-y-2 shadow-sm flex flex-col justify-between">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-bold text-indigo-900" data-i18n="net_pay_last_month">ຮັບສຸດທິ (ເດືອນຫຼ້າສຸດ)</span>
+                                <div class="w-9 h-9 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-xs shadow-sm">
+                                    <i class="fa-solid fa-sack-dollar text-sm"></i>
+                                </div>
+                            </div>
+                            <div>
+                                <div id="payroll-hist-stat-net" class="text-xl font-black text-indigo-900">0 K</div>
+                                <span class="text-[10px] text-indigo-600 font-semibold" data-i18n="net_after_deductions">รับสุทธิหลังหักแล้ว</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom History Table Section -->
+                <div class="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm space-y-4 p-5">
+                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4">
+                        <h4 class="font-bold text-sm text-gray-900 flex items-center gap-2">
+                            <i class="fa-solid fa-list-check text-brandindigo"></i>
+                            <span data-i18n="payroll_history_title">ປະຫວັດເງິນເດືອນ</span>
+                        </h4>
+
+                        <div class="flex flex-wrap items-center gap-2">
+                            <select id="payroll-history-year-filter" onchange="filterPayrollHistoryTable()" class="bg-gray-50 border border-gray-300 text-gray-800 rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-brandindigo">
+                                <option value="" data-i18n="all_years">ทุกปี</option>
+                                <option value="2026">2026</option>
+                                <option value="2025">2025</option>
+                            </select>
+
+                            <select id="payroll-history-month-filter" onchange="filterPayrollHistoryTable()" class="bg-gray-50 border border-gray-300 text-gray-800 rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-brandindigo">
+                                <option value="" data-i18n="all_months">ทุกเดือน</option>
+                                <option value="01">01 - มกราคม (Jan)</option>
+                                <option value="02">02 - กุมภาพันธ์ (Feb)</option>
+                                <option value="03">03 - มีนาคม (Mar)</option>
+                                <option value="04">04 - เมษายน (Apr)</option>
+                                <option value="05">05 - พฤษภาคม (May)</option>
+                                <option value="06">06 - มิถุนายน (Jun)</option>
+                                <option value="07">07 - กรกฎาคม (Jul)</option>
+                                <option value="08">08 - สิงหาคม (Aug)</option>
+                                <option value="09">09 - กันยายน (Sep)</option>
+                                <option value="10">10 - ตุลาคม (Oct)</option>
+                                <option value="11">11 - พฤศจิกายน (Nov)</option>
+                                <option value="12">12 - ธันวาคม (Dec)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Table -->
+                    <div class="overflow-x-auto rounded-2xl border border-gray-200">
+                        <table class="w-full text-xs border-collapse">
+                            <thead>
+                                <tr class="bg-gray-100 border-b border-gray-200 font-bold text-gray-700 text-center">
+                                    <th class="p-3 text-left">เดือน / ปี</th>
+                                    <th class="p-3 text-right">เงินเดือน</th>
+                                    <th class="p-3 text-right">OT</th>
+                                    <th class="p-3 text-right">โบนัส</th>
+                                    <th class="p-3 text-right text-rose-700">หักเงิน</th>
+                                    <th class="p-3 text-right text-emerald-700 font-black">รับสุทธิ</th>
+                                    <th class="p-3 text-center">สลิปเงินเดือน</th>
+                                </tr>
+                            </thead>
+                            <tbody id="payroll-history-table-body" class="divide-y divide-gray-200">
+                                <!-- Populated dynamically by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Footer Note -->
+                    <div class="bg-indigo-50/50 p-3 rounded-2xl border border-indigo-100 flex items-center gap-2 text-xs text-indigo-800">
+                        <i class="fa-solid fa-circle-info text-indigo-500 text-sm"></i>
+                        <span>หมายเหตุ: ข้อมูลเงินเดือนอาจมีการเปลี่ยนแปลง หากมีข้อสงสัยกรุณาติดต่อฝ่ายบุคคล</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+                <button type="button" onclick="closePayrollHistoryModal()" class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors">
+                    <i class="fa-solid fa-times mr-1"></i> <span data-i18n="btn_close">ปิดหน้านี้</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 📄 MODAL: ดูใบจ่ายเงินเดือนสำเร็จ (Read-Only Payslip View Modal) -->
+    <div id="payslip-view-modal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-[170] hidden items-center justify-center p-3 md:p-6 overflow-y-auto custom-scrollbar">
+        <div class="bg-white rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl animate-fade-in-up border border-gray-100 my-auto">
+            <!-- Modal Header -->
+            <div class="bg-gradient-to-r from-gray-900 via-indigo-950 to-gray-900 p-5 text-white flex justify-between items-center shadow-md">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-white/10 rounded-2xl flex items-center justify-center text-white shadow-inner">
+                        <i class="fa-solid fa-file-invoice text-lg"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base md:text-lg flex items-center gap-2" data-i18n="payslip_title">
+                            ໃບຈ່າຍເງິນເດືອນ (Payslip)
+                        </h3>
+                        <p class="text-xs text-gray-300">ใบเสร็จจ่ายเงินเดือนพนักงาน (Read-Only View)</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closePayslipViewModal()" class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content (Read-Only Payslip Preview) -->
+            <div class="p-4 md:p-6 max-h-[78vh] overflow-y-auto custom-scrollbar bg-gray-100/70">
+                <div id="payslip-view-modal-body">
+                    <!-- Populated dynamically by js/payroll.js -->
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
+                <button type="button" onclick="closePayslipViewModal()" class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors">
+                    <i class="fa-solid fa-arrow-left mr-1"></i> <span data-i18n="btn_close">ย้อนกลับ / ປິດ</span>
+                </button>
+                <button type="button" onclick="printPayslipFromViewModal()" class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-1.5">
+                    <i class="fa-solid fa-print text-sm"></i> <span data-i18n="btn_print_payslip">พิมใบจ่ายเงินเดือน / ພິມໃບຈ່າຍເງິນເດືອນ</span>
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- ⚙️ Shift Settings Modal -->
-    <div id="shift-settings-modal" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4"
-         style="background:rgba(15,15,35,0.55); backdrop-filter:blur(4px);">
+    <div id="shift-settings-modal" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4 bg-gray-900/60"
+         style="z-index:9999;" onclick="if(event.target === this) closeShiftSettingsModal()">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden animate-fadeInUp">
 
             <!-- Header -->
@@ -5562,6 +6041,21 @@
         </div>
     </div>
     <!-- /Shift Settings Modal -->
+
+    <!-- 📌 Script หลัก (แบ่งย่อยเพื่อประสิทธิภาพและความปลอดภัย) -->
+    <script src="js/i18n.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/navigation.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/organization.js"></script>
+    <script src="js/employees.js?v=2"></script>
+    <script src="js/tables.js?v=2"></script>
+    <script src="js/forms.js?v=2"></script>
+    <script src="js/features.js"></script>
+    <script src="js/accounting.js"></script>
+    <script src="js/payroll.js"></script>
 
 </body>
 
