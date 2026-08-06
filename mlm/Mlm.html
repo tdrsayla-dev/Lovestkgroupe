@@ -244,7 +244,7 @@
 
         const activeBusinessTeams = useMemo(() => {
             if (Array.isArray(businessTeams) && businessTeams.length > 0) {
-                return businessTeams.filter(t => t && t.status !== 'ปิดใช้งาน' && t.status !== 'Disabled');
+                return businessTeams.filter(t => t && t.status !== 'ปิดเข้าใช้งาน' && t.status !== 'ปิดใช้งาน' && t.status !== 'Disabled');
             }
             return [
                 { id: 'T001', name: 'Marketing', status: 'ใช้งาน' },
@@ -255,7 +255,7 @@
         const activeTeamMembers = useMemo(() => {
             const disabledTeamKeys = new Set(
                 (businessTeams || [])
-                    .filter(t => t && (t.status === 'ปิดใช้งาน' || t.status === 'Disabled'))
+                    .filter(t => t && (t.status === 'ปิดเข้าใช้งาน' || t.status === 'ปิดใช้งาน' || t.status === 'Disabled'))
                     .map(t => [t.id, t.name, String(t.id || '').toUpperCase(), String(t.name || '').toUpperCase()])
                     .flat()
             );
@@ -334,28 +334,78 @@
           return { teamsList, memberTargetData: Object.values(mTargetData).sort((a, b) => b.actual - a.actual) };
         }, [sales, members, activeBusinessTeams, dashStartDate, dashEndDate, customMemberTargets, globalIndividualTarget]);
 
+        const parseSaleDate = (s) => String(s?.date || s?.created_at || s?.sale_date || '').trim().substring(0, 10);
+        const parseSaleMemberId = (s) => s?.memberId || s?.member_id || s?.sellerId || s?.seller_id;
+        const parseSaleBoxes = (s) => {
+            const fQty = Number(s?.['รวมชิ้นราคาเต็ม'] || s?.fullQty || s?.full_qty || s?.full_boxes || 0);
+            const mQty = Number(s?.['รวมชิ้นราคาสมาชิก'] || s?.memberQty || s?.member_qty || s?.member_boxes || 0);
+            return (fQty + mQty);
+        };
+
+        const findSaleCustomer = (s, customersList) => {
+            const sCustId = safeUpper(s?.customerId || s?.customer_id || s?.hn || s?.customerHn || '');
+            const sCustName = safeUpper(s?.customerName || s?.customer_name || '');
+            return (customersList || []).find(c => {
+                if (!c) return false;
+                const cId = safeUpper(c.id || c.hn || '');
+                const cName = safeUpper(c.name || c.customer_name || '');
+                if (sCustId && cId && sCustId === cId) return true;
+                if (sCustName && cName && sCustName === cName) return true;
+                return false;
+            });
+        };
+
         const topPerformanceData = useMemo(() => {
             let mStats = {};
             (members || []).forEach(m => {
-                if (m && m.id) {
-                    mStats[m.id] = { id: m.id, name: m.name, newCustSet: new Set(), totalFullBoxes: 0, oldFullBoxes: 0 };
+                if (m && (m.id || m.user_id)) {
+                    const key = safeUpper(m.id || m.user_id);
+                    mStats[key] = { id: m.id || m.user_id, name: m.name || m.id, profileUrl: m.profileUrl, newCustSet: new Set(), totalFullBoxes: 0, oldFullBoxes: 0 };
                 }
             });
-            const filteredSales = (sales || []).filter(s => s && (s.date || '') >= dashStartDate && (s.date || '') <= dashEndDate);
+            const filteredSales = (sales || []).filter(s => {
+                if (!s) return false;
+                const dStr = parseSaleDate(s);
+                return dStr >= dashStartDate && dStr <= dashEndDate;
+            });
             filteredSales.forEach(s => {
-                const memberId = s.memberId; if (!memberId) return;
-                if (!mStats[memberId]) {
-                    const mem = (members || []).find(m => m && m.id === memberId);
-                    mStats[memberId] = { id: memberId, name: mem ? mem.name : memberId, newCustSet: new Set(), totalFullBoxes: 0, oldFullBoxes: 0 };
+                const memberId = parseSaleMemberId(s);
+                if (!memberId) return;
+                const key = safeUpper(memberId);
+                if (!mStats[key]) {
+                    const mem = (members || []).find(m => m && safeUpper(m.id || m.user_id) === key);
+                    mStats[key] = { id: memberId, name: mem ? mem.name : (s.memberName || s.member_name || memberId), profileUrl: mem?.profileUrl, newCustSet: new Set(), totalFullBoxes: 0, oldFullBoxes: 0 };
                 }
-                const fullBoxes = parseInt(s['ยอดรวมชิ้นทั้งหมด'] || 0, 10);
-                const cust = (customers || []).find(c => c && c.id === s.customerId);
-                const cType = cust ? String(cust.type || '').trim() : '';
-                if (cType.includes('ใหม่') || cType.includes('ปรึกษา')) { if (s.customerId) mStats[memberId].newCustSet.add(s.customerId); }
-                mStats[memberId].totalFullBoxes += fullBoxes;
-                if (cType.includes('เก่า') || cType.includes('ปรึกษา') || cType.includes('โทร')) { mStats[memberId].oldFullBoxes += fullBoxes; }
+                const fullBoxes = parseSaleBoxes(s);
+                if (fullBoxes <= 0) return;
+
+                const cust = findSaleCustomer(s, customers);
+                let cType = cust ? String(cust.type || cust.customer_type || cust.customerType || '').trim() : '';
+                if (!cType && (s.customerType || s.customer_type)) {
+                    cType = String(s.customerType || s.customer_type).trim();
+                }
+
+                const sCustId = s.customerId || s.customer_id || s.hn || s.customerName || s.customer_name;
+                const isNew = (cType.includes('ใหม่') || cType.includes('ตรวจ') || cType.includes('ปรึกษา') || cType.includes('New')) && !cType.includes('ไม่มาตรวจ') && !cType.includes('เก่า');
+                const isOld = cType.includes('เก่า') || cType.includes('ต่อยา') || cType.includes('โทร') || cType.includes('Old') || cType.includes('ไม่มาตรวจ');
+
+                if (isNew) {
+                    if (sCustId) mStats[key].newCustSet.add(sCustId);
+                }
+                mStats[key].totalFullBoxes += fullBoxes;
+                if (isOld) {
+                    mStats[key].oldFullBoxes += fullBoxes;
+                } else if (isNew) {
+                    // new customer sales boxes are not old
+                } else {
+                    mStats[key].oldFullBoxes += fullBoxes;
+                }
             });
-            return Object.values(mStats).map(m => ({ ...m, newCustCount: m.newCustSet.size })).sort((a, b) => b.totalFullBoxes - a.totalFullBoxes).slice(0, 10);
+            return Object.values(mStats)
+                .map(m => ({ ...m, newCustCount: m.newCustSet.size }))
+                .filter(m => m.totalFullBoxes > 0)
+                .sort((a, b) => b.totalFullBoxes - a.totalFullBoxes)
+                .slice(0, 10);
         }, [sales, customers, members, dashStartDate, dashEndDate]);
 
         const podiumData = useMemo(() => {
@@ -379,16 +429,24 @@
         }, [topPerformanceData]);
 
         const dailyTopSales = useMemo(() => {
-            const periodSales = (sales || []).filter(s => s && (s.date || '') >= dailyTopSalesStartDate && (s.date || '') <= dailyTopSalesEndDate);
+            const periodSales = (sales || []).filter(s => {
+                if (!s) return false;
+                const dStr = parseSaleDate(s);
+                return dStr >= dailyTopSalesStartDate && dStr <= dailyTopSalesEndDate;
+            });
             const aggregated = {};
             periodSales.forEach(s => {
-                const mId = s.memberId;
+                const mId = parseSaleMemberId(s);
                 if (!mId) return;
-                if (!aggregated[mId]) { aggregated[mId] = { memberId: mId, memberName: s.memberName, totalFullBoxes: 0 }; }
-                aggregated[mId].totalFullBoxes += (parseInt(s['ยอดรวมชิ้นทั้งหมด']) || 0);
+                const key = safeUpper(mId);
+                if (!aggregated[key]) {
+                    const mem = (members || []).find(m => m && safeUpper(m.id || m.user_id) === key);
+                    aggregated[key] = { memberId: mId, memberName: mem ? mem.name : (s.memberName || s.member_name || mId), totalFullBoxes: 0 };
+                }
+                aggregated[key].totalFullBoxes += parseSaleBoxes(s);
             });
             return Object.values(aggregated).filter(m => m.totalFullBoxes > 0).sort((a, b) => b.totalFullBoxes - a.totalFullBoxes).slice(0, 10);
-        }, [sales, dailyTopSalesStartDate, dailyTopSalesEndDate]);
+        }, [sales, members, dailyTopSalesStartDate, dailyTopSalesEndDate]);
 
         const [zeroSalesStartDate, setZeroSalesStartDate] = useState(firstDayOfMonthStr);
         const [zeroSalesEndDate, setZeroSalesEndDate] = useState(todayStr);
@@ -396,16 +454,23 @@
         const zeroSalesData = useMemo(() => {
             let mStats = {};
             activeTeamMembers.forEach(m => {
-                if (m && m.id && (m.status === 'ทำงานอยู่' || m.status === 'ใช้งาน' || m.status === 'Active')) {
-                    mStats[m.id] = { id: m.id, name: m.name, team: String(m.team || '').trim(), totalFullBoxes: 0, profileUrl: m.profileUrl };
+                if (m && (m.id || m.user_id) && (m.status === 'ทำงานอยู่' || m.status === 'ใช้งาน' || m.status === 'Active')) {
+                    const key = safeUpper(m.id || m.user_id);
+                    mStats[key] = { id: m.id || m.user_id, name: m.name, team: String(m.team || '').trim(), totalFullBoxes: 0, profileUrl: m.profileUrl };
                 }
             });
 
-            const filteredSales = (sales || []).filter(s => s && (s.date || '') >= zeroSalesStartDate && (s.date || '') <= zeroSalesEndDate);
+            const filteredSales = (sales || []).filter(s => {
+                if (!s) return false;
+                const dStr = parseSaleDate(s);
+                return dStr >= zeroSalesStartDate && dStr <= zeroSalesEndDate;
+            });
             filteredSales.forEach(s => {
-                const memberId = s.memberId;
-                if (mStats[memberId]) {
-                    mStats[memberId].totalFullBoxes += (parseInt(s['ยอดรวมชิ้นทั้งหมด'] || 0, 10));
+                const memberId = parseSaleMemberId(s);
+                if (!memberId) return;
+                const key = safeUpper(memberId);
+                if (mStats[key]) {
+                    mStats[key].totalFullBoxes += parseSaleBoxes(s);
                 }
             });
 
@@ -446,17 +511,20 @@
             });
 
             return Object.values(teamMap);
-        }, [members, sales, activeBusinessTeams, zeroSalesStartDate, zeroSalesEndDate]);
+        }, [members, sales, activeBusinessTeams, activeTeamMembers, zeroSalesStartDate, zeroSalesEndDate]);
 
         const [custTypeStartDate, setCustTypeStartDate] = useState(firstDayOfMonthStr);
         const [custTypeEndDate, setCustTypeEndDate] = useState(todayStr);
 
         const salesByCustTypeData = useMemo(() => {
             let mStats = {};
-            const filteredSales = (sales || []).filter(s => s && (s.date || '') >= custTypeStartDate && (s.date || '') <= custTypeEndDate);
+            const filteredSales = (sales || []).filter(s => {
+                if (!s) return false;
+                const dStr = parseSaleDate(s);
+                return dStr >= custTypeStartDate && dStr <= custTypeEndDate;
+            });
             const foundTypes = new Set();
 
-            // 📌 ลงทะเบียนประเภทลูกค้าทั้งหมดที่เปิดใช้งานล่วงหน้า
             (activeCustomerTypes || []).forEach(t => {
                 if (t && t.name && String(t.name).trim() !== '') {
                     foundTypes.add(String(t.name).trim());
@@ -464,31 +532,19 @@
             });
 
             filteredSales.forEach(s => {
-                const fullQty = Number(s['รวมชิ้นราคาเต็ม'] || 0);
-                const memQty = Number(s['รวมชิ้นราคาสมาชิก'] || 0);
-                const countedBoxes = fullQty + memQty;
+                const countedBoxes = parseSaleBoxes(s);
                 if (countedBoxes === 0) return;
 
-                const memberId = s.memberId || s.sellerId;
+                const memberId = parseSaleMemberId(s);
                 if (!memberId) return;
 
-                if (!mStats[memberId]) {
-                    const mem = (members || []).find(m => m && safeUpper(m.id || m.user_id) === safeUpper(memberId));
-                    mStats[memberId] = { id: memberId, name: mem ? mem.name : memberId, profileUrl: mem?.profileUrl, totalBoxes: 0, typeBreakdown: {} };
+                const key = safeUpper(memberId);
+                if (!mStats[key]) {
+                    const mem = (members || []).find(m => m && safeUpper(m.id || m.user_id) === key);
+                    mStats[key] = { id: memberId, name: mem ? mem.name : (s.memberName || s.member_name || memberId), profileUrl: mem?.profileUrl, totalBoxes: 0, typeBreakdown: {} };
                 }
 
-                // 📌 ค้นหาลูกค้า robust ขึ้นโดยเช็คทั้ง ID, HN และชื่อลูกค้า
-                const sCustId = safeUpper(s.customerId || s.hn || '');
-                const sCustName = safeUpper(s.customerName || s.customer_name || '');
-                const cust = (customers || []).find(c => {
-                    if (!c) return false;
-                    const cId = safeUpper(c.id || c.hn || '');
-                    const cName = safeUpper(c.name || c.customer_name || '');
-                    if (sCustId && cId && sCustId === cId) return true;
-                    if (sCustName && cName && sCustName === cName) return true;
-                    return false;
-                });
-
+                const cust = findSaleCustomer(s, customers);
                 let cType = cust && (cust.type || cust.customer_type || cust.customerType) ? String(cust.type || cust.customer_type || cust.customerType).trim() : '';
                 if (!cType || cType === '') {
                     if (s.customerType || s.customer_type) cType = String(s.customerType || s.customer_type).trim();
@@ -497,8 +553,8 @@
 
                 foundTypes.add(cType);
 
-                mStats[memberId].totalBoxes += countedBoxes;
-                mStats[memberId].typeBreakdown[cType] = (mStats[memberId].typeBreakdown[cType] || 0) + countedBoxes;
+                mStats[key].totalBoxes += countedBoxes;
+                mStats[key].typeBreakdown[cType] = (mStats[key].typeBreakdown[cType] || 0) + countedBoxes;
             });
 
             const sortedMembers = Object.values(mStats).sort((a, b) => b.totalBoxes - a.totalBoxes);
@@ -685,15 +741,15 @@
                               <div className="flex items-end justify-center gap-1 sm:gap-2 h-24 sm:h-32 w-full mb-3 border-b border-white/10 pb-1">
                                  <div className="flex flex-col items-center justify-end h-full">
                                     <span className="text-[9px] sm:text-[11px] font-black text-blue-400 mb-1">{m.totalFullBoxes}</span>
-                                    <div className="w-2.5 sm:w-4 bg-blue-500 rounded-t-[2px] shadow-[0_0_5px_rgba(59,130,246,0.6)] group-hover:bg-blue-400 transition-colors" style={{ height: `${Math.max((m.totalFullBoxes / maxPerfStats.maxFull) * 100, 2)}%` }}></div>
+                                    <div className="w-2.5 sm:w-4 bg-blue-500 rounded-t-[2px] shadow-[0_0_5px_rgba(59,130,246,0.6)] group-hover:bg-blue-400 transition-all duration-300" style={{ height: `${Math.max((m.totalFullBoxes / (maxPerfStats.maxFull || 1)) * 100, 4)}%` }}></div>
                                  </div>
                                  <div className="flex flex-col items-center justify-end h-full">
                                     <span className="text-[9px] sm:text-[11px] font-black text-orange-400 mb-1">{m.oldFullBoxes}</span>
-                                    <div className="w-2.5 sm:w-4 bg-orange-500 rounded-t-[2px] shadow-[0_0_5px_rgba(249,115,22,0.6)] group-hover:bg-orange-400 transition-colors" style={{ height: `${Math.max((m.oldFullBoxes / maxPerfStats.maxFull) * 100, 2)}%` }}></div>
+                                    <div className="w-2.5 sm:w-4 bg-orange-500 rounded-t-[2px] shadow-[0_0_5px_rgba(249,115,22,0.6)] group-hover:bg-orange-400 transition-all duration-300" style={{ height: `${Math.max((m.oldFullBoxes / (maxPerfStats.maxFull || 1)) * 100, 4)}%` }}></div>
                                  </div>
                                  <div className="flex flex-col items-center justify-end h-full">
                                     <span className="text-[9px] sm:text-[11px] font-black text-emerald-400 mb-1">{m.newCustCount}</span>
-                                    <div className="w-2.5 sm:w-4 bg-emerald-50 rounded-t-[2px] shadow-[0_0_5px_rgba(16,185,129,0.6)] group-hover:bg-emerald-400 transition-colors" style={{ height: `${Math.max((m.newCustCount / maxPerfStats.maxFull) * 100, 2)}%` }}></div>
+                                    <div className="w-2.5 sm:w-4 bg-emerald-500 rounded-t-[2px] shadow-[0_0_5px_rgba(16,185,129,0.6)] group-hover:bg-emerald-400 transition-all duration-300" style={{ height: `${Math.max((m.newCustCount / (maxPerfStats.maxNew || 1)) * 100, 4)}%` }}></div>
                                  </div>
                               </div>
                               <div className="relative mb-2">
@@ -886,8 +942,8 @@
                                  <div className="flex items-end justify-center gap-1.5 sm:gap-2 h-36 sm:h-48 w-full mb-4 border-b border-white/10 pb-2">
                                     {Object.entries(m.typeBreakdown).sort((a,b) => b[1]-a[1]).map(([tName, qty]) => {
                                         if (qty <= 0) return null;
-                                        const theme = salesByCustTypeData.typeColors[tName];
-                                        const heightPercent = Math.max((qty / salesByCustTypeData.maxScale) * 100, 5); 
+                                        const theme = salesByCustTypeData.typeColors[tName] || { bg: 'bg-cyan-500', text: 'text-cyan-400' };
+                                        const heightPercent = Math.max((qty / (salesByCustTypeData.maxScale || 1)) * 100, 6); 
                                         return (
                                             <div key={tName} className="flex flex-col items-center justify-end h-full" title={`${tName}: ${qty} กล่อง`}>
                                                <span className={`text-[10px] sm:text-xs font-black mb-1.5 ${theme.text} drop-shadow-sm`}>{qty}</span>
@@ -1295,7 +1351,15 @@
                })).filter(m => m.id !== '');
                setMembers(formattedMembers);
            }
-           if (Array.isArray(response.customers)) setCustomers(response.customers);
+            if (Array.isArray(response.customers)) {
+                setCustomers(response.customers.map(c => ({
+                    ...c,
+                    id: String(c.id || c.customer_id || c.hn || '').trim(),
+                    name: String(c.name || c.customer_name || '').trim(),
+                    type: String(c.type || c.customer_type || c.customerType || 'ไม่ระบุ').trim(),
+                    memberId: String(c.memberId || c.member_id || c.owner_member_id || '').trim()
+                })));
+            }
            if (Array.isArray(response.businessTeams)) setBusinessTeams(response.businessTeams.map(t => ({...t, id: String(t.id || t.team_id || t.Team_ID || "").trim(), name: String(t.name || t.team_name || t.Team_Name || t.TeamName || "").trim(), status: String(t.status || t.Status || "ใช้งาน").trim()})));
            if (Array.isArray(response.systemUsers)) setSystemUsers(response.systemUsers);
            if (Array.isArray(response.targetHistory)) setTargetHistory(response.targetHistory);

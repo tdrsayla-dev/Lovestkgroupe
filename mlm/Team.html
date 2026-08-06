@@ -1018,8 +1018,9 @@
         };
 
         const handleToggleStatus = async (team) => {
-            const currentStatus = team.status || 'เข้าใช้งาน';
-            const newStatus = (currentStatus === 'เข้าใช้งาน' || currentStatus === 'Active') ? 'ปิดเข้าใช้งาน' : 'เข้าใช้งาน';
+            const currentStatus = String(team.status || 'เข้าใช้งาน').trim();
+            const isActive = currentStatus === 'เข้าใช้งาน' || currentStatus === 'ใช้งาน' || currentStatus === 'เปิดใช้งาน' || currentStatus === 'Active' || currentStatus === 'ทำงานอยู่';
+            const newStatus = isActive ? 'ปิดเข้าใช้งาน' : 'เข้าใช้งาน';
             
             try {
                 await supabaseUpdate('stk_business_teams', team.id, { status: newStatus }, 'team_id');
@@ -1078,7 +1079,7 @@
                             <tbody>
                                 {filteredTeams.map((team, idx) => {
                                     const mCount = getMemberCount(team.id, team.name);
-                                    const isTeamDisabled = team.status === 'ปิดเข้าใช้งาน' || team.status === 'Disabled';
+                                    const isTeamDisabled = team.status === 'ปิดเข้าใช้งาน' || team.status === 'ปิดใช้งาน' || team.status === 'Disabled';
                                     return (
                                         <tr key={team.id || idx} className={`border-b border-slate-100 transition-colors ${isTeamDisabled ? 'bg-slate-50/60 opacity-85' : 'hover:bg-slate-50'}`}>
                                             <td className="p-4 text-sm font-bold text-blue-600 whitespace-nowrap">{team.id}</td>
@@ -1092,19 +1093,25 @@
                                                 </span>
                                             </td>
                                             <td className="p-4 text-center">
-                                                <button 
-                                                    type="button"
-                                                    onClick={() => handleToggleStatus(team)}
-                                                    className={`px-3.5 py-1.5 rounded-full text-xs font-black transition-all shadow-sm flex items-center gap-1.5 mx-auto cursor-pointer ${
-                                                        isTeamDisabled
-                                                        ? 'bg-slate-200 text-slate-600 hover:bg-slate-300 border border-slate-300'
-                                                        : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300'
-                                                    }`}
-                                                    title="เปิดหรือปิดการเข้าใช้งานทีมนี้ในหน้าหลัก"
-                                                >
-                                                    <span className={`w-2 h-2 rounded-full ${isTeamDisabled ? 'bg-slate-500' : 'bg-emerald-500 animate-pulse'}`}></span>
-                                                    {isTeamDisabled ? 'ปิดเข้าใช้งาน (ซ่อนอยู่)' : 'เปิดเข้าใช้งาน'}
-                                                </button>
+                                                <div className="flex items-center justify-center gap-3">
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => handleToggleStatus(team)}
+                                                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out outline-none ${
+                                                            isTeamDisabled ? 'bg-slate-300' : 'bg-emerald-500'
+                                                        }`}
+                                                        title="คลิกเพื่อเปิด/ปิดใช้งานทีมนี้"
+                                                    >
+                                                        <span
+                                                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                                                isTeamDisabled ? 'translate-x-0' : 'translate-x-5'
+                                                            }`}
+                                                        />
+                                                    </button>
+                                                    <span className={`text-xs font-black w-24 text-left ${isTeamDisabled ? 'text-slate-400' : 'text-emerald-700'}`}>
+                                                        {isTeamDisabled ? 'ปิดใช้งาน (ซ่อน)' : 'เปิดใช้งาน'}
+                                                    </span>
+                                                </div>
                                             </td>
                                             {isAdmin && (
                                                 <td className="p-2 text-center border-l border-slate-100">
