@@ -1009,8 +1009,28 @@ function renderTable(data) {
 
         let tr = '<tr class="bg-white hover:bg-gray-50 transition-colors">';
         displayHeaders.forEach(h => {
-            let val = row[h] || '';
-            const lw = h.toLowerCase();
+            let val = (row[h] !== undefined && row[h] !== null) ? row[h] : '';
+            const lw = h.toLowerCase().trim();
+            const isPhotoCol = /^(photo|photos|profile|pic|image)$/i.test(lw);
+
+            if (isPhotoCol) {
+                if (!val || val === '' || val === '-' || val === 'null' || val === 'undefined') {
+                    if (typeof getFuzzyValue === 'function') {
+                        val = getFuzzyValue(row, ['Photos', 'photos', 'photo', 'profile', 'pic', 'image', 'picture', 'Photo', 'PHOTOS']) || val;
+                    }
+                }
+                if (typeof normalizeRatingPhoto === 'function') {
+                    val = normalizeRatingPhoto(val, (typeof getFuzzyValue === 'function' ? getFuzzyValue(row, ['first_name', 'name', 'full_name']) : '') || row.Employee_ID || 'Pic');
+                }
+            }
+
+            if (lw === 'full_name' || lw === 'full name' || lw === 'fullname' || lw === 'name' || lw === 'employee name' || lw === 'ชื่อ-นามสกุล' || lw === 'ชื่อพนักงาน') {
+                const empId = String(row.Employee_ID || row.employee_id || row.Emp_ID || row.emp_id || '').toUpperCase().trim();
+                const realName = getEmployeeFullName(empId, val);
+                if (realName && realName !== '-') {
+                    val = realName;
+                }
+            }
 
             if (lw === 'is evaluator' || lw === 'is_evaluator') {
                 const isEval = String(val).toLowerCase() === 'true' || val === true || String(val).toLowerCase() === 'yes';
@@ -1147,17 +1167,36 @@ function renderTable(data) {
 
             let valStr = String(val).trim();
             const isPhotoColumn = /^(photo|photos|profile|pic|image)$/i.test(String(h).trim());
-            const isImageData = /^data:image\/[a-z0-9.+-]+;base64,/i.test(valStr);
+
+            if (isPhotoColumn && typeof normalizeRatingPhoto === 'function') {
+                valStr = normalizeRatingPhoto(valStr, (typeof getFuzzyValue === 'function' ? getFuzzyValue(row, ['first_name', 'name', 'full_name']) : '') || row.Employee_ID || 'Pic');
+            }
+
+            if (isPhotoColumn && valStr.includes('drive.google.com')) {
+                let fileId = '';
+                if (valStr.includes('id=')) fileId = valStr.split('id=')[1].split('&')[0];
+                else if (valStr.includes('/d/')) fileId = valStr.split('/d/')[1].split('/')[0];
+                if (fileId) valStr = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w800';
+            }
+
+            const isImageData = /^data:image\//i.test(valStr) && valStr.length > 30;
             const isPdfData = /^data:application\/pdf(?:;base64)?,/i.test(valStr);
             const isPdfUrl = /\.pdf(?:[?#]|$)/i.test(valStr);
-            if (isPhotoColumn && (isPdfData || isPdfUrl)) {
-                val = `<button type="button" data-src="${valStr}" onclick="showAttachmentPreview(this.dataset.src, 'Leave request attachment')" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-bold transition-colors shadow-sm" title="Open PDF">
-                            <i class="fa-solid fa-file-pdf text-lg"></i><span>View PDF</span>
-                        </button>`;
-            } else if (isPhotoColumn && (isImageData || valStr.match(/^https?:\/\//i))) {
-                val = `<button type="button" onclick="showAttachmentPreview(this.querySelector('img').src, 'Attachment image')" class="block mx-auto rounded-xl overflow-hidden border border-gray-200 shadow-sm hover:shadow-lg hover:scale-105 transition-all cursor-zoom-in" title="Click to enlarge">
-                            <img src="${valStr}" alt="Profile photo" class="w-14 h-14 object-cover bg-gray-50" onerror="this.closest('button').innerHTML='<span class=&quot;text-xs text-red-500 px-2&quot;>Image unavailable</span>'">
-                        </button>`;
+
+            if (isPhotoColumn) {
+                if (isPdfData || isPdfUrl) {
+                    val = `<button type="button" data-src="${valStr}" onclick="showAttachmentPreview(this.dataset.src, 'Attachment PDF')" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-bold transition-colors shadow-sm" title="Open PDF">
+                                <i class="fa-solid fa-file-pdf text-base"></i><span>PDF</span>
+                            </button>`;
+                } else if (isImageData || /^https?:\/\//i.test(valStr) || /^blob:/i.test(valStr)) {
+                    val = `<button type="button" onclick="showAttachmentPreview(this.querySelector('img').src, 'Profile photo')" class="block mx-auto rounded-full overflow-hidden border border-indigo-100 shadow-sm hover:shadow-md hover:scale-110 transition-all cursor-zoom-in group" title="Click to view photo">
+                                <img src="${valStr}" alt="Profile photo" class="w-10 h-10 object-cover bg-gray-50 mx-auto" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=Pic';">
+                            </button>`;
+                } else {
+                    val = `<div class="w-10 h-10 rounded-full bg-indigo-50/60 border border-indigo-100 flex items-center justify-center mx-auto text-indigo-400 font-bold text-xs shadow-sm">
+                                <i class="fa-solid fa-user text-xs"></i>
+                            </div>`;
+                }
             } else if (valStr.match(/^https?:\/\//i)) {
                 let isImage = valStr.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i) != null || valStr.toLowerCase().includes('drive.google.com');
                 let linkIcon = isImage ? 'fa-image text-brandpurple' : 'fa-link text-brandindigo';
@@ -2307,13 +2346,21 @@ function populateShiftDropdown() {
 
 /** เปิด Modal */
 function openShiftSettingsModal() {
-    const modal = document.getElementById('shift-settings-modal');
-    if (!modal) return;
-    renderShiftConfigList();
-    renderEmployeeAssignmentList(); // โหลดรายชื่อพนักงานด้วยเสมอ
-    switchShiftTab('config'); // เริ่มที่แท็บ 1 เสมอ
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
+    if (typeof toggleLoading === 'function') toggleLoading(false);
+    try {
+        const modal = document.getElementById('shift-settings-modal');
+        if (!modal) {
+            console.error('shift-settings-modal not found');
+            return;
+        }
+        renderShiftConfigList();
+        renderEmployeeAssignmentList(); // โหลดรายชื่อพนักงานด้วยเสมอ
+        switchShiftTab('config'); // เริ่มที่แท็บ 1 เสมอ
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    } catch (err) {
+        console.error('Error opening shift settings modal:', err);
+    }
 }
 
 /** ปิด Modal */
@@ -2535,16 +2582,78 @@ function saveShiftAssignments(data) {
     localStorage.setItem(SHIFT_ASSIGN_KEY, JSON.stringify(data));
 }
 
-/** อัปเดต Shift_Start และ Shift_End ของ log ตาม shift ที่กำหนดไว้ให้พนักงานแต่ละคน */
+/** ดึงชื่อ-นามสกุลจริงของพนักงานจาก tableCache (Staff) หรืออิงจาก empId */
+function getEmployeeFullName(empId, existingName) {
+    const cleanId = String(empId || '').toUpperCase().trim();
+    const existingStr = String(existingName || '').trim();
+
+    if (existingStr && existingStr !== '-' && existingStr.toUpperCase() !== cleanId) {
+        return existingStr;
+    }
+
+    if (!cleanId || cleanId === 'UNDEFINED' || cleanId === 'NULL' || cleanId === '-') return existingStr || '-';
+
+    // 1. ค้นหาจาก tableCache Staff/staff
+    const staffCache = tableCache['Staff'] || tableCache['staff'];
+    if (staffCache && Array.isArray(staffCache.data)) {
+        const match = staffCache.data.find(s => {
+            const sId = String(s.Employee_ID || s.employee_id || s.Emp_ID || s.emp_id || s.id || '').toUpperCase().trim();
+            return sId === cleanId;
+        });
+        if (match) {
+            const bankName = String(match.Bank_Account_Name || match.bank_account_name || '').trim();
+            const first = String(match.First_Name || match.first_name || match.FirstName || match.Name_TH || match['ชื่อ'] || '').trim();
+            const last = String(match.Last_Name || match.last_name || match.LastName || match['นามสกุล'] || '').trim();
+            const combined = [first, last].filter(Boolean).join(' ').trim();
+            const rawName = String(match.Full_Name || match.full_name || match.Name || match.name || match['ชื่อ-นามสกุล'] || match['ชื่อพนักงาน'] || '').trim();
+
+            const finalName = bankName || combined || rawName;
+            if (finalName && finalName !== '-' && finalName.toUpperCase() !== cleanId) {
+                return finalName;
+            }
+        }
+    }
+
+    // 2. ค้นหาจากตารางอื่นๆ ใน tableCache ที่มี Employee_ID ตรงกัน
+    for (const key of Object.keys(tableCache)) {
+        const cacheEntry = tableCache[key];
+        if (cacheEntry && Array.isArray(cacheEntry.data)) {
+            const match = cacheEntry.data.find(s => {
+                const sId = String(s.Employee_ID || s.employee_id || s.Emp_ID || s.emp_id || '').toUpperCase().trim();
+                const nameCandidate = String(s.Full_Name || s.full_name || s.Name || s.name || s.Bank_Account_Name || s['ชื่อ-นามสกุล'] || '').trim();
+                return sId === cleanId && nameCandidate && nameCandidate.toUpperCase() !== cleanId && nameCandidate !== '-';
+            });
+            if (match) {
+                const n = String(match.Full_Name || match.full_name || match.Name || match.name || match.Bank_Account_Name || match['ชื่อ-นามสกุล'] || '').trim();
+                if (n && n.toUpperCase() !== cleanId) return n;
+            }
+        }
+    }
+
+    return cleanId;
+}
+
+/** อัปเดต Shift_Start, Shift_End และ Full_Name ของ log ตามพนักงานแต่ละคน */
 function applyEmployeeShiftAssignmentsToLogs(rows) {
     if (!Array.isArray(rows) || !rows.length) return rows;
     const assignments = typeof loadShiftAssignments === 'function' ? loadShiftAssignments() : {};
     const configs = typeof loadShiftConfigs === 'function' ? loadShiftConfigs() : [];
-    if (!configs.length || !Object.keys(assignments).length) return rows;
 
     rows.forEach(r => {
         const empId = String(r.Employee_ID || r.employee_id || r.Emp_ID || r.emp_id || '').toUpperCase().trim();
         if (!empId) return;
+
+        // Auto-enrich Full_Name if missing or showing empId
+        const realName = getEmployeeFullName(empId, r.Full_Name || r.full_name || r['FULL NAME'] || r['Full Name']);
+        if (realName && realName !== empId) {
+            r.Full_Name = realName;
+            if ('full_name' in r) r.full_name = realName;
+            if ('FULL NAME' in r) r['FULL NAME'] = realName;
+            if ('Full Name' in r) r['Full Name'] = realName;
+        }
+
+        if (!configs.length || !Object.keys(assignments).length) return;
+
         const shiftId = assignments[empId];
         if (shiftId) {
             const cfg = configs.find(c => c.id === shiftId || c.start === shiftId);
@@ -2583,15 +2692,14 @@ function renderEmployeeAssignmentList() {
         // ดึง empId ก่อนเพื่อหลีกเลี่ยงการเอา empId มาแสดงเป็นชื่อ
         const empIdStr = String(obj.Employee_ID || obj.employee_id || obj.Emp_ID || obj.emp_id || obj.User_ID || obj.user_id || '').toUpperCase().trim();
 
-        // ใช้ getFuzzyValue เหมือนกับที่ใช้ทั่วทั้ง codebase
-        if (typeof getFuzzyValue === 'function') {
-            const first = getFuzzyValue(obj, ['first_name', 'name', 'full_name', 'Employees Name', 'employee_name', 'ชื่อ', 'ชื่อ-นามสกุล', 'Full_Name', 'fullname', 'Firstname_TH', 'Name_TH', 'display_name']);
-            const last  = getFuzzyValue(obj, ['last_name', 'นามสกุล', 'Lastname']);
-            const firstStr = (first && first !== '-') ? String(first).trim() : '';
-            const lastStr  = (last  && last  !== '-') ? String(last).trim()  : '';
-            const combined = [firstStr, lastStr].filter(Boolean).join(' ').trim();
-            if (combined && combined.toUpperCase() !== empIdStr) return combined;
-        }
+        // ใช้วิธีเช็ค property ตรงๆ แทน getFuzzyValue เพื่อลดการประมวลผลที่ทำให้เบราว์เซอร์ค้าง
+        const first = obj.first_name || obj.name || obj.full_name || obj['Employees Name'] || obj.employee_name || obj['ชื่อ'] || obj['ชื่อ-นามสกุล'] || obj.Full_Name || obj.fullname || obj.Firstname_TH || obj.Name_TH || obj.display_name;
+        const last = obj.last_name || obj['นามสกุล'] || obj.Lastname;
+        
+        const firstStr = (first && first !== '-') ? String(first).trim() : '';
+        const lastStr  = (last  && last  !== '-') ? String(last).trim()  : '';
+        const combined = [firstStr, lastStr].filter(Boolean).join(' ').trim();
+        if (combined && combined.toUpperCase() !== empIdStr) return combined;
 
         // fallback: ค้นชื่อด้วย property access โดยตรง
         const possibleName =
@@ -2623,12 +2731,13 @@ function renderEmployeeAssignmentList() {
         }
     });
 
-    // 📌 โหลดข้อมูล staff จากเซิร์ฟเวอร์อัตโนมัติหากยังไม่มีข้อมูลชื่อพนักงานใน cache
+    // 📌 โหลดข้อมูล staff จากเซิร์ฟเวอร์อัตโนมัติหากยังไม่มีข้อมูลชื่อพนักงานใน cache (ทำแค่ครั้งเดียวเพื่อป้องกัน infinite loop)
     const hasMissingNames = Array.from(empMap.values()).some(e => !e.name);
     const hasStaffCache = tableCache['staff'] && Array.isArray(tableCache['staff'].data) && tableCache['staff'].data.length > 0;
 
-    if ((!hasStaffCache || hasMissingNames) && typeof google !== 'undefined' && google.script && google.script.run && !window._fetchingStaffForShift) {
+    if ((!hasStaffCache || hasMissingNames) && typeof google !== 'undefined' && google.script && google.script.run && !window._fetchingStaffForShift && !window._hasFetchedStaffForShift) {
         window._fetchingStaffForShift = true;
+        window._hasFetchedStaffForShift = true; // Mark as fetched to prevent loop
         google.script.run.withSuccessHandler(res => {
             window._fetchingStaffForShift = false;
             if (res && res.success && Array.isArray(res.data)) {
@@ -2653,13 +2762,40 @@ function renderEmployeeAssignmentList() {
     const configs = loadShiftConfigs();
     const assignments = loadShiftAssignments();
 
-    // สร้าง options สำหรับ shift dropdown
+    // Save globally to allow filtering without DOM manipulation
+    window._allEmployeesForShift = employees;
+    window._shiftConfigs = configs;
+    window._shiftAssignments = assignments;
+
+    // Render only first 50 initially to prevent Tailwind CDN freeze
+    renderEmployeeAssignRows('');
+}
+
+/** Render employee rows to DOM with limit */
+function renderEmployeeAssignRows(query) {
+    const listEl = document.getElementById('shift-assign-list');
+    if (!listEl) return;
+    
+    let filtered = window._allEmployeesForShift || [];
+    if (query) {
+        filtered = filtered.filter(emp => 
+            emp.empId.toLowerCase().includes(query) || 
+            (emp.name || '').toLowerCase().includes(query)
+        );
+    }
+    
+    // Only render top 100 to avoid Tailwind CDN bottleneck
+    const toRender = filtered.slice(0, 100);
+    
+    const configs = window._shiftConfigs || [];
+    const assignments = window._shiftAssignments || {};
+    
     const shiftOptionsHtml = `
         <option value="">— ยังไม่กำหนด —</option>
         ${configs.map(c => `<option value="${c.id}">${c.start} - ${c.end}${c.label ? ' (' + c.label + ')' : ''}</option>`).join('')}
     `;
 
-    listEl.innerHTML = employees.map(emp => {
+    listEl.innerHTML = toRender.map(emp => {
         const assigned = assignments[emp.empId] || '';
         const assignedCfg = configs.find(c => c.id === assigned || c.start === assigned);
         const badgeHtml = assignedCfg
@@ -2670,7 +2806,7 @@ function renderEmployeeAssignmentList() {
 
         return `
         <div class="emp-assign-row flex items-center justify-between bg-white border border-gray-200 rounded-xl px-3 py-2.5 hover:border-indigo-200 transition-all"
-             data-empid="${emp.empId}" data-name="${displayName.toLowerCase()}">
+             data-empid="${emp.empId}">
             <div class="flex items-center gap-2.5 flex-1 min-w-0">
                 <div class="w-7 h-7 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-indigo-600 font-bold text-xs flex-shrink-0">
                     ${emp.empId.slice(0, 2)}
@@ -2691,7 +2827,7 @@ function renderEmployeeAssignmentList() {
         </div>`;
     }).join('');
 
-    // ตั้งค่าที่บันทึกไว้ให้กับ dropdown (รองรับทั้ง id และ start time)
+    // Update select values
     listEl.querySelectorAll('select[data-empid]').forEach(sel => {
         const empId = sel.getAttribute('data-empid');
         if (assignments[empId]) {
@@ -2704,19 +2840,16 @@ function renderEmployeeAssignmentList() {
             }
         }
     });
-
-    // เรียก filter เผื่อว่ามีคำค้นหาค้างอยู่
-    filterEmployeeAssignList();
+    
+    if (filtered.length > 100) {
+        listEl.innerHTML += `<div class="text-center text-xs text-gray-400 py-2">...และอีก ${filtered.length - 100} รายการ (พิมพ์ค้นหาเพื่อดูเพิ่มเติม)</div>`;
+    }
 }
 
 /** กรองรายชื่อพนักงานตาม search */
 function filterEmployeeAssignList() {
     const q = (document.getElementById('shift-assign-search')?.value || '').toLowerCase().trim();
-    document.querySelectorAll('.emp-assign-row').forEach(row => {
-        const empId = (row.getAttribute('data-empid') || '').toLowerCase();
-        const name = (row.getAttribute('data-name') || '').toLowerCase();
-        row.classList.toggle('hidden', q && !empId.includes(q) && !name.includes(q));
-    });
+    renderEmployeeAssignRows(q);
 }
 
 /** บันทึกการกำหนดกะแบบ real-time เมื่อเลือก dropdown */

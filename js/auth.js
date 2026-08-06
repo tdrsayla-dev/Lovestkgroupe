@@ -89,38 +89,50 @@ function showApp() {
         const displayProfilePic = document.getElementById('display-profile-pic');
         const displayProfileIcon = document.getElementById('display-profile-icon');
         
-        if (displayUser) displayUser.innerText = username || 'Unknown';
+        const cleanUsername = String(username || 'Unknown').replace(/<[^>]*>/g, '').trim();
+        if (displayUser) displayUser.innerText = cleanUsername || 'Unknown';
         if (displayRole) displayRole.innerText = role;
 
-        // Fetch profile pic from staff or users if empId exists
+        const setProfilePic = (url) => {
+            let validPic = url;
+            if (validPic && typeof normalizeRatingPhoto === 'function') {
+                validPic = normalizeRatingPhoto(validPic, cleanUsername);
+            }
+            if (validPic && displayProfilePic && !validPic.includes('<img')) {
+                displayProfilePic.src = validPic;
+                displayProfilePic.onerror = function () {
+                    this.classList.add('hidden');
+                    if (displayProfileIcon) displayProfileIcon.classList.remove('hidden');
+                };
+                displayProfilePic.classList.remove('hidden');
+                if (displayProfileIcon) displayProfileIcon.classList.add('hidden');
+            } else if (displayProfilePic && cleanUsername) {
+                displayProfilePic.src = `https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=${encodeURIComponent(cleanUsername)}`;
+                displayProfilePic.classList.remove('hidden');
+                if (displayProfileIcon) displayProfileIcon.classList.add('hidden');
+            }
+        };
+
         if (empId) {
-            google.script.run.withSuccessHandler(res => {
-                try {
-                    let picUrl = null;
-                    const staffList = (res && res.data && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : []);
-                    const row = staffList.find(r => String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === String(empId).trim().toUpperCase());
-                    if (row) {
-                        picUrl = row.Photos || row.photos || row.photo || row.profile || row.pic || row.image || null;
-                    }
-                    if (picUrl && displayProfilePic && String(picUrl).trim() !== '-' && String(picUrl).trim() !== '[object Object]') {
-                        displayProfilePic.src = picUrl;
-                        displayProfilePic.onerror = function () {
-                            this.classList.add('hidden');
-                            if (displayProfileIcon) displayProfileIcon.classList.remove('hidden');
-                        };
-                        displayProfilePic.classList.remove('hidden');
-                        if (displayProfileIcon) displayProfileIcon.classList.add('hidden');
-                    } else if (displayProfilePic && username) {
-                        displayProfilePic.src = `https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=${encodeURIComponent(username)}`;
-                        displayProfilePic.classList.remove('hidden');
-                        if (displayProfileIcon) displayProfileIcon.classList.add('hidden');
-                    }
-                } catch(e) {}
-            }).getSheetData('staff');
-        } else if (displayProfilePic && username) {
-            displayProfilePic.src = `https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=${encodeURIComponent(username)}`;
-            displayProfilePic.classList.remove('hidden');
-            if (displayProfileIcon) displayProfileIcon.classList.add('hidden');
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                google.script.run.withSuccessHandler(res => {
+                    try {
+                        let picUrl = null;
+                        const staffList = (res && res.data && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : []);
+                        const row = staffList.find(r => String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === String(empId).trim().toUpperCase());
+                        if (row) picUrl = row.Photos || row.photos || row.photo || row.profile || row.pic || row.image || null;
+                        setProfilePic(picUrl);
+                    } catch(e) {}
+                }).getSheetData('staff');
+            } else if (typeof tableCache !== 'undefined' && tableCache['staff'] && tableCache['staff'].data) {
+                const row = tableCache['staff'].data.find(r => String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === String(empId).trim().toUpperCase());
+                const picUrl = row ? (row.Photos || row.photos || row.photo || row.profile || row.pic || row.image || null) : null;
+                setProfilePic(picUrl);
+            } else {
+                setProfilePic(null);
+            }
+        } else {
+            setProfilePic(null);
         }
 
         applyRolePermissions(role, permissions);
@@ -307,41 +319,64 @@ function openMyProfileModal() {
     
     if (!empId) return;
     
-    toggleLoading(true, 'Loading Profile...');
-    google.script.run
-        .withSuccessHandler(res => {
-            toggleLoading(false);
-            if (res && res.success && res.data && res.data.length > 0) {
-                const profile = res.data.find(r => String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === String(empId).trim().toUpperCase());
-                if (profile) {
-                    document.getElementById('my-profile-firstname').value = profile.First_Name || '';
-                    document.getElementById('my-profile-lastname').value = profile.Last_Name || '';
-                document.getElementById('my-profile-birthday').value = profile.Birthday || profile.Birthday_ || profile['Birthday '] || '';
-                document.getElementById('my-profile-tel').value = profile.Tel || '';
-                document.getElementById('my-profile-email').value = profile.Email || '';
-                document.getElementById('my-profile-line').value = profile.Line || '';
-                document.getElementById('my-profile-bankname').value = profile.Bank_Name || profile.bank_name || '';
-                document.getElementById('my-profile-bankaccountname').value = profile.Bank_Account_Name || profile.bank_account_name || '';
-                document.getElementById('my-profile-bankaccountno').value = profile.Bank_Account_No || profile.bank_account_no || '';
-                const photoVal = profile.Photos || profile.photos || '';
-                if (photoVal && photoVal !== '-' && photoVal !== '[object Object]') {
-                    document.getElementById('my-profile-photo-preview').src = photoVal;
-                    const displayProfilePic = document.getElementById('display-profile-pic');
-                    const displayProfileIcon = document.getElementById('display-profile-icon');
-                    if (displayProfilePic) {
-                        displayProfilePic.src = photoVal;
-                        displayProfilePic.classList.remove('hidden');
-                        if (displayProfileIcon) displayProfileIcon.classList.add('hidden');
-                    }
-                }
-                } // End if (profile)
+    const populateProfile = (profile) => {
+        if (!profile) return;
+        const cleanVal = (val) => String(val || '').replace(/<[^>]*>/g, '').trim();
+        document.getElementById('my-profile-firstname').value = cleanVal(profile.First_Name || profile.first_name);
+        document.getElementById('my-profile-lastname').value = cleanVal(profile.Last_Name || profile.last_name);
+        document.getElementById('my-profile-birthday').value = profile.Birthday || profile.Birthday_ || profile['Birthday '] || '';
+        document.getElementById('my-profile-tel').value = cleanVal(profile.Tel || profile.tel);
+        document.getElementById('my-profile-email').value = cleanVal(profile.Email || profile.email);
+        document.getElementById('my-profile-line').value = cleanVal(profile.Line || profile.line);
+        document.getElementById('my-profile-bankname').value = cleanVal(profile.Bank_Name || profile.bank_name);
+        document.getElementById('my-profile-bankaccountname').value = cleanVal(profile.Bank_Account_Name || profile.bank_account_name);
+        document.getElementById('my-profile-bankaccountno').value = cleanVal(profile.Bank_Account_No || profile.bank_account_no);
+        
+        let photoVal = profile.Photos || profile.photos || '';
+        if (photoVal && typeof normalizeRatingPhoto === 'function') {
+            photoVal = normalizeRatingPhoto(photoVal, cleanVal(profile.First_Name || profile.first_name));
+        }
+        if (photoVal && photoVal !== '-' && photoVal !== '[object Object]' && !photoVal.includes('<img')) {
+            const previewEl = document.getElementById('my-profile-photo-preview');
+            if (previewEl) previewEl.src = photoVal;
+            const displayProfilePic = document.getElementById('display-profile-pic');
+            const displayProfileIcon = document.getElementById('display-profile-icon');
+            if (displayProfilePic) {
+                displayProfilePic.src = photoVal;
+                displayProfilePic.classList.remove('hidden');
+                if (displayProfileIcon) displayProfileIcon.classList.add('hidden');
             }
-        })
-        .withFailureHandler(err => {
+        }
+    };
+
+    toggleLoading(true, 'Loading Profile...');
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+            .withSuccessHandler(res => {
+                toggleLoading(false);
+                if (res && res.success && res.data && res.data.length > 0) {
+                    const profile = res.data.find(r => String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === String(empId).trim().toUpperCase());
+                    populateProfile(profile);
+                }
+            })
+            .withFailureHandler(err => {
+                toggleLoading(false);
+                showToast('Failed to load profile', 'error');
+            })
+            .getSheetData('staff', { select: '*', filter: `Employee_ID=eq.${empId}` });
+    } else if (typeof tableCache !== 'undefined' && tableCache['staff'] && tableCache['staff'].data) {
+        toggleLoading(false);
+        const profile = tableCache['staff'].data.find(r => String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === String(empId).trim().toUpperCase());
+        populateProfile(profile);
+    } else if (typeof fetchData === 'function') {
+        fetchData('staff').then(data => {
             toggleLoading(false);
-            showToast('Failed to load profile', 'error');
-        })
-        .getSheetData('staff', { select: '*', filter: `Employee_ID=eq.${empId}` });
+            const profile = (data || []).find(r => String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === String(empId).trim().toUpperCase());
+            populateProfile(profile);
+        }).catch(() => toggleLoading(false));
+    } else {
+        toggleLoading(false);
+    }
 }
 
 function closeMyProfileModal() {
@@ -362,16 +397,17 @@ function submitMyProfile(e) {
     
     if (!empId) return;
     
+    const cleanVal = (val) => String(val || '').replace(/<[^>]*>/g, '').trim();
     const payload = {
-        'First_Name': document.getElementById('my-profile-firstname').value,
-        'Last_Name': document.getElementById('my-profile-lastname').value,
+        'First_Name': cleanVal(document.getElementById('my-profile-firstname').value),
+        'Last_Name': cleanVal(document.getElementById('my-profile-lastname').value),
         'Birthday ': document.getElementById('my-profile-birthday').value,
-        'Tel': document.getElementById('my-profile-tel').value,
-        'Email': document.getElementById('my-profile-email').value,
-        'Line': document.getElementById('my-profile-line').value,
-        'Bank_Name': document.getElementById('my-profile-bankname').value,
-        'Bank_Account_Name': document.getElementById('my-profile-bankaccountname').value,
-        'Bank_Account_No': document.getElementById('my-profile-bankaccountno').value,
+        'Tel': cleanVal(document.getElementById('my-profile-tel').value),
+        'Email': cleanVal(document.getElementById('my-profile-email').value),
+        'Line': cleanVal(document.getElementById('my-profile-line').value),
+        'Bank_Name': cleanVal(document.getElementById('my-profile-bankname').value),
+        'Bank_Account_Name': cleanVal(document.getElementById('my-profile-bankaccountname').value),
+        'Bank_Account_No': cleanVal(document.getElementById('my-profile-bankaccountno').value),
         'Photos': document.getElementById('my-profile-photo-url').value
     };
     
@@ -396,73 +432,74 @@ function submitMyProfile(e) {
             showToast('Failed to upload image: ' + (err ? err.message || err : 'Error'), 'error');
         };
 
-        if (typeof compressImageFile === 'function') {
-            compressImageFile(file, 480, 0.72).then(function (base64Data) {
+        compressImageFile(file, 480, 0.72).then(function (base64Data) {
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
                 google.script.run
                     .withSuccessHandler(handlePhotoSuccess)
                     .withFailureHandler(handlePhotoFailure)
                     .uploadImageToDrive(base64Data, file.name);
-            }).catch(function (err) {
-                toggleLoading(false);
-                showToast('Image compression error: ' + (err ? err.message || err : 'Error'), 'error');
-            });
-            return; // Wait for upload
-        } else {
-            // Fallback if compressImageFile is not available
-            let reader = new FileReader();
-            reader.onload = function(e) {
-                let base64Data = e.target.result;
-                google.script.run
-                    .withSuccessHandler(handlePhotoSuccess)
-                    .withFailureHandler(handlePhotoFailure)
-                    .uploadImageToDrive(base64Data, file.name);
-            };
-            reader.readAsDataURL(file);
-            return;
-        }
+            } else {
+                handlePhotoSuccess(base64Data);
+            }
+        }).catch(function (err) {
+            toggleLoading(false);
+            showToast('Image compression error: ' + (err ? err.message || err : 'Error'), 'error');
+        });
+        return; // Wait for upload
     }
     
     doSubmitMyProfile(empId, payload, sessionData);
 }
 
 function doSubmitMyProfile(empId, payload, sessionData) {
-    google.script.run
-        .withSuccessHandler(res => {
-            toggleLoading(false);
-            if (res && res.success) {
-                showToast(t('profile_updated') || 'Profile updated successfully', 'success');
-                
-                // Update top-right navbar profile picture immediately
-                const updatedPhoto = payload.Photos;
-                if (updatedPhoto && updatedPhoto !== '-' && updatedPhoto !== '[object Object]') {
-                    const displayProfilePic = document.getElementById('display-profile-pic');
-                    const displayProfileIcon = document.getElementById('display-profile-icon');
-                    if (displayProfilePic) {
-                        displayProfilePic.src = updatedPhoto;
-                        displayProfilePic.classList.remove('hidden');
-                        if (displayProfileIcon) displayProfileIcon.classList.add('hidden');
-                    }
+    const handleSuccess = function(res) {
+        toggleLoading(false);
+        if (res && res.success) {
+            showToast(t('profile_updated') || 'Profile updated successfully', 'success');
+            
+            // Update top-right navbar profile picture immediately
+            const updatedPhoto = payload.Photos;
+            if (updatedPhoto && updatedPhoto !== '-' && updatedPhoto !== '[object Object]') {
+                const displayProfilePic = document.getElementById('display-profile-pic');
+                const displayProfileIcon = document.getElementById('display-profile-icon');
+                if (displayProfilePic) {
+                    displayProfilePic.src = updatedPhoto;
+                    displayProfilePic.classList.remove('hidden');
+                    if (displayProfileIcon) displayProfileIcon.classList.add('hidden');
                 }
-
-                // Update local session if email changed
-                const newEmail = document.getElementById('my-profile-email').value;
-                if (newEmail && newEmail !== sessionData.email) {
-                    sessionData.email = newEmail;
-                    sessionData.username = newEmail;
-                    if (localStorage.getItem('hr_user_session')) localStorage.setItem('hr_user_session', JSON.stringify(sessionData));
-                    if (sessionStorage.getItem('hr_user_session')) sessionStorage.setItem('hr_user_session', JSON.stringify(sessionData));
-                }
-                
-                closeMyProfileModal();
-            } else {
-                showToast(res ? res.message : 'Error updating profile', 'error');
             }
-        })
-        .withFailureHandler(err => {
-            toggleLoading(false);
-            showToast('Connection failed: ' + err.message, 'error');
-        })
-        .updateMyProfile(empId, payload);
+
+            // Update local session if email changed
+            const newEmail = document.getElementById('my-profile-email').value;
+            if (newEmail && newEmail !== sessionData.email) {
+                sessionData.email = newEmail;
+                sessionData.username = newEmail;
+                if (localStorage.getItem('hr_user_session')) localStorage.setItem('hr_user_session', JSON.stringify(sessionData));
+                if (sessionStorage.getItem('hr_user_session')) sessionStorage.setItem('hr_user_session', JSON.stringify(sessionData));
+            }
+            
+            closeMyProfileModal();
+        } else {
+            showToast(res ? res.message : 'Error updating profile', 'error');
+        }
+    };
+
+    if (window.supabase) {
+        let supaPayload = typeof toPayload === 'function' ? toPayload('staff', payload) : payload;
+        window.supabase.from('staff').update(supaPayload).eq('Employee_ID', empId).then(() => {});
+    }
+
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+            .withSuccessHandler(handleSuccess)
+            .withFailureHandler(err => {
+                toggleLoading(false);
+                showToast('Connection failed: ' + err.message, 'error');
+            })
+            .updateMyProfile(empId, payload);
+    } else {
+        handleSuccess({ success: true });
+    }
 }
 
 /* =====================================================================

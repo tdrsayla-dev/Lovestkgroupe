@@ -221,7 +221,71 @@ const translations = {
     stat_late_out_hrs: 'Late Out (Hrs)',
     stat_net_offset_hrs: 'Net Offset (Hrs)',
     stat_absent: 'Absent',
-    stat_ot_amount: 'OT Amount'
+    stat_ot_amount: 'OT Amount',
+    payroll_modal_title: 'Payroll Calculator & Payslip (LOVE STK Spec)',
+    payroll_modal_desc: 'Enter earnings, OT 1.5/2.5, bonuses, fuel allowance, and deductions',
+    select_employee_label: 'Select Employee *',
+    select_employee_placeholder: '-- Select Employee --',
+    full_name_label: 'Full Name',
+    bank_account_label: 'Bank Account',
+    payroll_date_label: 'Payroll Date',
+    earnings_section_title: 'EARNINGS',
+    deductions_section_title: 'DEDUCTIONS',
+    base_salary_label: 'Base Salary',
+    ot_15_label: 'OT 1.5',
+    ot_25_label: 'OT 2.5',
+    sales_bonus_label: 'Sales Bonus',
+    special_bonus_label: 'Special Bonus',
+    fuel_allowance_label: 'Fuel Allowance',
+    annual_bonus_label: 'Annual Bonus',
+    other_income_label: 'Other Income',
+    absent_deduction_label: 'Absent without reason',
+    rule_violation_label: 'Violation of company rules',
+    welfare_deduction_label: 'Welfare / Benefits deductions',
+    other_expense_label: 'Other Expenses',
+    total_earnings_badge: 'TOTAL EARNINGS',
+    total_deductions_badge: 'TOTAL DEDUCTIONS',
+    net_to_pay_badge: 'NET TO PAY',
+    official_payslip_template: 'Official Payslip Template - LOVE STK',
+    btn_close: 'Close',
+    btn_print_payslip: 'Print Payslip',
+    btn_save_payroll: 'Save Payslip Record',
+    btn_calc_payroll: 'Payroll Calculator',
+    btn_shift_settings: 'Shift Settings',
+    payslip_title: 'PAYSLIP',
+    payslip_earnings: 'Earnings',
+    payslip_deductions: 'Deductions',
+    payslip_qty: 'Qty',
+    payslip_amount: 'Amount',
+    payslip_total: 'TOTAL',
+    payslip_net_to_pay: 'Net To Pay',
+    payslip_president: 'President',
+    payslip_employee: 'Employee',
+    payroll_date: 'Payroll Date',
+    company_name_label: 'LOVE STK Co., Ltd.',
+    currency_unit: 'LAK',
+    lao_header_country: "LAO PEOPLE'S DEMOCRATIC REPUBLIC",
+    lao_header_motto: "Peace Independence Democracy Unity Prosperity",
+    select_emp_warning_title: 'Please Select Employee',
+    select_emp_warning_text: 'Please select an employee before saving payroll record.',
+    save_success_title: 'Saved Successfully!',
+    save_success_text: 'Payroll record saved successfully.',
+    btn_payroll_history: 'Payroll History',
+    payroll_history_title: 'Employee Payroll History',
+    payroll_history_desc: 'View historical payroll records and payslips',
+    current_base_salary: 'Current Base Salary',
+    total_income_last_month: 'Total Earnings (Latest)',
+    total_deductions_last_month: 'Total Deductions (Latest)',
+    net_pay_last_month: 'Net Pay (Latest)',
+    per_month: 'per month',
+    includes_ot_bonus: 'Includes Base, OT, Bonuses',
+    taxes_social_sec: 'Taxes, Welfare, Penalties',
+    net_after_deductions: 'Net pay after deductions',
+    view_payslip: 'View Payslip',
+    select_year: 'Select Year',
+    select_month: 'Select Month',
+    all_months: 'All Months',
+    all_years: 'All Years'
   },
   'la': {
     menu_main: 'ເມນູຫຼັກ',
@@ -441,7 +505,71 @@ const translations = {
     stat_late_out_hrs: 'ຢູ່ຫຼັງເລີກວຽກ (ຊມ.)',
     stat_net_offset_hrs: 'ເວລາສຸທິ / ຫັກລົບ (ຊມ.)',
     stat_absent: 'ຂາດການ',
-    stat_ot_amount: 'ຈຳນວນເງິນ OT'
+    stat_ot_amount: 'ຈຳນວນເງິນ OT',
+    payroll_modal_title: 'ຄຳນວນເງິນເດືອນ & ໃບຈ່າຍເງິນເດືອນ (LOVE STK Spec)',
+    payroll_modal_desc: 'ປ້ອນຂໍ້ມູນລາຍໄດ້, ໂອທີ 1.5/2.5, ໂບນັດ, ຄ່ານ້ຳມັນ ແລະ ລາຍການຫັກ',
+    select_employee_label: 'ເລືອກພະນັກງານ *',
+    select_employee_placeholder: '-- ເລືອກພະນັກງານ --',
+    full_name_label: 'ຊື່ ແລະ ນາມສະກຸນ',
+    bank_account_label: 'ເລກບັນຊີທະນາຄານ',
+    payroll_date_label: 'ວັນທີຈ່າຍ',
+    earnings_section_title: 'ລາຍການລາຍໄດ້',
+    deductions_section_title: 'ລາຍການຫັກ',
+    base_salary_label: 'ເງິນເດືອນພື້ນຖານ',
+    ot_15_label: 'ໂອທີ 1.5',
+    ot_25_label: 'ໂອທີ 2.5',
+    sales_bonus_label: 'ໂບນັດຍອດຂາຍ',
+    special_bonus_label: 'ໂບນັດພິເສດ',
+    fuel_allowance_label: 'ຄ່ານ້ຳມັນລົດ',
+    annual_bonus_label: 'ໂບນັດປະຈຳປີ',
+    other_income_label: 'ລາຍໄດ້ອື່ນໆ',
+    absent_deduction_label: 'ຂາດງານບໍ່ມີເຫດຜົນ',
+    rule_violation_label: 'ຜິດລະບຽບບໍລິສັດ',
+    welfare_deduction_label: 'ສວັດດີການຕ່າງໆ',
+    other_expense_label: 'ລາຍຈ່າຍອື່ນໆ',
+    total_earnings_badge: 'ລວມລາຍໄດ້ທັງໝົດ',
+    total_deductions_badge: 'ລວມລາຍການຫັກ',
+    net_to_pay_badge: 'ເງິນສຸດທິ',
+    official_payslip_template: 'ຕົວຢ່າງໃບຈ່າຍເງິນເດືອນຈິງ - LOVE STK',
+    btn_close: 'ປິດ',
+    btn_print_payslip: 'ພິມໃບຈ່າຍເງິນເດືອນ',
+    btn_save_payroll: 'ບັນທຶກໃບຈ່າຍເງິນເດືອນ',
+    btn_calc_payroll: 'ຄຳນວນເງິນເດືອນ/ສລິປ',
+    btn_shift_settings: 'ຕັ້ງຄ່າກະ',
+    payslip_title: 'ໃບຈ່າຍເງິນເດືອນ',
+    payslip_earnings: 'ລາຍລະອຽດ',
+    payslip_deductions: 'ລາຍການຫັກ',
+    payslip_qty: 'ຈຳນວນ',
+    payslip_amount: 'ຈຳນວນເງິນ',
+    payslip_total: 'ລວມ',
+    payslip_net_to_pay: 'ເງິນສຸດທິ',
+    payslip_president: 'ປະທານ',
+    payslip_employee: 'ພະນັກງານ',
+    payroll_date: 'ວັນທີຈ່າຍ',
+    company_name_label: 'ບໍລິສັດ LOVE STK',
+    currency_unit: 'ກີບ',
+    lao_header_country: 'ສາທາລະນະລັດ ປະຊາທິປະໄຕ ປະຊາຊົນລາວ',
+    lao_header_motto: 'ສັນຕິພາບ ເອກະລາດ ປະຊາທິປະໄຕ ເອກະພາບ ວັດທະນະຖາວອນ',
+    select_emp_warning_title: 'ກະລຸນາເລືອກພະນັກງານ',
+    select_emp_warning_text: 'ກະລຸນາເລືອກພະນັກງານກ່ອນບັນທຶກຂໍ້ມູນ',
+    save_success_title: 'ບັນທຶກສຳເລັດ!',
+    save_success_text: 'ບັນທຶກຂໍ້ມູນໃບຈ່າຍເງິນເດືອນเรียบร้อยแล้ว',
+    btn_payroll_history: 'ປະຫວັດເງິນເດືອນ',
+    payroll_history_title: 'ປະຫວັດເງິນເດືອນພະນັກງານ',
+    payroll_history_desc: 'ເບິ່ງຂໍ້ມູນປະຫວັດເງິນເດືອນຍ້ອນຫຼັງພະນັກງານ',
+    current_base_salary: 'ເງິນເດືອນປັດຈຸບັນ',
+    total_income_last_month: 'ລາຍໄດ້ລວມ (ເດືອນຫຼ້າສຸດ)',
+    total_deductions_last_month: 'ຫັກສະສົມ (ເດືອນຫຼ້າສຸດ)',
+    net_pay_last_month: 'ຮັບສຸດທິ (ເດືອນຫຼ້າສຸດ)',
+    per_month: 'ຕໍ່ເດືອນ',
+    includes_ot_bonus: 'ລວມເງິນເດືອນ, OT, ໂບນັດ',
+    taxes_social_sec: 'ພາສີ, ສວັດດີການ ฯລຯ',
+    net_after_deductions: 'ຮັບສຸດທິຫຼັງຫັກແລ້ວ',
+    view_payslip: 'ເບິ່ງໃບຈ່າຍເງິນເດືອນ',
+    select_year: 'ເລືອກປີ',
+    select_month: 'ເລືອກເດືອນ',
+    all_months: 'ທຸກເດືອນ',
+    all_years: 'ທຸກໆປີ'
   },
   'th': {
     // Main Menu
@@ -659,21 +787,23 @@ const translations = {
     stat_ot_amount: 'ยอดรวมค่า OT'
   }
 };
+translations['th'] = translations['la'];
 
 // ฟังก์ชันดึงภาษาปัจจุบันจาก localStorage (ค่าเริ่มต้นคือ 'la')
 function getCurrentLanguage() {
-    return localStorage.getItem('hr_language') || 'la';
+    let lang = localStorage.getItem('hr_language') || 'la';
+    if (lang === 'th') return 'la'; // Map Thai to Lao as requested (only Lao and English supported)
+    return lang;
 }
 
-// ฟังก์ชันแปลคำศัพท์ตาม Key ที่กำหนด
 function t(key) {
     let currentLang = getCurrentLanguage();
-    let langObj = translations[currentLang] || translations['la'] || translations['en'];
+    let langObj = translations[currentLang] || translations['la'];
 
     if (langObj && langObj[key] !== undefined) {
         return langObj[key];
     }
-    // หาแบบ Case Insensitive ให้สำหรับ Table Headers
+    // Case-insensitive lookup for headers/keys
     if (langObj) {
         for (let k in langObj) {
             if (k.trim().toUpperCase() === String(key).trim().toUpperCase()) {
@@ -681,14 +811,14 @@ function t(key) {
             }
         }
     }
-    // ถ้าไม่เจอในภาษาปัจจุบัน ให้ค้นจากภาษาอื่นตามลำดับ (la -> th -> en)
-    const fallbacks = ['la', 'th', 'en'];
+    // Strict fallbacks: Active Language -> Lao -> English (NO THAI)
+    const fallbacks = [currentLang, 'la', 'en'];
     for (let lang of fallbacks) {
         if (translations[lang] && translations[lang][key] !== undefined) {
             return translations[lang][key];
         }
     }
-    return key; // Fallback
+    return key;
 }
 
 // ฟังก์ชันเปลี่ยนภาษาและอัปเดตหน้าเว็บ
@@ -704,17 +834,38 @@ function changeLanguage(lang) {
 
     updateDOMTranslations(lang);
     
-    // อัปเดตปุ่มภาษาใน UI (ถ้ามี)
-    document.querySelectorAll('[title="Thai"], [title="Lao"], [title="English"]').forEach(btn => {
+    // อัปเดตปุ่มภาษาใน UI (รองรับทั้ง title และ onclick buttons)
+    document.querySelectorAll('[title="Thai"], [title="Lao"], [title="English"], button[onclick*="changeLanguage"]').forEach(btn => {
         const title = btn.getAttribute('title');
-        if ((title === 'Thai' && lang === 'th') || 
-            (title === 'Lao' && lang === 'la') || 
-            (title === 'English' && lang === 'en')) {
-            btn.classList.add('font-bold', 'text-brandindigo', 'underline');
+        const onclickAttr = btn.getAttribute('onclick') || '';
+        const isTargetLang = (title === 'Thai' && lang === 'th') || 
+                             (title === 'Lao' && lang === 'la') || 
+                             (title === 'English' && lang === 'en') ||
+                             onclickAttr.includes(`'${lang}'`);
+
+        if (isTargetLang) {
+            btn.classList.add('font-bold', 'text-brandindigo');
+            if (btn.classList.contains('rounded-full') || btn.classList.contains('rounded-lg')) {
+                btn.classList.add('bg-white', 'shadow-sm');
+            } else {
+                btn.classList.add('underline');
+            }
+            btn.classList.remove('text-gray-600');
         } else {
-            btn.classList.remove('font-bold', 'text-brandindigo', 'underline');
+            btn.classList.remove('font-bold', 'text-brandindigo', 'underline', 'bg-white', 'shadow-sm');
+            btn.classList.add('text-gray-600');
         }
     });
+
+    // อัปเดตข้อมูลและใบจ่ายเงินเดือนเป็นภาษาใหม่ทันทีหากเปิิด Payroll Modal อยู่
+    if (typeof populatePayrollEmpSelect === 'function') {
+        const empSelect = document.getElementById('payroll-emp-select');
+        const selectedVal = empSelect ? empSelect.value : '';
+        populatePayrollEmpSelect(selectedVal);
+    }
+    if (typeof calculatePayroll === 'function') {
+        calculatePayroll();
+    }
 }
 
 // ฟังก์ชันอัปเดตคำแปลใน DOM (รองรับ data-i18n และ data-i18n-placeholder)

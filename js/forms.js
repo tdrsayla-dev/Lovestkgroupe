@@ -581,9 +581,12 @@ function openFormModal(rowDataStr = null) {
         const lw = h.toLowerCase().trim();
 
         if (lw === 'signature' || lw === 'dept_head_sign' || lw === 'approver_sign' || lw === 'dept_head_img' || lw === 'approver_img' || lw === 'currency') return;
-        if (lw === 'status' && currentSheet.toLowerCase() !== 'staff' && currentSheet.toLowerCase() !== 'training' && !currentSheet.toLowerCase().includes('asset')) return;
-
-        const val = rowData ? (rowData[h] || '') : '';
+        let val = rowData ? (rowData[h] !== undefined && rowData[h] !== null ? rowData[h] : '') : '';
+        if ((!val || val === '-') && rowData && typeof getFuzzyValue === 'function') {
+            if (/^(photo|photos|profile|pic|image|picture)$/i.test(lw)) {
+                val = getFuzzyValue(rowData, ['photos', 'photo', 'profile', 'pic', 'image', 'picture', 'Photos', 'Photo', 'PHOTOS']) || val;
+            }
+        }
         const safeVal = String(val).replace(/"/g, '&quot;');
 
         if (currentSheet.toLowerCase() === 'staff' && (lw === 'ranking' || lw === 'reward level' || lw === 'reward_level')) {
@@ -1262,7 +1265,7 @@ function openAttendanceEditModalByDate(empId, dateStr) {
                                 </div>
                             `);
         }
-        else if (lw === 'photo' || lw === 'document' || lw === 'ไฟล์แนบ' || lw === 'attachment' || (currentSheet.trim() === 'Policy' && lw === 'link') || (currentSheet.trim() === 'Documents' && (lw === 'file' || lw === 'link' || lw === 'ไฟล์'))) {
+        else if (lw === 'document' || lw === 'ไฟล์แนบ' || lw === 'attachment' || (currentSheet.trim() === 'Policy' && lw === 'link') || (currentSheet.trim() === 'Documents' && (lw === 'file' || lw === 'link' || lw === 'ไฟล์'))) {
             const labelKey = getFieldI18nKey(h);
             const labelText = getFieldLabel(h);
             formFields.insertAdjacentHTML('beforeend', `
@@ -1275,26 +1278,43 @@ function openAttendanceEditModalByDate(empId, dateStr) {
                                         <div class="flex-1">
                                             <input type="file" accept="image/*, application/pdf" class="block w-full text-sm text-gray-500 file:mr-4 file:py-1.5 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 transition-colors cursor-pointer outline-none">
                                             
-                                            <input type="hidden" name="${h}" id="hidden-profile-input" value="${safeVal}">
+                                            <input type="hidden" name="${h}" id="hidden-document-input" value="${safeVal}">
                                         </div>
                                     </div>
                                     ${safeVal && safeVal !== '-' ? `<div class="mt-2 text-xs"><a href="${safeVal}" target="_blank" class="inline-flex items-center px-3 py-1 rounded-md bg-indigo-50 text-brandindigo hover:bg-indigo-100 transition-colors font-medium"><i class="fa-solid fa-paperclip mr-1.5"></i>เปิดดูไฟล์แนบเดิม</a></div>` : ''}
                                 </div>
                             `);
         }
-        else if (lw === 'profile' || lw === 'รูป' || lw === 'pic' || lw === 'image' || lw === 'photos' || lw === 'photo') {
+        else if (lw === 'profile' || lw === 'รูป' || lw === 'pic' || lw === 'image' || lw === 'photos' || lw === 'photo' || lw === 'รูปภาพ' || lw === 'รูปถ่าย') {
             const labelKey = getFieldI18nKey(h);
             const labelText = getFieldLabel(h);
+
+            const fallbackAvatar = 'https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=Pic';
+            let initialSrc = fallbackAvatar;
+            let hiddenVal = safeVal;
+            if (safeVal && safeVal !== '-' && safeVal !== 'null' && safeVal !== 'undefined' && safeVal !== 'data:,' && safeVal !== 'data:;') {
+                // Use normalizeRatingPhoto to handle JSON strings, base64, Google Drive URLs etc.
+                const normalized = (typeof normalizeRatingPhoto === 'function')
+                    ? normalizeRatingPhoto(safeVal, '')
+                    : String(safeVal).trim().replace(/[\r\n\t\s]+/g, "");
+                if (normalized && !normalized.includes('ui-avatars.com') && normalized !== 'data:,') {
+                    initialSrc = normalized;
+                }
+            }
+            if (!hiddenVal || hiddenVal === 'data:,' || hiddenVal === 'data:;' || (typeof hiddenVal === 'string' && hiddenVal.startsWith('data:') && hiddenVal.length < 50)) {
+                hiddenVal = '';
+            }
+
             formFields.insertAdjacentHTML('beforeend', `
                                 <div class="col-span-1 sm:col-span-2 bg-indigo-50/30 p-4 rounded-xl border border-indigo-100">
                                     <label class="block mb-3 text-xs font-bold text-gray-700 uppercase tracking-wider"><span data-i18n="${labelKey}">${labelText}</span></label>
                                     <div class="flex items-center space-x-4">
-                                        <div class="w-16 h-16 rounded-full border border-gray-200 overflow-hidden bg-white shrink-0 shadow-sm">
-                                            <img id="preview-profile-img" src="${safeVal && safeVal !== '-' ? safeVal : 'https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=Pic'}" class="w-full h-full object-cover">
+                                        <div class="w-16 h-16 rounded-full border border-gray-200 overflow-hidden bg-white shrink-0 shadow-sm relative">
+                                            <img id="preview-profile-img" src="${initialSrc}" onerror="this.onerror=null; this.src='${fallbackAvatar}';" class="w-full h-full object-cover">
                                         </div>
                                         <div class="flex-1">
-                                            <input type="file" accept="image/*, application/pdf, .pdf, .jpg, .jpeg, .png" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-white file:text-brandindigo hover:file:bg-indigo-100 transition-colors cursor-pointer border border-dashed border-indigo-200 rounded-xl p-2 bg-white" onchange="if(this.files[0]){ let f=this.files[0]; if(f.type==='application/pdf'||f.name.endsWith('.pdf')){ document.getElementById('preview-profile-img').src='https://cdn-icons-png.flaticon.com/512/337/337946.png'; document.getElementById('preview-profile-img').title=f.name; }else{ let r=new FileReader(); r.onload=e=>document.getElementById('preview-profile-img').src=e.target.result; r.readAsDataURL(f); } }">
-                                            <input type="hidden" name="${h}" id="hidden-profile-input" value="${safeVal}">
+                                            <input type="file" accept="image/*, .jpg, .jpeg, .png, .webp" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-white file:text-brandindigo hover:file:bg-indigo-100 transition-colors cursor-pointer border border-dashed border-indigo-200 rounded-xl p-2 bg-white" onchange="handleFormPhotoPreview(this)">
+                                            <input type="hidden" name="${h}" id="hidden-profile-input" value="${hiddenVal}">
                                         </div>
                                     </div>
                                 </div>
@@ -1432,45 +1452,56 @@ function closeFormModal() {
     editingRecordId = null;
 }
 
-/* =====================================================================
- * 🖼️ ฟังก์ชันย่อ/บีบอัดรูปก่อนแปลงเป็น base64
- * ===================================================================== */
-function compressImageFile(file, maxDim = 480, quality = 0.72) {
-    return new Promise(function (resolve, reject) {
-        if (!file) { reject(new Error('ไม่มีไฟล์')); return; }
-        const reader = new FileReader();
-        reader.onerror = function () { reject(new Error('อ่านไฟล์ไม่สำเร็จ')); };
-        reader.onload = function (e) {
-            const img = new Image();
-            img.onerror = function () { reject(new Error('ไฟล์รูปไม่ถูกต้อง')); };
-            img.onload = function () {
-                let width = img.width;
-                let height = img.height;
-                if (width > maxDim || height > maxDim) {
-                    if (width >= height) {
-                        height = Math.round(height * (maxDim / width));
-                        width = maxDim;
-                    } else {
-                        width = Math.round(width * (maxDim / height));
-                        height = maxDim;
-                    }
-                }
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-                try {
-                    resolve(canvas.toDataURL('image/jpeg', quality));
-                } catch (err) {
-                    reject(err);
-                }
-            };
-            img.src = e.target.result;
+function handleFormPhotoPreview(inputEl) {
+    if (!inputEl || !inputEl.files || !inputEl.files[0]) return;
+    const f = inputEl.files[0];
+    
+    // Find wrapper container to locate img and hidden input reliably
+    const wrapper = inputEl.closest('.col-span-1') || inputEl.closest('.bg-indigo-50\\/30') || inputEl.closest('.flex.items-center') || inputEl.closest('.flex') || inputEl.closest('div');
+    const imgEl = wrapper ? wrapper.querySelector('img') : document.getElementById('preview-profile-img');
+    const hiddenEl = wrapper ? wrapper.querySelector('input[type="hidden"]') : document.getElementById('hidden-profile-input');
+
+    if (!imgEl && !hiddenEl) return;
+
+    const fallbackAvatar = 'https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=Pic';
+
+    if (imgEl) {
+        imgEl.onerror = function() {
+            this.onerror = null;
+            this.src = fallbackAvatar;
         };
-        reader.readAsDataURL(file);
-    });
+    }
+
+    if (f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')) {
+        if (imgEl) {
+            imgEl.src = 'https://cdn-icons-png.flaticon.com/512/337/337946.png';
+            imgEl.title = f.name;
+        }
+    } else {
+        const reader = new FileReader();
+        reader.onerror = function(err) {
+            console.warn('FileReader preview error:', err);
+        };
+        reader.onload = function(e) {
+            const rawBase64 = e.target.result;
+            // Instantly display preview image & sync hidden input synchronously
+            if (imgEl) imgEl.src = rawBase64;
+            if (hiddenEl) hiddenEl.value = rawBase64;
+            
+            // Compress thumbnail in background for hidden input / database saving
+            compressImageFile(f, 480, 0.75).then(compressedBase64 => {
+                if (compressedBase64 && compressedBase64.startsWith('data:image') && compressedBase64.length > 50 && compressedBase64 !== 'data:,') {
+                    if (hiddenEl) hiddenEl.value = compressedBase64;
+                }
+            }).catch(err => {
+                if (hiddenEl) hiddenEl.value = rawBase64;
+            });
+        };
+        reader.readAsDataURL(f);
+    }
 }
+
+// Note: compressImageFile is globally defined in js/utils.js
 
 /* =====================================================================
  * 📌 ส่วนที่ 19: FORM SUBMISSION (ฟังก์ชันส่งข้อมูลขึ้น Google Sheets)
@@ -1501,9 +1532,20 @@ function submitData(e) {
     const dataObj = {};
     let permissionsArray = [];
     let permKeyName = '';
+    
+    // PREVENT DATA LOSS: Initialize dataObj with existing row data if in edit mode
+    let existingRowData = null;
+    if (isEditMode && typeof rawData !== 'undefined' && Array.isArray(rawData)) {
+        const rowIndex = rawData.findIndex(r => String(getRecordId(r) || '').trim() === String(editingRecordId || '').trim());
+        if (rowIndex > -1) {
+            existingRowData = rawData[rowIndex];
+        }
+    }
 
     currentHeaders.forEach(h => {
-        dataObj[h] = '';
+        // Fallback to existing value if available, else empty string
+        dataObj[h] = (existingRowData && existingRowData[h] !== undefined && existingRowData[h] !== null) ? existingRowData[h] : '';
+        
         let lwK = h.toLowerCase().trim();
         if (lwK === 'permissions' || lwK === 'สิทธิ์' || lwK === 'สิทธิ์การเข้าถึง') {
             permKeyName = h;
@@ -1541,21 +1583,28 @@ function submitData(e) {
 
     const currentEditId = editingRecordId;
 
-    let fileInput = e.target.querySelector('input[type="file"]');
-    let hiddenImgInput = document.getElementById('hidden-profile-input');
+    let allFileInputs = Array.from(e.target.querySelectorAll('input[type="file"]'));
+    let fileInput = allFileInputs.find(inp => inp.files && inp.files.length > 0);
+    let hiddenImgInput = e.target.querySelector('input[type="hidden"][id="hidden-profile-input"]') 
+                      || e.target.querySelector('input[type="hidden"][id="hidden-document-input"]')
+                      || e.target.querySelector('input[type="hidden"][name="PHOTOS"]')
+                      || e.target.querySelector('input[type="hidden"][name="photos"]')
+                      || e.target.querySelector('input[type="hidden"][name="photo"]')
+                      || e.target.querySelector('input[type="hidden"][name="Photo"]');
 
     if (fileInput && fileInput.files.length > 0) {
         toggleLoading(true, 'UPLOADING FILE...');
         let file = fileInput.files[0];
+        // Always use the actual header column name (e.g. "Photos") — NOT the hidden input name which may differ in case
+        let targetColName = currentHeaders.find(h => /^(photo|photos|profile|pic|image)$/i.test(h.trim()))
+            || (hiddenImgInput ? hiddenImgInput.name : 'Photos');
         
         if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
             let reader = new FileReader();
             reader.onload = function (evt) {
                 toggleLoading(false);
-                if (hiddenImgInput) {
-                    let imgColName = hiddenImgInput.name;
-                    dataObj[imgColName] = evt.target.result;
-                }
+                dataObj[targetColName] = evt.target.result;
+                if (hiddenImgInput) hiddenImgInput.value = evt.target.result;
                 executeSaveToSheet(dataObj, currentEditId);
             };
             reader.onerror = function (err) {
@@ -1564,18 +1613,17 @@ function submitData(e) {
             };
             reader.readAsDataURL(file);
         } else {
-            compressImageFile(file, 480, 0.72).then(function (base64Data) {
+            compressImageFile(file, 480, 0.75).then(function (base64Data) {
                 if (typeof google !== 'undefined' && google.script && google.script.run) {
                     google.script.run
                         .withSuccessHandler(res => {
+                            toggleLoading(false);
                             if (res.success) {
-                                if (hiddenImgInput) {
-                                    let imgColName = hiddenImgInput.name;
-                                    dataObj[imgColName] = res.url;
-                                }
+                                const finalUrl = res.url || base64Data;
+                                dataObj[targetColName] = finalUrl;
+                                if (hiddenImgInput) hiddenImgInput.value = finalUrl;
                                 executeSaveToSheet(dataObj, currentEditId);
                             } else {
-                                toggleLoading(false);
                                 showToast('Image upload failed: ' + res.message, 'error');
                             }
                         })
@@ -1586,10 +1634,12 @@ function submitData(e) {
                         .uploadImageToDrive(base64Data, file.name);
                 } else {
                     toggleLoading(false);
-                    if (hiddenImgInput) {
-                        let imgColName = hiddenImgInput.name;
-                        dataObj[imgColName] = base64Data;
+                    if (!base64Data || base64Data === 'data:,' || base64Data.length < 50) {
+                        showToast('ไม่สามารถประมวลผลรูปภาพได้', 'error');
+                        return;
                     }
+                    dataObj[targetColName] = base64Data;
+                    if (hiddenImgInput) hiddenImgInput.value = base64Data;
                     executeSaveToSheet(dataObj, currentEditId);
                 }
             }).catch(function (err) {
@@ -1600,7 +1650,13 @@ function submitData(e) {
     } else {
         if (hiddenImgInput) {
             let imgColName = hiddenImgInput.name;
-            dataObj[imgColName] = hiddenImgInput.value;
+            let imgVal = hiddenImgInput.value;
+            if (imgVal === 'data:,' || imgVal === 'data:;' || (typeof imgVal === 'string' && imgVal.startsWith('data:') && imgVal.length < 50)) {
+                imgVal = '';
+            }
+            dataObj[imgColName] = imgVal;
+            let targetColName = currentHeaders.find(h => /^(photo|photos|profile|pic|image)$/i.test(h.trim())) || imgColName;
+            dataObj[targetColName] = imgVal;
         }
         executeSaveToSheet(dataObj, currentEditId);
     }
@@ -1769,26 +1825,79 @@ function executeSaveToSheet(dataObj, currentEditId) {
     if (tableCache[currentSheet]) tableCache[currentSheet].data = rawData;
     renderTable(rawData);
 
-    toggleLoading(true, 'SAVING DATA...');
+    // Save to local cache & localStorage
+    try {
+        localStorage.setItem(`hr_cache_${currentSheet}`, JSON.stringify(rawData));
+    } catch(e) {}
 
-    if (currentEditId) {
-        google.script.run
-            .withSuccessHandler(res => {
-                toggleLoading(false);
-                if (res.success) { showSuccessModal("Record Updated", "Database updated successfully."); fetchData(currentSheet, true); }
-                else { showToast(res.message, 'error'); fetchData(currentSheet, true); }
-            })
-            .withFailureHandler(err => { toggleLoading(false); showToast('Connection failed: ' + err.message, 'error'); fetchData(currentSheet, true); })
-            .updateEntireRecord(currentSheet, currentEditId, dataObj);
+    // Save to Supabase if active — always map keys via toPayload() to match exact DB column names
+    if (window.supabase && (currentSheet.toLowerCase() === 'staff' || currentSheet.toLowerCase() === 'user'
+        || currentSheet.toLowerCase() === 'users')) {
+        const tableName = currentSheet.toLowerCase() === 'user' ? 'users' : currentSheet.toLowerCase();
+        let supaPayload;
+        try {
+            supaPayload = (typeof toPayload === 'function') ? toPayload(tableName, dataObj) : dataObj;
+        } catch(e) {
+            supaPayload = dataObj;
+        }
+        // Sanitize any data: URIs in the payload to remove whitespace and filter corrupted strings
+        Object.keys(supaPayload).forEach(k => {
+            if (typeof supaPayload[k] === 'string') {
+                if (supaPayload[k].startsWith('data:image')) {
+                    supaPayload[k] = supaPayload[k].replace(/[\r\n\t\s]+/g, "");
+                }
+                if (supaPayload[k] === 'data:,' || supaPayload[k] === 'data:;' || (supaPayload[k].startsWith('data:') && supaPayload[k].length < 50)) {
+                    supaPayload[k] = null;
+                }
+            }
+        });
+        // Determine primary key for upsert
+        const pkCol = tableName === 'staff' ? 'Employee_ID' : 'employee_id';
+        const pkVal = supaPayload[pkCol] || supaPayload['Employee_ID'] || supaPayload['employee_id'];
+        if (pkVal) {
+            window.supabase.from(tableName)
+                .update(supaPayload)
+                .eq(pkCol, pkVal)
+                .then(({ error }) => {
+                    if (error) {
+                        console.warn('Supabase update error:', error.message);
+                        // Fallback to upsert if update fails
+                        window.supabase.from(tableName).upsert(supaPayload).then(({ error: e2 }) => {
+                            if (e2) console.warn('Supabase upsert error:', e2.message);
+                        });
+                    }
+                });
+        } else {
+            window.supabase.from(tableName).insert(supaPayload).then(({ error }) => {
+                if (error) console.warn('Supabase insert error:', error.message);
+            });
+        }
+    }
+
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+        toggleLoading(true, 'SAVING DATA...');
+        if (currentEditId) {
+            google.script.run
+                .withSuccessHandler(res => {
+                    toggleLoading(false);
+                    if (res.success) { showSuccessModal("Record Updated", "Database updated successfully."); fetchData(currentSheet, true); }
+                    else { showToast(res.message, 'error'); fetchData(currentSheet, true); }
+                })
+                .withFailureHandler(err => { toggleLoading(false); showToast('Connection failed: ' + err.message, 'error'); fetchData(currentSheet, true); })
+                .updateEntireRecord(currentSheet, currentEditId, dataObj);
+        } else {
+            google.script.run
+                .withSuccessHandler(res => {
+                    toggleLoading(false);
+                    if (res.success) { showSuccessModal("Record Added", "New data saved to database."); fetchData(currentSheet, true); }
+                    else { showToast(res.message, 'error'); }
+                })
+                .withFailureHandler(err => { toggleLoading(false); showToast('Connection failed: ' + err.message, 'error'); })
+                .saveData(currentSheet, dataObj);
+        }
     } else {
-        google.script.run
-            .withSuccessHandler(res => {
-                toggleLoading(false);
-                if (res.success) { showSuccessModal("Record Added", "New data saved to database."); fetchData(currentSheet, true); }
-                else { showToast(res.message, 'error'); }
-            })
-            .withFailureHandler(err => { toggleLoading(false); showToast('Connection failed: ' + err.message, 'error'); })
-            .saveData(currentSheet, dataObj);
+        toggleLoading(false);
+        showSuccessModal("บันทึกข้อมูลสำเร็จ", "บันทึกและอัปเดตรูปภาพเรียบร้อยแล้ว");
     }
 }
 

@@ -345,10 +345,18 @@ function getRandomColor(name) {
  * ===================================================================== */
 function loadDigitalCard() {
     toggleLoading(true, 'LOADING CARD DATA...');
-    if (tableCache['staff']) {
+    if (tableCache['staff'] && tableCache['staff'].data && tableCache['staff'].data.length > 0) {
         setupDigitalCardData(tableCache['staff'].data);
         toggleLoading(false);
-    } else {
+    } else if (typeof fetchData === 'function') {
+        fetchData('staff').then(data => {
+            toggleLoading(false);
+            setupDigitalCardData(data || []);
+        }).catch(err => {
+            toggleLoading(false);
+            showToast('LOAD CARD DATA FAILED', 'error');
+        });
+    } else if (typeof google !== 'undefined' && google.script && google.script.run) {
         google.script.run.withSuccessHandler(res => {
             toggleLoading(false);
             if (res.success) {
@@ -356,6 +364,8 @@ function loadDigitalCard() {
                 setupDigitalCardData(res.data);
             } else showToast(res.message, 'error');
         }).getSheetData('staff');
+    } else {
+        toggleLoading(false);
     }
 }
 
@@ -385,9 +395,9 @@ function setupDigitalCardData(staffData) {
 
     staffData.forEach(row => {
         let eId = String(getFuzzyValue(row, ['employee_id', 'emp_id'])).toUpperCase().trim();
-        let name = getFuzzyValue(row, ['first_name', 'name', 'full_name', 'ชื่อ']);
-        let lastName = getFuzzyValue(row, ['last_name', 'นามสกุล']);
-        let fullName = name !== '-' ? (lastName !== '-' ? name + ' ' + lastName : name) : 'Unknown';
+        let name = String(getFuzzyValue(row, ['first_name', 'name', 'full_name', 'ชื่อ']) || '').replace(/<[^>]*>/g, '').trim();
+        let lastName = String(getFuzzyValue(row, ['last_name', 'นามสกุล']) || '').replace(/<[^>]*>/g, '').trim();
+        let fullName = name !== '-' ? (lastName !== '-' && lastName ? name + ' ' + lastName : name) : 'Unknown';
 
         if (eId && eId !== '-') {
             if (role === 'Staff' && eId !== currentEmpId) return;
@@ -409,19 +419,28 @@ function setupDigitalCardData(staffData) {
 }
 
 function updateDigitalCardUI(empId) {
-    if (!tableCache['staff']) return;
+    if (!tableCache['staff'] || !tableCache['staff'].data) return;
     const staffData = tableCache['staff'].data;
     const empRow = staffData.find(r => String(getFuzzyValue(r, ['employee_id', 'emp_id'])).toUpperCase().trim() === empId);
 
     if (!empRow) return;
 
-    let name = getFuzzyValue(empRow, ['first_name', 'name', 'full_name', 'ชื่อ']);
-    let lastName = getFuzzyValue(empRow, ['last_name', 'นามสกุล']);
-    let fullName = name !== '-' ? (lastName !== '-' ? name + ' ' + lastName : name) : 'Unknown';
+    let rawName = getFuzzyValue(empRow, ['first_name', 'name', 'full_name', 'ชื่อ']);
+    let rawLastName = getFuzzyValue(empRow, ['last_name', 'นามสกุล']);
+    let cleanFirst = String(rawName && rawName !== '-' ? rawName : '').replace(/<[^>]*>/g, '').trim();
+    let cleanLast = String(rawLastName && rawLastName !== '-' ? rawLastName : '').replace(/<[^>]*>/g, '').trim();
+    let fullName = (cleanFirst || cleanLast) ? `${cleanFirst} ${cleanLast}`.trim() : 'Unknown';
+
     let position = getFuzzyValue(empRow, ['position', 'ตำแหน่ง', 'position_id']);
     let dept = getFuzzyValue(empRow, ['department_name', 'department', 'แผนก', 'department_id']);
 
-    let picUrl = getFuzzyValue(empRow, ['photos', 'photo', 'profile', 'รูป', 'pic', 'image']);
+    let rawPic = empRow.Photos || empRow.photos || getFuzzyValue(empRow, ['Photos', 'photos', 'photo', 'profile', 'รูป', 'pic', 'image', 'Photo', 'PHOTOS']);
+    let picUrl = '';
+    if (typeof normalizeRatingPhoto === 'function') {
+        picUrl = normalizeRatingPhoto(rawPic, fullName);
+    } else {
+        picUrl = rawPic;
+    }
 
     let phone = getFuzzyValue(empRow, ['phone', 'tel', 'mobile', 'เบอร์โทร', 'เบอร์']);
     let email = getFuzzyValue(empRow, ['email', 'e-mail', 'อีเมล']);
@@ -444,10 +463,13 @@ function updateDigitalCardUI(empId) {
     }
 
     const imgElement = document.getElementById('digital-card-pic');
-    imgElement.src = picUrl;
-    imgElement.onerror = function () {
-        this.src = 'https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=NA';
-    };
+    if (imgElement) {
+        imgElement.src = picUrl;
+        imgElement.onerror = function () {
+            this.onerror = null;
+            this.src = 'https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=' + encodeURIComponent(fullName) + '&size=256&bold=true';
+        };
+    }
 
     document.getElementById('digital-card-name').innerText = fullName;
     document.getElementById('digital-card-position').innerText = position !== '-' ? position : 'Employee';

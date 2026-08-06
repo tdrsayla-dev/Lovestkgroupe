@@ -310,6 +310,12 @@ function loadCompanySettings() {
             }
             renderJobsSettingsList(jobs);
 
+            let heroSlides = [];
+            try {
+                heroSlides = JSON.parse(infoMap['hero_slides'] || localStorage.getItem('stk_hero_slides') || '[]');
+            } catch (e) {}
+            renderHeroSlidesSettingsList(heroSlides);
+
             document.getElementById('comp-address').value = infoMap['contact_address'] || '';
             document.getElementById('comp-facebook').value = infoMap['contact_facebook'] || '';
             document.getElementById('comp-instagram').value = infoMap['contact_instagram'] || '';
@@ -325,21 +331,179 @@ function loadCompanySettings() {
     }).getCompanyProfile();
 }
 
-function previewCompanyLogo(input) {
+/** 📌 Render Hero Slider Manager Cards */
+function renderHeroSlidesSettingsList(slidesList) {
+    const container = document.getElementById('hero-slides-list-container');
+    if (!container) return;
+
+    if (!slidesList || slidesList.length === 0) {
+        container.innerHTML = `<p class="text-gray-500 text-sm text-center py-4">ไม่มีรูปภาพสไลด์แบนเนอร์</p>`;
+        return;
+    }
+
+    container.innerHTML = slidesList.map((slide, i) => {
+        const slideId = slide.id || `SLIDE-${i}-${Date.now()}`;
+        const imgUrl = slide.image || slide.url || '';
+        const safeTitle = String(slide.title || '').replace(/"/g, '&quot;');
+        const safeSubtitle = String(slide.subtitle || '').replace(/"/g, '&quot;');
+        const safeImgUrl = String(imgUrl).replace(/"/g, '&quot;');
+
+        return `
+            <div class="p-4 border border-gray-200 rounded-xl space-y-3 bg-gray-50/50 hover:border-indigo-200 transition-all" data-slide-id="${slideId}">
+                <div class="flex justify-between items-center border-b border-gray-100 pb-2">
+                    <span class="text-xs font-bold text-gray-600"><i class="fa-solid fa-image text-brandindigo mr-1"></i> รูปภาพสไลด์ #${i + 1}</span>
+                    <button type="button" onclick="removeHeroSlideCard('${slideId}')" class="text-red-500 hover:text-red-700 text-xs font-bold flex items-center gap-1 transition-colors">
+                        <i class="fa-solid fa-trash-can"></i> ลบรูปสไลด์
+                    </button>
+                </div>
+
+                <div class="flex flex-col sm:flex-row items-center gap-4">
+                    <div class="relative w-full sm:w-44 h-24 rounded-xl border border-gray-200 bg-gray-900 flex items-center justify-center overflow-hidden shadow-inner flex-shrink-0">
+                        <img class="w-full h-full object-cover slide-preview-img" src="${safeImgUrl}" style="${imgUrl ? '' : 'display:none;'}" />
+                        <div class="text-gray-400 text-xs font-bold text-center p-2 slide-placeholder" style="${imgUrl ? 'display:none;' : ''}">ไม่มีรูปสไลด์</div>
+                    </div>
+                    <div class="space-y-2 w-full">
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" onclick="triggerHeroSlideUpload('${slideId}')" class="bg-white border border-gray-300 hover:bg-gray-50 text-xs font-bold py-1.5 px-3 rounded-lg shadow-sm transition-colors text-gray-700">
+                                <i class="fa-solid fa-upload mr-1 text-brandindigo"></i>เลือก/อัปโหลดรูปภาพ
+                            </button>
+                            <button type="button" onclick="clearHeroSlide('${slideId}')" class="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold py-1.5 px-3 rounded-lg transition-colors">
+                                <i class="fa-solid fa-xmark mr-1"></i>ลบรูปภาพ
+                            </button>
+                        </div>
+                        <input type="file" id="slide-file-${slideId}" accept="image/*" class="hidden" onchange="previewHeroSlide('${slideId}', this)" />
+                        <input type="text" class="w-full bg-white border border-gray-300 text-gray-900 text-xs rounded-lg p-2 slide-url-input" placeholder="หรือวางลิงก์รูปภาพ URL (http...)" value="${safeImgUrl}">
+                        
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <input type="text" class="w-full bg-white border border-gray-300 text-gray-900 text-xs rounded-lg p-2 slide-title-input" placeholder="หัวข้อบนสไลด์ (Heading Title)" value="${safeTitle}">
+                            <input type="text" class="w-full bg-white border border-gray-300 text-gray-900 text-xs rounded-lg p-2 slide-subtitle-input" placeholder="คำอธิบายย่อย (Subtitle)" value="${safeSubtitle}">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function addNewHeroSlideCard() {
+    const container = document.getElementById('hero-slides-list-container');
+    if (!container) return;
+
+    const emptyPlaceholder = container.querySelector('p.text-gray-500');
+    if (emptyPlaceholder) emptyPlaceholder.remove();
+
+    const slideId = `SLIDE-NEW-${Date.now()}`;
+    const count = container.querySelectorAll('[data-slide-id]').length + 1;
+
+    const cardHtml = `
+        <div class="p-4 border border-dashed border-indigo-300 rounded-xl space-y-3 bg-indigo-50/20 hover:border-indigo-400 transition-all" data-slide-id="${slideId}">
+            <div class="flex justify-between items-center border-b border-gray-100 pb-2">
+                <span class="text-xs font-bold text-brandindigo"><i class="fa-solid fa-image mr-1"></i> รูปภาพสไลด์ #${count} (ใหม่)</span>
+                <button type="button" onclick="removeHeroSlideCard('${slideId}')" class="text-red-500 hover:text-red-700 text-xs font-bold flex items-center gap-1 transition-colors">
+                    <i class="fa-solid fa-trash-can"></i> ลบรูปสไลด์
+                </button>
+            </div>
+
+            <div class="flex flex-col sm:flex-row items-center gap-4">
+                <div class="relative w-full sm:w-44 h-24 rounded-xl border border-gray-200 bg-gray-900 flex items-center justify-center overflow-hidden shadow-inner flex-shrink-0">
+                    <img class="w-full h-full object-cover slide-preview-img" src="" style="display:none;" />
+                    <div class="text-gray-400 text-xs font-bold text-center p-2 slide-placeholder">ไม่มีรูปสไลด์</div>
+                </div>
+                <div class="space-y-2 w-full">
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" onclick="triggerHeroSlideUpload('${slideId}')" class="bg-white border border-gray-300 hover:bg-gray-50 text-xs font-bold py-1.5 px-3 rounded-lg shadow-sm transition-colors text-gray-700">
+                            <i class="fa-solid fa-upload mr-1 text-brandindigo"></i>เลือก/อัปโหลดรูปภาพ
+                        </button>
+                        <button type="button" onclick="clearHeroSlide('${slideId}')" class="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold py-1.5 px-3 rounded-lg transition-colors">
+                            <i class="fa-solid fa-xmark mr-1"></i>ลบรูปภาพ
+                        </button>
+                    </div>
+                    <input type="file" id="slide-file-${slideId}" accept="image/*" class="hidden" onchange="previewHeroSlide('${slideId}', this)" />
+                    <input type="text" class="w-full bg-white border border-gray-300 text-gray-900 text-xs rounded-lg p-2 slide-url-input" placeholder="หรือวางลิงก์รูปภาพ URL (http...)" value="">
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input type="text" class="w-full bg-white border border-gray-300 text-gray-900 text-xs rounded-lg p-2 slide-title-input" placeholder="หัวข้อบนสไลด์ (Heading Title)" value="">
+                        <input type="text" class="w-full bg-white border border-gray-300 text-gray-900 text-xs rounded-lg p-2 slide-subtitle-input" placeholder="คำอธิบายย่อย (Subtitle)" value="">
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    container.insertAdjacentHTML('beforeend', cardHtml);
+}
+
+function removeHeroSlideCard(slideId) {
+    const card = document.querySelector(`[data-slide-id="${slideId}"]`);
+    if (card) {
+        card.remove();
+        const container = document.getElementById('hero-slides-list-container');
+        if (container && container.querySelectorAll('[data-slide-id]').length === 0) {
+            container.innerHTML = `<p class="text-gray-500 text-sm text-center py-4">ไม่มีรูปภาพสไลด์แบนเนอร์</p>`;
+        }
+    }
+}
+
+// compressImageFile is globally defined in js/utils.js
+
+function triggerHeroSlideUpload(slideId) {
+    const input = document.getElementById(`slide-file-${slideId}`);
+    if (input) input.click();
+}
+
+async function previewHeroSlide(slideId, input) {
     const file = input.files[0];
     if (file) {
-        const reader = new FileReader();
-        reader.onload = function (e) {
-            const preview = document.getElementById('comp-logo-preview');
-            const placeholder = document.getElementById('comp-logo-placeholder');
-            const urlInput = document.getElementById('comp-logo-url');
+        showToast('กำลังบีบอัดและประมวลผลรูปภาพ...', 'info');
+        const compressedBase64 = await compressImageFile(file, 1920, 1080, 0.82);
+        const card = document.querySelector(`[data-slide-id="${slideId}"]`);
+        if (card) {
+            const preview = card.querySelector('.slide-preview-img');
+            const placeholder = card.querySelector('.slide-placeholder');
+            const urlInput = card.querySelector('.slide-url-input');
 
-            preview.src = e.target.result;
-            preview.classList.remove('hidden');
-            placeholder.classList.add('hidden');
-            urlInput.value = e.target.result;
-        };
-        reader.readAsDataURL(file);
+            preview.src = compressedBase64;
+            preview.style.display = 'block';
+            placeholder.style.display = 'none';
+            urlInput.value = compressedBase64;
+        }
+    }
+}
+
+function clearHeroSlide(slideId) {
+    const card = document.querySelector(`[data-slide-id="${slideId}"]`);
+    if (card) {
+        const preview = card.querySelector('.slide-preview-img');
+        const placeholder = card.querySelector('.slide-placeholder');
+        const urlInput = card.querySelector('.slide-url-input');
+        const fileInput = document.getElementById(`slide-file-${slideId}`);
+
+        preview.src = '';
+        preview.style.display = 'none';
+        placeholder.style.display = 'block';
+        urlInput.value = '';
+        if (fileInput) fileInput.value = '';
+    }
+}
+
+window.renderHeroSlidesSettingsList = renderHeroSlidesSettingsList;
+window.addNewHeroSlideCard = addNewHeroSlideCard;
+window.removeHeroSlideCard = removeHeroSlideCard;
+window.triggerHeroSlideUpload = triggerHeroSlideUpload;
+window.previewHeroSlide = previewHeroSlide;
+window.clearHeroSlide = clearHeroSlide;
+
+async function previewCompanyLogo(input) {
+    const file = input.files[0];
+    if (file) {
+        const compressedBase64 = await compressImageFile(file, 800, 800, 0.85);
+        const preview = document.getElementById('comp-logo-preview');
+        const placeholder = document.getElementById('comp-logo-placeholder');
+        const urlInput = document.getElementById('comp-logo-url');
+
+        preview.src = compressedBase64;
+        preview.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+        urlInput.value = compressedBase64;
     }
 }
 
@@ -678,6 +842,20 @@ function saveCompanySettings() {
         }
     });
 
+    const heroSlidesUpdates = [];
+    const slideCards = document.querySelectorAll('[data-slide-id]');
+    slideCards.forEach(card => {
+        const imgInput = card.querySelector('.slide-url-input');
+        const titleInput = card.querySelector('.slide-title-input');
+        const subtitleInput = card.querySelector('.slide-subtitle-input');
+        const img = imgInput ? imgInput.value.trim() : '';
+        const title = titleInput ? titleInput.value.trim() : '';
+        const subtitle = subtitleInput ? subtitleInput.value.trim() : '';
+        if (img) {
+            heroSlidesUpdates.push({ id: card.getAttribute('data-slide-id'), image: img, title, subtitle });
+        }
+    });
+
     const doSave = (finalLogoUrl, finalSubUpdates) => {
         const infoUpdates = [
             { key: 'about_title', value: document.getElementById('comp-about-title').value },
@@ -690,6 +868,7 @@ function saveCompanySettings() {
             { key: 'mission_unifying', value: document.getElementById('comp-mission-unifying').value },
             { key: 'company_logo', value: finalLogoUrl },
             { key: 'careers', value: JSON.stringify(jobsUpdates) },
+            { key: 'hero_slides', value: JSON.stringify(heroSlidesUpdates) },
             { key: 'contact_address', value: document.getElementById('comp-address').value },
             { key: 'contact_facebook', value: document.getElementById('comp-facebook').value },
             { key: 'contact_instagram', value: document.getElementById('comp-instagram').value },
@@ -699,13 +878,18 @@ function saveCompanySettings() {
             { key: 'map_label', value: document.getElementById('comp-map-label').value }
         ];
 
-        try {
-            localStorage.setItem('stk_company_info', JSON.stringify(infoUpdates));
-            localStorage.setItem('stk_subsidiaries', JSON.stringify(finalSubUpdates));
-            localStorage.setItem('stk_careers', JSON.stringify(jobsUpdates));
-        } catch (e) {
-            console.warn('[Company Profile] LocalStorage caching failed:', e);
-        }
+        const safeSetItem = (key, val) => {
+            try {
+                localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
+            } catch (e) {
+                console.warn(`[LocalStorage] Skipped caching '${key}' due to storage quota:`, e.message);
+            }
+        };
+
+        safeSetItem('stk_company_info', infoUpdates);
+        safeSetItem('stk_subsidiaries', finalSubUpdates);
+        safeSetItem('stk_careers', jobsUpdates);
+        safeSetItem('stk_hero_slides', heroSlidesUpdates);
 
         google.script.run.withSuccessHandler(res => {
             toggleLoading(false);

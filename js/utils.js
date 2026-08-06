@@ -512,22 +512,124 @@ function getRecordId(row) {
 }
 
 function normalizeRatingPhoto(photoValue, fallbackName) {
-    if (!photoValue || photoValue === '-' || photoValue === 'null') {
+    if (!photoValue || photoValue === '-' || photoValue === 'null' || photoValue === 'undefined') {
         return `https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&bold=true&name=${encodeURIComponent(fallbackName || 'EMP')}`;
     }
-    const s = String(photoValue).trim();
+    let s = String(photoValue).trim();
+    if (s === 'data:,' || s === 'data:;' || (s.startsWith('data:') && s.length < 50) || s.includes('<img')) {
+        return `https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&bold=true&name=${encodeURIComponent(fallbackName || 'EMP')}`;
+    }
     // Array string เช่น ["url1","url2"]
     if (s.startsWith('[')) {
         try {
             const arr = JSON.parse(s);
-            if (Array.isArray(arr) && arr.length > 0) return String(arr[0]).trim();
+            if (Array.isArray(arr) && arr.length > 0) return normalizeRatingPhoto(arr[0], fallbackName);
         } catch (e) { }
     }
+    // Object string เช่น {"url":"..."} หรือ {"path":"..."}
+    if (s.startsWith('{')) {
+        try {
+            const obj = JSON.parse(s);
+            const extracted = obj.url || obj.path || obj.src || obj.link || obj.data || obj.Photos || obj.photo || '';
+            if (extracted) return normalizeRatingPhoto(extracted, fallbackName);
+        } catch (e) { }
+    }
+    if (s.startsWith('data:image')) {
+        return s.replace(/[\r\n\t\s]+/g, "");
+    }
     // base64 ที่ไม่มี prefix
-    if (s.length > 200 && !s.startsWith('http') && !s.startsWith('data:')) {
-        return `data:image/jpeg;base64,${s}`;
+    if (s.length > 200 && !s.startsWith('http') && !s.startsWith('data:') && !s.startsWith('{') && !s.startsWith('[')) {
+        const cleanBase64 = s.replace(/[\r\n\t\s]+/g, "");
+        return `data:image/jpeg;base64,${cleanBase64}`;
     }
     return s;
+}
+
+/**
+ * 🖼️ Universal & Rock-Solid Image Compression using HTML5 Canvas
+ * Handles signatures:
+ *   - compressImageFile(file, maxDim, quality)
+ *   - compressImageFile(file, maxWidth, maxHeight, quality)
+ */
+function compressImageFile(file, arg2 = 480, arg3 = 0.75, arg4 = 0.75) {
+    return new Promise(function (resolve, reject) {
+        if (!file || !(file instanceof Blob || file instanceof File)) {
+            reject(new Error('ไม่มีไฟล์'));
+            return;
+        }
+
+        let maxWidth = 480;
+        let maxHeight = 480;
+        let quality = 0.75;
+
+        if (typeof arg2 === 'number') maxWidth = Math.max(10, arg2);
+
+        if (typeof arg3 === 'number') {
+            if (arg3 <= 1.0) {
+                // Signature: (file, maxDim, quality)
+                maxHeight = maxWidth;
+                quality = arg3;
+            } else {
+                // Signature: (file, maxWidth, maxHeight, quality)
+                maxHeight = Math.max(10, arg3);
+                if (typeof arg4 === 'number' && arg4 <= 1.0) quality = arg4;
+            }
+        }
+
+        const reader = new FileReader();
+        reader.onerror = function () { reject(new Error('อ่านไฟล์ไม่สำเร็จ')); };
+        reader.onload = function (e) {
+            const rawDataUrl = e.target.result;
+            if (!rawDataUrl || typeof rawDataUrl !== 'string' || !rawDataUrl.startsWith('data:image')) {
+                resolve(rawDataUrl || '');
+                return;
+            }
+
+            const img = new Image();
+            img.onerror = function () {
+                resolve(rawDataUrl);
+            };
+            img.onload = function () {
+                let width = img.width || 480;
+                let height = img.height || 480;
+
+                if (width > maxWidth || height > maxHeight) {
+                    if (width / height > maxWidth / maxHeight) {
+                        height = Math.round((height * maxWidth) / width);
+                        width = maxWidth;
+                    } else {
+                        width = Math.round((width * maxHeight) / height);
+                        height = maxHeight;
+                    }
+                }
+                width = Math.max(1, width);
+                height = Math.max(1, height);
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+
+                // Fill white background for transparent PNGs/WebPs
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+
+                try {
+                    const compressed = canvas.toDataURL('image/jpeg', quality);
+                    if (!compressed || compressed === 'data:,' || compressed.length < 50) {
+                        resolve(rawDataUrl);
+                    } else {
+                        resolve(compressed);
+                    }
+                } catch (err) {
+                    resolve(rawDataUrl);
+                }
+            };
+            img.src = rawDataUrl;
+        };
+        reader.readAsDataURL(file);
+    });
 }
 
 function isEmployeeRatingSheet(sheetName = currentSheet) {
@@ -572,9 +674,30 @@ function startRealtimeClock() {
 /* =====================================================================
  * 📌 ส่วนที่ 9: LOADING & TOASTS (ฟังก์ชันหน้าต่างโหลดข้อมูลและข้อความแจ้งเตือนสั้นๆ)
  * ===================================================================== */
+let loadingSafetyTimeout = null;
 function toggleLoading(show, text = 'PROCESSING...') {
-    document.getElementById('loading-text').innerText = text;
-    document.getElementById('main-loading').classList.toggle('hidden', !show);
+    const el = document.getElementById('main-loading');
+    const txtEl = document.getElementById('loading-text');
+    if (txtEl && text) txtEl.innerText = text;
+    if (!el) return;
+
+    if (loadingSafetyTimeout) {
+        clearTimeout(loadingSafetyTimeout);
+        loadingSafetyTimeout = null;
+    }
+
+    if (show) {
+        el.classList.remove('hidden');
+        el.classList.add('flex');
+        // Safety guard: Auto-hide loading overlay after 5s max to prevent frozen UI
+        loadingSafetyTimeout = setTimeout(() => {
+            el.classList.add('hidden');
+            el.classList.remove('flex');
+        }, 5000);
+    } else {
+        el.classList.add('hidden');
+        el.classList.remove('flex');
+    }
 }
 
 function showToast(msg, type = 'success') {

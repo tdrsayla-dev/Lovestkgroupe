@@ -162,13 +162,27 @@ async function loadStaffDashboard() {
 
         if (!empId) return;
 
+        const getSheetDataSafe = (sheetName, cb) => {
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                google.script.run.withSuccessHandler(cb).getSheetData(sheetName);
+            } else if (typeof tableCache !== 'undefined' && tableCache[sheetName] && tableCache[sheetName].data) {
+                cb({ success: true, data: tableCache[sheetName].data });
+            } else if (typeof fetchData === 'function') {
+                fetchData(sheetName).then(data => cb({ success: true, data: data || [] })).catch(() => cb({ success: false, data: [] }));
+            } else {
+                cb({ success: false, data: [] });
+            }
+        };
+
         // 1. ดึงข้อมูลพนักงาน (Staff Details)
-        google.script.run.withSuccessHandler(res => {
+        getSheetDataSafe('staff', res => {
             if (res && res.success) {
                 const staffMember = (res.data || []).find(r => String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === empId);
                 if (staffMember) {
-                    const firstName = staffMember.First_Name || staffMember.first_name || '';
-                    const lastName = staffMember.Last_Name || staffMember.last_name || '';
+                    const rawFirst = staffMember.First_Name || staffMember.first_name || '';
+                    const rawLast = staffMember.Last_Name || staffMember.last_name || '';
+                    const firstName = String(rawFirst).replace(/<[^>]*>/g, '').trim();
+                    const lastName = String(rawLast).replace(/<[^>]*>/g, '').trim();
                     const fullName = `${firstName} ${lastName}`.trim() || empId;
 
                     const welcomeEl = document.getElementById('staff-welcome-name');
@@ -182,14 +196,14 @@ async function loadStaffDashboard() {
                     if (rewardEl) rewardEl.innerText = staffMember['Reward Level'] || staffMember.reward_level || '-';
                 }
             }
-        }).getSheetData('staff');
+        });
 
         // 2. ดึงเวลาเข้างานวันนี้ (Today's Attendance)
         const now = new Date();
         const offset = now.getTimezoneOffset() * 60000;
         const todayStr = (new Date(now.getTime() - offset)).toISOString().slice(0, 10);
 
-        google.script.run.withSuccessHandler(res => {
+        getSheetDataSafe('Fingerprint_Logs', res => {
             if (res && res.success) {
                 const todayLog = (res.data || []).find(r => {
                     const rEmp = String(r.Employee_ID || r.employee_id || '').trim().toUpperCase();
@@ -222,10 +236,10 @@ async function loadStaffDashboard() {
                     }
                 }
             }
-        }).getSheetData('Fingerprint_Logs');
+        });
 
         // 3. ดึงประวัติการลา (Leave Applications)
-        google.script.run.withSuccessHandler(res => {
+        getSheetDataSafe('Leave application', res => {
             if (res && res.success) {
                 const myLeaves = (res.data || [])
                     .filter(r => String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === empId)
@@ -262,10 +276,10 @@ async function loadStaffDashboard() {
 
                             return `
                                         <tr>
-                                            <td class="py-3 font-semibold">${type}</td>
-                                            <td class="py-3">${start}</td>
+                                            <td class="py-3 font-semibold">${escapeHtml(type)}</td>
+                                            <td class="py-3">${escapeHtml(start)}</td>
                                             <td class="py-3 text-right">
-                                                <span class="inline-block px-2.5 py-1 text-xs font-bold rounded-full ${statusClass}">${statusText}</span>
+                                                <span class="inline-block px-2.5 py-1 text-xs font-bold rounded-full ${statusClass}">${escapeHtml(statusText)}</span>
                                             </td>
                                         </tr>
                                     `;
@@ -275,10 +289,10 @@ async function loadStaffDashboard() {
                     }
                 }
             }
-        }).getSheetData('Leave application');
+        });
 
         // 3.5. ดึงประวัติการขออนุมัติงบประมาณ (Budget Requests)
-        google.script.run.withSuccessHandler(res => {
+        getSheetDataSafe('Budget Request', res => {
             if (res && res.success) {
                 const myBudgets = (res.data || [])
                     .filter(r => String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === empId)
@@ -319,24 +333,22 @@ async function loadStaffDashboard() {
                                         <tr class="cursor-pointer hover:bg-gray-50/80 transition-colors" onclick="showBillDetailsModal('${encodedRow}')" title="คลิกเพื่อดูรายละเอียดบิล">
                                             <td class="py-3 font-semibold text-brandindigo hover:underline flex items-center gap-1">
                                                 <i class="fa-solid fa-receipt text-[10px] opacity-75"></i>
-                                                <span>${title}</span>
+                                                <span>${escapeHtml(title)}</span>
                                             </td>
                                             <td class="py-3 text-right">${amountStr}</td>
                                             <td class="py-3 text-right">
-                                                <span class="inline-block px-2.5 py-1 text-xs font-bold rounded-full ${statusClass}">${statusText}</span>
+                                                <span class="inline-block px-2.5 py-1 text-xs font-bold rounded-full ${statusClass}">${escapeHtml(statusText)}</span>
                                             </td>
                                         </tr>
                                     `;
                         }).join('');
-                    } else {
-                        budgetsTbody.innerHTML = `<tr><td colspan="3" class="py-10 text-center text-gray-400">ไม่มีประวัติการขออนุมัติงบประมาณ</td></tr>`;
                     }
                 }
             }
-        }).getSheetData('Budget Request');
+        });
 
         // 4. ดึงประกาศล่าสุด (Latest Announcements)
-        google.script.run.withSuccessHandler(res => {
+        getSheetDataSafe('Announcements', res => {
             if (res && res.success) {
                 const activeAnns = (res.data || [])
                     .filter(r => {
@@ -363,10 +375,10 @@ async function loadStaffDashboard() {
                             return `
                                         <div class="p-4 rounded-xl bg-gray-50 border border-gray-100 hover:bg-indigo-50/30 hover:border-indigo-100/50 transition-all">
                                             <div class="flex items-center justify-between mb-2">
-                                                <span class="inline-block px-2 py-0.5 text-[10px] font-bold bg-indigo-50 text-brandindigo rounded-md">${type}</span>
-                                                <span class="text-xs text-gray-400 font-medium">${dateStr}</span>
+                                                <span class="inline-block px-2 py-0.5 text-[10px] font-bold bg-indigo-50 text-brandindigo rounded-md">${escapeHtml(type)}</span>
+                                                <span class="text-xs text-gray-400 font-medium">${escapeHtml(dateStr)}</span>
                                             </div>
-                                            <h4 class="text-sm font-bold text-gray-800 line-clamp-2">${topic}</h4>
+                                            <h4 class="text-sm font-bold text-gray-800 line-clamp-2">${escapeHtml(topic)}</h4>
                                         </div>
                                     `;
                         }).join('');
@@ -375,7 +387,7 @@ async function loadStaffDashboard() {
                     }
                 }
             }
-        }).getSheetData('Announcements');
+        });
     } catch (e) {
         console.warn('[StaffDashboard]', e);
     }
