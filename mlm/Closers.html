@@ -57,7 +57,7 @@
         const [searchTerm, setSearchTerm] = useState(''); 
         const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null, title: '' });
         
-        const initialFormState = { id: '', name: '', team: 'ทีมแพทย์/คลินิก', status: 'ใช้งาน' };
+        const initialFormState = { id: '', name: '', team: 'Center', status: 'ใช้งาน' };
         const [formData, setFormData] = useState(initialFormState);
 
         const handleOpenAdd = () => {
@@ -67,43 +67,100 @@
           setFormData({ ...initialFormState, id: "C" + nextIdNum.toString().padStart(3, '0') });
           setShowForm(true);
         };
-        const handleOpenEdit = (closer) => { setIsEditing(true); setFormData({ team: 'ทีมแพทย์/คลินิก', ...closer }); setShowForm(true); };
+        const handleOpenEdit = (closer) => { setIsEditing(true); setFormData({ team: 'Center', ...closer }); setShowForm(true); };
 
-        const handleSave = (e) => {
+        const handleSave = async (e) => {
            e.preventDefault(); 
            if (!formData.id || !formData.name) return; 
            setIsSubmitting(true);
            
-           if (window.SUPABASE_REST_URL) {
-              const supaData = { closer_id: formData.id, name: formData.name, team: formData.team || 'ทีมแพทย์/คลินิก', status: formData.status };
-              const req = isEditing 
-                ? supabaseUpdate('stk_closers', formData.id, supaData, 'closer_id')
-                : supabaseInsert('stk_closers', supaData);
+           const newRecord = { id: formData.id, name: formData.name, team: formData.team || 'Center', status: formData.status || 'ใช้งาน' };
 
-              req.then(() => {
-                 if(isEditing) setClosers((closers || []).map(p => p && safeUpper(p.id) === safeUpper(formData.id) ? formData : p)); 
-                 else setClosers([...(closers || []), formData]); 
-                 setShowForm(false); 
-                 setIsSubmitting(false); 
-                 showToast(isEditing ? 'แก้ไขผู้ปิดการขายสำเร็จ' : 'เพิ่มผู้ปิดการขายสำเร็จ', 'success');
-              }).catch(err => {
-                 setIsSubmitting(false);
-                 showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
-              });
+           let savedSuccess = false;
+           if (window.supabaseClient) {
+               try {
+                   const { error } = await window.supabaseClient
+                       .from('stk_closers')
+                       .upsert({ closer_id: formData.id, name: formData.name, team: formData.team || 'Center', status: formData.status }, { onConflict: 'closer_id' });
+                   if (!error) savedSuccess = true;
+               } catch(err) { console.warn("Supabase SDK upsert error:", err); }
            }
+
+           if (!savedSuccess && window.SUPABASE_REST_URL) {
+               try {
+                   const supaDataPrimary = { closer_id: formData.id, name: formData.name, team: formData.team || 'Center', status: formData.status };
+                   if (isEditing) {
+                       await supabaseUpdate('stk_closers', formData.id, supaDataPrimary, 'closer_id').catch(() => supabaseUpdate('stk_closers', formData.id, { id: formData.id, name: formData.name, team: formData.team, status: formData.status }, 'id'));
+                   } else {
+                       await supabaseInsert('stk_closers', supaDataPrimary).catch(() => supabaseInsert('stk_closers', { id: formData.id, name: formData.name, team: formData.team, status: formData.status }));
+                   }
+                   savedSuccess = true;
+               } catch(err) {
+                   console.warn("Supabase REST save fallback", err);
+               }
+           }
+
+           // Update local state and cache regardless to guarantee smooth UX
+           if (isEditing) {
+               setClosers((closers || []).map(p => p && String(p.id || '').toUpperCase() === String(formData.id || '').toUpperCase() ? newRecord : p));
+           } else {
+               setClosers([...(closers || []), newRecord]);
+           }
+
+           setShowForm(false); 
+           setIsSubmitting(false); 
+           showToast(isEditing ? 'แก้ไขผู้ปิดการขายสำเร็จ!' : 'บันทึกผู้ปิดการขายสำเร็จ!', 'success');
         };
 
         const executeDelete = () => { 
             const id = confirmDelete.id; 
-            supabaseDelete('stk_closers', id, 'closer_id').then(() => {
-               setClosers((closers || []).filter(p => p && p.id !== id)); 
-               showToast('ลบผู้ปิดการขายสำเร็จ', 'success');
-            }).catch(err => {
-               showToast('ลบล้มเหลว: ' + err.message, 'error');
-            });
+            if (!id) return;
+            supabaseDelete('stk_closers', id, 'closer_id')
+              .catch(() => supabaseDelete('stk_closers', id, 'id'))
+              .catch(() => supabaseDelete('closers', id, 'id'))
+              .then(() => {
+                 setClosers((closers || []).filter(p => p && p.id !== id)); 
+                 setConfirmDelete({ show: false, id: null, title: '' });
+                 showToast('ลบผู้ปิดการขายสำเร็จ', 'success');
+              }).catch(err => {
+                 setConfirmDelete({ show: false, id: null, title: '' });
+                 showToast('ลบล้มเหลว: ' + err.message, 'error');
+              });
         };
 
-        const filteredClosers = (closers || []).filter(p => p && ((p.id && String(p.id).toLowerCase().includes(searchTerm.toLowerCase())) || (p.name && String(p.name).toLowerCase().includes(searchTerm.toLowerCase())) || (p.team && String(p.team).toLowerCase().includes(searchTerm.toLowerCase()))));
+        const [selectedTeamFilter, setSelectedTeamFilter] = useState('ALL');
+
+        const teamCategoryCounts = useMemo(() => {
+            const counts = {
+                ALL: (closers || []).length,
+                DOCTOR: 0,
+                CLOSER: 0,
+                MARKETING: 0,
+                CENTRAL: 0
+            };
+            (closers || []).forEach(c => {
+                const t = String(c?.team || '').toUpperCase();
+                if (t.includes('แพทย์') || t.includes('คลินิก') || t.includes('หมอ') || t.includes('DOCTOR')) counts.DOCTOR++;
+                else if (t.includes('ผู้เชี่ยวชาญ') || t.includes('CLOSER') || t.includes('TEAM B') || t.includes('CENTER')) counts.CLOSER++;
+                else if (t.includes('การตลาด') || t.includes('MARKETING') || t.includes('TEAM A')) counts.MARKETING++;
+                else counts.CENTRAL++;
+            });
+            return counts;
+        }, [closers]);
+
+        const filteredClosers = (closers || []).filter(p => {
+            if (!p) return false;
+            const search = searchTerm.trim().toLowerCase();
+            const matchesSearch = search === '' || 
+                (p.id && String(p.id).toLowerCase().includes(search)) || 
+                (p.name && String(p.name).toLowerCase().includes(search)) || 
+                (p.team && String(p.team).toLowerCase().includes(search));
+
+            if (!matchesSearch) return false;
+
+            if (selectedTeamFilter === 'ALL') return true;
+            return String(p.team || 'ไม่ระบุทีม').trim() === selectedTeamFilter;
+        });
 
         return (
           <div className="space-y-6 animation-fade-in relative w-full">
@@ -116,13 +173,8 @@
                   <div>
                     <label className={labelClassHud}>สังกัด / ทีมการทำงาน</label>
                     <select className={inputClassHud} value={formData.team} onChange={e=>setFormData({...formData,team:e.target.value})}>
-                      <option value="ทีมแพทย์/คลินิก">🩺 ทีมแพทย์ / คลินิกที่ปรึกษา</option>
-                      <option value="ทีมผู้เชี่ยวชาญปิดการขาย">🎧 ทีมผู้เชี่ยวชาญปิดการขาย (Closer)</option>
-                      <option value="ฝ่ายการตลาด (Marketing)">📢 ฝ่ายการตลาด (Marketing)</option>
-                      <option value="ฝ่ายขายส่วนกลาง (Central Sales)">🏢 ฝ่ายขายส่วนกลาง (Central Sales)</option>
-                      {(businessTeams || []).map(t => (
-                        <option key={t.id || t.name} value={t.name}>{t.name}</option>
-                      ))}
+                      <option value="Center">🎧 Center (ทีมผู้เชี่ยวชาญปิดการขาย)</option>
+                      <option value="Marketing">📢 Marketing (ฝ่ายการตลาด)</option>
                     </select>
                   </div>
                   <div><label className={labelClassHud}>สถานะ</label><select className={inputClassHud} value={formData.status} onChange={e=>setFormData({...formData,status:e.target.value})}><option value="ใช้งาน">ใช้งาน</option><option value="ไม่ใช้งาน">ไม่ใช้งาน</option></select></div>
@@ -141,8 +193,58 @@
                </div>
             </div>
 
-            <div className="bg-purple-50 p-4 rounded-2xl shadow-sm border border-purple-100 flex items-center gap-3"><Info size={24} className="text-purple-500 shrink-0"/><p className="text-sm text-purple-800 font-medium">จัดการรายชื่อหมอและผู้ปิดการขาย พร้อมระบุสังกัดทีมการทำงานสำหรับแสดงในหน้าป้อนข้อมูลการขาย</p></div>
-            
+            {/* 📌 Dynamic Filter Cards derived directly from stk_closers table */}
+            {(() => {
+                const teamMap = {};
+                (closers || []).forEach(c => {
+                    const tName = String(c?.team || 'ไม่ระบุทีม').trim();
+                    teamMap[tName] = (teamMap[tName] || 0) + 1;
+                });
+                const distinctTeamsList = Object.keys(teamMap).sort();
+
+                return (
+                    <div className="flex flex-wrap gap-3">
+                        <button 
+                            type="button"
+                            onClick={() => setSelectedTeamFilter('ALL')}
+                            className={`p-3.5 rounded-2xl border text-left transition-all flex items-center justify-between shadow-xs min-w-[180px] flex-1 ${selectedTeamFilter === 'ALL' ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-300' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
+                        >
+                            <div>
+                                <div className="text-[11px] font-bold opacity-80 uppercase tracking-wider">ทีมทั้งหมด</div>
+                                <div className="text-xl font-black mt-0.5">{(closers || []).length} <span className="text-xs font-normal opacity-90">คน</span></div>
+                            </div>
+                            <span className={`text-xs font-bold px-2 py-1 rounded-lg ${selectedTeamFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'}`}>ทั้งหมด</span>
+                        </button>
+
+                        {distinctTeamsList.map(tName => {
+                            const isSelected = selectedTeamFilter === tName;
+                            return (
+                                <button 
+                                    key={tName}
+                                    type="button" 
+                                    onClick={() => setSelectedTeamFilter(isSelected ? 'ALL' : tName)}
+                                    className={`p-3.5 rounded-2xl border text-left transition-all flex items-center justify-between shadow-xs min-w-[200px] flex-1 ${isSelected ? 'bg-blue-600 text-white border-blue-600 shadow-md ring-2 ring-blue-200' : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50'}`}
+                                >
+                                    <div>
+                                        <div className="text-[11px] font-bold opacity-80 uppercase tracking-wider truncate max-w-[150px]" title={tName}>🏢 {tName}</div>
+                                        <div className="text-xl font-black mt-0.5">{teamMap[tName]} <span className="text-xs font-normal opacity-90">คน</span></div>
+                                    </div>
+                                    <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${isSelected ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-700'}`}>{tName}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                );
+            })()}
+
+            {selectedTeamFilter !== 'ALL' && (
+              <div className="flex items-center justify-between bg-blue-50/60 border border-blue-200 px-4 py-2 rounded-xl text-xs font-bold text-blue-800">
+                <span>กำลังกรองแสดงผลเฉพาะสังกัดทีม: <span className="text-blue-600 font-extrabold">{selectedTeamFilter}</span></span>
+                <button onClick={() => setSelectedTeamFilter('ALL')} className="text-blue-600 hover:text-blue-800 underline ml-2">แสดงผู้ปิดการขายทั้งหมด ({(closers || []).length} คน)</button>
+              </div>
+            )}
+
+
             <div className={`${boxWrapper} p-0 overflow-hidden`}>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">

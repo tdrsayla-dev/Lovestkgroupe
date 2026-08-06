@@ -105,7 +105,7 @@
     // ==========================================
     // 📌 Sales Entry View Component
     // ==========================================
-    const SalesEntryView = ({ members, customers, closers, sales, setSales, setCustomers, activeProductsList, activeCustomerTypes, isAdmin, showToast, currentUser, products, setProducts, systemSettings }) => {
+    const SalesEntryView = ({ members, customers, closers, businessTeams = [], sales, setSales, setCustomers, activeProductsList, activeCustomerTypes, isAdmin, showToast, currentUser, products, setProducts, systemSettings }) => {
         const [saleTab, setSaleTab] = useState('B2M');
         
         const [formData, setFormData] = useState({ date: getLocalISODate() });
@@ -193,11 +193,28 @@
         })), [customers]);
         
         const closersSuggestList = useMemo(() => {
+            if (!custData.closerTeam) return [];
+            const selectedTeam = String(custData.closerTeam).trim().toUpperCase();
+
+            if (selectedTeam === 'MARKETING' || selectedTeam.includes('การตลาด')) {
+                const filteredMems = (members || []).filter(m => {
+                    if (m.status && m.status !== 'ใช้งาน') return false;
+                    const mTeam = String(m.team || m.businessTeam || m.business_team || '').trim().toUpperCase();
+                    return mTeam.includes('MARKETING') || mTeam.includes('การตลาด') || mTeam === 'TEAM A';
+                });
+                const targetList = filteredMems.length > 0 ? filteredMems : (members || []).filter(m => !m.status || m.status === 'ใช้งาน');
+                return targetList.map(m => `${m.id} - ${m.name}`);
+            }
+
             return (closers || []).filter(c => {
-                const mapTeam = (c.team === 'Team A' ? 'Marketing' : (c.team === 'Team B' ? 'Center' : c.team));
-                return mapTeam === custData.closerTeam && c.status === 'ใช้งาน';
-            }).map(c => c.name);
-        }, [closers, custData.closerTeam]);
+                if (c.status && c.status !== 'ใช้งาน') return false;
+                const cTeam = String(c.team || '').trim().toUpperCase();
+                
+                if (cTeam === selectedTeam) return true;
+                if (selectedTeam === 'CENTER' && (cTeam === 'TEAM B' || cTeam === 'CENTER' || cTeam.includes('ผู้เชี่ยวชาญ'))) return true;
+                return false;
+            }).map(c => `${c.id} - ${c.name}`);
+        }, [closers, members, custData.closerTeam]);
 
         const [cart, setCart] = useState([]);
         const [catalogSearch, setCatalogSearch] = useState('');
@@ -283,7 +300,18 @@
             } catch(e) {
                 console.warn('Error loading pending sale:', e);
             }
-        }, [products]);
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const editIdParam = urlParams.get('editId');
+                if (editIdParam && Array.isArray(sales) && sales.length > 0) {
+                    const targetRecord = sales.find(s => String(s.id).trim().toUpperCase() === String(editIdParam).trim().toUpperCase());
+                    if (targetRecord && typeof handleEditSale === 'function') {
+                        handleEditSale(targetRecord);
+                        if (showToast) showToast(`ดึงข้อมูลบิล ${editIdParam} เพื่อทำการแก้ไขเรียบร้อยแล้ว`, 'success');
+                    }
+                }
+            } catch(e) {}
+        }, [products, sales]);
 
         const formatDisplayNumber = (val) => {
             if (val === '' || val === null || val === undefined) return '';
@@ -649,24 +677,39 @@
 
             breakdownParts.push(`<tr><td colspan="2" style="padding: 4px 0; font-weight: bold; color: #1e3a8a;">ชำระโดย: ${payMethodLabel}</td></tr>`);
 
-            if (cTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- เงินสด (THB):</td><td style="padding: 2px 0; text-align: right;">฿${cTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
-            if (cLAK > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- เงินสด (LAK):</td><td style="padding: 2px 0; text-align: right;">${cLAK.toLocaleString()} ₭</td></tr>`);
-            if (tThaiTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนไทย (${bThaiTHB}):</td><td style="padding: 2px 0; text-align: right;">฿${tThaiTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
-            if (tLaosTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนลาว (${bLaosTHB}):</td><td style="padding: 2px 0; text-align: right;">฿${tLaosTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
-            if (tLaosLAK > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนลาว (${bLaosLAK}):</td><td style="padding: 2px 0; text-align: right;">${tLaosLAK.toLocaleString()} ₭</td></tr>`);
+            if (cTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- เงินสด (THB):</td><td style="padding: 2px 0; text-align: right; font-weight: bold;">฿${cTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
+            if (cLAK > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- เงินสด (LAK):</td><td style="padding: 2px 0; text-align: right; font-weight: bold;">${cLAK.toLocaleString()} ₭</td></tr>`);
+            if (tThaiTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนไทย (${bThaiTHB}):</td><td style="padding: 2px 0; text-align: right; font-weight: bold;">฿${tThaiTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
+            if (tLaosTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนลาวบาท (${bLaosTHB}):</td><td style="padding: 2px 0; text-align: right; font-weight: bold;">฿${tLaosTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
+            if (tLaosLAK > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนลาวกีบ (${bLaosLAK}):</td><td style="padding: 2px 0; text-align: right; font-weight: bold;">${tLaosLAK.toLocaleString()} ₭</td></tr>`);
             
-            breakdownParts.push(`<tr><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; font-weight: bold;">รับเงินรวม (THB):</td><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; text-align: right; font-weight: bold;">฿${(Math.round(totalPaidTHB * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
-            
-            const diff = (rs.totalAmount || 0) - totalPaidTHB;
-            let changeTHB = diff < -0.05 ? Math.abs(diff) : 0;
-            
-            breakdownParts.push(`<tr><td colspan="2"><div class="divider" style="margin: 2mm 0;"></div></td></tr>`);
-            breakdownParts.push(`<tr><td style="padding: 2px 0; font-weight: bold; font-size: 12px; color: #1e3a8a;">เงินทอน (THB):</td><td style="padding: 2px 0; text-align: right; font-weight: bold; font-size: 12px; color: #1e3a8a;">฿${changeTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
-            if (changeTHB > 0) {
-                breakdownParts.push(`<tr><td style="padding: 2px 0; font-weight: bold; font-size: 12px; color: #1e3a8a;">เงินทอน (LAK):</td><td style="padding: 2px 0; text-align: right; font-weight: bold; font-size: 12px; color: #1e3a8a;">${(Math.round(changeTHB * rate)).toLocaleString()} ₭</td></tr>`);
+            const pMode = String(rs.payMode || rs.pay_mode || rs.saleType || '').toLowerCase();
+            const isLakMain = pMode.includes('กีบ') || pMode.includes('lak') || pMode.includes('โอนลาว') || pMode.includes('สดกีบ');
+            const totalRecordAmt = parseFloat(rs.totalAmount || rs.total_amount || 0);
+
+            if (isLakMain) {
+                const totalLakBill = Number(rs.total_amount_lak || rs.totalAmountLak || (totalRecordAmt >= 100000 ? totalRecordAmt : totalRecordAmt * rate));
+                const totalPaidLak = cLAK + (cTHB * rate) + (tThaiTHB * rate) + (tLaosTHB * rate) + tLaosLAK;
+                const changeLAK = totalPaidLak - totalLakBill;
+                if (changeLAK > 0.5) {
+                    breakdownParts.push(`<tr><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; font-weight: bold; color: #047857;">เงินทอน (LAK):</td><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; text-align: right; font-weight: bold; color: #047857;">${Math.round(changeLAK).toLocaleString()} ₭</td></tr>`);
+                }
+            } else {
+                const totalThbBill = Number(rs.total_amount_thb || rs.totalAmountThb || (totalRecordAmt >= 100000 ? totalRecordAmt / rate : totalRecordAmt));
+                const totalPaidThb = cTHB + (cLAK / rate) + tThaiTHB + tLaosTHB + (tLaosLAK / rate);
+                const changeTHB = totalPaidThb - totalThbBill;
+                if (changeTHB > 0.05) {
+                    if (cLAK > 0 && cTHB === 0) {
+                        breakdownParts.push(`<tr><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; font-weight: bold; color: #047857;">เงินทอน (LAK):</td><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; text-align: right; font-weight: bold; color: #047857;">${Math.round(changeTHB * rate).toLocaleString()} ₭</td></tr>`);
+                    } else {
+                        breakdownParts.push(`<tr><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; font-weight: bold; color: #1e3a8a;">เงินทอน (THB):</td><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; text-align: right; font-weight: bold; color: #1e3a8a;">฿${(Math.round(changeTHB * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
+                    }
+                }
             }
             
-            if (rs.paymentNote) breakdownParts.push(`<tr><td colspan="2" style="font-size: 9px; color: #64748b; padding-top: 6px; font-style: italic;">📝 หมายเหตุ: ${rs.paymentNote}</td></tr>`);
+            if (rs.paymentNote && String(rs.paymentNote).trim() !== String(rs.saleType).trim()) {
+                breakdownParts.push(`<tr><td colspan="2" style="font-size: 10px; color: #b45309; padding-top: 6px; font-weight: 600;">📝 หมายเหตุ: ${rs.paymentNote}</td></tr>`);
+            }
             
             const paymentBreakdownHtml = breakdownParts.join('');
 
@@ -793,8 +836,30 @@
                         <table class="meta-table">
                           <tr class="total-row"><td>ยอดรวมราคาสินค้า:</td><td class="text-right">฿${totalBaseAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
                           ${totalDiscountAmount > 0 ? `<tr class="total-row"><td>ส่วนลดรวม:</td><td class="text-right" style="color: #ef4444; font-weight:700;">- ฿${totalDiscountAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>` : ''}
-                          <tr class="total-row bold"><td style="padding-top: 4px; font-size: 13px;">ยอดรวมสุทธิ (THB):</td><td class="text-right" style="padding-top: 4px; font-size: 15px; color: #1e3a8a; font-family: monospace;">฿${(rs.totalAmount || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
-                          <tr class="total-row"><td>คิดเป็นเงินกีบ (LAK):</td><td class="text-right" style="font-weight: 700;">${((rs.totalAmount || 0) * rate).toLocaleString()} ₭</td></tr>
+                          ${(() => {
+                              const pMode = String(rs.payMode || rs.pay_mode || rs.saleType || '').toLowerCase();
+                              const isLak = pMode.includes('กีบ') || pMode.includes('lak') || pMode.includes('โอนลาว') || pMode.includes('สดกีบ');
+                              const exRate = Number(systemSettings?.exchange_rate || rate || 700);
+                              const rAmt = Number(rs.totalAmount || rs.total_amount || 0);
+
+                              let lakAmt = Number(rs.total_amount_lak || rs.totalAmountLak || 0);
+                              if (!lakAmt || lakAmt <= 0) lakAmt = rAmt >= 100000 ? rAmt : rAmt * exRate;
+
+                              let thbAmt = Number(rs.total_amount_thb || rs.totalAmountThb || 0);
+                              if (!thbAmt || thbAmt <= 0) thbAmt = rAmt >= 100000 ? rAmt / exRate : rAmt;
+
+                              if (isLak) {
+                                  return `
+                                      <tr class="total-row bold"><td style="padding-top: 4px; font-size: 13px;">ยอดรวมสุทธิ (LAK):</td><td class="text-right" style="padding-top: 4px; font-size: 15px; color: #047857; font-family: monospace;">${Math.round(lakAmt).toLocaleString()} ₭</td></tr>
+                                      <tr class="total-row"><td>คิดเป็นเงินบาท (THB):</td><td class="text-right" style="font-weight: 700;">฿${(Math.round(thbAmt * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
+                                  `;
+                              } else {
+                                  return `
+                                      <tr class="total-row bold"><td style="padding-top: 4px; font-size: 13px;">ยอดรวมสุทธิ (THB):</td><td class="text-right" style="padding-top: 4px; font-size: 15px; color: #1e3a8a; font-family: monospace;">฿${(Math.round(thbAmt * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
+                                      <tr class="total-row"><td>คิดเป็นเงินกีบ (LAK):</td><td class="text-right" style="font-weight: 700;">${Math.round(lakAmt).toLocaleString()} ₭</td></tr>
+                                  `;
+                              }
+                          })()}
                         </table>
                         <div class="divider"></div>
                         <table class="meta-table">
@@ -1466,7 +1531,11 @@
                          <div className="flex gap-2">
                             <div className="flex-1 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
                                <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">ทีมผู้ปิด</label>
-                               <select required className="w-full bg-white border border-slate-200 rounded-md text-[11px] py-1.5 px-2 outline-none focus:border-blue-500 shadow-sm" value={custData.closerTeam} onChange={(e) => setCustData({...custData, closerTeam: e.target.value, closer: ''})}><option value="" disabled>- ทีม -</option><option value="Marketing">Marketing</option><option value="Center">Center</option></select>
+                               <select required className="w-full bg-white border border-slate-200 rounded-md text-[11px] py-1.5 px-2 outline-none focus:border-blue-500 shadow-sm" value={custData.closerTeam} onChange={(e) => setCustData({...custData, closerTeam: e.target.value, closer: ''})}>
+                                  <option value="">- เลือกทีมผู้ปิด -</option>
+                                  <option value="Center">Center (ทีมผู้เชี่ยวชาญปิดการขาย)</option>
+                                  <option value="Marketing">Marketing (ฝ่ายการตลาด)</option>
+                               </select>
                             </div>
                             <div className="flex-[2] bg-slate-50 p-1.5 rounded-lg border border-slate-100">
                                <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">ผู้ปิดการขาย *</label>
@@ -1948,6 +2017,7 @@
       const [products, setProducts] = useState([]);
       const [customerTypes, setCustomerTypes] = useState(fallbackCustomerTypes);
       const [closers, setClosers] = useState([]);
+      const [businessTeams, setBusinessTeams] = useState([]);
       const [members, setMembers] = useState([]);
       const [customers, setCustomers] = useState([]);
       const [sales, setSales] = useState([]);
@@ -2049,6 +2119,7 @@
            })));
            if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes.map(x => ({...x, id: x.id || x.type_id})));
            if (Array.isArray(response.closers)) setClosers(response.closers.map(x => ({...x, id: x.id || x.closer_id})));
+           if (Array.isArray(response.businessTeams)) setBusinessTeams(response.businessTeams.map(t => ({ id: t.id || t.team_id, name: t.name || t.team_name || t.Team_Name || t.TeamName, status: t.status || 'ใช้งาน' })));
            if (Array.isArray(response.members)) { setMembers(response.members.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name, profileUrl: m.id_card_url || m.profileImageUrl || m.profileUrl, idCardDocUrl: m.id_card_url || m.idCardDocUrl, businessTeam: m.business_team || m.businessTeam, team: m.business_team || m.team || m.businessTeam || 'T01', role: m.permission_role || m.role || m.permissionRole, status: m.status, sponsorId: m.sponsor_id || m.sponsorId, accumulatedPv: m.accumulated_pv || m.Accumulated_PV || m.accumulatedPv || m.pv || 0, phone: m.phone_number || m.phone || m.phoneNumber }))); }
            if (Array.isArray(response.customers)) setCustomers(response.customers.map(x => ({...x, id: x.id || x.customer_id, lineId: x.lineId || x.line_id, closerTeam: x.closerTeam || x.closer_team, memberId: x.memberId || x.member_id, memberName: x.memberName || x.member_name})));
            if (Array.isArray(response.systemUsers)) setSystemUsers(response.systemUsers.map(x => ({...x, id: x.id || x.user_id || x.system_user_id})));
@@ -2170,6 +2241,7 @@
                     members={members} 
                     customers={customers} 
                     closers={closers} 
+                    businessTeams={businessTeams}
                     sales={sales} 
                     setSales={setSales} 
                     setCustomers={setCustomers} 

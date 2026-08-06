@@ -151,7 +151,15 @@
           setFormData({ ...initialFormState, id: "U" + nextIdNum.toString().padStart(3, '0') });
           setShowForm(true);
         };
-        const handleOpenEdit = (user) => { setIsEditing(true); setFormData({ ...user }); setShowForm(true); };
+        const handleOpenEdit = (user) => { 
+            setIsEditing(true); 
+            setFormData({ 
+                ...user,
+                password: user.password || user.password_hash || '1234',
+                role: user.role || user.permission_role || user.Permission_Role || 'พนักงานทั่วไป'
+            }); 
+            setShowForm(true); 
+        };
 
         const handleSaveUser = (e) => {
            e.preventDefault(); if (!formData.id || !formData.username || !formData.name) return; setIsSubmitting(true);
@@ -191,7 +199,14 @@
                    return r.json();
                })
                 .then(() => {
-                    const updatedPayload = { ...sbPayload, role: formData.role, Permission_Role: formData.role };
+                    const updatedPayload = { 
+                        ...sbPayload, 
+                        password: formData.password,
+                        password_hash: formData.password,
+                        role: formData.role, 
+                        permission_role: formData.role,
+                        Permission_Role: formData.role 
+                    };
                     let list = (systemUsers && systemUsers.length > 0) ? systemUsers : members;
                     setSystemUsers(list.map(p => p && safeUpper(p.id || p.user_id || p.User_ID) === safeUpper(formData.id) ? { ...p, ...updatedPayload } : p));
                     
@@ -201,7 +216,10 @@
                             const savedUser = JSON.parse(savedUserStr);
                             if (safeUpper(savedUser.id || savedUser.username) === safeUpper(formData.id)) {
                                 savedUser.role = formData.role;
+                                savedUser.permission_role = formData.role;
                                 savedUser.name = formData.name;
+                                savedUser.password = formData.password;
+                                savedUser.password_hash = formData.password;
                                 savedUser.status = formData.status;
                                 localStorage.setItem('stk_current_user', JSON.stringify(savedUser));
                             }
@@ -220,7 +238,14 @@
                window.supabaseInsert('stk_members', sbPayload)
                    .then(() => {
                        let list = (systemUsers && systemUsers.length > 0) ? systemUsers : members;
-                       setSystemUsers([...list, { ...sbPayload, role: formData.role, Permission_Role: formData.role }]);
+                       setSystemUsers([...list, { 
+                           ...sbPayload, 
+                           password: formData.password,
+                           password_hash: formData.password,
+                           role: formData.role, 
+                           permission_role: formData.role,
+                           Permission_Role: formData.role 
+                       }]);
                        setShowForm(false);
                        setIsSubmitting(false);
                        showToast('เพิ่มผู้ใช้งานใหม่ในระบบสำเร็จ', 'success');

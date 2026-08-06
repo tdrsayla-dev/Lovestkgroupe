@@ -210,10 +210,25 @@
         const handleOpenAdd = () => { 
             setIsEditing(false); 
             let defaultReferrer = '';
-            if (!isAdmin && currentUser && (currentUser.id || currentUser.username)) {
-                defaultReferrer = currentUser.id || currentUser.username;
+            let defaultTeam = 'T01';
+            let defaultRole = 'พนักงานการตลาด';
+
+            if (!isAdmin && currentUser) {
+                if (currentUser.id || currentUser.username) {
+                    defaultReferrer = currentUser.id || currentUser.username;
+                }
+                const myMem = (members || []).find(m => String(m.id || m.username).toLowerCase() === String(currentUser.id || currentUser.username).toLowerCase());
+                if (myMem) {
+                    if (myMem.team || myMem.business_team) defaultTeam = myMem.team || myMem.business_team;
+                }
             }
-            setFormData({ ...initialFormState, referrer: defaultReferrer }); 
+
+            setFormData({ 
+                ...initialFormState, 
+                referrer: defaultReferrer,
+                team: defaultTeam,
+                role: defaultRole
+            }); 
             setPreviewImage(null); 
             setImageFileBase64(null); 
             setIdDocPreviewImage(null);
@@ -227,9 +242,9 @@
               id: member.id,
               username: member.username || member.id.toLowerCase(),
               name: member.name,
-              team: member.team || 'T01',
-              role: member.role || 'Staff',
-              password: member.password || '1234',
+              team: member.team || member.business_team || 'T01',
+              role: member.role || member.permission_role || member.Permission_Role || 'พนักงานทั่วไป',
+              password: member.password || member.password_hash || '1234',
               startDate: member.startDate || getLocalISODate(),
               status: member.status || 'ทำงานอยู่',
               profileUrl: member.profileUrl || '',
@@ -317,9 +332,10 @@
                 const supabasePayload = {
                     user_id: finalData.id,
                     username: (finalData.username || finalData.id).toLowerCase(),
+                    password_hash: finalData.password || '1234',
                     name: finalData.name,
                     business_team: finalData.team || finalData.businessTeam,
-                    permission_role: finalData.role || 'Staff',
+                    permission_role: finalData.role || 'พนักงานทั่วไป',
                     status: finalData.status || 'ทำงานอยู่',
                     id_card_url: finalData.idCardDocUrl || '',
                     sponsor_id: finalData.referrer || finalData.sponsorId || '',
@@ -408,14 +424,16 @@
                 <form onSubmit={handleSaveMember} className="space-y-6">
 
                   {/* ส่วนที่ 1: ข้อมูลบัญชีเข้าระบบ */}
-                  {/* ✅ canEditSensitive: Admin ทำได้ทุกอย่าง, non-admin lock ฟิลด์สำคัญ */}
                   {(() => {
                     const canEditSensitive = isAdmin;
+                    const isSelf = currentUser && (safeUpper(currentUser.id) === safeUpper(formData.id) || safeUpper(currentUser.username) === safeUpper(formData.id));
+                    const canEditPassword = canEditSensitive || isSelf;
+
                     const lockedInput = inputClassHud + " bg-slate-100 text-slate-500 cursor-not-allowed select-none";
                     return (
                   <div>
                     <h3 className="text-sm font-extrabold text-blue-600 mb-3 flex items-center gap-2 bg-blue-50 py-1.5 px-3 rounded-lg"><UserIcon size={16}/> ข้อมูลบัญชีเข้าระบบ
-                      {!canEditSensitive && isEditing && <span className="ml-2 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">🔒 เฉพาะ Admin แก้ไขได้</span>}
+                      {!canEditSensitive && isEditing && <span className="ml-2 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">🔒 ข้อมูลสำคัญเฉพาะ Admin แก้ไขได้ (ยกเว้นรหัสผ่านของตนเอง)</span>}
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
@@ -427,8 +445,8 @@
                         <input type="text" required disabled={isEditing && !canEditSensitive} placeholder="ใช้สำหรับล็อกอินเข้าระบบ" className={isEditing && !canEditSensitive ? lockedInput : inputClassHud} value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
                       </div>
                       <div>
-                        <label className={labelClassHud}>รหัสผ่านเข้าระบบ *</label>
-                        <input type="text" required disabled={isEditing && !canEditSensitive} placeholder="รหัสผ่านเข้าใช้งาน" className={isEditing && !canEditSensitive ? lockedInput : inputClassHud} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                        <label className={labelClassHud}>รหัสผ่านเข้าระบบ * {!canEditPassword && <span className="text-amber-500 text-[10px]">🔒</span>}</label>
+                        <input type="text" required disabled={!canEditPassword} placeholder="รหัสผ่านเข้าใช้งาน" className={!canEditPassword ? lockedInput : inputClassHud} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
                       </div>
                     </div>
                   </div>
@@ -448,24 +466,24 @@
                         <input type="text" required placeholder="ชื่อเต็มภาษาไทย" className={inputClassHud} value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                       </div>
                       <div>
-                        <label className={labelClassHud}>สังกัดทีม {!canEditSensitive && isEditing && <span className="text-amber-500 text-[10px]">🔒</span>}</label>
-                        <select disabled={isEditing && !canEditSensitive} className={isEditing && !canEditSensitive ? lockedInput : inputClassHud} value={formData.team} onChange={e => setFormData({...formData, team: e.target.value})}>
+                        <label className={labelClassHud}>สังกัดทีม {!canEditSensitive && <span className="text-amber-500 text-[10px]">🔒 (ฟิกซ์ตามทีมผู้เพิ่ม)</span>}</label>
+                        <select disabled={!canEditSensitive} className={!canEditSensitive ? lockedInput : inputClassHud} value={formData.team} onChange={e => setFormData({...formData, team: e.target.value})}>
                           {(businessTeams || []).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                           {(businessTeams || []).length === 0 && <><option value="T01">Marketing</option><option value="T02">Center</option></>}
                         </select>
                       </div>
                       <div>
-                        <label className={labelClassHud}>สิทธิ์การเข้าใช้งาน (Role) {!canEditSensitive && isEditing && <span className="text-amber-500 text-[10px]">🔒</span>}</label>
-                        <select disabled={isEditing && !canEditSensitive} className={isEditing && !canEditSensitive ? lockedInput : inputClassHud} value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
-                          <option value="พนักงานทั่วไป">พนักงานทั่วไป (Staff)</option>
+                        <label className={labelClassHud}>สิทธิ์การเข้าใช้งาน (Role) {!canEditSensitive && <span className="text-amber-500 text-[10px]">🔒 (ฟิกซ์พนักงานการตลาด)</span>}</label>
+                        <select disabled={!canEditSensitive} className={!canEditSensitive ? lockedInput : inputClassHud} value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
                           <option value="พนักงานการตลาด">พนักงานการตลาด (Marketing)</option>
+                          <option value="พนักงานทั่วไป">พนักงานทั่วไป (Staff)</option>
                           <option value="ผู้ดูแลระบบ">ผู้ดูแลระบบ (Admin)</option>
                         </select>
                       </div>
                       
                       <div className="relative">
-                        <label className={labelClassHud + " text-indigo-700"}>ผู้แนะนำ (แม่ทีม) {!canEditSensitive && isEditing && <span className="text-amber-500 text-[10px]">🔒</span>}</label>
-                        {isEditing && !canEditSensitive ? (
+                        <label className={labelClassHud + " text-indigo-700"}>ผู้แนะนำ (แม่ทีม) {!canEditSensitive && <span className="text-amber-500 text-[10px]">🔒 (ฟิกซ์ผู้เพิ่ม)</span>}</label>
+                        {!canEditSensitive ? (
                           <input type="text" disabled className={lockedInput} value={formData.referrer} />
                         ) : (
                           <AutoSuggestInput 

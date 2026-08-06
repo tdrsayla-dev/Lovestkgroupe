@@ -59,7 +59,7 @@
     const X = ({ size = 20 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
     const FileText = ({ size = 20 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>;
 
-    const SALES_PER_PAGE = 15;
+    const SALES_PER_PAGE = 50;
 
     const formatDbDateForFilter = (raw) => {
         if (!raw) return '';
@@ -306,27 +306,41 @@
 
             breakdownParts.push(`<tr><td colspan="2" style="padding: 4px 0; font-weight: bold; color: #1e3a8a;">ชำระโดย: ${payMethodLabel}</td></tr>`);
 
-            if (cTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- เงินสด (THB):</td><td style="padding: 2px 0; text-align: right;">฿${cTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
-            if (cLAK > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- เงินสด (LAK):</td><td style="padding: 2px 0; text-align: right;">${cLAK.toLocaleString()} ₭</td></tr>`);
-            if (tThaiTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนไทย (${bThaiTHB}):</td><td style="padding: 2px 0; text-align: right;">฿${tThaiTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
-            if (tLaosTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนลาว (${bLaosTHB}):</td><td style="padding: 2px 0; text-align: right;">฿${tLaosTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
-            if (tLaosLAK > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนลาว (${bLaosLAK}):</td><td style="padding: 2px 0; text-align: right;">${tLaosLAK.toLocaleString()} ₭</td></tr>`);
+            if (cTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- เงินสด (THB):</td><td style="padding: 2px 0; text-align: right; font-weight: bold;">฿${cTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
+            if (cLAK > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- เงินสด (LAK):</td><td style="padding: 2px 0; text-align: right; font-weight: bold;">${cLAK.toLocaleString()} ₭</td></tr>`);
+            if (tThaiTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนไทย (${bThaiTHB}):</td><td style="padding: 2px 0; text-align: right; font-weight: bold;">฿${tThaiTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
+            if (tLaosTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนลาวบาท (${bLaosTHB}):</td><td style="padding: 2px 0; text-align: right; font-weight: bold;">฿${tLaosTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
+            if (tLaosLAK > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนลาวกีบ (${bLaosLAK}):</td><td style="padding: 2px 0; text-align: right; font-weight: bold;">${tLaosLAK.toLocaleString()} ₭</td></tr>`);
             
             const totalRecordAmt = parseFloat(saleRecord.totalAmount || saleRecord.total_amount || 0);
             if (totalBaseAmount === 0) totalBaseAmount = totalRecordAmt;
+            
+            const pMode = String(saleRecord.payMode || saleRecord.pay_mode || saleRecord.saleType || '').toLowerCase();
+            const isLakMain = pMode.includes('กีบ') || pMode.includes('lak') || pMode.includes('โอนลาว') || pMode.includes('สดกีบ');
 
-            breakdownParts.push(`<tr><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; font-weight: bold;">รับเงินรวม (THB):</td><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; text-align: right; font-weight: bold;">฿${(Math.round((totalPaidTHB || totalRecordAmt) * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
-            
-            const diff = totalRecordAmt - totalPaidTHB;
-            let changeTHB = diff < -0.05 ? Math.abs(diff) : 0;
-            
-            breakdownParts.push(`<tr><td colspan="2"><div class="divider" style="margin: 2mm 0;"></div></td></tr>`);
-            breakdownParts.push(`<tr><td style="padding: 2px 0; font-weight: bold; font-size: 12px; color: #1e3a8a;">เงินทอน (THB):</td><td style="padding: 2px 0; text-align: right; font-weight: bold; font-size: 12px; color: #1e3a8a;">฿${changeTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
-            if (changeTHB > 0) {
-                breakdownParts.push(`<tr><td style="padding: 2px 0; font-weight: bold; font-size: 12px; color: #1e3a8a;">เงินทอน (LAK):</td><td style="padding: 2px 0; text-align: right; font-weight: bold; font-size: 12px; color: #1e3a8a;">${(Math.round(changeTHB * rate)).toLocaleString()} ₭</td></tr>`);
+            if (isLakMain) {
+                const totalLakBill = Number(saleRecord.total_amount_lak || saleRecord.totalAmountLak || (totalRecordAmt >= 100000 ? totalRecordAmt : totalRecordAmt * rate));
+                const totalPaidLak = cLAK + (cTHB * rate) + (tThaiTHB * rate) + (tLaosTHB * rate) + tLaosLAK;
+                const changeLAK = totalPaidLak - totalLakBill;
+                if (changeLAK > 0.5) {
+                    breakdownParts.push(`<tr><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; font-weight: bold; color: #047857;">เงินทอน (LAK):</td><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; text-align: right; font-weight: bold; color: #047857;">${Math.round(changeLAK).toLocaleString()} ₭</td></tr>`);
+                }
+            } else {
+                const totalThbBill = Number(saleRecord.total_amount_thb || saleRecord.totalAmountThb || (totalRecordAmt >= 100000 ? totalRecordAmt / rate : totalRecordAmt));
+                const totalPaidThb = cTHB + (cLAK / rate) + tThaiTHB + tLaosTHB + (tLaosLAK / rate);
+                const changeTHB = totalPaidThb - totalThbBill;
+                if (changeTHB > 0.05) {
+                    if (cLAK > 0 && cTHB === 0) {
+                        breakdownParts.push(`<tr><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; font-weight: bold; color: #047857;">เงินทอน (LAK):</td><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; text-align: right; font-weight: bold; color: #047857;">${Math.round(changeTHB * rate).toLocaleString()} ₭</td></tr>`);
+                    } else {
+                        breakdownParts.push(`<tr><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; font-weight: bold; color: #1e3a8a;">เงินทอน (THB):</td><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; text-align: right; font-weight: bold; color: #1e3a8a;">฿${(Math.round(changeTHB * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
+                    }
+                }
             }
             
-            if (saleRecord.paymentNote) breakdownParts.push(`<tr><td colspan="2" style="font-size: 9px; color: #64748b; padding-top: 6px; font-style: italic;">📝 หมายเหตุ: ${saleRecord.paymentNote}</td></tr>`);
+            if (saleRecord.paymentNote && String(saleRecord.paymentNote).trim() !== String(saleRecord.saleType).trim()) {
+                breakdownParts.push(`<tr><td colspan="2" style="font-size: 10px; color: #b45309; padding-top: 6px; font-weight: 600;">📝 หมายเหตุ: ${saleRecord.paymentNote}</td></tr>`);
+            }
             
             const paymentBreakdownHtml = breakdownParts.join('');
 
@@ -448,8 +462,30 @@
                   <table class="meta-table">
                     <tr class="total-row"><td>ยอดรวมราคาสินค้า:</td><td class="text-right">฿${totalBaseAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
                     ${totalDiscountAmount > 0 ? `<tr class="total-row"><td>ส่วนลดรวม:</td><td class="text-right" style="color: #ef4444; font-weight:700;">- ฿${totalDiscountAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>` : ''}
-                    <tr class="total-row bold"><td style="padding-top: 4px; font-size: 13px;">ยอดรวมสุทธิ (THB):</td><td class="text-right" style="padding-top: 4px; font-size: 15px; color: #1e3a8a; font-family: monospace;">฿${totalRecordAmt.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
-                    <tr class="total-row"><td>คิดเป็นเงินกีบ (LAK):</td><td class="text-right" style="font-weight: 700;">${(totalRecordAmt * rate).toLocaleString()} ₭</td></tr>
+                    ${(() => {
+                        const pMode = String(saleRecord.payMode || saleRecord.pay_mode || saleRecord.saleType || '').toLowerCase();
+                        const isLak = pMode.includes('กีบ') || pMode.includes('lak') || pMode.includes('โอนลาว') || pMode.includes('สดกีบ');
+                        const exRate = Number(systemSettings?.exchange_rate || rate || 700);
+                        const rAmt = Number(saleRecord.totalAmount || saleRecord.total_amount || 0);
+
+                        let lakAmt = Number(saleRecord.total_amount_lak || saleRecord.totalAmountLak || 0);
+                        if (!lakAmt || lakAmt <= 0) lakAmt = rAmt >= 100000 ? rAmt : rAmt * exRate;
+
+                        let thbAmt = Number(saleRecord.total_amount_thb || saleRecord.totalAmountThb || 0);
+                        if (!thbAmt || thbAmt <= 0) thbAmt = rAmt >= 100000 ? rAmt / exRate : rAmt;
+
+                        if (isLak) {
+                            return `
+                                <tr class="total-row bold"><td style="padding-top: 4px; font-size: 13px;">ยอดรวมสุทธิ (LAK):</td><td class="text-right" style="padding-top: 4px; font-size: 15px; color: #047857; font-family: monospace;">${Math.round(lakAmt).toLocaleString()} ₭</td></tr>
+                                <tr class="total-row"><td>คิดเป็นเงินบาท (THB):</td><td class="text-right" style="font-weight: 700;">฿${(Math.round(thbAmt * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
+                            `;
+                        } else {
+                            return `
+                                <tr class="total-row bold"><td style="padding-top: 4px; font-size: 13px;">ยอดรวมสุทธิ (THB):</td><td class="text-right" style="padding-top: 4px; font-size: 15px; color: #1e3a8a; font-family: monospace;">฿${(Math.round(thbAmt * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
+                                <tr class="total-row"><td>คิดเป็นเงินกีบ (LAK):</td><td class="text-right" style="font-weight: 700;">${Math.round(lakAmt).toLocaleString()} ₭</td></tr>
+                            `;
+                        }
+                    })()}
                   </table>
                   <div class="divider"></div>
                   <table class="meta-table">
@@ -545,6 +581,37 @@
             const calculatedQty = [...fullItems, ...memberItems, ...proItems, ...zeroItems].reduce((sum, item) => sum + item.qty, 0);
             const totalQtyInRow = calculatedQty > 0 ? calculatedQty : recordedBottles;
 
+            const pModeStr = String(record.payMode || record.pay_mode || record.saleType || record.payment_method || '').toLowerCase();
+            const isExplicitLak = (pModeStr.includes('กีบ') || pModeStr.includes('lak') || pModeStr.includes('สดกีบ')) && !pModeStr.includes('โอนลาวบาท');
+            const isExplicitThb = pModeStr.includes('บาท') || pModeStr.includes('thb') || pModeStr.includes('โอนไทย') || pModeStr.includes('โอนลาวบาท') || (pModeStr.includes('สด') && !pModeStr.includes('สดกีบ'));
+            const exchangeRate = Number(systemSettings?.exchange_rate || 700);
+            const rawAmt = Number(record.totalAmount || record.total_amount || record.grand_total || 0);
+
+            let formattedVal = '';
+            let symbolStr = 'มูลค่า: ';
+
+            if (isExplicitLak) {
+                // บิลที่ชำระเป็นเงินกีบ -> แสดงยอดเงินกีบเต็มจำนวนตามจริง
+                let lakVal = Number(record.total_amount_lak || record.totalAmountLak || 0);
+                if (!lakVal || lakVal <= 0) {
+                    lakVal = rawAmt >= 100000 ? rawAmt : rawAmt * exchangeRate;
+                }
+                formattedVal = Math.round(lakVal).toLocaleString() + ' ₭';
+            } else if (isExplicitThb) {
+                // บิลที่ชำระเป็นเงินบาท -> แสดงยอดเงินบาท
+                let thbVal = Number(record.total_amount_thb || record.totalAmountThb || 0);
+                if (!thbVal || thbVal <= 0) {
+                    thbVal = rawAmt >= 100000 ? rawAmt / exchangeRate : rawAmt;
+                }
+                formattedVal = '฿' + (thbVal % 1 === 0 ? thbVal.toLocaleString() : thbVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            } else {
+                if (rawAmt >= 100000) {
+                    formattedVal = Math.round(rawAmt).toLocaleString() + ' ₭';
+                } else {
+                    formattedVal = '฿' + rawAmt.toLocaleString(undefined, {minimumFractionDigits: 2});
+                }
+            }
+
             const renderList = (items, textClass) => {
                 if(items.length === 0) return <span className="text-slate-300 text-xs text-center block">-</span>;
                 return (
@@ -565,13 +632,13 @@
                   <td className="p-3 bg-purple-50/20 border-l border-slate-100 align-top">{renderList(memberItems, 'text-purple-600')}</td>
                   <td className="p-3 bg-orange-50/20 border-l border-slate-100 align-top">{renderList(proItems, 'text-orange-600')}</td>
                   <td className="p-3 bg-slate-50/40 border-l border-slate-100 align-top">{renderList(zeroItems, 'text-slate-600')}</td>
-                  <td className="p-4 align-middle text-center border-l border-blue-200 bg-blue-50/40 w-[180px]">
+                  <td className="p-4 align-middle text-center border-l border-blue-200 bg-blue-50/40 min-w-[200px]">
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">รวมทั้งหมด</div>
                     <div className="font-black text-3xl text-blue-700 drop-shadow-xs leading-none">
                         {totalQtyInRow} <span className="text-[13px] font-bold text-blue-500">ชิ้น</span>
                     </div>
-                    <div className="text-[12px] font-black text-emerald-700 mt-2 bg-white py-1.5 px-2 rounded-xl border border-emerald-200 shadow-xs">
-                        มูลค่า: ฿{parseFloat(record.totalAmount || record.total_amount || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
+                    <div className="text-[11px] font-black text-emerald-700 mt-2 bg-white py-1.5 px-2.5 rounded-xl border border-emerald-200 shadow-xs whitespace-nowrap inline-block">
+                        {symbolStr}{formattedVal}
                     </div>
                   </td>
               </React.Fragment>
@@ -590,9 +657,6 @@
                             <div>
                                 <span className="text-xs text-blue-600 font-bold">เลขที่บิล:</span>
                                 <h3 className="text-lg font-black text-slate-800">{viewBillDetail.id}</h3>
-                            </div>
-                            <div className="text-right">
-                                <span className="text-xs text-slate-500 font-bold">วันที่ทำรายการ:</span>
                                 <p className="text-sm font-bold text-slate-700">{formatDbDateForFilter(viewBillDetail.date)}</p>
                             </div>
                         </div>
@@ -600,9 +664,51 @@
                         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2 text-xs font-semibold">
                            <div className="flex justify-between"><span className="text-slate-500">ลูกค้า:</span> <span className="font-bold text-slate-800">{viewBillDetail.customerName || viewBillDetail.customerId}</span></div>
                            <div className="flex justify-between"><span className="text-slate-500">ผู้คีย์รายการ:</span> <span className="font-bold text-indigo-600">{viewBillDetail.recordedBy || 'Admin'}</span></div>
-                           <div className="flex justify-between"><span className="text-slate-500">ช่องทางชำระเงิน:</span> <span className="font-bold text-emerald-600">{viewBillDetail.saleType}</span></div>
-                           <div className="flex justify-between border-t border-slate-200/60 pt-2"><span className="text-slate-500">ยอดรวมสุทธิ:</span> <span className="font-black text-blue-700 text-sm">฿{parseFloat(viewBillDetail.totalAmount || viewBillDetail.total_amount || 0).toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>
-                           {viewBillDetail.paymentNote && <div className="text-amber-700 bg-amber-50 p-2 rounded-xl border border-amber-200 mt-2 whitespace-pre-line">📝 {viewBillDetail.paymentNote}</div>}
+                           <div className="flex justify-between items-start">
+                               <span className="text-slate-500">ช่องทางชำระเงิน:</span>
+                               <div className="font-bold text-emerald-700 text-right">
+                                   {(() => {
+                                       const st = viewBillDetail.saleType || '';
+                                       if (st.includes('|') || st.includes(':')) {
+                                           return st.split('|').map((part, pIdx) => {
+                                               let pTrim = part.trim();
+                                               if (pTrim.startsWith('สด:')) pTrim = `เงินสด (THB): ฿${Number(pTrim.replace('สด:', '')).toLocaleString()}`;
+                                               else if (pTrim.startsWith('สดกีบ:')) pTrim = `เงินสด (LAK): ${Number(pTrim.replace('สดกีบ:', '')).toLocaleString()} ₭`;
+                                               else if (pTrim.startsWith('โอนลาวบาท')) pTrim = pTrim.replace('โอนลาวบาท', 'โอนลาว (บาท)');
+                                               else if (pTrim.startsWith('โอนลาวกีบ')) pTrim = pTrim.replace('โอนลาวกีบ', 'โอนลาว (กีบ)');
+                                               else if (pTrim.startsWith('โอนไทย')) pTrim = pTrim.replace('โอนไทย', 'โอนไทย (บาท)');
+                                               return <div key={pIdx}>{pTrim}</div>;
+                                           });
+                                       }
+                                       return viewBillDetail.saleType || 'ไม่ระบุ';
+                                   })()}
+                               </div>
+                           </div>
+                           <div className="flex justify-between border-t border-slate-200/60 pt-2">
+                               <span className="text-slate-500">ยอดรวมสุทธิ:</span>
+                               <span className="font-black text-blue-700 text-sm">
+                                   {(() => {
+                                       const pMode = String(viewBillDetail.payMode || viewBillDetail.pay_mode || viewBillDetail.saleType || '').toLowerCase();
+                                       const isLak = (pMode.includes('กีบ') || pMode.includes('lak') || pMode.includes('สดกีบ')) && !pMode.includes('โอนลาวบาท');
+                                       const isThb = pMode.includes('บาท') || pMode.includes('thb') || pMode.includes('โอนไทย') || pMode.includes('โอนลาวบาท') || (pMode.includes('สด') && !pMode.includes('สดกีบ'));
+                                       const exRate = Number(systemSettings?.exchange_rate || 700);
+                                       const rAmt = Number(viewBillDetail.totalAmount || viewBillDetail.total_amount || 0);
+
+                                       if (isLak) {
+                                           let lakAmt = Number(viewBillDetail.total_amount_lak || viewBillDetail.totalAmountLak || 0);
+                                           if (!lakAmt || lakAmt <= 0) lakAmt = rAmt >= 100000 ? rAmt : rAmt * exRate;
+                                           return Math.round(lakAmt).toLocaleString() + ' ₭';
+                                       } else if (isThb) {
+                                           let thbAmt = Number(viewBillDetail.total_amount_thb || viewBillDetail.totalAmountThb || 0);
+                                           if (!thbAmt || thbAmt <= 0) thbAmt = rAmt >= 100000 ? rAmt / exRate : rAmt;
+                                           return '฿' + (thbAmt % 1 === 0 ? thbAmt.toLocaleString() : thbAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                                       } else {
+                                           return rAmt >= 100000 ? Math.round(rAmt).toLocaleString() + ' ₭' : '฿' + rAmt.toLocaleString(undefined, {minimumFractionDigits: 2});
+                                       }
+                                   })()}
+                               </span>
+                           </div>
+                           {viewBillDetail.paymentNote && viewBillDetail.paymentNote !== viewBillDetail.saleType && <div className="text-amber-700 bg-amber-50 p-2 rounded-xl border border-amber-200 mt-2 whitespace-pre-line">📝 {viewBillDetail.paymentNote}</div>}
                         </div>
 
                         {/* รายการสินค้าในบิล */}
@@ -688,7 +794,7 @@
                          <th className="p-3 text-xs font-black text-center text-orange-700 uppercase tracking-wider border-l border-slate-200 w-[12%]">ชิ้น (ราคาโปร)</th>
                          <th className="p-3 text-xs font-black text-center text-slate-500 uppercase tracking-wider border-l border-slate-200 w-[12%]">ชิ้น (ราคาศูนย์)</th>
                          <th className="p-3 text-xs font-black text-center text-blue-900 uppercase tracking-wider border-l border-slate-200 bg-blue-50/80 w-[180px]">ยอดรวม</th>
-                         {isAdmin && <th className="p-3 text-xs font-black text-center uppercase tracking-wider border-l border-slate-200 w-[110px]">จัดการบิล</th>}
+                         {isAdmin && <th className="p-3 text-xs font-black text-center uppercase tracking-wider border-l border-slate-200 min-w-[130px]">จัดการบิล</th>}
                        </tr>
                      </thead>
                      <tbody className="divide-y divide-slate-100">
@@ -719,14 +825,14 @@
                                    <button 
                                       type="button"
                                       onClick={() => setViewBillDetail(rs)} 
-                                      className="flex-1 flex items-center justify-center bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-2 py-1.5 rounded-xl transition-colors shadow-xs gap-1 text-[11px] font-bold" 
+                                      className="flex-1 flex items-center justify-center bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-2 py-1.5 rounded-xl transition-colors shadow-xs gap-1 text-[11px] font-bold whitespace-nowrap" 
                                    >
                                       <Eye size={13} className="text-blue-600"/> ดูรายละเอียด
                                    </button>
                                    <button 
                                       type="button"
                                       onClick={() => handlePrintReceiptPopup(rs)} 
-                                      className="flex-1 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-1.5 rounded-xl transition-colors shadow-xs gap-1 text-[11px] font-bold" 
+                                      className="flex-1 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-1.5 rounded-xl transition-colors shadow-xs gap-1 text-[11px] font-bold whitespace-nowrap" 
                                    >
                                       <PrinterIcon size={13} /> พิมพ์บิล
                                    </button>
@@ -734,10 +840,10 @@
                               </td>
                               {renderRecordCells(rs)}
                               {isAdmin && (
-                                <td className="p-2.5 align-middle text-center border-l border-slate-100 bg-slate-50/30">
+                                <td className="p-3 align-middle text-center border-l border-slate-100 bg-slate-50/30 min-w-[130px]">
                                   <div className="flex flex-col items-center justify-center gap-2">
-                                      <button onClick={() => window.location.href = 'Sales.html?editId=' + rs.id} className="flex items-center justify-center gap-1 w-full text-[11px] font-bold text-blue-600 hover:bg-blue-50 transition-colors bg-white py-1.5 rounded-xl border border-slate-200 shadow-xs" title="แก้ไข"><Edit size={12}/> แก้ไขบิล</button>
-                                      <button onClick={() => setConfirmDelete({show: true, id: rs.id, customerId: rs.customerId, title: 'บิล ' + rs.id + ' ลูกค้า ' + rs.customerId})} className="flex items-center justify-center gap-1 w-full text-[11px] font-bold text-red-500 hover:bg-red-50 transition-colors bg-white py-1.5 rounded-xl border border-slate-200 shadow-xs" title="ลบ"><Trash2 size={12}/> ลบบิล</button>
+                                      <button onClick={() => window.location.href = 'Sales.html?editId=' + rs.id} className="flex items-center justify-center gap-1.5 w-full text-[11px] font-bold text-blue-600 hover:bg-blue-50 transition-colors bg-white py-2 px-3 rounded-xl border border-slate-200 shadow-xs whitespace-nowrap" title="แก้ไข"><Edit size={13}/> แก้ไขบิล</button>
+                                      <button onClick={() => setConfirmDelete({show: true, id: rs.id, customerId: rs.customerId, title: 'บิล ' + rs.id + ' ลูกค้า ' + rs.customerId})} className="flex items-center justify-center gap-1.5 w-full text-[11px] font-bold text-red-500 hover:bg-red-50 transition-colors bg-white py-2 px-3 rounded-xl border border-slate-200 shadow-xs whitespace-nowrap" title="ลบ"><Trash2 size={13}/> ลบบิล</button>
                                   </div>
                                 </td>
                               )}

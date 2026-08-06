@@ -407,7 +407,7 @@
                       <label className="block sm:hidden text-[10px] font-bold text-slate-400 mb-1">สินค้า *</label>
                       <select required className={inputClassHud} value={item.productId} onChange={e => handleRowChange(idx, 'productId', e.target.value)}>
                         <option value="">-- เลือกสินค้า --</option>
-                        {(products || []).filter(p => p.status === 'เข้าใช้งาน' || p.status === 'Active').map(p => (
+                        {(products || []).map(p => (
                           <option key={p.id} value={p.id}>{p.id} - {p.name} (คงเหลือ: {p.stock || 0})</option>
                         ))}
                       </select>
@@ -932,7 +932,7 @@
         const maxLevels = Number(systemSettings?.commission_levels || 6);
 
         const getInitialFormState = () => {
-          const init = { id: '', name: '', barcode: '', status: 'เข้าใช้งาน', category: '', description: '', imageUrl: '', stock: 0, priceFull: 0, priceMember: 0, pricePromo: 0, givePv: 0, minPvComm: 0 };
+          const init = { id: '', name: '', barcode: '', status: 'เข้าใช้งาน', category: '', description: '', imageUrl: '', stock: 0, priceFull: 0, priceMember: 0, pricePromo: 0, givePv: 0, minPvComm: 0, fullMarginAmount: 0, fullMarginCurrency: 'LAK' };
           init.selfFee = 0;
           for (let i = 1; i < maxLevels; i++) {
             init[`level${i}Fee`] = 0;
@@ -954,14 +954,6 @@
 
         const defaultImg = "https://ui-avatars.com/api/?name=" + encodeURIComponent("Product") + "&background=3b82f6&color=ffffff&rounded=true&bold=true";
         const [minDivPvInput, setMinDivPvInput] = useState(systemSettings?.min_dividend_pv || 100);
-        const [levelsInput, setLevelsInput] = useState(systemSettings?.commission_levels || 6);
-
-        useEffect(() => {
-            if (systemSettings) {
-                if (systemSettings.min_dividend_pv !== undefined) setMinDivPvInput(systemSettings.min_dividend_pv);
-                if (systemSettings.commission_levels !== undefined) setLevelsInput(systemSettings.commission_levels);
-            }
-        }, [systemSettings]);
 
         const handleOpenAdd = () => {
           setIsEditing(false); 
@@ -1052,7 +1044,8 @@
                        min_pv_comm: dataToSave.minPvComm,
                        self_fee: dataToSave.selfFee,
                        self_percent_full: dataToSave.selfPercentFull,
-                       self_percent_member: dataToSave.selfPercentMember
+                       self_percent_member: dataToSave.selfPercentMember,
+                       image_url: dataToSave.imageUrl || ''
                    };
                    for (let i = 1; i < maxLevels; i++) {
                        supaData[`level_${i}_fee`] = dataToSave[`level${i}Fee`];
@@ -1072,7 +1065,7 @@
                        }
                        setShowForm(false); setIsSubmitting(false); showToast(isEditing ? 'แก้ไขสินค้าสำเร็จ' : 'เพิ่มสินค้าสำเร็จ', 'success');
                    }).catch(err => {
-                       setIsSubmitting(false); showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
+                        setIsSubmitting(false); showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
                    });
                 }
             };
@@ -1212,15 +1205,61 @@
                    </div>
  
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <div>
-                       <label className={labelClassHud}>รายละเอียดสินค้า</label>
-                       <textarea className={inputClassHud} rows="2" value={formData.description} onChange={e=>setFormData({...formData,description:e.target.value})}></textarea>
-                     </div>
-                     <div>
-                       <label className={labelClassHud}>ลิงก์รูปภาพสินค้า (Image URL)</label>
-                       <input type="text" className={inputClassHud} value={formData.imageUrl} onChange={e=>setFormData({...formData,imageUrl:e.target.value})}/>
-                     </div>
-                   </div>
+                      <div>
+                        <label className={labelClassHud}>รายละเอียดสินค้า</label>
+                        <textarea className={inputClassHud} rows="3" value={formData.description} onChange={e=>setFormData({...formData,description:e.target.value})}></textarea>
+                      </div>
+                      <div>
+                        <label className={labelClassHud}>อัปโหลด / ลิงก์รูปภาพสินค้า (Image File/URL)</label>
+                        <div className="flex flex-col gap-2">
+                          <div className="flex gap-2 items-center">
+                            <input 
+                              type="file" 
+                              accept="image/*" 
+                              className="hidden" 
+                              id="product-img-upload-input"
+                              onChange={e => {
+                                const file = e.target.files[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onload = (event) => {
+                                    setFormData({ ...formData, imageUrl: event.target.result });
+                                    showToast('อัปโหลดไฟล์รูปภาพสำเร็จ', 'success');
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                            />
+                            <label 
+                              htmlFor="product-img-upload-input" 
+                              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm cursor-pointer flex items-center gap-1.5 shrink-0 transition-colors"
+                            >
+                              <FileDown size={15} className="rotate-180" /> เลือกไฟล์รูป...
+                            </label>
+                            <input 
+                              type="text" 
+                              className={inputClassHud} 
+                              value={formData.imageUrl} 
+                              onChange={e=>setFormData({...formData,imageUrl:e.target.value})}
+                              placeholder="หรือวาง URL รูปภาพ..."
+                            />
+                          </div>
+                          {formData.imageUrl && (
+                            <div className="flex items-center gap-2 mt-1 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                              <img src={formData.imageUrl} className="w-10 h-10 object-cover rounded-lg border border-slate-300 shadow-sm" alt="ตัวอย่างรูปสินค้า" />
+                              <span className="text-[11px] font-bold text-emerald-600 truncate flex-1">รูปพร้อมใช้งาน</span>
+                              <button 
+                                type="button" 
+                                onClick={() => setFormData({...formData, imageUrl: ''})}
+                                className="text-[10px] font-bold text-red-500 hover:bg-red-50 px-2 py-1 rounded"
+                              >
+                                ลบรูป
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
  
                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                      <div>
@@ -1297,6 +1336,41 @@
                        );
                      }
                    })()}
+
+                    <div className="pt-4 border-t border-slate-100 bg-amber-50/60 p-4 rounded-2xl border border-amber-200">
+                        <h4 className="font-bold text-amber-900 mb-1 flex items-center gap-2 text-xs sm:text-sm">
+                            <Trophy size={18} className="text-amber-600"/> 🎁 ตั้งค่าส่วนต่างการขายเฉพาะราคาเต็ม (Retail Margin Bonus)
+                        </h4>
+                        <p className="text-[11px] text-amber-800/80 mb-3 font-medium">
+                            เงินส่วนต่างที่พนักงานได้รับพิเศษเฉพาะเมื่อขายบิลในราคาเต็มเท่านั้น (ราคาสมาชิกไม่จ่ายส่วนต่างนี้)
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="bg-white p-3 rounded-xl border border-amber-200">
+                              <label className={labelClassHud + " text-amber-900 font-bold"}>จำนวนเงินส่วนต่าง (ต่อกล่อง)</label>
+                              <input 
+                                  type="text" 
+                                  className={inputClassHud + " border-amber-300 focus:border-amber-500 font-bold text-amber-900 text-sm"} 
+                                  value={formData.fullMarginAmount !== undefined && formData.fullMarginAmount !== null ? Number(formData.fullMarginAmount).toLocaleString() : ''} 
+                                  onChange={e => {
+                                      const rawValue = e.target.value.replace(/,/g, '').replace(/[^0-9]/g, '');
+                                      setFormData({...formData, fullMarginAmount: rawValue ? Number(rawValue) : 0});
+                                  }}
+                                  placeholder="0"
+                              />
+                            </div>
+                            <div className="bg-white p-3 rounded-xl border border-amber-200">
+                              <label className={labelClassHud + " text-amber-900 font-bold"}>สกุลเงินที่จ่ายส่วนต่าง</label>
+                              <select 
+                                  className={inputClassHud + " border-amber-300 focus:border-amber-500 font-bold text-amber-900 text-sm"} 
+                                  value={formData.fullMarginCurrency || 'LAK'} 
+                                  onChange={e => setFormData({...formData, fullMarginCurrency: e.target.value})}
+                              >
+                                  <option value="LAK">₭ เงินกีบ (LAK)</option>
+                                  <option value="THB">฿ เงินบาท (THB)</option>
+                              </select>
+                            </div>
+                        </div>
+                    </div>
  
                    <div className="text-right pt-4 border-t border-slate-100 mt-2 flex justify-end gap-3">
                        <button type="button" onClick={()=>setShowForm(false)} className={btnClassSecondary}>ยกเลิก</button>
@@ -2207,6 +2281,9 @@
                 pricePromo: Number(p.price_promo ?? p.pricePromo ?? 0) || 0,
                 givePv: Number(p.give_pv ?? p.b2n_give_pv ?? p.givePv ?? 0) || 0,
                 minPvComm: Number(p.min_pv_comm ?? p.minPvComm ?? 0) || 0,
+                imageUrl: p.image_url || p.imageUrl || '',
+                fullMarginAmount: Number(p.full_margin_amount ?? p.fullMarginAmount ?? 0) || 0,
+                fullMarginCurrency: p.full_margin_currency || p.fullMarginCurrency || 'LAK',
                 selfFee: Number(p.self_fee ?? p.selfFee ?? 0) || 0,
                 selfPercentFull: Number(p.self_percent_full ?? p.selfPercentFull ?? 0) || 0,
                 selfPercentMember: Number(p.self_percent_member ?? p.selfPercentMember ?? 0) || 0
@@ -2218,7 +2295,7 @@
               }
               mapped.directFee = mapped.level1Fee;
               return mapped;
-            });
+            }).sort((a, b) => (a.id || '').localeCompare(b.id || '', undefined, { numeric: true, sensitivity: 'base' }));
             setProducts(formatted);
           }
           if (Array.isArray(catRes)) setProductCategories(catRes);

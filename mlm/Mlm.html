@@ -285,26 +285,33 @@
 
           const filteredSales = (sales || []).filter(s => s && (s.date || '') >= dashStartDate && (s.date || '') <= dashEndDate);
           filteredSales.forEach(s => {
-             const fullBoxes = parseInt(s['ยอดรวมชิ้นทั้งหมด'] || 0, 10);
-             if (fullBoxes === 0) return;
-             const mem = (members || []).find(m => m && (m.id === s.memberId || m.id === s.sellerId));
+             // 📌 นับเฉพาะยอดชิ้นราคาเต็ม + ราคาสมาชิก เท่านั้น (ไม่รวมโปรและศูนย์)
+             const fullQty = Number(s['รวมชิ้นราคาเต็ม'] || 0);
+             const memQty = Number(s['รวมชิ้นราคาสมาชิก'] || 0);
+             const countedBoxes = fullQty + memQty;
+             
+             if (countedBoxes === 0) return;
+
+             const mem = (members || []).find(m => m && safeUpper(m.id || m.user_id) === safeUpper(s.memberId || s.sellerId));
              if (mem) {
-                 const memTeam = String(mem.team || '').trim();
-                 const memTeamLower = memTeam.toLowerCase();
+                 const memTeam = String(mem.team || mem.business_team || mem.businessTeam || '').trim().toUpperCase();
                  (activeBusinessTeams || []).forEach(bt => {
                      if (!bt) return;
-                     const btName = String(bt.name || '').toLowerCase();
-                     const btId = String(bt.id || '');
+                     const btId = String(bt.id || '').toUpperCase();
+                     const btName = String(bt.name || '').toUpperCase();
+
                      if (
                          (btId && memTeam === btId) || 
-                         (btName && memTeamLower === btName) ||
-                         (btName && btName.includes('marketing') && (memTeam === 'Team A' || memTeam === 'Marketing' || memTeam === 'T01')) ||
-                         (btName && btName.includes('center') && (memTeam === 'Team B' || memTeam === 'Center' || memTeam === 'T02'))
+                         (btName && memTeam === btName) ||
+                         (btId === 'T01' && (memTeam === 'MARKETING' || memTeam === 'TEAM A')) ||
+                         (btId === 'T02' && (memTeam === 'CENTER' || memTeam === 'TEAM B')) ||
+                         (btName.includes('MARKETING') && (memTeam === 'T01' || memTeam === 'TEAM A')) ||
+                         (btName.includes('CENTER') && (memTeam === 'T02' || memTeam === 'TEAM B'))
                      ) {
-                         if (bt.id) teamSalesMap[bt.id] = (teamSalesMap[bt.id] || 0) + fullBoxes;
+                         teamSalesMap[bt.id] = (teamSalesMap[bt.id] || 0) + countedBoxes;
                      }
                  });
-                 if (mTargetData[mem.id]) mTargetData[mem.id].actual += fullBoxes;
+                 if (mTargetData[mem.id]) mTargetData[mem.id].actual += countedBoxes;
              }
           });
 
@@ -449,6 +456,7 @@
             const filteredSales = (sales || []).filter(s => s && (s.date || '') >= custTypeStartDate && (s.date || '') <= custTypeEndDate);
             const foundTypes = new Set();
 
+            // 📌 ลงทะเบียนประเภทลูกค้าทั้งหมดที่เปิดใช้งานล่วงหน้า
             (activeCustomerTypes || []).forEach(t => {
                 if (t && t.name && String(t.name).trim() !== '') {
                     foundTypes.add(String(t.name).trim());
@@ -456,25 +464,41 @@
             });
 
             filteredSales.forEach(s => {
-                const boxes = parseInt(s['ยอดรวมชิ้นทั้งหมด'] || 0, 10);
-                if (boxes === 0) return;
+                const fullQty = Number(s['รวมชิ้นราคาเต็ม'] || 0);
+                const memQty = Number(s['รวมชิ้นราคาสมาชิก'] || 0);
+                const countedBoxes = fullQty + memQty;
+                if (countedBoxes === 0) return;
 
-                const memberId = s.memberId;
+                const memberId = s.memberId || s.sellerId;
                 if (!memberId) return;
 
                 if (!mStats[memberId]) {
-                    const mem = (members || []).find(m => m && m.id === memberId);
+                    const mem = (members || []).find(m => m && safeUpper(m.id || m.user_id) === safeUpper(memberId));
                     mStats[memberId] = { id: memberId, name: mem ? mem.name : memberId, profileUrl: mem?.profileUrl, totalBoxes: 0, typeBreakdown: {} };
                 }
 
-                const cust = (customers || []).find(c => c && c.id === s.customerId);
-                let cType = cust && cust.type ? String(cust.type).trim() : 'ไม่ระบุ';
-                if (cType === '') cType = 'ไม่ระบุ';
-                
+                // 📌 ค้นหาลูกค้า robust ขึ้นโดยเช็คทั้ง ID, HN และชื่อลูกค้า
+                const sCustId = safeUpper(s.customerId || s.hn || '');
+                const sCustName = safeUpper(s.customerName || s.customer_name || '');
+                const cust = (customers || []).find(c => {
+                    if (!c) return false;
+                    const cId = safeUpper(c.id || c.hn || '');
+                    const cName = safeUpper(c.name || c.customer_name || '');
+                    if (sCustId && cId && sCustId === cId) return true;
+                    if (sCustName && cName && sCustName === cName) return true;
+                    return false;
+                });
+
+                let cType = cust && (cust.type || cust.customer_type || cust.customerType) ? String(cust.type || cust.customer_type || cust.customerType).trim() : '';
+                if (!cType || cType === '') {
+                    if (s.customerType || s.customer_type) cType = String(s.customerType || s.customer_type).trim();
+                    else cType = 'ไม่ระบุ';
+                }
+
                 foundTypes.add(cType);
 
-                mStats[memberId].totalBoxes += boxes;
-                mStats[memberId].typeBreakdown[cType] = (mStats[memberId].typeBreakdown[cType] || 0) + boxes;
+                mStats[memberId].totalBoxes += countedBoxes;
+                mStats[memberId].typeBreakdown[cType] = (mStats[memberId].typeBreakdown[cType] || 0) + countedBoxes;
             });
 
             const sortedMembers = Object.values(mStats).sort((a, b) => b.totalBoxes - a.totalBoxes);
@@ -1244,7 +1268,13 @@
 
       const applyDataToStates = (response) => {
            if (Array.isArray(response.products)) setProducts(response.products);
-           if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes);
+            if (Array.isArray(response.customerTypes)) {
+                setCustomerTypes(response.customerTypes.map(ct => ({
+                    id: String(ct.id || ct.type_id || ct.Type_ID || '').trim(),
+                    name: String(ct.name || ct.type_name || ct.Name || '').trim(),
+                    status: String(ct.status || ct.Status || 'ใช้งาน').trim()
+                })).filter(ct => ct.name !== ''));
+            }
            if (Array.isArray(response.closers)) setClosers(response.closers);
            if (Array.isArray(response.members)) {
                const formattedMembers = response.members.map(m => ({

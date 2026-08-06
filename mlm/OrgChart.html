@@ -135,6 +135,14 @@
     const MemberPerformanceDetailModal = ({ isOpen, onClose, member, sales, members, products, customerTypes, systemSettings, teamMap, startDate, endDate }) => {
         if (!isOpen || !member) return null;
 
+        // Payout Records Tracking
+        const paidRecords = useMemo(() => {
+            try {
+                const saved = localStorage.getItem('stk_payout_history');
+                return saved ? JSON.parse(saved) : {};
+            } catch(e) { return {}; }
+        }, []);
+
         const getDefaultMonthRange = () => {
             const now = new Date();
             const y = now.getFullYear();
@@ -148,32 +156,13 @@
 
         const mId = useMemo(() => String(member.id || '').trim().toUpperCase(), [member]);
 
-        // 🔄 Live-fetch accumulated PV from Supabase — ดึงสดเมื่อเปิด Modal
-        const [livePV, setLivePV] = useState(null); // null = loading
-        useEffect(() => {
-            if (!mId) return;
-            setLivePV(null); // reset to loading state
-            // member.id ถูก map มาจาก user_id แล้วในขั้นตอน applyDataToStates
-            supabaseSelect('stk_members', `user_id=eq.${encodeURIComponent(mId)}&select=accumulated_pv&limit=1`)
-                .then(rows => {
-                    if (Array.isArray(rows) && rows.length > 0) {
-                        setLivePV(Number(rows[0].accumulated_pv || 0));
-                    } else {
-                        setLivePV(Number(member.accumulatedPV || 0));
-                    }
-                })
-                .catch(() => setLivePV(Number(member.accumulatedPV || 0)));
-        }, [mId]);
-
-        const memberAccumulatedPV = livePV !== null ? livePV : Number(member.accumulatedPV || 0);
-
         // Get downlines in all levels with level depth breakdown
         const getDownlinesWithLevels = useCallback((parentId, depth = 1, visited = new Set()) => {
             if (visited.has(parentId)) return [];
             visited.add(parentId);
             let res = [];
             const children = getChildren(members, parentId);
-            children.forEach(c => {
+            (children || []).forEach(c => {
                 res.push({ member: c, level: depth });
                 res = res.concat(getDownlinesWithLevels(c.id, depth + 1, visited));
             });
@@ -182,6 +171,27 @@
 
         const downlinesWithLevels = useMemo(() => getDownlinesWithLevels(mId), [mId, getDownlinesWithLevels]);
         const isLeaderWithTeam = downlinesWithLevels.length > 0;
+
+        // 🔄 Calculate PV points dynamically from personal sales only within date range
+        const calculatedPeriodPV = useMemo(() => {
+            let totalPV = 0;
+            (personalSalesList || []).forEach(s => {
+                let itemsList = [];
+                if (s.items_json) {
+                    try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
+                }
+                if (Array.isArray(itemsList) && itemsList.length > 0) {
+                    itemsList.forEach(it => {
+                        totalPV += Number(it.qty || it.quantity || 1);
+                    });
+                } else {
+                    totalPV += Number(s['ยอดรวมชิ้นทั้งหมด'] || s.total_bottles || s.totalBottles || 1);
+                }
+            });
+            return totalPV;
+        }, [personalSalesList]);
+
+        const memberAccumulatedPV = calculatedPeriodPV;
         
         // Count downlines by level
         const downlinesByLevelCount = useMemo(() => {
@@ -451,18 +461,11 @@
                                 </div>
                             )}
 
-                            {/* 🏆 PV ACCUMULATED KPI CARD — แสดงเฉพาะเมื่อมีข้อมูลใน DB */}
-                            {/* 🏆 PV ACCUMULATED KPI CARD — แสดงเฉพาะเมื่อมีข้อมูลใน DB หรือกำลังโหลด */}
-                            {(livePV === null || memberAccumulatedPV > 0) && (
+                            {/* 🏆 PV ACCUMULATED KPI CARD */}
                             <div className="bg-purple-50/80 border border-purple-200/80 p-3.5 rounded-2xl text-center shadow-xs relative overflow-hidden">
                                 <span className="text-[11px] font-bold text-purple-700 block">⭐ แต้ม PV สะสม</span>
-                                {livePV === null ? (
-                                    <span className="text-sm text-purple-400 mt-1 block animate-pulse">กำลังโหลด...</span>
-                                ) : (
-                                    <span className="text-2xl sm:text-3xl font-black text-purple-800 mt-1 block font-mono">{memberAccumulatedPV.toLocaleString()}</span>
-                                )}
+                                <span className="text-2xl sm:text-3xl font-black text-purple-800 mt-1 block font-mono">{memberAccumulatedPV.toLocaleString()}</span>
                             </div>
-                            )}
 
                             <div className="bg-amber-50/80 border border-amber-100 p-3.5 rounded-2xl text-center shadow-xs">
                                 <span className="text-[11px] font-bold text-amber-600 block">ทีมงานใต้ดูแล</span>
@@ -557,11 +560,10 @@
                                 </div>
                             )}
 
-                            {/* Overall Total Banner */}
-                            <div className="bg-gradient-to-r from-slate-800 via-indigo-900 to-slate-900 text-white p-4 rounded-xl flex items-center justify-between shadow-md">
+                            {/* Overall Total & Payout Net Balance Banner */}
+                            <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-5 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg border border-slate-800">
                                 <div>
                                     <span className="text-xs font-black tracking-wider uppercase block text-amber-300">
-                                        {isLeaderWithTeam ? 'ยอดเงินรวมปันผลสุทธิตั้งหมด (ตัวเอง + ปันผลลูกทีม)' : 'ยอดเงินปันผลสุทธิตั้งหมด'}
                                     </span>
                                     <span className="text-[10px] font-bold text-slate-300">
                                         {isLeaderWithTeam ? `ยอดขายรวมสายงาน: ${groupTotalBoxes} กล่อง` : `ยอดขายตัวเอง: ${personalTotalBoxes} กล่อง`}
@@ -831,24 +833,30 @@
                     </div>
                 </div>
 
-                {/* Recursive Children Level Breakdown */}
+                {/* Recursive Children Level Breakdown with Hierarchy Lines */}
                 {hasChildren && (
-                    <div className="flex flex-col items-center w-full mt-3 space-y-3">
-                        <div className="w-0.5 h-5 bg-slate-300"></div>
-                        <div className="flex flex-wrap justify-center gap-6">
-                            {children.map(child => (
-                                <EmployeeCardNode 
-                                    key={child.id} 
-                                    node={child} 
-                                    allMembers={allMembers}
-                                    memberSales={memberSales}
-                                    onSelect={onSelect}
-                                    onOpenDetail={onOpenDetail}
-                                    teamMap={teamMap}
-                                    level={level + 1}
-                                    currentUser={currentUser}
-                                    isAdmin={isAdmin}
-                                />
+                    <div className="flex flex-col items-center w-full mt-1 relative">
+                        {/* Vertical line from parent card down */}
+                        <div className="w-0.5 h-6 bg-blue-300"></div>
+
+                        {/* Children Container */}
+                        <div className="relative flex flex-wrap justify-center items-start gap-6 sm:gap-8 pt-3 border-t-2 border-blue-200 rounded-t-xl px-4">
+                            {children.map((child, cIdx) => (
+                                <div key={child.id} className="relative flex flex-col items-center">
+                                    {/* Vertical line connecting top horizontal bar to child card */}
+                                    <div className="w-0.5 h-3 bg-blue-300 -mt-3 mb-1"></div>
+                                    <EmployeeCardNode 
+                                        node={child} 
+                                        allMembers={allMembers}
+                                        memberSales={memberSales}
+                                        onSelect={onSelect}
+                                        onOpenDetail={onOpenDetail}
+                                        teamMap={teamMap}
+                                        level={level + 1}
+                                        currentUser={currentUser}
+                                        isAdmin={isAdmin}
+                                    />
+                                </div>
                             ))}
                         </div>
                     </div>
@@ -1044,40 +1052,95 @@
                 </div>
 
 
-                {/* 🌳 Responsive Flexible Grid Layout Container */}
-                <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8 w-full overflow-x-auto flex flex-col items-center">
+                {/* 🌳 Responsive Tree / Team Layout Container */}
+                <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8 w-full overflow-x-auto flex flex-col items-center min-h-[500px]">
                     
                     {/* Top Root Header Card: STK Sales Management — แสดงเฉพาะ Admin */}
-                    {isAdmin && (
+                    {isAdmin && viewMode === 'tree' && (
                         <>
-                            <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-800 text-white rounded-3xl p-6 w-full max-w-xs sm:w-80 text-center shadow-xl border-2 border-white/20 relative z-10 flex flex-col items-center mb-2">
-                                <div className="w-16 h-16 rounded-full bg-white text-blue-700 flex items-center justify-center font-black text-xl mb-3 shadow-md">
+                            <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-800 text-white rounded-3xl p-5 w-full max-w-xs sm:w-72 text-center shadow-xl border-2 border-white/20 relative z-10 flex flex-col items-center mb-2">
+                                <div className="w-14 h-14 rounded-full bg-white text-blue-700 flex items-center justify-center font-black text-xl mb-2 shadow-md">
                                     🏢
                                 </div>
-                                <h2 className="text-xl font-black tracking-tight">STK Sales Management</h2>
-                                <p className="text-xs text-blue-200 font-bold mt-1">โครงสร้างสายงานในระบบ</p>
+                                <h2 className="text-lg font-black tracking-tight">STK Sales Management</h2>
+                                <p className="text-[11px] text-blue-200 font-bold mt-0.5">โครงสร้างสายงานในระบบ</p>
                             </div>
-                            <div className="w-0.5 h-6 bg-slate-300 mb-4"></div>
+                            <div className="w-0.5 h-6 bg-blue-300 mb-4"></div>
                         </>
                     )}
 
-                    {/* Responsive Flexible Wrap Grid for Employee Cards */}
-                    <div className="flex flex-wrap justify-center items-start gap-6 sm:gap-8 w-full">
-                        {filteredRootMembers.map(r => (
-                            <EmployeeCardNode 
-                                key={r.id} 
-                                node={r} 
-                                allMembers={scopedMembers} 
-                                memberSales={memberSalesMap}
-                                onSelect={m => setSelectedMember(m)}
-                                onOpenDetail={m => { setSelectedMember(m); setDetailModalOpen(true); }}
-                                teamMap={teamMap}
-                                level={0}
-                                currentUser={currentUser}
-                                isAdmin={isAdmin}
-                            />
-                        ))}
-                    </div>
+                    {viewMode === 'tree' ? (
+                        /* 🌲 Tree View: Flexible Connected Hierarchy */
+                        <div className="flex flex-wrap justify-center items-start gap-8 sm:gap-12 w-full pt-2">
+                            {filteredRootMembers.map(r => (
+                                <EmployeeCardNode 
+                                    key={r.id} 
+                                    node={r} 
+                                    allMembers={scopedMembers} 
+                                    memberSales={memberSalesMap}
+                                    onSelect={m => setSelectedMember(m)}
+                                    onOpenDetail={m => { setSelectedMember(m); setDetailModalOpen(true); }}
+                                    teamMap={teamMap}
+                                    level={0}
+                                    currentUser={currentUser}
+                                    isAdmin={isAdmin}
+                                />
+                            ))}
+                        </div>
+                    ) : (
+                        /* 📊 Team View: Grouped by Business Team (Marketing / Center / etc.) */
+                        <div className="w-full space-y-8">
+                            {(() => {
+                                const groupedByTeam = {};
+                                (scopedMembers || []).forEach(m => {
+                                    const tCode = String(m.team || 'Marketing').trim().toUpperCase();
+                                    const tName = teamMap[tCode] || m.team || 'ทีมการตลาด (Marketing)';
+                                    if (!groupedByTeam[tName]) groupedByTeam[tName] = [];
+                                    groupedByTeam[tName].push(m);
+                                });
+
+                                return Object.entries(groupedByTeam).map(([teamName, teamMembers], tIdx) => {
+                                    const filteredTeamMembers = searchQuery 
+                                        ? teamMembers.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase()) || m.id.toLowerCase().includes(searchQuery.toLowerCase()))
+                                        : teamMembers;
+
+                                    if (filteredTeamMembers.length === 0) return null;
+
+                                    return (
+                                        <div key={tIdx} className="bg-slate-50/70 p-5 rounded-3xl border border-slate-200/80 space-y-4">
+                                            <div className="flex items-center gap-3 border-b border-slate-200 pb-3">
+                                                <span className="w-3 h-3 rounded-full bg-blue-600"></span>
+                                                <h3 className="text-base font-black text-slate-800">{teamName}</h3>
+                                                <span className="bg-blue-100 text-blue-700 text-xs font-black px-2.5 py-0.5 rounded-full">
+                                                    {filteredTeamMembers.length} คน
+                                                </span>
+                                            </div>
+
+                                            <div className="flex flex-wrap gap-4">
+                                                {filteredTeamMembers.map(m => (
+                                                    <div key={m.id} className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all w-64 flex items-center gap-3">
+                                                        <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center font-black text-sm shrink-0 overflow-hidden">
+                                                            {m.profileUrl ? <img src={m.profileUrl} className="w-full h-full object-cover rounded-full" /> : (m.name ? m.name.substring(0, 2) : m.id)}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <h4 className="text-xs font-black text-slate-800 truncate">{m.name}</h4>
+                                                            <p className="text-[10px] font-mono text-slate-400 font-bold">{m.id}</p>
+                                                            <button 
+                                                                onClick={() => { setSelectedMember(m); setDetailModalOpen(true); }}
+                                                                className="mt-2 text-[10px] font-black text-blue-600 hover:text-blue-800 underline block"
+                                                            >
+                                                                📊 ดูผลงานสายงาน
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                });
+                            })()}
+                        </div>
+                    )}
                 </div>
 
                 {/* 🟢 Detail Modal Popup */}

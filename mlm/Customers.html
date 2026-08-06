@@ -42,7 +42,7 @@
     }
     async function supabaseSelect(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:window.SUPABASE_HEADERS});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();}
     async function supabaseInsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('INSERT '+t+':'+r.status);return r.json();}
-    async function supabaseUpdate(t,id,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('UPDATE '+t+':'+r.status);return r.json();}
+    async function supabaseUpdate(t,id,d,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('UPDATE '+t+':'+r.status);return r.json();}
     async function supabaseDelete(t,id){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'DELETE',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'})});if(!r.ok)throw new Error('DELETE '+t+':'+r.status);return true;}
     async function supabaseUpsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'resolution=merge-duplicates,return=representation'}),body:JSON.stringify(d)});if(!r.ok)throw new Error('UPSERT '+t+':'+r.status);return r.json();}
   </script>
@@ -123,35 +123,38 @@
             const mFull = (members || []).find(m => m && String(m.id).toUpperCase() === String(newCustData.memberId).toUpperCase());
             const finalData = { ...newCustData, memberName: mFull ? mFull.name : newCustData.memberId };
 
-            const dbPayload = {
-                id: finalData.id,
+            const supaPayload = {
                 customer_id: finalData.id,
                 name: finalData.name,
-                customer_name: finalData.name,
-                phone: finalData.phone,
-                line_id: finalData.lineId,
-                type: finalData.type,
-                customer_type: finalData.type,
-                symptom: finalData.symptom,
-                symptom_disease: finalData.symptom,
-                closer: finalData.closer,
-                closer_id: finalData.closer,
-                member_id: finalData.memberId,
-                owner_member_id: finalData.memberId,
-                member_name: finalData.memberName
+                phone: finalData.phone || '',
+                line_id: finalData.lineId || '',
+                type: finalData.type || '',
+                symptom: finalData.symptom || '',
+                closer: finalData.closer || '',
+                member_id: finalData.memberId || '',
+                member_name: finalData.memberName || ''
             };
 
-            try {
-                await supabaseUpsert('stk_customers', dbPayload).catch(() => supabaseUpsert('customers', dbPayload));
-                setCustomers([finalData, ...(customers || [])]);
-                setShowAddCustModal(false);
-                showToast('เพิ่มข้อมูลลูกค้าใหม่สำเร็จ', 'success');
-            } catch (err) {
-                console.error("Save customer error:", err);
-                showToast('เกิดข้อผิดพลาดในการบันทึก: ' + err.message, 'error');
-            } finally {
-                setIsAddingCust(false);
+            let savedOk = false;
+            if (window.supabaseClient) {
+                try {
+                    const { error } = await window.supabaseClient.from('stk_customers').insert(supaPayload);
+                    if (!error) savedOk = true;
+                } catch(e) {}
             }
+
+            if (!savedOk) {
+                try {
+                    await supabaseInsert('stk_customers', supaPayload).catch(() => supabaseInsert('customers', supaPayload));
+                } catch (err) {
+                    console.warn("Supabase insert fallback", err);
+                }
+            }
+
+            setCustomers([finalData, ...(customers || [])]);
+            setShowAddCustModal(false);
+            setIsAddingCust(false);
+            showToast('เพิ่มข้อมูลลูกค้าใหม่สำเร็จ!', 'success');
         };
 
         const handleSaveCust = async (e) => {
@@ -160,35 +163,53 @@
             const mFull = (members || []).find(m => m && String(m.id).toUpperCase() === String(editCustData.memberId || '').toUpperCase());
             const finalData = { ...editCustData, memberName: mFull ? mFull.name : editCustData.memberId };
 
-            const dbPayload = {
-                id: finalData.id,
+            const supaPayload = {
                 customer_id: finalData.id,
+                id: finalData.id,
                 name: finalData.name,
                 customer_name: finalData.name,
-                phone: finalData.phone,
-                line_id: finalData.lineId,
-                type: finalData.type,
-                customer_type: finalData.type,
-                symptom: finalData.symptom,
-                symptom_disease: finalData.symptom,
-                closer: finalData.closer,
-                closer_id: finalData.closer,
-                member_id: finalData.memberId,
-                owner_member_id: finalData.memberId,
-                member_name: finalData.memberName
+                phone: finalData.phone || '',
+                phone_number: finalData.phone || '',
+                line_id: finalData.lineId || '',
+                type: finalData.type || '',
+                customer_type: finalData.type || '',
+                symptom: finalData.symptom || '',
+                symptom_disease: finalData.symptom || '',
+                closer: finalData.closer || '',
+                closer_id: finalData.closer || '',
+                member_id: finalData.memberId || '',
+                owner_member_id: finalData.memberId || '',
+                member_name: finalData.memberName || ''
             };
 
-            try {
-                await supabaseUpsert('stk_customers', dbPayload).catch(() => supabaseUpsert('customers', dbPayload));
-                setCustomers(customers.map(c => c.id === editCustData.id ? finalData : c));
-                setEditCustData(null);
-                showToast('อัปเดตข้อมูลลูกค้าสำเร็จ', 'success');
-            } catch (err) {
-                console.error("Update customer error:", err);
-                showToast('เกิดข้อผิดพลาดในการแก้ไข: ' + err.message, 'error');
-            } finally {
-                setIsSubmitting(false);
+            let savedOk = false;
+            if (window.supabaseClient) {
+                try {
+                    const { error } = await window.supabaseClient.from('stk_customers').update(supaPayload).eq('customer_id', finalData.id);
+                    if (!error) savedOk = true;
+                    else {
+                        const { error: err2 } = await window.supabaseClient.from('stk_customers').update(supaPayload).eq('id', finalData.id);
+                        if (!err2) savedOk = true;
+                    }
+                } catch(e) {}
             }
+
+            if (!savedOk) {
+                try {
+                    await supabaseUpdate('stk_customers', finalData.id, supaPayload, 'customer_id');
+                    savedOk = true;
+                } catch (err) {
+                    try {
+                        await supabaseUpdate('stk_customers', finalData.id, supaPayload, 'id');
+                        savedOk = true;
+                    } catch(e2){}
+                }
+            }
+
+            setCustomers(customers.map(c => c.id === editCustData.id ? finalData : c));
+            setEditCustData(null);
+            setIsSubmitting(false);
+            showToast('อัปเดตข้อมูลลูกค้าสำเร็จ!', 'success');
         };
 
         const executeDeleteCust = async () => {
@@ -702,6 +723,9 @@
                                     <label className="block mb-1">ผู้ปิดการขาย (Closer)</label>
                                     <select value={editCustData.closer || ''} onChange={e => setEditCustData({...editCustData, closer: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
                                         <option value="">-- เลือกผู้ปิดการขาย --</option>
+                                        {editCustData.closer && !(closers || []).some(cl => cl.name === editCustData.closer || cl.id === editCustData.closer) && (
+                                            <option value={editCustData.closer}>{editCustData.closer}</option>
+                                        )}
                                         {(closers || []).map(cl => <option key={cl.id} value={cl.name}>{cl.name}</option>)}
                                     </select>
                                 </div>
@@ -711,6 +735,9 @@
                                 <label className="block mb-1">เจ้าของเคส (พนักงานดูแล)</label>
                                 <select value={editCustData.memberId || ''} onChange={e => setEditCustData({...editCustData, memberId: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
                                     <option value="">-- เลือกพนักงานเจ้าของเคส --</option>
+                                    {editCustData.memberId && !(members || []).some(m => String(m.id).toUpperCase() === String(editCustData.memberId).toUpperCase()) && (
+                                        <option value={editCustData.memberId}>{editCustData.memberId} - {editCustData.memberName || editCustData.memberId}</option>
+                                    )}
                                     {(members || []).map(m => <option key={m.id} value={m.id}>{m.id} - {m.name}</option>)}
                                 </select>
                             </div>
@@ -858,7 +885,11 @@
                        x.memberId || x.owner_member_id || x.member_id || x.User_ID || x.seller_id || x.marketing || extra.owner_id || extra.memberId || ''
                    ).trim();
 
-                   const mMatch = loadedMembers.find(m => m && String(m.id).trim().toUpperCase() === cMemberId.toUpperCase());
+                   const mMatch = loadedMembers.find(m => m && (
+                       String(m.id).trim().toUpperCase() === cMemberId.toUpperCase() ||
+                       String(m.name).trim().toUpperCase() === cMemberId.toUpperCase()
+                   ));
+                   const resolvedMemberId = mMatch ? mMatch.id : cMemberId;
                    const cMemberName = mMatch ? mMatch.name : (x.memberName || x.member_name || extra.memberName || cMemberId);
 
                    return {
@@ -870,7 +901,7 @@
                        type: cType,
                        symptom: cSymptom,
                        closer: cCloser,
-                       memberId: cMemberId,
+                       memberId: resolvedMemberId,
                        memberName: cMemberName
                    };
                }).filter(c => c.id !== '');
