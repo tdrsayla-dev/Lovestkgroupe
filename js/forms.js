@@ -599,7 +599,10 @@ function openFormModal(rowDataStr = null) {
                 { id: 'dashboard', name: 'Dashboard (หน้าหลัก)' },
                 { id: 'scan', name: 'Time Tracking (ลงเวลา)' },
                 { id: 'FB_Budget_Form', name: 'FB Budget Form (ฟอร์มขอเบิกงบ)' },
-                { id: 'FB_Budget_List', name: 'FB Budget List (รายการเบิกงบ)' },
+                { id: 'FB_Budget_List', name: 'FB Budget List (รายการเบิกงบ)', subFeatures: [
+                    { id: 'approve', name: 'อนุมัติ/ปฏิเสธงบ (Approve Budget)' },
+                    { id: 'export', name: 'ส่งออกรายงาน (Export Report)' }
+                ]},
                 { id: 'FB_Budget_Report', name: 'FB Budget Report (รายงานเบิกงบ)' },
                 { id: 'Leave application', name: 'Leave Requests (คำขอลา)' },
                 { id: 'Budget Request', name: 'Budget Requests (ขออนุมัติงบ)' },
@@ -608,8 +611,16 @@ function openFormModal(rowDataStr = null) {
                 { id: 'general-ledger', name: 'General Ledger (สมุดบัญชีทั่วไป)' },
                 { id: 'invoices', name: 'Invoices & AR (ใบแจ้งหนี้)' },
                 { id: 'financial-reports', name: 'Financial Reports (รายงานการเงิน)' },
-                { id: 'Fingerprint_Logs', name: 'Attendance Logs (ประวัติลงเวลา)' },
-                { id: 'staff', name: 'Staff Directory (รายชื่อพนักงาน)' },
+                { id: 'Fingerprint_Logs', name: 'Attendance Logs (ประวัติลงเวลา)', subFeatures: [
+                    { id: 'shift_settings', name: 'ตั้งค่ากะเวลาเข้างาน (Shift Settings / +)' },
+                    { id: 'calc_payroll', name: 'คำนวณเงินเดือน/สลิป (Calculate Payroll)' },
+                    { id: 'payroll_history', name: 'ประวัติเงินเดือน (Payroll History)' },
+                    { id: 'export', name: 'ส่งออกรายงาน (Export Excel / PDF / Print)' }
+                ]},
+                { id: 'staff', name: 'Staff Directory (รายชื่อพนักงาน)', subFeatures: [
+                    { id: 'salary_info', name: 'ข้อมูลเงินเดือน (Salary Info)' },
+                    { id: 'export', name: 'ส่งออกรายชื่อพนักงาน (Export Staff)' }
+                ]},
                 { id: 'digital-card', name: 'Digital Card (บัตรพนักงาน)' },
                 { id: 'Organization ', name: 'Organization (ข้อมูลองค์กร)' },
                 { id: 'Employees Ranting', name: 'Employee Rating (ประเมินพนักงาน / STK WOW)' },
@@ -623,8 +634,13 @@ function openFormModal(rowDataStr = null) {
                 { id: 'Training', name: 'Training (การฝึกอบรม)' },
                 { id: 'orientation', name: 'Orientation (ปฐมนิเทศ)' },
                 { id: 'Policy ', name: 'Policy (นโยบาย)' },
-                { id: 'user', name: 'Users Management (จัดการผู้ใช้งาน)' },
-                { id: 'company-settings', name: 'Company Settings (ตั้งค่าบริษัท)' }
+                { id: 'user', name: 'Users Management (จัดการผู้ใช้งาน)', subFeatures: [
+                    { id: 'assign_role', name: 'กำหนด Role & สิทธิ์ (Assign Roles & Permissions)' }
+                ]},
+                { id: 'company-settings', name: 'Company Settings (ตั้งค่าบริษัท)', subFeatures: [
+                    { id: 'dept_settings', name: 'ตั้งค่าแผนก (Department Settings)' },
+                    { id: 'org_structure', name: 'ผังองค์กร (Org Structure)' }
+                ]}
             ];
 
             let checkedValues = typeof parsePermissionsList === 'function' ? parsePermissionsList(val) : (val ? val.split(',').map(v => String(v).trim().toLowerCase()) : []);
@@ -640,7 +656,7 @@ function openFormModal(rowDataStr = null) {
                                 </div>
                             </div>
                             
-                            <div class="p-3 bg-white rounded-xl border border-gray-200 shadow-inner max-h-72 overflow-y-auto custom-scrollbar">
+                            <div class="p-3 bg-white rounded-xl border border-gray-200 shadow-inner max-h-80 overflow-y-auto custom-scrollbar">
                                 <div class="grid grid-cols-12 gap-2 text-xs font-bold text-gray-500 border-b border-gray-200 pb-2 mb-2 px-2 text-center bg-gray-50/90 rounded-lg p-2 sticky top-0 z-10 shadow-sm">
                                     <div class="col-span-6 text-left">เมนู / ฟังก์ชัน (Menu / Feature)</div>
                                     <div class="col-span-1.5 text-center">Edit</div>
@@ -660,10 +676,10 @@ function openFormModal(rowDataStr = null) {
                 const hasView = typeof hasActionPermission === 'function' ? hasActionPermission(mIdClean, 'view', checkedValues) : isMasterChecked;
 
                 checkboxesHtml += `
-                                <div class="grid grid-cols-12 gap-2 items-center text-xs p-2 hover:bg-indigo-50/50 rounded-lg transition-colors border-b border-gray-100 last:border-none">
+                                <div class="grid grid-cols-12 gap-2 items-center text-xs p-2 bg-indigo-50/40 hover:bg-indigo-50/70 rounded-lg transition-colors border-b border-gray-100 font-bold mt-1">
                                     <div class="col-span-6 flex items-center space-x-2.5">
                                         <input type="checkbox" data-menu="${mIdClean}" class="perm-master-cb w-4 h-4 rounded border-gray-300 text-brandindigo focus:ring-brandindigo transition-colors cursor-pointer" ${isMasterChecked ? 'checked' : ''} onchange="handleMasterPermToggle(this)">
-                                        <span class="font-bold text-gray-700 select-none">${menu.name}</span>
+                                        <span class="font-bold text-gray-800 select-none">${menu.name}</span>
                                     </div>
                                     <div class="col-span-1.5 text-center">
                                         <input type="checkbox" name="${h}" value="${mId}:edit" data-menu="${mIdClean}" data-action="edit" class="perm-action-cb w-4 h-4 rounded border-gray-300 text-brandindigo focus:ring-brandindigo transition-colors cursor-pointer" ${hasEdit ? 'checked' : ''} onchange="handleActionPermToggle(this)">
@@ -678,6 +694,42 @@ function openFormModal(rowDataStr = null) {
                                         <input type="checkbox" name="${h}" value="${mId}:view" data-menu="${mIdClean}" data-action="view" class="perm-action-cb w-4 h-4 rounded border-gray-300 text-brandindigo focus:ring-brandindigo transition-colors cursor-pointer" ${hasView ? 'checked' : ''} onchange="handleActionPermToggle(this)">
                                     </div>
                                 </div>`;
+
+                if (Array.isArray(menu.subFeatures) && menu.subFeatures.length > 0) {
+                    menu.subFeatures.forEach(sub => {
+                        const subId = sub.id.trim();
+                        const subIdClean = subId.toLowerCase();
+                        const fullSubId = `${mId}:${subId}`;
+
+                        const hasSubEdit = typeof hasSubFeaturePermission === 'function' ? hasSubFeaturePermission(mIdClean, subIdClean, 'edit', checkedValues) : isMasterChecked;
+                        const hasSubDelete = typeof hasSubFeaturePermission === 'function' ? hasSubFeaturePermission(mIdClean, subIdClean, 'delete', checkedValues) : isMasterChecked;
+                        const hasSubAdd = typeof hasSubFeaturePermission === 'function' ? hasSubFeaturePermission(mIdClean, subIdClean, 'add', checkedValues) : isMasterChecked;
+                        const hasSubView = typeof hasSubFeaturePermission === 'function' ? hasSubFeaturePermission(mIdClean, subIdClean, 'view', checkedValues) : isMasterChecked;
+
+                        const isSubMasterChecked = hasSubEdit && hasSubDelete && hasSubAdd && hasSubView;
+
+                        checkboxesHtml += `
+                                <div class="grid grid-cols-12 gap-2 items-center text-xs p-1.5 pl-7 hover:bg-indigo-50/30 rounded-lg transition-colors border-b border-gray-100/70 bg-slate-50/50">
+                                    <div class="col-span-6 flex items-center space-x-2">
+                                        <span class="text-indigo-400 font-bold select-none text-xs">↳</span>
+                                        <input type="checkbox" data-menu="${mIdClean}" data-sub="${subIdClean}" class="perm-submaster-cb perm-action-cb w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" ${isSubMasterChecked ? 'checked' : ''} onchange="handleSubMasterPermToggle(this)">
+                                        <span class="font-medium text-gray-700 select-none text-xs">${sub.name}</span>
+                                    </div>
+                                    <div class="col-span-1.5 text-center">
+                                        <input type="checkbox" name="${h}" value="${fullSubId}:edit" data-menu="${mIdClean}" data-sub="${subIdClean}" data-action="edit" class="perm-action-cb perm-subaction-cb w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" ${hasSubEdit ? 'checked' : ''} onchange="handleActionPermToggle(this)">
+                                    </div>
+                                    <div class="col-span-1.5 text-center">
+                                        <input type="checkbox" name="${h}" value="${fullSubId}:delete" data-menu="${mIdClean}" data-sub="${subIdClean}" data-action="delete" class="perm-action-cb perm-subaction-cb w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" ${hasSubDelete ? 'checked' : ''} onchange="handleActionPermToggle(this)">
+                                    </div>
+                                    <div class="col-span-1.5 text-center">
+                                        <input type="checkbox" name="${h}" value="${fullSubId}:add" data-menu="${mIdClean}" data-sub="${subIdClean}" data-action="add" class="perm-action-cb perm-subaction-cb w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" ${hasSubAdd ? 'checked' : ''} onchange="handleActionPermToggle(this)">
+                                    </div>
+                                    <div class="col-span-1.5 text-center">
+                                        <input type="checkbox" name="${h}" value="${fullSubId}:view" data-menu="${mIdClean}" data-sub="${subIdClean}" data-action="view" class="perm-action-cb perm-subaction-cb w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" ${hasSubView ? 'checked' : ''} onchange="handleActionPermToggle(this)">
+                                    </div>
+                                </div>`;
+                    });
+                }
             });
 
             checkboxesHtml += `
@@ -2730,28 +2782,56 @@ window.changeBillCurrency = function (newCurrency) {
 
 window.handleMasterPermToggle = function(masterCb) {
     if (!masterCb) return;
-    const parentRow = masterCb.closest('.grid');
-    if (!parentRow) return;
-    const actionCbs = parentRow.querySelectorAll('.perm-action-cb');
-    actionCbs.forEach(cb => {
+    const mId = masterCb.getAttribute('data-menu');
+    if (!mId) return;
+    const parentContainer = masterCb.closest('.custom-scrollbar') || masterCb.closest('.p-5') || document;
+    const menuCbs = parentContainer.querySelectorAll(`input[data-menu="${mId}"]`);
+    menuCbs.forEach(cb => {
         cb.checked = masterCb.checked;
     });
+};
+
+window.handleSubMasterPermToggle = function(subMasterCb) {
+    if (!subMasterCb) return;
+    const mId = subMasterCb.getAttribute('data-menu');
+    const parentRow = subMasterCb.closest('.grid');
+    if (parentRow) {
+        const subActionCbs = parentRow.querySelectorAll('.perm-subaction-cb');
+        subActionCbs.forEach(cb => cb.checked = subMasterCb.checked);
+    }
+    if (mId) {
+        const parentContainer = subMasterCb.closest('.custom-scrollbar') || document;
+        const masterCb = parentContainer.querySelector(`.perm-master-cb[data-menu="${mId}"]`);
+        const allMenuActionCbs = parentContainer.querySelectorAll(`.perm-action-cb[data-menu="${mId}"]`);
+        const anyChecked = Array.from(allMenuActionCbs).some(cb => cb.checked);
+        if (masterCb) masterCb.checked = anyChecked;
+    }
 };
 
 window.handleActionPermToggle = function(actionCb) {
     if (!actionCb) return;
     const parentRow = actionCb.closest('.grid');
-    if (!parentRow) return;
-    const masterCb = parentRow.querySelector('.perm-master-cb');
-    const actionCbs = parentRow.querySelectorAll('.perm-action-cb');
-    const anyChecked = Array.from(actionCbs).some(cb => cb.checked);
-    if (masterCb) {
-        masterCb.checked = anyChecked;
+    const mId = actionCb.getAttribute('data-menu');
+
+    if (parentRow) {
+        const subMasterCb = parentRow.querySelector('.perm-submaster-cb');
+        const subActionCbs = parentRow.querySelectorAll('.perm-subaction-cb');
+        if (subMasterCb && subActionCbs.length > 0) {
+            subMasterCb.checked = Array.from(subActionCbs).some(cb => cb.checked);
+        }
+    }
+
+    if (mId) {
+        const parentContainer = actionCb.closest('.custom-scrollbar') || document;
+        const masterCb = parentContainer.querySelector(`.perm-master-cb[data-menu="${mId}"]`);
+        const allMenuActionCbs = parentContainer.querySelectorAll(`.perm-action-cb[data-menu="${mId}"]`);
+        const anyChecked = Array.from(allMenuActionCbs).some(cb => cb.checked);
+        if (masterCb) masterCb.checked = anyChecked;
     }
 };
 
 window.toggleAllPermissionCheckboxes = function(selectAll) {
-    const allCbs = document.querySelectorAll('.perm-master-cb, .perm-action-cb');
+    const allCbs = document.querySelectorAll('.perm-master-cb, .perm-submaster-cb, .perm-action-cb');
     allCbs.forEach(cb => cb.checked = selectAll);
 };
 

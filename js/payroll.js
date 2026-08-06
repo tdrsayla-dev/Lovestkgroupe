@@ -4,6 +4,25 @@
 // =====================================================================
 
 function openPayrollModal(empId) {
+    let sessionStr = sessionStorage.getItem('hr_user_session') || localStorage.getItem('hr_user_session');
+    let userRole = 'Staff', userPerms = [];
+    if (sessionStr) {
+        try {
+            let s = JSON.parse(sessionStr);
+            userRole = s.role || 'Staff';
+            userPerms = typeof parsePermissionsList === 'function' ? parsePermissionsList(s.permissions) : [];
+        } catch (e) { }
+    }
+
+    if (typeof hasSubFeaturePermission === 'function' && !hasSubFeaturePermission('Fingerprint_Logs', 'calc_payroll', 'view', userPerms, userRole)) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'warning', title: 'ไม่มีสิทธิ์เข้าถึง', text: 'คุณไม่มีสิทธิ์ใช้งานฟังก์ชันคำนวณเงินเดือน/สลิป' });
+        } else {
+            alert('คุณไม่มีสิทธิ์ใช้งานฟังก์ชันคำนวณเงินเดือน/สลิป');
+        }
+        return;
+    }
+
     if (typeof toggleLoading === 'function') toggleLoading(false);
     try {
         const modal = document.getElementById('payroll-modal');
@@ -685,6 +704,25 @@ function formatDateTH(dateStr) {
 // =====================================================================
 
 function openPayrollHistoryModal(empId) {
+    let sessionStr = sessionStorage.getItem('hr_user_session') || localStorage.getItem('hr_user_session');
+    let userRole = 'Staff', userPerms = [];
+    if (sessionStr) {
+        try {
+            let s = JSON.parse(sessionStr);
+            userRole = s.role || 'Staff';
+            userPerms = typeof parsePermissionsList === 'function' ? parsePermissionsList(s.permissions) : [];
+        } catch (e) { }
+    }
+
+    if (typeof hasSubFeaturePermission === 'function' && !hasSubFeaturePermission('Fingerprint_Logs', 'payroll_history', 'view', userPerms, userRole)) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'warning', title: 'ไม่มีสิทธิ์เข้าถึง', text: 'คุณไม่มีสิทธิ์ใช้งานฟังก์ชันประวัติเงินเดือน' });
+        } else {
+            alert('คุณไม่มีสิทธิ์ใช้งานฟังก์ชันประวัติเงินเดือน');
+        }
+        return;
+    }
+
     if (typeof toggleLoading === 'function') toggleLoading(false);
     try {
         const modal = document.getElementById('payroll-history-modal');

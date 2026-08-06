@@ -157,13 +157,72 @@ function hasActionPermission(menuId, action, checkedList) {
         }
         const parts = itemStr.split(':');
         const itemMenu = parts[0];
-        const itemAct = norm(parts[1]);
+        const itemAct = norm(parts[parts.length - 1]);
 
         if (isMenuPermissionChecked(menuId, [itemMenu])) {
             return itemAct === targetAction || itemAct === 'all';
         }
         return false;
     });
+}
+
+function hasSubFeaturePermission(parentMenu, subFeatureKey, action, checkedList, userRole) {
+    // Handle flexible parameter signatures:
+    // Signature 1: hasSubFeaturePermission(parentMenu, subFeatureKey, action, checkedList, userRole)
+    // Signature 2: hasSubFeaturePermission(parentMenu, subFeatureKey, checkedList, userRole)
+    if (Array.isArray(action) || (typeof action === 'string' && action.includes(',')) || (typeof action === 'object' && action !== null)) {
+        userRole = checkedList;
+        checkedList = action;
+        action = 'view';
+    }
+    if (!action) action = 'view';
+
+    const roleStr = String(userRole || '').toLowerCase();
+    if (roleStr === 'admin') return true;
+
+    if (!checkedList) {
+        let sessionStr = sessionStorage.getItem('hr_user_session') || localStorage.getItem('hr_user_session');
+        if (sessionStr) {
+            try {
+                let s = JSON.parse(sessionStr);
+                if (String(s.role || '').toLowerCase() === 'admin') return true;
+                checkedList = typeof parsePermissionsList === 'function' ? parsePermissionsList(s.permissions) : [];
+            } catch (e) { }
+        }
+    }
+
+    if (!checkedList || checkedList.length === 0) return false;
+    if (checkedList.includes('all') || checkedList.includes('admin')) return true;
+
+    const norm = (str) => String(str || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+    const pMenuNorm = norm(parentMenu);
+    const subKeyNorm = norm(subFeatureKey);
+    const targetAction = norm(action);
+
+    // Filter checkedList for explicit sub-feature permissions matching parent menu
+    const explicitSubItems = checkedList.filter(item => {
+        const itemStr = String(item || '').trim().toLowerCase();
+        if (!itemStr.includes(':')) return false;
+        const parts = itemStr.split(':');
+        return parts.length >= 2 && norm(parts[0]) === pMenuNorm;
+    });
+
+    if (explicitSubItems.length > 0) {
+        // Explicit sub-feature rules exist for this parent menu
+        return explicitSubItems.some(item => {
+            const parts = String(item || '').trim().toLowerCase().split(':');
+            const itemSub = norm(parts[1]);
+            if (itemSub !== subKeyNorm) return false;
+            if (parts.length >= 3) {
+                const act = norm(parts[2]);
+                return act === targetAction || act === 'all';
+            }
+            return true;
+        });
+    }
+
+    // Fallback: If no explicit sub-feature settings exist for this menu, check parent action permission
+    return hasActionPermission(parentMenu, action, checkedList);
 }
 
 // URL CLEANER — ลบ .html ออกจากช่องที่อยู่เบราว์เซอร์อัตโนมัติ
