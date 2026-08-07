@@ -1139,6 +1139,8 @@
             }
           }
 
+          const isHistoryBypass = saleTab === 'OLD_SYSTEM';
+
           const qtyMap = {};
           cart.forEach(item => {
               const p = (products || []).find(prod => prod.name === item.productName);
@@ -1147,7 +1149,6 @@
 
           for (const pid of Object.keys(qtyMap)) {
               const p = (products || []).find(prod => prod.id === pid);
-              const isHistoryBypass = saleTab === 'OLD_SYSTEM';
               if (!isHistoryBypass && !editingSaleId && p && p.stock < qtyMap[pid]) {
                   showToast(`สินค้า ${p.name} มีสต๊อกไม่พอ (เหลือ ${p.stock} ชิ้น)`, 'error');
                   return;
