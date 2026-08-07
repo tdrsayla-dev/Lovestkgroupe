@@ -502,11 +502,11 @@
             setMemberIdInput(''); 
             setFormData({ date: getLocalISODate() });
             
-            setPayMode('\u0e2a\u0e14');
+            setPayMode('สด');
             setPayCashTHB('');
             setPayCashLAK('');
             setPayTransferThaiTHB('');
-            setPayTransferThaiBank('\u0e01\u0e2a\u0e34\u0e01\u0e23\u0e44\u0e17\u0e22');
+            setPayTransferThaiBank('กสิกรไทย');
             setPayTransferLaosTHB('');
             setPayTransferLaosBankTHB('BCEL');
             setPayTransferLaosLAK('');
@@ -1202,7 +1202,7 @@
               memberName: foundMember.name, 
               customerId: finalCustomerId, 
               recordedBy: currentUser ? (currentUser.name || currentUser.username || 'Admin') : 'ไม่ระบุ',
-               saleType: isHistoryBypass ? '\u0e22\u0e2d\u0e14\u0e23\u0e30\u0e1a\u0e1a\u0e40\u0e01\u0e48\u0e32 (\u0e44\u0e21\u0e48\u0e04\u0e34\u0e14\u0e40\u0e07\u0e34\u0e19)' : paymentSummaryStr,
+               saleType: isHistoryBypass ? 'ยอดระบบเก่า (ไม่คิดเงิน)' : paymentSummaryStr,
               totalAmount: isHistoryBypass ? 0 : cartTotals.amount,
               paymentNote: paymentNote
           };
@@ -1661,23 +1661,23 @@
                                                 <option value="LDB">LDB</option>
                                             </select>
                                             <div className="flex-1 relative">
-                                                <span className="absolute left-2.5 top-1 text-[9px] text-slate-400 font-bold">\u0e3f</span>
-                                                <input type="text" inputMode="decimal" placeholder="\u0e1a\u0e32\u0e17" className="w-full pl-6 pr-1 py-1 rounded-md border border-indigo-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-indigo-500 shadow-sm" value={formatDisplayNumber(payTransferLaosTHB)} onChange={handleNumberInput(setPayTransferLaosTHB)} />
+                                                <span className="absolute left-2.5 top-1 text-[9px] text-slate-400 font-bold">฿</span>
+                                                <input type="text" inputMode="decimal" placeholder="บาท" className="w-full pl-6 pr-1 py-1 rounded-md border border-indigo-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-indigo-500 shadow-sm" value={formatDisplayNumber(payTransferLaosTHB)} onChange={handleNumberInput(setPayTransferLaosTHB)} />
                                             </div>
                                         </div>
                                         <div className="flex gap-1.5">
-                                            <span className="bg-blue-100 text-blue-800 text-[9px] font-bold px-1 py-1 rounded-md border border-blue-200 shrink-0 w-10 text-center flex items-center justify-center">\u0e44\u0e17\u0e22</span>
+                                            <span className="bg-blue-100 text-blue-800 text-[9px] font-bold px-1 py-1 rounded-md border border-blue-200 shrink-0 w-10 text-center flex items-center justify-center">ไทย</span>
                                             <select className="w-[75px] rounded-md border border-blue-300 bg-white text-slate-700 text-[9px] font-bold px-1 outline-none focus:border-blue-500 shadow-sm" value={payTransferThaiBank} onChange={e => setPayTransferThaiBank(e.target.value)}>
-                                                <option value="\u0e01\u0e2a\u0e34\u0e01\u0e23\u0e44\u0e17\u0e22">KBANK</option>
-                                                <option value="\u0e44\u0e17\u0e22\u0e1e\u0e32\u0e13\u0e34\u0e0a\u0e22\u0e4c">SCB</option>
-                                                <option value="\u0e01\u0e23\u0e38\u0e07\u0e40\u0e17\u0e1e">BBL</option>
-                                                <option value="\u0e01\u0e23\u0e38\u0e07\u0e44\u0e17\u0e22">KTB</option>
-                                                <option value="\u0e01\u0e23\u0e38\u0e07\u0e28\u0e23\u0e35">BAY</option>
+                                                <option value="กสิกรไทย">KBANK</option>
+                                                <option value="ไทยพาณิชย์">SCB</option>
+                                                <option value="กรุงเทพ">BBL</option>
+                                                <option value="กรุงไทย">KTB</option>
+                                                <option value="กรุงศรี">BAY</option>
                                                 <option value="PromptPay">Prompt</option>
                                             </select>
                                             <div className="flex-1 relative">
-                                                <span className="absolute left-2.5 top-1 text-[9px] text-slate-400 font-bold">\u0e3f</span>
-                                                <input type="text" inputMode="decimal" placeholder="\u0e1a\u0e32\u0e17" className="w-full pl-6 pr-1 py-1 rounded-md border border-blue-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-blue-500 shadow-sm" value={formatDisplayNumber(payTransferThaiTHB)} onChange={handleNumberInput(setPayTransferThaiTHB)} />
+                                                <span className="absolute left-2.5 top-1 text-[9px] text-slate-400 font-bold">฿</span>
+                                                <input type="text" inputMode="decimal" placeholder="บาท" className="w-full pl-6 pr-1 py-1 rounded-md border border-blue-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-blue-500 shadow-sm" value={formatDisplayNumber(payTransferThaiTHB)} onChange={handleNumberInput(setPayTransferThaiTHB)} />
                                             </div>
                                         </div>
                                     </div>
@@ -1691,8 +1691,8 @@
                                 const tLaosTHB = parseFloat(payTransferLaosTHB) || 0;
                                 const tLaosLAK = parseFloat(payTransferLaosLAK) || 0;
                                 
-                                const showCash = payMode === '\u0e2a\u0e14' || payMode === '\u0e2a\u0e14+\u0e42\u0e2d\u0e19';
-                                const showTransfer = payMode === '\u0e42\u0e2d\u0e19' || payMode === '\u0e2a\u0e14+\u0e42\u0e2d\u0e19';
+                                const showCash = payMode === 'สด' || payMode === 'สด+โอน';
+                                const showTransfer = payMode === 'โอน' || payMode === 'สด+โอน';
                                 
                                 const totalPaidTHB = (showCash ? cTHB + (cLAK/exchangeRate) : 0) + (showTransfer ? tThaiTHB + tLaosTHB + (tLaosLAK/exchangeRate) : 0);
                                 const remainingTHB = Math.round((cartTotals.amount - totalPaidTHB) * 100) / 100;
@@ -1702,24 +1702,24 @@
                                     <div className="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-200 shadow-inner mb-1.5">
                                     {remainingTHB > 0 ? (
                                         <React.Fragment>
-                                            <div className="text-[10px] font-black text-red-500">\ud83d\udd34 \u0e04\u0e49\u0e32\u0e07\u0e0a\u0e33\u0e23\u0e30<br/><span className="text-[8px] font-bold text-slate-400">(\u0e15\u0e49\u0e2d\u0e07\u0e40\u0e01\u0e47\u0e1a\u0e40\u0e1e\u0e34\u0e48\u0e21)</span></div>
+                                            <div className="text-[10px] font-black text-red-500">🔴 ค้างชำระ<br/><span className="text-[8px] font-bold text-slate-400">(ต้องเก็บเพิ่ม)</span></div>
                                             <div className="text-right">
-                                                <div className="text-sm font-black text-red-600 leading-none">\u0e3f{remainingTHB.toLocaleString()}</div>
+                                                <div className="text-sm font-black text-red-600 leading-none">฿{remainingTHB.toLocaleString()}</div>
                                                 <div className="text-[9px] font-bold text-red-500/80">≈ {Math.round(remainingLAK).toLocaleString()} ₭</div>
                                             </div>
                                         </React.Fragment>
                                     ) : remainingTHB < 0 ? (
                                         <React.Fragment>
-                                            <div className="text-[10px] font-black text-blue-500">\ud83d\udd35 \u0e40\u0e07\u0e34\u0e19\u0e17\u0e2d\u0e19<br/><span className="text-[8px] font-bold text-slate-400">(\u0e15\u0e49\u0e2d\u0e07\u0e17\u0e2d\u0e19\u0e25\u0e39\u0e01\u0e04\u0e49\u0e32)</span></div>
+                                            <div className="text-[10px] font-black text-blue-500">🔵 เงินทอน<br/><span className="text-[8px] font-bold text-slate-400">(ต้องทอนลูกค้า)</span></div>
                                             <div className="text-right">
-                                                <div className="text-sm font-black text-blue-600 leading-none">\u0e3f{Math.abs(remainingTHB).toLocaleString()}</div>
+                                                <div className="text-sm font-black text-blue-600 leading-none">฿{Math.abs(remainingTHB).toLocaleString()}</div>
                                                 <div className="text-[9px] font-bold text-blue-500/80">≈ {Math.round(Math.abs(remainingLAK)).toLocaleString()} ₭</div>
                                             </div>
                                         </React.Fragment>
                                     ) : (
                                         <React.Fragment>
-                                            <div className="text-[10px] font-black text-emerald-500">\ud83d\udfe2 \u0e2a\u0e16\u0e32\u0e19\u0e30\u0e0a\u0e33\u0e23\u0e30</div>
-                                            <div className="text-xs font-black text-emerald-600">\u0e05\u0e23\u0e1a\u0e1e\u0e2d\u0e14\u0e35 \u2713</div>
+                                            <div className="text-[10px] font-black text-emerald-500">🟢 สถานะชำระ</div>
+                                            <div className="text-xs font-black text-emerald-600">ครบพอดี ✓</div>
                                         </React.Fragment>
                                     )}
                                     </div>
