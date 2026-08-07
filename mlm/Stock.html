@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -220,7 +220,7 @@
                   )}
                   {filtered.map(p => {
                     const s = p.stock || 0;
-                    const isOut = s === 0;
+                    const isOut = s <= 0;
                     const isLow = s > 0 && s <= 10;
                     return (
                       <tr key={p.id} className={`hover:bg-slate-50 transition-colors ${isOut ? 'bg-red-50/40' : isLow ? 'bg-amber-50/40' : ''}`}>
@@ -811,7 +811,23 @@
         supabaseSelect('stk_stock_movements')
           .then(res => {
             setIsLoading(false);
-            setStockMovements(res || []);
+            if (Array.isArray(res)) {
+              const formatted = res.map(m => ({
+                ...m,
+                movementId: m.movement_id || m.movementId || '',
+                productId: m.product_id || m.productId || '',
+                type: m.type || '',
+                subType: m.sub_type || m.subType || '',
+                quantity: Number(m.quantity || 0),
+                lotId: m.lot_id || m.lotId || '',
+                notes: m.notes || '',
+                createdBy: m.created_by || m.createdBy || '',
+                date: m.date || m.created_at || ''
+              }));
+              setStockMovements(formatted);
+            } else {
+              setStockMovements([]);
+            }
             showToast('โหลดข้อมูลใหม่แล้ว', 'success');
           })
           .catch(() => { setIsLoading(false); showToast('โหลดข้อมูลล้มเหลว', 'error'); });
@@ -2299,7 +2315,21 @@
             setProducts(formatted);
           }
           if (Array.isArray(catRes)) setProductCategories(catRes);
-          if (Array.isArray(movRes)) setStockMovements(movRes);
+          if (Array.isArray(movRes)) {
+            const formattedMov = movRes.map(m => ({
+              ...m,
+              movementId: m.movement_id || m.movementId || '',
+              productId: m.product_id || m.productId || '',
+              type: m.type || '',
+              subType: m.sub_type || m.subType || '',
+              quantity: Number(m.quantity || 0),
+              lotId: m.lot_id || m.lotId || '',
+              notes: m.notes || '',
+              createdBy: m.created_by || m.createdBy || '',
+              date: m.date || m.created_at || ''
+            }));
+            setStockMovements(formattedMov);
+          }
           if (Array.isArray(memRes)) setMembers(memRes);
           if (Array.isArray(cloRes)) setClosers(cloRes);
           if (Array.isArray(typeRes)) setCustomerTypes(typeRes);

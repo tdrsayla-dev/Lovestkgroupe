@@ -80,17 +80,17 @@
 
         const defaultRolePermissions = {
             'ผู้ดูแลระบบ': {
-                dashboard: 'full', reports: 'full', orgchart: 'full', sales: 'full', customers: 'full',
+                dashboard: 'full', reports: 'full', orgchart: 'full', sales: 'full', nutrients: 'full', customers: 'full',
                 team: 'full', business_teams: 'full', stock: 'full', customer_types: 'full', closers: 'full',
                 exchange_rate: 'full', system_users: 'full'
             },
             'พนักงานการตลาด': {
-                dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'none', customers: 'none',
+                dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'none', nutrients: 'none', customers: 'none',
                 team: 'edit', business_teams: 'none', stock: 'none', customer_types: 'none', closers: 'none',
                 exchange_rate: 'none', system_users: 'none'
             },
             'พนักงานทั่วไป': {
-                dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'edit', customers: 'view',
+                dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'edit', nutrients: 'edit', customers: 'view',
                 team: 'none', business_teams: 'none', stock: 'none', customer_types: 'none', closers: 'none',
                 exchange_rate: 'none', system_users: 'none'
             }
@@ -104,11 +104,20 @@
             return defaultRolePermissions;
         });
 
+        // ==========================================
+        // คู่มือกำกับการปรับปรุงและเพิ่มสิทธิ์เมนู (Permission Configuration Guide):
+        // ------------------------------------------
+        // หากต้องการเพิ่มเมนู/สิทธิ์ใหม่ในอนาคต (เช่น เมนู 'xxx'):
+        // 1. เพิ่มฟิลด์ 'xxx': 'full'/'none'/'view' ใน defaultRolePermissions ด้านบน
+        // 2. เพิ่มรายการ { id: 'xxx', label: 'ชื่อภาษาไทย (xxx)' } ใน systemPagesList ด้านล่างนี้
+        // 3. นำตัวแปรเช็คสิทธิ์ (เช่น canXxx) ไปใช้แสดงผล Sidebar และ Bottom bar ใน CommonComponents.js
+        // ==========================================
         const systemPagesList = [
             { id: 'dashboard', label: 'แดชบอร์ด (Dashboard)' },
             { id: 'reports', label: 'รายงานสรุปผลงาน (Reports)' },
             { id: 'orgchart', label: 'ผังองค์กรสายงาน (OrgChart)' },
             { id: 'sales', label: 'ข้อมูลการขาย (Sales)' },
+            { id: 'nutrients', label: 'สารอาหาร (Nutrients)' },
             { id: 'orders', label: 'จัดการบิล (Orders)' },
             { id: 'customers', label: 'ข้อมูลลูกค้า (Customers)' },
             { id: 'team', label: 'ข้อมูลพนักงาน (Team)' },

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -112,6 +112,56 @@
            showToast(isEditing ? 'แก้ไขผู้ปิดการขายสำเร็จ!' : 'บันทึกผู้ปิดการขายสำเร็จ!', 'success');
         };
 
+        const handleSyncMarketing = async () => {
+             setIsSubmitting(true);
+             try {
+                 let allUsers = [];
+                 if (typeof supabaseSelect === 'function') {
+                     allUsers = await supabaseSelect('stk_members').catch(() => supabaseSelect('members')) || [];
+                 }
+                 
+                 const marketingUsers = allUsers.filter(u => {
+                     const bTeam = String(u.business_team || u.businessTeam || '').trim().toUpperCase();
+                     return bTeam === 'T01';
+                 });
+
+                 if (marketingUsers.length === 0) {
+                     showToast('No marketing team staff found!', 'error');
+                     setIsSubmitting(false);
+                     return;
+                 }
+
+                 let addedCount = 0;
+                 for (const u of marketingUsers) {
+                     const uId = u.id || u.user_id || u.username;
+                     if (!uId) continue;
+
+                     const exists = (closers || []).some(c => String(c.id).toUpperCase() === String(uId).toUpperCase());
+                     if (!exists) {
+                         const payload = {
+                             id: uId,
+                             name: u.name || uId,
+                             team: 'Marketing',
+                             status: 'ใช้งาน'
+                         };
+
+                         if (typeof supabaseInsert === 'function') {
+                             await supabaseInsert('stk_closers', payload).catch(() => supabaseInsert('closers', payload));
+                         }
+                         
+                         setClosers(prev => [...prev, { id: uId, name: u.name || uId, team: 'Marketing', status: 'ใช้งาน' }]);
+                         addedCount++;
+                     }
+                 }
+
+                 showToast('ซิงค์พนักงานการตลาดสำเร็จ! เพิ่มเข้าทีม ' + addedCount + ' คน', 'success');
+             } catch(err) {
+                 showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
+             } finally {
+                 setIsSubmitting(false);
+             }
+         };
+
         const executeDelete = () => { 
             const id = confirmDelete.id; 
             if (!id) return;
@@ -189,7 +239,8 @@
                     <SearchIcon size={18} className="text-slate-400 shrink-0" />
                     <input type="text" placeholder="ค้นหารหัส, ชื่อ, สังกัด..." className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                  </div>
-                 <button onClick={handleOpenAdd} className={`${btnClassPrimary} shrink-0`}><Plus size={18}/> เพิ่มผู้ปิดการขาย</button>
+                  <button onClick={handleSyncMarketing} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[12px] py-1.5 px-3 rounded-xl flex items-center gap-1.5 transition-colors shadow-sm shrink-0" type="button"><Plus size={18}/> ดึงพนักงานการตลาดเข้าทีม</button>
+                  <button onClick={handleOpenAdd} className={`${btnClassPrimary} shrink-0`}><Plus size={18}/> เพิ่มผู้ปิดการขาย</button>
                </div>
             </div>
 

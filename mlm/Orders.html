@@ -70,7 +70,7 @@
         } catch(e) { return raw; }
     };
 
-    const OrdersView = ({ sales, setSales, members, customers, products = [], systemSettings = { exchange_rate: 700 }, isAdmin, showToast, currentUser }) => {
+    const OrdersView = ({ sales, setSales, members, customers, products = [], systemSettings = { exchange_rate: 700 }, isAdmin, showToast, currentUser, closers = [] }) => {
         const todayStr = typeof getLocalISODate === 'function' ? getLocalISODate() : new Date().toISOString().split('T')[0];
         const [salesSearchTerm, setSalesSearchTerm] = useState('');
         const [historyStartDate, setHistoryStartDate] = useState(todayStr);
@@ -158,9 +158,31 @@
                 return;
             }
 
-            const mName = (members || []).find(m => m && m.id === saleRecord.memberId)?.name || saleRecord.memberName || saleRecord.memberId || '-';
-            const custObj = (customers || []).find(c => c && c.id === saleRecord.customerId) || {};
-            const custName = custObj.name || saleRecord.customerName || '';
+            const mName = (members || []).find(m => m && m.id === saleRecord.memberId)?.name || saleRecord.memberName || saleRecord.member_name || '-';
+            const custObj = (customers || []).find(c => c && (c.id === saleRecord.customerId || c.id === saleRecord.customer_id)) || {};
+            const custName = custObj.name || saleRecord.customerName || saleRecord.customer_name || '';
+            const closersList = typeof closers !== 'undefined' ? closers : [];
+            const closerObj = closersList.find(cl => cl && (cl.id === (custObj.closer || custObj.closerId || custObj.closer_id) || cl.name === custObj.closer)) || {};
+            const closerName = closerObj.name || custObj.closer || custObj.closerName || custObj.closer_name || '-';
+            const cleanCustName = (() => {
+                const parts = custName.split(/\s+/);
+                const nameParts = [];
+                for (let part of parts) {
+                    const p = part.trim();
+                    if (!p) continue;
+                    if (/^\d+$/.test(p) || p.startsWith('(')) {
+                        break;
+                    }
+                    nameParts.push(p);
+                }
+                return nameParts.join(' ').trim() || custName;
+            })();
+            let cleanCloserName = closerName;
+            if (cleanCloserName.includes(' - ')) {
+                cleanCloserName = cleanCloserName.split(' - ')[1].trim();
+            } else if (cleanCloserName.includes('-')) {
+                cleanCloserName = cleanCloserName.split('-')[1].trim();
+            }
 
             const saleTypeStr = saleRecord.saleType || 'เงินสด';
             let cTHB = 0; let cLAK = 0;
@@ -422,9 +444,9 @@
                   <table class="meta-table">
                     <tr><td class="bold" style="width: 38%;">เลขที่บิล:</td><td style="width: 62%; font-weight: 700; color: #0f172a;">${saleRecord.id}</td></tr>
                     <tr><td class="bold">วันที่:</td><td>${formatDbDateForFilter(saleRecord.date)}</td></tr>
-                    <tr><td class="bold">ลูกค้า:</td><td>${custName ? `${custName} (${saleRecord.customerId || '-'})` : (saleRecord.customerId || '-')}</td></tr>
+                    <tr><td class="bold">ลูกค้า:</td><td>${cleanCustName ? `${cleanCustName} (${saleRecord.customerId || '-'})` : (saleRecord.customerId || '-')}</td></tr>
                     <tr><td class="bold">ผู้ขาย (เคส):</td><td>${mName}</td></tr>
-                    <tr><td class="bold">ผู้ปิดการขาย:</td><td>${custObj.closer || '-'}</td></tr>
+                    <tr><td class="bold">ผู้ปิดการขาย:</td><td>${cleanCloserName}</td></tr>
                     <tr><td class="bold">พนักงานบันทึก:</td><td>${saleRecord.recordedBy || '-'}</td></tr>
                   </table>
                   <div class="divider"></div>
@@ -442,7 +464,6 @@
                         <tr>
                           <td>
                             <div class="bold" style="color: #0f172a;">${item.name}</div>
-                            <div style="font-size: 9px; color: #64748b;">[${item.priceType}]</div>
                           </td>
                           <td style="text-align: right; font-family: monospace;">${item.unitPrice > 0 ? '฿' + item.unitPrice.toLocaleString() : '-'}</td>
                           <td style="text-align: center; font-weight: 700;">${item.qty}</td>
@@ -498,6 +519,9 @@
                       <div class="sig-box"><div class="sig-line"></div>ผู้จ่ายสินค้า/ยา</div>
                       <div class="sig-box"><div class="sig-line"></div>พนักงานแคชเชียร์</div>
                   </div>
+                  ${saleRecord.paymentNote && String(saleRecord.paymentNote).trim() !== '' ? `
+                    <div style="font-size: 10px; color: #b45309; margin-top: 10px; font-weight: 600; text-align: left; border-top: 1px dashed #cbd5e1; padding-top: 6px;">📝 หมายเหตุ: ${saleRecord.paymentNote}</div>
+                  ` : ''}
                   <div class="text-center" style="font-size: 11px; margin-top: 20px; color: #475569;"><p class="bold" style="color: #0f172a; margin:0;">ขอบพระคุณที่อุดหนุน LOVE STK GROUPE</p></div>
                 </div>
               </div>
@@ -529,9 +553,60 @@
         const executeDeleteSale = async () => {
             if (!confirmDelete.id) return;
             try {
+                // Find the sale record to return stock
+                const saleToCancel = sales.find(s => s.id === confirmDelete.id);
+                if (saleToCancel) {
+                    let itemsList = [];
+                    if (saleToCancel.items_json) {
+                        try {
+                            itemsList = typeof saleToCancel.items_json === 'string' ? JSON.parse(saleToCancel.items_json) : saleToCancel.items_json;
+                        } catch(e) {}
+                    }
+                    if (Array.isArray(itemsList)) {
+                        // Fetch current products list to calculate new stocks
+                        let currentProducts = [];
+                        if (typeof supabaseSelect === 'function') {
+                            currentProducts = await supabaseSelect('stk_products') || [];
+                        }
+                        
+                        for (const it of itemsList) {
+                            const pid = it.id || it.productId || it.product_id;
+                            const qty = parseInt(it.qty) || 0;
+                            if (pid && qty > 0) {
+                                // Find product to get current stock
+                                const pInfo = currentProducts.find(p => p.id === pid || p.product_id === pid);
+                                if (pInfo) {
+                                    const currentStock = parseInt(pInfo.current_stock || pInfo.stock) || 0;
+                                    const newStock = currentStock + qty;
+                                    
+                                    // 1. Return stock to stk_products
+                                    if (typeof supabaseUpdate === 'function') {
+                                        await supabaseUpdate('stk_products', pid, { current_stock: newStock }, 'product_id');
+                                    }
+                                    
+                                    // 2. Insert into stk_stock_movements
+                                    if (typeof supabaseInsert === 'function') {
+                                        await supabaseInsert('stk_stock_movements', {
+                                            movement_id: 'MOV-' + Date.now() + '-' + Math.floor(Math.random()*1000),
+                                            product_id: pid,
+                                            type: 'IN',
+                                            sub_type: 'ยกเลิกบิล',
+                                            quantity: qty,
+                                            lot_id: confirmDelete.id || '',
+                                            notes: 'Cancel order ' + (confirmDelete.id || ''),
+                                            created_by: currentUser ? (currentUser.name || currentUser.username || 'Admin') : 'Admin',
+                                            date: getLocalISODate()
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 await supabaseDelete('stk_sales', confirmDelete.id, 'order_id');
                 setSales(prev => prev.filter(s => s.id !== confirmDelete.id));
-                showToast('ลบบิลเรียบร้อยแล้ว', 'success');
+                showToast('ลบบิลเรียบร้อยแล้ว และคืนสต็อกสินค้าเรียบร้อย', 'success');
             } catch(e) {
                 showToast('เกิดข้อผิดพลาดในการลบ: ' + e.message, 'error');
             } finally {
@@ -635,7 +710,7 @@
                   <td className="p-4 align-middle text-center border-l border-blue-200 bg-blue-50/40 min-w-[200px]">
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">รวมทั้งหมด</div>
                     <div className="font-black text-3xl text-blue-700 drop-shadow-xs leading-none">
-                        {totalQtyInRow} <span className="text-[13px] font-bold text-blue-500">ชิ้น</span>
+                        {totalQtyInRow.toLocaleString()} <span className="text-[13px] font-bold text-blue-500">ชิ้น</span>
                     </div>
                     <div className="text-[11px] font-black text-emerald-700 mt-2 bg-white py-1.5 px-2.5 rounded-xl border border-emerald-200 shadow-xs whitespace-nowrap inline-block">
                         {symbolStr}{formattedVal}
@@ -858,23 +933,23 @@
                               <div className="font-black text-slate-800 text-xs">รวมทั้งหมด ({tableTotals.count} บิล)</div>
                            </td>
                            <td className="p-2 align-middle text-center border-l border-slate-200 bg-green-50/50">
-                              <div className="font-black text-base text-green-700">{tableTotals.totalFull}</div>
+                              <div className="font-black text-base text-green-700">{tableTotals.totalFull.toLocaleString()}</div>
                               <div className="text-[9px] font-bold text-green-600 uppercase">ชิ้นราคาเต็ม</div>
                            </td>
                            <td className="p-2 align-middle text-center border-l border-slate-200 bg-purple-50/50">
-                              <div className="font-black text-base text-purple-700">{tableTotals.totalMember}</div>
+                              <div className="font-black text-base text-purple-700">{tableTotals.totalMember.toLocaleString()}</div>
                               <div className="text-[9px] font-bold text-purple-600 uppercase">ชิ้นราคาสมาชิก</div>
                            </td>
                            <td className="p-2 align-middle text-center border-l border-slate-200 bg-orange-50/50">
-                              <div className="font-black text-base text-orange-700">{tableTotals.totalPro}</div>
+                              <div className="font-black text-base text-orange-700">{tableTotals.totalPro.toLocaleString()}</div>
                               <div className="text-[9px] font-bold text-orange-600 uppercase">ชิ้นราคาโปร</div>
                            </td>
                            <td className="p-2 align-middle text-center border-l border-slate-200 bg-slate-100/50">
-                              <div className="font-black text-base text-slate-600">{tableTotals.totalZero}</div>
+                              <div className="font-black text-base text-slate-600">{tableTotals.totalZero.toLocaleString()}</div>
                               <div className="text-[9px] font-bold text-slate-500 uppercase">ชิ้นราคาศูนย์</div>
                            </td>
                            <td className="p-2.5 align-middle text-center border-l border-slate-200 bg-blue-50/60">
-                              <div className="font-black text-xl text-blue-900 leading-none">{tableTotals.grandTotal} ชิ้น</div>
+                              <div className="font-black text-xl text-blue-900 leading-none">{tableTotals.grandTotal.toLocaleString()} ชิ้น</div>
                               <div className="text-[11px] font-black text-emerald-700 bg-white py-1 px-2 rounded-lg border border-emerald-200 mt-1 shadow-xs inline-block">฿{tableTotals.totalAmountTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
                            </td>
                            {isAdmin && <td className="bg-slate-50 border-l border-slate-200"></td>}
@@ -910,6 +985,7 @@
       const [products, setProducts] = useState([]);
       const [systemSettings, setSystemSettings] = useState({ exchange_rate: 700 });
       const [systemUsers, setSystemUsers] = useState([]);
+      const [closers, setClosers] = useState([]);
       const [isAppLoading, setIsAppLoading] = useState(true);
       const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => localStorage.getItem('stk_sidebar_collapsed') === 'true');
       const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -941,10 +1017,12 @@
           supabaseSelect('stk_customers').catch(() => supabaseSelect('customers')),
           supabaseSelect('stk_sales').catch(() => supabaseSelect('sales')),
           supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
-          supabaseSelect('stk_system_settings').catch(() => supabaseSelect('system_settings')).catch(() => [])
-        ]).then(([memRes, custRes, saleRes, prodRes, setRes]) => {
+          supabaseSelect('stk_system_settings').catch(() => supabaseSelect('system_settings')).catch(() => []),
+          supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')).catch(() => [])
+        ]).then(([memRes, custRes, saleRes, prodRes, setRes, closerRes]) => {
           if (Array.isArray(memRes)) setMembers(memRes.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name })));
-          if (Array.isArray(custRes)) setCustomers(custRes.map(x => ({ ...x, id: x.id || x.customer_id })));
+          if (Array.isArray(custRes)) setCustomers(custRes.map(x => ({ ...x, id: x.id || x.customer_id, closer: x.closer || x.closer_id || '' })));
+          if (Array.isArray(closerRes)) setClosers(closerRes.map(x => ({ ...x, id: x.id || x.closer_id })));
           let combinedSales = Array.isArray(saleRes) ? [...saleRes] : [];
           // แสดงเฉพาะบิลที่ผ่านการบันทึกชำระเงินเรียบร้อยแล้วเท่านั้น
           combinedSales = combinedSales.filter(s => s && s.status !== 'รอดำเนินการ' && s.status !== 'ร่างใบสั่งซื้อ (จากคลินิก)');
@@ -1034,7 +1112,8 @@
                  isAdmin={isAdmin} 
                  showToast={showToast} 
                  currentUser={currentUser} 
-               />
+                 closers={closers}
+                />
              )}
           </main>
 

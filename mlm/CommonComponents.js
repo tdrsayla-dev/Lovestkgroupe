@@ -611,6 +611,7 @@
     });
 
     const isSidebarCollapsed = propCollapsed !== undefined ? propCollapsed : localCollapsed;
+    const userProfileUrl = currentUserProfileUrl || currentUser?.profileUrl || currentUser?.profile_url || currentUser?.id_card_url || currentUser?.ID_Card_URL || '';
     const setIsSidebarCollapsed = (val) => {
       const next = typeof val === 'function' ? val(isSidebarCollapsed) : val;
       try { localStorage.setItem('stk_sidebar_collapsed', String(next)); } catch (e) { }
@@ -642,6 +643,7 @@
     const canReports = getUserPagePermission(currentUser, 'reports') !== 'none';
     const canOrgChart = getUserPagePermission(currentUser, 'orgchart') !== 'none';
     const canSales = getUserPagePermission(currentUser, 'sales') !== 'none';
+    const canNutrients = getUserPagePermission(currentUser, 'nutrients') !== 'none';
     const canCustomers = getUserPagePermission(currentUser, 'customers') !== 'none';
 
     const canSysUsers = getUserPagePermission(currentUser, 'system_users') !== 'none';
@@ -670,7 +672,7 @@
             canOrgChart ? React.createElement(SidebarItem, { icon: GitBranch, label: "ผังองค์กรสายงาน", id: "org_chart", activeTab: activePage, href: SCRIPT_URL + '?page=org_chart', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
             (canSales || canCustomers) ? React.createElement('div', { className: "pt-3 pb-1.5" }, React.createElement('p', { className: `text-[10px] font-black text-slate-500 uppercase tracking-widest ${isSidebarCollapsed ? 'text-center' : 'px-4'}` }, "ธุรกรรมประจำวัน")) : null,
             canSales ? React.createElement(SidebarItem, { icon: ShoppingCart, label: "ป้อนข้อมูลขาย (Sales)", id: "sales", activeTab: activePage, href: SCRIPT_URL + '?page=sales', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
-            canSales ? React.createElement(SidebarItem, { icon: PillIcon, label: "สารอาหาร", id: "nutrients", activeTab: activePage, href: SCRIPT_URL + '?page=nutrients', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
+            canNutrients ? React.createElement(SidebarItem, { icon: PillIcon, label: "สารอาหาร", id: "nutrients", activeTab: activePage, href: SCRIPT_URL + '?page=nutrients', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
             canSales ? React.createElement(SidebarItem, { icon: FileText, label: "จัดการบิล (Orders)", id: "orders", activeTab: activePage, href: SCRIPT_URL + '?page=orders', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
             canCustomers ? React.createElement(SidebarItem, { icon: Contact, label: "ข้อมูลลูกค้า (Customers)", id: "customers", activeTab: activePage, href: SCRIPT_URL + '?page=customers', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
             React.createElement(SidebarSettingsGroup, { activeTab: activePage, isSidebarCollapsed: isSidebarCollapsed, isAdmin: isAdmin, handleTabClick: handleTabClick, SCRIPT_URL: SCRIPT_URL, currentUser: currentUser })
@@ -678,7 +680,7 @@
         ),
         React.createElement('div', { className: `border-t border-slate-800 bg-slate-950 flex items-center absolute bottom-0 w-full h-24 overflow-hidden ${isSidebarCollapsed ? 'p-2 justify-center' : 'p-4 gap-3'}` },
           isLoggedIn ? React.createElement(React.Fragment, null,
-            (currentUserProfileUrl && currentUserProfileUrl !== '-') ? React.createElement('img', { src: currentUserProfileUrl, alt: "Profile", className: `rounded-full object-cover border-2 border-slate-700 shadow-sm shrink-0 ${isSidebarCollapsed ? 'w-10 h-10 mx-auto' : 'w-10 h-10'}` }) : React.createElement(UserCircle, { size: isSidebarCollapsed ? 32 : 36, className: `text-blue-400 bg-blue-900/30 rounded-full shrink-0 p-1 ${isSidebarCollapsed ? 'mx-auto' : ''}` }),
+            (userProfileUrl && userProfileUrl !== '-') ? React.createElement('img', { src: userProfileUrl, alt: "Profile", className: `rounded-full object-cover border-2 border-slate-700 shadow-sm shrink-0 ${isSidebarCollapsed ? 'w-10 h-10 mx-auto' : 'w-10 h-10'}` }) : React.createElement(UserCircle, { size: isSidebarCollapsed ? 32 : 36, className: `text-blue-400 bg-blue-900/30 rounded-full shrink-0 p-1 ${isSidebarCollapsed ? 'mx-auto' : ''}` }),
             !isSidebarCollapsed ? React.createElement('div', { className: "w-full flex flex-col items-start overflow-hidden" },
               React.createElement('p', { className: "text-[12px] font-bold text-white truncate w-full", title: currentUser ? currentUser.name : '' }, currentUser ? currentUser.name : ''),
               React.createElement('p', { className: "text-[10px] font-bold text-slate-400 mb-1" }, currentUser ? currentUser.role : ''),
@@ -696,8 +698,14 @@
             React.createElement('button', { onClick: () => setIsMobileMenuOpen(true), className: "p-2 text-slate-300 hover:bg-slate-800 hover:text-white rounded-xl border border-slate-800 transition-all active:scale-95", title: "เปิดเมนูทั้งหมด" }, React.createElement(Menu, { size: 20 })),
             React.createElement('h1', { className: "text-base font-black text-white tracking-tight" }, "LOVE ", React.createElement('span', { className: "text-blue-500" }, "STK GROUPE"))
           ),
-          isLoggedIn ? React.createElement('div', { className: "flex items-center gap-2" },
-            (currentUserProfileUrl && currentUserProfileUrl !== '-') ? React.createElement('img', { src: currentUserProfileUrl, className: "w-7 h-7 rounded-full object-cover border border-slate-700" }) : React.createElement(UserCircle, { size: 24, className: "text-slate-400" })
+          isLoggedIn ? React.createElement('button', {
+            onClick: onLogout,
+            className: "flex items-center gap-2 cursor-pointer focus:outline-none transition-all active:scale-95",
+            title: "ออกจากระบบ"
+          },
+            (userProfileUrl && userProfileUrl !== '-') ?
+              React.createElement('img', { src: userProfileUrl, className: "w-7 h-7 rounded-full object-cover border border-slate-700 hover:border-red-400 transition-colors" }) :
+              React.createElement(UserCircle, { size: 24, className: "text-slate-400 hover:text-red-400 transition-colors" })
           ) : React.createElement('button', { onClick: () => setShowLoginModal(true), className: "bg-blue-600 text-white font-bold px-3 py-1 rounded-lg text-xs" }, "ล็อกอิน")
         )
       ),
@@ -719,6 +727,7 @@
             ) : null
           ) : null,
           (isLoggedIn && canSales) ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=sales'), onClick: handleTabClick, title: "การขาย", className: `flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all ${activePage === 'sales' ? 'text-blue-400' : 'text-slate-500 hover:text-white'}` }, React.createElement(ShoppingCart, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, 'ขาย')) : null,
+          (isLoggedIn && canNutrients) ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=nutrients'), onClick: handleTabClick, title: "สารอาหาร", className: `flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all ${activePage === 'nutrients' ? 'text-blue-400' : 'text-slate-500 hover:text-white'}` }, React.createElement(PillIcon, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, 'สารอาหาร')) : null,
           (isLoggedIn && canSales) ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=orders'), onClick: handleTabClick, title: "จัดการบิล", className: `flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all ${activePage === 'orders' ? 'text-blue-400' : 'text-slate-500 hover:text-white'}` }, React.createElement(FileText, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, 'บิล')) : null,
           (isLoggedIn && canCustomers) ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=customers'), onClick: handleTabClick, title: "ข้อมูลลูกค้า", className: `flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all ${activePage === 'customers' ? 'text-blue-400' : 'text-slate-500 hover:text-white'}` }, React.createElement(Contact, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, 'ลูกค้า')) : null,
           (isLoggedIn && canOrgChart) ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=org_chart'), onClick: handleTabClick, title: "ผังสายงาน", className: `flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all ${activePage === 'org_chart' ? 'text-blue-400' : 'text-slate-500 hover:text-white'}` }, React.createElement(GitBranch, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, 'ทีม')) : null,
@@ -754,7 +763,7 @@
             canOrgChart ? React.createElement(SidebarItem, { icon: GitBranch, label: "ผังองค์กรสายงาน", id: "org_chart", activeTab: activePage, href: SCRIPT_URL + '?page=org_chart', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
             (canSales || canCustomers) ? React.createElement('div', { className: "pt-3 pb-1.5" }, React.createElement('p', { className: "text-[10px] font-black text-slate-500 uppercase tracking-widest px-4" }, "ธุรกรรมประจำวัน")) : null,
             canSales ? React.createElement(SidebarItem, { icon: ShoppingCart, label: "ป้อนข้อมูลขาย (Sales)", id: "sales", activeTab: activePage, href: SCRIPT_URL + '?page=sales', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
-            canSales ? React.createElement(SidebarItem, { icon: PillIcon, label: "สารอาหาร", id: "nutrients", activeTab: activePage, href: SCRIPT_URL + '?page=nutrients', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
+            canNutrients ? React.createElement(SidebarItem, { icon: PillIcon, label: "สารอาหาร", id: "nutrients", activeTab: activePage, href: SCRIPT_URL + '?page=nutrients', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
             canSales ? React.createElement(SidebarItem, { icon: FileText, label: "จัดการบิล (Orders)", id: "orders", activeTab: activePage, href: SCRIPT_URL + '?page=orders', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
             canCustomers ? React.createElement(SidebarItem, { icon: Contact, label: "ข้อมูลลูกค้า (Customers)", id: "customers", activeTab: activePage, href: SCRIPT_URL + '?page=customers', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
             React.createElement(SidebarSettingsGroup, { activeTab: activePage, isSidebarCollapsed: false, isAdmin: isAdmin, handleTabClick: handleTabClick, SCRIPT_URL: SCRIPT_URL, currentUser: currentUser })
@@ -762,7 +771,7 @@
         ),
         React.createElement('div', { className: "p-4 border-t border-slate-800 bg-slate-950 flex items-center gap-3 absolute bottom-0 w-full h-24" },
           isLoggedIn ? React.createElement(React.Fragment, null,
-            (currentUserProfileUrl && currentUserProfileUrl !== '-') ? React.createElement('img', { src: currentUserProfileUrl, alt: "Profile", className: "w-10 h-10 rounded-full object-cover border-2 border-slate-700 shadow-sm shrink-0" }) : React.createElement(UserCircle, { size: 36, className: "text-blue-400 bg-blue-900/30 rounded-full shrink-0 p-1" }),
+            (userProfileUrl && userProfileUrl !== '-') ? React.createElement('img', { src: userProfileUrl, alt: "Profile", className: "w-10 h-10 rounded-full object-cover border-2 border-slate-700 shadow-sm shrink-0" }) : React.createElement(UserCircle, { size: 36, className: "text-blue-400 bg-blue-900/30 rounded-full shrink-0 p-1" }),
             React.createElement('div', { className: "w-full flex flex-col items-start overflow-hidden" },
               React.createElement('p', { className: "text-[13px] font-bold text-white truncate w-full" }, currentUser ? currentUser.name : ''),
               React.createElement('p', { className: "text-[11px] font-bold text-slate-400 mb-1" }, currentUser ? currentUser.role : ''),
@@ -841,7 +850,7 @@
                 name: foundUser.full_name || foundUser.name || inputUser,
                 role: foundUser.role || foundUser.permission_role || 'พนักงานทั่วไป',
                 status: foundUser.status || 'ใช้งาน',
-                profileUrl: foundUser.profile_url || ''
+                profileUrl: foundUser.profile_url || foundUser.id_card_url || foundUser.ID_Card_URL || ''
               });
             } else if (inputUser.toLowerCase() === 'admin' && (inputPass === '1234' || inputPass === 'password' || inputPass === 'admin')) {
               processSuccess({ id: 'U001', username: 'admin', name: 'ผู้ดูแลระบบ (Admin)', role: 'ผู้ดูแลระบบ', status: 'ใช้งาน' });

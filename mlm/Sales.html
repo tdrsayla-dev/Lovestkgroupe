@@ -196,25 +196,16 @@
             if (!custData.closerTeam) return [];
             const selectedTeam = String(custData.closerTeam).trim().toUpperCase();
 
-            if (selectedTeam === 'MARKETING' || selectedTeam.includes('การตลาด')) {
-                const filteredMems = (members || []).filter(m => {
-                    if (m.status && m.status !== 'ใช้งาน') return false;
-                    const mTeam = String(m.team || m.businessTeam || m.business_team || '').trim().toUpperCase();
-                    return mTeam.includes('MARKETING') || mTeam.includes('การตลาด') || mTeam === 'TEAM A';
-                });
-                const targetList = filteredMems.length > 0 ? filteredMems : (members || []).filter(m => !m.status || m.status === 'ใช้งาน');
-                return targetList.map(m => `${m.id} - ${m.name}`);
-            }
-
             return (closers || []).filter(c => {
                 if (c.status && c.status !== 'ใช้งาน') return false;
                 const cTeam = String(c.team || '').trim().toUpperCase();
                 
                 if (cTeam === selectedTeam) return true;
+                if (selectedTeam === 'MARKETING' && (cTeam === 'MARKETING' || cTeam.includes('การตลาด') || cTeam === 'TEAM A')) return true;
                 if (selectedTeam === 'CENTER' && (cTeam === 'TEAM B' || cTeam === 'CENTER' || cTeam.includes('ผู้เชี่ยวชาญ'))) return true;
                 return false;
             }).map(c => `${c.id} - ${c.name}`);
-        }, [closers, members, custData.closerTeam]);
+        }, [closers, custData.closerTeam]);
 
         const [cart, setCart] = useState([]);
         const [catalogSearch, setCatalogSearch] = useState('');
@@ -511,11 +502,11 @@
             setMemberIdInput(''); 
             setFormData({ date: getLocalISODate() });
             
-            setPayMode('สด');
+            setPayMode('\u0e2a\u0e14');
             setPayCashTHB('');
             setPayCashLAK('');
             setPayTransferThaiTHB('');
-            setPayTransferThaiBank('กสิกรไทย');
+            setPayTransferThaiBank('\u0e01\u0e2a\u0e34\u0e01\u0e23\u0e44\u0e17\u0e22');
             setPayTransferLaosTHB('');
             setPayTransferLaosBankTHB('BCEL');
             setPayTransferLaosLAK('');
@@ -525,7 +516,29 @@
 
         const handlePrintReceiptPopup = (rs) => {
             const custObj = (customers || []).find(c => c && c.id === rs.customerId) || {};
+            const closerId = custObj.closer || custObj.closer_id || '';
+            const closerObj = (closers || []).find(c => c && String(c.id || c.closer_id || '').toUpperCase() === String(closerId).toUpperCase()) || {};
+            const closerName = closerObj.name || closerId || '-';
             const custName = custObj.name || '';
+            const cleanCustName = (() => {
+                const parts = custName.split(/\s+/);
+                const nameParts = [];
+                for (let part of parts) {
+                    const p = part.trim();
+                    if (!p) continue;
+                    if (/^\d+$/.test(p) || p.startsWith('(')) {
+                        break;
+                    }
+                    nameParts.push(p);
+                }
+                return nameParts.join(' ').trim() || custName;
+            })();
+            let cleanCloserName = closerName;
+            if (cleanCloserName.includes(' - ')) {
+                cleanCloserName = cleanCloserName.split(' - ')[1].trim();
+            } else if (cleanCloserName.includes('-')) {
+                cleanCloserName = cleanCloserName.split('-')[1].trim();
+            }
             
             const saleTypeStr = rs.saleType || 'เงินสด';
             let cTHB = 0; let cLAK = 0;
@@ -796,9 +809,9 @@
                         <table class="meta-table">
                           <tr><td class="bold" style="width: 38%;">เลขที่บิล:</td><td style="width: 62%; font-weight: 700; color: #0f172a;">${rs.id}</td></tr>
                           <tr><td class="bold">วันที่:</td><td>${formatDbDateForFilter(rs.date)}</td></tr>
-                          <tr><td class="bold">ลูกค้า:</td><td>${custName || '-'} (${rs.customerId || '-'})</td></tr>
+                          <tr><td class="bold">ลูกค้า:</td><td>${cleanCustName || '-'} (${rs.customerId || '-'})</td></tr>
                           <tr><td class="bold">ผู้ขาย (เคส):</td><td>${rs.memberName}</td></tr>
-                          <tr><td class="bold">ผู้ปิดการขาย:</td><td>${custObj.closer || '-'}</td></tr>
+                           <tr><td class="bold">\u0e1c\u0e39\u0e49\u0e1b\u0e34\u0e14\u0e01\u0e32\u0e23\u0e02\u0e32\u0e22:</td><td>${cleanCloserName}</td></tr>
                           <tr><td class="bold">พนักงานบันทึก:</td><td>${rs.recordedBy || '-'}</td></tr>
                         </table>
                         <div class="divider"></div>
@@ -872,6 +885,9 @@
                             <div class="sig-box"><div class="sig-line"></div>ผู้จ่ายสินค้า/ยา</div>
                             <div class="sig-box"><div class="sig-line"></div>พนักงานแคชเชียร์</div>
                         </div>
+                        ${rs.paymentNote && String(rs.paymentNote).trim() !== '' ? `
+                          <div style="font-size: 10px; color: #b45309; margin-top: 10px; font-weight: 600; text-align: left; border-top: 1px dashed #cbd5e1; padding-top: 6px;">📝 หมายเหตุ: ${rs.paymentNote}</div>
+                        ` : ''}
                         <div class="text-center" style="font-size: 11px; margin-top: 20px; color: #475569;"><p class="bold" style="color: #0f172a; margin:0;">ขอบพระคุณที่อุดหนุน LOVE STK GROUPE</p></div>
                       </div>
                     </div>
@@ -1131,7 +1147,8 @@
 
           for (const pid of Object.keys(qtyMap)) {
               const p = (products || []).find(prod => prod.id === pid);
-              if (!editingSaleId && p && p.stock < qtyMap[pid]) {
+              const isHistoryBypass = saleTab === 'OLD_SYSTEM';
+              if (!isHistoryBypass && !editingSaleId && p && p.stock < qtyMap[pid]) {
                   showToast(`สินค้า ${p.name} มีสต๊อกไม่พอ (เหลือ ${p.stock} ชิ้น)`, 'error');
                   return;
               }
@@ -1177,14 +1194,16 @@
           const paymentSummaryStr = paymentSummaryParts.length > 0 ? paymentSummaryParts.join(' | ') : `${payMode}`;
 
           const newRecord = { 
+              customerName: (newCustomerObj ? newCustomerObj.name : custData.name || ''),
+              customerType: custMode || '',
               id: nextSaleIdStr, 
               date: formData.date, 
               memberId: foundMember.id, 
               memberName: foundMember.name, 
               customerId: finalCustomerId, 
               recordedBy: currentUser ? (currentUser.name || currentUser.username || 'Admin') : 'ไม่ระบุ',
-              saleType: paymentSummaryStr,
-              totalAmount: cartTotals.amount,
+               saleType: isHistoryBypass ? '\u0e22\u0e2d\u0e14\u0e23\u0e30\u0e1a\u0e1a\u0e40\u0e01\u0e48\u0e32 (\u0e44\u0e21\u0e48\u0e04\u0e34\u0e14\u0e40\u0e07\u0e34\u0e19)' : paymentSummaryStr,
+              totalAmount: isHistoryBypass ? 0 : cartTotals.amount,
               paymentNote: paymentNote
           };
           
@@ -1260,6 +1279,7 @@
                      customer_id: newRecord.customerId,
                      member_name: newRecord.memberName,
                      customer_name: (newCustomerObj ? newCustomerObj.name : (newRecord.customerName || '')),
+                      customer_type: newRecord.customerType || '',
                      sale_type: newRecord.saleType,
                      total_amount: newRecord.totalAmount,
                      total_bottles: cart.reduce((sum, item) => sum + (parseInt(item.qty)||0), 0),
@@ -1286,7 +1306,7 @@
                      });
                  }
 
-                 if (typeof supabaseUpdate === 'function') {
+                  if (!isHistoryBypass && typeof supabaseUpdate === 'function') {
                      for (const pid of [...new Set([...Object.keys(oldQtyMap), ...Object.keys(qtyMap)])]) {
                          const diff = (qtyMap[pid] || 0) - (oldQtyMap[pid] || 0);
                          const pInfo = (products || []).find(p => p.id === pid);
@@ -1297,7 +1317,7 @@
                      }
                  }
 
-                 if (setProducts) {
+                  if (!isHistoryBypass && setProducts) {
                      setProducts(prev => prev.map(p => {
                          const diff = (qtyMap[p.id] || 0) - (oldQtyMap[p.id] || 0);
                          return diff !== 0 ? {...p, stock: p.stock - diff} : p;
@@ -1338,7 +1358,7 @@
                  await supabaseUpsert('stk_customers', { customer_id: newCustomerObj.id, name: newCustomerObj.name, phone: newCustomerObj.phone, line_id: newCustomerObj.lineId || '', customer_type: newCustomerObj.type, symptom_disease: newCustomerObj.symptom, owner_member_id: newCustomerObj.memberId, closer_id: newCustomerObj.closer, extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName }, status: 'Active' });
              }
 
-             if (typeof supabaseUpdate === 'function') {
+              if (!isHistoryBypass && typeof supabaseUpdate === 'function') {
                  for (const pid of Object.keys(qtyMap)) {
                      const deductQty = qtyMap[pid];
                      const pInfo = (products || []).find(p => p.id === pid);
@@ -1350,7 +1370,7 @@
              }
              if (foundMember && foundMember.id && pvChange !== 0) await updateMemberPVInSupabase(foundMember.id, pvChange, 'user_id');
              
-             if (setProducts) {
+              if (!isHistoryBypass && setProducts) {
                  setProducts(prev => prev.map(p => {
                      const deduct = qtyMap[p.id] || 0;
                      return deduct > 0 ? {...p, stock: p.stock - deduct} : p;
@@ -1586,119 +1606,127 @@
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-1.5 mb-1.5">
-                        {['สด', 'โอน', 'สด+โอน'].map(mode => (
-                           <button key={mode} type="button" onClick={() => setPayMode(mode)}
-                              className={`py-1.5 px-1 rounded-md text-[11px] font-black border transition-all shadow-sm ${payMode === mode ? 'bg-blue-600 border-blue-500 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-800'}`}
-                           >{mode === 'สด' ? '💵 สด' : mode === 'โอน' ? '📱 โอน' : '💵+📱 สด+โอน'}</button>
-                        ))}
-                    </div>
-
-                    {(payMode === 'สด' || payMode === 'สด+โอน') && (
-                        <div className="bg-green-50/50 p-2 rounded-lg border border-green-200 space-y-1 mb-1.5">
-                            <label className="text-[9px] font-black text-green-700 flex items-center gap-1"><Coins size={10}/> รับเงินสด (บาท/กีบ)</label>
-                            <div className="flex gap-2">
-                                <div className="flex-1 relative">
-                                    <span className="absolute left-2.5 top-1 text-[10px] text-slate-400 font-bold">฿</span>
-                                    <input type="text" inputMode="decimal" placeholder="บาท" className="w-full pl-6 pr-1 py-1 rounded-md border border-green-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-green-500 shadow-sm" value={formatDisplayNumber(payCashTHB)} onChange={handleNumberInput(setPayCashTHB)} />
-                                </div>
-                                <div className="flex-1 relative">
-                                    <span className="absolute left-2.5 top-1 text-[10px] text-slate-400 font-bold">₭</span>
-                                    <input type="text" inputMode="decimal" placeholder="กีบ" className="w-full pl-6 pr-1 py-1 rounded-md border border-green-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-green-500 shadow-sm" value={formatDisplayNumber(payCashLAK)} onChange={handleNumberInput(setPayCashLAK)} />
-                                </div>
-                            </div>
+                    {saleTab === 'OLD_SYSTEM' ? (
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center mb-1.5 shadow-sm">
+                            <p className="text-amber-800 font-extrabold text-[12px] flex items-center justify-center gap-1">📦 โหมดป้อนยอดระบบเก่า</p>
+                            <p className="text-amber-700 text-[10px] mt-1 font-bold">บิลนี้จะไม่หักสต๊อกสินค้า และไม่นำยอดเงินสะสมเข้าคำนวณในรายงาน แต้ม PV ทั้งหมดจะเพิ่มให้สมาชิกสะสมโดยตรง</p>
                         </div>
-                    )}
-
-                    {(payMode === 'โอน' || payMode === 'สด+โอน') && (
-                        <div className="bg-blue-50/50 p-2 rounded-lg border border-blue-200 flex flex-col gap-1.5 mb-1.5">
-                            <label className="text-[9px] font-black text-blue-700 flex items-center gap-1"><Activity size={10}/> รับเงินโอน</label>
-                            <div className="flex flex-col gap-1">
-                                <div className="flex gap-1.5">
-                                    <span className="bg-indigo-100 text-indigo-800 text-[9px] font-bold px-1 py-1 rounded-md border border-indigo-200 shrink-0 w-10 text-center flex items-center justify-center">ลาว</span>
-                                    <select className="w-[75px] rounded-md border border-indigo-300 bg-white text-slate-700 text-[9px] font-bold px-1 outline-none focus:border-indigo-500 shadow-sm" value={payTransferLaosBankTHB} onChange={e => setPayTransferLaosBankTHB(e.target.value)}>
-                                        <option value="BCEL">BCEL</option>
-                                        <option value="JDB">JDB</option>
-                                        <option value="LDB">LDB</option>
-                                    </select>
-                                    <div className="flex-1 relative">
-                                        <span className="absolute left-2.5 top-1 text-[9px] text-slate-400 font-bold">฿</span>
-                                        <input type="text" inputMode="decimal" placeholder="บาท" className="w-full pl-6 pr-1 py-1 rounded-md border border-indigo-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-indigo-500 shadow-sm" value={formatDisplayNumber(payTransferLaosTHB)} onChange={handleNumberInput(setPayTransferLaosTHB)} />
-                                    </div>
-                                </div>
-                                <div className="flex gap-1.5">
-                                    <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-1 py-1 rounded-md border border-amber-200 shrink-0 w-10 text-center flex items-center justify-center">ลาว</span>
-                                    <select className="w-[75px] rounded-md border border-amber-300 bg-white text-slate-700 text-[9px] font-bold px-1 outline-none focus:border-amber-500 shadow-sm" value={payTransferLaosBankLAK} onChange={e => setPayTransferLaosBankLAK(e.target.value)}>
-                                        <option value="BCEL">BCEL</option>
-                                        <option value="JDB">JDB</option>
-                                        <option value="LDB">LDB</option>
-                                    </select>
-                                    <div className="flex-1 relative">
-                                        <span className="absolute left-2.5 top-1 text-[9px] text-slate-400 font-bold">₭</span>
-                                        <input type="text" inputMode="decimal" placeholder="กีบ" className="w-full pl-6 pr-1 py-1 rounded-md border border-amber-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-amber-500 shadow-sm" value={formatDisplayNumber(payTransferLaosLAK)} onChange={handleNumberInput(setPayTransferLaosLAK)} />
-                                    </div>
-                                </div>
-                                <div className="flex gap-1.5">
-                                    <span className="bg-blue-100 text-blue-800 text-[9px] font-bold px-1 py-1 rounded-md border border-blue-200 shrink-0 w-10 text-center flex items-center justify-center">ไทย</span>
-                                    <select className="w-[75px] rounded-md border border-blue-300 bg-white text-slate-700 text-[9px] font-bold px-1 outline-none focus:border-blue-500 shadow-sm" value={payTransferThaiBank} onChange={e => setPayTransferThaiBank(e.target.value)}>
-                                        <option value="กสิกรไทย">KBANK</option>
-                                        <option value="ไทยพาณิชย์">SCB</option>
-                                        <option value="กรุงเทพ">BBL</option>
-                                        <option value="กรุงไทย">KTB</option>
-                                        <option value="กรุงศรี">BAY</option>
-                                        <option value="PromptPay">Prompt</option>
-                                    </select>
-                                    <div className="flex-1 relative">
-                                        <span className="absolute left-2.5 top-1 text-[9px] text-slate-400 font-bold">฿</span>
-                                        <input type="text" inputMode="decimal" placeholder="บาท" className="w-full pl-6 pr-1 py-1 rounded-md border border-blue-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-blue-500 shadow-sm" value={formatDisplayNumber(payTransferThaiTHB)} onChange={handleNumberInput(setPayTransferThaiTHB)} />
-                                    </div>
-                                </div>
+                    ) : (
+                        <React.Fragment>
+                            <div className="grid grid-cols-3 gap-1.5 mb-1.5">
+                                {['สด', 'โอน', 'สด+โอน'].map(mode => (
+                                   <button key={mode} type="button" onClick={() => setPayMode(mode)}
+                                      className={`py-1.5 px-1 rounded-md text-[11px] font-black border transition-all shadow-sm ${payMode === mode ? 'bg-blue-600 border-blue-500 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-800'}`}
+                                   >{mode === 'สด' ? '💵 สด' : mode === 'โอน' ? '📱 โอน' : '💵+📱 สด+โอน'}</button>
+                                ))}
                             </div>
-                        </div>
-                    )}
 
-                    {(() => {
-                        const cTHB = parseFloat(payCashTHB) || 0;
-                        const cLAK = parseFloat(payCashLAK) || 0;
-                        const tThaiTHB = parseFloat(payTransferThaiTHB) || 0;
-                        const tLaosTHB = parseFloat(payTransferLaosTHB) || 0;
-                        const tLaosLAK = parseFloat(payTransferLaosLAK) || 0;
-                        
-                        const showCash = payMode === 'สด' || payMode === 'สด+โอน';
-                        const showTransfer = payMode === 'โอน' || payMode === 'สด+โอน';
-                        
-                        const totalPaidTHB = (showCash ? cTHB + (cLAK/exchangeRate) : 0) + (showTransfer ? tThaiTHB + tLaosTHB + (tLaosLAK/exchangeRate) : 0);
-                        const remainingTHB = Math.round((cartTotals.amount - totalPaidTHB) * 100) / 100;
-                        const remainingLAK = remainingTHB * exchangeRate;
-
-                        return (
-                            <div className="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-200 shadow-inner mb-1.5">
-                            {remainingTHB > 0 ? (
-                                <React.Fragment>
-                                    <div className="text-[10px] font-black text-red-500">🔴 ค้างชำระ<br/><span className="text-[8px] font-bold text-slate-400">(ต้องเก็บเพิ่ม)</span></div>
-                                    <div className="text-right">
-                                        <div className="text-sm font-black text-red-600 leading-none">฿{remainingTHB.toLocaleString()}</div>
-                                        <div className="text-[9px] font-bold text-red-500/80">≈ {Math.round(remainingLAK).toLocaleString()} ₭</div>
+                            {(payMode === 'สด' || payMode === 'สด+โอน') && (
+                                <div className="bg-green-50/50 p-2 rounded-lg border border-green-200 space-y-1 mb-1.5">
+                                    <label className="text-[9px] font-black text-green-700 flex items-center gap-1"><Coins size={10}/> รับเงินสด (บาท/กีบ)</label>
+                                    <div className="flex gap-2">
+                                        <div className="flex-1 relative">
+                                            <span className="absolute left-2.5 top-1 text-[10px] text-slate-400 font-bold">฿</span>
+                                            <input type="text" inputMode="decimal" placeholder="บาท" className="w-full pl-6 pr-1 py-1 rounded-md border border-green-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-green-500 shadow-sm" value={formatDisplayNumber(payCashTHB)} onChange={handleNumberInput(setPayCashTHB)} />
+                                        </div>
+                                        <div className="flex-1 relative">
+                                            <span className="absolute left-2.5 top-1 text-[10px] text-slate-400 font-bold">₭</span>
+                                            <input type="text" inputMode="decimal" placeholder="กีบ" className="w-full pl-6 pr-1 py-1 rounded-md border border-green-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-green-500 shadow-sm" value={formatDisplayNumber(payCashLAK)} onChange={handleNumberInput(setPayCashLAK)} />
+                                        </div>
                                     </div>
-                                </React.Fragment>
-                            ) : remainingTHB < 0 ? (
-                                <React.Fragment>
-                                    <div className="text-[10px] font-black text-blue-500">🔵 เงินทอน<br/><span className="text-[8px] font-bold text-slate-400">(ต้องทอนลูกค้า)</span></div>
-                                    <div className="text-right">
-                                        <div className="text-sm font-black text-blue-600 leading-none">฿{Math.abs(remainingTHB).toLocaleString()}</div>
-                                        <div className="text-[9px] font-bold text-blue-500/80">≈ {Math.round(Math.abs(remainingLAK)).toLocaleString()} ₭</div>
-                                    </div>
-                                </React.Fragment>
-                            ) : (
-                                <React.Fragment>
-                                    <div className="text-[10px] font-black text-emerald-500">🟢 สถานะชำระ</div>
-                                    <div className="text-xs font-black text-emerald-600">ครบพอดี ✓</div>
-                                </React.Fragment>
+                                </div>
                             )}
-                            </div>
-                        );
-                    })()}
 
+                            {(payMode === 'โอน' || payMode === 'สด+โอน') && (
+                                <div className="bg-blue-50/50 p-2 rounded-lg border border-blue-200 flex flex-col gap-1.5 mb-1.5">
+                                    <label className="text-[9px] font-black text-blue-700 flex items-center gap-1"><Activity size={10}/> รับเงินโอน</label>
+                                    <div className="flex flex-col gap-1">
+                                        <div className="flex gap-1.5">
+                                            <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-1 py-1 rounded-md border border-amber-200 shrink-0 w-10 text-center flex items-center justify-center">ลาว</span>
+                                            <select className="w-[75px] rounded-md border border-amber-300 bg-white text-slate-700 text-[9px] font-bold px-1 outline-none focus:border-amber-500 shadow-sm" value={payTransferLaosBankLAK} onChange={e => setPayTransferLaosBankLAK(e.target.value)}>
+                                                <option value="BCEL">BCEL</option>
+                                                <option value="JDB">JDB</option>
+                                                <option value="LDB">LDB</option>
+                                            </select>
+                                            <div className="flex-1 relative">
+                                                <span className="absolute left-2.5 top-1 text-[9px] text-slate-400 font-bold">₭</span>
+                                                <input type="text" inputMode="decimal" placeholder="กีบ" className="w-full pl-6 pr-1 py-1 rounded-md border border-amber-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-amber-500 shadow-sm" value={formatDisplayNumber(payTransferLaosLAK)} onChange={handleNumberInput(setPayTransferLaosLAK)} />
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-1.5">
+                                            <span className="bg-indigo-100 text-indigo-800 text-[9px] font-bold px-1 py-1 rounded-md border border-indigo-200 shrink-0 w-10 text-center flex items-center justify-center">ลาว</span>
+                                            <select className="w-[75px] rounded-md border border-indigo-300 bg-white text-slate-700 text-[9px] font-bold px-1 outline-none focus:border-indigo-500 shadow-sm" value={payTransferLaosBankTHB} onChange={e => setPayTransferLaosBankTHB(e.target.value)}>
+                                                <option value="BCEL">BCEL</option>
+                                                <option value="JDB">JDB</option>
+                                                <option value="LDB">LDB</option>
+                                            </select>
+                                            <div className="flex-1 relative">
+                                                <span className="absolute left-2.5 top-1 text-[9px] text-slate-400 font-bold">\u0e3f</span>
+                                                <input type="text" inputMode="decimal" placeholder="\u0e1a\u0e32\u0e17" className="w-full pl-6 pr-1 py-1 rounded-md border border-indigo-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-indigo-500 shadow-sm" value={formatDisplayNumber(payTransferLaosTHB)} onChange={handleNumberInput(setPayTransferLaosTHB)} />
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-1.5">
+                                            <span className="bg-blue-100 text-blue-800 text-[9px] font-bold px-1 py-1 rounded-md border border-blue-200 shrink-0 w-10 text-center flex items-center justify-center">\u0e44\u0e17\u0e22</span>
+                                            <select className="w-[75px] rounded-md border border-blue-300 bg-white text-slate-700 text-[9px] font-bold px-1 outline-none focus:border-blue-500 shadow-sm" value={payTransferThaiBank} onChange={e => setPayTransferThaiBank(e.target.value)}>
+                                                <option value="\u0e01\u0e2a\u0e34\u0e01\u0e23\u0e44\u0e17\u0e22">KBANK</option>
+                                                <option value="\u0e44\u0e17\u0e22\u0e1e\u0e32\u0e13\u0e34\u0e0a\u0e22\u0e4c">SCB</option>
+                                                <option value="\u0e01\u0e23\u0e38\u0e07\u0e40\u0e17\u0e1e">BBL</option>
+                                                <option value="\u0e01\u0e23\u0e38\u0e07\u0e44\u0e17\u0e22">KTB</option>
+                                                <option value="\u0e01\u0e23\u0e38\u0e07\u0e28\u0e23\u0e35">BAY</option>
+                                                <option value="PromptPay">Prompt</option>
+                                            </select>
+                                            <div className="flex-1 relative">
+                                                <span className="absolute left-2.5 top-1 text-[9px] text-slate-400 font-bold">\u0e3f</span>
+                                                <input type="text" inputMode="decimal" placeholder="\u0e1a\u0e32\u0e17" className="w-full pl-6 pr-1 py-1 rounded-md border border-blue-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-blue-500 shadow-sm" value={formatDisplayNumber(payTransferThaiTHB)} onChange={handleNumberInput(setPayTransferThaiTHB)} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {(() => {
+                                const cTHB = parseFloat(payCashTHB) || 0;
+                                const cLAK = parseFloat(payCashLAK) || 0;
+                                const tThaiTHB = parseFloat(payTransferThaiTHB) || 0;
+                                const tLaosTHB = parseFloat(payTransferLaosTHB) || 0;
+                                const tLaosLAK = parseFloat(payTransferLaosLAK) || 0;
+                                
+                                const showCash = payMode === '\u0e2a\u0e14' || payMode === '\u0e2a\u0e14+\u0e42\u0e2d\u0e19';
+                                const showTransfer = payMode === '\u0e42\u0e2d\u0e19' || payMode === '\u0e2a\u0e14+\u0e42\u0e2d\u0e19';
+                                
+                                const totalPaidTHB = (showCash ? cTHB + (cLAK/exchangeRate) : 0) + (showTransfer ? tThaiTHB + tLaosTHB + (tLaosLAK/exchangeRate) : 0);
+                                const remainingTHB = Math.round((cartTotals.amount - totalPaidTHB) * 100) / 100;
+                                const remainingLAK = remainingTHB * exchangeRate;
+
+                                return (
+                                    <div className="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-200 shadow-inner mb-1.5">
+                                    {remainingTHB > 0 ? (
+                                        <React.Fragment>
+                                            <div className="text-[10px] font-black text-red-500">\ud83d\udd34 \u0e04\u0e49\u0e32\u0e07\u0e0a\u0e33\u0e23\u0e30<br/><span className="text-[8px] font-bold text-slate-400">(\u0e15\u0e49\u0e2d\u0e07\u0e40\u0e01\u0e47\u0e1a\u0e40\u0e1e\u0e34\u0e48\u0e21)</span></div>
+                                            <div className="text-right">
+                                                <div className="text-sm font-black text-red-600 leading-none">\u0e3f{remainingTHB.toLocaleString()}</div>
+                                                <div className="text-[9px] font-bold text-red-500/80">≈ {Math.round(remainingLAK).toLocaleString()} ₭</div>
+                                            </div>
+                                        </React.Fragment>
+                                    ) : remainingTHB < 0 ? (
+                                        <React.Fragment>
+                                            <div className="text-[10px] font-black text-blue-500">\ud83d\udd35 \u0e40\u0e07\u0e34\u0e19\u0e17\u0e2d\u0e19<br/><span className="text-[8px] font-bold text-slate-400">(\u0e15\u0e49\u0e2d\u0e07\u0e17\u0e2d\u0e19\u0e25\u0e39\u0e01\u0e04\u0e49\u0e32)</span></div>
+                                            <div className="text-right">
+                                                <div className="text-sm font-black text-blue-600 leading-none">\u0e3f{Math.abs(remainingTHB).toLocaleString()}</div>
+                                                <div className="text-[9px] font-bold text-blue-500/80">≈ {Math.round(Math.abs(remainingLAK)).toLocaleString()} ₭</div>
+                                            </div>
+                                        </React.Fragment>
+                                    ) : (
+                                        <React.Fragment>
+                                            <div className="text-[10px] font-black text-emerald-500">\ud83d\udfe2 \u0e2a\u0e16\u0e32\u0e19\u0e30\u0e0a\u0e33\u0e23\u0e30</div>
+                                            <div className="text-xs font-black text-emerald-600">\u0e05\u0e23\u0e1a\u0e1e\u0e2d\u0e14\u0e35 \u2713</div>
+                                        </React.Fragment>
+                                    )}
+                                    </div>
+                                );
+                            })()}
+                        </React.Fragment>
+                    )}
                     <textarea 
                         rows="3" 
                         placeholder="หมายเหตุ / รายละเอียดจ่ายเงิน..." 
@@ -1987,10 +2015,13 @@
                         <button onClick={() => setSaleTab('B2M')} className={`px-5 py-2 text-[12px] font-black rounded-lg transition-all shadow-sm ${saleTab === 'B2M' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-blue-500/30' : 'bg-white text-slate-500 hover:bg-blue-50 border border-slate-200'}`}>B2M (ปลีก)</button>
                         <button onClick={() => setSaleTab('B2N')} className={`px-5 py-2 text-[12px] font-black rounded-lg transition-all shadow-sm ${saleTab === 'B2N' ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-indigo-500/30' : 'bg-white text-slate-500 hover:bg-indigo-50 border border-slate-200'}`}>B2N (ตัวแทน)</button>
                         <button onClick={() => setSaleTab('B2B')} className={`px-5 py-2 text-[12px] font-black rounded-lg transition-all shadow-sm ${saleTab === 'B2B' ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-emerald-500/30' : 'bg-white text-slate-500 hover:bg-emerald-50 border border-slate-200'}`}>B2B (ส่ง)</button>
+                        {isAdmin && (
+                            <button onClick={() => setSaleTab('OLD_SYSTEM')} className={`px-5 py-2 text-[12px] font-black rounded-lg transition-all shadow-sm ${saleTab === 'OLD_SYSTEM' ? 'bg-gradient-to-r from-amber-600 to-amber-500 text-white shadow-amber-500/30' : 'bg-white text-slate-500 hover:bg-amber-50 border border-slate-200'}`}>ป้อนยอดระบบเก่า</button>
+                        )}
                     </div>
                 </div>
                 
-                {saleTab === 'B2M' ? renderSalesForm() : (
+                {saleTab === 'B2M' || (saleTab === 'OLD_SYSTEM' && isAdmin) ? renderSalesForm() : (
                     <div className="flex flex-col items-center justify-center bg-white border border-dashed border-slate-300 rounded-3xl py-24 px-6 gap-6 mb-6 shadow-sm">
                         <span className="text-6xl drop-shadow-md">🚀</span>
                         <div className="text-center">
@@ -2113,6 +2144,7 @@
            if (Array.isArray(response.products)) setProducts(response.products.map(x => ({
                ...x, 
                id: x.id || x.product_id,
+               imageUrl: x.image_url ?? x.imageUrl ?? "",
                priceFull: Number(x.price_full ?? x.priceFull ?? 0) || 0,
                priceMember: Number(x.price_member ?? x.priceMember ?? 0) || 0,
                pricePromo: Number(x.price_promo ?? x.pricePromo ?? 0) || 0
@@ -2121,7 +2153,7 @@
            if (Array.isArray(response.closers)) setClosers(response.closers.map(x => ({...x, id: x.id || x.closer_id})));
            if (Array.isArray(response.businessTeams)) setBusinessTeams(response.businessTeams.map(t => ({ id: t.id || t.team_id, name: t.name || t.team_name || t.Team_Name || t.TeamName, status: t.status || 'ใช้งาน' })));
            if (Array.isArray(response.members)) { setMembers(response.members.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name, profileUrl: m.id_card_url || m.profileImageUrl || m.profileUrl, idCardDocUrl: m.id_card_url || m.idCardDocUrl, businessTeam: m.business_team || m.businessTeam, team: m.business_team || m.team || m.businessTeam || 'T01', role: m.permission_role || m.role || m.permissionRole, status: m.status, sponsorId: m.sponsor_id || m.sponsorId, accumulatedPv: m.accumulated_pv || m.Accumulated_PV || m.accumulatedPv || m.pv || 0, phone: m.phone_number || m.phone || m.phoneNumber }))); }
-           if (Array.isArray(response.customers)) setCustomers(response.customers.map(x => ({...x, id: x.id || x.customer_id, lineId: x.lineId || x.line_id, closerTeam: x.closerTeam || x.closer_team, memberId: x.memberId || x.member_id, memberName: x.memberName || x.member_name})));
+           if (Array.isArray(response.customers)) setCustomers(response.customers.map(x => ({...x, id: x.id || x.customer_id, lineId: x.lineId || x.line_id, closer: x.closer || x.closer_id || "", closerTeam: x.closerTeam || x.closer_team || x.extra_details_json?.closerTeam || "", memberId: x.memberId || x.member_id, memberName: x.memberName || x.member_name || x.extra_details_json?.memberName || ""})));
            if (Array.isArray(response.systemUsers)) setSystemUsers(response.systemUsers.map(x => ({...x, id: x.id || x.user_id || x.system_user_id})));
            
            if (Array.isArray(response.sales)) {
