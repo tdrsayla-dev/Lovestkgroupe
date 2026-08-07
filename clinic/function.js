@@ -153,6 +153,21 @@ function showPage(pageId, element) {
     document.querySelectorAll('#sidebarNav .nav-link').forEach(l => l.classList.remove('active'));
     if (element) element.classList.add('active');
 
+    // อัปเดตชื่อหน้าใน Mobile Top Header
+    const mobileTitleEl = document.getElementById('mobilePageHeaderTitle');
+    if (mobileTitleEl) {
+        if (element) {
+            const labelText = element.textContent.trim();
+            if (labelText) mobileTitleEl.textContent = labelText;
+        } else {
+            const activeNav = document.querySelector(`#sidebarNav a[onclick*="${pageId}"]`);
+            if (activeNav) {
+                const labelText = activeNav.textContent.trim();
+                if (labelText) mobileTitleEl.textContent = labelText;
+            }
+        }
+    }
+
     // ปิดเมนู Sidebar บนสมาร์ทโฟนเมื่อกดเลือกหน้า
     closeMobileSidebar();
 
@@ -3628,9 +3643,10 @@ async function loadPatientHistory() {
         const res = await _supabase
             .from('visits')
             .select('*')
-            .eq('status', 'เสร็จสิ้น')
             .order('created_at', { ascending: false });
-        if (res && res.data) data = res.data;
+        if (res && res.data && res.data.length > 0) {
+            data = res.data;
+        }
     } catch(e) {
         console.warn('Load history visits DB notice:', e);
     }
@@ -3640,16 +3656,32 @@ async function loadPatientHistory() {
         const cachedVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
         if (Array.isArray(cachedVisits)) {
             const map = new Map();
-            data.forEach(v => { if (v && v.visit_id) map.set(v.visit_id, v); });
+            data.forEach(v => { if (v && (v.visit_id || v.id)) map.set(v.visit_id || v.id, v); });
             cachedVisits.forEach(v => {
-                if (v && v.visit_id && v.status === 'เสร็จสิ้น') {
-                    const existing = map.get(v.visit_id) || {};
-                    map.set(v.visit_id, { ...existing, ...v });
+                if (v && (v.visit_id || v.id)) {
+                    const vKey = v.visit_id || v.id;
+                    const existing = map.get(vKey) || {};
+                    map.set(vKey, { ...existing, ...v, visit_id: vKey });
                 }
             });
             data = Array.from(map.values());
         }
     } catch(e) {}
+
+    // กรองเอาเฉพาะรายการที่มีข้อมูลผู้ป่วย หรือเลือกแสดงรายการเสร็จสิ้น/ทั้งหมดที่ไม่เป็นค่าว่าง
+    if (data.length > 0) {
+        const completedVisits = data.filter(v => 
+            !v.status || 
+            v.status === 'เสร็จสิ้น' || 
+            v.status === 'สำเร็จ' || 
+            v.status === 'จ่ายเงินแล้ว' || 
+            v.status === 'รับยาแล้ว' ||
+            v.status === 'เรียบร้อย'
+        );
+        if (completedVisits.length > 0) {
+            data = completedVisits;
+        }
+    }
 
     window.allHistoryVisits = data;
     renderHistoryTable(window.allHistoryVisits);
@@ -3691,11 +3723,11 @@ function renderHistoryTable(list) {
 
         tbody.innerHTML += `
             <tr data-visit-id="${(row.visit_id || '').toLowerCase()}" data-hn="${(row.hn || '').toLowerCase()}" data-name="${(row.patient_name || '').toLowerCase()}">
-                <td class="ps-4 fw-bold text-primary">${row.visit_id}</td>
-                <td class="fw-bold">${row.hn}</td>
-                <td class="fw-bold text-dark">${row.patient_name}</td>
+                <td class="ps-4 fw-bold text-primary">${row.visit_id || '-'}</td>
+                <td class="fw-bold">${row.hn || '-'}</td>
+                <td class="fw-bold text-dark">${row.patient_name || '-'}</td>
                 <td>${formattedDate}</td>
-                <td>${row.symptom || '<span class="text-muted">-</span>'}</td>
+                <td>${row.symptom || row.reason || row.lab_tests || '<span class="text-muted">-</span>'}</td>
                 <td class="text-center">${actionBtn}</td>
             </tr>
         `;
@@ -3834,6 +3866,48 @@ async function showHistoryDetails(visitId) {
     document.getElementById('histDate').innerText = formattedDate;
     document.getElementById('histPatientName').innerText = row.patient_name;
     document.getElementById('histHN').innerText = row.hn;
+
+    // ประมวลผลและแสดงผลข้อมูลผู้แนะนำ (Referrer)
+    let refId = row.referred_by;
+    if (!refId && row.hn) {
+        const pat = (window.allPatients || []).find(p => p.hn === row.hn || p.patient_name === row.patient_name);
+        if (pat && pat.referred_by) refId = pat.referred_by;
+    }
+    if (!refId && row.appointment_id) {
+        const appt = (window.allAppointments || []).find(a => a.appointment_id === row.appointment_id);
+        if (appt && appt.referred_by) refId = appt.referred_by;
+    }
+    if (!refId) {
+        refId = (window.hnReferrerMap && window.hnReferrerMap[row.hn]) 
+             || (window.patientReferrersMap && window.patientReferrersMap[row.hn]) 
+             || (window.nameReferrerMap && window.nameReferrerMap[row.patient_name])
+             || (window.appointmentReferrersMap && row.appointment_id && window.appointmentReferrersMap[row.appointment_id]);
+    }
+
+    const refContainer = document.getElementById('histReferrerContainer');
+    const refElem = document.getElementById('histReferrer');
+
+    if (refId && refId !== '-' && refId !== 'undefined' && refId !== 'null') {
+        const refObj = (window.referrersData || []).find(r => r.id === refId || r.code === refId || r.name === refId);
+        const staffObj = (window.allStaffUsers || window.defaultTeamStaffUsers || []).find(s => s.emp_code === refId || s.id === refId || s.full_name === refId);
+        
+        let displayRef = '';
+        if (refObj) {
+            const codeText = refObj.code || refObj.id;
+            displayRef = `${refObj.name} (${codeText})`;
+        } else if (staffObj) {
+            const codeText = staffObj.emp_code || 'STAFF';
+            displayRef = `${staffObj.full_name} (${codeText})`;
+        } else {
+            displayRef = refId;
+        }
+
+        if (refElem) refElem.innerHTML = `<i class="ph ph-hand-coins me-1 text-primary"></i>${displayRef}`;
+        if (refContainer) refContainer.style.display = 'block';
+    } else {
+        if (refContainer) refContainer.style.display = 'none';
+        if (refElem) refElem.innerText = '-';
+    }
 
     document.getElementById('histTemp').innerText = row.temp || '-';
     document.getElementById('histBP').innerText = row.bp || '-';
@@ -5517,7 +5591,7 @@ async function loadReferralData() {
     saveReferralLocalData();
     updateReferralSummaryCards();
     renderReferrersTable();
-    renderCommissionLogsTable();
+    setCommLogPeriodFilter('month');
     populateReferrerDropdowns();
 
     const valInput = document.getElementById('commValueInput');
@@ -5649,17 +5723,136 @@ function filterReferrersTable() {
     renderReferrersTable(val);
 }
 
+let commLogPeriodMode = 'month';
+
+function setCommLogPeriodFilter(mode) {
+    if (commLogPeriodMode === mode) {
+        commLogPeriodMode = 'all';
+    } else {
+        commLogPeriodMode = mode;
+    }
+
+    const btnMonth = document.getElementById('btnCommLogMonth');
+    const btnYear = document.getElementById('btnCommLogYear');
+    const btnDay = document.getElementById('btnCommLogDay');
+    const dateInput = document.getElementById('filterLogDate');
+    const monthInput = document.getElementById('filterLogMonth');
+
+    [btnMonth, btnYear, btnDay].forEach(btn => {
+        if (btn) {
+            btn.classList.remove('bg-light', 'text-primary', 'shadow-xs', 'fw-bold');
+            btn.classList.add('text-muted', 'bg-transparent');
+        }
+    });
+
+    if (dateInput) dateInput.classList.add('d-none');
+    if (monthInput) monthInput.classList.add('d-none');
+
+    if (commLogPeriodMode === 'month') {
+        if (btnMonth) {
+            btnMonth.classList.remove('text-muted', 'bg-transparent');
+            btnMonth.classList.add('bg-light', 'text-primary', 'shadow-xs', 'fw-bold');
+        }
+        if (monthInput) {
+            monthInput.classList.remove('d-none');
+            if (!monthInput.value) {
+                const now = new Date();
+                monthInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            }
+        }
+    } else if (commLogPeriodMode === 'year') {
+        if (btnYear) {
+            btnYear.classList.remove('text-muted', 'bg-transparent');
+            btnYear.classList.add('bg-light', 'text-primary', 'shadow-xs', 'fw-bold');
+        }
+    } else if (commLogPeriodMode === 'day') {
+        if (btnDay) {
+            btnDay.classList.remove('text-muted', 'bg-transparent');
+            btnDay.classList.add('bg-light', 'text-primary', 'shadow-xs', 'fw-bold');
+        }
+        if (dateInput) {
+            dateInput.classList.remove('d-none');
+            if (!dateInput.value) {
+                const now = new Date();
+                dateInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            }
+        }
+    }
+
+    renderCommissionLogsTable();
+}
+
 function renderCommissionLogsTable() {
     const tbody = document.querySelector('#commissionLogsTable tbody');
     if (!tbody) return;
 
     const filterEl = document.getElementById('filterLogStatus');
     const filterStatus = filterEl ? filterEl.value : 'all';
+
+    const searchInput = document.getElementById('searchLogInput');
+    const searchText = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+    const dateInput = document.getElementById('filterLogDate');
+    const monthInput = document.getElementById('filterLogMonth');
+
     tbody.innerHTML = '';
 
     let logs = [...window.commissionLogs];
+
+    // 1. Filter by Status
     if (filterStatus !== 'all') {
         logs = logs.filter(l => l.status === filterStatus);
+    }
+
+    // 2. Filter by Period (Month / Year / Day)
+    if (commLogPeriodMode === 'month') {
+        let targetMonth = monthInput && monthInput.value ? monthInput.value : '';
+        if (!targetMonth) {
+            const now = new Date();
+            targetMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        }
+        logs = logs.filter(l => {
+            if (!l.created_at) return true;
+            const d = new Date(l.created_at);
+            const logMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            return logMonth === targetMonth;
+        });
+    } else if (commLogPeriodMode === 'year') {
+        const targetYear = new Date().getFullYear();
+        logs = logs.filter(l => {
+            if (!l.created_at) return true;
+            const d = new Date(l.created_at);
+            return d.getFullYear() === targetYear;
+        });
+    } else if (commLogPeriodMode === 'day') {
+        let targetDate = dateInput && dateInput.value ? dateInput.value : '';
+        if (!targetDate) {
+            const now = new Date();
+            targetDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        }
+        logs = logs.filter(l => {
+            if (!l.created_at) return true;
+            const d = new Date(l.created_at);
+            const logDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            return logDate === targetDate;
+        });
+    }
+
+    // 3. Filter by Search input text
+    if (searchText) {
+        logs = logs.filter(l => {
+            const refName = (l.referrer_name || '').toLowerCase();
+            const patName = (l.patient_name || '').toLowerCase();
+            const logId = (l.id || '').toLowerCase();
+            const payoutMethod = (l.payout_method || '').toLowerCase();
+            const payoutRef = (l.payout_ref || '').toLowerCase();
+
+            return refName.includes(searchText) ||
+                   patName.includes(searchText) ||
+                   logId.includes(searchText) ||
+                   payoutMethod.includes(searchText) ||
+                   payoutRef.includes(searchText);
+        });
     }
 
     if (logs.length === 0) {
@@ -5679,13 +5872,28 @@ function renderCommissionLogsTable() {
 
         let bonusBadge = l.is_bonus ? '<span class="badge bg-warning text-dark me-1" style="font-size: 0.7rem;"><i class="bi bi-trophy-fill"></i> โบนัสเป้าหมาย</span>' : '';
 
+        let baseVal = l.base_amount !== undefined ? parseFloat(l.base_amount) : (l.item_amount ? (parseFloat(l.amount) - parseFloat(l.item_amount)) : parseFloat(l.amount));
+        let itemVal = parseFloat(l.item_amount || 0);
+
+        let breakdownSubtext = '';
+        if (itemVal > 0 && baseVal > 0) {
+            breakdownSubtext = `<div class="extra-small text-muted font-monospace" style="font-size: 0.72rem;"><span class="text-secondary">ฐาน: ${formatCommissionAmount(baseVal)}</span> + <span class="text-primary">รายการ: ${formatCommissionAmount(itemVal)}</span></div>`;
+        } else if (itemVal > 0) {
+            breakdownSubtext = `<div class="extra-small text-primary font-monospace" style="font-size: 0.72rem;">รายการ: ${formatCommissionAmount(itemVal)}</div>`;
+        } else if (baseVal > 0) {
+            breakdownSubtext = `<div class="extra-small text-muted font-monospace" style="font-size: 0.72rem;">ภาพรวม: ${formatCommissionAmount(baseVal)}</div>`;
+        }
+
         tbody.innerHTML += `
             <tr>
                 <td class="ps-4 small text-muted">${dateStr}</td>
                 <td class="fw-bold text-dark">${l.referrer_name || '-'}</td>
                 <td class="fw-medium">${l.patient_name || '-'} ${bonusBadge}</td>
                 <td>${formatCommissionAmount(l.total_invoice)}</td>
-                <td class="text-end fw-bold text-success fs-6">${formatCommissionAmount(l.amount)}</td>
+                <td class="text-end">
+                    <div class="fw-bold text-success fs-6">${formatCommissionAmount(l.amount)}</div>
+                    ${breakdownSubtext}
+                </td>
                 <td class="text-center">${statusBadge}</td>
                 <td class="text-center pe-4">${actionBtn}</td>
             </tr>
@@ -6337,17 +6545,28 @@ function renderItemCommissionSettingsTable() {
     if (!tbody) return;
 
     const services = window.servicesData || [];
-    if (services.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-5"><i class="bi bi-inbox fs-3 d-block mb-2 text-primary opacity-50"></i>ยังไม่มีรายการตรวจในระบบ</td></tr>';
+    const itemSettings = JSON.parse(localStorage.getItem('hr_item_commission_settings') || '{}');
+    const addedIds = Object.keys(itemSettings);
+
+    // กรองเฉพาะรายการที่ถูก Add เข้ามาแล้วเท่านั้น
+    const addedServices = services.filter(s => addedIds.includes(String(s.id)));
+
+    if (addedServices.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-muted py-5">
+                    <i class="ph ph-plus-circle fs-2 d-block mb-2 text-primary opacity-50"></i>
+                    ยังไม่มีรายการปันผลพิเศษ<br>
+                    <small class="text-muted">กดปุ่ม "+ เพิ่มรายการปันผล" ด้านบน เพื่อเลือกรายการตรวจที่ต้องการคิดปันผลเพิ่ม</small>
+                </td>
+            </tr>`;
         return;
     }
 
-    const itemSettings = JSON.parse(localStorage.getItem('hr_item_commission_settings') || '{}');
-
-    tbody.innerHTML = services.map((s, index) => {
+    tbody.innerHTML = addedServices.map((s, index) => {
         const cur = s.currency === 'THB' ? 'บาท' : (s.currency || 'LAK');
         const itemVal = itemSettings[s.id] !== undefined ? itemSettings[s.id] : '';
-        const catName = s.category || 'เลือดวิทยา (HEMATOLOGY)';
+        const catName = s.category || 'รายการตรวจ';
         
         return `
             <tr>
@@ -6366,11 +6585,97 @@ function renderItemCommissionSettingsTable() {
                         <span class="input-group-text px-1.5" style="font-size: 0.75rem;">${cur}</span>
                     </div>
                 </td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-outline-danger border-0 p-1" onclick="removeItemCommissionSetting('${s.id}')" title="ลบออกจากรายการปันผล">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
             </tr>
         `;
     }).join('');
 }
 window.renderItemCommissionSettingsTable = renderItemCommissionSettingsTable;
+
+async function openAddItemDividendModal() {
+    if (!window.servicesData || window.servicesData.length === 0) {
+        if (typeof loadServicesData === 'function') {
+            await loadServicesData();
+        }
+    }
+    const services = window.servicesData || [];
+    if (services.length === 0) {
+        Swal.fire('แจ้งเตือน', 'ยังไม่มีรายการตรวจ/บริการในระบบ กรุณาเพิ่มรายการตรวจในเมนู "จัดการรายการตรวจ" ก่อนครับ', 'warning');
+        return;
+    }
+
+    const itemSettings = JSON.parse(localStorage.getItem('hr_item_commission_settings') || '{}');
+    const addedIds = Object.keys(itemSettings);
+    const available = services.filter(s => !addedIds.includes(String(s.id)));
+
+    if (available.length === 0) {
+        Swal.fire('แจ้งเตือน', 'คุณได้เพิ่มรายการตรวจที่มีในระบบเข้ามาในตารางปันผลครบทั้งหมดแล้วครับ', 'info');
+        return;
+    }
+
+    const optionsHtml = available.map(s => {
+        const cur = s.currency === 'THB' ? 'บาท' : (s.currency || 'LAK');
+        return `<option value="${s.id}">${s.name} (ราคา: ${Number(s.price || 0).toLocaleString()} ${cur})</option>`;
+    }).join('');
+
+    const { value: formValues } = await Swal.fire({
+        title: '<h5 class="fw-bold mb-0 text-primary"><i class="bi bi-plus-circle me-2"></i>เพิ่มรายการปันผลพิเศษ</h5>',
+        html: `
+            <div class="text-start p-2">
+                <div class="mb-3">
+                    <label class="form-label fw-bold small text-secondary">เลือกรายการตรวจ / บริการ</label>
+                    <select id="swalSelectService" class="form-select custom-input py-2">
+                        ${optionsHtml}
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label fw-bold small text-secondary">จำนวนเงินปันผล (LAK / THB)</label>
+                    <input type="number" id="swalItemCommVal" class="form-control custom-input py-2 fw-bold text-primary" placeholder="กรอกยอดเงินปันผล เช่น 100000" min="0">
+                </div>
+            </div>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: '<i class="bi bi-plus-lg me-1"></i> เพิ่มรายการ',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#003f88',
+        preConfirm: () => {
+            const sId = document.getElementById('swalSelectService').value;
+            const val = parseFloat(document.getElementById('swalItemCommVal').value);
+            if (isNaN(val) || val < 0) {
+                Swal.showValidationMessage('กรุณากรอกยอดเงินปันผลที่ถูกต้อง (ตัวเลขมากกว่าหรือเท่ากับ 0)');
+                return false;
+            }
+            return { sId, val };
+        }
+    });
+
+    if (formValues) {
+        itemSettings[formValues.sId] = formValues.val;
+        localStorage.setItem('hr_item_commission_settings', JSON.stringify(itemSettings));
+        localStorage.setItem('hr_item_commission_enabled', 'true');
+        const itemSw = document.getElementById('itemModeSwitch');
+        if (itemSw) itemSw.checked = true;
+
+        renderItemCommissionSettingsTable();
+        Swal.fire('สำเร็จ', 'เพิ่มรายการปันผลเรียบร้อยแล้ว', 'success');
+    }
+}
+window.openAddItemDividendModal = openAddItemDividendModal;
+
+function removeItemCommissionSetting(serviceId) {
+    const itemSettings = JSON.parse(localStorage.getItem('hr_item_commission_settings') || '{}');
+    if (itemSettings[serviceId] !== undefined) {
+        delete itemSettings[serviceId];
+        localStorage.setItem('hr_item_commission_settings', JSON.stringify(itemSettings));
+        renderItemCommissionSettingsTable();
+    }
+}
+window.removeItemCommissionSetting = removeItemCommissionSetting;
 
 function toggleItemModeDisplay() {
     const itemSwitch = document.getElementById('itemModeSwitch');
@@ -6400,7 +6705,7 @@ function saveItemCommissionSettings() {
         icon: 'success',
         title: 'บันทึกสำเร็จ',
         text: 'บันทึกการตั้งค่ารูปแบบการจ่ายปันผลแบบรายรายการเรียบร้อยแล้ว',
-        confirmButtonColor: '#6366f1'
+        confirmButtonColor: '#003f88'
     });
 }
 window.saveItemCommissionSettings = saveItemCommissionSettings;
@@ -6419,7 +6724,13 @@ async function processPaymentCommission(visitId) {
     } catch (e) { console.log('visit fetch error', e); }
 
     if (!visit && window.allPaymentQueue) {
-        visit = window.allPaymentQueue.find(v => v.visit_id === visitId);
+        visit = window.allPaymentQueue.find(v => v.visit_id === visitId || v.id === visitId);
+    }
+
+    if (!visit) {
+        // สร้าง fallback visit object หากมีในข้อมูล LocalStorage Queue
+        const cachedVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
+        visit = cachedVisits.find(v => (v.visit_id === visitId || v.id === visitId));
     }
 
     if (!visit) return;
@@ -6461,14 +6772,24 @@ async function processPaymentCommission(visitId) {
         return;
     }
 
-    const referrer = (window.referrersData || []).find(r => r.id === referrerId || r.code === referrerId);
-    const refName = referrer ? referrer.name : referrerId;
+    let referrer = (window.referrersData || []).find(r => r.id === referrerId || r.code === referrerId || r.name === referrerId);
+    let refName = referrer ? referrer.name : referrerId;
+
+    // หากไม่พบใน referrersData ให้ค้นหาจากรายชื่อพนักงาน (allEmployeesData / allStaffUsers)
+    if (!referrer) {
+        const emp = (window.allEmployeesData || []).find(e => e.emp_code === referrerId || e.full_name === referrerId) ||
+                    (window.allStaffUsers || []).find(s => s.emp_code === referrerId || s.full_name === referrerId);
+        if (emp) {
+            refName = `${emp.emp_code || ''} - ${emp.full_name || ''}`.replace(/^ - /, '');
+        }
+    }
 
     const totalInvoice = parseFloat(visit.total_price || visit.price || visit.total_amount || 1500);
     let commAmount = 0;
     let isBonusApplied = false;
 
-    // คำนวณยอดสะสมประจำเดือนว่าถึงเป้าหมายหรือยัง
+    // 1. คำนวณปันผลภาพรวม (Overall Dividend)
+    let overallComm = 0;
     const monthlyCount = getMonthlyReferredCount(referrerId, refName);
     const targetEnabled = window.commissionSettings.target_enabled === true;
     const targetGoal = window.commissionSettings.target_goal || 20;
@@ -6477,18 +6798,39 @@ async function processPaymentCommission(visitId) {
         isBonusApplied = true;
         const bonusValue = parseFloat(window.commissionSettings.target_bonus_value || 10);
         if (window.commissionSettings.type === 'percentage') {
-            commAmount = totalInvoice * (bonusValue / 100);
+            overallComm = totalInvoice * (bonusValue / 100);
         } else {
-            commAmount = bonusValue;
+            overallComm = bonusValue;
         }
     } else {
         const standardValue = parseFloat(window.commissionSettings.value || 200);
         if (window.commissionSettings.type === 'percentage') {
-            commAmount = totalInvoice * (standardValue / 100);
+            overallComm = totalInvoice * (standardValue / 100);
         } else {
-            commAmount = standardValue;
+            overallComm = standardValue;
         }
     }
+
+    // 2. คำนวณปันผลแบบรายรายการบวกเพิ่ม (Item-based Dividend Add-on)
+    let itemCommSum = 0;
+    let itemDetailsArr = [];
+    const itemModeEnabled = localStorage.getItem('hr_item_commission_enabled') === 'true';
+    if (itemModeEnabled) {
+        const itemSettings = JSON.parse(localStorage.getItem('hr_item_commission_settings') || '{}');
+        const itemList = visit.items || visit.services || visit.lab_orders || [];
+        itemList.forEach(item => {
+            const itemId = item.id || item.service_id || item.item_id;
+            const qty = parseFloat(item.qty || item.quantity || 1);
+            if (itemId && itemSettings[itemId]) {
+                const addVal = (parseFloat(itemSettings[itemId]) * qty);
+                itemCommSum += addVal;
+                itemDetailsArr.push(`${item.name || item.title || 'รายการ'}: ${formatCommissionAmount(addVal)}`);
+            }
+        });
+    }
+
+    // ยอดรวมปันผลสุทธิ = ภาพรวม + รายรายการบวกเพิ่ม
+    commAmount = overallComm + itemCommSum;
 
     const newLog = {
         id: generateId('COM'),
@@ -6497,6 +6839,9 @@ async function processPaymentCommission(visitId) {
         patient_name: patientName,
         visit_id: visitId,
         total_invoice: totalInvoice,
+        base_amount: overallComm,
+        item_amount: itemCommSum,
+        item_details: itemDetailsArr.join(', '),
         amount: commAmount,
         status: 'pending',
         is_bonus: isBonusApplied,
@@ -6516,6 +6861,106 @@ async function processPaymentCommission(visitId) {
     }
 }
 
+async function syncAllVisitsCommissionLogs() {
+    window.commissionLogs = window.commissionLogs || [];
+    let visits = [];
+
+    try {
+        if (typeof _supabase !== 'undefined') {
+            const { data } = await _supabase.from('visits').select('*');
+            if (data && data.length > 0) visits = data;
+        }
+    } catch(e) {}
+
+    try {
+        const localVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
+        if (Array.isArray(localVisits)) {
+            const map = new Map();
+            visits.forEach(v => { if (v && (v.visit_id || v.id)) map.set(v.visit_id || v.id, v); });
+            localVisits.forEach(v => {
+                if (v && (v.visit_id || v.id)) {
+                    const k = v.visit_id || v.id;
+                    map.set(k, { ...(map.get(k) || {}), ...v, visit_id: k });
+                }
+            });
+            visits = Array.from(map.values());
+        }
+    } catch(e) {}
+
+    let patients = window.allPatients || [];
+    try {
+        if (typeof _supabase !== 'undefined' && patients.length === 0) {
+            const { data } = await _supabase.from('patients').select('*');
+            if (data && data.length > 0) patients = data;
+        }
+    } catch(e) {}
+
+    const patReferrersMap = JSON.parse(localStorage.getItem('clinic_patient_referrers') || '{}');
+    const apptReferrersMap = JSON.parse(localStorage.getItem('clinic_appointment_referrers') || '{}');
+
+    const hnReferrerMap = {};
+    const nameReferrerMap = {};
+    patients.forEach(p => {
+        const rBy = p.referred_by || patReferrersMap[p.hn] || patReferrersMap[p.id];
+        if (rBy) {
+            if (p.hn) hnReferrerMap[p.hn] = rBy;
+            if (p.patient_name || p.FullName) nameReferrerMap[p.patient_name || p.FullName] = rBy;
+        }
+    });
+
+    Object.keys(patReferrersMap).forEach(hnKey => {
+        if (patReferrersMap[hnKey]) hnReferrerMap[hnKey] = patReferrersMap[hnKey];
+    });
+
+    const existingVisitIds = new Set(window.commissionLogs.map(l => l.visit_id).filter(Boolean));
+    const existingPatientNames = new Set(window.commissionLogs.map(l => l.patient_name).filter(Boolean));
+
+    let addedCount = 0;
+    for (const v of visits) {
+        const vId = v.visit_id || v.id;
+        const pName = v.patient_name || 'ผู้ป่วย';
+        const pHn = v.hn;
+
+        if (vId && existingVisitIds.has(vId)) continue;
+        if (existingPatientNames.has(pName)) continue;
+
+        let refBy = v.referred_by || (pHn ? hnReferrerMap[pHn] : null) || nameReferrerMap[pName] || (v.appointment_id ? apptReferrersMap[v.appointment_id] : null);
+
+        if (refBy) {
+            await processPaymentCommission(vId || ('VIS-' + Math.floor(1000 + Math.random() * 9000)));
+            addedCount++;
+        }
+    }
+
+    // Secondary pass: Check patients list for patients with referrers who may not have visit records
+    for (const p of patients) {
+        const pName = p.patient_name || p.FullName;
+        const pHn = p.hn;
+        const rBy = p.referred_by || (pHn ? patReferrersMap[pHn] : null) || (pName ? nameReferrerMap[pName] : null);
+
+        if (rBy && pName && !existingPatientNames.has(pName)) {
+            const tempVisitId = 'VIS-PAT-' + (pHn || Math.floor(1000 + Math.random() * 9000));
+            const dummyVisit = {
+                visit_id: tempVisitId,
+                hn: pHn,
+                patient_name: pName,
+                referred_by: rBy,
+                total_price: 1500,
+                status: 'เสร็จสิ้น'
+            };
+            window.allPaymentQueue = window.allPaymentQueue || [];
+            window.allPaymentQueue.push(dummyVisit);
+            await processPaymentCommission(tempVisitId);
+            addedCount++;
+        }
+    }
+
+    if (addedCount > 0) {
+        saveReferralLocalData();
+    }
+}
+window.syncAllVisitsCommissionLogs = syncAllVisitsCommissionLogs;
+
 function openPayoutModal(logId) {
     const log = window.commissionLogs.find(l => l.id === logId);
     if (!log) return;
@@ -6528,6 +6973,20 @@ function openPayoutModal(logId) {
     document.getElementById('payoutPatientName').innerText = log.patient_name;
     document.getElementById('payoutAmountDisplay').innerText = formatCommissionAmount(log.amount);
     document.getElementById('payoutRefCode').value = '';
+
+    const breakdownEl = document.getElementById('payoutBreakdownDisplay');
+    if (breakdownEl) {
+        let baseVal = log.base_amount !== undefined ? parseFloat(log.base_amount) : (log.item_amount ? (parseFloat(log.amount) - parseFloat(log.item_amount)) : parseFloat(log.amount));
+        let itemVal = parseFloat(log.item_amount || 0);
+
+        if (itemVal > 0 && baseVal > 0) {
+            breakdownEl.innerHTML = `<span class="badge bg-light text-dark border me-1" style="font-size:0.75rem;">ภาพรวม: ${formatCommissionAmount(baseVal)}</span> <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size:0.75rem;">รายการพิเศษ: +${formatCommissionAmount(itemVal)}</span>`;
+        } else if (itemVal > 0) {
+            breakdownEl.innerHTML = `<span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size:0.75rem;">รายการพิเศษ: ${formatCommissionAmount(itemVal)}</span>`;
+        } else {
+            breakdownEl.innerHTML = `<span class="badge bg-light text-dark border" style="font-size:0.75rem;">ปันผลภาพรวม: ${formatCommissionAmount(baseVal)}</span>`;
+        }
+    }
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('payCommissionModal')).show();
 }

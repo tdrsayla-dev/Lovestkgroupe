@@ -40,7 +40,7 @@
             <i class="ph ph-list"></i>
         </button>
         <span class="mobile-title fw-bold">
-            <i class="ph ph-hospital me-1"></i> Clinic System
+            <i class="ph ph-hospital me-1"></i> <span id="mobilePageHeaderTitle">Clinic System</span>
         </span>
         <button class="btn btn-link text-white p-0 border-0 fs-4" onclick="logoutUser()" title="ออกจากระบบ">
             <i class="ph ph-sign-out"></i>
@@ -123,7 +123,7 @@
         <div id="dashboard" class="page-section">
             <div class="d-flex justify-content-between align-items-start align-items-md-center mb-4 flex-column flex-md-row gap-3">
                 <div class="d-flex align-items-center gap-3">
-                    <button class="btn btn-light d-md-none border shadow-sm" id="mobileMenuBtn">
+                    <button class="btn btn-light d-md-none border shadow-sm" id="mobileMenuBtn" onclick="toggleMobileSidebar()">
                         <i class="ph ph-list fs-4"></i>
                     </button>
                     <div>
@@ -1215,12 +1215,39 @@
                 <!-- Tab 2: Commission History Logs -->
                 <div class="tab-pane fade" id="ref-logs-pane" role="tabpanel">
                     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                        <div class="d-flex gap-2">
+                        <div class="d-flex gap-2 align-items-center">
                             <select id="filterLogStatus" class="form-select custom-input py-2" style="width: 180px;" onchange="renderCommissionLogsTable()">
                                 <option value="all">สถานะทั้งหมด</option>
                                 <option value="pending">รออนุมัติ / รอจ่าย</option>
                                 <option value="paid">จ่ายเงินแล้ว</option>
                             </select>
+                        </div>
+
+                        <!-- Date & Search Filter Capsule -->
+                        <div class="d-flex align-items-center bg-white border rounded-pill p-1 shadow-sm gap-1 flex-wrap">
+                            <!-- Period Filters -->
+                            <div class="btn-group p-0" role="group" id="commLogPeriodGroup">
+                                <button type="button" class="btn btn-sm rounded-pill fw-medium px-3 text-primary bg-light shadow-xs border-0" id="btnCommLogMonth" onclick="setCommLogPeriodFilter('month')">
+                                    <i class="ph ph-calendar-blank me-1"></i> รายเดือน
+                                </button>
+                                <button type="button" class="btn btn-sm rounded-pill fw-medium px-3 text-muted bg-transparent border-0" id="btnCommLogYear" onclick="setCommLogPeriodFilter('year')">
+                                    รายปี
+                                </button>
+                                <button type="button" class="btn btn-sm rounded-pill fw-medium px-3 text-muted bg-transparent border-0" id="btnCommLogDay" onclick="setCommLogPeriodFilter('day')">
+                                    รายวัน <i class="ph ph-calendar ms-1"></i>
+                                </button>
+                            </div>
+
+                            <!-- Dynamic Date Pickers -->
+                            <input type="month" id="filterLogMonth" class="form-control form-control-sm custom-input border-0 d-none" style="width: 140px; font-size: 0.85rem;" onchange="renderCommissionLogsTable()">
+                            <input type="date" id="filterLogDate" class="form-control form-control-sm custom-input border-0 d-none" style="width: 135px; font-size: 0.85rem;" onchange="renderCommissionLogsTable()">
+
+                            <div class="vr mx-1 d-none d-sm-block" style="height: 20px;"></div>
+
+                            <!-- Search Bar -->
+                            <div class="position-relative" style="min-width: 180px;">
+                                <input type="text" id="searchLogInput" class="form-control form-control-sm custom-input border-0 bg-light rounded-pill ps-3 pe-4" placeholder="Search" style="font-size: 0.88rem; height: 34px;" onkeyup="renderCommissionLogsTable()">
+                            </div>
                         </div>
                     </div>
                     <div class="table-responsive table-container shadow-sm border rounded-3 bg-white">
@@ -1355,13 +1382,18 @@
                         <!-- Card 2: ตั้งค่ารูปแบบการจ่ายปันผล แบบรายรายการ -->
                         <div class="col-lg-6">
                             <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100 d-flex flex-column">
-                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                                     <h5 class="fw-bold mb-0 text-dark">
                                         <i class="ph ph-list-checks text-primary me-2"></i>ตั้งค่ารูปแบบการจ่ายปันผล <span class="text-primary fs-6 fw-normal">(แบบรายรายการ)</span>
                                     </h5>
-                                    <div class="form-check form-switch mb-0">
-                                        <input class="form-check-input" type="checkbox" id="itemModeSwitch" onchange="toggleItemModeDisplay()" style="cursor: pointer;">
-                                        <label class="form-check-label small fw-bold text-muted" for="itemModeSwitch">เปิดใช้งาน</label>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold shadow-xs" onclick="openAddItemDividendModal()">
+                                            <i class="bi bi-plus-lg me-1"></i> เพิ่มรายการปันผล
+                                        </button>
+                                        <div class="form-check form-switch mb-0 ms-2">
+                                            <input class="form-check-input" type="checkbox" id="itemModeSwitch" onchange="toggleItemModeDisplay()" style="cursor: pointer;">
+                                            <label class="form-check-label small fw-bold text-muted" for="itemModeSwitch">เปิดใช้งาน</label>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -1369,15 +1401,16 @@
                                     <table class="table table-hover align-middle mb-0" id="itemDividendTable">
                                         <thead class="table-light sticky-top" style="z-index: 5;">
                                             <tr>
-                                                <th class="text-center" width="60">ลำดับ</th>
+                                                <th class="text-center" width="50">ลำดับ</th>
                                                 <th>รายการ</th>
-                                                <th class="text-end" width="130">ราคา</th>
+                                                <th class="text-end" width="120">ราคา</th>
                                                 <th class="text-center" width="140">จำนวนปันผล</th>
+                                                <th class="text-center" width="60">จัดการ</th>
                                             </tr>
                                         </thead>
                                         <tbody id="itemDividendBody">
                                             <tr>
-                                                <td colspan="4" class="text-center text-muted py-5">กำลังโหลดรายการตรวจ...</td>
+                                                <td colspan="5" class="text-center text-muted py-5">กำลังโหลดรายการตรวจ...</td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -2223,6 +2256,8 @@
                                         class="text-dark">-</strong></p>
                                 <p class="mb-1 text-muted">HN (รหัสผู้ป่วย): <strong id="histHN"
                                         class="text-dark">-</strong></p>
+                                <p class="mb-1 text-muted" id="histReferrerContainer" style="display: none;">ผู้แนะนำ: <strong id="histReferrer"
+                                        class="text-primary">-</strong></p>
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -2379,6 +2414,7 @@
                                 <span class="fw-bold">ยอดเงินปันผลที่ต้องจ่าย:</span>
                                 <span class="fs-4 fw-bold text-success" id="payoutAmountDisplay">฿0</span>
                             </div>
+                            <div class="text-end mt-1" id="payoutBreakdownDisplay"></div>
                         </div>
 
                         <div class="mb-3">
