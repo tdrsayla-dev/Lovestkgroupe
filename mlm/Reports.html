@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -21,10 +21,10 @@
   </style>
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="lib/react.production.min.js"></script>
+  <script src="lib/react-dom.production.min.js"></script>
+  <script src="lib/babel.min.js"></script>
+  <script src="lib/supabase.min.js"></script>
   <script>
     window.SUPABASE_URL='https://mfpkeyrykqnrywyksyqp.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
     if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
@@ -47,6 +47,10 @@
 
   <script type="text/babel">
     const { useState, useMemo, useEffect, useRef, useCallback } = React;
+    // ðŸ›¡ï¸ GLOBAL ICONS DESTRUCTURING: à¸›à¸¥à¸­à¸”à¸ à¸±à¸¢à¸ˆà¸²à¸à¸•à¸±à¸§à¹à¸›à¸£à¸‹à¹‰à¸³à¸‹à¹‰à¸­à¸™ à¹à¸¥à¸°à¸”à¸¶à¸‡à¹‚à¸¡à¸”à¸¹à¸¥à¹à¸¥à¸°à¸„à¸­à¸¡à¹‚à¸žà¹€à¸™à¸™à¸•à¹Œà¸¡à¸²à¸„à¸£à¸šà¸–à¹‰à¸§à¸™
+    const { LayoutDashboard, ShoppingCart, Users, Contact, Headset, BarChart3, Plus, Edit, Trash2, UserCircle, Menu, X, Save, Info, PackageIcon, Package, Target, Trophy, Activity, Eye, Tags, CheckCircle, GitBranch, Archive, ChevronDown, FileText, SettingsIcon, Coins, ShieldCheck, AlertTriangle, AlertCircle, LoginModal, Toast, Sidebar, Header, ConfirmModal, EditModal, DonutChart, AutoSuggestInput, SearchIcon } = window;
+    
+    
 
     const safeUpper = (str) => String(str || '').trim().toUpperCase();
     const getLocalISODate = () => {
@@ -975,6 +979,80 @@
                                                 )) : <li className="text-xs text-slate-400 py-3 text-center">ไม่มีข้อมูล</li>}
                                             </ul>
                                         </div>
+                                    </div>
+                                </div>
+
+                                <hr className="border-slate-200" />
+
+                                <div>
+                                    <h4 className="font-bold text-slate-800 mb-5 flex items-center gap-2"><span className="text-2xl">🏆</span> อันดับพนักงานยอดเยี่ยม (Top Sellers)</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                        <div className="bg-white rounded-2xl p-4 shadow-sm border border-emerald-100">
+                                            <h5 className="font-bold text-emerald-700 mb-3 border-b border-emerald-100 pb-2 flex justify-between items-center text-xs"><span>ราคาเต็ม</span><span className="text-[10px] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md text-emerald-700">{rankingsData?.members?.full?.length || 0} คน</span></h5>
+                                            <ul className="space-y-2">
+                                                {rankingsData?.members?.full?.length > 0 ? rankingsData.members.full.map(([m, q], i) => (
+                                                    <li key={m} className="flex justify-between items-center text-xs">
+                                                        <div className="flex items-center gap-2"><span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${i===0?'bg-yellow-400 text-yellow-900':i===1?'bg-slate-200 text-slate-700':i===2?'bg-orange-500 text-white':'bg-slate-100 text-slate-500'}`}>{i+1}</span><span className="font-bold text-slate-700">{m}</span></div>
+                                                        <span className="font-black text-emerald-600">{q} <span className="text-[10px] font-normal text-emerald-500">กล่อง</span></span>
+                                                    </li>
+                                                )) : <li className="text-xs text-slate-400 py-3 text-center">ไม่มีข้อมูล</li>}
+                                            </ul>
+                                        </div>
+                                        <div className="bg-white rounded-2xl p-4 shadow-sm border border-blue-100">
+                                            <h5 className="font-bold text-blue-700 mb-3 border-b border-blue-100 pb-2 flex justify-between items-center text-xs"><span>ราคาสมาชิก</span><span className="text-[10px] bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md text-blue-700">{rankingsData?.members?.member?.length || 0} คน</span></h5>
+                                            <ul className="space-y-2">
+                                                {rankingsData?.members?.member?.length > 0 ? rankingsData.members.member.map(([m, q], i) => (
+                                                    <li key={m} className="flex justify-between items-center text-xs">
+                                                        <div className="flex items-center gap-2"><span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${i===0?'bg-yellow-400 text-yellow-900':i===1?'bg-slate-200 text-slate-700':i===2?'bg-orange-500 text-white':'bg-slate-100 text-slate-500'}`}>{i+1}</span><span className="font-bold text-slate-700">{m}</span></div>
+                                                        <span className="font-black text-blue-600">{q} <span className="text-[10px] font-normal text-blue-500">กล่อง</span></span>
+                                                    </li>
+                                                )) : <li className="text-xs text-slate-400 py-3 text-center">ไม่มีข้อมูล</li>}
+                                            </ul>
+                                        </div>
+                                        <div className="bg-white rounded-2xl p-4 shadow-sm border border-amber-100">
+                                            <h5 className="font-bold text-amber-700 mb-3 border-b border-amber-100 pb-2 flex justify-between items-center text-xs"><span>ราคาโปร</span><span className="text-[10px] bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md text-amber-700">{rankingsData?.members?.pro?.length || 0} คน</span></h5>
+                                            <ul className="space-y-2">
+                                                {rankingsData?.members?.pro?.length > 0 ? rankingsData.members.pro.map(([m, q], i) => (
+                                                    <li key={m} className="flex justify-between items-center text-xs">
+                                                        <div className="flex items-center gap-2"><span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${i===0?'bg-yellow-400 text-yellow-900':i===1?'bg-slate-200 text-slate-700':i===2?'bg-orange-500 text-white':'bg-slate-100 text-slate-500'}`}>{i+1}</span><span className="font-bold text-slate-700">{m}</span></div>
+                                                        <span className="font-black text-amber-600">{q} <span className="text-[10px] font-normal text-amber-500">กล่อง</span></span>
+                                                    </li>
+                                                )) : <li className="text-xs text-slate-400 py-3 text-center">ไม่มีข้อมูล</li>}
+                                            </ul>
+                                        </div>
+                                        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
+                                            <h5 className="font-bold text-slate-600 mb-3 border-b border-slate-200 pb-2 flex justify-between items-center text-xs"><span>ราคาศูนย์</span><span className="text-[10px] bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-md text-slate-600">{rankingsData?.members?.zero?.length || 0} คน</span></h5>
+                                            <ul className="space-y-2">
+                                                {rankingsData?.members?.zero?.length > 0 ? rankingsData.members.zero.map(([m, q], i) => (
+                                                    <li key={m} className="flex justify-between items-center text-xs">
+                                                        <div className="flex items-center gap-2"><span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${i===0?'bg-yellow-400 text-yellow-900':i===1?'bg-slate-200 text-slate-700':i===2?'bg-orange-500 text-white':'bg-slate-100 text-slate-500'}`}>{i+1}</span><span className="font-bold text-slate-700">{m}</span></div>
+                                                        <span className="font-black text-slate-500">{q} <span className="text-[10px] font-normal text-slate-400">กล่อง</span></span>
+                                                    </li>
+                                                )) : <li className="text-xs text-slate-400 py-3 text-center">ไม่มีข้อมูล</li>}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <hr className="border-slate-200" />
+
+                                <div>
+                                    <h4 className="font-bold text-slate-800 mb-5 flex items-center gap-2"><span className="text-2xl">🔥</span> พนักงานขายยอดเยี่ยมแยกตามสินค้า</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        {rankingsData?.topSellersByProduct && Object.entries(rankingsData.topSellersByProduct).map(([p, sellers]) => (
+                                            <div key={p} className="bg-white rounded-2xl p-4 shadow-sm border border-fuchsia-100">
+                                                <h5 className="font-bold text-fuchsia-700 mb-3 border-b border-fuchsia-100 pb-2 flex justify-between items-center text-xs"><span className="truncate pr-2">{p}</span><span className="text-[10px] bg-fuchsia-50 border border-fuchsia-200 px-2 py-0.5 rounded-md text-fuchsia-700">{sellers.length} คน</span></h5>
+                                                <ul className="space-y-2">
+                                                    {sellers.slice(0, 5).map(([mName, data], i) => (
+                                                        <li key={mName} className="flex justify-between items-center text-xs">
+                                                            <div className="flex items-center gap-2 min-w-0 pr-2"><span className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center text-[10px] font-black ${i===0?'bg-yellow-400 text-yellow-900':i===1?'bg-slate-200 text-slate-700':i===2?'bg-orange-500 text-white':'bg-slate-100 text-slate-500'}`}>{i+1}</span><span className="font-bold text-slate-700 truncate">{mName}</span></div>
+                                                            <span className="font-black text-fuchsia-600">{data.total} <span className="text-[10px] font-normal text-fuchsia-500">กล่อง</span></span>
+                                                        </li>
+                                                    ))}
+                                                    {sellers.length === 0 && <li className="text-xs text-slate-400 py-3 text-center">ไม่มีข้อมูล</li>}
+                                                </ul>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             </div>

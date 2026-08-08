@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -22,10 +22,10 @@
   </style>
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="lib/react.production.min.js"></script>
+  <script src="lib/react-dom.production.min.js"></script>
+  <script src="lib/babel.min.js"></script>
+  <script src="lib/supabase.min.js"></script>
   <script>
     window.SUPABASE_URL='https://mfpkeyrykqnrywyksyqp.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
     if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
@@ -55,6 +55,10 @@
 
   <script type="text/babel">
     const { useState, useMemo, useEffect, useRef, useCallback } = React;
+    // ðŸ›¡ï¸ GLOBAL ICONS DESTRUCTURING: à¸›à¸¥à¸­à¸”à¸ à¸±à¸¢à¸ˆà¸²à¸à¸•à¸±à¸§à¹à¸›à¸£à¸‹à¹‰à¸³à¸‹à¹‰à¸­à¸™ à¹à¸¥à¸°à¸”à¸¶à¸‡à¹‚à¸¡à¸”à¸¹à¸¥à¹à¸¥à¸°à¸„à¸­à¸¡à¹‚à¸žà¹€à¸™à¸™à¸•à¹Œà¸¡à¸²à¸„à¸£à¸šà¸–à¹‰à¸§à¸™
+    const { LayoutDashboard, ShoppingCart, Users, Contact, Headset, BarChart3, Plus, Edit, Trash2, UserCircle, Menu, X, Save, Info, PackageIcon, Target, Trophy, Activity, Eye, Tags, CheckCircle, GitBranch, Archive, ChevronDown, FileText, SettingsIcon, Coins, ShieldCheck, LoginModal, Toast, Sidebar, Header, ConfirmModal, EditModal, DonutChart, AutoSuggestInput, SearchIcon } = window;
+    
+    
     const Settings = ({size=20}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>;
 
     const fallbackCustomerTypes = window.fallbackCustomerTypes || [
@@ -1768,19 +1772,15 @@
                 localStorage.setItem('stk_system_settings', JSON.stringify(updatedSettings));
             } catch(e){}
 
-            // Try to save system settings to Supabase safely without throwing console errors
-            if (typeof window.supabaseUpdate === 'function') {
-                supabaseUpdate('stk_system_settings', 'MAIN', {
-                    commission_levels: numLevels,
-                    min_dividend_pv: numMinPv
-                }, 'setting_id').catch((err) => {
-                    // Fallback to insertion if key MAIN does not exist yet
-                    supabaseInsert('stk_system_settings', {
-                        setting_id: 'MAIN',
+            // Try to save system settings to Supabase safely using Key-Value format
+            if (typeof supabaseUpsert === 'function') {
+                supabaseUpsert('stk_system_settings', {
+                    key: 'MAIN',
+                    value: JSON.stringify({
                         commission_levels: numLevels,
                         min_dividend_pv: numMinPv
-                    }).catch(() => {});
-                });
+                    })
+                }).catch(() => {});
             }
 
             // Save all products commission data state locally and update Supabase safely
@@ -2256,83 +2256,158 @@
         const loader = document.getElementById('initial-loader');
         if (loader) loader.style.display = 'none';
 
+        // 💡 SMART CACHING & PAGE TRANSITION SPEED FIX:
+        // ตรวจสอบ cache ใน localStorage ถ้าข้อมูลยังใหม่ (ไม่เกิน 20 วินาที)
+        // จะใช้งานข้อมูลเดิมทันทีโดยไม่ต้องดึงฐานข้อมูลใหม่เพื่อความเร็วในการเปลี่ยนหน้า
+        let isCacheFresh = false;
+        const applyStockDataToStates = (data) => {
+          if (data.systemSettings) {
+             setSystemSettings(prev => ({ ...prev, ...data.systemSettings }));
+          }
+          if (Array.isArray(data.products)) {
+             const formatted = data.products.map(p => {
+               const mapped = {
+                 ...p,
+                 id: p.product_id || p.id,
+                 name: p.name,
+                 barcode: p.barcode || '',
+                 category: p.category,
+                 status: p.status || 'เข้าใช้งาน',
+                 stock: parseInt(p.current_stock || p.stock || 0),
+                 priceFull: Number(p.price_full ?? p.priceFull ?? 0) || 0,
+                 priceMember: Number(p.price_member ?? p.priceMember ?? 0) || 0,
+                 pricePromo: Number(p.price_promo ?? p.pricePromo ?? 0) || 0,
+                 givePv: Number(p.give_pv ?? p.b2n_give_pv ?? p.givePv ?? 0) || 0,
+                 minPvComm: Number(p.min_pv_comm ?? p.minPvComm ?? 0) || 0,
+                 imageUrl: p.image_url || p.imageUrl || '',
+                 fullMarginAmount: Number(p.full_margin_amount ?? p.fullMarginAmount ?? 0) || 0,
+                 fullMarginCurrency: p.full_margin_currency || p.fullMarginCurrency || 'LAK',
+                 selfFee: Number(p.self_fee ?? p.selfFee ?? 0) || 0,
+                 selfPercentFull: Number(p.self_percent_full ?? p.selfPercentFull ?? 0) || 0,
+                 selfPercentMember: Number(p.self_percent_member ?? p.selfPercentMember ?? 0) || 0
+               };
+               for (let i = 1; i <= 6; i++) {
+                 mapped[`level${i}Fee`] = Number(p[`level_${i}_fee`] !== undefined && p[`level_${i}_fee`] !== null ? p[`level_${i}_fee`] : (p[`level${i}Fee`] || 0)) || 0;
+                 mapped[`level${i}PercentFull`] = Number(p[`level_${i}_percent_full`] !== undefined && p[`level_${i}_percent_full`] !== null ? p[`level_${i}_percent_full`] : (p[`level${i}PercentFull`] || 0)) || 0;
+                 mapped[`level${i}PercentMember`] = Number(p[`level_${i}_percent_member`] !== undefined && p[`level_${i}_percent_member`] !== null ? p[`level_${i}_percent_member`] : (p[`level${i}PercentMember`] || 0)) || 0;
+               }
+               mapped.directFee = mapped.level1Fee;
+               return mapped;
+             }).sort((a, b) => (a.id || '').localeCompare(b.id || '', undefined, { numeric: true, sensitivity: 'base' }));
+             setProducts(formatted);
+          }
+          if (Array.isArray(data.productCategories)) setProductCategories(data.productCategories);
+          if (Array.isArray(data.stockMovements)) {
+             const formattedMov = data.stockMovements.map(m => ({
+               ...m,
+               movementId: m.movement_id || m.movementId || '',
+               productId: m.product_id || m.productId || '',
+               type: m.type || '',
+               subType: m.sub_type || m.subType || '',
+               quantity: Number(m.quantity || 0),
+               lotId: m.lot_id || m.lotId || '',
+               notes: m.notes || '',
+               createdBy: m.created_by || m.createdBy || '',
+               date: m.date || m.created_at || ''
+             }));
+             setStockMovements(formattedMov);
+          }
+          if (Array.isArray(data.members)) setMembers(data.members);
+          if (Array.isArray(data.closers)) setClosers(data.closers);
+          if (Array.isArray(data.customerTypes)) setCustomerTypes(data.customerTypes);
+        };
+
+        try {
+            const cachedData = localStorage.getItem('stk_app_cache_data');
+            const cacheTime = localStorage.getItem('stk_app_cache_time');
+            if (cachedData && cacheTime) {
+                const parsedData = JSON.parse(cachedData);
+                // ค้นหา settings ใน cache
+                let savedSettings = null;
+                try {
+                  const localSettingsStr = localStorage.getItem('stk_system_settings');
+                  if (localSettingsStr) savedSettings = JSON.parse(localSettingsStr);
+                } catch(e){}
+                
+                applyStockDataToStates({
+                   products: parsedData.products,
+                   productCategories: JSON.parse(localStorage.getItem('stk_app_cache_categories') || '[]'),
+                   stockMovements: JSON.parse(localStorage.getItem('stk_app_cache_movements') || '[]'),
+                   members: parsedData.members,
+                   closers: parsedData.closers,
+                   customerTypes: parsedData.customerTypes,
+                   systemSettings: savedSettings
+                });
+                
+                const age = Date.now() - Number(cacheTime);
+                if (age < 20000) { // 20 วินาที
+                    isCacheFresh = true;
+                    setIsAppLoading(false);
+                }
+            }
+        } catch (e) { console.warn("Cache error", e); }
+
+        if (isCacheFresh) {
+            return;
+        }
+
         Promise.all([
           supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
           supabaseSelect('stk_product_categories').catch(() => supabaseSelect('product_categories')),
-          supabaseSelect('stk_stock_movements').catch(() => supabaseSelect('stock_movements')),
+          // ⚡ SPEED FIX: จำกัดการโหลดประวัติการรับจ่ายสินค้าเอาไว้แค่ 400 ล็อกล่าสุด ป้องกันค้าง
+          supabaseSelect('stk_stock_movements', 'order=created_at.desc&limit=400').catch(() => supabaseSelect('stock_movements')),
           supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
           supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
           supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
           supabaseSelect('stk_system_settings').catch(() => supabaseSelect('system_settings')).catch(() => [])
         ]).then(([pRes, catRes, movRes, memRes, cloRes, typeRes, settingsRes]) => {
+          let loadedSettings = null;
           if (Array.isArray(settingsRes) && settingsRes.length > 0) {
-            const mainSett = settingsRes.find(s => s && (s.setting_id === 'MAIN' || s.id === 'MAIN')) || settingsRes[0];
-            if (mainSett) {
-              const loadedSettings = {
-                ...mainSett,
-                commission_levels: mainSett.commission_levels != null ? Number(mainSett.commission_levels) : (mainSett.commissionLevels != null ? Number(mainSett.commissionLevels) : 6),
-                min_dividend_pv: mainSett.min_dividend_pv != null ? Number(mainSett.min_dividend_pv) : (mainSett.minDividendPv != null ? Number(mainSett.minDividendPv) : 100)
-              };
-              setSystemSettings(prev => ({
-                ...prev,
-                ...loadedSettings
-              }));
+            const mainRow = settingsRes.find(s => s && (s.key === 'MAIN' || s.setting_key === 'MAIN' || s.setting_id === 'MAIN' || s.id === 'MAIN'));
+            if (mainRow) {
               try {
-                localStorage.setItem('stk_system_settings', JSON.stringify(loadedSettings));
-              } catch(e){}
+                const rawVal = mainRow.value || mainRow.setting_value || '';
+                const parsedVal = typeof rawVal === 'string' && rawVal.trim() !== '' ? JSON.parse(rawVal) : rawVal;
+                loadedSettings = {
+                  commission_levels: parsedVal.commission_levels != null ? Number(parsedVal.commission_levels) : (parsedVal.commissionLevels != null ? Number(parsedVal.commissionLevels) : 6),
+                  min_dividend_pv: parsedVal.min_dividend_pv != null ? Number(parsedVal.min_dividend_pv) : (parsedVal.minDividendPv != null ? Number(parsedVal.minDividendPv) : 100)
+                };
+              } catch(e) {
+                loadedSettings = {
+                  commission_levels: mainRow.commission_levels != null ? Number(mainRow.commission_levels) : (mainRow.commissionLevels != null ? Number(mainRow.commissionLevels) : 6),
+                  min_dividend_pv: mainRow.min_dividend_pv != null ? Number(mainRow.min_dividend_pv) : (mainRow.minDividendPv != null ? Number(mainRow.minDividendPv) : 100)
+                };
+              }
+              if (loadedSettings) {
+                try { localStorage.setItem('stk_system_settings', JSON.stringify(loadedSettings)); } catch(e){}
+              }
             }
           }
-          if (Array.isArray(pRes)) {
-            const formatted = pRes.map(p => {
-              const mapped = {
-                ...p,
-                id: p.product_id || p.id,
-                name: p.name,
-                barcode: p.barcode || '',
-                category: p.category,
-                status: p.status || 'เข้าใช้งาน',
-                stock: parseInt(p.current_stock || p.stock || 0),
-                priceFull: Number(p.price_full ?? p.priceFull ?? 0) || 0,
-                priceMember: Number(p.price_member ?? p.priceMember ?? 0) || 0,
-                pricePromo: Number(p.price_promo ?? p.pricePromo ?? 0) || 0,
-                givePv: Number(p.give_pv ?? p.b2n_give_pv ?? p.givePv ?? 0) || 0,
-                minPvComm: Number(p.min_pv_comm ?? p.minPvComm ?? 0) || 0,
-                imageUrl: p.image_url || p.imageUrl || '',
-                fullMarginAmount: Number(p.full_margin_amount ?? p.fullMarginAmount ?? 0) || 0,
-                fullMarginCurrency: p.full_margin_currency || p.fullMarginCurrency || 'LAK',
-                selfFee: Number(p.self_fee ?? p.selfFee ?? 0) || 0,
-                selfPercentFull: Number(p.self_percent_full ?? p.selfPercentFull ?? 0) || 0,
-                selfPercentMember: Number(p.self_percent_member ?? p.selfPercentMember ?? 0) || 0
-              };
-              for (let i = 1; i <= 6; i++) {
-                mapped[`level${i}Fee`] = Number(p[`level_${i}_fee`] !== undefined && p[`level_${i}_fee`] !== null ? p[`level_${i}_fee`] : (p[`level${i}Fee`] || 0)) || 0;
-                mapped[`level${i}PercentFull`] = Number(p[`level_${i}_percent_full`] !== undefined && p[`level_${i}_percent_full`] !== null ? p[`level_${i}_percent_full`] : (p[`level${i}PercentFull`] || 0)) || 0;
-                mapped[`level${i}PercentMember`] = Number(p[`level_${i}_percent_member`] !== undefined && p[`level_${i}_percent_member`] !== null ? p[`level_${i}_percent_member`] : (p[`level${i}PercentMember`] || 0)) || 0;
-              }
-              mapped.directFee = mapped.level1Fee;
-              return mapped;
-            }).sort((a, b) => (a.id || '').localeCompare(b.id || '', undefined, { numeric: true, sensitivity: 'base' }));
-            setProducts(formatted);
-          }
-          if (Array.isArray(catRes)) setProductCategories(catRes);
-          if (Array.isArray(movRes)) {
-            const formattedMov = movRes.map(m => ({
-              ...m,
-              movementId: m.movement_id || m.movementId || '',
-              productId: m.product_id || m.productId || '',
-              type: m.type || '',
-              subType: m.sub_type || m.subType || '',
-              quantity: Number(m.quantity || 0),
-              lotId: m.lot_id || m.lotId || '',
-              notes: m.notes || '',
-              createdBy: m.created_by || m.createdBy || '',
-              date: m.date || m.created_at || ''
-            }));
-            setStockMovements(formattedMov);
-          }
-          if (Array.isArray(memRes)) setMembers(memRes);
-          if (Array.isArray(cloRes)) setClosers(cloRes);
-          if (Array.isArray(typeRes)) setCustomerTypes(typeRes);
+
+          const freshData = {
+             products: pRes,
+             productCategories: catRes,
+             stockMovements: movRes,
+             members: memRes,
+             closers: cloRes,
+             customerTypes: typeRes,
+             systemSettings: loadedSettings
+          };
+
+          applyStockDataToStates(freshData);
+
+          try {
+              // ซิงค์ผลิตภัณฑ์หลัก
+              const resObj = JSON.parse(localStorage.getItem('stk_app_cache_data') || '{}');
+              resObj.products = pRes;
+              resObj.members = memRes;
+              resObj.closers = cloRes;
+              resObj.customerTypes = typeRes;
+              localStorage.setItem('stk_app_cache_data', JSON.stringify(resObj));
+              localStorage.setItem('stk_app_cache_categories', JSON.stringify(catRes));
+              localStorage.setItem('stk_app_cache_movements', JSON.stringify(movRes));
+              localStorage.setItem('stk_app_cache_time', String(Date.now()));
+          } catch(e){}
         }).catch(err => {
           console.error("Supabase load error:", err);
         }).finally(() => {
@@ -2372,8 +2447,8 @@
 
           <main className={`flex-1 flex flex-col min-h-screen bg-slate-50 transition-all duration-300 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} w-full overflow-x-hidden`}>
 
-            {toast.show && (
-              <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animation-fade-in" style={{animationDuration:'0.2s'}}>
+            {toast.show && ReactDOM.createPortal(
+              <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[999999] flex items-center justify-center p-4 animation-fade-in" style={{animationDuration:'0.2s'}}>
                 <div className={`bg-white rounded-3xl shadow-xl p-8 max-w-sm w-full text-center animation-pop border-t-4 ${toast.type==='error'?'border-red-500':toast.type==='info'?'border-blue-500':'border-emerald-500'}`}>
                   <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${toast.type==='error'?'bg-red-100 text-red-500':toast.type==='info'?'bg-blue-100 text-blue-500':'bg-emerald-100 text-emerald-500'}`}>
                     {toast.type==='error'?<X size={32}/>:toast.type==='info'?<Trophy size={32}/>:<CheckCircle size={32}/>}
@@ -2383,7 +2458,7 @@
                   <button onClick={() => setToast({...toast, show:false})} className="w-full py-2.5 rounded-lg font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors">ตกลง</button>
                 </div>
               </div>
-            )}
+            , document.body)}
 
             <div className="p-3 sm:p-6 flex-1 w-full">
               {isAppLoading ? (

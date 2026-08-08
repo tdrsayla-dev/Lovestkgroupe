@@ -22,10 +22,10 @@
   </style>
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="lib/react.production.min.js"></script>
+  <script src="lib/react-dom.production.min.js"></script>
+  <script src="lib/babel.min.js"></script>
+  <script src="lib/supabase.min.js"></script>
   <script>
     window.SUPABASE_URL='https://mfpkeyrykqnrywyksyqp.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
     if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
@@ -66,6 +66,10 @@
 
   <script type="text/babel">
     const { useState, useMemo, useEffect, useRef, useCallback } = React;
+    // ðŸ›¡ï¸ GLOBAL ICONS DESTRUCTURING: à¸›à¸¥à¸­à¸”à¸ à¸±à¸¢à¸ˆà¸²à¸à¸•à¸±à¸§à¹à¸›à¸£à¸‹à¹‰à¸³à¸‹à¹‰à¸­à¸™ à¹à¸¥à¸°à¸”à¸¶à¸‡à¹‚à¸¡à¸”à¸¹à¸¥à¹à¸¥à¸°à¸„à¸­à¸¡à¹‚à¸žà¹€à¸™à¸™à¸•à¹Œà¸¡à¸²à¸„à¸£à¸šà¸–à¹‰à¸§à¸™
+    const { LayoutDashboard, ShoppingCart, Users, Contact, Headset, BarChart3, Plus, Edit, Trash2, UserCircle, Menu, X, Save, Info, PackageIcon, Package, Target, Trophy, Activity, Eye, Tags, CheckCircle, GitBranch, Archive, ChevronDown, FileText, SettingsIcon, Coins, ShieldCheck, AlertTriangle, AlertCircle, LoginModal, Toast, Sidebar, Header, ConfirmModal, EditModal, DonutChart, AutoSuggestInput, SearchIcon } = window;
+    
+    
 
     const fallbackCustomerTypes = window.fallbackCustomerTypes || [
        { id: 'T001', name: 'ลูกค้าใหม่', status: 'ใช้งาน' },
@@ -117,6 +121,7 @@
         const [custData, setCustData] = useState({ id: '', name: '', phone: '', lineId: '', symptom: '', closer: '', closerTeam: '' });
         const [isSubmitting, setIsSubmitting] = useState(false);
         const [editingSaleId, setEditingSaleId] = useState(null); 
+        const hasLoadedEditIdRef = React.useRef(false);
         
         const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null, customerId: null, title: '' });
         const [successModal, setSuccessModal] = useState({ show: false, saleRecord: null });
@@ -225,6 +230,8 @@
         const [isCustomerExpanded, setIsCustomerExpanded] = useState(true);
 
         useEffect(() => {
+            // หยุดทันทีถ้าโหลดข้อมูลเพื่อแก้ไขแล้ว ไม่ต้องดึงซ้ำอีก (prevent double fetch)
+            if (hasLoadedEditIdRef.current) return;
             try {
                 const pendingSaleStr = localStorage.getItem('stk_pending_sale');
                 if (pendingSaleStr) {
@@ -291,18 +298,215 @@
             } catch(e) {
                 console.warn('Error loading pending sale:', e);
             }
-            try {
-                const urlParams = new URLSearchParams(window.location.search);
-                const editIdParam = urlParams.get('editId');
-                if (editIdParam && Array.isArray(sales) && sales.length > 0) {
-                    const targetRecord = sales.find(s => String(s.id).trim().toUpperCase() === String(editIdParam).trim().toUpperCase());
-                    if (targetRecord && typeof handleEditSale === 'function') {
-                        handleEditSale(targetRecord);
-                        if (showToast) showToast(`ดึงข้อมูลบิล ${editIdParam} เพื่อทำการแก้ไขเรียบร้อยแล้ว`, 'success');
+            // 🔒 ROBUST DIRECT FETCH FOR EDIT MODE:
+            // ดึงข้อมูลบิล + products + member + customer พร้อมกันเพื่อให้ราคาและข้อมูลครบถ้วน
+            const loadEditRecordDirectly = async (editId) => {
+                try {
+                    if (hasLoadedEditIdRef.current) return;
+                    hasLoadedEditIdRef.current = true; // 🔒 lock ทันที ป้องกัน race condition (double call)
+                    
+                    // ดึงทุกอย่างพร้อมกัน: บิล + สินค้า + สมาชิก
+                    const [saleRes, prodRes] = await Promise.all([
+                        supabaseSelect('stk_sales', 'order_id=eq.' + encodeURIComponent(editId)).catch(() => []),
+                        supabaseSelect('stk_products').catch(() => [])
+                    ]);
+
+                    if (!Array.isArray(saleRes) || saleRes.length === 0) {
+                        console.warn('Direct fetch sale not found:', editId);
+                        return;
                     }
+                    
+                    // จะ setProducts หลังจาก map freshProducts แล้ว (เพื่อให้มี imageUrl ถูกต้อง)
+
+                    const rawSale = saleRes[0];
+                    let itemsList = [];
+                    if (rawSale.items_json) {
+                        try { itemsList = typeof rawSale.items_json === 'string' ? JSON.parse(rawSale.items_json) : rawSale.items_json; } catch(e){}
+                    }
+                    // แปลง items_json เป็น field สำหรับ handleEditSale
+                    if (Array.isArray(itemsList) && itemsList.length > 0) {
+                        itemsList.forEach(it => {
+                            let typeStr = String(it.type || '').trim();
+                            if (typeStr === 'ราคาพิเศษ' || typeStr === 'ราคาโปรโมชั่น') typeStr = 'ราคาโปร';
+                            if (typeStr === 'ราคาแถม') typeStr = 'ราคาศูนย์';
+                            const qtyNum = Number(it.qty || it.quantity || 1);
+                            const pName = String(it.prod || it.productName || it.name || 'Unknown').trim();
+                            rawSale[pName + '_' + typeStr] = qtyNum;
+                        });
+                    }
+                    
+                    rawSale['memberId'] = rawSale.memberId || rawSale.seller_id || rawSale.seller;
+                    rawSale.customerId = rawSale.customerId || rawSale.customer_id;
+                    rawSale.totalAmount = rawSale.totalAmount || rawSale.total_amount;
+                    rawSale.saleType = rawSale.saleType || rawSale.sale_type;
+                    rawSale.date = rawSale.date || rawSale.created_at;
+                    rawSale.recordedBy = rawSale.recordedBy || rawSale.recorded_by;
+                    rawSale.paymentNote = rawSale.paymentNote || rawSale.payment_note;
+                    rawSale.customerType = rawSale.customerType || rawSale.customer_type || '';
+                    rawSale.id = rawSale.order_id || rawSale.id;
+
+                    // ดึงสมาชิกและลูกค้าพร้อมกัน (ใช้ user_id สำหรับสมาชิก, customer_id สำหรับลูกค้า)
+                    const [memFetch, custFetch] = await Promise.all([
+                        rawSale.memberId
+                            ? supabaseSelect('stk_members', 'user_id=eq.' + encodeURIComponent(rawSale.memberId)).catch(() => [])
+                            : Promise.resolve([]),
+                        rawSale.customerId
+                            ? supabaseSelect('stk_customers', 'customer_id=eq.' + encodeURIComponent(rawSale.customerId)).catch(() => [])
+                            : Promise.resolve([])
+                    ]);
+
+                    // ตั้งชื่อสมาชิก
+                    if (Array.isArray(memFetch) && memFetch.length > 0) {
+                        rawSale.memberName = memFetch[0].name || memFetch[0].user_name || '';
+                    }
+
+                    // อัปเดตข้อมูลลูกค้า
+                    if (Array.isArray(custFetch) && custFetch.length > 0) {
+                        const fetchedCustomers = custFetch.map(c => ({
+                            ...c,
+                            id: c.customer_id || c.id,
+                            name: c.name || c.customer_name || '',
+                            phone: c.phone || c.phone_number || '',
+                            lineId: c.lineId || c.line_id || '',
+                            symptom: c.symptom || c.symptom_disease || '',
+                            closer: c.closer || c.closer_id || '',
+                            type: c.customer_type || c.type || ''
+                        }));
+                        // merge กับ customers ที่มีอยู่
+                        setCustomers(prev => {
+                            const existing = (prev || []).filter(c => c.id !== fetchedCustomers[0].id);
+                            return [...fetchedCustomers, ...existing];
+                        });
+                    }
+
+                    // map freshProducts ให้มี imageUrl และ price fields ถูกต้อง
+                    const freshProducts = (Array.isArray(prodRes) ? prodRes : (products || [])).map(x => ({
+                        ...x,
+                        id: x.id || x.product_id,
+                        imageUrl: x.image_url ?? x.imageUrl ?? '',
+                        priceFull: Number(x.price_full ?? x.priceFull ?? 0) || 0,
+                        priceMember: Number(x.price_member ?? x.priceMember ?? 0) || 0,
+                        pricePromo: Number(x.price_promo ?? x.pricePromo ?? 0) || 0,
+                        stock: parseInt(x.current_stock ?? x.stock ?? 0) || 0
+                    }));
+                    // บันทึก freshProducts เข้า state (มี imageUrl ถูกต้อง) สำหรับ render รูปสินค้า
+                    if (freshProducts.length > 0) setProducts(freshProducts);
+                    
+                    // สร้าง cart โดยตรงจาก items_json + ราคาจาก freshProducts
+                    if (Array.isArray(itemsList) && itemsList.length > 0) {
+                        const directCart = itemsList.map(it => {
+                            let typeStr = String(it.type || '').trim();
+                            if (typeStr === 'ราคาพิเศษ' || typeStr === 'ราคาโปรโมชั่น') typeStr = 'ราคาโปร';
+                            if (typeStr === 'ราคาแถม') typeStr = 'ราคาศูนย์';
+                            const qtyNum = Number(it.qty || it.quantity || 1);
+                            const pName = String(it.prod || it.productName || it.name || '').trim();
+                            const prodObj = freshProducts.find(p => p.name === pName) || {};
+                            let unitPrice = 0;
+                            if (typeStr === 'ราคาเต็ม') unitPrice = prodObj.priceFull || 0;
+                            else if (typeStr === 'ราคาโปร') unitPrice = prodObj.pricePromo || 0;
+                            else if (typeStr === 'ราคาสมาชิก') unitPrice = prodObj.priceMember || 0;
+                            else if (typeStr === 'ราคาศูนย์') unitPrice = 0;
+                            else unitPrice = prodObj.priceMember || prodObj.pricePromo || prodObj.priceFull || 0;
+                            return { productName: pName, priceType: typeStr, price: unitPrice, qty: qtyNum };
+                        }).filter(it => it.productName && it.qty > 0);
+
+                        // ตั้งค่าฟอร์มทั้งหมดโดยตรง (ไม่ผ่าน handleEditSale เพื่อหลีกเลี่ยง stale closure ของ products)
+                        setEditingSaleId(rawSale.id);
+                        setFormData({ date: rawSale.date ? rawSale.date.split('T')[0] : getLocalISODate() });
+                        const mObjName = rawSale.memberName || '';
+                        setMemberIdInput(mObjName ? `${rawSale.memberId} - ${mObjName}` : (rawSale.memberId || ''));
+
+                        // Payment — parse รายละเอียดการจ่าย ให้ครบทุกช่อง
+                        const saleTypeStr = rawSale.saleType || 'สด';
+                        let loadedMode = 'สด';
+                        let lCashTHB = ''; let lCashLAK = '';
+                        let lThaiTHB = ''; let bThaiTHB = 'กสิกรไทย';
+                        let lLaosTHB = ''; let bLaosTHB = 'BCEL';
+                        let lLaosLAK = ''; let bLaosLAK = 'BCEL';
+                        if (saleTypeStr.includes(':') || saleTypeStr.includes('|')) {
+                            const parts = saleTypeStr.split('|').map(p => p.trim());
+                            let hasCash = false; let hasTransfer = false;
+                            parts.forEach(p => {
+                                if (p.startsWith('สด:')) { lCashTHB = p.replace('สด:', '').trim(); hasCash = true; }
+                                else if (p.startsWith('สดกีบ:')) { lCashLAK = p.replace('สดกีบ:', '').trim(); hasCash = true; }
+                                else if (p.match(/^โอนไทย\(([^)]+)\):(.*)$/)) {
+                                    const m = p.match(/^โอนไทย\(([^)]+)\):(.*)$/);
+                                    bThaiTHB = m[1].trim(); lThaiTHB = m[2].trim(); hasTransfer = true;
+                                } else if (p.match(/^โอนลาวบาท\(([^)]+)\):(.*)$/)) {
+                                    const m = p.match(/^โอนลาวบาท\(([^)]+)\):(.*)$/);
+                                    bLaosTHB = m[1].trim(); lLaosTHB = m[2].trim(); hasTransfer = true;
+                                } else if (p.match(/^โอนลาวกีบ\(([^)]+)\):(.*)$/)) {
+                                    const m = p.match(/^โอนลาวกีบ\(([^)]+)\):(.*)$/);
+                                    bLaosLAK = m[1].trim(); lLaosLAK = m[2].trim(); hasTransfer = true;
+                                } else if (p.match(/^โอน\(([^)]+)\):(.*)$/)) {
+                                    const m = p.match(/^โอน\(([^)]+)\):(.*)$/);
+                                    bThaiTHB = m[1].trim(); lThaiTHB = m[2].trim(); hasTransfer = true;
+                                } else if (p.match(/^โอนกีบ\(([^)]+)\):(.*)$/)) {
+                                    const m = p.match(/^โอนกีบ\(([^)]+)\):(.*)$/);
+                                    bLaosLAK = m[1].trim(); lLaosLAK = m[2].trim(); hasTransfer = true;
+                                }
+                            });
+                            if (hasCash && hasTransfer) loadedMode = 'สด+โอน';
+                            else if (hasTransfer) loadedMode = 'โอน';
+                            else loadedMode = 'สด';
+                        } else {
+                            const amt = rawSale.totalAmount ? String(rawSale.totalAmount) : '';
+                            if (saleTypeStr.includes('โอน')) { lThaiTHB = amt; loadedMode = 'โอน'; }
+                            else { lCashTHB = amt; loadedMode = 'สด'; }
+                        }
+                        setPayMode(loadedMode);
+                        setPayCashTHB(lCashTHB);
+                        setPayCashLAK(lCashLAK);
+                        setPayTransferThaiTHB(lThaiTHB);
+                        setPayTransferThaiBank(bThaiTHB);
+                        setPayTransferLaosTHB(lLaosTHB);
+                        setPayTransferLaosBankTHB(bLaosTHB);
+                        setPayTransferLaosLAK(lLaosLAK);
+                        setPayTransferLaosBankLAK(bLaosLAK);
+                        setPaymentNote(rawSale.paymentNote || '');
+
+                        // Customer
+                        const fetchedCust = Array.isArray(custFetch) && custFetch.length > 0 ? custFetch[0] : null;
+                        if (fetchedCust) {
+                            const custType = rawSale.customerType || fetchedCust.customer_type || fetchedCust.type || '';
+                            setCustMode(custType);
+                            const closerName = fetchedCust.closer || fetchedCust.closer_id || '';
+                            const cObj = (closers || []).find(cl => cl.name === closerName);
+                            let cTeam = cObj ? cObj.team : (fetchedCust.extra_details_json?.closerTeam || '');
+                            if (cTeam === 'Team A') cTeam = 'Marketing';
+                            if (cTeam === 'Team B') cTeam = 'Center';
+                            setCustData({
+                                id: fetchedCust.customer_id || fetchedCust.id || rawSale.customerId || '',
+                                name: fetchedCust.name || fetchedCust.customer_name || '',
+                                phone: fetchedCust.phone || fetchedCust.phone_number || '',
+                                lineId: fetchedCust.line_id || fetchedCust.lineId || '',
+                                symptom: fetchedCust.symptom_disease || fetchedCust.symptom || '',
+                                closer: closerName,
+                                closerTeam: cTeam
+                            });
+                        } else {
+                            setCustMode(rawSale.customerType || '');
+                            setCustData({ id: rawSale.customerId || '', name: rawSale.customer_name || '', phone: '', lineId: '', symptom: '', closer: '', closerTeam: '' });
+                        }
+
+                        setCart(directCart);
+                        if (showToast) showToast('ดึงข้อมูลบิล ' + editId + ' สำหรับการแก้ไขเสร็จเรียบร้อย!', 'success');
+                    } else {
+                        // ไม่มี items_json → ใช้ handleEditSale ปกติ
+                        handleEditSale(rawSale);
+                        hasLoadedEditIdRef.current = true;
+                    }
+                } catch (err) {
+                    console.error('Direct edit load error:', err);
                 }
-            } catch(e) {}
-        }, [products, sales]);
+            };
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const editIdParam = urlParams.get('editId');
+            if (editIdParam && !hasLoadedEditIdRef.current) {
+                loadEditRecordDirectly(editIdParam);
+            }
+        }, [products, sales, customers]);
 
         const formatDisplayNumber = (val) => {
             if (val === '' || val === null || val === undefined) return '';
@@ -921,7 +1125,9 @@
         const handleEditSale = (record) => {
             setEditingSaleId(record.id); 
             setFormData({ date: record.date || getLocalISODate() }); 
-            setMemberIdInput(`${record.memberId} - ${record.memberName}`); 
+            const mObj = (members || []).find(m => m && String(m.id || '').toUpperCase() === String(record.memberId || '').toUpperCase());
+            const mName = mObj ? mObj.name : '';
+            setMemberIdInput(mName ? `${record.memberId} - ${mName}` : (record.memberId || ''));
             
             const saleTypeStr = record.saleType || 'สด';
             let loadedMode = 'สด';
@@ -976,6 +1182,7 @@
             setPayCashLAK(lCashLAK);
             setPayTransferThaiTHB(lThaiTHB);
             setPayTransferThaiBank(bThaiTHB);
+            setPayTransferLaosTHB(lLaosTHB);
             setPayTransferLaosBankTHB(bLaosTHB);
             setPayTransferLaosLAK(lLaosLAK);
             setPayTransferLaosBankLAK(bLaosLAK);
@@ -987,13 +1194,14 @@
             }
             
             if (cust) {
-                setCustMode(cust.type || '');
+                setCustMode(record.customerType || record.customer_type || cust.type || '');
                 const cObj = (closers || []).find(cl => cl.name === cust.closer);
                 let cTeam = cObj ? cObj.team : '';
                 if (cTeam === 'Team A') cTeam = 'Marketing';
                 if (cTeam === 'Team B') cTeam = 'Center';
                 setCustData({ id: cust.id, name: cust.name || '', phone: cust.phone || '', lineId: cust.lineId || '', symptom: cust.symptom || '', closer: cust.closer || '', closerTeam: cTeam });
             } else { 
+                setCustMode(record.customerType || record.customer_type || '');
                 setCustData({ id: record.customerId || '', name: record.customerName || '', phone: '', lineId: '', symptom: '', closer: '', closerTeam: '' }); 
             }
 
@@ -1318,23 +1526,20 @@
 
           if (editingSaleId) {
              newRecord.id = editingSaleId;
-           const supaSalesData = {
-                     order_id: newRecord.id,
-                     date: newRecord.date,
-                     seller_id: newRecord.memberId,
-                     customer_id: newRecord.customerId,
-                     member_name: newRecord.memberName,
-                     customer_name: (newCustomerObj ? newCustomerObj.name : (newRecord.customerName || '')),
-                      customer_type: newRecord.customerType || '',
-                     sale_type: newRecord.saleType,
-                     total_amount: newRecord.totalAmount,
-                     total_bottles: cart.reduce((sum, item) => sum + (parseInt(item.qty)||0), 0),
-                     status: 'Completed',
-                     recorded_by: newRecord.recordedBy,
-                     items_json: cart.map(item => ({qty: item.qty, prod: item.productName, type: item.priceType})),
+             const supaSalesData = {
+                 order_id: newRecord.id,
+                 date: newRecord.date,
+                 seller_id: newRecord.memberId,
+                 customer_id: newRecord.customerId,
+                 sale_type: newRecord.saleType,
+                 total_amount: newRecord.totalAmount,
+                 total_bottles: cart.reduce((sum, item) => sum + (parseInt(item.qty)||0), 0),
+                 status: 'Completed',
+                 recorded_by: newRecord.recordedBy,
+                 items_json: cart.map(item => ({qty: item.qty, prod: item.productName, type: item.priceType})),
                  payment_note: newRecord.paymentNote || newRecord.payment_note
-                 };
-                 if (typeof supabaseUpsert === 'function') await supabaseUpsert('stk_sales', supaSalesData);
+             };
+             if (typeof supabaseUpsert === 'function') await supabaseUpsert('stk_sales', supaSalesData);
 
                  if (newCustomerObj && typeof supabaseUpsert === 'function') {
                      await supabaseUpsert('stk_customers', { customer_id: newCustomerObj.id, name: newCustomerObj.name, phone: newCustomerObj.phone, line_id: newCustomerObj.lineId || '', customer_type: newCustomerObj.type, symptom_disease: newCustomerObj.symptom, owner_member_id: newCustomerObj.memberId, closer_id: newCustomerObj.closer, extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName }, status: 'Active' });
@@ -2108,6 +2313,7 @@
       
       const latestSaleIdRef = useRef(null);
       const latestCustIdRef = useRef(null);
+      const hasLoadedEditIdRef = useRef(false);
       const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
       
       const showToast = (message, type = 'success') => {
@@ -2129,7 +2335,8 @@
 
       const activeCustomerTypes = useMemo(() => {
           if (!customerTypes || customerTypes.length === 0) return fallbackCustomerTypes;
-          return (customerTypes || []).filter(p => p && p.status === 'ใช้งาน');
+          const filtered = (customerTypes || []).filter(p => p && p.name && String(p.status || '').trim() !== 'ปิดใช้งาน');
+          return filtered.length > 0 ? filtered : fallbackCustomerTypes;
       }, [customerTypes]);
 
       useEffect(() => {
@@ -2147,29 +2354,46 @@
             initialLoader.style.display = 'none';
         }
 
+        // 💡 INSTANT UI + BACKGROUND REFRESH STRATEGY:
+        // 1. ถ้ามี cache (ไม่ว่าจะเก่าแค่ไหน) → แสดงหน้าจอทันที แล้วดึงข้อมูลใหม่เงียบๆ เบื้องหลัง
+        // 2. ถ้าไม่มี cache เลย → แสดง loading แค่ครั้งแรก ไม่เกิน 1 ครั้งต่อ session
+        let hasCacheData = false;
+        const CACHE_REFRESH_MS = 5 * 60 * 1000; // 5 นาที — ถ้า cache ยังใหม่กว่านี้ ไม่ต้องดึงใหม่เลย
+        let cacheAge = Infinity;
         try {
             const cachedData = localStorage.getItem('stk_app_cache_data');
-            if (cachedData) {
+            const cacheTime = localStorage.getItem('stk_app_cache_time');
+            if (cachedData && cacheTime) {
                 const parsedData = JSON.parse(cachedData);
-                // ⚠️ STOCK FIX: ไม่โหลด products จาก cache เพื่อให้ stock เป็นตัวเลขล่าสุดจาก DB เสมอ
-                const { products: _skipProd, ...cachedWithoutProducts } = parsedData;
-                applyDataToStates(cachedWithoutProducts);
+                // โหลดข้อมูลทั้งหมดจาก cache ก่อน (รวม products)
+                applyDataToStates(parsedData);
+                hasCacheData = true;
+                cacheAge = Date.now() - Number(cacheTime);
+                // แสดงหน้าจอทันทีจาก cache ไม่ต้องรอ API
                 setIsAppLoading(false);
             }
         } catch (e) { console.warn("Cache error", e); }
 
-        // ⚡ SPEED FIX: โหลด products ก่อนเพื่อให้เห็นสต๊อกสินค้าเร็ว แล้วโหลดข้อมูลอื่นตามหลัง
-        supabaseSelect('stk_products').then(pRes => {
-            if (Array.isArray(pRes)) applyDataToStates({ products: pRes });
-        }).catch(() => {});
+        // ถ้า cache ยังสดใหม่มาก (ไม่เกิน 5 นาที) ไม่ต้องดึงใหม่เลย ประหยัด bandwidth
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasEditId = !!urlParams.get('editId');
+        if (hasCacheData && cacheAge < CACHE_REFRESH_MS && !hasEditId) {
+            // อัปเดตเฉพาะ products เบื้องหลัง (สต๊อกต้องสดเสมอ)
+            supabaseSelect('stk_products').then(pRes => {
+                if (Array.isArray(pRes)) applyDataToStates({ products: pRes });
+            }).catch(() => {});
+            return;
+        }
 
+        // ดึงข้อมูลทั้งหมดในพร้อมกัน แต่แสดงหน้าจอจาก cache ก่อน (ถ้ามี)
+        // ถ้าไม่มี cache จะยังคง loading อยู่ระหว่างรอ
         Promise.all([
           supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
           supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
           supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
           supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
-          supabaseSelect('stk_customers').catch(() => supabaseSelect('customers')),
-          supabaseSelect('stk_sales').catch(() => supabaseSelect('sales')),
+          supabaseSelect('stk_customers', 'limit=500').catch(() => supabaseSelect('customers')),
+          supabaseSelect('stk_sales', 'order=order_id.desc&limit=200').catch(() => supabaseSelect('sales')),
           supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams'))
         ]).then(([pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes]) => {
           const resObj = {
@@ -2182,7 +2406,10 @@
             businessTeams: teamRes
           };
           applyDataToStates(resObj);
-          try { localStorage.setItem('stk_app_cache_data', JSON.stringify(resObj)); } catch(e){}
+          try { 
+              localStorage.setItem('stk_app_cache_data', JSON.stringify(resObj)); 
+              localStorage.setItem('stk_app_cache_time', String(Date.now()));
+          } catch(e){}
         }).catch(err => {
           console.error("Supabase load error:", err);
         }).finally(() => {
@@ -2204,7 +2431,7 @@
            if (Array.isArray(response.closers)) setClosers(response.closers.map(x => ({...x, id: x.id || x.closer_id})));
            if (Array.isArray(response.businessTeams)) setBusinessTeams(response.businessTeams.map(t => ({ id: t.id || t.team_id, name: t.name || t.team_name || t.Team_Name || t.TeamName, status: t.status || 'ใช้งาน' })));
            if (Array.isArray(response.members)) { setMembers(response.members.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name, profileUrl: m.id_card_url || m.profileImageUrl || m.profileUrl, idCardDocUrl: m.id_card_url || m.idCardDocUrl, businessTeam: m.business_team || m.businessTeam, team: m.business_team || m.team || m.businessTeam || 'T01', role: m.permission_role || m.role || m.permissionRole, status: m.status, sponsorId: m.sponsor_id || m.sponsorId, accumulatedPv: m.accumulated_pv || m.Accumulated_PV || m.accumulatedPv || m.pv || 0, phone: m.phone_number || m.phone || m.phoneNumber }))); }
-           if (Array.isArray(response.customers)) setCustomers(response.customers.map(x => ({...x, id: x.id || x.customer_id, lineId: x.lineId || x.line_id, closer: x.closer || x.closer_id || "", closerTeam: x.closerTeam || x.closer_team || x.extra_details_json?.closerTeam || "", memberId: x.memberId || x.member_id, memberName: x.memberName || x.member_name || x.extra_details_json?.memberName || ""})));
+           if (Array.isArray(response.customers)) setCustomers(response.customers.map(x => ({...x, id: x.id || x.customer_id, type: String(x.type || x.customer_type || x.customerType || '').trim(), lineId: x.lineId || x.line_id, closer: x.closer || x.closer_id || "", closerTeam: x.closerTeam || x.closer_team || x.extra_details_json?.closerTeam || "", memberId: x.memberId || x.member_id, memberName: x.memberName || x.member_name || x.extra_details_json?.memberName || ""})));
            if (Array.isArray(response.systemUsers)) setSystemUsers(response.systemUsers.map(x => ({...x, id: x.id || x.user_id || x.system_user_id})));
            
            if (Array.isArray(response.sales)) {
@@ -2254,7 +2481,7 @@
                    s.saleType = s.saleType || s.sale_type;
                    s.date = s.date || s.created_at;
                    s.recordedBy = s.recordedBy || s.recorded_by;
-                   s.paymentNote = s.paymentNote || s.payment_note || s.notes;
+                   s.paymentNote = s.paymentNote || s.payment_note || s.notes; s.customerType = s.customerType || s.customer_type || '';
                    s.id = s.id || s.sale_id || s.receipt_id || s.order_id;
                    return s;
                });
@@ -2298,8 +2525,8 @@
           
           <main className={`flex-1 flex flex-col min-h-screen bg-slate-50 transition-all duration-300 relative ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} w-full overflow-x-hidden`}>
             
-            {toast.show && (
-              <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animation-fade-in" style={{ animationDuration: '0.2s' }}>
+            {toast.show && ReactDOM.createPortal(
+              <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[999999] flex items-center justify-center p-4 animation-fade-in" style={{ animationDuration: '0.2s' }}>
                  <div className={`bg-white rounded-3xl shadow-xl p-8 max-w-sm w-full text-center animation-pop border-t-4 ${toast.type === 'error' ? 'border-red-500' : toast.type === 'info' ? 'border-blue-500' : 'border-emerald-500'}`}>
                     <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${toast.type === 'error' ? 'bg-red-100 text-red-500' : toast.type === 'info' ? 'bg-blue-100 text-blue-500' : 'bg-emerald-100 text-emerald-500'}`}>
                        {toast.type === 'error' ? <X size={32} /> : toast.type === 'info' ? <Trophy size={32} /> : <CheckCircle size={32} />}
@@ -2309,7 +2536,7 @@
                     <button onClick={() => setToast({ ...toast, show: false })} className="w-full py-2.5 rounded-lg font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors">ตกลง</button>
                  </div>
               </div>
-            )}
+            , document.body)}
 
             <div className="p-3 sm:p-5 flex-1 w-full relative z-0 custom-scrollbar">
               <div className="w-full relative z-10 xl:h-full flex flex-col min-h-0 pos-layout">

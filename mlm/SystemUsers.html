@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -22,10 +22,10 @@
   </style>
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="lib/react.production.min.js"></script>
+  <script src="lib/react-dom.production.min.js"></script>
+  <script src="lib/babel.min.js"></script>
+  <script src="lib/supabase.min.js"></script>
   <script>
     window.SUPABASE_URL='https://mfpkeyrykqnrywyksyqp.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
     if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
@@ -55,6 +55,11 @@
 
   <script type="text/babel">
     const { useState, useMemo, useEffect, useRef, useCallback } = React;
+    // ðŸ›¡ï¸ GLOBAL ICONS DESTRUCTURING: à¸›à¸¥à¸­à¸”à¸ à¸±à¸¢à¸ˆà¸²à¸à¸•à¸±à¸§à¹à¸›à¸£à¸‹à¹‰à¸³à¸‹à¹‰à¸­à¸™ à¹à¸¥à¸°à¸”à¸¶à¸‡à¹‚à¸¡à¸”à¸¹à¸¥à¹à¸¥à¸°à¸„à¸­à¸¡à¹‚à¸žà¹€à¸™à¸™à¸•à¹Œà¸¡à¸²à¸„à¸£à¸šà¸–à¹‰à¸§à¸™
+    const { LayoutDashboard, ShoppingCart, Users, Contact, Headset, BarChart3, Plus, Edit, Trash2, UserCircle, Menu, X, Save, Info, PackageIcon, Package, Target, Trophy, Activity, Eye, Tags, CheckCircle, GitBranch, Archive, ChevronDown, FileText, SettingsIcon, Coins, ShieldCheck, AlertTriangle, AlertCircle, LoginModal, Toast, Sidebar, Header, ConfirmModal, EditModal, DonutChart, AutoSuggestInput, SearchIcon } = window;
+    
+    
+    
 
     const fallbackCustomerTypes = window.fallbackCustomerTypes || [
        { id: 'T001', name: 'ลูกค้าใหม่', status: 'เข้าใช้งาน' },
@@ -77,6 +82,8 @@
         // Role & Permissions Matrix States
         const [showRolePermissionsModal, setShowRolePermissionsModal] = useState(false);
         const [selectedRoleForPerm, setSelectedRoleForPerm] = useState('พนักงานทั่วไป');
+        const [showRoleNameModal, setShowRoleNameModal] = useState({ show: false, mode: 'add', originalName: '' });
+        const [roleNameInput, setRoleNameInput] = useState('');
 
         const defaultRolePermissions = {
             'ผู้ดูแลระบบ': {
@@ -146,8 +153,104 @@
 
         const handleSaveRolePermissions = () => {
             try { localStorage.setItem('stk_role_permissions', JSON.stringify(rolePermissions)); } catch(e){}
+            
+            // Sync to Supabase stk_system_settings table!
+            if (typeof supabaseUpsert === 'function') {
+                supabaseUpsert('stk_system_settings', {
+                    key: 'role_permissions',
+                    value: JSON.stringify(rolePermissions)
+                }).then(() => {
+                    showToast('บันทึกการตั้งค่าสิทธิ์เรียบร้อยแล้ว (ซิงค์ขึ้น Cloud สำเร็จ)', 'success');
+                }).catch(err => {
+                    console.error("Supabase sync failed:", err);
+                    showToast('บันทึกสำเร็จ (เฉพาะเครื่องนี้ - เกิดข้อผิดพลาดเชื่อมต่อ Cloud)', 'warning');
+                });
+            } else {
+                showToast('บันทึกการตั้งค่าสิทธิ์เรียบร้อยแล้ว', 'success');
+            }
             setShowRolePermissionsModal(false);
-            showToast('บันทึกการตั้งค่าสิทธิ์เรียบร้อยแล้ว', 'success');
+        };
+
+        const handleSaveRoleName = () => {
+            const trimmed = roleNameInput.trim();
+            if (!trimmed) {
+                showToast('กรุณาระบุชื่อบทบาท', 'error');
+                return;
+            }
+
+            if (showRoleNameModal.mode === 'add') {
+                if (rolePermissions[trimmed]) {
+                    showToast('บทบาทนี้มีอยู่แล้วในระบบ', 'error');
+                    return;
+                }
+                setRolePermissions(prev => ({
+                    ...prev,
+                    [trimmed]: { ...defaultRolePermissions['พนักงานทั่วไป'] }
+                }));
+                setSelectedRoleForPerm(trimmed);
+                showToast('เพิ่มบทบาทใหม่เรียบร้อยแล้ว', 'success');
+            } else if (showRoleNameModal.mode === 'rename') {
+                const orig = showRoleNameModal.originalName;
+                if (orig === 'ผู้ดูแลระบบ' || orig === 'admin') {
+                    showToast('ไม่สามารถเปลี่ยนชื่อบทบาทผู้ดูแลระบบได้', 'error');
+                    return;
+                }
+                if (trimmed !== orig && rolePermissions[trimmed]) {
+                    showToast('บทบาทนี้มีอยู่แล้วในระบบ', 'error');
+                    return;
+                }
+                
+                // Copy current permissions to the new name, delete original name
+                setRolePermissions(prev => {
+                    const copy = { ...prev };
+                    copy[trimmed] = copy[orig] || { ...defaultRolePermissions['พนักงานทั่วไป'] };
+                    delete copy[orig];
+                    return copy;
+                });
+
+                // Update any systemUsers that are currently assigned the old role name
+                setSystemUsers(prevUsers => {
+                    return (prevUsers || []).map(u => {
+                        if (u.role === orig) {
+                            return { ...u, role: trimmed };
+                        }
+                        return u;
+                    });
+                });
+
+                setSelectedRoleForPerm(trimmed);
+                showToast('เปลี่ยนชื่อบทบาทเรียบร้อยแล้ว', 'success');
+            }
+            setShowRoleNameModal({ show: false, mode: 'add', originalName: '' });
+            setRoleNameInput('');
+        };
+
+        const handleDeleteRole = () => {
+            const role = selectedRoleForPerm;
+            if (role === 'ผู้ดูแลระบบ' || role === 'admin' || role === 'พนักงานทั่วไป') {
+                showToast('ไม่สามารถลบบทบาทเริ่มต้นของระบบได้', 'error');
+                return;
+            }
+            if (confirm(`คุณต้องการลบบทบาท "${role}" ใช่หรือไม่? (ผู้ใช้ที่ใช้สิทธิ์นี้จะถูกรีเซ็ตเป็น "พนักงานทั่วไป")`)) {
+                setRolePermissions(prev => {
+                    const copy = { ...prev };
+                    delete copy[role];
+                    return copy;
+                });
+                
+                // Reset role of any systemUsers that were assigned this role to "พนักงานทั่วไป"
+                setSystemUsers(prevUsers => {
+                    return (prevUsers || []).map(u => {
+                        if (u.role === role) {
+                            return { ...u, role: 'พนักงานทั่วไป' };
+                        }
+                        return u;
+                    });
+                });
+
+                setSelectedRoleForPerm('พนักงานทั่วไป');
+                showToast('ลบบทบาทเรียบร้อยแล้ว', 'success');
+            }
         };
 
         const initialFormState = { id: '', username: '', password: '', name: '', role: 'พนักงานทั่วไป', status: 'เข้าใช้งาน' };
@@ -305,6 +408,46 @@
           <div className="space-y-6 animation-fade-in relative w-full">
             <ConfirmModal isOpen={confirmDelete.show} onClose={() => setConfirmDelete({show: false, id: null, title: ''})} onConfirm={executeDelete} title="ยืนยันการลบผู้ใช้งาน" message={`คุณต้องการลบผู้ใช้งาน "${confirmDelete.title}" ออกจากระบบใช่หรือไม่?`} />
 
+            {/* Modal ระบุชื่อบทบาทใหม่ / เปลี่ยนชื่อบทบาท */}
+            <EditModal 
+                isOpen={showRoleNameModal.show} 
+                onClose={() => setShowRoleNameModal({ show: false, mode: 'add', originalName: '' })} 
+                title={showRoleNameModal.mode === 'add' ? 'เพิ่มบทบาทใหม่' : 'เปลี่ยนชื่อบทบาท'} 
+                icon={ShieldCheck}
+                maxWidthClass="max-w-md"
+            >
+                <div className="space-y-4">
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 block mb-1">
+                            {showRoleNameModal.mode === 'add' ? 'ระบุชื่อบทบาทสิทธิ์ใหม่ที่ต้องการเพิ่ม:' : 'ระบุชื่อใหม่สำหรับบทบาทนี้:'}
+                        </label>
+                        <input 
+                            type="text" 
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition-all shadow-inner" 
+                            placeholder="เช่น พนักงานบัญชี, หัวหน้าทีม..." 
+                            value={roleNameInput} 
+                            onChange={e => setRoleNameInput(e.target.value)} 
+                        />
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2">
+                        <button 
+                            type="button" 
+                            onClick={() => setShowRoleNameModal({ show: false, mode: 'add', originalName: '' })} 
+                            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
+                        >
+                            ยกเลิก
+                        </button>
+                        <button 
+                            type="button" 
+                            onClick={handleSaveRoleName} 
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors shadow-md shadow-blue-200"
+                        >
+                            บันทึกข้อมูล
+                        </button>
+                    </div>
+                </div>
+            </EditModal>
+
             {/* Modal ตั้งค่าสิทธิ์รายหน้า (Role Permissions Matrix) */}
             <EditModal isOpen={showRolePermissionsModal} onClose={() => setShowRolePermissionsModal(false)} title="ตั้งค่าบทบาทและสิทธิ์การเข้าใช้งานรายหน้า" icon={ShieldCheck}>
                 <div className="space-y-4">
@@ -326,19 +469,29 @@
                             <button 
                                 type="button" 
                                 onClick={() => {
-                                    const newRoleName = prompt('ระบุชื่อบทบาทสิทธิ์ใหม่ที่ต้องการเพิ่ม (เช่น พนักงานบัญชี, หัวหน้าทีมการตลาด):');
-                                    if (newRoleName && newRoleName.trim()) {
-                                        const trimmed = newRoleName.trim();
-                                        setRolePermissions(prev => ({
-                                            ...prev,
-                                            [trimmed]: { ...defaultRolePermissions['พนักงานทั่วไป'] }
-                                        }));
-                                        setSelectedRoleForPerm(trimmed);
-                                    }
+                                    setShowRoleNameModal({ show: true, mode: 'add', originalName: '' });
+                                    setRoleNameInput('');
+                                }} 
+                                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow transition-all shrink-0"
+                            >
+                                + เพิ่มบทบาท
+                            </button>
+                            <button 
+                                type="button" 
+                                onClick={() => {
+                                    setShowRoleNameModal({ show: true, mode: 'rename', originalName: selectedRoleForPerm });
+                                    setRoleNameInput(selectedRoleForPerm);
                                 }} 
                                 className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow transition-all shrink-0"
                             >
-                                + เพิ่มบทบาทใหม่
+                                ✏️ เปลี่ยนชื่อ
+                            </button>
+                            <button 
+                                type="button" 
+                                onClick={handleDeleteRole}
+                                className="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow transition-all shrink-0"
+                            >
+                                🗑️ ลบ
                             </button>
                         </div>
                     </div>
@@ -587,8 +740,8 @@
           
           <main className={`flex-1 flex flex-col min-h-screen bg-slate-50 transition-all duration-300 relative ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} w-full overflow-x-hidden`}>
             
-            {toast.show && (
-              <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animation-fade-in" style={{ animationDuration: '0.2s' }}>
+            {toast.show && ReactDOM.createPortal(
+              <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[999999] flex items-center justify-center p-4 animation-fade-in" style={{ animationDuration: '0.2s' }}>
                  <div className={`bg-white rounded-3xl shadow-xl p-8 max-w-sm w-full text-center animation-pop border-t-4 ${toast.type === 'error' ? 'border-red-500' : toast.type === 'info' ? 'border-blue-500' : 'border-emerald-500'}`}>
                     <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${toast.type === 'error' ? 'bg-red-100 text-red-500' : toast.type === 'info' ? 'bg-blue-100 text-blue-500' : 'bg-emerald-100 text-emerald-500'}`}>
                        {toast.type === 'error' ? <X size={32} /> : toast.type === 'info' ? <Trophy size={32} /> : <CheckCircle size={32} />}
@@ -598,7 +751,7 @@
                     <button onClick={() => setToast({ ...toast, show: false })} className="w-full py-2.5 rounded-lg font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors">ตกลง</button>
                  </div>
               </div>
-            )}
+            , document.body)}
 
             <div className="p-3 sm:p-6 flex-1 w-full relative z-0">
               <div className="w-full relative z-10">
@@ -609,7 +762,7 @@
                     <p className="text-slate-500 text-sm">กรุณารอสักครู่ ระบบกำลังดึงข้อมูลล่าสุด</p>
                   </div>
                 ) : isLoggedIn ? (
-                  isAdmin ? (
+                  (isAdmin || getUserPagePermission(currentUser, 'system_users') !== 'none') ? (
                     <SystemUsersManagementView 
                       systemUsers={systemUsers} 
                       setSystemUsers={setSystemUsers} 
@@ -620,7 +773,7 @@
                   ) : (
                     <div className="flex flex-col items-center justify-center py-32 gap-5 animation-fade-in">
                       <h2 className="text-xl font-black text-red-500">คุณไม่มีสิทธิ์เข้าถึงหน้านี้</h2>
-                      <p className="text-slate-500 text-sm">เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถจัดการผู้ใช้งานได้</p>
+                      <p className="text-slate-500 text-sm">บทบาทของคุณไม่ได้รับสิทธิ์ให้จัดการหรือเข้าดูผู้ใช้งานระบบได้</p>
                     </div>
                   )
                 ) : (

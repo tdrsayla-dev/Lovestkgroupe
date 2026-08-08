@@ -4,6 +4,57 @@
 (function () {
   const IconProps = { fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" };
 
+  // 🎨 GLOBAL STYLES INJECTION: เพิ่ม CSS transition ให้ทุกหน้าเปลี่ยนผ่านแบบนุ่มนวล (Smooth Transition)
+  if (typeof document !== 'undefined') {
+    const styleId = 'stk-global-smooth-styles';
+    if (!document.getElementById(styleId)) {
+      const styleTag = document.createElement('style');
+      styleTag.id = styleId;
+      styleTag.innerHTML = `
+        @keyframes stkFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        /* ⚠️ ห้ามใส่ transform บน main เพราะจะทำให้ position:fixed ของ modal อ้างอิงผิด viewport */
+        main {
+          animation: stkFadeIn 0.3s ease-out forwards !important;
+        }
+        aside, nav, .no-print {
+          transition: all 0.25s ease-in-out;
+        }
+        /* ซ่อน scrollbar ส่วนเกินในขณะสลับหน้า */
+        body {
+          scroll-behavior: smooth;
+        }
+        /* บังคับให้ทุก fixed overlay ครอบ viewport เต็ม และ center modal */
+        .fixed.inset-0 {
+          position: fixed !important;
+          top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+        }
+        .fixed.inset-0.flex {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+        }
+      `;
+      document.head.appendChild(styleTag);
+    }
+
+    // 🎯 MODAL CENTER FIX: บังคับให้ modal/dialog/overlay อยู่กลางหน้าจอเสมอ แม้อยู่ใน iframe
+    const modalStyleId = 'stk-modal-center-fix';
+    if (!document.getElementById(modalStyleId)) {
+      const modalStyle = document.createElement('style');
+      modalStyle.id = modalStyleId;
+      modalStyle.innerHTML = [
+        '/* Backdrop overlay ครอบคลุม viewport เสมอ */',
+        '.fixed.inset-0 { position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100% !important; height: 100% !important; }',
+        '/* Modal overlay ที่มี flex centering บังคับกลางจอ */',
+        '.fixed.inset-0.flex { display: flex !important; align-items: center !important; justify-content: center !important; }',
+      ].join('\n');
+      document.head.appendChild(modalStyle);
+    }
+  }
+
   const LayoutDashboard = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
     React.createElement('rect', { width: "7", height: "9", x: "3", y: "3", rx: "1" }),
     React.createElement('rect', { width: "7", height: "5", x: "14", y: "3", rx: "1" }),
@@ -213,7 +264,7 @@
 
   const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {
     if (!isOpen) return null;
-    return React.createElement('div', {
+    const modalContent = React.createElement('div', {
       className: "fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[1000] flex items-center justify-center p-2 sm:p-4 animation-fade-in",
       onClick: onClose
     }, React.createElement('div', {
@@ -228,14 +279,15 @@
         React.createElement('button', { type: "button", onClick: () => { onConfirm(); onClose(); }, className: "flex-1 py-2.5 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-colors shadow-sm shadow-red-200" }, "ยืนยันการลบ")
       )
     ));
+    return ReactDOM.createPortal(modalContent, document.body);
   };
 
   const EditModal = ({ isOpen, onClose, title, children, icon: Icon, maxWidthClass = "max-w-4xl" }) => {
     if (!isOpen) return null;
-    return React.createElement('div', {
-      className: "fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[990] flex items-center justify-center p-2 sm:p-6 animation-fade-in"
+    const modalContent = React.createElement('div', {
+      className: "fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[99999] flex items-center justify-center p-3 sm:p-6 overflow-y-auto animation-fade-in"
     }, React.createElement('div', {
-      className: `bg-white rounded-3xl shadow-2xl w-full ${maxWidthClass} max-h-[90vh] flex flex-col animation-pop border border-slate-100 relative`,
+      className: `bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full ${maxWidthClass} max-h-[85vh] sm:max-h-[90vh] flex flex-col animation-pop border border-slate-100 relative overflow-hidden my-auto`,
       onClick: e => e.stopPropagation()
     },
       React.createElement('div', { className: "p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl shrink-0" },
@@ -245,9 +297,11 @@
         ),
         React.createElement('button', { type: "button", onClick: onClose, className: "text-slate-400 hover:text-slate-700 p-1 bg-white rounded-md border border-slate-200 shadow-sm transition-colors" }, React.createElement(X, { size: 18 }))
       ),
-      React.createElement('div', { className: "p-4 sm:p-5 overflow-y-auto hide-scroll flex-1" }, children)
+      React.createElement('div', { className: "p-4 sm:p-5 overflow-y-auto custom-scrollbar flex-1" }, children)
     ));
+    return ReactDOM.createPortal(modalContent, document.body);
   };
+
 
   const AutoSuggestInput = ({ value, onChange, onSelect, data, placeholder, required, disabled }) => {
     const [showList, setShowList] = React.useState(false);
@@ -936,6 +990,8 @@
   window.Eye = Eye;
   window.Tags = Tags;
   window.CheckCircle = CheckCircle;
+
+
   window.GitBranch = GitBranch;
   window.Archive = Archive;
   window.ChevronDown = ChevronDown;
@@ -1009,4 +1065,122 @@
   window.Header = Header;
   window.LoginModal = LoginModal;
   window.Toast = Toast;
+
+  // ⚡ HIGH-SPEED MEMORY CACHE ENGINE: แคชการดึงข้อมูลจาก Supabase ลงหน่วยความจำแบบ Real-time 
+  // ทำให้อ่านข้อมูลซ้ำข้ามหน้าได้ทันที 0ms ไม่ต้องรอโหลดผ่านเน็ตเวิร์กใหม่ทุกครั้ง
+  if (typeof window !== 'undefined') {
+    if (!window.top.stkDbCache) {
+      window.top.stkDbCache = {};
+    }
+    
+    // Clear cache helper
+    window.clearDbCache = () => {
+      window.top.stkDbCache = {};
+      console.log("%c⚡ Database Cache Cleared!", "color:orange;font-weight:bold");
+    };
+
+    // Auto-clear cache on clicking manual refresh buttons
+    window.addEventListener('click', (e) => {
+      const btn = e.target.closest('button, a');
+      if (btn) {
+        const text = (btn.textContent || btn.innerText || '').trim();
+        if (text.includes('รีเฟรช') || text.toLowerCase().includes('refresh')) {
+          window.clearDbCache();
+        }
+      }
+    }, true);
+
+    // Decorate supabaseSelect
+    if (typeof window.supabaseSelect === 'function') {
+      const originalSelect = window.supabaseSelect;
+      window.supabaseSelect = async function(table, query) {
+        const cacheKey = table + (query ? '?' + query : '');
+        if (window.top.stkDbCache[cacheKey]) {
+          console.log(`%c⚡ [Cache Hit] Serving ${cacheKey} from memory`, "color:green;font-weight:bold");
+          return JSON.parse(JSON.stringify(window.top.stkDbCache[cacheKey]));
+        }
+        const result = await originalSelect(table, query);
+        window.top.stkDbCache[cacheKey] = result;
+        return result;
+      };
+    }
+
+    const invalidateCache = (table) => {
+      if (window.top.stkDbCache) {
+        Object.keys(window.top.stkDbCache).forEach(key => {
+          if (key === table || key.startsWith(table + '?')) {
+            delete window.top.stkDbCache[key];
+          }
+        });
+        console.log(`%c⚡ [Cache Invalidate] Cleared cache for table: ${table}`, "color:red;font-weight:bold");
+      }
+    };
+
+    // Decorate supabaseInsert
+    if (typeof window.supabaseInsert === 'function') {
+      const originalInsert = window.supabaseInsert;
+      window.supabaseInsert = async function(table, data) {
+        invalidateCache(table);
+        return await originalInsert(table, data);
+      };
+    }
+
+    // Decorate supabaseUpdate
+    if (typeof window.supabaseUpdate === 'function') {
+      const originalUpdate = window.supabaseUpdate;
+      window.supabaseUpdate = async function(table, id, data, pk='id') {
+        invalidateCache(table);
+        return await originalUpdate(table, id, data, pk);
+      };
+    }
+
+    // Decorate supabaseDelete
+    if (typeof window.supabaseDelete === 'function') {
+      const originalDelete = window.supabaseDelete;
+      window.supabaseDelete = async function(table, id, pk='id') {
+        invalidateCache(table);
+        return await originalDelete(table, id, pk);
+      };
+    }
+  }
+
+  // 🔄 Supabase Cloud Permission Sync Listener: ซิงค์สิทธิ์ผู้ใช้งานจาก Supabase ลงเครื่องผู้ใช้อัตโนมัติทุกครั้งที่เปิดเว็บ
+  if (typeof window !== 'undefined') {
+    window.addEventListener('DOMContentLoaded', () => {
+      // Delay slightly to ensure client is ready
+      setTimeout(() => {
+        if (typeof window.supabaseSelect === 'function') {
+          window.supabaseSelect('stk_system_settings')
+            .then(settings => {
+              if (Array.isArray(settings)) {
+                const found = settings.find(s => (s.key || s.setting_key) === 'role_permissions');
+                if (found && (found.value || found.setting_value)) {
+                  localStorage.setItem('stk_role_permissions', found.value || found.setting_value);
+                  // Dispatch storage event locally so open tabs reflect changes
+                  window.dispatchEvent(new Event('storage'));
+                }
+              }
+            })
+            .catch(err => console.warn("Failed to auto-sync role permissions from Supabase:", err));
+        }
+      }, 500);
+    });
+
+    // 🖼️ Iframe Mode: ซ่อน Sidebar/Header ของหน้านั้นๆ เมื่อโหลดอยู่ใน iframe เพื่อไม่ให้เห็นซ้อนกัน
+    if (window.self !== window.top) {
+      const style = document.createElement('style');
+      style.innerHTML = `
+        aside, header, [id^="initial-loader"], #initial-loader { display: none !important; }
+        main, .main-content, #root { margin-left: 0 !important; padding-top: 0 !important; width: 100% !important; max-width: 100% !important; height: 100vh !important; }
+        body { padding: 0 !important; margin: 0 !important; background-color: #f8fafc; }
+      `;
+      document.head.appendChild(style);
+      
+      // Also hide initial loader immediately inside iframe if it exists
+      window.addEventListener('DOMContentLoaded', () => {
+        const loader = document.getElementById('initial-loader');
+        if (loader) loader.style.display = 'none';
+      });
+    }
+  }
 })();
