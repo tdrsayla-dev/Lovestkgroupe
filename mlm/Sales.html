@@ -1158,17 +1158,62 @@
           let nextSaleIdStr = "";
           if (!editingSaleId) {
              const dateParts = formData.date.split('-');
-             const datePrefix = `${dateParts[0]}${dateParts[1]}${dateParts[2]}`; 
-             const prefixSales = (sales || []).filter(s => String(s.id).startsWith(datePrefix));
-             let maxRun = 0;
-             prefixSales.forEach(s => {
-                const parts = String(s.id).split('-');
-                if (parts.length === 2) {
-                   const runNum = parseInt(parts[1], 10);
-                   if (!isNaN(runNum) && runNum > maxRun) maxRun = runNum;
-                }
-             });
-             nextSaleIdStr = `${datePrefix}-${String(maxRun + 1).padStart(3, '0')}`;
+             const datePrefix = `${dateParts[0]}${dateParts[1]}${dateParts[2]}`;
+
+             // 🔒 RACE CONDITION FIX: ดึง ID ล่าสุดจาก Database จริงๆ เสมอ
+             // (ไม่ใช้ State ที่อาจค้างอยู่) เพื่อป้องกันพนักงาน 2 คนกดพร้อมกัน
+             // แล้วได้ ID เดียวกัน ทำให้บิลหายเมื่อ upsert ทับกัน
+             let dbMaxRun = 0;
+             try {
+                 const dbSales = await supabaseSelect(
+                     'stk_sales',
+                     `order_id=like.${datePrefix}*&select=order_id&order=order_id.desc&limit=50`
+                 );
+                 if (Array.isArray(dbSales) && dbSales.length > 0) {
+                     dbSales.forEach(s => {
+                         const parts = String(s.order_id || '').split('-');
+                         if (parts.length === 2) {
+                             const runNum = parseInt(parts[1], 10);
+                             if (!isNaN(runNum) && runNum > dbMaxRun) dbMaxRun = runNum;
+                         }
+                     });
+                 }
+             } catch (err) {
+                 // Fallback: ใช้ State ถ้า DB query ล้มเหลว
+                 const prefixSales = (sales || []).filter(s => String(s.id).startsWith(datePrefix));
+                 prefixSales.forEach(s => {
+                     const parts = String(s.id).split('-');
+                     if (parts.length === 2) {
+                         const runNum = parseInt(parts[1], 10);
+                         if (!isNaN(runNum) && runNum > dbMaxRun) dbMaxRun = runNum;
+                     }
+                 });
+                 console.warn('⚠️ DB query for ID failed, using local state fallback:', err);
+             }
+             nextSaleIdStr = `${datePrefix}-${String(dbMaxRun + 1).padStart(3, '0')}`;
+
+             // 🛡️ DOUBLE-CHECK: ตรวจสอบซ้ำว่า ID ที่สร้างขึ้นยังไม่มีในฐานข้อมูล
+             // (ป้องกันกรณี 2 คนกดพร้อมกัน millisecond เดียวกัน)
+             let finalRun = dbMaxRun + 1;
+             let idCheckAttempts = 0;
+             while (idCheckAttempts < 5) {
+                 try {
+                     const existCheck = await supabaseSelect(
+                         'stk_sales',
+                         `order_id=eq.${datePrefix}-${String(finalRun).padStart(3, '0')}&select=order_id`
+                     );
+                     if (!Array.isArray(existCheck) || existCheck.length === 0) {
+                         break; // ID นี้ยังไม่มีในระบบ ใช้ได้
+                     }
+                     // ID ซ้ำ — เพิ่มเลขและลองใหม่
+                     finalRun++;
+                 } catch (_) {
+                     break; // ถ้า check ไม่ได้ก็ดำเนินการต่อด้วย ID ปัจจุบัน
+                 }
+                 idCheckAttempts++;
+             }
+             nextSaleIdStr = `${datePrefix}-${String(finalRun).padStart(3, '0')}`;
+
           } else { 
              nextSaleIdStr = editingSaleId; 
           }

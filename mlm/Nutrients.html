@@ -85,44 +85,48 @@
       const [endDate, setEndDate] = useState('');
       const [loading, setLoading] = useState(true);
 
-      // โหลดข้อมูลสั่งจ่ายสารอาหารจาก Supabase และ LocalStorage (แสดงเฉพาะรายการที่สั่งจากคลินิกจริงเท่านั้น)
+      // โหลดข้อมูลจาก Supabase เป็นหลัก + sync LocalStorage → Supabase อัตโนมัติ
       const fetchOrders = async () => {
         setLoading(true);
-        let fetchedList = [];
+        let dbList = [];
+        let localList = [];
 
-        // 1. ดึงจาก Supabase Table `stk_nutrient_orders`
-        if (window.supabaseClient) {
-          try {
-            const { data, error } = await window.supabaseClient
-              .from('stk_nutrient_orders')
-              .select('*')
-              .order('created_at', { ascending: false });
-
-            if (!error && data && data.length > 0) {
-              fetchedList = data.map(item => ({
-                id: item.id || item.order_id || `ORD-${item.visit_id}`,
-                visit_id: item.visit_id || item.rxVisitId || '-',
-                hn: item.hn || item.customer_id || '-',
-                customer_name: item.customer_name || item.patient_name || 'ลูกค้าคลินิก',
-                recorded_by: item.recorded_by || item.seller_id || '-',
-                date: item.created_at || item.date || new Date().toISOString(),
+        // ─── 1. ดึงจาก Supabase (ข้อมูลถาวร) ────────────────────────────────
+        try {
+          const dbRes = await fetch(
+            window.SUPABASE_REST_URL + '/stk_nutrient_orders?order=created_at.desc&limit=200',
+            { method: 'GET', headers: window.SUPABASE_HEADERS }
+          );
+          if (dbRes.ok) {
+            const data = await dbRes.json();
+            if (Array.isArray(data)) {
+              dbList = data.map(item => ({
+                id: item.order_id || String(item.id),
+                visit_id: item.visit_id || '-',
+                hn: item.hn || '-',
+                customer_name: item.customer_name || '-',
+                recorded_by: item.recorded_by || '-',
+                date: item.date || item.created_at || new Date().toISOString(),
                 status: item.status || 'รอดำเนินการ',
-                items: typeof item.items === 'string' ? JSON.parse(item.items) : (item.items || [])
+                items: (() => {
+                  try { return JSON.parse(item.items_json || '[]'); } catch(e) { return []; }
+                })()
               }));
             }
-          } catch (err) {
-            console.warn('Supabase fetch nutrient orders error:', err);
           }
+        } catch (err) {
+          console.warn('Supabase fetch nutrient_orders error:', err);
         }
 
-        // 2. ดึงจาก LocalStorage (stk_nutrient_orders และ clinic_mlm_orders ที่ถูกส่งจากคลินิก)
+        // ─── 2. ดึงจาก LocalStorage และ sync ที่ยังไม่มีใน DB ───────────────
         try {
           const localNutrient = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
           const localClinicMlm = JSON.parse(localStorage.getItem('clinic_mlm_orders') || '[]');
-
           const rawCombined = [...localNutrient, ...localClinicMlm];
-          
-          const parsedLocal = rawCombined.map((item, idx) => {
+
+          const dbIdSet = new Set(dbList.map(o => o.id));
+
+          for (const item of rawCombined) {
             let parsedItems = [];
             try {
               parsedItems = typeof item.items === 'string' ? JSON.parse(item.items) : (item.items || item.products || []);
@@ -130,45 +134,70 @@
             } catch(e) { parsedItems = []; }
 
             const vId = item.visit_id || (item.payment_note && item.payment_note.match(/VISIT:\s*([^\)\s]+)/) ? item.payment_note.match(/VISIT:\s*([^\)\s]+)/)[1] : null) || item.rxVisitId || `VIS-${item.id}`;
-            
-            return {
-              id: item.id || item.sale_id || item.order_id || `ORD-CLINIC-${vId}`,
+            const orderId = item.id || item.sale_id || item.order_id || `ORD-CLINIC-${vId}`;
+
+            const normalizedItems = Array.isArray(parsedItems) ? parsedItems.map(it => ({
+              id: it.id,
+              name: it.name || it.product_name || it.title || 'สารอาหาร',
+              source: it.source || it.sourceLabel || 'คลังยา',
+              type: it.type || it.priceType || it.tier || 'ราคาปกติ',
+              priceType: it.priceType || it.type || it.tier || 'ราคาปกติ',
+              tier: it.tier || 'normal',
+              qty: Number(it.qty || it.quantity || 1),
+              price: Number(it.price || it.unit_price || 0),
+              total: Number(it.total || (it.price * it.qty) || 0)
+            })) : [];
+
+            const localEntry = {
+              id: orderId,
               visit_id: vId,
               hn: item.hn || item.customer_id || '-',
               customer_name: item.customer_name || item.patientName || item.patient_name || '-',
               recorded_by: item.recorded_by || item.seller_id || '-',
               date: item.created_at || item.date || new Date().toISOString(),
               status: item.status || 'รอดำเนินการ',
-              items: Array.isArray(parsedItems) ? parsedItems.map(it => ({
-                id: it.id,
-                name: it.name || it.product_name || it.title || 'สารอาหาร',
-                source: it.source || it.sourceLabel || 'คลังยา',
-                type: it.type || it.priceType || it.tier || 'ราคาปกติ',
-                priceType: it.priceType || it.type || it.tier || 'ราคาปกติ',
-                tier: it.tier || 'normal',
-                qty: Number(it.qty || it.quantity || 1),
-                price: Number(it.price || it.unit_price || 0),
-                total: Number(it.total || (it.price * it.qty) || 0)
-              })) : []
+              items: normalizedItems
             };
-          });
 
-          // รวมข้อมูลเฉพาะที่มีจริง โดยตัดตัวซ้ำ
-          const idMap = new Map();
-          [...fetchedList, ...parsedLocal].forEach(o => {
-            if (o.visit_id && o.visit_id !== '-' && !idMap.has(o.id)) {
-              idMap.set(o.id, o);
+            // ─── Sync ขึ้น Supabase ถ้ายังไม่มี ───────────────────────────
+            if (!dbIdSet.has(orderId) && orderId && vId && vId !== '-') {
+              try {
+                const upsertPayload = {
+                  order_id: orderId,
+                  visit_id: vId,
+                  hn: localEntry.hn,
+                  customer_name: localEntry.customer_name,
+                  recorded_by: localEntry.recorded_by,
+                  date: localEntry.date ? localEntry.date.split('T')[0] : new Date().toISOString().split('T')[0],
+                  status: localEntry.status,
+                  items_json: JSON.stringify(normalizedItems)
+                };
+                await fetch(window.SUPABASE_REST_URL + '/stk_nutrient_orders', {
+                  method: 'POST',
+                  headers: Object.assign({}, window.SUPABASE_HEADERS, { 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
+                  body: JSON.stringify(upsertPayload)
+                });
+                dbIdSet.add(orderId);
+              } catch(syncErr) {
+                console.warn('Sync to Supabase failed:', syncErr);
+              }
+              localList.push(localEntry);
             }
-          });
-
-          const mergedList = Array.from(idMap.values());
-          setOrders(mergedList);
+          }
         } catch (ex) {
           console.warn('LocalStorage parse error:', ex);
-          setOrders(fetchedList);
-        } finally {
-          setLoading(false);
         }
+
+        // ─── 3. รวมและ deduplicate ────────────────────────────────────────────
+        const idMap = new Map();
+        [...dbList, ...localList].forEach(o => {
+          if (o.visit_id && o.visit_id !== '-' && !idMap.has(o.id)) {
+            idMap.set(o.id, o);
+          }
+        });
+
+        setOrders(Array.from(idMap.values()));
+        setLoading(false);
       };
 
       useEffect(() => {

@@ -1051,6 +1051,27 @@
              setSystemSettings(settingsObj);
           }
         }).finally(() => setIsAppLoading(false));
+
+        // ⚡ AUTO-REFRESH: รีเฟรชรายการบิลทุก 60 วินาที เพื่อดึงบิลใหม่ที่พนักงานคนอื่นบันทึกโดยไม่ต้อง reload
+        const refreshInterval = setInterval(() => {
+            supabaseSelect('stk_sales').then(saleRes => {
+                if (!Array.isArray(saleRes)) return;
+                let combinedSales = saleRes.filter(s => s && s.status !== 'รอดำเนินการ' && s.status !== 'ร่างใบสั่งซื้อ (จากคลินิก)');
+                setSales(combinedSales.map(s => ({
+                    ...s,
+                    id: s.id || s.sale_id || s.receipt_id || s.order_id,
+                    customerId: s.customerId || s.customer_id,
+                    memberId: s.memberId || s.sellerId || s.seller_id,
+                    totalAmount: s.totalAmount || s.total_amount,
+                    saleType: s.saleType || s.sale_type,
+                    date: s.date || s.created_at,
+                    recordedBy: s.recordedBy || s.recorded_by,
+                    paymentNote: s.paymentNote || s.payment_note
+                })));
+            }).catch(() => {});
+        }, 60000);
+
+        return () => clearInterval(refreshInterval);
       }, []);
 
       const handleLoginSuccess = (user) => {
