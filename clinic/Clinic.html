@@ -71,8 +71,9 @@
             </div>
             <!-- ตัวเลือกสลับภาษา -->
             <div class="mt-2.5 mb-1 px-1">
-                <select class="form-select form-select-sm clinic-lang-select border-0 text-white bg-dark bg-opacity-25 shadow-xs" 
-                    style="font-size:0.78rem;border-radius:8px;cursor:pointer;padding-top:4px;padding-bottom:4px;" 
+                <select
+                    class="form-select form-select-sm clinic-lang-select border-0 text-white bg-dark bg-opacity-25 shadow-xs"
+                    style="font-size:0.78rem;border-radius:8px;cursor:pointer;padding-top:4px;padding-bottom:4px;"
                     onchange="setClinicLanguage(this.value)">
                     <option value="la" class="text-dark">🇱🇦 ພາສາລາວ (Lao)</option>
                     <option value="th" class="text-dark">🇹🇭 ภาษาไทย (Thai)</option>
@@ -89,9 +90,11 @@
             <a href="javascript:void(0);" class="nav-link" id="nav-dashboard" onclick="showPage('dashboard', this)"><i
                     class="ph ph-squares-four"></i> <span data-i18n="sidebar_dashboard">ภาพรวม</span></a>
             <a href="javascript:void(0);" class="nav-link active" id="nav-appointments"
-                onclick="showPage('appointments', this)"><i class="ph ph-calendar-plus"></i> <span data-i18n="sidebar_appointments">นัดหมายล่วงหน้า</span></a>
+                onclick="showPage('appointments', this)"><i class="ph ph-calendar-plus"></i> <span
+                    data-i18n="sidebar_appointments">นัดหมายล่วงหน้า</span></a>
             <a href="javascript:void(0);" class="nav-link" id="nav-registration"
-                onclick="showPage('registration', this)"><i class="ph ph-identification-card"></i> <span data-i18n="sidebar_registration">ทะเบียนผู้ป่วย</span></a>
+                onclick="showPage('registration', this)"><i class="ph ph-identification-card"></i> <span
+                    data-i18n="sidebar_registration">ทะเบียนผู้ป่วย</span></a>
             <a href="javascript:void(0);" class="nav-link" id="nav-triage" onclick="showPage('triage', this)"><i
                     class="ph ph-heartbeat"></i> <span data-i18n="sidebar_triage">จุดคัดกรอง</span></a>
             <a href="javascript:void(0);" class="nav-link" id="nav-doctor" onclick="showPage('doctor', this)"><i
@@ -103,11 +106,13 @@
             <a href="javascript:void(0);" class="nav-link" id="nav-queue" onclick="showPage('queue', this)"><i
                     class="ph ph-list-numbers"></i> <span data-i18n="sidebar_queue">จัดคิว</span></a>
             <a href="javascript:void(0);" class="nav-link" id="nav-prescription"
-                onclick="showPage('prescription', this)"><i class="ph ph-prescription"></i> <span data-i18n="sidebar_prescription">อ่านผล/จัดยา</span></a>
+                onclick="showPage('prescription', this)"><i class="ph ph-prescription"></i> <span
+                    data-i18n="sidebar_prescription">อ่านผล/จัดยา</span></a>
             <a href="javascript:void(0);" class="nav-link" id="nav-pharmacy" onclick="showPage('pharmacy', this)"><i
                     class="ph ph-pill"></i> <span data-i18n="sidebar_pharmacy">ห้องจ่ายยา</span></a>
             <a href="javascript:void(0);" class="nav-link" id="nav-history" onclick="showPage('history', this)"><i
-                    class="ph ph-clock-counter-clockwise"></i> <span data-i18n="sidebar_history">ประวัติผู้ป่วย</span></a>
+                    class="ph ph-clock-counter-clockwise"></i> <span
+                    data-i18n="sidebar_history">ประวัติผู้ป่วย</span></a>
             <a href="javascript:void(0);" class="nav-link" id="nav-billing" onclick="showPage('billing', this)"><i
                     class="ph ph-receipt"></i> <span data-i18n="sidebar_billing">ระบบ Bill / ใบเสร็จ</span></a>
 
@@ -117,16 +122,19 @@
                 <i class="bi bi-chevron-down" style="font-size: 0.75rem;"></i>
             </a>
             <div class="collapse" id="backendMenu">
-                <a href="javascript:void(0);" class="nav-link" id="nav-services"
-                    onclick="showPage('services', this)"><i class="ph ph-sliders"></i> <span data-i18n="sidebar_services">ตั้งค่ารายการตรวจ</span></a>
+                <a href="javascript:void(0);" class="nav-link" id="nav-services" onclick="showPage('services', this)"><i
+                        class="ph ph-sliders"></i> <span data-i18n="sidebar_services">ตั้งค่ารายการตรวจ</span></a>
                 <a href="javascript:void(0);" class="nav-link" id="nav-stock-drugs"
-                    onclick="showPage('stock-drugs', this)"><i class="ph ph-package"></i> <span data-i18n="sidebar_stock_drugs">คลังยา</span></a>
+                    onclick="showPage('stock-drugs', this)"><i class="ph ph-package"></i> <span
+                        data-i18n="sidebar_stock_drugs">คลังยา</span></a>
                 <a href="javascript:void(0);" class="nav-link" id="nav-stock-equip"
-                    onclick="showPage('stock-equip', this)"><i class="ph ph-archive"></i> <span data-i18n="sidebar_stock_equip">คลังพัสดุ</span></a>
+                    onclick="showPage('stock-equip', this)"><i class="ph ph-archive"></i> <span
+                        data-i18n="sidebar_stock_equip">คลังพัสดุ</span></a>
                 <a href="javascript:void(0);" class="nav-link" id="nav-staff" onclick="showPage('staff', this)"><i
                         class="ph ph-users"></i> <span data-i18n="sidebar_staff">จัดการพนักงาน</span></a>
                 <a href="javascript:void(0);" class="nav-link" id="nav-referrals"
-                    onclick="showPage('referrals', this)"><i class="ph ph-hand-coins"></i> <span data-i18n="sidebar_referrals">ระบบปันผล/ผู้แนะนำ</span></a>
+                    onclick="showPage('referrals', this)"><i class="ph ph-hand-coins"></i> <span
+                        data-i18n="sidebar_referrals">ระบบปันผล/ผู้แนะนำ</span></a>
             </div>
         </nav>
     </div>
@@ -144,8 +152,10 @@
                         <i class="ph ph-list fs-4"></i>
                     </button>
                     <div>
-                        <h2 class="fw-bold mb-1" style="color: var(--primary-dark); font-size: 1.4rem;" data-i18n="db_title">ภาพรวมระบบ</h2>
-                        <p class="text-muted mb-0" style="font-size: 0.85rem;" data-i18n="db_subtitle">สถานะและการวิเคราะห์ข้อมูลคลินิก</p>
+                        <h2 class="fw-bold mb-1" style="color: var(--primary-dark); font-size: 1.4rem;"
+                            data-i18n="db_title">ภาพรวมระบบ</h2>
+                        <p class="text-muted mb-0" style="font-size: 0.85rem;" data-i18n="db_subtitle">
+                            สถานะและการวิเคราะห์ข้อมูลคลินิก</p>
                     </div>
                 </div>
                 <div class="text-muted small fw-semibold bg-white p-2 px-3 rounded-pill shadow-sm border">
@@ -361,17 +371,29 @@
             <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
-                            class="bi bi-calendar-event text-primary me-2"></i><span data-i18n="appts_title">ระบบนัดหมาย</span></h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="appts_subtitle">จัดการรายการนัดหมายและลงทะเบียนผู้ป่วย</p>
+                            class="bi bi-calendar-event text-primary me-2"></i><span
+                            data-i18n="appts_title">ระบบนัดหมาย</span></h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="appts_subtitle">
+                        จัดการรายการนัดหมายและลงทะเบียนผู้ป่วย</p>
                 </div>
                 <div class="d-flex gap-2 align-items-center flex-wrap">
                     <!-- Date Selector Filter Capsule -->
-                    <div class="d-flex align-items-center bg-white border rounded-pill px-3 py-1 shadow-sm gap-2" style="border-color: #dee2e6 !important;">
-                        <span class="text-muted fw-semibold small"><i class="bi bi-calendar-event me-1 text-primary"></i><span data-i18n="appts_date_label">วันที่นัด</span></span>
-                        <input type="date" id="appointmentDateFilter" class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none" onchange="filterAppointments()" style="font-size: 0.85rem; width: 125px;">
-                        <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 text-primary fw-semibold small ms-1" onclick="setAppointmentTodayFilter()" title="ตั้งเป็นวันนี้" data-i18n="today">วันนี้</button>
+                    <div class="d-flex align-items-center bg-white border rounded-pill px-3 py-1 shadow-sm gap-2"
+                        style="border-color: #dee2e6 !important;">
+                        <span class="text-muted fw-semibold small"><i
+                                class="bi bi-calendar-event me-1 text-primary"></i><span
+                                data-i18n="appts_date_label">วันที่นัด</span></span>
+                        <input type="date" id="appointmentDateFilter"
+                            class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none"
+                            onchange="filterAppointments()" style="font-size: 0.85rem; width: 125px;">
+                        <button type="button"
+                            class="btn btn-sm btn-link text-decoration-none p-0 text-primary fw-semibold small ms-1"
+                            onclick="setAppointmentTodayFilter()" title="ตั้งเป็นวันนี้"
+                            data-i18n="today">วันนี้</button>
                         <span class="text-muted small">|</span>
-                        <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 text-secondary fw-semibold small" onclick="clearAppointmentDateFilter()" title="แสดงทั้งหมด" data-i18n="all">ทั้งหมด</button>
+                        <button type="button"
+                            class="btn btn-sm btn-link text-decoration-none p-0 text-secondary fw-semibold small"
+                            onclick="clearAppointmentDateFilter()" title="แสดงทั้งหมด" data-i18n="all">ทั้งหมด</button>
                     </div>
 
                     <div class="input-group" style="width: 260px;">
@@ -379,7 +401,8 @@
                             style="border-radius: 10px 0 0 10px; border-color: #dee2e6;"><i
                                 class="bi bi-search text-muted"></i></span>
                         <input type="text" id="searchAppointmentInput" class="form-control border-start-0 ps-0"
-                            placeholder="ค้นหารหัส, ชื่อผู้จอง, เบอร์โทร..." data-i18n-placeholder="appts_search_placeholder" oninput="filterAppointments()"
+                            placeholder="ค้นหารหัส, ชื่อผู้จอง, เบอร์โทร..."
+                            data-i18n-placeholder="appts_search_placeholder" oninput="filterAppointments()"
                             style="border-radius: 0 10px 10px 0; border-color: #dee2e6; padding: 9px 12px;">
                     </div>
                     <button type="button" class="btn btn-primary px-4 py-2 fw-semibold"
@@ -418,9 +441,11 @@
             <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: var(--primary-dark); font-family: 'Kanit', sans-serif;">
-                        <i class="bi bi-person-lines-fill text-primary me-2"></i><span data-i18n="reg_title">ทะเบียนผู้ป่วย</span>
+                        <i class="bi bi-person-lines-fill text-primary me-2"></i><span
+                            data-i18n="reg_title">ทะเบียนผู้ป่วย</span>
                     </h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="reg_subtitle">ข้อมูลและประวัติการรักษาของผู้ป่วยทั้งหมด</p>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="reg_subtitle">
+                        ข้อมูลและประวัติการรักษาของผู้ป่วยทั้งหมด</p>
                 </div>
                 <div class="d-flex align-items-center gap-3 flex-wrap">
                     <!-- Date Selector Container -->
@@ -435,9 +460,13 @@
                         <input type="date" id="patientFilterEndDate"
                             class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none"
                             onchange="filterPatients()" style="font-size: 0.85rem; width: 115px;">
-                        <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 text-primary fw-semibold small ms-1" onclick="setPatientTodayFilter()" title="ตั้งเป็นวันนี้" data-i18n="today">วันนี้</button>
+                        <button type="button"
+                            class="btn btn-sm btn-link text-decoration-none p-0 text-primary fw-semibold small ms-1"
+                            onclick="setPatientTodayFilter()" title="ตั้งเป็นวันนี้" data-i18n="today">วันนี้</button>
                         <span class="text-muted small">|</span>
-                        <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 text-secondary fw-semibold small" onclick="clearPatientDateFilter()" title="แสดงทั้งหมด" data-i18n="all">ทั้งหมด</button>
+                        <button type="button"
+                            class="btn btn-sm btn-link text-decoration-none p-0 text-secondary fw-semibold small"
+                            onclick="clearPatientDateFilter()" title="แสดงทั้งหมด" data-i18n="all">ทั้งหมด</button>
                     </div>
 
                     <!-- Search Input Box with Search Icon -->
@@ -446,8 +475,9 @@
                         <span class="input-group-text bg-white border-0 text-muted ps-3 py-2"><i
                                 class="bi bi-search"></i></span>
                         <input type="text" id="patientSearchInput" class="form-control border-0 ps-1 py-2 shadow-none"
-                            placeholder="ค้นหา ชื่อ, HN, เบอร์โทร..." data-i18n-placeholder="reg_search_placeholder" style="font-size: 0.88rem;"
-                            oninput="filterPatients()" onkeyup="if(event.key === 'Enter') filterPatients()">
+                            placeholder="ค้นหา ชื่อ, HN, เบอร์โทร..." data-i18n-placeholder="reg_search_placeholder"
+                            style="font-size: 0.88rem;" oninput="filterPatients()"
+                            onkeyup="if(event.key === 'Enter') filterPatients()">
                         <button class="btn btn-white border-0 text-muted pe-3 py-2" type="button"
                             onclick="filterPatients()">
                             <i class="bi bi-arrow-right-short fs-5"></i>
@@ -458,7 +488,8 @@
                     <button type="button"
                         class="btn btn-primary px-4 py-2 rounded-pill fw-semibold shadow-sm d-flex align-items-center gap-2"
                         onclick="openAddPatientModal()">
-                        <i class="bi bi-person-plus-fill fs-6"></i> <span data-i18n="reg_add_patient">ลงทะเบียนใหม่</span>
+                        <i class="bi bi-person-plus-fill fs-6"></i> <span
+                            data-i18n="reg_add_patient">ลงทะเบียนใหม่</span>
                     </button>
                 </div>
             </div>
@@ -493,8 +524,10 @@
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
-                            class="bi bi-heart-pulse-fill text-primary me-2"></i><span data-i18n="triage_title">จุดคัดกรอง</span></h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="triage_subtitle">บันทึกสัญญาณชีพเบื้องต้น</p>
+                            class="bi bi-heart-pulse-fill text-primary me-2"></i><span
+                            data-i18n="triage_title">จุดคัดกรอง</span></h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="triage_subtitle">
+                        บันทึกสัญญาณชีพเบื้องต้น</p>
                 </div>
             </div>
             <div class="table-responsive table-container">
@@ -508,7 +541,8 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="3" class="text-center text-muted py-5" data-i18n="triage_empty">ยังไม่มีผู้ป่วยรอคัดกรอง</td>
+                            <td colspan="3" class="text-center text-muted py-5" data-i18n="triage_empty">
+                                ยังไม่มีผู้ป่วยรอคัดกรอง</td>
                         </tr>
                     </tbody>
                 </table>
@@ -520,8 +554,10 @@
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
-                            class="bi bi-stethoscope text-primary me-2"></i><span data-i18n="doctor_title">ห้องตรวจแพทย์</span></h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="doctor_subtitle">รายการผู้ป่วยรอตรวจ และระบบสั่ง Lab</p>
+                            class="bi bi-stethoscope text-primary me-2"></i><span
+                            data-i18n="doctor_title">ห้องตรวจแพทย์</span></h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="doctor_subtitle">
+                        รายการผู้ป่วยรอตรวจ และระบบสั่ง Lab</p>
                 </div>
             </div>
             <div class="table-responsive table-container">
@@ -536,7 +572,8 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="4" class="text-center text-muted py-5" data-i18n="doctor_empty">ไม่มีผู้ป่วยรอตรวจ</td>
+                            <td colspan="4" class="text-center text-muted py-5" data-i18n="doctor_empty">
+                                ไม่มีผู้ป่วยรอตรวจ</td>
                         </tr>
                     </tbody>
                 </table>
@@ -548,8 +585,10 @@
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
-                            class="bi bi-cash-coin text-primary me-2"></i><span data-i18n="payment_title">จ่ายค่ารักษา</span></h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="payment_subtitle">รายการรอชำระเงินก่อนส่งตรวจ Lab</p>
+                            class="bi bi-cash-coin text-primary me-2"></i><span
+                            data-i18n="payment_title">จ่ายค่ารักษา</span></h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="payment_subtitle">
+                        รายการรอชำระเงินก่อนส่งตรวจ Lab</p>
                 </div>
             </div>
             <div class="table-responsive table-container">
@@ -566,7 +605,8 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-5" data-i18n="payment_empty">ไม่มีรายการรอชำระเงิน</td>
+                            <td colspan="6" class="text-center text-muted py-5" data-i18n="payment_empty">
+                                ไม่มีรายการรอชำระเงิน</td>
                         </tr>
                     </tbody>
                 </table>
@@ -579,7 +619,8 @@
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
                             class="bi bi-virus text-primary me-2"></i><span data-i18n="lab_title">ห้อง Lab</span></h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="lab_subtitle">อัปโหลดผล Lab (PDF, PNG, JPG)</p>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="lab_subtitle">อัปโหลดผล Lab (PDF,
+                        PNG, JPG)</p>
                 </div>
             </div>
             <div class="table-responsive table-container">
@@ -596,7 +637,8 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-5" data-i18n="lab_empty">ไม่มีรายการรอตรวจ Lab</td>
+                            <td colspan="6" class="text-center text-muted py-5" data-i18n="lab_empty">ไม่มีรายการรอตรวจ
+                                Lab</td>
                         </tr>
                     </tbody>
                 </table>
@@ -608,7 +650,8 @@
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
-                            class="bi bi-list-ol text-primary me-2"></i><span data-i18n="queue_title">ระบบจัดคิวอ่านผลตรวจ</span></h2>
+                            class="bi bi-list-ol text-primary me-2"></i><span
+                            data-i18n="queue_title">ระบบจัดคิวอ่านผลตรวจ</span></h2>
                     <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="queue_subtitle">
                         บริหารคิวแพทย์และอัปเดตสถานะการตรวจแบบเรียลไทม์</p>
                 </div>
@@ -617,7 +660,8 @@
             <div class="card border-0 mb-3" style="background-color: #f1f5f9; border-radius: 12px;">
                 <div class="card-body d-flex justify-content-between align-items-center py-3 px-4">
                     <h6 class="fw-bold mb-0" style="color: #334155;"><i class="bi bi-people me-1"></i>
-                        <span data-i18n="queue_inner_header">รายชื่อคิวรอส่งให้คุณหมออ่านผล</span></h6>
+                        <span data-i18n="queue_inner_header">รายชื่อคิวรอส่งให้คุณหมออ่านผล</span>
+                    </h6>
                     <button class="btn btn-sm btn-light border" onclick="loadQueueList()"><i
                             class="bi bi-arrow-clockwise"></i> <span data-i18n="refresh">โหลดคิวใหม่</span></button>
                 </div>
@@ -636,7 +680,8 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-5" data-i18n="queue_empty">ไม่มีรายการรอจัดคิว</td>
+                            <td colspan="5" class="text-center text-muted py-5" data-i18n="queue_empty">
+                                ไม่มีรายการรอจัดคิว</td>
                         </tr>
                     </tbody>
                 </table>
@@ -648,8 +693,10 @@
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
-                            class="bi bi-file-medical text-primary me-2"></i><span data-i18n="prescription_title">ห้องตรวจแพทย์ (อ่านผล/จัดยา)</span></h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="prescription_subtitle">คุณหมอกดเรียกพบคนไข้ ดูผลแล็บ
+                            class="bi bi-file-medical text-primary me-2"></i><span
+                            data-i18n="prescription_title">ห้องตรวจแพทย์ (อ่านผล/จัดยา)</span></h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="prescription_subtitle">
+                        คุณหมอกดเรียกพบคนไข้ ดูผลแล็บ
                         และเลือกสั่งจ่ายยา</p>
                 </div>
             </div>
@@ -667,7 +714,8 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-5" data-i18n="prescription_empty">ไม่มีรายการรออ่านผล</td>
+                            <td colspan="6" class="text-center text-muted py-5" data-i18n="prescription_empty">
+                                ไม่มีรายการรออ่านผล</td>
                         </tr>
                     </tbody>
                 </table>
@@ -679,7 +727,8 @@
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
-                            class="bi bi-capsule text-primary me-2"></i><span data-i18n="sidebar_pharmacy">ห้องจ่ายยา</span></h2>
+                            class="bi bi-capsule text-primary me-2"></i><span
+                            data-i18n="sidebar_pharmacy">ห้องจ่ายยา</span></h2>
                     <p class="text-muted mb-0" style="font-size: 0.9rem;">
                         ตรวจสอบรายการยาและอาหารเสริมที่แพทย์จัดสั่งจ่ายให้กับคนไข้</p>
                 </div>
@@ -712,8 +761,10 @@
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
-                            class="bi bi-box2-heart text-primary me-2"></i><span data-i18n="drugs_title">ระบบจัดการคลังยา</span></h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="drugs_subtitle">ติดตามสต็อกยา บันทึกการรับเข้า และควบคุมวันหมดอายุ
+                            class="bi bi-box2-heart text-primary me-2"></i><span
+                            data-i18n="drugs_title">ระบบจัดการคลังยา</span></h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="drugs_subtitle">ติดตามสต็อกยา
+                        บันทึกการรับเข้า และควบคุมวันหมดอายุ
                     </p>
                 </div>
             </div>
@@ -725,12 +776,14 @@
                         <div
                             class="card-header bg-white border-0 pt-4 pb-0 d-flex justify-content-between align-items-center flex-wrap gap-3">
                             <div class="d-flex align-items-center gap-4 flex-wrap">
-                                <h5 class="fw-bold mb-0"><i class="bi bi-table text-primary me-2"></i><span data-i18n="drugs_tab_list">รายการยาในคลัง</span>
+                                <h5 class="fw-bold mb-0"><i class="bi bi-table text-primary me-2"></i><span
+                                        data-i18n="drugs_tab_list">รายการยาในคลัง</span>
                                 </h5>
                                 <!-- ปุ่มสำหรับแบ่งหมวดหมู่ด่วน -->
                                 <div class="d-flex align-items-center gap-3" id="stockCategoryFilterGroup">
                                     <a href="javascript:void(0)" class="text-decoration-none fw-bold text-primary px-1"
-                                        onclick="filterStockTable('all', this)" style="font-size: 0.92rem;" data-i18n="all">ทั้งหมด</a>
+                                        onclick="filterStockTable('all', this)" style="font-size: 0.92rem;"
+                                        data-i18n="all">ทั้งหมด</a>
                                     <a href="javascript:void(0)" class="text-decoration-none text-secondary px-1"
                                         onclick="filterStockTable('ยา', this)"
                                         style="font-size: 0.92rem;">ยารักษาโรค</a>
@@ -741,12 +794,13 @@
                             </div>
                             <div class="d-flex gap-2 align-items-center">
                                 <input type="text" id="searchStockInput" class="form-control custom-input py-1.5"
-                                    placeholder="ค้นหารหัส หรือ ชื่อยา" data-i18n-placeholder="drugs_search_placeholder" style="width: 280px; max-width: 280px;"
-                                    onkeyup="searchMedicineStock()">
+                                    placeholder="ค้นหารหัส หรือ ชื่อยา" data-i18n-placeholder="drugs_search_placeholder"
+                                    style="width: 280px; max-width: 280px;" onkeyup="searchMedicineStock()">
                                 <button class="btn btn-outline-primary py-2 px-3 fw-semibold"
-                                    onclick="loadStockList()"><i class="bi bi-arrow-clockwise me-1"></i> <span data-i18n="refresh">รีเฟรช</span></button>
-                                <button class="btn btn-primary py-2 px-3 fw-bold"
-                                    onclick="openAddMedicineModal()"><span data-i18n="drugs_add">เพิ่มยาใหม่</span></button>
+                                    onclick="loadStockList()"><i class="bi bi-arrow-clockwise me-1"></i> <span
+                                        data-i18n="refresh">รีเฟรช</span></button>
+                                <button class="btn btn-primary py-2 px-3 fw-bold" onclick="openAddMedicineModal()"><span
+                                        data-i18n="drugs_add">เพิ่มยาใหม่</span></button>
                             </div>
                         </div>
                         <div class="card-body p-4">
@@ -757,7 +811,8 @@
                                         <tr>
                                             <th class="ps-3" width="110" data-i18n="drugs_th_code">รหัสสินค้า</th>
                                             <th data-i18n="drugs_th_name">ชื่อรายการ</th>
-                                            <th class="text-center" width="130" data-i18n="drugs_th_category">ประเภท</th>
+                                            <th class="text-center" width="130" data-i18n="drugs_th_category">ประเภท
+                                            </th>
                                             <th class="text-center" width="90" data-i18n="drugs_th_qty">สต็อก</th>
                                             <th class="text-center" width="100" data-i18n="drugs_th_price">ราคาปกติ</th>
                                             <th class="text-center" width="100">ราคาโปร</th>
@@ -858,8 +913,10 @@
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
-                            class="bi bi-boxes text-primary me-2"></i><span data-i18n="equip_title">ระบบจัดการคลังพัสดุ</span></h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="equip_subtitle">ติดตามสต็อก บันทึกการเบิกจ่าย
+                            class="bi bi-boxes text-primary me-2"></i><span
+                            data-i18n="equip_title">ระบบจัดการคลังพัสดุ</span></h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="equip_subtitle">ติดตามสต็อก
+                        บันทึกการเบิกจ่าย
                         และดูประวัติการเบิกพัสดุย้อนหลัง</p>
                 </div>
                 <div class="d-flex gap-2">
@@ -868,7 +925,8 @@
                     <button class="btn btn-primary py-2 px-3 fw-bold" onclick="openAddSupplyModal()"><i
                             class="bi bi-plus-lg me-1"></i> <span data-i18n="equip_add">เพิ่มพัสดุ</span></button>
                     <button class="btn btn-primary py-2 px-3 fw-bold" onclick="openGlobalReqModal()"><i
-                            class="bi bi-box-arrow-up me-1"></i> <span data-i18n="equip_withdraw">เบิกออก</span></button>
+                            class="bi bi-box-arrow-up me-1"></i> <span
+                            data-i18n="equip_withdraw">เบิกออก</span></button>
                 </div>
             </div>
 
@@ -894,7 +952,8 @@
                 </div>
                 <div class="col-md-3">
                     <div class="card border-0 shadow-sm text-center p-3" style="border-radius: 12px;">
-                        <div class="text-muted small mb-1" data-i18n="equip_stat_withdrawn_today">เบิกวันนี้ (ครั้ง)</div>
+                        <div class="text-muted small mb-1" data-i18n="equip_stat_withdrawn_today">เบิกวันนี้ (ครั้ง)
+                        </div>
                         <div class="fw-bold fs-4 text-warning" id="statTodayReq">-</div>
                     </div>
                 </div>
@@ -910,12 +969,14 @@
                 </li>
                 <li class="nav-item">
                     <button class="nav-link fw-bold px-4" onclick="switchSupplyTab('history', this)">
-                        <i class="bi bi-clock-history me-1"></i> <span data-i18n="equip_tab_withdraw_history">ประวัติการเบิก</span>
+                        <i class="bi bi-clock-history me-1"></i> <span
+                            data-i18n="equip_tab_withdraw_history">ประวัติการเบิก</span>
                     </button>
                 </li>
                 <li class="nav-item">
                     <button class="nav-link fw-bold px-4" onclick="switchSupplyTab('intake', this)">
-                        <i class="bi bi-box-arrow-in-down me-1"></i> <span data-i18n="equip_tab_intake_history">ประวัติการรับเข้า</span>
+                        <i class="bi bi-box-arrow-in-down me-1"></i> <span
+                            data-i18n="equip_tab_intake_history">ประวัติการรับเข้า</span>
                     </button>
                 </li>
             </ul>
@@ -924,8 +985,8 @@
             <div id="supplyListTab">
                 <div class="d-flex align-items-center gap-2 mb-3">
                     <input type="text" id="searchSupplyInput" class="form-control custom-input py-2"
-                        placeholder="ค้นหาชื่อพัสดุหรือประเภท..." data-i18n-placeholder="equip_search_placeholder" style="max-width: 300px;"
-                        onkeyup="filterSupplyTable()">
+                        placeholder="ค้นหาชื่อพัสดุหรือประเภท..." data-i18n-placeholder="equip_search_placeholder"
+                        style="max-width: 300px;" onkeyup="filterSupplyTable()">
                 </div>
                 <div class="table-responsive table-container shadow-sm border"
                     style="border-radius: 12px; background: white;">
@@ -1018,18 +1079,21 @@
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
-                            class="bi bi-clock-history text-primary me-2"></i><span data-i18n="history_title">ประวัติการเข้าตรวจผู้ป่วย</span></h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="history_subtitle">ค้นหาและดูประวัติการเข้าตรวจ อาการ ผลแล็บ
+                            class="bi bi-clock-history text-primary me-2"></i><span
+                            data-i18n="history_title">ประวัติการเข้าตรวจผู้ป่วย</span></h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="history_subtitle">
+                        ค้นหาและดูประวัติการเข้าตรวจ อาการ ผลแล็บ
                         และการจัดสั่งจ่ายยาที่เสร็จสิ้นแล้ว</p>
                 </div>
                 <div class="d-flex gap-2 align-items-center flex-wrap">
                     <input type="text" id="searchHistoryInput" class="form-control custom-input py-2"
-                        placeholder="ค้นหา HN, ชื่อ หรือ Visit ID..." data-i18n-placeholder="history_search_placeholder" style="width: 260px;"
-                        onkeyup="searchPatientHistory()">
+                        placeholder="ค้นหา HN, ชื่อ หรือ Visit ID..." data-i18n-placeholder="history_search_placeholder"
+                        style="width: 260px;" onkeyup="searchPatientHistory()">
                     <button class="btn btn-outline-primary py-2 px-3 fw-semibold" onclick="loadPatientHistory()"><i
                             class="bi bi-arrow-clockwise me-1"></i> <span data-i18n="refresh">รีเฟรช</span></button>
                     <button class="btn btn-danger py-2 px-3 fw-bold shadow-sm" onclick="deleteAllHistoryVisits()"><i
-                            class="bi bi-trash3-fill me-1"></i> <span data-i18n="history_btn_delete_all">ลบทั้งหมด</span></button>
+                            class="bi bi-trash3-fill me-1"></i> <span
+                            data-i18n="history_btn_delete_all">ลบทั้งหมด</span></button>
                 </div>
             </div>
 
@@ -1048,7 +1112,8 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-5" data-i18n="history_empty">ไม่มีข้อมูลประวัติผู้ป่วย</td>
+                            <td colspan="6" class="text-center text-muted py-5" data-i18n="history_empty">
+                                ไม่มีข้อมูลประวัติผู้ป่วย</td>
                         </tr>
                     </tbody>
                 </table>
@@ -1059,7 +1124,8 @@
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
-                            class="bi bi-people-fill text-primary me-2"></i><span data-i18n="staff_title">จัดการพนักงาน / ผู้ใช้ระบบ</span></h2>
+                            class="bi bi-people-fill text-primary me-2"></i><span data-i18n="staff_title">จัดการพนักงาน
+                            / ผู้ใช้ระบบ</span></h2>
                     <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="staff_subtitle">เพิ่ม แก้ไข
                         และกำหนดสิทธิ์การเข้าถึงระบบของพนักงาน</p>
                 </div>
@@ -1167,9 +1233,11 @@
             <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;">
-                        <i class="ph ph-hand-coins text-primary me-2"></i><span data-i18n="ref_title">ระบบปันผล / ผู้แนะนำ</span>
+                        <i class="ph ph-hand-coins text-primary me-2"></i><span data-i18n="ref_title">ระบบปันผล /
+                            ผู้แนะนำ</span>
                     </h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="ref_subtitle">จัดการสมาชิกผู้แนะนำ คำนวณเงินปันผล/คอมมิชชั่น
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="ref_subtitle">จัดการสมาชิกผู้แนะนำ
+                        คำนวณเงินปันผล/คอมมิชชั่น
                         และบันทึกการจ่ายเงิน</p>
                 </div>
                 <div class="d-flex gap-2">
@@ -1179,7 +1247,8 @@
                     </button>
                     <button type="button" class="btn btn-primary px-3 py-2 fw-semibold" data-bs-toggle="modal"
                         data-bs-target="#addReferrerModal">
-                        <i class="bi bi-person-plus-fill me-1"></i> <span data-i18n="ref_add_referrer">เพิ่มผู้แนะนำใหม่</span>
+                        <i class="bi bi-person-plus-fill me-1"></i> <span
+                            data-i18n="ref_add_referrer">เพิ่มผู้แนะนำใหม่</span>
                     </button>
                 </div>
             </div>
@@ -1187,27 +1256,30 @@
             <!-- Tab Buttons -->
             <ul class="nav nav-tabs custom-nav-tabs mb-4" id="referralTab" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="ref-logs-tab" data-bs-toggle="tab" data-bs-target="#ref-logs-pane"
-                        type="button" role="tab">
+                    <button class="nav-link active" id="ref-logs-tab" data-bs-toggle="tab"
+                        data-bs-target="#ref-logs-pane" type="button" role="tab">
                         <i class="ph ph-receipt me-1"></i> <span data-i18n="ref_tab_logs">ค่าคอมมิชชั่น / ปันผล</span>
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="ref-members-tab" data-bs-toggle="tab"
                         data-bs-target="#ref-members-pane" type="button" role="tab">
-                        <i class="ph ph-chart-line-up me-1"></i> <span data-i18n="ref_tab_members">รายงานปันผลผู้แนะนำ</span>
+                        <i class="ph ph-chart-line-up me-1"></i> <span
+                            data-i18n="ref_tab_members">รายงานปันผลผู้แนะนำ</span>
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="ref-daily-tab" data-bs-toggle="tab"
-                        data-bs-target="#ref-daily-pane" type="button" role="tab">
-                        <i class="ph ph-receipt me-1"></i> <span data-i18n="ref_tab_daily">รายงานสรุปค่าตรวจประจำวัน</span>
+                    <button class="nav-link" id="ref-daily-tab" data-bs-toggle="tab" data-bs-target="#ref-daily-pane"
+                        type="button" role="tab">
+                        <i class="ph ph-receipt me-1"></i> <span
+                            data-i18n="ref_tab_daily">รายงานสรุปค่าตรวจประจำวัน</span>
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="ref-settings-tab" data-bs-toggle="tab"
                         data-bs-target="#ref-settings-pane" type="button" role="tab">
-                        <i class="ph ph-sliders me-1"></i> <span data-i18n="ref_tab_settings">ตั้งค่าเงื่อนไขปันผล</span>
+                        <i class="ph ph-sliders me-1"></i> <span
+                            data-i18n="ref_tab_settings">ตั้งค่าเงื่อนไขปันผล</span>
                     </button>
                 </li>
             </ul>
@@ -1293,7 +1365,8 @@
 
                     <!-- Bottom Summary Bar (แถบสรุปรวมด้านล่างตาราง) -->
                     <div class="card border rounded-3 shadow-sm bg-white overflow-hidden mt-3 mb-3">
-                        <div class="row g-0 align-items-center text-center py-3 px-2 bg-white" style="font-size: 0.88rem;">
+                        <div class="row g-0 align-items-center text-center py-3 px-2 bg-white"
+                            style="font-size: 0.88rem;">
                             <div class="col-md border-end py-2 px-3">
                                 <div class="text-muted small fw-semibold mb-1">จำนวนรายการรวม</div>
                                 <div class="fw-bold fs-5 text-dark" id="commFooterCount">0 รายการ</div>
@@ -1319,13 +1392,18 @@
 
                     <!-- Pagination Controls -->
                     <div class="d-flex justify-content-center align-items-center gap-2 my-3 mb-4">
-                        <button class="btn btn-sm btn-light border text-muted px-2.5 py-1" style="font-size: 0.82rem;"><i class="bi bi-chevron-left"></i></button>
+                        <button class="btn btn-sm btn-light border text-muted px-2.5 py-1"
+                            style="font-size: 0.82rem;"><i class="bi bi-chevron-left"></i></button>
                         <div class="d-flex gap-1">
-                            <button class="btn btn-sm btn-primary px-3 py-1 fw-bold" style="font-size: 0.82rem;">1</button>
-                            <button class="btn btn-sm btn-light border text-dark px-3 py-1" style="font-size: 0.82rem;">2</button>
-                            <button class="btn btn-sm btn-light border text-dark px-3 py-1" style="font-size: 0.82rem;">3</button>
+                            <button class="btn btn-sm btn-primary px-3 py-1 fw-bold"
+                                style="font-size: 0.82rem;">1</button>
+                            <button class="btn btn-sm btn-light border text-dark px-3 py-1"
+                                style="font-size: 0.82rem;">2</button>
+                            <button class="btn btn-sm btn-light border text-dark px-3 py-1"
+                                style="font-size: 0.82rem;">3</button>
                         </div>
-                        <button class="btn btn-sm btn-light border text-muted px-2.5 py-1" style="font-size: 0.82rem;"><i class="bi bi-chevron-right"></i></button>
+                        <button class="btn btn-sm btn-light border text-muted px-2.5 py-1"
+                            style="font-size: 0.82rem;"><i class="bi bi-chevron-right"></i></button>
                     </div>
                 </div>
 
@@ -1397,7 +1475,8 @@
 
                     <!-- Bottom Summary Bar for Report Tab -->
                     <div class="card border rounded-3 shadow-sm bg-white overflow-hidden mt-3 mb-4">
-                        <div class="row g-0 align-items-center text-center py-3 px-2 bg-white" style="font-size: 0.88rem;">
+                        <div class="row g-0 align-items-center text-center py-3 px-2 bg-white"
+                            style="font-size: 0.88rem;">
                             <div class="col-md border-end py-2 px-3">
                                 <div class="text-muted small fw-semibold mb-1">จำนวนสมาชิกผู้แนะนำ</div>
                                 <div class="fw-bold fs-5 text-dark" id="reportFooterCount">0 คน</div>
@@ -1426,29 +1505,42 @@
                 <div class="tab-pane fade" id="ref-daily-pane" role="tabpanel">
                     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                         <!-- Date Range & Export Capsule Bar -->
-                        <div class="d-flex align-items-center bg-white border rounded-pill p-1 px-3 shadow-sm gap-2 flex-wrap" style="border-color: #cbd5e1 !important;">
-                            <span class="text-muted fw-bold small"><i class="ph ph-calendar-blank me-1 text-primary"></i>Date</span>
-                            <input type="date" id="dailyExamStartDate" class="form-control form-control-sm custom-input border-0 bg-transparent p-0" style="width: 120px; font-size: 0.85rem;" onchange="renderDailyExamReport()">
+                        <div class="d-flex align-items-center bg-white border rounded-pill p-1 px-3 shadow-sm gap-2 flex-wrap"
+                            style="border-color: #cbd5e1 !important;">
+                            <span class="text-muted fw-bold small"><i
+                                    class="ph ph-calendar-blank me-1 text-primary"></i>Date</span>
+                            <input type="date" id="dailyExamStartDate"
+                                class="form-control form-control-sm custom-input border-0 bg-transparent p-0"
+                                style="width: 120px; font-size: 0.85rem;" onchange="renderDailyExamReport()">
                             <span class="text-muted small">-</span>
-                            <input type="date" id="dailyExamEndDate" class="form-control form-control-sm custom-input border-0 bg-transparent p-0" style="width: 120px; font-size: 0.85rem;" onchange="renderDailyExamReport()">
+                            <input type="date" id="dailyExamEndDate"
+                                class="form-control form-control-sm custom-input border-0 bg-transparent p-0"
+                                style="width: 120px; font-size: 0.85rem;" onchange="renderDailyExamReport()">
 
                             <div class="vr mx-1 d-none d-sm-block" style="height: 20px;"></div>
 
                             <div class="d-flex gap-1">
-                                <button type="button" class="btn btn-sm btn-outline-success rounded-pill px-2.5 py-1 font-monospace fw-semibold d-inline-flex align-items-center gap-1" onclick="exportDailyExamExcel()">
+                                <button type="button"
+                                    class="btn btn-sm btn-outline-success rounded-pill px-2.5 py-1 font-monospace fw-semibold d-inline-flex align-items-center gap-1"
+                                    onclick="exportDailyExamExcel()">
                                     <i class="bi bi-file-earmark-excel-fill"></i> Excel
                                 </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2.5 py-1 font-monospace fw-semibold d-inline-flex align-items-center gap-1" onclick="exportDailyExamPDF()">
+                                <button type="button"
+                                    class="btn btn-sm btn-outline-danger rounded-pill px-2.5 py-1 font-monospace fw-semibold d-inline-flex align-items-center gap-1"
+                                    onclick="exportDailyExamPDF()">
                                     <i class="bi bi-file-earmark-pdf-fill"></i> PDF
                                 </button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2.5 py-1 font-monospace fw-semibold d-inline-flex align-items-center gap-1" onclick="printDailyExamReport()">
+                                <button type="button"
+                                    class="btn btn-sm btn-outline-secondary rounded-pill px-2.5 py-1 font-monospace fw-semibold d-inline-flex align-items-center gap-1"
+                                    onclick="printDailyExamReport()">
                                     <i class="bi bi-printer-fill"></i> Print
                                 </button>
                             </div>
                         </div>
 
                         <div class="position-relative" style="min-width: 200px;">
-                            <input type="text" id="searchDailyExamInput" class="form-control custom-input py-2" placeholder="Search..." onkeyup="renderDailyExamReport()">
+                            <input type="text" id="searchDailyExamInput" class="form-control custom-input py-2"
+                                placeholder="Search..." onkeyup="renderDailyExamReport()">
                         </div>
                     </div>
 
@@ -1475,7 +1567,8 @@
 
                     <!-- Bottom Summary Footer Cards (แสดงเฉพาะจำนวนรายการรวม และ ยอดรวมค่าบริการตรวจ) -->
                     <div class="card border rounded-3 shadow-sm bg-white overflow-hidden mt-3 mb-4">
-                        <div class="row g-0 align-items-center text-center py-3 px-2 bg-white" style="font-size: 0.88rem;">
+                        <div class="row g-0 align-items-center text-center py-3 px-2 bg-white"
+                            style="font-size: 0.88rem;">
                             <div class="col-md-6 border-end py-2 px-3">
                                 <div class="text-muted small fw-semibold mb-1">จำนวนรายการรวม</div>
                                 <div class="fw-bold fs-5 text-dark" id="dailyExamFooterCount">10 รายการ</div>
@@ -1697,13 +1790,16 @@
                     </p>
                 </div>
                 <div class="d-flex gap-2 align-items-center flex-wrap">
-                    <button type="button" class="btn btn-outline-primary px-3 py-2 fw-semibold" onclick="loadDailyReport(true)">
+                    <button type="button" class="btn btn-outline-primary px-3 py-2 fw-semibold"
+                        onclick="loadDailyReport(true)">
                         <i class="bi bi-arrow-clockwise me-1"></i> รีเฟรช
                     </button>
-                    <button type="button" class="btn btn-outline-success px-3 py-2 fw-semibold" onclick="exportDailyReportExcel()">
+                    <button type="button" class="btn btn-outline-success px-3 py-2 fw-semibold"
+                        onclick="exportDailyReportExcel()">
                         <i class="bi bi-file-earmark-excel-fill me-1"></i> Export Excel
                     </button>
-                    <button type="button" class="btn btn-outline-secondary px-3 py-2 fw-semibold" onclick="printDailyReport()">
+                    <button type="button" class="btn btn-outline-secondary px-3 py-2 fw-semibold"
+                        onclick="printDailyReport()">
                         <i class="bi bi-printer-fill me-1"></i> พิมพ์รายงาน
                     </button>
                 </div>
@@ -1713,23 +1809,32 @@
             <div class="card border-0 shadow-sm rounded-3 p-3 mb-4 bg-white">
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
                     <div class="btn-group p-0" role="group" id="dailyReportPeriodGroup">
-                        <button type="button" class="btn btn-sm rounded-pill fw-medium px-3 text-muted bg-transparent border-0" id="btnDailyDay" onclick="setDailyReportPeriod('day')">
+                        <button type="button"
+                            class="btn btn-sm rounded-pill fw-medium px-3 text-muted bg-transparent border-0"
+                            id="btnDailyDay" onclick="setDailyReportPeriod('day')">
                             รายวัน <i class="ph ph-calendar ms-1"></i>
                         </button>
-                        <button type="button" class="btn btn-sm rounded-pill fw-medium px-3 text-primary bg-light shadow-xs border-0" id="btnDailyMonth" onclick="setDailyReportPeriod('month')">
+                        <button type="button"
+                            class="btn btn-sm rounded-pill fw-medium px-3 text-primary bg-light shadow-xs border-0"
+                            id="btnDailyMonth" onclick="setDailyReportPeriod('month')">
                             <i class="ph ph-calendar-blank me-1"></i> รายเดือน
                         </button>
-                        <button type="button" class="btn btn-sm rounded-pill fw-medium px-3 text-muted bg-transparent border-0" id="btnDailyYear" onclick="setDailyReportPeriod('year')">
+                        <button type="button"
+                            class="btn btn-sm rounded-pill fw-medium px-3 text-muted bg-transparent border-0"
+                            id="btnDailyYear" onclick="setDailyReportPeriod('year')">
                             รายปี
                         </button>
                     </div>
 
                     <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <input type="month" id="dailyReportMonth" class="form-control custom-input py-1.5" style="width: 160px; font-size: 0.88rem;" onchange="loadDailyReport()">
-                        <input type="date" id="dailyReportDate" class="form-control custom-input py-1.5 d-none" style="width: 150px; font-size: 0.88rem;" onchange="loadDailyReport()">
+                        <input type="month" id="dailyReportMonth" class="form-control custom-input py-1.5"
+                            style="width: 160px; font-size: 0.88rem;" onchange="loadDailyReport()">
+                        <input type="date" id="dailyReportDate" class="form-control custom-input py-1.5 d-none"
+                            style="width: 150px; font-size: 0.88rem;" onchange="loadDailyReport()">
 
                         <div class="position-relative" style="min-width: 220px;">
-                            <input type="text" id="dailyReportSearch" class="form-control custom-input py-1.5 ps-3" placeholder="ค้นหาชื่อผู้ป่วย, HN หรือรหัส..." onkeyup="loadDailyReport()">
+                            <input type="text" id="dailyReportSearch" class="form-control custom-input py-1.5 ps-3"
+                                placeholder="ค้นหาชื่อผู้ป่วย, HN หรือรหัส..." onkeyup="loadDailyReport()">
                         </div>
                     </div>
                 </div>
@@ -1739,7 +1844,8 @@
             <div class="row g-3 mb-4">
                 <div class="col-md-3">
                     <div class="p-3 border rounded shadow-sm bg-white d-flex align-items-center gap-3">
-                        <div class="rounded-circle d-flex align-items-center justify-content-center text-white fs-4" style="width:50px; height:50px; background: linear-gradient(135deg, #0ea5e9, #0284c7);">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center text-white fs-4"
+                            style="width:50px; height:50px; background: linear-gradient(135deg, #0ea5e9, #0284c7);">
                             <i class="ph ph-users-three"></i>
                         </div>
                         <div>
@@ -1750,7 +1856,8 @@
                 </div>
                 <div class="col-md-3">
                     <div class="p-3 border rounded shadow-sm bg-white d-flex align-items-center gap-3">
-                        <div class="rounded-circle d-flex align-items-center justify-content-center text-white fs-4" style="width:50px; height:50px; background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center text-white fs-4"
+                            style="width:50px; height:50px; background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
                             <i class="ph ph-stethoscope"></i>
                         </div>
                         <div>
@@ -1761,7 +1868,8 @@
                 </div>
                 <div class="col-md-3">
                     <div class="p-3 border rounded shadow-sm bg-white d-flex align-items-center gap-3">
-                        <div class="rounded-circle d-flex align-items-center justify-content-center text-white fs-4" style="width:50px; height:50px; background: linear-gradient(135deg, #f59e0b, #d97706);">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center text-white fs-4"
+                            style="width:50px; height:50px; background: linear-gradient(135deg, #f59e0b, #d97706);">
                             <i class="ph ph-flask"></i>
                         </div>
                         <div>
@@ -1772,7 +1880,8 @@
                 </div>
                 <div class="col-md-3">
                     <div class="p-3 border rounded shadow-sm bg-white d-flex align-items-center gap-3">
-                        <div class="rounded-circle d-flex align-items-center justify-content-center text-white fs-4" style="width:50px; height:50px; background: linear-gradient(135deg, #10b981, #059669);">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center text-white fs-4"
+                            style="width:50px; height:50px; background: linear-gradient(135deg, #10b981, #059669);">
                             <i class="ph ph-coins"></i>
                         </div>
                         <div>
@@ -1787,7 +1896,8 @@
             <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white overflow-hidden">
                 <div class="card-header bg-white py-3 border-bottom">
                     <h5 class="fw-bold mb-0 text-dark">
-                        <i class="ph ph-list-numbers text-primary me-2"></i>สรุปยอดค่าบริการแยกตามวัน (Daily Summary Breakdown)
+                        <i class="ph ph-list-numbers text-primary me-2"></i>สรุปยอดค่าบริการแยกตามวัน (Daily Summary
+                        Breakdown)
                     </h5>
                 </div>
                 <div class="table-responsive table-container">
@@ -1838,7 +1948,8 @@
             <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white overflow-hidden">
                 <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
                     <h5 class="fw-bold mb-0 text-dark">
-                        <i class="ph ph-users-three text-primary me-2"></i>ประวัติและรายละเอียดผู้ป่วยแต่ละเคส (Detailed Visit Records)
+                        <i class="ph ph-users-three text-primary me-2"></i>ประวัติและรายละเอียดผู้ป่วยแต่ละเคส (Detailed
+                        Visit Records)
                     </h5>
                 </div>
                 <div class="table-responsive table-container">
@@ -1869,8 +1980,10 @@
         <div id="services" class="page-section" style="min-height: 500px; width: 100%;">
             <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
                 <div>
-                    <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;" data-i18n="services_title">ตั้งค่ารายการตรวจ</h2>
-                    <p class="text-muted mb-0" style="font-size: 0.85rem;" data-i18n="services_subtitle">ตั้งค่าแพ็กเกจรายการตรวจสุขภาพ, Lab และราคาบริการ</p>
+                    <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"
+                        data-i18n="services_title">ตั้งค่ารายการตรวจ</h2>
+                    <p class="text-muted mb-0" style="font-size: 0.85rem;" data-i18n="services_subtitle">
+                        ตั้งค่าแพ็กเกจรายการตรวจสุขภาพ, Lab และราคาบริการ</p>
                 </div>
                 <div class="d-flex gap-2 align-items-center flex-wrap">
                     <div class="input-group" style="width: 280px;">
@@ -1878,19 +1991,57 @@
                             style="border-radius: 10px 0 0 10px; border-color: #dee2e6;"><i
                                 class="bi bi-search text-muted"></i></span>
                         <input type="text" id="searchServiceInput" class="form-control border-start-0 ps-0"
-                            placeholder="ค้นหารายการตรวจ, ราคา..." data-i18n-placeholder="services_search_placeholder" onkeyup="filterServicesTable()"
+                            placeholder="ค้นหารายการตรวจ, ราคา..." data-i18n-placeholder="services_search_placeholder"
+                            onkeyup="filterServicesTable()"
                             style="border-radius: 0 10px 10px 0; border-color: #dee2e6; padding: 7px 12px; font-size: 0.85rem;">
                     </div>
-                    <button class="btn btn-primary px-3.5 py-2 fw-semibold" style="border-radius: 8px;" onclick="openAddServiceModal()">
+                    <button class="btn btn-primary px-3.5 py-2 fw-semibold" style="border-radius: 8px;"
+                        onclick="openAddServiceModal()">
                         <i class="bi bi-plus-lg me-1"></i> <span data-i18n="services_add">เพิ่มรายการตรวจ</span>
                     </button>
-                    <button class="btn btn-outline-success px-3 py-2 fw-semibold ms-1" style="border-radius: 8px;" onclick="exportServicesToExcel()">
+                    <button class="btn btn-outline-success px-3 py-2 fw-semibold ms-1" style="border-radius: 8px;"
+                        onclick="exportServicesToExcel()">
                         <i class="bi bi-file-earmark-excel me-1"></i> <span data-i18n="export_excel">Excel</span>
                     </button>
-                    <button class="btn btn-outline-secondary px-3 py-2 fw-semibold" style="border-radius: 8px;" onclick="window.print()">
+                    <button class="btn btn-outline-secondary px-3 py-2 fw-semibold" style="border-radius: 8px;"
+                        onclick="window.print()">
                         <i class="bi bi-printer me-1"></i> <span data-i18n="print">Print</span>
                     </button>
                 </div>
+            </div>
+            <!-- แท็บหมวดหมู่รายการตรวจ (Category Tabs) -->
+            <div class="mb-3 d-flex flex-wrap gap-2" id="servicesManagementCategoryTabs">
+                <button type="button"
+                    class="btn btn-light border text-secondary service-mgmt-cat-tab px-3 py-1.5 rounded-pill fw-semibold"
+                    style="font-size: 0.85rem;" onclick="filterServicesCategory('เลือดวิทยา (HEMATOLOGY)', this)">
+                    เลือดวิทยา (HEMATOLOGY)
+                </button>
+                <button type="button"
+                    class="btn btn-light border text-secondary service-mgmt-cat-tab px-3 py-1.5 rounded-pill fw-semibold"
+                    style="font-size: 0.85rem;" onclick="filterServicesCategory('ชีวเคมี (Biochemistry)', this)">
+                    ชีวเคมี (Biochemistry)
+                </button>
+                <button type="button"
+                    class="btn btn-light border text-secondary service-mgmt-cat-tab px-3 py-1.5 rounded-pill fw-semibold"
+                    style="font-size: 0.85rem;" onclick="filterServicesCategory('ภูมิคุ้มกันวิทยา (Immunology)', this)">
+                    ภูมิคุ้มกันวิทยา (Immunology)
+                </button>
+                <button type="button"
+                    class="btn btn-light border text-secondary service-mgmt-cat-tab px-3 py-1.5 rounded-pill fw-semibold"
+                    style="font-size: 0.85rem;"
+                    onclick="filterServicesCategory('ปัสสาวะและอุจจาระ (Urinalysis, Stool Examination, and Other)', this)">
+                    ปัสสาวะและอุจจาระ (Urinalysis, Stool Examination, and Other)
+                </button>
+                <button type="button"
+                    class="btn btn-light border text-secondary service-mgmt-cat-tab px-3 py-1.5 rounded-pill fw-semibold"
+                    style="font-size: 0.85rem;" onclick="filterServicesCategory('อื่นๆ (Other)', this)">
+                    อื่นๆ (Other)
+                </button>
+                <button type="button"
+                    class="btn btn-primary active service-mgmt-cat-tab px-3 py-1.5 rounded-pill fw-semibold shadow-sm"
+                    style="font-size: 0.85rem;" onclick="filterServicesCategory('ALL', this)">
+                    ทั้งหมด (All)
+                </button>
             </div>
 
             <div class="card border-0 shadow-sm rounded-3 bg-white overflow-hidden" style="min-height: 480px;">
@@ -1910,17 +2061,21 @@
                         </tbody>
                     </table>
                 </div>
-                <div class="card-footer bg-white border-top py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <div class="text-primary small fw-semibold" id="servicesTotalCountDisplay" style="font-size: 0.95rem;">
+                <div
+                    class="card-footer bg-white border-top py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div class="text-primary small fw-semibold" id="servicesTotalCountDisplay"
+                        style="font-size: 0.95rem;">
                         รายการตรวจทั้งหมด 0 รายการ
                     </div>
                     <nav aria-label="Services pagination">
                         <ul class="pagination pagination-sm mb-0 justify-content-end" id="servicesPagination">
-                            <li class="page-item disabled"><a class="page-link text-muted" href="javascript:void(0);"><i class="bi bi-chevron-left"></i></a></li>
+                            <li class="page-item disabled"><a class="page-link text-muted" href="javascript:void(0);"><i
+                                        class="bi bi-chevron-left"></i></a></li>
                             <li class="page-item active"><a class="page-link" href="javascript:void(0);">1</a></li>
                             <li class="page-item"><a class="page-link text-dark" href="javascript:void(0);">2</a></li>
                             <li class="page-item"><a class="page-link text-dark" href="javascript:void(0);">3</a></li>
-                            <li class="page-item"><a class="page-link text-dark" href="javascript:void(0);"><i class="bi bi-chevron-right"></i></a></li>
+                            <li class="page-item"><a class="page-link text-dark" href="javascript:void(0);"><i
+                                        class="bi bi-chevron-right"></i></a></li>
                         </ul>
                     </nav>
                 </div>
@@ -1931,25 +2086,39 @@
             <!-- Top Header & Actions -->
             <div class="d-flex justify-content-between align-items-center mb-4 flex-column flex-md-row gap-3">
                 <div class="d-flex align-items-center gap-3">
-                    <div class="p-3 rounded-4 bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
+                    <div class="p-3 rounded-4 bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center"
+                        style="width: 52px; height: 52px;">
                         <i class="ph ph-receipt fs-2"></i>
                     </div>
                     <div>
-                        <h2 class="fw-bold mb-1" style="color: var(--primary-dark); font-size: 1.45rem;" data-i18n="bill_title">ระบบ Bill / ใบเสร็จรับเงิน</h2>
-                        <p class="text-muted mb-0 small" data-i18n="bill_subtitle">จัดการและตรวจสอบประวัติการออกใบเสร็จและยอดรับชำระเงินของคลินิก</p>
+                        <h2 class="fw-bold mb-1" style="color: var(--primary-dark); font-size: 1.45rem;"
+                            data-i18n="bill_title">ระบบ Bill / ใบเสร็จรับเงิน</h2>
+                        <p class="text-muted mb-0 small" data-i18n="bill_subtitle">
+                            จัดการและตรวจสอบประวัติการออกใบเสร็จและยอดรับชำระเงินของคลินิก</p>
                     </div>
                 </div>
                 <div class="d-flex gap-2 flex-wrap align-items-center">
-                    <button type="button" class="btn btn-outline-success rounded-pill px-3 py-2 fw-semibold border-2 d-flex align-items-center gap-1.5 shadow-sm" onclick="exportBillsExcel()">
-                        <i class="bi bi-file-earmark-excel-fill text-success fs-6"></i> <span data-i18n="export_excel">Export Excel</span>
+                    <button type="button"
+                        class="btn btn-outline-success rounded-pill px-3 py-2 fw-semibold border-2 d-flex align-items-center gap-1.5 shadow-sm"
+                        onclick="exportBillsExcel()">
+                        <i class="bi bi-file-earmark-excel-fill text-success fs-6"></i> <span
+                            data-i18n="export_excel">Export Excel</span>
                     </button>
-                    <button type="button" class="btn btn-outline-danger rounded-pill px-3 py-2 fw-semibold border-2 d-flex align-items-center gap-1.5 shadow-sm" onclick="exportBillsPDF()">
-                        <i class="bi bi-file-earmark-pdf-fill text-danger fs-6"></i> <span data-i18n="export_pdf">Export PDF</span>
+                    <button type="button"
+                        class="btn btn-outline-danger rounded-pill px-3 py-2 fw-semibold border-2 d-flex align-items-center gap-1.5 shadow-sm"
+                        onclick="exportBillsPDF()">
+                        <i class="bi bi-file-earmark-pdf-fill text-danger fs-6"></i> <span data-i18n="export_pdf">Export
+                            PDF</span>
                     </button>
-                    <button type="button" class="btn btn-primary rounded-pill px-3.5 py-2 fw-semibold d-flex align-items-center gap-1.5 shadow-sm" onclick="printBillsReport()">
-                        <i class="bi bi-printer-fill fs-6"></i> <span data-i18n="bill_print_report">พิมพ์รายงาน (Print)</span>
+                    <button type="button"
+                        class="btn btn-primary rounded-pill px-3.5 py-2 fw-semibold d-flex align-items-center gap-1.5 shadow-sm"
+                        onclick="printBillsReport()">
+                        <i class="bi bi-printer-fill fs-6"></i> <span data-i18n="bill_print_report">พิมพ์รายงาน
+                            (Print)</span>
                     </button>
-                    <button type="button" class="btn btn-light rounded-pill px-3 py-2 fw-semibold border d-flex align-items-center gap-1 shadow-sm text-secondary" onclick="loadBills()">
+                    <button type="button"
+                        class="btn btn-light rounded-pill px-3 py-2 fw-semibold border d-flex align-items-center gap-1 shadow-sm text-secondary"
+                        onclick="loadBills()">
                         <i class="bi bi-arrow-clockwise fs-6"></i> <span data-i18n="refresh">รีเฟรช</span>
                     </button>
                 </div>
@@ -1958,34 +2127,50 @@
             <!-- Dashboard Stat Cards for Billing -->
             <div class="row g-3 mb-4">
                 <div class="col-md-3 col-6">
-                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 position-relative overflow-hidden" style="border-left: 4px solid #3b82f6 !important;">
-                        <div class="text-muted extra-small fw-bold text-uppercase mb-1" style="letter-spacing: 0.5px; font-size: 0.75rem;" data-i18n="bill_total_bills">บิลทั้งหมด</div>
+                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 position-relative overflow-hidden"
+                        style="border-left: 4px solid #3b82f6 !important;">
+                        <div class="text-muted extra-small fw-bold text-uppercase mb-1"
+                            style="letter-spacing: 0.5px; font-size: 0.75rem;" data-i18n="bill_total_bills">บิลทั้งหมด
+                        </div>
                         <div class="d-flex align-items-baseline gap-2">
                             <span class="fs-3 fw-bold text-dark" id="billStatCount">0</span>
                             <span class="text-muted small">รายการ</span>
                         </div>
-                        <i class="ph ph-files position-absolute end-0 bottom-0 m-2 text-primary opacity-10" style="font-size: 3rem;"></i>
+                        <i class="ph ph-files position-absolute end-0 bottom-0 m-2 text-primary opacity-10"
+                            style="font-size: 3rem;"></i>
                     </div>
                 </div>
                 <div class="col-md-3 col-6">
-                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 position-relative overflow-hidden" style="border-left: 4px solid #6366f1 !important;">
-                        <div class="text-muted extra-small fw-bold text-uppercase mb-1" style="letter-spacing: 0.5px; font-size: 0.75rem;" data-i18n="bill_total_services">ยอดรวมบริการ</div>
+                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 position-relative overflow-hidden"
+                        style="border-left: 4px solid #6366f1 !important;">
+                        <div class="text-muted extra-small fw-bold text-uppercase mb-1"
+                            style="letter-spacing: 0.5px; font-size: 0.75rem;" data-i18n="bill_total_services">
+                            ยอดรวมบริการ</div>
                         <div class="fs-4 fw-bold text-dark" id="billStatSubtotal">₭0</div>
-                        <i class="ph ph-calculator position-absolute end-0 bottom-0 m-2 text-indigo opacity-10" style="font-size: 3rem;"></i>
+                        <i class="ph ph-calculator position-absolute end-0 bottom-0 m-2 text-indigo opacity-10"
+                            style="font-size: 3rem;"></i>
                     </div>
                 </div>
                 <div class="col-md-3 col-6">
-                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 position-relative overflow-hidden" style="border-left: 4px solid #ef4444 !important;">
-                        <div class="text-muted extra-small fw-bold text-uppercase mb-1" style="letter-spacing: 0.5px; font-size: 0.75rem;" data-i18n="bill_total_discounts">ส่วนลดรวม</div>
+                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 position-relative overflow-hidden"
+                        style="border-left: 4px solid #ef4444 !important;">
+                        <div class="text-muted extra-small fw-bold text-uppercase mb-1"
+                            style="letter-spacing: 0.5px; font-size: 0.75rem;" data-i18n="bill_total_discounts">
+                            ส่วนลดรวม</div>
                         <div class="fs-4 fw-bold text-danger" id="billStatDiscount">₭0</div>
-                        <i class="ph ph-tag position-absolute end-0 bottom-0 m-2 text-danger opacity-10" style="font-size: 3rem;"></i>
+                        <i class="ph ph-tag position-absolute end-0 bottom-0 m-2 text-danger opacity-10"
+                            style="font-size: 3rem;"></i>
                     </div>
                 </div>
                 <div class="col-md-3 col-6">
-                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 position-relative overflow-hidden" style="border-left: 4px solid #10b981 !important; background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);">
-                        <div class="text-success extra-small fw-bold text-uppercase mb-1" style="letter-spacing: 0.5px; font-size: 0.75rem;" data-i18n="bill_total_net">ยอดรับสุทธิรวม</div>
+                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 position-relative overflow-hidden"
+                        style="border-left: 4px solid #10b981 !important; background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);">
+                        <div class="text-success extra-small fw-bold text-uppercase mb-1"
+                            style="letter-spacing: 0.5px; font-size: 0.75rem;" data-i18n="bill_total_net">ยอดรับสุทธิรวม
+                        </div>
                         <div class="fs-4 fw-bold text-success" id="billStatPayable">₭0</div>
-                        <i class="ph ph-currency-dollar position-absolute end-0 bottom-0 m-2 text-success opacity-10" style="font-size: 3rem;"></i>
+                        <i class="ph ph-currency-dollar position-absolute end-0 bottom-0 m-2 text-success opacity-10"
+                            style="font-size: 3rem;"></i>
                     </div>
                 </div>
             </div>
@@ -1998,20 +2183,29 @@
                             <span class="input-group-text bg-light border-end-0 rounded-start-3 text-muted">
                                 <i class="bi bi-search"></i>
                             </span>
-                            <input type="text" class="form-control form-control-sm border-start-0 bg-light rounded-end-3 py-2" id="billSearchInput"
-                                placeholder="ค้นหาด้วยชื่อผู้ป่วย, HN, Bill ID หรือ Visit ID..."
+                            <input type="text"
+                                class="form-control form-control-sm border-start-0 bg-light rounded-end-3 py-2"
+                                id="billSearchInput" placeholder="ค้นหาด้วยชื่อผู้ป่วย, HN, Bill ID หรือ Visit ID..."
                                 oninput="renderBillsTable()">
                         </div>
                     </div>
                     <div class="col-lg-4 col-md-8 col-12 d-flex align-items-center gap-2">
-                        <input type="date" class="form-control form-control-sm rounded-3 py-2" id="billStartDate" onchange="renderBillsTable()">
+                        <input type="date" class="form-control form-control-sm rounded-3 py-2" id="billStartDate"
+                            onchange="renderBillsTable()">
                         <span class="text-muted small">ถึง</span>
-                        <input type="date" class="form-control form-control-sm rounded-3 py-2" id="billEndDate" onchange="renderBillsTable()">
+                        <input type="date" class="form-control form-control-sm rounded-3 py-2" id="billEndDate"
+                            onchange="renderBillsTable()">
                     </div>
                     <div class="col-lg-3 col-md-4 col-12 d-flex gap-1 justify-content-end">
-                        <button type="button" class="btn btn-light btn-sm rounded-3 px-2 py-1.5 fw-semibold text-secondary flex-fill" onclick="setBillDateFilter('today')" data-i18n="today">วันนี้</button>
-                        <button type="button" class="btn btn-light btn-sm rounded-3 px-2 py-1.5 fw-semibold text-secondary flex-fill" onclick="setBillDateFilter('month')" data-i18n="this_month">เดือนนี้</button>
-                        <button type="button" class="btn btn-light btn-sm rounded-3 px-2 py-1.5 fw-semibold text-secondary flex-fill" onclick="setBillDateFilter('all')" data-i18n="all">ทั้งหมด</button>
+                        <button type="button"
+                            class="btn btn-light btn-sm rounded-3 px-2 py-1.5 fw-semibold text-secondary flex-fill"
+                            onclick="setBillDateFilter('today')" data-i18n="today">วันนี้</button>
+                        <button type="button"
+                            class="btn btn-light btn-sm rounded-3 px-2 py-1.5 fw-semibold text-secondary flex-fill"
+                            onclick="setBillDateFilter('month')" data-i18n="this_month">เดือนนี้</button>
+                        <button type="button"
+                            class="btn btn-light btn-sm rounded-3 px-2 py-1.5 fw-semibold text-secondary flex-fill"
+                            onclick="setBillDateFilter('all')" data-i18n="all">ทั้งหมด</button>
                     </div>
                 </div>
             </div>
@@ -2021,30 +2215,37 @@
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0" id="billsTable" style="font-size: 0.9rem;">
                         <thead class="bg-light border-bottom">
-                            <tr class="small text-secondary fw-bold text-uppercase" style="letter-spacing: 0.4px; white-space: nowrap;">
+                            <tr class="small text-secondary fw-bold text-uppercase"
+                                style="letter-spacing: 0.4px; white-space: nowrap;">
                                 <th class="ps-4 py-3" style="width: 50px;">#</th>
                                 <th class="py-3" style="width: 140px;" data-i18n="bill_id">Bill ID</th>
                                 <th class="py-3" style="width: 130px;" data-i18n="bill_visit_id">Visit ID</th>
                                 <th class="py-3" style="min-width: 160px;" data-i18n="bill_patient">ผู้ป่วย / HN</th>
-                                <th class="py-3 text-center" style="width: 110px;" data-i18n="bill_test_count">รายการ</th>
+                                <th class="py-3 text-center" style="width: 110px;" data-i18n="bill_test_count">รายการ
+                                </th>
                                 <th class="py-3 text-end" style="width: 140px;" data-i18n="bill_subtotal">ยอดบริการ</th>
                                 <th class="py-3 text-end" style="width: 120px;" data-i18n="bill_discount">ส่วนลด</th>
                                 <th class="py-3 text-end" style="width: 150px;" data-i18n="bill_payable">ยอดสุทธิ</th>
                                 <th class="py-3 text-center" style="width: 120px;" data-i18n="status">สถานะ</th>
                                 <th class="py-3 text-center" style="width: 140px;" data-i18n="date">วันที่</th>
-                                <th class="py-3 text-center pe-4" style="width: 130px;" data-i18n="actions">การจัดการ</th>
+                                <th class="py-3 text-center pe-4" style="width: 130px;" data-i18n="actions">การจัดการ
+                                </th>
                             </tr>
                         </thead>
                         <tbody id="billsTableBody">
-                            <tr><td colspan="11" class="text-center text-muted py-5">
-                                <div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูลใบเสร็จ...
-                            </td></tr>
+                            <tr>
+                                <td colspan="11" class="text-center text-muted py-5">
+                                    <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                                    กำลังโหลดข้อมูลใบเสร็จ...
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
 
                 <!-- Footer Summary Bar -->
-                <div class="d-flex justify-content-between align-items-center px-4 py-3 border-top bg-light rounded-bottom-4">
+                <div
+                    class="d-flex justify-content-between align-items-center px-4 py-3 border-top bg-light rounded-bottom-4">
                     <div class="text-muted small fw-semibold">
                         แสดงทั้งหมด <span id="billFooterCount" class="text-dark fw-bold">0</span> รายการ
                     </div>
@@ -2064,9 +2265,11 @@
     <!-- Add/Edit Service Modal -->
     <div class="modal fade" id="addServiceModal" tabindex="-1">
         <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content" style="border-radius: 16px; border: none; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);">
+            <div class="modal-content"
+                style="border-radius: 16px; border: none; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);">
                 <div class="modal-header bg-white px-4 pt-4 pb-2 border-0">
-                    <h5 class="modal-title fw-bold text-dark d-flex align-items-center" id="addServiceModalTitle" style="font-size: 1.15rem;">
+                    <h5 class="modal-title fw-bold text-dark d-flex align-items-center" id="addServiceModalTitle"
+                        style="font-size: 1.15rem;">
                         <i class="bi bi-plus-circle text-primary me-2 fs-5"></i>เพิ่มรายการตรวจ/แพ็กเกจ
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -2092,7 +2295,8 @@
                                     <input type="number" step="any" class="form-control" id="servicePrice" required
                                         placeholder="0.00" value="0.00" min="0" oninput="updatePackagePriceDisplay()"
                                         style="border-radius: 10px 0 0 10px; border: 1.5px solid #dee2e6; border-right: none; padding: 9px 12px; font-size: 0.88rem;">
-                                    <select class="form-select text-dark fw-semibold" id="serviceCurrency" onchange="updatePackagePriceDisplay()"
+                                    <select class="form-select text-dark fw-semibold" id="serviceCurrency"
+                                        onchange="updatePackagePriceDisplay()"
                                         style="max-width: 95px; border-radius: 0 10px 10px 0; border: 1.5px solid #dee2e6; border-left: none; padding: 9px 10px; font-size: 0.88rem;">
                                         <option value="LAK">LAK</option>
                                         <option value="THB">บาท</option>
@@ -2106,14 +2310,17 @@
                                 <span class="fw-semibold small" style="color: #0284c7; font-size: 0.85rem;">
                                     รายการตรวจย่อยในแพ็กเกจ (Sub-Items)
                                 </span>
-                                <button type="button" class="btn btn-sm btn-primary px-3 fw-semibold" style="border-radius: 6px; font-size: 0.8rem;"
-                                    onclick="addServiceSubItemRow()">
+                                <button type="button" class="btn btn-sm btn-primary px-3 fw-semibold"
+                                    style="border-radius: 6px; font-size: 0.8rem;" onclick="addServiceSubItemRow()">
                                     + เพิ่มรายการ
                                 </button>
                             </div>
-                            <div class="border rounded-3 p-0 bg-white overflow-hidden" style="border-color: #e2e8f0 !important;">
-                                <table class="table table-borderless align-middle mb-0" id="serviceSubItemsTable" style="font-size: 0.85rem;">
-                                    <thead class="bg-light text-muted border-bottom" style="font-size: 0.8rem; background-color: #f8fafc !important;">
+                            <div class="border rounded-3 p-0 bg-white overflow-hidden"
+                                style="border-color: #e2e8f0 !important;">
+                                <table class="table table-borderless align-middle mb-0" id="serviceSubItemsTable"
+                                    style="font-size: 0.85rem;">
+                                    <thead class="bg-light text-muted border-bottom"
+                                        style="font-size: 0.8rem; background-color: #f8fafc !important;">
                                         <tr>
                                             <th class="text-center py-2 text-muted" width="55">ลำดับ</th>
                                             <th class="py-2 text-muted">รายการตรวจ</th>
@@ -2125,8 +2332,10 @@
                                         <!-- Dynamic Rows -->
                                     </tbody>
                                 </table>
-                                <div class="p-2.5 bg-light border-top text-end text-muted small" style="background-color: #f8fafc !important; font-size: 0.83rem;">
-                                    ราคารายการรวม: <strong id="packageTotalPriceDisplay" class="fw-bold ms-1" style="font-size: 0.95rem; color: #0284c7 !important;">0 LAK</strong>
+                                <div class="p-2.5 bg-light border-top text-end text-muted small"
+                                    style="background-color: #f8fafc !important; font-size: 0.83rem;">
+                                    ราคารายการรวม: <strong id="packageTotalPriceDisplay" class="fw-bold ms-1"
+                                        style="font-size: 0.95rem; color: #0284c7 !important;">0 LAK</strong>
                                 </div>
                             </div>
                         </div>
@@ -2140,7 +2349,8 @@
                                 <option value="เลือดวิทยา (HEMATOLOGY)">เลือดวิทยา (HEMATOLOGY)</option>
                                 <option value="ชีวเคมี (Biochemistry)">ชีวเคมี (Biochemistry)</option>
                                 <option value="ภูมิคุ้มกันวิทยา (Immunology)">ภูมิคุ้มกันวิทยา (Immunology)</option>
-                                <option value="ปัสสาวะและอุจจาระ (Urinalysis, Stool Examination, and Other)">ปัสสาวะและอุจจาระ (Urinalysis, Stool Examination, and Other)</option>
+                                <option value="ปัสสาวะและอุจจาระ (Urinalysis, Stool Examination, and Other)">
+                                    ปัสสาวะและอุจจาระ (Urinalysis, Stool Examination, and Other)</option>
                                 <option value="อื่นๆ (Other)">อื่นๆ (Other)</option>
                             </select>
                         </div>
@@ -2169,7 +2379,8 @@
             <div class="modal-content" style="border-radius: 16px; border: none;">
                 <div class="modal-header bg-white">
                     <h4 class="modal-title fw-bold" id="addAppointmentModalTitle"><i
-                            class="bi bi-calendar-plus text-primary me-2"></i><span data-i18n="appts_modal_title">เพิ่มการนัดหมาย</span></h4>
+                            class="bi bi-calendar-plus text-primary me-2"></i><span
+                            data-i18n="appts_modal_title">เพิ่มการนัดหมาย</span></h4>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4 bg-white">
@@ -2177,7 +2388,8 @@
                         <input type="hidden" id="appointmentEditId" value="">
                         <div class="mb-4">
                             <label class="form-label fw-bold text-dark d-flex align-items-center gap-2 mb-2">
-                                <i class="ph ph-squares-four text-primary fs-5"></i> <span data-i18n="appts_modal_type">รูปแบบการนัดหมาย</span> <span
+                                <i class="ph ph-squares-four text-primary fs-5"></i> <span
+                                    data-i18n="appts_modal_type">รูปแบบการนัดหมาย</span> <span
                                     class="text-danger">*</span>
                             </label>
                             <div class="p-1 bg-light rounded-3 border d-flex gap-2 position-relative shadow-sm"
@@ -2202,25 +2414,32 @@
                                 </label>
                             </div>
                         </div>
-                        <div class="mb-3"><label class="form-label fw-bold" data-i18n="appts_th_code">รหัสการจอง</label><input type="text"
+                        <div class="mb-3"><label class="form-label fw-bold"
+                                data-i18n="appts_th_code">รหัสการจอง</label><input type="text"
                                 class="form-control custom-input bg-light" id="displayApptId" readonly
                                 placeholder="กำลังสร้างรหัส..."></div>
-                        <div class="mb-3"><label class="form-label fw-bold" data-i18n="reg_name">ชื่อ-นามสกุล (ผู้จอง)</label><input
-                                type="text" class="form-control custom-input" name="guestName" required></div>
-                        <div class="mb-3"><label class="form-label fw-bold" data-i18n="reg_phone">เบอร์โทรศัพท์</label><input type="text"
+                        <div class="mb-3"><label class="form-label fw-bold" data-i18n="reg_name">ชื่อ-นามสกุล
+                                (ผู้จอง)</label><input type="text" class="form-control custom-input" name="guestName"
+                                required></div>
+                        <div class="mb-3"><label class="form-label fw-bold"
+                                data-i18n="reg_phone">เบอร์โทรศัพท์</label><input type="text"
                                 class="form-control custom-input" name="guestPhone" required></div>
                         <div class="row mb-3">
-                            <div class="col-6"><label class="form-label fw-bold" data-i18n="appts_th_date">วันที่นัดหมาย</label><input type="date"
+                            <div class="col-6"><label class="form-label fw-bold"
+                                    data-i18n="appts_th_date">วันที่นัดหมาย</label><input type="date"
                                     class="form-control custom-input" name="appointmentDate" required></div>
-                            <div class="col-6"><label class="form-label fw-bold" data-i18n="appts_th_time">เวลา</label><input type="time"
+                            <div class="col-6"><label class="form-label fw-bold"
+                                    data-i18n="appts_th_time">เวลา</label><input type="time"
                                     class="form-control custom-input" name="appointmentTime" required></div>
                         </div>
-                        <div class="mb-3"><label class="form-label fw-bold" data-i18n="appts_th_reason">อาการที่ต้องการตรวจ</label><input
-                                type="text" class="form-control custom-input" name="reason" required></div>
+                        <div class="mb-3"><label class="form-label fw-bold"
+                                data-i18n="appts_th_reason">อาการที่ต้องการตรวจ</label><input type="text"
+                                class="form-control custom-input" name="reason" required></div>
                         <!-- ช่องระบุผู้แนะนำ (แสดงผลเฉพาะกรณีนัดผ่านผู้ช่วย/พยาบาล) - รองรับทั้งพิมพ์ค้นหาและกดเลือก -->
                         <div class="mb-3" id="apptReferredByContainer" style="display: none;">
                             <label class="form-label fw-bold text-primary d-flex align-items-center gap-1">
-                                <i class="ph ph-hand-coins fs-5 text-primary me-1"></i><span data-i18n="appts_th_referrer">ผู้แนะนำ (Referrer / Dividend)</span>
+                                <i class="ph ph-hand-coins fs-5 text-primary me-1"></i><span
+                                    data-i18n="appts_th_referrer">ผู้แนะนำ (Referrer / Dividend)</span>
                             </label>
                             <input type="text" class="form-select custom-input" list="referrerDatalist"
                                 id="apptReferredBySelect" name="ReferredBy"
@@ -2228,8 +2447,9 @@
                         </div>
                         <input type="hidden" name="status" value="รอ">
                         <div class="d-flex justify-content-end gap-2 mt-4"><button type="button"
-                                class="btn btn-light border" data-bs-dismiss="modal" data-i18n="cancel">ยกเลิก</button><button
-                                type="submit" class="btn btn-primary px-4" data-i18n="appts_modal_save">บันทึกนัดหมาย</button></div>
+                                class="btn btn-light border" data-bs-dismiss="modal"
+                                data-i18n="cancel">ยกเลิก</button><button type="submit" class="btn btn-primary px-4"
+                                data-i18n="appts_modal_save">บันทึกนัดหมาย</button></div>
                     </form>
                 </div>
             </div>
@@ -2292,8 +2512,11 @@
                             <div class="col-md-12">
                                 <div class="d-flex justify-content-between align-items-center mb-1">
                                     <label class="form-label fw-bold text-primary mb-0"><i
-                                            class="ph ph-hand-coins me-1"></i>ผู้แนะนำผู้ป่วย (Referrer / Dividend)</label>
-                                    <span id="patientRefLockHint" class="badge bg-warning-subtle text-dark border border-warning px-2 py-1 small" style="display: none;">
+                                            class="ph ph-hand-coins me-1"></i>ผู้แนะนำผู้ป่วย (Referrer /
+                                        Dividend)</label>
+                                    <span id="patientRefLockHint"
+                                        class="badge bg-warning-subtle text-dark border border-warning px-2 py-1 small"
+                                        style="display: none;">
                                         <i class="ph ph-lock me-1"></i>ล็อกตามการนัดหมายล่วงหน้า (ไม่สามารถแก้ไขได้)
                                     </span>
                                 </div>
@@ -2943,7 +3166,8 @@
                                 <p class="mb-1 text-muted">HN (รหัสผู้ป่วย): <strong id="histHN"
                                         class="text-dark">-</strong></p>
                                 <p class="mb-1 text-muted" id="histReferrerContainer" style="display: none;">ผู้แนะนำ:
-                                    <strong id="histReferrer" class="text-primary">-</strong></p>
+                                    <strong id="histReferrer" class="text-primary">-</strong>
+                                </p>
                             </div>
                         </div>
                         <div class="col-md-6">

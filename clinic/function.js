@@ -7402,34 +7402,54 @@ function openEditServiceModal(id) {
     if (!service) return;
 
     document.getElementById('serviceId').value = service.id;
-    document.getElementById('serviceName').value = service.name;
-    document.getElementById('servicePrice').value = service.price;
+    document.getElementById('serviceName').value = service.name || '';
+    document.getElementById('servicePrice').value = service.price || 0;
     document.getElementById('serviceDescription').value = service.description || '';
 
     const curSelect = document.getElementById('serviceCurrency');
     if (curSelect) curSelect.value = service.currency || 'LAK';
 
     const catSelect = document.getElementById('serviceCategory');
-    if (catSelect) catSelect.value = service.category || getServiceCategory(service);
-
-    let subItems = service.sub_items;
-    if (typeof subItems === 'string') {
-        try { subItems = JSON.parse(subItems); } catch (e) { subItems = []; }
-    }
+    if (catSelect) catSelect.value = service.category || 'เลือดวิทยา (HEMATOLOGY)';
 
     const tbody = document.getElementById('serviceSubItemsBody');
-    if (tbody) {
-        tbody.innerHTML = '';
-        if (subItems && Array.isArray(subItems) && subItems.length > 0) {
-            subItems.forEach((item) => {
+    if (tbody) tbody.innerHTML = '';
+
+    // 🚀 ระบบช่วยกู้คืนข้อมูล (Robust Parsing)
+    let subItems = [];
+    try {
+        if (Array.isArray(service.sub_items)) {
+            subItems = service.sub_items;
+        } else if (typeof service.sub_items === 'string') {
+            let parsed = JSON.parse(service.sub_items);
+            // ถ้าแปลงแล้วยังเป็น String ซ้อนอีกชั้น ให้แปลงอีกรอบ
+            if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+            if (Array.isArray(parsed)) subItems = parsed;
+        }
+    } catch (e) {
+        console.warn("ไม่สามารถอ่านข้อมูลรายการย่อยได้:", e);
+    }
+
+    // นำข้อมูลที่กู้คืนได้ มาแสดงในตาราง
+    if (subItems.length > 0) {
+        subItems.forEach(item => {
+            // เช็คว่ามีฟังก์ชันนี้ไหม ถ้าไม่มีให้สร้าง HTML ตรงๆ ป้องกัน Error
+            if (typeof addServiceSubItemRow === 'function') {
                 addServiceSubItemRow(item.name, item.price);
-            });
-        } else {
+            }
+        });
+    } else {
+        if (typeof addServiceSubItemRow === 'function') {
+            addServiceSubItemRow();
             addServiceSubItemRow();
         }
     }
 
-    updatePackagePriceDisplay();
+    if (typeof updatePackagePriceDisplay === 'function') updatePackagePriceDisplay();
+
+    const title = document.getElementById('addServiceModalTitle');
+    if (title) title.innerHTML = '<i class="bi bi-pencil-square text-warning me-2"></i>แก้ไขรายการตรวจ/แพ็กเกจ';
+
     bootstrap.Modal.getOrCreateInstance(document.getElementById('addServiceModal')).show();
 }
 
@@ -7510,105 +7530,66 @@ window.addServiceSubItemRow = addServiceSubItemRow;
 window.updatePackagePriceDisplay = updatePackagePriceDisplay;
 
 async function saveService() {
+    const editId = document.getElementById('serviceId').value;
+    const name = document.getElementById('serviceName').value.trim();
+    const price = parseFloat(document.getElementById('servicePrice').value) || 0;
+    const currency = document.getElementById('serviceCurrency').value;
+    const category = document.getElementById('serviceCategory').value;
+    const description = document.getElementById('serviceDescription').value.trim();
+
+    if (!name) {
+        Swal.fire('แจ้งเตือน', 'กรุณากรอกชื่อแพ็กเกจ/รายการตรวจ', 'warning');
+        return;
+    }
+
+    const subItems = [];
+    const rows = document.querySelectorAll('#serviceSubItemsBody tr');
+
+    rows.forEach(row => {
+        const inputs = row.querySelectorAll('input');
+        if (inputs.length >= 2) {
+            const subName = inputs[0].value.trim();
+            const subPrice = parseFloat(inputs[1].value) || 0;
+            if (subName !== '') {
+                subItems.push({ name: subName, price: subPrice });
+            }
+        }
+    });
+
+    Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    const payload = {
+        name: name,
+        price: price,
+        currency: currency,
+        category: category,
+        description: description,
+        // 🚀 แก้ไข: ส่งข้อมูล Array ตรงๆ เข้าไปเลย ไม่ต้องใส่ JSON.stringify แล้วครับ
+        sub_items: subItems
+    };
+
+    let error = null;
+
     try {
-        const id = document.getElementById('serviceId')?.value || '';
-        const nameInput = document.getElementById('serviceName');
-        const name = nameInput ? nameInput.value.trim() : '';
-        const price = document.getElementById('servicePrice')?.value || '0';
-        const desc = document.getElementById('serviceDescription')?.value.trim() || '';
-        const currency = document.getElementById('serviceCurrency')?.value || 'LAK';
-        const category = document.getElementById('serviceCategory')?.value || 'เลือดวิทยา (HEMATOLOGY)';
-
-        if (!name) {
-            Swal.fire('กรุณากรอกข้อมูล', 'กรุณาระบุชื่อแพ็กเกจ/รายการตรวจ', 'warning');
-            return;
-        }
-
-        const subItems = [];
-        document.querySelectorAll('#serviceSubItemsBody tr').forEach(row => {
-            const iNameInput = row.querySelector('.subitem-name');
-            const iPriceInput = row.querySelector('.subitem-price');
-            const iName = iNameInput ? iNameInput.value.trim() : '';
-            const iPrice = iPriceInput ? iPriceInput.value.trim() : '';
-            if (iName) {
-                subItems.push({ name: iName, price: iPrice });
-            }
-        });
-
-        const targetId = id || generateId('SRV');
-        const nowIso = new Date().toISOString();
-
-        const serviceObj = {
-            id: targetId,
-            name: name,
-            price: parseFloat(price) || 0,
-            currency: currency,
-            category: category,
-            description: desc,
-            sub_items: subItems,
-            updated_at: nowIso,
-            created_at: nowIso
-        };
-
-        // 1. Memory & LocalStorage immediate update
-        window.servicesData = window.servicesData || [];
-        const index = window.servicesData.findIndex(s => s.id === targetId);
-        if (index !== -1) {
-            window.servicesData[index] = { ...window.servicesData[index], ...serviceObj };
+        if (editId) {
+            const res = await _supabase.from('services').update(payload).eq('id', editId);
+            error = res.error;
         } else {
-            window.servicesData.unshift(serviceObj);
+            payload.id = 'SRV-' + Math.floor(100000 + Math.random() * 900000);
+            const res = await _supabase.from('services').insert([payload]);
+            error = res.error;
         }
 
-        saveServicesLocalData();
-        renderServicesTable();
-
-        // 2. Hide modal
-        const modalEl = document.getElementById('addServiceModal');
-        if (modalEl) {
-            try {
-                const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
-                if (bsModal) bsModal.hide();
-            } catch (err) {
-                if (window.jQuery && $(modalEl).modal) $(modalEl).modal('hide');
-            }
+        if (error) {
+            Swal.fire('ข้อผิดพลาด', error.message, 'error');
+        } else {
+            Swal.fire('สำเร็จ', 'บันทึกข้อมูลรายการตรวจเรียบร้อยแล้ว', 'success');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('addServiceModal')).hide();
+            if (typeof loadServicesData === 'function') loadServicesData();
         }
-
-        // 3. SweetAlert success
-        Swal.fire({
-            icon: 'success',
-            title: 'บันทึกสำเร็จ',
-            text: 'บันทึกข้อมูลรายการตรวจเรียบร้อยแล้ว',
-            confirmButtonColor: '#6366f1'
-        });
-
-        // 4. Async Supabase persistence directly into services table
-        (async () => {
-            try {
-                const dbPayload = {
-                    id: targetId,
-                    name: name,
-                    price: parseFloat(price) || 0,
-                    currency: currency,
-                    description: desc,
-                    sub_items: subItems,
-                    created_at: nowIso
-                };
-
-                if (id) {
-                    let { error } = await _supabase.from('services').update(dbPayload).eq('id', id);
-                    if (error) console.error('Supabase update service error:', error);
-                } else {
-                    let { error } = await _supabase.from('services').insert([dbPayload]);
-                    if (error) console.error('Supabase insert service error:', error);
-                }
-            } catch (e) {
-                console.warn('Database save warning, retained locally:', e);
-            }
-        })();
-
     } catch (err) {
-        console.error('Error in saveService:', err);
-        Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถบันทึกข้อมูลได้: ' + err.message, 'error');
+        console.error("Save Service Error:", err);
+        Swal.fire('ข้อผิดพลาด', 'ไม่สามารถติดต่อฐานข้อมูลได้', 'error');
     }
 }
 window.saveService = saveService;
@@ -9567,89 +9548,7 @@ function editServiceItem(id) {
     }
 }
 
-async function saveService() {
-    const id = document.getElementById('serviceId').value;
-    const name = document.getElementById('serviceName').value.trim();
-    const price = parseFloat(document.getElementById('servicePrice').value || 0);
-    const currency = document.getElementById('serviceCurrency')?.value || 'LAK';
-    const category = document.getElementById('serviceCategory')?.value || 'เลือดวิทยา (HEMATOLOGY)';
-    const description = document.getElementById('serviceDescription')?.value.trim() || '';
 
-    if (!name) {
-        Swal.fire('กรุณากรอกข้อมูล', 'กรุณาระบุชื่อแพ็กเกจ/รายการตรวจ', 'warning');
-        return;
-    }
-
-    const subItems = [];
-    document.querySelectorAll('#serviceSubItemsTable tbody tr').forEach(tr => {
-        const subName = tr.querySelector('.sub-item-name')?.value.trim();
-        const subPrice = parseFloat(tr.querySelector('.sub-item-price')?.value || 0);
-        if (subName) {
-            subItems.push({ name: subName, price: subPrice });
-        }
-    });
-
-    const targetId = id || ('srv-' + Date.now());
-    const servicePayload = {
-        id: targetId,
-        name: name,
-        category: category,
-        price: price,
-        currency: currency,
-        description: description,
-        sub_items: subItems
-    };
-
-    // บันทึกลง Supabase Database
-    try {
-        if (typeof _supabase !== 'undefined') {
-            if (id) {
-                await _supabase.from('services').update({
-                    name: name,
-                    category: category,
-                    price: price,
-                    currency: currency,
-                    description: description,
-                    sub_items: subItems
-                }).eq('id', id);
-            } else {
-                await _supabase.from('services').insert([servicePayload]);
-            }
-        }
-    } catch (err) {
-        console.error('Error syncing service to Supabase:', err);
-    }
-
-    if (id) {
-        const idx = window.allServicesData.findIndex(s => s.id === id);
-        if (idx !== -1) {
-            window.allServicesData[idx].name = name;
-            window.allServicesData[idx].category = category;
-            window.allServicesData[idx].price = price;
-            window.allServicesData[idx].currency = currency;
-            window.allServicesData[idx].description = description;
-            window.allServicesData[idx].sub_items = subItems;
-        }
-    } else {
-        window.allServicesData.unshift(servicePayload);
-    }
-
-    saveServicesToStorage();
-    renderServicesTable();
-
-    const modalEl = document.getElementById('addServiceModal');
-    if (modalEl) {
-        const modalInstance = bootstrap.Modal.getInstance(modalEl);
-        if (modalInstance) modalInstance.hide();
-    }
-
-    Swal.fire({
-        icon: 'success',
-        title: 'บันทึกข้อมูลสำเร็จ',
-        timer: 1500,
-        showConfirmButton: false
-    });
-}
 
 async function deleteServiceItem(id) {
     Swal.fire({
