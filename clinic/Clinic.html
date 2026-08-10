@@ -22,11 +22,23 @@
     <!-- i18n Internationalization Engine -->
     <script src="i18n.js"></script>
     <!-- สคริปต์ตรวจสอบการล็อกอิน -->
+    <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
     <script>
-        const currentUserStr = localStorage.getItem('clinicUser');
-        if (!currentUserStr) {
-            window.location.href = 'login.html'; // ถ้ายังไม่ล็อกอิน ดีดไปหน้าล็อกอินทันที
-        }
+        document.addEventListener("DOMContentLoaded", function () {
+            // ดึงค่า page จาก URL ตัวอย่าง: clinic.html?page=triage
+            const urlParams = new URLSearchParams(window.location.search);
+            const targetPage = urlParams.get('page'); // 🚀 ลบค่าเริ่มต้น 'dashboard' ออก
+
+            // ถ้ามีการระบุหน้าผ่าน URL มาอย่างเจาะจง ให้พยายามเปิดหน้านั้น
+            if (targetPage) {
+                const navEl = document.getElementById('nav-' + targetPage);
+                if (navEl) {
+                    showPage(targetPage, navEl);
+                }
+            }
+            // 🚀 ถ้าไม่มีการระบุหน้าผ่าน URL ปล่อยว่างไว้เลย 
+            // แล้วให้ฟังก์ชัน applyUserPermissions ใน function.js เป็นตัวจัดการเด้งไปหน้าแรกที่มีสิทธิ์เองครับ
+        });
     </script>
 </head>
 

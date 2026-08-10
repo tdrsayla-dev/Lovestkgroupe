@@ -146,19 +146,57 @@ function closeMobileSidebar() {
 }
 
 function showPage(pageId, element) {
+    // 🚀 1. ด่านตรวจสิทธิ์ขั้นสูงสุด: ตรวจสอบสิทธิ์ก่อนเปิดหน้าเสมอ!
+    const currentUserStr = localStorage.getItem('clinicUser');
+    if (currentUserStr) {
+        try {
+            const currentUser = JSON.parse(currentUserStr);
+            const permissions = Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
+            const isAdmin = currentUser.role === 'admin' || currentUser.role === 'ผู้ดูแลระบบ' || permissions.includes('all');
+
+            if (!isAdmin) {
+                // เช็คว่าพนักงานคนนี้มีสิทธิ์ในหน้าที่กำลังจะเปิดหรือไม่
+                const hasAccess = permissions.some(p => p.startsWith(pageId));
+
+                if (!hasAccess) {
+                    // ถ้าไม่มีสิทธิ์! ให้หาหน้าแรกที่เขามีสิทธิ์แล้วสลับไปหน้านั้นแทน
+                    const allMenuKeys = [
+                        'dashboard', 'appointments', 'registration', 'triage', 'doctor',
+                        'payment', 'lab', 'queue', 'prescription', 'pharmacy', 'history',
+                        'billing', 'services', 'stock-drugs', 'stock-equip', 'staff', 'referrals', 'daily-reports'
+                    ];
+                    const firstAllowed = allMenuKeys.find(key => permissions.some(p => p.startsWith(key)));
+
+                    if (firstAllowed) {
+                        pageId = firstAllowed;
+                        element = document.getElementById(`nav-${firstAllowed}`);
+                    } else {
+                        // ถ้าไม่มีสิทธิ์เลยสักหน้าเดียว ให้หยุดการทำงานทันที
+                        console.warn("Access Denied: ไม่มีสิทธิ์การเข้าถึง");
+                        return;
+                    }
+                }
+            }
+        } catch (err) {
+            console.error("Permission Security Error:", err);
+        }
+    }
+
     const targetPage = document.getElementById(pageId);
     if (!targetPage) return;
 
+    // 2. ซ่อนเนื้อหาทุกหน้าก่อน
     document.querySelectorAll('.page-section').forEach(p => {
         p.classList.remove('active');
-        p.style.display = 'none';
+        // ใช้ cssText บังคับซ่อนเด็ดขาด
+        p.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important;';
     });
 
+    // 3. แสดงเฉพาะหน้าที่ได้รับอนุญาต
     targetPage.classList.add('active');
-    targetPage.style.display = 'block';
-    targetPage.style.visibility = 'visible';
-    targetPage.style.opacity = '1';
+    targetPage.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important;';
 
+    // 4. อัปเดตสถานะเมนูด้านซ้ายมือให้เป็น Active
     document.querySelectorAll('#sidebarNav .nav-link').forEach(l => l.classList.remove('active'));
     if (element) {
         element.classList.add('active');
@@ -167,7 +205,7 @@ function showPage(pageId, element) {
         if (navEl) navEl.classList.add('active');
     }
 
-    // อัปเดตชื่อหน้าใน Mobile Top Header
+    // 5. อัปเดตชื่อหน้าใน Mobile Top Header
     const mobileTitleEl = document.getElementById('mobilePageHeaderTitle');
     if (mobileTitleEl) {
         if (element) {
@@ -182,10 +220,10 @@ function showPage(pageId, element) {
         }
     }
 
-    // ปิดเมนู Sidebar บนสมาร์ทโฟนเมื่อกดเลือกหน้า
-    closeMobileSidebar();
+    // 6. ปิดเมนู Sidebar บนสมาร์ทโฟนเมื่อกดเลือกหน้า
+    if (typeof closeMobileSidebar === 'function') closeMobileSidebar();
 
-    // โหลดข้อมูลอัตโนมัติเมื่อกดเข้าสู่แต่ละหน้า
+    // 7. โหลดข้อมูลอัตโนมัติเมื่อกดเข้าสู่แต่ละหน้า
     try {
         if (pageId === 'dashboard') {
             if (typeof window.renderCalendar === 'function') window.renderCalendar();
@@ -6006,64 +6044,163 @@ function applyUserPermissions(currentUser) {
     if (!currentUser) return;
 
     let permissions = Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
-    if (!permissions.includes('services')) {
-        permissions.push('services');
-    }
+
+    // ตรวจสอบสิทธิ์ Admin
     const isAdmin = currentUser.role === 'admin' ||
         currentUser.role === 'ผู้ดูแลระบบ' ||
-        permissions.includes('all') ||
-        permissions.length === 0 ||
-        true;
+        permissions.includes('all');
 
     const allMenuKeys = [
-        'dashboard',
-        'appointments',
-        'registration',
-        'triage',
-        'doctor',
-        'payment',
-        'lab',
-        'queue',
-        'prescription',
-        'pharmacy',
-        'history',
-        'services',
-        'stock-drugs',
-        'stock-equip',
-        'staff',
-        'referrals',
-        'daily-reports'
+        'dashboard', 'appointments', 'registration', 'triage', 'doctor',
+        'payment', 'lab', 'queue', 'prescription', 'pharmacy', 'history',
+        'billing', 'services', 'stock-drugs', 'stock-equip', 'staff', 'referrals', 'daily-reports'
     ];
 
-    let hasBackendPermission = true;
+    let firstAllowedPage = null;
 
-    // ตรวจสอบสิทธิ์ Dashboard
-    const navDashboard = document.getElementById('nav-dashboard');
-    if (navDashboard) {
-        navDashboard.style.display = '';
-    }
-
+    // 1. จัดการซ่อน/แสดงเมนูหลักที่ Sidebar ตามสิทธิ์
     allMenuKeys.forEach(key => {
-        if (key === 'dashboard') return;
-        const hasAccess = true;
+        const hasAccess = isAdmin || permissions.some(p => p.startsWith(key));
 
-        // 1. ซ่อน/แสดง เมนูใน Clinic.html (id="nav-{key}")
-        const navEl = document.getElementById(`nav-${key}`);
-        if (navEl) {
-            navEl.style.display = '';
+        // บันทึกชื่อหน้าแรกที่เขาอนุญาตให้เข้าถึงได้
+        if (hasAccess && !firstAllowedPage) {
+            firstAllowedPage = key;
         }
 
-        // 2. ซ่อน/แสดง ลิงก์ใน index.html หรือ links ที่ไป clinic.html?page={key}
+        const navEl = document.getElementById(`nav-${key}`);
+        if (navEl) {
+            if (!hasAccess) {
+                // 🚀 ใช้ d-none เพื่อเอาชนะ d-flex ของ Bootstrap
+                navEl.classList.add('d-none');
+                navEl.style.display = 'none';
+            } else {
+                navEl.classList.remove('d-none');
+                navEl.style.display = '';
+            }
+        }
+
         const pageLinks = document.querySelectorAll(`a[href*="page=${key}"]`);
         pageLinks.forEach(link => {
-            link.style.display = '';
+            if (!hasAccess) {
+                link.classList.add('d-none');
+            } else {
+                link.classList.remove('d-none');
+            }
         });
     });
 
-    // แสดงเมนูระบบหลังบ้าน (Dropdown Menu Header)
+    // 2. จัดการเมนูระบบหลังบ้าน (Backend Menu Dropdown)
+    const backendKeys = ['services', 'stock-drugs', 'stock-equip', 'staff', 'referrals', 'daily-reports'];
+    const hasBackendAccess = isAdmin || permissions.some(p => backendKeys.some(bk => p.startsWith(bk)));
+
     const backendDropdowns = document.querySelectorAll('a[href="#backendMenu"]');
     backendDropdowns.forEach(bEl => {
-        bEl.style.display = '';
+        if (!hasBackendAccess) {
+            // 🚀 ท่าไม้ตายจัดการ d-flex !important
+            bEl.classList.add('d-none');
+            bEl.classList.remove('d-flex');
+            bEl.style.display = 'none';
+        } else {
+            bEl.classList.remove('d-none');
+            bEl.classList.add('d-flex');
+            bEl.style.display = '';
+        }
+    });
+
+    // ซ่อนเนื้อหาโฟลเดอร์หลังบ้านด้วยเพื่อความชัวร์
+    const backendMenuCollapse = document.getElementById('backendMenu');
+    if (backendMenuCollapse && !hasBackendAccess) {
+        backendMenuCollapse.style.display = 'none';
+    }
+
+    // 3. จัดการสิทธิ์การ เพิ่ม/แก้ไข/ลบ ในแต่ละหน้า (ซ่อนปุ่ม Action ต่างๆ)
+    if (!isAdmin && typeof applyActionButtonsPermissions === 'function') {
+        applyActionButtonsPermissions(permissions);
+    }
+
+    // 4. 🚀 ตรวจสอบและบังคับสลับหน้า (Default Page Routing)
+    const activeSections = document.querySelectorAll('.page-section.active');
+    let isCurrentPageAllowed = false;
+
+    activeSections.forEach(section => {
+        const pageId = section.id;
+        if (isAdmin || permissions.some(p => p.startsWith(pageId))) {
+            isCurrentPageAllowed = true;
+        }
+    });
+
+    // ถ้ายูสเซอร์เปิดมาเจอหน้าที่ตัวเองไม่มีสิทธิ์ดู (เช่น Dashboard) ให้เด้งไปหน้าแรกสุดที่มีสิทธิ์แทน
+    if (!isCurrentPageAllowed && firstAllowedPage) {
+        const navEl = document.getElementById(`nav-${firstAllowedPage}`);
+        if (typeof showPage === 'function') {
+            showPage(firstAllowedPage, navEl);
+        }
+    } else if (!isCurrentPageAllowed && !firstAllowedPage) {
+        // ถ้าไม่ได้รับสิทธิ์เข้าสักหน้าเลย ให้ซ่อนเนื้อหาทุกอย่างเพื่อความปลอดภัย
+        activeSections.forEach(section => {
+            section.classList.remove('active');
+            section.style.display = 'none';
+        });
+    }
+}
+// 🚀 เพิ่มฟังก์ชันใหม่: สำหรับคอยตรวจสอบและซ่อนปุ่ม เพิ่ม, แก้ไข, ลบ ตามสิทธิ์
+function applyActionButtonsPermissions(permissions) {
+    // ใช้ MutationObserver เพื่อคอยซ่อนปุ่ม แม้ว่าตารางจะโหลดข้อมูลใหม่ (Dynamic Load)
+    const observer = new MutationObserver(() => {
+        hideUnauthorizedButtons(permissions);
+    });
+
+    const contentArea = document.querySelector('.content-area');
+    if (contentArea) {
+        observer.observe(contentArea, { childList: true, subtree: true });
+    }
+
+    hideUnauthorizedButtons(permissions);
+}
+
+function hideUnauthorizedButtons(permissions) {
+    // แผนผังจำแนกปุ่ม Action กับคีย์สิทธิ์
+    const actionMap = [
+        { key: 'appointments:create', selectors: ['button[onclick*="openAddAppointmentModal"]'] },
+        { key: 'appointments:edit', selectors: ['button[onclick*="editAppointment"]'] },
+        { key: 'appointments:delete', selectors: ['button[onclick*="deleteAppointment"]'] },
+
+        { key: 'registration:create', selectors: ['button[onclick*="openAddPatientModal"]'] },
+        { key: 'registration:edit', selectors: ['button[onclick*="editPatient"]'] },
+        { key: 'registration:delete', selectors: ['button[onclick*="deletePatient"]'] },
+
+        { key: 'services:create', selectors: ['button[onclick*="openAddServiceModal"]'] },
+        { key: 'services:edit', selectors: ['button[onclick*="openEditServiceModal"]'] },
+        { key: 'services:delete', selectors: ['button[onclick*="deleteService"]'] },
+
+        { key: 'stock-drugs:create', selectors: ['button[onclick*="openAddMedicineModal"]'] },
+        { key: 'stock-drugs:edit', selectors: ['button[onclick*="editMedicine"]'] },
+        { key: 'stock-drugs:delete', selectors: ['button[onclick*="deleteMedicine"]'] },
+
+        { key: 'stock-equip:create', selectors: ['button[onclick*="openAddSupplyModal"]'] },
+        { key: 'stock-equip:edit', selectors: ['button[onclick*="editSupplyItem"]'] },
+        { key: 'stock-equip:delete', selectors: ['button[onclick*="deleteSupplyItem"]'] },
+
+        { key: 'history:delete', selectors: ['button[onclick*="deleteHistoryVisit"]', 'button[onclick*="deleteAllHistoryVisits"]'] },
+
+        { key: 'staff:create', selectors: ['button[onclick*="openAddUserModal"]', 'button[onclick*="openAddStaffModal"]', 'button[onclick*="openAddDoctorModal"]'] },
+        { key: 'staff:edit', selectors: ['span[onclick*="openEditUserModal"]', 'span[onclick*="toggleUserActive"]'] },
+        { key: 'staff:delete', selectors: ['span[onclick*="deleteStaffUser"]'] },
+
+        { key: 'referrals:create', selectors: ['button[onclick*="addReferrerModal"]'] },
+        { key: 'referrals:edit', selectors: ['button[onclick*="editReferrer"]'] },
+        { key: 'referrals:delete', selectors: ['button[onclick*="deleteReferrer"]'] }
+    ];
+
+    actionMap.forEach(action => {
+        // ถ้าผู้ใช้ "ไม่มีสิทธิ์" ใน action นี้ ให้ซ่อนปุ่ม
+        if (!permissions.includes(action.key)) {
+            action.selectors.forEach(selector => {
+                document.querySelectorAll(selector).forEach(btn => {
+                    btn.style.display = 'none';
+                });
+            });
+        }
     });
 }
 
