@@ -5,7 +5,7 @@
 
 const CLINIC_I18N_DICTIONARY = {
     // -------------------------------------
-    // 🇱🇦 ภาษาลาว (Lao)
+    // 🇱🇦 ภาษาລາວ (Lao)
     // -------------------------------------
     la: {
         // App Title & General
@@ -33,6 +33,7 @@ const CLINIC_I18N_DICTIONARY = {
         clear_all: "ລ້າງທັງໝົດ",
         back: "ກັບຄືນ",
         confirm: "ຢືນຢັນ",
+        none: "ບໍ່ມີ",
 
         // Sidebar Menu Navigation
         sidebar_dashboard: "ພາບລວມ",
@@ -73,20 +74,48 @@ const CLINIC_I18N_DICTIONARY = {
         db_communicable: "ໂລກຕິດຕໍ່",
         db_non_communicable: "ໂລກບໍ່ຕິດຕໍ່",
 
+        // Appointments (ລະບົບນັດໝາຍ)
+        appts_title: "ລະບົບນັດໝາຍ",
+        appts_subtitle: "ຈັດການລາຍການນັດໝາຍ ແລະ ດົງທະບຽນຜູ້ປ່ວຍ",
+        appts_date_label: "ວັນທີນັດ",
+        appts_search_placeholder: "ຄົ້ນຫາລະຫັດ, ຊື່ຜູ້ຈອງ, ເບີໂທ...",
+        appts_add: "ເພີ່ມນັດໝາຍ",
+        appts_th_code: "ລະຫັດການຈອງ",
+        appts_th_date: "ວັນທີນັດໝາຍ",
+        appts_th_time: "ເວລາ",
+        appts_th_referrer: "ຜູ້ແນະນຳ (Referrer)",
+        appts_th_reason: "ເລື່ອງທີ່ຕ້ອງການກວດ",
+        appts_modal_title: "ເພີ່ມການນັດໝາຍ",
+        appts_modal_type: "ຮູບແບບການນັດໝາຍ",
+        appts_modal_self: "ນັດໝາຍເອງ (ຄົນໄຂ້)",
+        appts_modal_assisted: "ນັດໝາຍຜ່ານຜູ້ປ່ວຍ / ພະຍາບານ",
+        appts_modal_save: "ບັນທຶກການນັດໝາຍ",
+
         // Patient Registration
         reg_title: "ທະບຽນຜູ້ປ່ວຍ",
-        reg_subtitle: "ຈັດການຂໍ້ມູນ ແລະ ປະຫວັດຜູ້ປ່ວຍ",
-        reg_add_patient: "ເພີ່ມຜູ້ປ່ວຍໃໝ່",
+        reg_subtitle: "ຂໍ້ມູນ ແລະ ປະຫວັດການປິ່ນປົວຂອງຜູ້ປ່ວຍທັງໝົດ",
+        reg_add_patient: "ລົງທະບຽນໃໝ່",
         reg_hn: "ເລກ HN",
         reg_name: "ຊື່-ນາມສະກຸນ",
         reg_gender: "ເພດ",
         reg_age: "ອາຍຸ",
         reg_phone: "ເບີໂທ",
         reg_idcard: "ເລກບັດປະຈຳຕົວ/Passport",
+        reg_search_placeholder: "ຄົ້ນຫາ ຊື່, HN, ເບີໂທ...",
+        reg_th_address: "ທີ່ຢູ່",
+        reg_th_allergy: "ປະຫວັດແພ້ຢາ",
+        reg_th_referrer: "ຜູ້ແນະນຳ (REFERRER)",
+        reg_sent: "ສົ່ງແລ້ວ",
+        reg_sent_triage: "ສົ່ງຄັດກອງແລ້ວ",
+        reg_waiting_triage: "ລໍຖ້າສົ່ງຄັດກອງ",
+        reg_status_in_treatment: "ກຳລັງປິ່ນປົວ",
+        reg_btn_send_triage: "ສົ່ງເຂົ້າຄັດກອງ",
+        reg_no_data: "ບໍ່ພົບຂໍ້ມູນຜູ້ປ່ວຍ",
 
         // Triage / Vitals
         triage_title: "ຈຸດຄັດກອງ",
-        triage_subtitle: "ບັນທຶກສັນຍານຊີບ ແລະ ອາການເບື້ອງຕົ້ນ",
+        triage_subtitle: "ບັນທຶກສັນຍານຊີບເບື້ອງຕົ້ນ",
+        triage_empty: "ຍັງບໍ່ມີຜູ້ປ່ວຍລໍຖ້າຄັດກອງ",
         triage_temp: "ອຸນຫະພູມ (°C)",
         triage_bp: "ຄວາມດັນ (BP)",
         triage_pr: "ຊີບພະຈອນ (PR)",
@@ -95,14 +124,65 @@ const CLINIC_I18N_DICTIONARY = {
         triage_height: "ສ່ວນສູງ (cm)",
         triage_bmi: "ດັດຊະນີມວນກາຍ (BMI)",
         triage_chief_complaint: "ອາການສຳຄັນ",
+        triage_th_visit: "ລະຫັດ VISIT",
+        triage_th_name: "ຊື່-ນາມສະກຸນ",
+        triage_th_action: "ດຳເນີນການ",
+        triage_btn_history: "ຊັກປະຫວັດ",
 
         // Doctor Room
         doctor_title: "ຫ້ອງກວດແພດ",
-        doctor_subtitle: "ກວດວິນິດໄສ ແລະ ສັ່ງການປິ່ນປົວ",
+        doctor_subtitle: "ລາຍການຜູ້ປ່ວຍລໍຖ້າກວດ ແລະ ລະບົບສັ່ງ Lab",
+        doctor_empty: "ບໍ່ມີຜູ້ປ່ວຍລໍຖ້າກວດ",
         doctor_diagnosis: "ຜົນການວິນິດໄສ",
         doctor_treatment: "ແຜນການປິ່ນປົວ",
+        doctor_th_symptoms: "ຊື່-ນາມສະກຸນ / ອາການເບື້ອງຕົ້ນ",
+        doctor_th_vitals: "ສັນຍານຊີບເບື້ອງຕົ້ນ",
+        doctor_btn_order_lab: "ສັ່ງ Lab",
+        doctor_btn_finish: "ກວດເສັດ",
+
+        // Queue Management (ລະບົບຈັດຄິວ)
+        queue_title: "ລະບົບຈັດຄິວອ່ານຜົນກວດ",
+        queue_subtitle: "ບໍລິຫານຄິວແພດ ແລະ ອັບເດດສະຖານະການກວດແບບเรียลไທມ໌",
+        queue_inner_header: "ລາຍຊື່ຄິວລໍຖ້າສົ່ງໃຫ້ທ່ານໝໍອ່ານຜົນ",
+        queue_th_select_doctor: "ເລືອກທ່ານໝໍທີ່ຕ້ອງການສົ່ງກວດ",
+        queue_empty: "ບໍ່ມີລາຍການລໍຖ້າຈັດຄິວ",
+
+        // Prescription Review (ອ່ານຜົນ/ຈັດຢາ)
+        prescription_title: "ຫ້ອງກວດແພດ (ອ່ານຜົນ/ຈັດຢາ)",
+        prescription_subtitle: "ທ່ານໝໍກົດຮຽກພົບຄົນໄຂ້ ບູຜົນແລັບ ແລະ ເລືອກສັ່ງຈ່າຍຢາ",
+        prescription_th_doctor: "ຊື່ແພດຜູ້ຮັບຜິດຊອບ",
+        prescription_th_qstatus: "ສະຖານະຄິວ",
+        prescription_empty: "ບໍ່ມີລາຍການລໍຖ້າອ່ານຜົນ",
+
+        // Patient History (ປະຫວັດຜູ້ປ່ວຍ)
+        history_title: "ປະຫວັດການເຂົ້າກວດຜູ້ປ່ວຍ",
+        history_subtitle: "ຄົ້ນຫາ ແລະ ເບິ່ງປະຫວັດການເຂົ້າກວດ ອາການ ຜົນແລັບ ແລະ ການຈັດສົ່ງຈ່າຍຢາທີ່ເສັດສົມບູນແລ້ວ",
+        history_search_placeholder: "ຄົ້ນຫາ HN, ຊື່ ຫຼື Visit ID...",
+        history_th_date: "ວັນທີກວດ",
+        history_th_diagnosis: "ອາການສຳຄັນ / ອາການວິນິດໄສ",
+        history_btn_delete_all: "ລົບທັງໝົດ",
+        history_empty: "ບໍ່ມີປະຫວັດການເຂົ້າກວດ",
 
         // Payment / Billing
+        payment_title: "ຊຳລະຄ່າປິ່ນປົວ",
+        payment_subtitle: "ລາຍການລໍຖ້າຊຳລະເງິນກ່ອນສົ່ງກວດ Lab",
+        payment_empty: "ບໍ່ມີລາຍການລໍຖ້າຊຳລະເງິນ",
+        payment_th_tests: "ລາຍການກວດ",
+        payment_btn_pay: "ຮັບຊຳລະເງິນ & ສົ່ງ Lab",
+        payment_btn_details: "ເບິ່ງລາຍລະອຽດ",
+        payment_status_pending: "ລໍຖ້າຊຳລະເງິນ",
+        payment_status_paid: "ຊຳລະເງິນເສັດສົມບູນ",
+        payment_status_unpaid: "ຍັງບໍ່ຊຳລະເງິນ",
+
+        // Laboratory
+        lab_title: "ຫ້ອງ Lab",
+        lab_subtitle: "ອັບໂຫຼດຜົນ Lab (PDF, PNG, JPG)",
+        lab_empty: "ບໍ່ມີລາຍການລໍຖ້າກວດ Lab",
+        lab_btn_upload: "ອັບໂຫຼດຜົນ",
+        lab_status_pending: "ລໍຖ້າຜົນແລັບ",
+        lab_btn_items: "ລາຍການສົ່ງແລັບ",
+
+        // Payment / Billing System Main
         bill_title: "ລະບົບ Bill / ໃບເສັດຮັບເງິນ",
         bill_subtitle: "ຈັດການ ແລະ ກວດສອບປະຫວັດການອອກໃບເສັດ ແລະ ຍອດຊຳລະເງິນ",
         bill_total_bills: "ບິນທັງໝົດ",
@@ -191,6 +271,12 @@ const CLINIC_I18N_DICTIONARY = {
         ref_tab_daily: "ລາຍງານສະຫຼຸບຄ່າກວດປະຈຳວັນ",
         ref_tab_settings: "ຕັ້ງຄ່າເງື່ອນໄຂປັນຜົນ",
 
+        // Statuses
+        status_completed: "ສຳເລັດແລ້ວ",
+        status_pending: "ລໍຖ້າດຳເນີນການ",
+        status_cancelled: "ຍົກເລີກ",
+        action_done: "ເຮັດລາຍການແລ້ວ",
+
         // Login Screen
         login_title: "ເຂົ້າສູ່ລະບົບ",
         login_subtitle: "ລະບົບຈັດການຄລີນິກ (Clinic System)",
@@ -231,6 +317,7 @@ const CLINIC_I18N_DICTIONARY = {
         clear_all: "ล้างทั้งหมด",
         back: "ย้อนกลับ",
         confirm: "ยืนยัน",
+        none: "ไม่มี",
 
         // Sidebar Menu Navigation
         sidebar_dashboard: "ภาพรวม",
@@ -271,20 +358,48 @@ const CLINIC_I18N_DICTIONARY = {
         db_communicable: "โรคติดต่อ",
         db_non_communicable: "โรคไม่ติดต่อ",
 
+        // Appointments (ระบบนัดหมาย)
+        appts_title: "ระบบนัดหมาย",
+        appts_subtitle: "จัดการรายการนัดหมายและลงทะเบียนผู้ป่วย",
+        appts_date_label: "วันที่นัด",
+        appts_search_placeholder: "ค้นหารหัส, ชื่อผู้จอง, เบอร์โทร...",
+        appts_add: "เพิ่มนัดหมาย",
+        appts_th_code: "รหัสการจอง",
+        appts_th_date: "วันที่นัดหมาย",
+        appts_th_time: "เวลา",
+        appts_th_referrer: "ผู้แนะนำ (Referrer)",
+        appts_th_reason: "เรื่องที่ต้องการตรวจ",
+        appts_modal_title: "เพิ่มการนัดหมาย",
+        appts_modal_type: "รูปแบบการนัดหมาย",
+        appts_modal_self: "นัดหมายเอง (คนไข้)",
+        appts_modal_assisted: "นัดหมายผ่านผู้ป่วย / พยาบาล",
+        appts_modal_save: "บันทึกการนัดหมาย",
+
         // Patient Registration
         reg_title: "ทะเบียนผู้ป่วย",
-        reg_subtitle: "จัดการข้อมูลและประวัติผู้ป่วย",
-        reg_add_patient: "เพิ่มผู้ป่วยใหม่",
+        reg_subtitle: "ข้อมูลและประวัติการรักษาของผู้ป่วยทั้งหมด",
+        reg_add_patient: "ลงทะเบียนใหม่",
         reg_hn: "เลข HN",
         reg_name: "ชื่อ-นามสกุล",
         reg_gender: "เพศ",
         reg_age: "อายุ",
         reg_phone: "เบอร์โทร",
         reg_idcard: "เลขบัตรประชาชน/Passport",
+        reg_search_placeholder: "ค้นหา ชื่อ, HN, เบอร์โทร...",
+        reg_th_address: "ที่อยู่",
+        reg_th_allergy: "ประวัติแพ้ยา",
+        reg_th_referrer: "ผู้แนะนำ (REFERRER)",
+        reg_sent: "ส่งแล้ว",
+        reg_sent_triage: "ส่งคัดกรองแล้ว",
+        reg_waiting_triage: "รอส่งคัดกรอง",
+        reg_status_in_treatment: "กำลังรักษา",
+        reg_btn_send_triage: "ส่งเข้าคัดกรอง",
+        reg_no_data: "ไม่พบข้อมูลผู้ป่วย",
 
         // Triage / Vitals
         triage_title: "จุดคัดกรอง",
-        triage_subtitle: "บันทึกสัญญาณชีพและอาการเบื้องต้น",
+        triage_subtitle: "บันทึกสัญญาณชีพเบื้องต้น",
+        triage_empty: "ยังไม่มีผู้ป่วยรอคัดกรอง",
         triage_temp: "อุณหภูมิ (°C)",
         triage_bp: "ความดัน (BP)",
         triage_pr: "ชีพจร (PR)",
@@ -293,14 +408,65 @@ const CLINIC_I18N_DICTIONARY = {
         triage_height: "ส่วนสูง (cm)",
         triage_bmi: "ดัชนีมวลกาย (BMI)",
         triage_chief_complaint: "อาการสำคัญ",
+        triage_th_visit: "รหัส VISIT",
+        triage_th_name: "ชื่อ-นามสกุล",
+        triage_th_action: "ดำเนินการ",
+        triage_btn_history: "ซักประวัติ",
 
         // Doctor Room
         doctor_title: "ห้องตรวจแพทย์",
-        doctor_subtitle: "ตรวจวินิจฉัยและสั่งการรักษา",
+        doctor_subtitle: "รายการผู้ป่วยรอตรวจ และระบบสั่ง Lab",
+        doctor_empty: "ไม่มีผู้ป่วยรอตรวจ",
         doctor_diagnosis: "ผลการวินิจฉัย",
         doctor_treatment: "แผนการรักษา",
+        doctor_th_symptoms: "ชื่อ-นามสกุล / อาการเบื้องต้น",
+        doctor_th_vitals: "สัญญาณชีพเบื้องต้น",
+        doctor_btn_order_lab: "สั่ง Lab",
+        doctor_btn_finish: "ตรวจเสร็จ",
+
+        // Queue Management (ระบบจัดคิว)
+        queue_title: "ระบบจัดคิวอ่านผลตรวจ",
+        queue_subtitle: "บริหารคิวแพทย์และอัปเดตสถานะการตรวจแบบเรียลไทม์",
+        queue_inner_header: "รายชื่อคิวรอส่งให้คุณหมออ่านผล",
+        queue_th_select_doctor: "เลือกคุณหมอที่ต้องการส่งตรวจ",
+        queue_empty: "ไม่มีรายการรอจัดคิว",
+
+        // Prescription Review (อ่านผล/จัดยา)
+        prescription_title: "ห้องตรวจแพทย์ (อ่านผล/จัดยา)",
+        prescription_subtitle: "คุณหมอกดเรียกพบคนไข้ ดูผลแล็บ และเลือกสั่งจ่ายยา",
+        prescription_th_doctor: "ชื่อแพทย์ผู้รับผิดชอบ",
+        prescription_th_qstatus: "สถานะคิว",
+        prescription_empty: "ไม่มีรายการรออ่านผล",
+
+        // Patient History (ประวัติผู้ป่วย)
+        history_title: "ประวัติการเข้าตรวจผู้ป่วย",
+        history_subtitle: "ค้นหาและดูประวัติการเข้าตรวจ อาการ ผลแล็บ และการจัดส่งจ่ายยาที่เสร็จสิ้นแล้ว",
+        history_search_placeholder: "ค้นหา HN, ชื่อ หรือ Visit ID...",
+        history_th_date: "วันที่ตรวจ",
+        history_th_diagnosis: "อาการสำคัญ / อาการวินิจฉัย",
+        history_btn_delete_all: "ลบทั้งหมด",
+        history_empty: "ไม่มีประวัติการเข้าตรวจ",
 
         // Payment / Billing
+        payment_title: "จ่ายค่ารักษา",
+        payment_subtitle: "รายการรอชำระเงินก่อนส่งตรวจ Lab",
+        payment_empty: "ไม่มีรายการรอชำระเงิน",
+        payment_th_tests: "รายการตรวจ",
+        payment_btn_pay: "รับชำระเงิน & ส่ง Lab",
+        payment_btn_details: "ดูรายละเอียด",
+        payment_status_pending: "รอชำระเงิน",
+        payment_status_paid: "ชำระเงินเสร็จสิ้น",
+        payment_status_unpaid: "ยังไม่ชำระเงิน",
+
+        // Laboratory
+        lab_title: "ห้อง Lab",
+        lab_subtitle: "อัปโหลดผล Lab (PDF, PNG, JPG)",
+        lab_empty: "ไม่มีรายการรอตรวจ Lab",
+        lab_btn_upload: "อัปโหลดผล",
+        lab_status_pending: "รอผลแล็บ",
+        lab_btn_items: "รายการส่งแล็บ",
+
+        // Payment / Billing System Main
         bill_title: "ระบบ Bill / ใบเสร็จรับเงิน",
         bill_subtitle: "จัดการและตรวจสอบประวัติการออกใบเสร็จและยอดรับชำระเงินของคลินิก",
         bill_total_bills: "บิลทั้งหมด",
@@ -389,6 +555,12 @@ const CLINIC_I18N_DICTIONARY = {
         ref_tab_daily: "รายงานสรุปค่าตรวจประจำวัน",
         ref_tab_settings: "ตั้งค่าเงื่อนไขปันผล",
 
+        // Statuses
+        status_completed: "เสร็จสิ้น",
+        status_pending: "รอดำเนินการ",
+        status_cancelled: "ยกเลิก",
+        action_done: "ทำรายการแล้ว",
+
         // Login Screen
         login_title: "เข้าสู่ระบบ",
         login_subtitle: "ระบบจัดการคลินิก (Clinic System)",
@@ -429,6 +601,7 @@ const CLINIC_I18N_DICTIONARY = {
         clear_all: "Clear All",
         back: "Back",
         confirm: "Confirm",
+        none: "None",
 
         // Sidebar Menu Navigation
         sidebar_dashboard: "Dashboard",
@@ -469,20 +642,48 @@ const CLINIC_I18N_DICTIONARY = {
         db_communicable: "Communicable",
         db_non_communicable: "Non-Communicable",
 
+        // Appointments (ระบบนัดหมาย)
+        appts_title: "Appointment Management",
+        appts_subtitle: "Manage scheduled appointments and patient pre-registrations",
+        appts_date_label: "Appointment Date",
+        appts_search_placeholder: "Search code, patient name, phone...",
+        appts_add: "Add Appointment",
+        appts_th_code: "Booking Code",
+        appts_th_date: "Appt Date",
+        appts_th_time: "Time",
+        appts_th_referrer: "Referrer",
+        appts_th_reason: "Chief Reason / Symptoms",
+        appts_modal_title: "Add Appointment",
+        appts_modal_type: "Appointment Type",
+        appts_modal_self: "Direct Booking (Patient)",
+        appts_modal_assisted: "Assisted Booking (Patient / Nurse)",
+        appts_modal_save: "Save Appointment",
+
         // Patient Registration
         reg_title: "Patient Registration",
-        reg_subtitle: "Manage patient records and personal profiles",
-        reg_add_patient: "Add New Patient",
+        reg_subtitle: "Manage all patient profiles and medical records",
+        reg_add_patient: "New Registration",
         reg_hn: "HN Code",
         reg_name: "Full Name",
         reg_gender: "Gender",
         reg_age: "Age",
         reg_phone: "Phone Number",
         reg_idcard: "ID Card / Passport No.",
+        reg_search_placeholder: "Search Name, HN, Phone...",
+        reg_th_address: "Address",
+        reg_th_allergy: "Drug Allergies",
+        reg_th_referrer: "Referrer",
+        reg_sent: "Sent",
+        reg_sent_triage: "Sent to Triage",
+        reg_waiting_triage: "Pending Triage",
+        reg_status_in_treatment: "In Treatment",
+        reg_btn_send_triage: "Send to Triage",
+        reg_no_data: "No patient records found",
 
         // Triage / Vitals
         triage_title: "Triage Station",
-        triage_subtitle: "Record vitals and primary chief complaints",
+        triage_subtitle: "Record primary vitals and chief complaints",
+        triage_empty: "No patients waiting for triage",
         triage_temp: "Temperature (°C)",
         triage_bp: "Blood Pressure (BP)",
         triage_pr: "Pulse Rate (PR)",
@@ -491,14 +692,65 @@ const CLINIC_I18N_DICTIONARY = {
         triage_height: "Height (cm)",
         triage_bmi: "Body Mass Index (BMI)",
         triage_chief_complaint: "Chief Complaint",
+        triage_th_visit: "VISIT Code",
+        triage_th_name: "Patient Name",
+        triage_th_action: "Action",
+        triage_btn_history: "Record Vitals",
 
         // Doctor Room
-        doctor_title: "Doctor Examination Room",
-        doctor_subtitle: "Clinical diagnosis and treatment plan",
+        doctor_title: "Doctor Room",
+        doctor_subtitle: "Patients awaiting examination and lab orders",
+        doctor_empty: "No patients waiting for examination",
         doctor_diagnosis: "Diagnosis Results",
         doctor_treatment: "Treatment Plan",
+        doctor_th_symptoms: "Patient Name / Chief Complaint",
+        doctor_th_vitals: "Primary Vitals",
+        doctor_btn_order_lab: "Order Lab",
+        doctor_btn_finish: "Complete Check",
+
+        // Queue Management (ระบบจัดคิว)
+        queue_title: "Lab Review Queue Management",
+        queue_subtitle: "Manage doctor queues and real-time exam status",
+        queue_inner_header: "Queue list waiting for doctor review",
+        queue_th_select_doctor: "Select Doctor to Assign",
+        queue_empty: "No patients waiting in queue",
+
+        // Prescription Review (อ่านผล/จัดยา)
+        prescription_title: "Doctor Room (Result Review / Prescription)",
+        prescription_subtitle: "Doctor reviews lab results and prescribes medications",
+        prescription_th_doctor: "Assigned Doctor",
+        prescription_th_qstatus: "Queue Status",
+        prescription_empty: "No patients waiting for result review",
+
+        // Patient History (ประวัติผู้ป่วย)
+        history_title: "Patient Visit History",
+        history_subtitle: "Search and view complete examination, diagnosis, lab, and pharmacy history",
+        history_search_placeholder: "Search HN, Name, or Visit ID...",
+        history_th_date: "Exam Date",
+        history_th_diagnosis: "Chief Complaint / Diagnosis",
+        history_btn_delete_all: "Delete All",
+        history_empty: "No visit history records found",
 
         // Payment / Billing
+        payment_title: "Cashier / Payment",
+        payment_subtitle: "Pending payment records prior to lab testing",
+        payment_empty: "No pending payments",
+        payment_th_tests: "Lab Test Items",
+        payment_btn_pay: "Process Payment & Send to Lab",
+        payment_btn_details: "View Details",
+        payment_status_pending: "Pending Payment",
+        payment_status_paid: "Payment Complete",
+        payment_status_unpaid: "Unpaid",
+
+        // Laboratory
+        lab_title: "Laboratory",
+        lab_subtitle: "Upload lab results (PDF, PNG, JPG)",
+        lab_empty: "No pending lab tests",
+        lab_btn_upload: "Upload Result",
+        lab_status_pending: "Awaiting Lab Result",
+        lab_btn_items: "Lab Test Orders",
+
+        // Payment / Billing System Main
         bill_title: "Invoices & Billing System",
         bill_subtitle: "Manage, review and verify invoice history and payments",
         bill_total_bills: "Total Bills",
@@ -587,6 +839,12 @@ const CLINIC_I18N_DICTIONARY = {
         ref_tab_daily: "Daily Exam Commission Summary",
         ref_tab_settings: "Dividend Rules & Rates Settings",
 
+        // Statuses
+        status_completed: "Completed",
+        status_pending: "Pending",
+        status_cancelled: "Cancelled",
+        action_done: "Processed",
+
         // Login Screen
         login_title: "System Sign In",
         login_subtitle: "Clinic Management System",
@@ -621,7 +879,16 @@ function setClinicLanguage(lang) {
     });
 
     // Re-render dynamic components if functions exist
+    if (typeof renderAppointmentsTable === 'function') renderAppointmentsTable();
     if (typeof renderBillsTable === 'function') renderBillsTable();
+    if (typeof loadPatients === 'function') loadPatients();
+    if (typeof loadTriage === 'function') loadTriage();
+    if (typeof loadDoctorQueue === 'function') loadDoctorQueue();
+    if (typeof loadPaymentQueue === 'function') loadPaymentQueue();
+    if (typeof loadLabQueue === 'function') loadLabQueue();
+    if (typeof loadQueueList === 'function') loadQueueList();
+    if (typeof loadPrescriptionQueue === 'function') loadPrescriptionQueue();
+    if (typeof loadPatientHistory === 'function') loadPatientHistory();
     if (typeof renderStaffTable === 'function' && window.allStaffUsers) renderStaffTable(window.allStaffUsers);
     if (typeof renderCommissionLogsTable === 'function') renderCommissionLogsTable();
 }

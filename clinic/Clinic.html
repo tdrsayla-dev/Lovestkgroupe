@@ -361,17 +361,17 @@
             <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
-                            class="bi bi-calendar-event text-primary me-2"></i>ระบบนัดหมาย</h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;">จัดการรายการนัดหมายและลงทะเบียนผู้ป่วย</p>
+                            class="bi bi-calendar-event text-primary me-2"></i><span data-i18n="appts_title">ระบบนัดหมาย</span></h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="appts_subtitle">จัดการรายการนัดหมายและลงทะเบียนผู้ป่วย</p>
                 </div>
                 <div class="d-flex gap-2 align-items-center flex-wrap">
                     <!-- Date Selector Filter Capsule -->
                     <div class="d-flex align-items-center bg-white border rounded-pill px-3 py-1 shadow-sm gap-2" style="border-color: #dee2e6 !important;">
-                        <span class="text-muted fw-semibold small"><i class="bi bi-calendar-event me-1 text-primary"></i>วันที่นัด</span>
+                        <span class="text-muted fw-semibold small"><i class="bi bi-calendar-event me-1 text-primary"></i><span data-i18n="appts_date_label">วันที่นัด</span></span>
                         <input type="date" id="appointmentDateFilter" class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none" onchange="filterAppointments()" style="font-size: 0.85rem; width: 125px;">
-                        <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 text-primary fw-semibold small ms-1" onclick="setAppointmentTodayFilter()" title="ตั้งเป็นวันนี้">วันนี้</button>
+                        <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 text-primary fw-semibold small ms-1" onclick="setAppointmentTodayFilter()" title="ตั้งเป็นวันนี้" data-i18n="today">วันนี้</button>
                         <span class="text-muted small">|</span>
-                        <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 text-secondary fw-semibold small" onclick="clearAppointmentDateFilter()" title="แสดงทั้งหมด">ทั้งหมด</button>
+                        <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 text-secondary fw-semibold small" onclick="clearAppointmentDateFilter()" title="แสดงทั้งหมด" data-i18n="all">ทั้งหมด</button>
                     </div>
 
                     <div class="input-group" style="width: 260px;">
@@ -379,12 +379,12 @@
                             style="border-radius: 10px 0 0 10px; border-color: #dee2e6;"><i
                                 class="bi bi-search text-muted"></i></span>
                         <input type="text" id="searchAppointmentInput" class="form-control border-start-0 ps-0"
-                            placeholder="ค้นหารหัส, ชื่อผู้จอง, เบอร์โทร..." oninput="filterAppointments()"
+                            placeholder="ค้นหารหัส, ชื่อผู้จอง, เบอร์โทร..." data-i18n-placeholder="appts_search_placeholder" oninput="filterAppointments()"
                             style="border-radius: 0 10px 10px 0; border-color: #dee2e6; padding: 9px 12px;">
                     </div>
                     <button type="button" class="btn btn-primary px-4 py-2 fw-semibold"
                         onclick="openAddAppointmentModal()" style="border-radius: 10px; height: 42px;">
-                        <i class="bi bi-plus-lg me-1"></i> เพิ่มนัดหมาย
+                        <i class="bi bi-plus-lg me-1"></i> <span data-i18n="appts_add">เพิ่มนัดหมาย</span>
                     </button>
                 </div>
             </div>
@@ -393,15 +393,15 @@
                 <table class="table table-modern" id="appointmentsTable">
                     <thead>
                         <tr>
-                            <th class="ps-4">รหัสการจอง</th>
-                            <th>วันที่นัดหมาย</th>
-                            <th>เวลา</th>
-                            <th>ชื่อผู้จอง</th>
-                            <th>เบอร์โทร</th>
-                            <th>ผู้แนะนำ (Referrer)</th>
-                            <th>เรื่องที่ต้องการตรวจ</th>
-                            <th>สถานะ</th>
-                            <th class="text-center">จัดการ</th>
+                            <th class="ps-4" data-i18n="appts_th_code">รหัสการจอง</th>
+                            <th data-i18n="appts_th_date">วันที่นัดหมาย</th>
+                            <th data-i18n="appts_th_time">เวลา</th>
+                            <th data-i18n="reg_name">ชื่อผู้จอง</th>
+                            <th data-i18n="reg_phone">เบอร์โทร</th>
+                            <th data-i18n="appts_th_referrer">ผู้แนะนำ (Referrer)</th>
+                            <th data-i18n="appts_th_reason">เรื่องที่ต้องการตรวจ</th>
+                            <th data-i18n="status">สถานะ</th>
+                            <th class="text-center" data-i18n="actions">จัดการ</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -446,7 +446,7 @@
                         <span class="input-group-text bg-white border-0 text-muted ps-3 py-2"><i
                                 class="bi bi-search"></i></span>
                         <input type="text" id="patientSearchInput" class="form-control border-0 ps-1 py-2 shadow-none"
-                            placeholder="ค้นหา ชื่อ, HN, เบอร์โทร..." style="font-size: 0.88rem;"
+                            placeholder="ค้นหา ชื่อ, HN, เบอร์โทร..." data-i18n-placeholder="reg_search_placeholder" style="font-size: 0.88rem;"
                             oninput="filterPatients()" onkeyup="if(event.key === 'Enter') filterPatients()">
                         <button class="btn btn-white border-0 text-muted pe-3 py-2" type="button"
                             onclick="filterPatients()">
@@ -458,7 +458,7 @@
                     <button type="button"
                         class="btn btn-primary px-4 py-2 rounded-pill fw-semibold shadow-sm d-flex align-items-center gap-2"
                         onclick="openAddPatientModal()">
-                        <i class="bi bi-person-plus-fill fs-6"></i> ลงทะเบียนใหม่
+                        <i class="bi bi-person-plus-fill fs-6"></i> <span data-i18n="reg_add_patient">ลงทะเบียนใหม่</span>
                     </button>
                 </div>
             </div>
@@ -467,15 +467,15 @@
                 <table class="table table-modern" id="patientsTable">
                     <thead>
                         <tr>
-                            <th class="ps-4">HN</th>
-                            <th>ชื่อ-นามสกุล</th>
-                            <th>อายุ</th>
-                            <th>เบอร์โทร</th>
-                            <th>ที่อยู่</th>
-                            <th class="text-center">ประวัติแพ้ยา</th>
-                            <th class="text-center">ผู้แนะนำ (REFERRER)</th>
-                            <th class="text-center">สถานะ</th>
-                            <th class="text-center">จัดการ</th>
+                            <th class="ps-4" data-i18n="reg_hn">HN</th>
+                            <th data-i18n="reg_name">ชื่อ-นามสกุล</th>
+                            <th data-i18n="reg_age">อายุ</th>
+                            <th data-i18n="reg_phone">เบอร์โทร</th>
+                            <th data-i18n="reg_th_address">ที่อยู่</th>
+                            <th class="text-center" data-i18n="reg_th_allergy">ประวัติแพ้ยา</th>
+                            <th class="text-center" data-i18n="reg_th_referrer">ผู้แนะนำ (REFERRER)</th>
+                            <th class="text-center" data-i18n="status">สถานะ</th>
+                            <th class="text-center" data-i18n="actions">จัดการ</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -493,22 +493,22 @@
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
-                            class="bi bi-heart-pulse-fill text-primary me-2"></i>จุดคัดกรอง</h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;">บันทึกสัญญาณชีพเบื้องต้น</p>
+                            class="bi bi-heart-pulse-fill text-primary me-2"></i><span data-i18n="triage_title">จุดคัดกรอง</span></h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="triage_subtitle">บันทึกสัญญาณชีพเบื้องต้น</p>
                 </div>
             </div>
             <div class="table-responsive table-container">
                 <table class="table table-modern" id="triageTable">
                     <thead>
                         <tr>
-                            <th class="ps-4">รหัส VISIT</th>
-                            <th>ชื่อ-นามสกุล</th>
-                            <th class="text-end pe-4">จัดการ</th>
+                            <th class="ps-4" data-i18n="triage_th_visit">รหัส VISIT</th>
+                            <th data-i18n="triage_th_name">ชื่อ-นามสกุล</th>
+                            <th class="text-end pe-4" data-i18n="triage_th_action">จัดการ</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="3" class="text-center text-muted py-5">กำลังโหลดข้อมูล...</td>
+                            <td colspan="3" class="text-center text-muted py-5" data-i18n="triage_empty">ยังไม่มีผู้ป่วยรอคัดกรอง</td>
                         </tr>
                     </tbody>
                 </table>
@@ -520,23 +520,23 @@
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
-                            class="bi bi-stethoscope text-primary me-2"></i>ห้องตรวจแพทย์</h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;">รายการผู้ป่วยรอตรวจ และระบบสั่ง Lab</p>
+                            class="bi bi-stethoscope text-primary me-2"></i><span data-i18n="doctor_title">ห้องตรวจแพทย์</span></h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="doctor_subtitle">รายการผู้ป่วยรอตรวจ และระบบสั่ง Lab</p>
                 </div>
             </div>
             <div class="table-responsive table-container">
                 <table class="table table-modern" id="doctorTable">
                     <thead>
                         <tr>
-                            <th class="ps-4">รหัส VISIT</th>
-                            <th>ชื่อ-นามสกุล / อาการเบื้องต้น</th>
-                            <th>สัญญาณชีพเบื้องต้น</th>
-                            <th class="text-end pe-4">จัดการ</th>
+                            <th class="ps-4" data-i18n="triage_th_visit">รหัส VISIT</th>
+                            <th data-i18n="doctor_th_symptoms">ชื่อ-นามสกุล / อาการเบื้องต้น</th>
+                            <th data-i18n="doctor_th_vitals">สัญญาณชีพเบื้องต้น</th>
+                            <th class="text-end pe-4" data-i18n="actions">จัดการ</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="4" class="text-center text-muted py-5">ไม่มีผู้ป่วยรอตรวจ</td>
+                            <td colspan="4" class="text-center text-muted py-5" data-i18n="doctor_empty">ไม่มีผู้ป่วยรอตรวจ</td>
                         </tr>
                     </tbody>
                 </table>
@@ -548,25 +548,25 @@
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
-                            class="bi bi-cash-coin text-primary me-2"></i>จ่ายค่ารักษา</h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;">รายการรอชำระเงินก่อนส่งตรวจ Lab</p>
+                            class="bi bi-cash-coin text-primary me-2"></i><span data-i18n="payment_title">จ่ายค่ารักษา</span></h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="payment_subtitle">รายการรอชำระเงินก่อนส่งตรวจ Lab</p>
                 </div>
             </div>
             <div class="table-responsive table-container">
                 <table class="table table-modern" id="paymentTable">
                     <thead>
                         <tr>
-                            <th class="ps-4">รหัส VISIT</th>
-                            <th>HN</th>
-                            <th>ชื่อ-นามสกุล</th>
-                            <th>รายการส่งตรวจ</th>
-                            <th>สถานะ</th>
-                            <th class="text-center">ดำเนินการ</th>
+                            <th class="ps-4" data-i18n="triage_th_visit">รหัส VISIT</th>
+                            <th data-i18n="reg_hn">HN</th>
+                            <th data-i18n="reg_name">ชื่อ-นามสกุล</th>
+                            <th data-i18n="payment_th_tests">รายการส่งตรวจ</th>
+                            <th data-i18n="status">สถานะ</th>
+                            <th class="text-center" data-i18n="actions">ดำเนินการ</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-5">ไม่มีรายการรอชำระเงิน</td>
+                            <td colspan="6" class="text-center text-muted py-5" data-i18n="payment_empty">ไม่มีรายการรอชำระเงิน</td>
                         </tr>
                     </tbody>
                 </table>
@@ -578,25 +578,25 @@
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
-                            class="bi bi-virus text-primary me-2"></i>ห้อง Lab</h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;">อัปโหลดผล Lab (PDF, PNG, JPG)</p>
+                            class="bi bi-virus text-primary me-2"></i><span data-i18n="lab_title">ห้อง Lab</span></h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="lab_subtitle">อัปโหลดผล Lab (PDF, PNG, JPG)</p>
                 </div>
             </div>
             <div class="table-responsive table-container">
                 <table class="table table-modern" id="labTable">
                     <thead>
                         <tr>
-                            <th class="ps-4">รหัส VISIT</th>
-                            <th>HN</th>
-                            <th>ชื่อ-นามสกุล</th>
-                            <th>รายการส่งตรวจ</th>
-                            <th>สถานะ</th>
-                            <th class="text-center">ดำเนินการ</th>
+                            <th class="ps-4" data-i18n="triage_th_visit">รหัส VISIT</th>
+                            <th data-i18n="reg_hn">HN</th>
+                            <th data-i18n="reg_name">ชื่อ-นามสกุล</th>
+                            <th data-i18n="payment_th_tests">รายการส่งตรวจ</th>
+                            <th data-i18n="status">สถานะ</th>
+                            <th class="text-center" data-i18n="actions">ดำเนินการ</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-5">ไม่มีรายการรอตรวจ Lab</td>
+                            <td colspan="6" class="text-center text-muted py-5" data-i18n="lab_empty">ไม่มีรายการรอตรวจ Lab</td>
                         </tr>
                     </tbody>
                 </table>
@@ -608,8 +608,8 @@
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
-                            class="bi bi-list-ol text-primary me-2"></i>ระบบจัดคิวอ่านผลตรวจ</h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;">
+                            class="bi bi-list-ol text-primary me-2"></i><span data-i18n="queue_title">ระบบจัดคิวอ่านผลตรวจ</span></h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="queue_subtitle">
                         บริหารคิวแพทย์และอัปเดตสถานะการตรวจแบบเรียลไทม์</p>
                 </div>
             </div>
@@ -617,9 +617,9 @@
             <div class="card border-0 mb-3" style="background-color: #f1f5f9; border-radius: 12px;">
                 <div class="card-body d-flex justify-content-between align-items-center py-3 px-4">
                     <h6 class="fw-bold mb-0" style="color: #334155;"><i class="bi bi-people me-1"></i>
-                        รายชื่อคิวรอส่งให้คุณหมออ่านผล</h6>
+                        <span data-i18n="queue_inner_header">รายชื่อคิวรอส่งให้คุณหมออ่านผล</span></h6>
                     <button class="btn btn-sm btn-light border" onclick="loadQueueList()"><i
-                            class="bi bi-arrow-clockwise"></i> โหลดคิวใหม่</button>
+                            class="bi bi-arrow-clockwise"></i> <span data-i18n="refresh">โหลดคิวใหม่</span></button>
                 </div>
             </div>
 
@@ -627,16 +627,16 @@
                 <table class="table table-modern" id="queueTable">
                     <thead>
                         <tr>
-                            <th class="ps-4">รหัส VISIT</th>
-                            <th>HN</th>
-                            <th>ชื่อ-นามสกุล</th>
-                            <th width="280">เลือกคุณหมอที่ต้องการส่งตรวจ</th>
-                            <th class="text-center">ดำเนินการ</th>
+                            <th class="ps-4" data-i18n="triage_th_visit">รหัส VISIT</th>
+                            <th data-i18n="reg_hn">HN</th>
+                            <th data-i18n="reg_name">ชื่อ-นามสกุล</th>
+                            <th width="280" data-i18n="queue_th_select_doctor">เลือกคุณหมอที่ต้องการส่งตรวจ</th>
+                            <th class="text-center" data-i18n="actions">ดำเนินการ</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-5">ไม่มีรายการรอจัดคิว</td>
+                            <td colspan="5" class="text-center text-muted py-5" data-i18n="queue_empty">ไม่มีรายการรอจัดคิว</td>
                         </tr>
                     </tbody>
                 </table>
@@ -648,8 +648,8 @@
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
-                            class="bi bi-file-medical text-primary me-2"></i>ห้องตรวจแพทย์ (อ่านผล/จัดยา)</h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;">คุณหมอกดเรียกพบคนไข้ ดูผลแล็บ
+                            class="bi bi-file-medical text-primary me-2"></i><span data-i18n="prescription_title">ห้องตรวจแพทย์ (อ่านผล/จัดยา)</span></h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="prescription_subtitle">คุณหมอกดเรียกพบคนไข้ ดูผลแล็บ
                         และเลือกสั่งจ่ายยา</p>
                 </div>
             </div>
@@ -657,17 +657,17 @@
                 <table class="table table-modern" id="prescriptionTable">
                     <thead>
                         <tr>
-                            <th class="ps-4">รหัส VISIT</th>
-                            <th>HN</th>
-                            <th>ชื่อ-นามสกุล</th>
-                            <th>ชื่อแพทย์ผู้รับผิดชอบ</th>
-                            <th>สถานะคิว</th>
-                            <th class="text-center">ดำเนินการ</th>
+                            <th class="ps-4" data-i18n="triage_th_visit">รหัส VISIT</th>
+                            <th data-i18n="reg_hn">HN</th>
+                            <th data-i18n="reg_name">ชื่อ-นามสกุล</th>
+                            <th data-i18n="prescription_th_doctor">ชื่อแพทย์ผู้รับผิดชอบ</th>
+                            <th data-i18n="prescription_th_qstatus">สถานะคิว</th>
+                            <th class="text-center" data-i18n="actions">ดำเนินการ</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-5">ไม่มีรายการรออ่านผล</td>
+                            <td colspan="6" class="text-center text-muted py-5" data-i18n="prescription_empty">ไม่มีรายการรออ่านผล</td>
                         </tr>
                     </tbody>
                 </table>
@@ -1018,18 +1018,18 @@
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
-                            class="bi bi-clock-history text-primary me-2"></i>ประวัติการเข้าตรวจผู้ป่วย</h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;">ค้นหาและดูประวัติการเข้าตรวจ อาการ ผลแล็บ
+                            class="bi bi-clock-history text-primary me-2"></i><span data-i18n="history_title">ประวัติการเข้าตรวจผู้ป่วย</span></h2>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="history_subtitle">ค้นหาและดูประวัติการเข้าตรวจ อาการ ผลแล็บ
                         และการจัดสั่งจ่ายยาที่เสร็จสิ้นแล้ว</p>
                 </div>
                 <div class="d-flex gap-2 align-items-center flex-wrap">
                     <input type="text" id="searchHistoryInput" class="form-control custom-input py-2"
-                        placeholder="ค้นหา HN, ชื่อ หรือ Visit ID..." style="width: 260px;"
+                        placeholder="ค้นหา HN, ชื่อ หรือ Visit ID..." data-i18n-placeholder="history_search_placeholder" style="width: 260px;"
                         onkeyup="searchPatientHistory()">
                     <button class="btn btn-outline-primary py-2 px-3 fw-semibold" onclick="loadPatientHistory()"><i
-                            class="bi bi-arrow-clockwise me-1"></i> รีเฟรช</button>
+                            class="bi bi-arrow-clockwise me-1"></i> <span data-i18n="refresh">รีเฟรช</span></button>
                     <button class="btn btn-danger py-2 px-3 fw-bold shadow-sm" onclick="deleteAllHistoryVisits()"><i
-                            class="bi bi-trash3-fill me-1"></i> ลบทั้งหมด</button>
+                            class="bi bi-trash3-fill me-1"></i> <span data-i18n="history_btn_delete_all">ลบทั้งหมด</span></button>
                 </div>
             </div>
 
@@ -1038,17 +1038,17 @@
                 <table class="table table-modern align-middle" id="historyTable">
                     <thead>
                         <tr>
-                            <th class="ps-4" width="140">รหัส VISIT</th>
-                            <th width="110">HN</th>
-                            <th width="180">ชื่อ-นามสกุล</th>
-                            <th width="150">วันที่ตรวจ</th>
-                            <th>อาการสำคัญ / อาการแรกรับ</th>
-                            <th class="text-center" width="180">ดำเนินการ</th>
+                            <th class="ps-4" width="140" data-i18n="triage_th_visit">รหัส VISIT</th>
+                            <th width="110" data-i18n="reg_hn">HN</th>
+                            <th width="180" data-i18n="reg_name">ชื่อ-นามสกุล</th>
+                            <th width="150" data-i18n="history_th_date">วันที่ตรวจ</th>
+                            <th data-i18n="history_th_diagnosis">อาการสำคัญ / อาการแรกรับ</th>
+                            <th class="text-center" width="180" data-i18n="actions">ดำเนินการ</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-5">ไม่มีข้อมูลประวัติผู้ป่วย</td>
+                            <td colspan="6" class="text-center text-muted py-5" data-i18n="history_empty">ไม่มีข้อมูลประวัติผู้ป่วย</td>
                         </tr>
                     </tbody>
                 </table>
@@ -2169,7 +2169,7 @@
             <div class="modal-content" style="border-radius: 16px; border: none;">
                 <div class="modal-header bg-white">
                     <h4 class="modal-title fw-bold" id="addAppointmentModalTitle"><i
-                            class="bi bi-calendar-plus text-primary me-2"></i>เพิ่มการนัดหมาย</h4>
+                            class="bi bi-calendar-plus text-primary me-2"></i><span data-i18n="appts_modal_title">เพิ่มการนัดหมาย</span></h4>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4 bg-white">
@@ -2177,7 +2177,7 @@
                         <input type="hidden" id="appointmentEditId" value="">
                         <div class="mb-4">
                             <label class="form-label fw-bold text-dark d-flex align-items-center gap-2 mb-2">
-                                <i class="ph ph-squares-four text-primary fs-5"></i> รูปแบบการนัดหมาย <span
+                                <i class="ph ph-squares-four text-primary fs-5"></i> <span data-i18n="appts_modal_type">รูปแบบการนัดหมาย</span> <span
                                     class="text-danger">*</span>
                             </label>
                             <div class="p-1 bg-light rounded-3 border d-flex gap-2 position-relative shadow-sm"
@@ -2189,7 +2189,7 @@
                                     <input class="form-check-input d-none" type="radio" name="appointmentType"
                                         id="apptTypeDirect" value="direct" checked onchange="toggleApptReferrerField()">
                                     <i class="ph ph-user-circle fs-5"></i>
-                                    <span>นัดหมายเอง (คนไข้)</span>
+                                    <span data-i18n="appts_modal_self">นัดหมายเอง (คนไข้)</span>
                                 </label>
                                 <label
                                     class="flex-fill text-center py-2.5 px-3 rounded-3 cursor-pointer transition-all fw-bold d-flex align-items-center justify-content-center gap-2 mb-0 bg-transparent text-secondary"
@@ -2198,29 +2198,29 @@
                                     <input class="form-check-input d-none" type="radio" name="appointmentType"
                                         id="apptTypeAssisted" value="assisted" onchange="toggleApptReferrerField()">
                                     <i class="ph ph-user-gear fs-5"></i>
-                                    <span>นัดหมายผ่านผู้ช่วย / พยาบาล</span>
+                                    <span data-i18n="appts_modal_assisted">นัดหมายผ่านผู้ช่วย / พยาบาล</span>
                                 </label>
                             </div>
                         </div>
-                        <div class="mb-3"><label class="form-label fw-bold">รหัสการจอง</label><input type="text"
+                        <div class="mb-3"><label class="form-label fw-bold" data-i18n="appts_th_code">รหัสการจอง</label><input type="text"
                                 class="form-control custom-input bg-light" id="displayApptId" readonly
                                 placeholder="กำลังสร้างรหัส..."></div>
-                        <div class="mb-3"><label class="form-label fw-bold">ชื่อ-นามสกุล (ผู้จอง)</label><input
+                        <div class="mb-3"><label class="form-label fw-bold" data-i18n="reg_name">ชื่อ-นามสกุล (ผู้จอง)</label><input
                                 type="text" class="form-control custom-input" name="guestName" required></div>
-                        <div class="mb-3"><label class="form-label fw-bold">เบอร์โทรศัพท์</label><input type="text"
+                        <div class="mb-3"><label class="form-label fw-bold" data-i18n="reg_phone">เบอร์โทรศัพท์</label><input type="text"
                                 class="form-control custom-input" name="guestPhone" required></div>
                         <div class="row mb-3">
-                            <div class="col-6"><label class="form-label fw-bold">วันที่นัดหมาย</label><input type="date"
+                            <div class="col-6"><label class="form-label fw-bold" data-i18n="appts_th_date">วันที่นัดหมาย</label><input type="date"
                                     class="form-control custom-input" name="appointmentDate" required></div>
-                            <div class="col-6"><label class="form-label fw-bold">เวลา</label><input type="time"
+                            <div class="col-6"><label class="form-label fw-bold" data-i18n="appts_th_time">เวลา</label><input type="time"
                                     class="form-control custom-input" name="appointmentTime" required></div>
                         </div>
-                        <div class="mb-3"><label class="form-label fw-bold">อาการที่ต้องการตรวจ</label><input
+                        <div class="mb-3"><label class="form-label fw-bold" data-i18n="appts_th_reason">อาการที่ต้องการตรวจ</label><input
                                 type="text" class="form-control custom-input" name="reason" required></div>
                         <!-- ช่องระบุผู้แนะนำ (แสดงผลเฉพาะกรณีนัดผ่านผู้ช่วย/พยาบาล) - รองรับทั้งพิมพ์ค้นหาและกดเลือก -->
                         <div class="mb-3" id="apptReferredByContainer" style="display: none;">
                             <label class="form-label fw-bold text-primary d-flex align-items-center gap-1">
-                                <i class="ph ph-hand-coins fs-5 text-primary me-1"></i>ผู้แนะนำ (Referrer / Dividend)
+                                <i class="ph ph-hand-coins fs-5 text-primary me-1"></i><span data-i18n="appts_th_referrer">ผู้แนะนำ (Referrer / Dividend)</span>
                             </label>
                             <input type="text" class="form-select custom-input" list="referrerDatalist"
                                 id="apptReferredBySelect" name="ReferredBy"
@@ -2228,8 +2228,8 @@
                         </div>
                         <input type="hidden" name="status" value="รอ">
                         <div class="d-flex justify-content-end gap-2 mt-4"><button type="button"
-                                class="btn btn-light border" data-bs-dismiss="modal">ยกเลิก</button><button
-                                type="submit" class="btn btn-primary px-4">บันทึกนัดหมาย</button></div>
+                                class="btn btn-light border" data-bs-dismiss="modal" data-i18n="cancel">ยกเลิก</button><button
+                                type="submit" class="btn btn-primary px-4" data-i18n="appts_modal_save">บันทึกนัดหมาย</button></div>
                     </form>
                 </div>
             </div>
