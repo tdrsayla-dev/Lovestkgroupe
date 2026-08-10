@@ -169,7 +169,9 @@ h5 {
 }
 
 .page-section.active {
-    display: block;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
     animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 

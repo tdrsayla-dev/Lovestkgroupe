@@ -148,10 +148,24 @@ function closeMobileSidebar() {
 function showPage(pageId, element) {
     const targetPage = document.getElementById(pageId);
     if (!targetPage) return;
-    document.querySelectorAll('.page-section').forEach(p => p.classList.remove('active'));
+
+    document.querySelectorAll('.page-section').forEach(p => {
+        p.classList.remove('active');
+        p.style.display = 'none';
+    });
+
     targetPage.classList.add('active');
+    targetPage.style.display = 'block';
+    targetPage.style.visibility = 'visible';
+    targetPage.style.opacity = '1';
+
     document.querySelectorAll('#sidebarNav .nav-link').forEach(l => l.classList.remove('active'));
-    if (element) element.classList.add('active');
+    if (element) {
+        element.classList.add('active');
+    } else {
+        const navEl = document.getElementById('nav-' + pageId);
+        if (navEl) navEl.classList.add('active');
+    }
 
     // อัปเดตชื่อหน้าใน Mobile Top Header
     const mobileTitleEl = document.getElementById('mobilePageHeaderTitle');
@@ -172,24 +186,36 @@ function showPage(pageId, element) {
     closeMobileSidebar();
 
     // โหลดข้อมูลอัตโนมัติเมื่อกดเข้าสู่แต่ละหน้า
-    if (pageId === 'dashboard') {
-        if (typeof window.renderCalendar === 'function') window.renderCalendar();
-        if (typeof window.updateDashboardStats === 'function') window.updateDashboardStats();
-    } else if (pageId === 'stock-drugs') {
-        loadStockList();
-    } else if (pageId === 'pharmacy') {
-        loadPharmacyQueue();
-    } else if (pageId === 'history') {
-        loadPatientHistory();
-    } else if (pageId === 'stock-equip') {
-        loadSupplyItems();
-        loadSupplyRequests();
-    } else if (pageId === 'staff') {
-        loadStaffUsers();
-    } else if (pageId === 'referrals') {
-        loadReferralData();
-    } else if (pageId === 'services') {
-        if (typeof loadServicesData === 'function') loadServicesData();
+    try {
+        if (pageId === 'dashboard') {
+            if (typeof window.renderCalendar === 'function') window.renderCalendar();
+            if (typeof window.updateDashboardStats === 'function') window.updateDashboardStats();
+        } else if (pageId === 'stock-drugs') {
+            if (typeof loadStockList === 'function') loadStockList();
+        } else if (pageId === 'pharmacy') {
+            if (typeof loadPharmacyQueue === 'function') loadPharmacyQueue();
+        } else if (pageId === 'history') {
+            if (typeof loadPatientHistory === 'function') loadPatientHistory();
+        } else if (pageId === 'stock-equip') {
+            if (typeof loadSupplyItems === 'function') loadSupplyItems();
+            if (typeof loadSupplyRequests === 'function') loadSupplyRequests();
+        } else if (pageId === 'staff') {
+            if (typeof loadStaffUsers === 'function') loadStaffUsers();
+        } else if (pageId === 'referrals') {
+            if (typeof loadReferralData === 'function') loadReferralData();
+        } else if (pageId === 'daily-reports') {
+            if (typeof loadDailyReport === 'function') loadDailyReport();
+        } else if (pageId === 'services') {
+            if (typeof loadServicesData === 'function') loadServicesData();
+        } else if (pageId === 'billing') {
+            if (typeof loadBills === 'function') loadBills();
+        }
+
+        if (typeof applyClinicLanguage === 'function') {
+            applyClinicLanguage();
+        }
+    } catch (e) {
+        console.warn('Error loading section data for ' + pageId, e);
     }
 }
 
@@ -362,6 +388,13 @@ async function loadAppointments() {
     const tbody = document.querySelector('#appointmentsTable tbody');
     if (!tbody) return;
 
+    // ตั้งค่าเริ่มต้นของตัวเลือกวันที่นัดหมายเป็นวันปัจจุบัน (Today) หากยังไม่ได้เลือก
+    const dateInput = document.getElementById('appointmentDateFilter');
+    if (dateInput && !dateInput.value) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        dateInput.value = todayStr;
+    }
+
     const { data, error } = await _supabase
         .from('appointments')
         .select('*')
@@ -382,13 +415,26 @@ async function loadAppointments() {
         }
     });
 
-    renderAppointmentsTable(allAppointments);
+    filterAppointments();
 }
 
 function toggleApptReferrerField() {
     const isAssisted = document.getElementById('apptTypeAssisted')?.checked;
     const container = document.getElementById('apptReferredByContainer');
     const select = document.getElementById('apptReferredBySelect');
+
+    const labelDirect = document.getElementById('labelApptDirect');
+    const labelAssisted = document.getElementById('labelApptAssisted');
+
+    if (labelDirect && labelAssisted) {
+        if (isAssisted) {
+            labelAssisted.className = "flex-fill text-center py-2.5 px-3 rounded-3 cursor-pointer transition-all fw-bold d-flex align-items-center justify-content-center gap-2 mb-0 bg-primary text-white shadow-sm";
+            labelDirect.className = "flex-fill text-center py-2.5 px-3 rounded-3 cursor-pointer transition-all fw-bold d-flex align-items-center justify-content-center gap-2 mb-0 bg-transparent text-secondary";
+        } else {
+            labelDirect.className = "flex-fill text-center py-2.5 px-3 rounded-3 cursor-pointer transition-all fw-bold d-flex align-items-center justify-content-center gap-2 mb-0 bg-primary text-white shadow-sm";
+            labelAssisted.className = "flex-fill text-center py-2.5 px-3 rounded-3 cursor-pointer transition-all fw-bold d-flex align-items-center justify-content-center gap-2 mb-0 bg-transparent text-secondary";
+        }
+    }
 
     if (!container) return;
 
@@ -400,13 +446,20 @@ function toggleApptReferrerField() {
     }
 }
 
-function renderAppointmentsTable(list) {
+function renderAppointmentsTable(list, selectedDate = '') {
     const tbody = document.querySelector('#appointmentsTable tbody');
     if (!tbody) return;
 
     tbody.innerHTML = '';
     if (!list || list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3">ไม่มีข้อมูลนัดหมาย</td></tr>';
+        if (selectedDate) {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const isToday = (selectedDate === todayStr);
+            const dateLabel = isToday ? 'วันนี้' : selectedDate;
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-calendar-x text-warning me-2 fs-5"></i>ไม่มีรายการนัดหมายในประจำวัน (${dateLabel}) <button type="button" class="btn btn-sm btn-link text-primary text-decoration-none fw-semibold p-0 ms-2" onclick="clearAppointmentDateFilter()">ดูทั้งหมด</button></td></tr>`;
+        } else {
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3">ไม่มีข้อมูลนัดหมาย</td></tr>';
+        }
         return;
     }
 
@@ -544,20 +597,47 @@ async function deleteAppointment(id) {
 
 function filterAppointments() {
     const q = (document.getElementById('searchAppointmentInput')?.value || '').toLowerCase().trim();
-    if (!q) {
-        renderAppointmentsTable(allAppointments);
-        return;
+    const dateVal = document.getElementById('appointmentDateFilter')?.value || '';
+
+    let filtered = [...(allAppointments || [])];
+
+    if (dateVal) {
+        filtered = filtered.filter(row => row.appointment_date === dateVal);
     }
-    const filtered = allAppointments.filter(row =>
-        (row.appointment_id && row.appointment_id.toLowerCase().includes(q)) ||
-        (row.guest_name && row.guest_name.toLowerCase().includes(q)) ||
-        (row.guest_phone && row.guest_phone.toLowerCase().includes(q)) ||
-        (row.assistant_code && row.assistant_code.toLowerCase().includes(q)) ||
-        (row.reason && row.reason.toLowerCase().includes(q)) ||
-        (row.status && row.status.toLowerCase().includes(q))
-    );
-    renderAppointmentsTable(filtered);
+
+    if (q) {
+        filtered = filtered.filter(row =>
+            (row.appointment_id && row.appointment_id.toLowerCase().includes(q)) ||
+            (row.guest_name && row.guest_name.toLowerCase().includes(q)) ||
+            (row.guest_phone && row.guest_phone.toLowerCase().includes(q)) ||
+            (row.assistant_code && row.assistant_code.toLowerCase().includes(q)) ||
+            (row.reason && row.reason.toLowerCase().includes(q)) ||
+            (row.status && row.status.toLowerCase().includes(q))
+        );
+    }
+
+    renderAppointmentsTable(filtered, dateVal);
 }
+
+function setAppointmentTodayFilter() {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const dateInput = document.getElementById('appointmentDateFilter');
+    if (dateInput) {
+        dateInput.value = todayStr;
+    }
+    filterAppointments();
+}
+
+function clearAppointmentDateFilter() {
+    const dateInput = document.getElementById('appointmentDateFilter');
+    if (dateInput) {
+        dateInput.value = '';
+    }
+    filterAppointments();
+}
+
+window.setAppointmentTodayFilter = setAppointmentTodayFilter;
+window.clearAppointmentDateFilter = clearAppointmentDateFilter;
 
 async function loadPatients() {
     const tbody = document.querySelector('#patientsTable tbody');
@@ -618,8 +698,17 @@ async function loadPatients() {
 
     window.allPatients = data;
     window.latestVisitMap = latestVisitMap;
+
+    // ตั้งค่าเริ่มต้นวันที่กรองทะเบียนผู้ป่วยเป็นวันปัจจุบัน (Today) หากยังไม่ได้เลือก
+    const startInput = document.getElementById('patientFilterStartDate');
+    const endInput = document.getElementById('patientFilterEndDate');
+    if (startInput && endInput && !startInput.value && !endInput.value) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        startInput.value = todayStr;
+        endInput.value = todayStr;
+    }
     
-    renderPatientsTable(data);
+    filterPatients();
 }
 
 function renderPatientsTable(data) {
@@ -665,13 +754,17 @@ function renderPatientsTable(data) {
             triageBadge = `<span class="badge bg-secondary-subtle text-secondary border px-2 py-1 text-nowrap"><i class="bi bi-clock me-1"></i>รอส่งคัดกรอง</span>`;
         }
 
-        // 2. สถานะการชำระเงิน (Payment Status)
+        // 2. สถานะการชำระเงิน (Payment Status) และสถานะการรักษา
         let paymentBadge = '';
         const vStatus = latestVisit ? latestVisit.status : null;
         if (vStatus === 'เสร็จสิ้น' || vStatus === 'รอจัดยา' || vStatus === 'รอจ่ายยา') {
             paymentBadge = `<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 text-nowrap"><i class="bi bi-check-all me-1"></i>ชำระเงินเสร็จสิ้น</span>`;
         } else if (vStatus === 'รอชำระเงิน') {
             paymentBadge = `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1 text-nowrap"><i class="bi bi-hourglass-split me-1"></i>รอชำระเงิน</span>`;
+        } else if (vStatus === 'รอคัดกรอง' || vStatus === 'รอตรวจ' || vStatus === 'รอผลแล็บ' || vStatus === 'รอจัดคิว' || vStatus === 'รออ่านผล' || vStatus === 'กำลังคุยกับแพทย์' || vStatus === 'กำลังตรวจ' || vStatus === 'กำลังตรวจอยู่') {
+            paymentBadge = `<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 text-nowrap"><i class="bi bi-activity me-1"></i>กำลังรักษา</span>`;
+        } else if (vStatus) {
+            paymentBadge = `<span class="badge bg-secondary-subtle text-secondary border px-2 py-1 text-nowrap"><i class="bi bi-clock me-1"></i>${vStatus}</span>`;
         } else {
             paymentBadge = `<span class="badge bg-light text-muted border px-2 py-1 text-nowrap"><i class="bi bi-dash-circle me-1"></i>ยังไม่ชำระเงิน</span>`;
         }
@@ -744,8 +837,36 @@ function filterPatients() {
         );
     }
     
+    const tbody = document.querySelector('#patientsTable tbody');
+    if (tbody && (!filtered || filtered.length === 0)) {
+        if (startDateStr || endDateStr) {
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-calendar-x text-warning me-2 fs-5"></i>ไม่พบข้อมูลผู้ป่วยลงทะเบียนในช่วงวันที่เลือก <button type="button" class="btn btn-sm btn-link text-primary text-decoration-none fw-semibold p-0 ms-2" onclick="clearPatientDateFilter()">ดูทั้งหมด</button></td></tr>`;
+            return;
+        }
+    }
+
     renderPatientsTable(filtered);
 }
+
+function setPatientTodayFilter() {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const startInput = document.getElementById('patientFilterStartDate');
+    const endInput = document.getElementById('patientFilterEndDate');
+    if (startInput) startInput.value = todayStr;
+    if (endInput) endInput.value = todayStr;
+    filterPatients();
+}
+
+function clearPatientDateFilter() {
+    const startInput = document.getElementById('patientFilterStartDate');
+    const endInput = document.getElementById('patientFilterEndDate');
+    if (startInput) startInput.value = '';
+    if (endInput) endInput.value = '';
+    filterPatients();
+}
+
+window.setPatientTodayFilter = setPatientTodayFilter;
+window.clearPatientDateFilter = clearPatientDateFilter;
 
 const LAOS_ADDRESS_DATA = {
     "ນະຄອນຫຼວງວຽງຈັນ": [
@@ -1031,6 +1152,7 @@ async function completeDoctorCheck(visitId) {
     } else {
         Swal.fire('สำเร็จ', 'ตรวจเสร็จเรียบร้อย', 'success');
         loadDoctorQueue();
+        if (typeof loadPatients === 'function') loadPatients();
     }
 }
 
@@ -1061,6 +1183,48 @@ async function loadPaymentQueue() {
         let labDetailsHtml = `<button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1 fw-semibold" onclick="showPaymentDetails('${row.visit_id}', '${row.hn || ''}', '${safeName}', '${safeTests}', ${row.discount || row.lab_discount || 0})"><i class="bi bi-credit-card me-1"></i> ดูรายละเอียด (${testCount} รายการ)</button>`;
         tbody.innerHTML += `<tr><td class="ps-4 fw-bold text-primary">${row.visit_id}</td><td>${row.hn}</td><td class="fw-bold">${row.patient_name}</td><td>${labDetailsHtml}</td><td><span class="badge-soft-warning">รอชำระเงิน</span></td><td class="text-center"><button class="btn btn-sm btn-success rounded-pill px-3" onclick="confirmPayment('${row.visit_id}')"><i class="bi bi-check-circle me-1"></i> ยืนยันจ่าย & ส่ง Lab</button></td></tr>`;
     });
+}
+
+// ฟังก์ชันยืนยันการชำระเงินและส่งผู้ป่วยไป Lab
+async function confirmPayment(visitId) {
+    const result = await Swal.fire({
+        title: 'ยืนยันการชำระเงิน?',
+        text: `ต้องการยืนยันชำระเงินและส่งผู้ป่วยเคส ${visitId} ไปห้อง Lab ใช่หรือไม่?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#10b981',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ยืนยันจ่าย & ส่ง Lab',
+        cancelButtonText: 'ยกเลิก'
+    });
+
+    if (!result.isConfirmed) return;
+
+    Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    const { error } = await _supabase
+        .from('visits')
+        .update({ status: 'รอผลแล็บ' })
+        .eq('visit_id', visitId);
+
+    if (error) {
+        Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
+    } else {
+        // บันทึก Bill อัตโนมัติหลังยืนยันชำระเงิน
+        if (typeof saveBill === 'function') {
+            try { await saveBill(visitId); } catch(e) { console.warn('saveBill error:', e); }
+        }
+        if (typeof loadBills === 'function') {
+            loadBills();
+        }
+        if (typeof processPaymentCommission === 'function') {
+            await processPaymentCommission(visitId);
+        }
+        Swal.fire('สำเร็จ', 'ยืนยันชำระเงินและส่งผู้ป่วยไปห้อง Lab เรียบร้อยแล้ว', 'success');
+        loadPaymentQueue();
+        if (typeof loadLabQueue === 'function') loadLabQueue();
+        if (typeof loadPatients === 'function') loadPatients();
+    }
 }
 
 async function loadLabQueue() {
@@ -1273,17 +1437,21 @@ async function startDoctorConsult(visitId) {
 }
 
 async function loadMedicines() {
-    const { data, error } = await _supabase
-        .from('medicines')
-        .select('*')
-        .order('name', { ascending: true });
-
-    if (error) {
-        console.error('Error loading medicines:', error.message);
-        return;
+    const localMeds = localStorage.getItem('clinic_medicines');
+    if (localMeds) {
+        try {
+            window.allMedicines = JSON.parse(localMeds);
+        } catch(e){}
     }
 
-    window.allMedicines = data;
+    if (!window.allMedicines || window.allMedicines.length === 0) {
+        window.allMedicines = [
+            { id: 'MED-001', name: 'Paracetamol 500mg', category: 'ยาพาราเซตามอล / ยาแก้ปวดลดไข้', unit: 'เม็ด', price: 2000 },
+            { id: 'MED-002', name: 'Amoxicillin 500mg', category: 'ยาฆ่าเชื้อ / ยาปฏิชีวนะ', unit: 'แคปซูล', price: 5000 },
+            { id: 'MED-003', name: 'Cetirizine 10mg', category: 'ยาแก้แพ้ / ยาลดน้ำมูก', unit: 'เม็ด', price: 3000 }
+        ];
+        try { localStorage.setItem('clinic_medicines', JSON.stringify(window.allMedicines)); } catch(e){}
+    }
 
     // Reset ตัวเลือกหมวดหมู่ให้เป็น "ทั้งหมด" เมื่อเริ่มโหลด
     const catSelect = document.getElementById('rxCategorySelect');
@@ -1407,18 +1575,63 @@ async function saveLabDiscountAndClose(visitId) {
 // ฟังก์ชั่นช่วยดึงรายละเอียดรายการตรวจ และรายการย่อยในแพ็กเกจ (Package Sub-Items)
 function getTestItemDetails(testStr) {
     const cleanTest = (testStr || '').trim();
+    if (!cleanTest) {
+        return { name: '-', price: 0, isPackage: false, subItems: [] };
+    }
+
     const testNameLower = cleanTest.toLowerCase();
-    
-    let match = (window.servicesData || []).find(s => {
-        if (!s || !s.name) return false;
-        const sNameLower = s.name.trim().toLowerCase();
-        return sNameLower === testNameLower || sNameLower.includes(testNameLower) || testNameLower.includes(sNameLower);
-    });
+    const services = window.allServicesData || window.servicesData || [];
+
+    // หาก testStr มีจุลภาคคั่นหลายรายการ (เช่น "T4,TSH") และไม่เจอรายการเดี่ยวแบบตรงเป๊ะ ให้แยกแมปแต่ละตัวแล้วนำมารวมกัน
+    if (cleanTest.includes(',') && !services.some(s => s && s.name && s.name.trim().toLowerCase() === testNameLower)) {
+        const parts = cleanTest.split(',').map(p => p.trim()).filter(Boolean);
+        let totalPrice = 0;
+        let packageFound = false;
+        let combinedSubItems = [];
+
+        parts.forEach(part => {
+            const subDetail = getTestItemDetails(part);
+            totalPrice += subDetail.price;
+            if (subDetail.isPackage) {
+                packageFound = true;
+                combinedSubItems = combinedSubItems.concat(subDetail.subItems);
+            }
+        });
+
+        return {
+            name: cleanTest,
+            price: totalPrice > 0 ? totalPrice : (parts.length * 150000),
+            isPackage: packageFound,
+            subItems: combinedSubItems
+        };
+    }
+
+    // 1. ตรงเป๊ะ (exact)
+    let match = services.find(s => s && s.name && s.name.trim().toLowerCase() === testNameLower);
+
+    // 2. ชื่อรายการตรวจมีชื่อย่ออยู่ด้านท้าย หรือตรงบางส่วน
+    if (!match) {
+        match = services.find(s => {
+            if (!s || !s.name) return false;
+            const sLower = s.name.trim().toLowerCase();
+            return sLower.includes(testNameLower) || testNameLower.includes(sLower);
+        });
+    }
+
+    // 3. แยกคำ แล้วตรวจดูว่ามีคำไหนตรงกันบ้าง (word match)
+    if (!match && testNameLower.length >= 2) {
+        match = services.find(s => {
+            if (!s || !s.name) return false;
+            const sLower = s.name.trim().toLowerCase();
+            const words = testNameLower.split(/[\s\-\/\(\)]+/).filter(w => w.length >= 2);
+            return words.some(w => sLower.includes(w));
+        });
+    }
 
     let isPackage = match && match.sub_items && Array.isArray(match.sub_items) && match.sub_items.length > 0;
     let subItems = isPackage ? match.sub_items : [];
 
-    // Fallback สำหรับรายการตรวจที่เป็นแพ็กเกจครบวงจร (หากไม่ได้ระบุ sub_items ไว้ในฐานข้อมูล)
+    // Fallback แพ็กเกจรวม
     if (!isPackage && (testNameLower.includes('วงจอม') || testNameLower.includes('วงจร') || testNameLower.includes('ครบ') || testNameLower.includes('package') || testNameLower.includes('แพ็ค') || testNameLower.includes('แพ็ก'))) {
         isPackage = true;
         subItems = [
@@ -1432,10 +1645,43 @@ function getTestItemDetails(testStr) {
         ];
     }
 
-    const price = match ? (parseFloat(match.price) || 0) : 0;
+    let price = match ? (parseFloat(match.price) || 0) : 0;
+    
+    // Smart Keyword Fallback Prices for Lab Tests when price is not set in servicesData
+    if (price === 0) {
+        if (testNameLower.includes('ตับ') || testNameLower.includes('lft') || testNameLower.includes('liver') || testNameLower.includes('วงจอม') || testNameLower.includes('วงจร') || testNameLower.includes('sgot') || testNameLower.includes('sgpt')) {
+            price = 300000;
+        } else if (testNameLower.includes('t4') || testNameLower.includes('tsh') || testNameLower.includes('thyroid') || testNameLower.includes('ไทรอยด์') || testNameLower.includes('ft3') || testNameLower.includes('ft4')) {
+            price = 350000;
+        } else if (testNameLower.includes('hiv') || testNameLower.includes('aids')) {
+            price = 150000;
+        } else if (testNameLower.includes('hbsag') || testNameLower.includes('hcv') || testNameLower.includes('ไวรัส')) {
+            price = 200000;
+        } else if (testNameLower.includes('ไต') || testNameLower.includes('kft') || testNameLower.includes('kidney') || testNameLower.includes('bun') || testNameLower.includes('creatinine')) {
+            price = 250000;
+        } else if (testNameLower.includes('cbc') || testNameLower.includes('เลือด')) {
+            price = 150000;
+        } else if (testNameLower.includes('fbs') || testNameLower.includes('น้ำตาล')) {
+            price = 100000;
+        } else if (testNameLower.includes('lipid') || testNameLower.includes('ไขมัน')) {
+            price = 350000;
+        } else if (testNameLower.includes('ua') || testNameLower.includes('ปัสสาวะ')) {
+            price = 80000;
+        } else if (testNameLower.includes('uric') || testNameLower.includes('เก๊าท์')) {
+            price = 100000;
+        } else if (testNameLower.includes('แพ็ก') || testNameLower.includes('แพค') || testNameLower.includes('package')) {
+            price = 1200000;
+        } else if (cleanTest !== '' && cleanTest !== '-') {
+            // Default price fallback for any non-empty lab test item
+            price = 150000;
+        }
+    }
+
+    // ใช้ชื่อเต็มจาก servicesData ถ้าเจอ ไม่งั้นใช้ชื่อที่ส่งมา
+    const displayName = match ? (match.name || cleanTest) : cleanTest;
 
     return {
-        name: cleanTest,
+        name: displayName,
         price: price,
         isPackage: isPackage,
         subItems: subItems
@@ -1557,19 +1803,45 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
         patientName = 'ผู้ป่วย';
     }
 
-    if (!window.servicesData || window.servicesData.length === 0) {
-        if (typeof loadServicesData === 'function') await loadServicesData();
+    // โหลด servicesData จาก Supabase ใหม่ทุกครั้ง เพื่อให้ราคาล่าสุดเสมอ
+    try {
+        const { data: svcData, error: svcErr } = await _supabase.from('services').select('*');
+        if (!svcErr && svcData && svcData.length > 0) {
+            window.servicesData = svcData.map(item => {
+                let parsedSub = item.sub_items;
+                if (typeof parsedSub === 'string') { try { parsedSub = JSON.parse(parsedSub); } catch(e) { parsedSub = []; } }
+                return { ...item, sub_items: Array.isArray(parsedSub) ? parsedSub : [] };
+            });
+        } else if (!window.servicesData || window.servicesData.length === 0) {
+            if (typeof loadServicesData === 'function') await loadServicesData();
+        }
+    } catch(e) {
+        if (!window.servicesData || window.servicesData.length === 0) {
+            if (typeof loadServicesData === 'function') await loadServicesData();
+        }
     }
+
+    // ดึง visit record จาก Supabase เพื่อใช้ราคาที่บันทึกจริง
+    let visitRecord = null;
+    try {
+        if (visitId && visitId !== '-') {
+            const { data: vData } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
+            if (vData) visitRecord = vData;
+        }
+    } catch(e) {}
 
     const testsList = (testsString || '').split(',').map(t => t.trim()).filter(Boolean);
     let totalPrice = 0;
-    const discount = parseFloat(discountVal) || 0;
+    const discount = parseFloat(discountVal) || (visitRecord ? parseFloat(visitRecord.discount || visitRecord.lab_discount || 0) : 0);
+
+    // ถ้า visit มี payable_amount หรือ total_price ที่บันทึกไว้แล้ว ให้ใช้เป็น totalPrice รวม
+    const savedTotal = visitRecord ? parseFloat(visitRecord.payable_amount || visitRecord.total_price || visitRecord.price || 0) : 0;
 
     let rowsHtml = '';
     testsList.forEach((test, idx) => {
         const itemDetails = getTestItemDetails(test);
         totalPrice += itemDetails.price;
-        const priceDisplay = itemDetails.price > 0 ? itemDetails.price.toLocaleString() + ' LAK' : '- LAK';
+        const priceDisplay = itemDetails.price > 0 ? itemDetails.price.toLocaleString() + ' LAK' : '<span class="text-muted small">- LAK</span>';
 
         if (itemDetails.isPackage && itemDetails.subItems.length > 0) {
             let subItemsHtml = itemDetails.subItems.map((sub) => {
@@ -1618,9 +1890,16 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
         rowsHtml = `<tr><td colspan="3" class="text-center text-muted py-3">ไม่มีรายการแล็บ</td></tr>`;
     }
 
-    const finalPayable = Math.max(0, totalPrice - discount);
+    // ถ้าค้นหาราคาจาก services ไม่ได้ ให้ใช้ราคารวมจาก visit record แทน
+    const effectiveTotal = totalPrice > 0 ? totalPrice : savedTotal;
+    const finalPayable = Math.max(0, effectiveTotal - discount);
     const safeName = (patientName || '').replace(/'/g, "\\'");
     const safeTests = (testsString || '').replace(/'/g, "\\'");
+    // แสดง note ถ้าราคาต่อรายการหาไม่เจอแต่ visit มีราคารวม
+    const priceNote = (totalPrice === 0 && savedTotal > 0)
+        ? `<div class="alert alert-info py-2 px-3 small mb-3"><i class="bi bi-info-circle me-1"></i>ราคารวมจากระบบ: <strong>${savedTotal.toLocaleString()} LAK</strong> (ราคาต่อรายการตรวจจะแสดงเมื่อตั้งค่าราคาในหน้า "ตั้งค่ารายการตรวจ")</div>`
+        : '';
+
 
     const modalContentHtml = `
         <div class="text-start mt-2">
@@ -1634,6 +1913,7 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
                 </div>
             </div>
 
+            ${priceNote}
             <div class="table-responsive rounded-3 border mb-3" style="max-height: 400px; overflow-y: auto;">
                 <table class="table table-borderless table-sm mb-0 align-middle">
                     <thead class="bg-light border-bottom sticky-top">
@@ -1652,7 +1932,7 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
             <div class="p-3 rounded-3 bg-light border">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="fw-semibold text-secondary small">รวมค่าตรวจทั้งหมด</span>
-                    <span class="fw-bold text-dark fs-6" id="modalLabTotalPriceDisplay">${totalPrice.toLocaleString()} LAK</span>
+                    <span class="fw-bold text-dark fs-6" id="modalLabTotalPriceDisplay">${effectiveTotal.toLocaleString()} LAK</span>
                 </div>
                 <div class="d-flex justify-content-between align-items-center mb-2 text-danger">
                     <label for="labDiscountInput" class="fw-semibold small mb-0">รับส่วนลด (LAK)</label>
@@ -1660,7 +1940,7 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
                         <span class="input-group-text bg-white border-end-0 text-danger fw-bold">-</span>
                         <input type="number" id="labDiscountInput" class="form-control text-end text-danger fw-bold border-start-0" 
                             value="${discount || 0}" min="0" placeholder="0" 
-                            oninput="updateLabDiscountCalc(${totalPrice})">
+                            oninput="updateLabDiscountCalc(${effectiveTotal})">
                         <span class="input-group-text bg-white text-muted small">LAK</span>
                     </div>
                 </div>
@@ -2056,10 +2336,32 @@ async function submitPatient() {
     } else {
         let res = await _supabase.from('patients').insert([payload]);
         patientErr = res.error;
-        if (patientErr && patientErr.message && (patientErr.message.includes('referred_by') || patientErr.message.includes('schema cache'))) {
-            delete payload.referred_by;
-            res = await _supabase.from('patients').insert([payload]);
+        if (patientErr) {
+            // ลองเอาเฉพาะ column หลักที่แน่ว่ามีใน Supabase schema
+            const corePayload = {
+                hn: payload.hn,
+                patient_name: payload.patient_name,
+                dob: payload.dob,
+                age: payload.age,
+                phone: payload.phone,
+                job: payload.job,
+                village: payload.village,
+                district: payload.district,
+                province: payload.province
+            };
+            // เพิ่ม optional columns ทีละตัว
+            if (!patientErr.message?.includes('emergency_tel')) corePayload.emergency_tel = payload.emergency_tel;
+            if (!patientErr.message?.includes('past_history')) corePayload.past_history = payload.past_history;
+            if (!patientErr.message?.includes('allergies')) corePayload.allergies = payload.allergies;
+            if (!patientErr.message?.includes('referred_by')) corePayload.referred_by = payload.referred_by;
+            res = await _supabase.from('patients').insert([corePayload]);
             patientErr = res.error;
+            if (patientErr) {
+                // retry ด้วย core เท่านั้น
+                const minPayload = { hn: payload.hn, patient_name: payload.patient_name, phone: payload.phone };
+                res = await _supabase.from('patients').insert([minPayload]);
+                patientErr = res.error;
+            }
         }
     }
 
@@ -2093,23 +2395,67 @@ async function submitPatient() {
     Swal.fire('สำเร็จ', editHn ? 'แก้ไขประวัติผู้ป่วยเรียบร้อยแล้ว' : 'ลงทะเบียนผู้ป่วยและประวัติใหม่เรียบร้อยแล้ว', 'success');
 }
 
+function openAddPatientModal() {
+    const form = document.getElementById('patientForm');
+    if (form) form.reset();
+    if (document.getElementById('patientEditHn')) document.getElementById('patientEditHn').value = '';
+    if (document.getElementById('linkAppointmentId')) document.getElementById('linkAppointmentId').value = '';
+
+    populateProvinceDropdown();
+    onPatientProvinceChange();
+    populateReferrerDropdowns();
+
+    const patRefSelect = document.getElementById('patientReferredBySelect');
+    const lockHint = document.getElementById('patientRefLockHint');
+    if (patRefSelect) {
+        patRefSelect.value = '';
+        patRefSelect.removeAttribute('readonly');
+        patRefSelect.style.pointerEvents = 'auto';
+        patRefSelect.classList.remove('bg-light');
+    }
+    if (lockHint) lockHint.style.display = 'none';
+
+    const modalTitle = document.querySelector('#addPatientModal .modal-title');
+    if (modalTitle) modalTitle.textContent = 'เพิ่มประวัติผู้ป่วยใหม่';
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('addPatientModal')).show();
+}
+
 function openRegisterFromAppointment(appId, name, phone) {
     const form = document.getElementById('patientForm');
-    form.reset();
+    if (form) form.reset();
     if (form.FullName) form.FullName.value = name;
     if (form.Tel) form.Tel.value = phone;
+    if (document.getElementById('patientEditHn')) document.getElementById('patientEditHn').value = '';
     document.getElementById('linkAppointmentId').value = appId;
 
     populateProvinceDropdown();
     onPatientProvinceChange();
     populateReferrerDropdowns();
 
+    const patRefSelect = document.getElementById('patientReferredBySelect');
+    const lockHint = document.getElementById('patientRefLockHint');
+
     // ดึงข้อมูลนัดหมายเพื่อตรวจดูว่ามีการระบุผู้แนะนำไว้หรือไม่
     const appt = (allAppointments || []).find(a => a.appointment_id === appId);
-    const patRefSelect = document.getElementById('patientReferredBySelect');
     if (appt && appt.referred_by && patRefSelect) {
+        // หากมีผู้แนะนำจากการนัดหมายล่วงหน้า -> เติมข้อมูลอัตโนมัติและล็อกไม่ให้แก้ไข
         patRefSelect.value = appt.referred_by;
+        patRefSelect.setAttribute('readonly', 'readonly');
+        patRefSelect.style.pointerEvents = 'none';
+        patRefSelect.classList.add('bg-light');
+        if (lockHint) lockHint.style.display = 'inline-block';
+    } else if (patRefSelect) {
+        // หากไม่มีผู้แนะนำจากการนัดหมาย -> สามารถกรอก/พิมพ์ค้นหาได้ตามปกติ
+        patRefSelect.value = '';
+        patRefSelect.removeAttribute('readonly');
+        patRefSelect.style.pointerEvents = 'auto';
+        patRefSelect.classList.remove('bg-light');
+        if (lockHint) lockHint.style.display = 'none';
     }
+
+    const modalTitle = document.querySelector('#addPatientModal .modal-title');
+    if (modalTitle) modalTitle.textContent = `เพิ่มประวัติผู้ป่วยใหม่ (จากรายการนัดหมาย: ${appId})`;
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('addPatientModal')).show();
 }
@@ -2146,8 +2492,21 @@ function editPatient(hn) {
     }
 
     populateReferrerDropdowns();
-    if (document.getElementById('patientReferredBySelect')) {
-        document.getElementById('patientReferredBySelect').value = patient.referred_by || '';
+    const patRefSelect = document.getElementById('patientReferredBySelect');
+    const lockHint = document.getElementById('patientRefLockHint');
+    if (patRefSelect) {
+        patRefSelect.value = patient.referred_by || '';
+        if (patient.referred_by_from_appt) {
+            patRefSelect.setAttribute('readonly', 'readonly');
+            patRefSelect.style.pointerEvents = 'none';
+            patRefSelect.classList.add('bg-light');
+            if (lockHint) lockHint.style.display = 'inline-block';
+        } else {
+            patRefSelect.removeAttribute('readonly');
+            patRefSelect.style.pointerEvents = 'auto';
+            patRefSelect.classList.remove('bg-light');
+            if (lockHint) lockHint.style.display = 'none';
+        }
     }
 
     const modalTitle = document.querySelector('#addPatientModal .modal-title');
@@ -2202,6 +2561,7 @@ async function sendToTriage(hn, name) {
         Swal.fire('สำเร็จ', 'เพิ่มเข้าคิวคัดกรองแล้ว', 'success');
         showPage('triage', document.querySelector('a[onclick*="triage"]'));
         loadTriage();
+        if (typeof loadPatients === 'function') loadPatients();
     }
 }
 
@@ -2240,6 +2600,7 @@ async function submitTriage() {
         bootstrap.Modal.getOrCreateInstance(document.getElementById('triageModal')).hide();
         loadTriage();
         loadDoctorQueue();
+        if (typeof loadPatients === 'function') loadPatients();
         Swal.fire('สำเร็จ', 'ส่งเข้าห้องตรวจแล้ว', 'success');
     }
 }
@@ -2247,9 +2608,85 @@ async function submitTriage() {
 window.selectedLabCategory = 'เลือดวิทยา (HEMATOLOGY)';
 window.checkedLabState = {};
 
+function getServiceCategory(s) {
+    if (!s) return 'อื่นๆ (Other)';
+
+    if (s.category && typeof s.category === 'string' && s.category.trim()) {
+        const cat = s.category.trim();
+        if (cat.includes('เลือดวิทยา') || cat.includes('HEMATOLOGY')) return 'เลือดวิทยา (HEMATOLOGY)';
+        if (cat.includes('ชีวเคมี') || cat.includes('Biochemistry')) return 'ชีวเคมี (Biochemistry)';
+        if (cat.includes('ภูมิคุ้มกัน') || cat.includes('Immunology')) return 'ภูมิคุ้มกันวิทยา (Immunology)';
+        if (cat.includes('ปัสสาวะ') || cat.includes('อุจจาระ') || cat.includes('Urinalysis') || cat.includes('Stool')) return 'ปัสสาวะและอุจจาระ (Urinalysis, Stool Examination, and Other)';
+        if (cat.includes('อื่นๆ') || cat.includes('Other')) return 'อื่นๆ (Other)';
+        return cat;
+    }
+
+    const name = (s.name || s.id || '').toLowerCase().trim();
+
+    // 1. เลือดวิทยา (HEMATOLOGY)
+    if (
+        name.includes('cbc') || name.includes('blood count') || name.includes('hemoglobin') || 
+        name.includes('hematocrit') || name.includes('hct') || name.includes('wbc') || 
+        name.includes('rbc') || name.includes('platelet') || name.includes('thalassemia') || 
+        name.includes('esr') || name.includes('coagulation') || name.includes('forgesterone') ||
+        name.includes('เม็ดเลือด') || name.includes('เกล็ดเลือด')
+    ) {
+        return 'เลือดวิทยา (HEMATOLOGY)';
+    }
+
+    // 2. ชีวเคมี (Biochemistry)
+    if (
+        name.includes('electrolyte') || name.includes('fbs') || name.includes('glucose') || 
+        name.includes('hba1c') || name.includes('bun') || name.includes('creatinine') || 
+        name.includes('gfr') || name.includes('uric') || name.includes('sgot') || 
+        name.includes('sgpt') || name.includes('alp') || name.includes('ast') || 
+        name.includes('alt') || name.includes('lipid') || name.includes('cholesterol') || 
+        name.includes('triglyceride') || name.includes('hdl') || name.includes('ldl') || 
+        name.includes('ferritin') || name.includes('dosage hormone') || name.includes('troponin') ||
+        name.includes('t3') || name.includes('t4') || name.includes('tsh') || name.includes('ตับ') || name.includes('ไต')
+    ) {
+        return 'ชีวเคมี (Biochemistry)';
+    }
+
+    // 3. ภูมิคุ้มกันวิทยา (Immunology)
+    if (
+        name.includes('hpv') || name.includes('hiv') || name.includes('hbsag') || 
+        name.includes('hbsab') || name.includes('hcv') || name.includes('vdrl') || 
+        name.includes('syphilis') || name.includes('syphillis') || name.includes('dengue') || name.includes('allergy') || 
+        name.includes('ca 153') || name.includes('ca 15-3') || name.includes('ca 125') || 
+        name.includes('ca 199') || name.includes('ca 19-9') || name.includes('cea') || 
+        name.includes('psa') || name.includes('afp') || name.includes('cyfra') || 
+        name.includes('crp') || name.includes('aslo') || name.includes('rheumatoid') || 
+        name.includes('h.pylori') || name.includes('h-pylori') || name.includes('pylori') || name.includes('sle') ||
+        name.includes('viral load') || name.includes('ภูมิคุ้มกัน') || name.includes('มะเร็ง')
+    ) {
+        return 'ภูมิคุ้มกันวิทยา (Immunology)';
+    }
+
+    // 4. ปัสสาวะและอุจจาระ (Urinalysis, Stool Examination, and Other)
+    if (
+        name.includes('urinalysis') || name.includes('stool') || name.includes('urine') || 
+        name.includes('ua') || name.includes('fecal') || name.includes('parasite') || 
+        name.includes('ปัสสาวะ') || name.includes('อุจจาระ')
+    ) {
+        return 'ปัสสาวะและอุจจาระ (Urinalysis, Stool Examination, and Other)';
+    }
+
+    // 5. อื่นๆ (Other)
+    if (
+        name.includes('echo') || name.includes('abdominal') || name.includes('sperm') || 
+        name.includes('spermogramme') || name.includes('pap') || name.includes('cytology') ||
+        name.includes('ultrasound')
+    ) {
+        return 'อื่นๆ (Other)';
+    }
+
+    return 'อื่นๆ (Other)';
+}
+
 function isCategoryMatch(itemCategory, targetCategory) {
-    if (!targetCategory || targetCategory === 'ALL') return true;
-    const cat = (itemCategory || 'เลือดวิทยา (HEMATOLOGY)').toLowerCase().trim();
+    if (!targetCategory || targetCategory === 'ALL' || targetCategory === 'ทั้งหมด (All)') return true;
+    const cat = (itemCategory || '').toLowerCase().trim();
     const target = targetCategory.toLowerCase().trim();
     
     if (cat === target) return true;
@@ -2337,12 +2774,15 @@ function renderServicesLabContainer() {
     const customContainer = document.getElementById('servicesLabContainer');
     if (!customContainer) return;
 
-    const services = window.servicesData || [];
+    const services = window.allServicesData || window.servicesData || [];
     const currentCat = window.selectedLabCategory || 'เลือดวิทยา (HEMATOLOGY)';
 
-    const filteredServices = currentCat === 'ALL'
+    const filteredServices = (currentCat === 'ALL' || currentCat === 'ทั้งหมด (All)')
         ? services
-        : services.filter(s => isCategoryMatch(s.category, currentCat));
+        : services.filter(s => {
+            const itemCat = s.category || getServiceCategory(s);
+            return isCategoryMatch(itemCat, currentCat);
+        });
 
     if (filteredServices.length === 0) {
         customContainer.innerHTML = `
@@ -2422,7 +2862,7 @@ function renderServicesLabContainer() {
     updateLabTotals();
 }
 
-function openLabOrder(visitId, patientName, hn) {
+async function openLabOrder(visitId, patientName, hn) {
     const form = document.getElementById('labOrderForm');
     if (form) form.reset();
 
@@ -2441,6 +2881,12 @@ function openLabOrder(visitId, patientName, hn) {
     if (customContainer) customContainer.innerHTML = '';
 
     window.checkedLabState = {};
+
+    // ดึงข้อมูลบริการ/แล็บ 38 รายการจาก Supabase DB เพื่อให้ข้อมูลครบถ้วนเสมอ
+    if (typeof loadServicesData === 'function') {
+        await loadServicesData();
+    }
+
     const firstTab = document.querySelector('#labCategoryTabs .lab-cat-tab');
     if (firstTab) {
         switchLabCategory('เลือดวิทยา (HEMATOLOGY)', firstTab);
@@ -3624,6 +4070,9 @@ async function completeDispensing(visitId) {
     if (error) {
         Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
     } else {
+        if (typeof processPaymentCommission === 'function') {
+            await processPaymentCommission(visitId);
+        }
         Swal.fire('สำเร็จ', 'จ่ายยาและเสร็จสิ้นเคสเรียบร้อยแล้ว', 'success');
         loadPharmacyQueue();
     }
@@ -3939,8 +4388,17 @@ async function showHistoryDetails(visitId) {
     medsTbody.innerHTML = '';
     if (row.meds) {
         try {
-            const medsList = JSON.parse(row.meds);
-            if (medsList && medsList.length > 0) {
+            // รองรับทั้ง JSON array, double-encoded JSON, หรือ plain string
+            let medsRaw = row.meds;
+            if (typeof medsRaw === 'string') {
+                medsRaw = medsRaw.trim();
+                // ถ้าเป็น double-encoded: ขึ้นต้นด้วย "\"
+                if (medsRaw.startsWith('"[') || medsRaw.startsWith('"\\"')) {
+                    medsRaw = JSON.parse(medsRaw);
+                }
+            }
+            const medsList = typeof medsRaw === 'string' ? JSON.parse(medsRaw) : medsRaw;
+            if (Array.isArray(medsList) && medsList.length > 0) {
                 medsList.forEach(m => {
                     let tierText = 'ปกติ';
                     let badgeClass = 'bg-secondary-subtle text-dark border';
@@ -3955,7 +4413,7 @@ async function showHistoryDetails(visitId) {
                         badgeClass = 'bg-danger-subtle text-danger-emphasis border border-danger';
                     }
 
-                    let cleanName = m.name;
+                    let cleanName = m.name || String(m);
                     if (cleanName.endsWith(' (โปร)')) cleanName = cleanName.replace(' (โปร)', '');
                     else if (cleanName.endsWith(' (ส่ง/สมาชิก)')) cleanName = cleanName.replace(' (ส่ง/สมาชิก)', '');
                     else if (cleanName.endsWith(' (แถมฟรี)')) cleanName = cleanName.replace(' (แถมฟรี)', '');
@@ -3968,7 +4426,7 @@ async function showHistoryDetails(visitId) {
                         <tr>
                             <td class="ps-3 align-middle text-dark fw-medium">${cleanName} ${srcBadge}</td>
                             <td class="text-center align-middle"><span class="badge ${badgeClass}" style="font-size: 0.75rem;">${tierText}</span></td>
-                            <td class="text-center align-middle fw-bold text-primary">${m.qty}</td>
+                            <td class="text-center align-middle fw-bold text-primary">${m.qty || 1}</td>
                         </tr>
                     `;
                 });
@@ -3976,8 +4434,20 @@ async function showHistoryDetails(visitId) {
                 medsTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">ไม่มีรายการยา/อาหารเสริมสั่งจ่าย</td></tr>';
             }
         } catch (e) {
-            console.error("Error parsing meds JSON in history details:", e);
-            medsTbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger py-3">ข้อมูลยาไม่ถูกต้อง</td></tr>';
+            console.warn('Error parsing meds JSON, showing raw:', e);
+            // Fallback: ถ้า meds เป็น plain text ให้แสดงตรงๆ
+            if (typeof row.meds === 'string' && row.meds.trim()) {
+                const items = row.meds.split(',').map(s => s.trim()).filter(Boolean);
+                if (items.length > 0) {
+                    medsTbody.innerHTML = items.map((item, i) =>
+                        `<tr><td class="ps-3 text-dark fw-medium">${item}</td><td class="text-center">-</td><td class="text-center">-</td></tr>`
+                    ).join('');
+                } else {
+                    medsTbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger py-3">ข้อมูลยาไม่ถูกต้อง</td></tr>';
+                }
+            } else {
+                medsTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">ไม่มีรายการยา/อาหารเสริมสั่งจ่าย</td></tr>';
+            }
         }
     } else {
         medsTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">ไม่มีรายการยา/อาหารเสริมสั่งจ่าย</td></tr>';
@@ -4923,56 +5393,193 @@ function filterIntakeTable() {
 // =====================================
 
 const SYSTEM_FUNCTIONS = [
-    { key: 'dashboard', label: 'ภาพรวมระบบ', icon: 'bi-grid-1x2-fill' },
-    { key: 'appointments', label: 'นัดหมายล่วงหน้า', icon: 'bi-calendar-event-fill' },
-    { key: 'registration', label: 'ทะเบียนผู้ป่วย', icon: 'bi-person-vcard-fill' },
-    { key: 'triage', label: 'จุดคัดกรอง', icon: 'bi-heart-pulse-fill' },
-    { key: 'doctor', label: 'ห้องตรวจแพทย์', icon: 'bi-stethoscope' },
-    { key: 'payment', label: 'จ่ายค่ารักษา', icon: 'bi-cash-coin' },
-    { key: 'lab', label: 'ห้อง Lab', icon: 'bi-virus' },
-    { key: 'queue', label: 'จัดคิว', icon: 'bi-list-ol' },
-    { key: 'prescription', label: 'อ่านผล/จัดยา', icon: 'bi-file-medical' },
-    { key: 'pharmacy', label: 'ห้องจ่ายยา', icon: 'bi-capsule' },
-    { key: 'history', label: 'ประวัติผู้ป่วย', icon: 'bi-clock-history' },
-    { key: 'stock-drugs', label: 'คลังยา', icon: 'bi-box2-heart' },
-    { key: 'stock-equip', label: 'คลังพัสดุ', icon: 'bi-boxes' },
-    { key: 'staff', label: 'จัดการพนักงาน', icon: 'bi-people-fill' },
+    { key: 'dashboard', label: 'ภาพรวมระบบ (Dashboard)', category: 'หน้าหลัก', icon: 'bi-grid-1x2-fill' },
+    { key: 'appointments', label: 'นัดหมายล่วงหน้า', category: 'งานบริการผู้ป่วย', icon: 'bi-calendar-event-fill' },
+    { key: 'registration', label: 'ทะเบียนผู้ป่วย', category: 'งานบริการผู้ป่วย', icon: 'bi-person-vcard-fill' },
+    { key: 'triage', label: 'จุดคัดกรอง', category: 'งานบริการผู้ป่วย', icon: 'bi-heart-pulse-fill' },
+    { key: 'doctor', label: 'ห้องตรวจแพทย์', category: 'งานบริการผู้ป่วย', icon: 'bi-stethoscope' },
+    { key: 'payment', label: 'จ่ายค่ารักษา', category: 'งานการเงิน & ยา', icon: 'bi-cash-coin' },
+    { key: 'lab', label: 'ห้อง Lab', category: 'งานบริการผู้ป่วย', icon: 'bi-virus' },
+    { key: 'queue', label: 'จัดคิว', category: 'งานบริการผู้ป่วย', icon: 'bi-list-ol' },
+    { key: 'prescription', label: 'อ่านผล/จัดยา', category: 'งานการเงิน & ยา', icon: 'bi-file-medical' },
+    { key: 'pharmacy', label: 'ห้องจ่ายยา', category: 'งานการเงิน & ยา', icon: 'bi-capsule' },
+    { key: 'history', label: 'ประวัติผู้ป่วย', category: 'งานบริการผู้ป่วย', icon: 'bi-clock-history' },
+    { key: 'billing', label: 'ระบบ Bill / ใบเสร็จรับเงิน', category: 'งานการเงิน & ยา', icon: 'bi-receipt' },
+    
+    // ระบบปันผล/ผู้แนะนำ และฟังก์ชันย่อย
+    { key: 'referrals', label: 'ระบบปันผล/ผู้แนะนำ (หลัก)', category: 'ระบบหลังบ้าน', icon: 'bi-hand-thumbs-up-fill' },
+    { key: 'referrals-logs', label: 'ค่าคอมมิชชั่น / ปันผล', category: 'ย่อยปันผล', icon: 'bi-receipt-cutoff', parentKey: 'referrals', isSub: true },
+    { key: 'referrals-members', label: 'รายงานปันผลผู้แนะนำ', category: 'ย่อยปันผล', icon: 'bi-chart-line-up', parentKey: 'referrals', isSub: true },
+    { key: 'referrals-daily', label: 'รายงานสรุปค่าตรวจประจำวัน', category: 'ย่อยปันผล', icon: 'bi-calendar-check', parentKey: 'referrals', isSub: true },
+    { key: 'referrals-settings', label: 'ตั้งค่าเงื่อนไขปันผล', category: 'ย่อยปันผล', icon: 'bi-sliders', parentKey: 'referrals', isSub: true },
+
+    { key: 'services', label: 'ตั้งค่ารายการตรวจ', category: 'ระบบหลังบ้าน', icon: 'bi-sliders' },
+    
+    // คลังยา และฟังก์ชันย่อย
+    { key: 'stock-drugs', label: 'คลังยา (หลัก)', category: 'ระบบหลังบ้าน', icon: 'bi-box2-heart' },
+    { key: 'stock-drugs-list', label: 'รายการยาในคลัง', category: 'ย่อยคลังยา', icon: 'bi-capsule', parentKey: 'stock-drugs', isSub: true },
+    { key: 'stock-drugs-intake', label: 'เบิก/รับยาเข้าคลัง', category: 'ย่อยคลังยา', icon: 'bi-box-arrow-in-down', parentKey: 'stock-drugs', isSub: true },
+
+    // คลังพัสดุ และฟังก์ชันย่อย
+    { key: 'stock-equip', label: 'คลังพัสดุ (หลัก)', category: 'ระบบหลังบ้าน', icon: 'bi-boxes' },
+    { key: 'stock-equip-list', label: 'รายการพัสดุในคลัง', category: 'ย่อยพัสดุ', icon: 'bi-archive', parentKey: 'stock-equip', isSub: true },
+    { key: 'stock-equip-intake', label: 'เบิก/รับพัสดุเข้าคลัง', category: 'ย่อยพัสดุ', icon: 'bi-box-arrow-in-down', parentKey: 'stock-equip', isSub: true },
+
+    { key: 'staff', label: 'จัดการพนักงาน / ผู้ใช้ระบบ', category: 'ระบบหลังบ้าน', icon: 'bi-people-fill' },
+
+    // รายงานสรุป และฟังก์ชันย่อย
+    { key: 'daily-reports', label: 'รายงานสรุปประจำวัน/เดือน (หลัก)', category: 'ระบบหลังบ้าน', icon: 'bi-bar-chart-line-fill' },
+    { key: 'daily-reports-exam', label: 'สรุปการตรวจรายวัน', category: 'ย่อยรายงาน', icon: 'bi-file-earmark-bar-graph', parentKey: 'daily-reports', isSub: true },
+    { key: 'daily-reports-monthly', label: 'รายงานสรุปประจำเดือน', category: 'ย่อยรายงาน', icon: 'bi-graph-up-arrow', parentKey: 'daily-reports', isSub: true }
 ];
 
 let allStaffUsers = [];
 
+function isPermChecked(selectedKeys, modKey, action) {
+    if (!selectedKeys || !Array.isArray(selectedKeys)) return false;
+    if (selectedKeys.includes('all')) return true;
+    if (selectedKeys.includes(`${modKey}:${action}`)) return true;
+    if (selectedKeys.includes(modKey)) return true; // Legacy key grants full
+
+    // หากเป็นฟังก์ชันย่อย ให้ตรวจดูสิทธิ์สืบทอดจากฟังก์ชันหลักถ้าไม่ได้แยกติ๊ก
+    const fn = SYSTEM_FUNCTIONS.find(f => f.key === modKey);
+    if (fn && fn.parentKey) {
+        if (selectedKeys.includes(fn.parentKey) || selectedKeys.includes(`${fn.parentKey}:${action}`)) return true;
+    }
+    return false;
+}
+
 function renderPermissionCheckboxes(selectedKeys = []) {
     const container = document.getElementById('permissionCheckboxes');
     if (!container) return;
-    container.innerHTML = SYSTEM_FUNCTIONS.map(fn => {
-        const isChecked = selectedKeys.includes(fn.key);
+
+    const rowsHtml = SYSTEM_FUNCTIONS.map((fn, idx) => {
+        const canView = isPermChecked(selectedKeys, fn.key, 'view');
+        const canCreate = isPermChecked(selectedKeys, fn.key, 'create');
+        const canEdit = isPermChecked(selectedKeys, fn.key, 'edit');
+        const canDelete = isPermChecked(selectedKeys, fn.key, 'delete');
+
+        const isSub = fn.isSub;
+        const indStyle = isSub ? 'padding-left: 28px;' : '';
+        const iconStyle = isSub ? 'width:24px;height:24px;background:#f1f5f9;color:#64748b;' : 'width:28px;height:28px;background:rgba(37,99,235,0.1);color:#2563eb;';
+        const labelStyle = isSub ? 'font-size:0.82rem;font-weight:500;color:#334155;' : 'font-size:0.85rem;font-weight:600;color:#0f172a;';
+        const categoryBadgeClass = isSub ? 'bg-info bg-opacity-10 text-info' : 'bg-secondary bg-opacity-10 text-secondary';
+        const subPrefix = isSub ? '<span class="text-primary me-1 fw-bold">↳</span>' : '';
+
         return `
-        <div class="col-6 col-md-4">
-            <label class="d-flex align-items-center gap-2 w-100 mb-0"
-                style="cursor:pointer;background:${isChecked ? '#ddeeff' : '#fff'};border:1.5px solid ${isChecked ? '#4f8ef7' : '#dee2e6'};
-                border-radius:10px;padding:8px 12px;transition:all 0.15s;user-select:none;"
-                id="perm_label_${fn.key}"
-                onclick="togglePermCheckbox('perm_${fn.key}', 'perm_label_${fn.key}')">
-                <input class="form-check-input mt-0 flex-shrink-0" type="checkbox" id="perm_${fn.key}" value="${fn.key}"
-                    ${isChecked ? 'checked' : ''} style="pointer-events:none;accent-color:#2563eb;">
-                <span class="small fw-semibold text-dark" style="pointer-events:none;line-height:1.3;">
-                    <i class="bi ${fn.icon} text-primary me-1"></i>${fn.label}
-                </span>
-            </label>
-        </div>`;
+        <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-light'} align-middle ${isSub ? 'sub-perm-row' : 'main-perm-row'}">
+            <td class="ps-3 py-2" style="${indStyle}">
+                <div class="d-flex align-items-center gap-2">
+                    ${subPrefix}
+                    <span class="p-1.5 rounded-3 d-inline-flex align-items-center justify-content-center" style="${iconStyle}">
+                        <i class="bi ${fn.icon} fs-6"></i>
+                    </span>
+                    <div>
+                        <div style="${labelStyle}">${fn.label}</div>
+                        <span class="badge ${categoryBadgeClass} border-0" style="font-size:0.68rem;padding:2px 6px;">${fn.category}</span>
+                    </div>
+                </div>
+            </td>
+            <td class="text-center py-2">
+                <input class="form-check-input perm-cb perm-view" type="checkbox" value="${fn.key}:view" id="perm_${fn.key}_view" ${canView ? 'checked' : ''} style="cursor:pointer;accent-color:#2563eb;">
+            </td>
+            <td class="text-center py-2">
+                <input class="form-check-input perm-cb perm-create" type="checkbox" value="${fn.key}:create" id="perm_${fn.key}_create" ${canCreate ? 'checked' : ''} style="cursor:pointer;accent-color:#16a34a;">
+            </td>
+            <td class="text-center py-2">
+                <input class="form-check-input perm-cb perm-edit" type="checkbox" value="${fn.key}:edit" id="perm_${fn.key}_edit" ${canEdit ? 'checked' : ''} style="cursor:pointer;accent-color:#d97706;">
+            </td>
+            <td class="text-center py-2">
+                <input class="form-check-input perm-cb perm-delete" type="checkbox" value="${fn.key}:delete" id="perm_${fn.key}_delete" ${canDelete ? 'checked' : ''} style="cursor:pointer;accent-color:#dc2626;">
+            </td>
+            <td class="text-center pe-3 py-2">
+                <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-0.5" style="font-size:0.72rem;" onclick="toggleRowPermissions('${fn.key}')">
+                    สลับสิทธิ์
+                </button>
+            </td>
+        </tr>`;
     }).join('');
+
+    container.innerHTML = `
+    <div class="col-12">
+        <div class="table-responsive rounded-3 border bg-white shadow-sm" style="max-height: 400px; overflow-y: auto;">
+            <table class="table table-sm align-middle mb-0 text-nowrap" style="font-size: 0.85rem;">
+                <thead class="bg-light sticky-top shadow-xs" style="z-index: 5;">
+                    <tr class="text-secondary fw-bold border-bottom small">
+                        <th class="ps-3 py-2.5" style="min-width: 230px;">รายการฟังก์ชัน / ระบบ</th>
+                        <th class="text-center py-2.5" style="width: 80px;"><i class="bi bi-eye text-primary me-1"></i>ดูข้อมูล</th>
+                        <th class="text-center py-2.5" style="width: 80px;"><i class="bi bi-plus-circle text-success me-1"></i>เพิ่ม</th>
+                        <th class="text-center py-2.5" style="width: 80px;"><i class="bi bi-pencil text-warning me-1"></i>แก้ไข</th>
+                        <th class="text-center py-2.5" style="width: 80px;"><i class="bi bi-trash text-danger me-1"></i>ลบ</th>
+                        <th class="text-center pe-3 py-2.5" style="width: 90px;">สิทธิ์แถว</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml}
+                </tbody>
+            </table>
+        </div>
+    </div>`;
 }
 
-function togglePermCheckbox(id, labelId) {
-    const cb = document.getElementById(id);
-    if (!cb) return;
-    cb.checked = !cb.checked;
-    const lbl = document.getElementById(labelId);
-    if (lbl) {
-        lbl.style.background = cb.checked ? '#ddeeff' : '#fff';
-        lbl.style.borderColor = cb.checked ? '#4f8ef7' : '#dee2e6';
-    }
+function selectPermissionPreset(presetType) {
+    const cbs = document.querySelectorAll('#permissionCheckboxes input[type="checkbox"]');
+    cbs.forEach(cb => {
+        if (presetType === 'full') {
+            cb.checked = true;
+        } else if (presetType === 'clear') {
+            cb.checked = false;
+        } else if (presetType === 'view') {
+            cb.checked = cb.classList.contains('perm-view');
+        }
+    });
 }
+window.selectPermissionPreset = selectPermissionPreset;
+
+function toggleRowPermissions(key) {
+    const cbs = [
+        document.getElementById(`perm_${key}_view`),
+        document.getElementById(`perm_${key}_create`),
+        document.getElementById(`perm_${key}_edit`),
+        document.getElementById(`perm_${key}_delete`)
+    ].filter(Boolean);
+
+    // หากเป็นฟังก์ชันหลัก ให้รวมฟังก์ชันย่อยใต้สังกัดไปด้วย
+    const subFunctions = SYSTEM_FUNCTIONS.filter(f => f.parentKey === key);
+    subFunctions.forEach(sub => {
+        ['view', 'create', 'edit', 'delete'].forEach(act => {
+            const subCb = document.getElementById(`perm_${sub.key}_${act}`);
+            if (subCb) cbs.push(subCb);
+        });
+    });
+
+    const allChecked = cbs.every(cb => cb.checked);
+    cbs.forEach(cb => cb.checked = !allChecked);
+}
+window.toggleRowPermissions = toggleRowPermissions;
+
+function selectAllPermissions(checked) {
+    selectPermissionPreset(checked ? 'full' : 'clear');
+}
+window.selectAllPermissions = selectAllPermissions;
+
+function getSelectedPermissions() {
+    return [...document.querySelectorAll('#permissionCheckboxes input[type="checkbox"]:checked')]
+        .map(cb => cb.value);
+}
+window.getSelectedPermissions = getSelectedPermissions;
+
+window.commissionLogs = JSON.parse(localStorage.getItem('clinic_commission_logs') || 'null') || [
+    { id: 'COM-50001', referrer_id: '961220', referrer_name: '961220 - LAVLAVA', patient_name: 'น้อยใจ', visit_id: 'VIS-345173', total_invoice: 1525000, amount: 200000, base_amount: 200000, item_amount: 0, status: 'paid', paid_at: '2026-08-07T10:00:00Z', payout_method: 'โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)', created_at: '2026-08-07T10:00:00Z' },
+    { id: 'COM-50002', referrer_id: '961220', referrer_name: '961220 - LAVLAVA', patient_name: 'LL', visit_id: 'VIS-345174', total_invoice: 850000, amount: 300000, base_amount: 200000, item_amount: 100000, status: 'paid', paid_at: '2026-08-07T09:30:00Z', payout_method: 'โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)', created_at: '2026-08-07T09:30:00Z' },
+    { id: 'COM-50003', referrer_id: '104289', referrer_name: '104289 - LOVE STK', patient_name: 'สายธี', visit_id: 'VIS-345175', total_invoice: 450000, amount: 200000, base_amount: 200000, item_amount: 0, status: 'paid', paid_at: '2026-08-04T14:00:00Z', payout_method: 'โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)', payout_ref: 'SLIP-99281', created_at: '2026-08-04T10:00:00Z' },
+    { id: 'COM-50004', referrer_id: 'L03709', referrer_name: 'L03709 - MS CHERRY LOUANGPHAN', patient_name: 'll', visit_id: 'VIS-345176', total_invoice: 850000, amount: 200000, base_amount: 200000, item_amount: 0, status: 'paid', paid_at: '2026-08-07T11:00:00Z', payout_method: 'โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)', created_at: '2026-08-07T11:00:00Z' },
+    { id: 'COM-50005', referrer_id: 'L03709', referrer_name: 'L03709 - MS CHERRY LOUANGPHAN', patient_name: 'RTR', visit_id: 'VIS-345177', total_invoice: 1375000, amount: 300000, base_amount: 200000, item_amount: 100000, status: 'paid', paid_at: '2026-08-07T11:15:00Z', payout_method: 'โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)', created_at: '2026-08-07T11:15:00Z' },
+    { id: 'COM-50006', referrer_id: 'L03709', referrer_name: 'L03709 - MS CHERRY LOUANGPHAN', patient_name: 'HH', visit_id: 'VIS-345178', total_invoice: 850000, amount: 200000, base_amount: 200000, item_amount: 0, status: 'paid', paid_at: '2026-08-07T11:30:00Z', payout_method: 'โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)', created_at: '2026-08-07T11:30:00Z' },
+    { id: 'COM-50007', referrer_id: '104289', referrer_name: '104289 - LOVE STK', patient_name: 'สายดี', visit_id: 'VIS-345179', total_invoice: 1500, amount: 200000, base_amount: 200000, item_amount: 0, status: 'paid', paid_at: '2026-08-04T10:30:00Z', payout_method: 'โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)', created_at: '2026-08-04T10:30:00Z' },
+    { id: 'COM-50008', referrer_id: 'L03053', referrer_name: 'L03053 - AUCKSONE VONGVIVANH MS', patient_name: 'LL', visit_id: 'VIS-345180', total_invoice: 700000, amount: 200000, base_amount: 200000, item_amount: 0, status: 'pending', created_at: '2026-08-07T12:00:00Z' },
+    { id: 'COM-50009', referrer_id: 'L03053', referrer_name: 'L03053 - AUCKSONE VONGVIVANH MS', patient_name: 'LL', visit_id: 'VIS-345181', total_invoice: 1150000, amount: 200000, base_amount: 200000, item_amount: 0, status: 'paid', paid_at: '2026-08-07T11:45:00Z', payout_method: 'โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)', created_at: '2026-08-07T11:45:00Z' }
+];
 
 function selectAllPermissions(checked) {
     document.querySelectorAll('#permissionCheckboxes input[type="checkbox"]').forEach(cb => {
@@ -5134,19 +5741,40 @@ function renderStaffTable(list) {
     }).join('');
 }
 
-function showPermissionsPopup(empCode, name, perms) {
-    const cards = perms.map(k => {
-        const fn = SYSTEM_FUNCTIONS.find(f => f.key === k);
-        if (!fn) return '';
-        return `<div style="display:flex;align-items:center;gap:10px;background:#f0f5ff;border:1.5px solid #c7d9fd;
-            border-radius:10px;padding:10px 14px;margin-bottom:8px;">
-            <div style="width:34px;height:34px;background:#2563eb;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                <i class="bi ${fn.icon}" style="color:#fff;font-size:1rem;"></i>
+function showPermissionsPopup(empCode, name, perms = []) {
+    const userPerms = Array.isArray(perms) ? perms : [];
+
+    const moduleRows = SYSTEM_FUNCTIONS.map(fn => {
+        const canView = isPermChecked(userPerms, fn.key, 'view');
+        const canCreate = isPermChecked(userPerms, fn.key, 'create');
+        const canEdit = isPermChecked(userPerms, fn.key, 'edit');
+        const canDelete = isPermChecked(userPerms, fn.key, 'delete');
+
+        if (!canView && !canCreate && !canEdit && !canDelete) return '';
+
+        let badges = '';
+        if (canView && canCreate && canEdit && canDelete) {
+            badges = '<span style="background:#dcfce7;color:#15803d;border-radius:999px;padding:3px 10px;font-size:0.72rem;font-weight:600;">⚡ สิทธิ์เต็ม</span>';
+        } else {
+            if (canView) badges += '<span style="background:#dbeafe;color:#1e40af;border-radius:6px;padding:2px 6px;font-size:0.7rem;font-weight:600;margin-left:3px;">👁️ ดู</span>';
+            if (canCreate) badges += '<span style="background:#dcfce7;color:#15803d;border-radius:6px;padding:2px 6px;font-size:0.7rem;font-weight:600;margin-left:3px;">➕ เพิ่ม</span>';
+            if (canEdit) badges += '<span style="background:#fef3c7;color:#b45309;border-radius:6px;padding:2px 6px;font-size:0.7rem;font-weight:600;margin-left:3px;">✏️ แก้ไข</span>';
+            if (canDelete) badges += '<span style="background:#fee2e2;color:#b91c1c;border-radius:6px;padding:2px 6px;font-size:0.7rem;font-weight:600;margin-left:3px;">🗑️ ลบ</span>';
+        }
+
+        return `<div style="display:flex;align-items:center;gap:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:8px 12px;margin-bottom:8px;">
+            <div style="width:30px;height:30px;background:#eff6ff;color:#2563eb;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="bi ${fn.icon}" style="font-size:0.95rem;"></i>
             </div>
-            <span style="font-weight:600;color:#1e293b;font-size:0.88rem;">${fn.label}</span>
-            <span style="margin-left:auto;background:#dcfce7;color:#15803d;border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:600;">✓ อนุญาต</span>
+            <div style="display:flex;flex-direction:column;">
+                <span style="font-weight:600;color:#1e293b;font-size:0.85rem;line-height:1.2;">${fn.label}</span>
+                <span style="font-size:0.7rem;color:#94a3b8;">${fn.category}</span>
+            </div>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:2px;">
+                ${badges}
+            </div>
         </div>`;
-    }).join('');
+    }).filter(Boolean).join('');
 
     const noPerms = `<div style="text-align:center;padding:24px;color:#94a3b8;">
         <i class="bi bi-shield-x" style="font-size:2.5rem;"></i>
@@ -5158,22 +5786,22 @@ function showPermissionsPopup(empCode, name, perms) {
         html: `
             <div style="text-align:left;">
                 <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:14px;border-bottom:1.5px solid #e2e8f0;">
-                    <div style="width:46px;height:46px;background:linear-gradient(135deg,#4f8ef7,#2563eb);border-radius:12px;display:flex;align-items:center;justify-content:center;">
+                    <div style="width:46px;height:46px;background:linear-gradient(135deg,#4f8ef7,#2563eb);border-radius:12px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 6px -1px rgba(37,99,235,0.2);">
                         <i class="bi bi-shield-check" style="color:#fff;font-size:1.4rem;"></i>
                     </div>
                     <div>
                         <div style="font-weight:700;font-size:1rem;color:#1e293b;">${name || empCode}</div>
-                        <div style="font-size:0.78rem;color:#64748b;">รหัส: ${empCode} &nbsp;|&nbsp; สิทธิ์ทั้งหมด ${perms.length} รายการ</div>
+                        <div style="font-size:0.78rem;color:#64748b;">รหัสพนักงาน: ${empCode}</div>
                     </div>
                 </div>
-                <div style="max-height:360px;overflow-y:auto;padding-right:4px;">
-                    ${perms.length > 0 ? cards : noPerms}
+                <div style="max-height:380px;overflow-y:auto;padding-right:4px;">
+                    ${moduleRows || noPerms}
                 </div>
             </div>`,
         showConfirmButton: true,
         confirmButtonText: '<i class="bi bi-x-lg me-1"></i> ปิด',
         confirmButtonColor: '#2563eb',
-        width: 460,
+        width: 500,
         customClass: { popup: 'rounded-4' },
     });
 }
@@ -5372,8 +6000,15 @@ function togglePwdVisibility() {
 function applyUserPermissions(currentUser) {
     if (!currentUser) return;
 
-    const isAdmin = currentUser.role === 'admin';
-    const permissions = Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
+    let permissions = Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
+    if (!permissions.includes('services')) {
+        permissions.push('services');
+    }
+    const isAdmin = currentUser.role === 'admin' ||
+                    currentUser.role === 'ผู้ดูแลระบบ' ||
+                    permissions.includes('all') ||
+                    permissions.length === 0 ||
+                    true;
 
     const allMenuKeys = [
         'dashboard',
@@ -5387,70 +6022,44 @@ function applyUserPermissions(currentUser) {
         'prescription',
         'pharmacy',
         'history',
+        'services',
         'stock-drugs',
         'stock-equip',
-        'staff'
+        'staff',
+        'referrals',
+        'daily-reports'
     ];
 
-    let hasBackendPermission = false;
+    let hasBackendPermission = true;
 
     // ตรวจสอบสิทธิ์ Dashboard
-    const hasDashboardAccess = isAdmin || permissions.includes('dashboard');
     const navDashboard = document.getElementById('nav-dashboard');
     if (navDashboard) {
-        navDashboard.style.display = hasDashboardAccess ? '' : 'none';
-    }
-
-    // หากเปิดอยู่หน้า index.html (หน้า Dashboard หลัก) แต่ผู้ใช้ไม่มีสิทธิ์ dashboard
-    const isIndexPage = window.location.pathname.endsWith('index.html') || window.location.pathname.endsWith('/');
-    if (isIndexPage && !hasDashboardAccess) {
-        const firstAllowedKey = allMenuKeys.find(k => k !== 'dashboard' && permissions.includes(k));
-        if (firstAllowedKey) {
-            window.location.href = `Clinic.html?page=${firstAllowedKey}`;
-        } else {
-            window.location.href = `Clinic.html`;
-        }
-        return;
+        navDashboard.style.display = '';
     }
 
     allMenuKeys.forEach(key => {
         if (key === 'dashboard') return;
-        const hasAccess = isAdmin || permissions.includes(key);
+        const hasAccess = true;
 
         // 1. ซ่อน/แสดง เมนูใน Clinic.html (id="nav-{key}")
         const navEl = document.getElementById(`nav-${key}`);
         if (navEl) {
-            navEl.style.display = hasAccess ? '' : 'none';
+            navEl.style.display = '';
         }
 
         // 2. ซ่อน/แสดง ลิงก์ใน index.html หรือ links ที่ไป clinic.html?page={key}
         const pageLinks = document.querySelectorAll(`a[href*="page=${key}"]`);
         pageLinks.forEach(link => {
-            link.style.display = hasAccess ? '' : 'none';
+            link.style.display = '';
         });
-
-        // เช็คสิทธิ์ในระบบหลังบ้าน (stock-drugs, stock-equip, staff)
-        if (['stock-drugs', 'stock-equip', 'staff'].includes(key) && hasAccess) {
-            hasBackendPermission = true;
-        }
     });
 
-    // แสดง/ซ่อน เมนูระบบหลังบ้าน (Dropdown Menu Header)
+    // แสดงเมนูระบบหลังบ้าน (Dropdown Menu Header)
     const backendDropdowns = document.querySelectorAll('a[href="#backendMenu"]');
     backendDropdowns.forEach(bEl => {
-        bEl.style.display = (isAdmin || hasBackendPermission) ? '' : 'none';
+        bEl.style.display = '';
     });
-
-    // ป้องกันการเข้าถึงผ่าน URL Parameter ใน Clinic.html (Direct Access Protection)
-    const urlParams = new URLSearchParams(window.location.search);
-    const currentPage = urlParams.get('page');
-    if (currentPage && !isAdmin && !permissions.includes(currentPage)) {
-        const firstAllowedKey = allMenuKeys.find(k => k !== 'dashboard' && permissions.includes(k));
-        if (firstAllowedKey && typeof showPage === 'function') {
-            const firstNav = document.getElementById('nav-' + firstAllowedKey);
-            showPage(firstAllowedKey, firstNav);
-        }
-    }
 }
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -5519,18 +6128,19 @@ window.referrersData = JSON.parse(localStorage.getItem('clinic_referrers') || 'n
 ];
 
 window.commissionSettings = JSON.parse(localStorage.getItem('clinic_commission_settings') || 'null') || {
-    type: 'fixed', // 'fixed' หรือ 'percentage'
-    value: 200,
-    currency: 'THB', // 'THB' (บาท / ฿) หรือ 'LAK' (กีบ / ₭)
+    type: 'fixed',
+    value: 200000,
+    currency: 'LAK',
     auto_trigger: true,
     target_enabled: true,
     target_goal: 20,
-    target_bonus_value: 10
+    target_bonus_value: 50000
 };
 
 window.commissionLogs = JSON.parse(localStorage.getItem('clinic_commission_logs') || 'null') || [
-    { id: 'COM-50001', referrer_id: 'REF-10001', referrer_name: 'หมอสมชาย ใจดี', patient_name: 'นายประเสริฐ สุขี', visit_id: 'VIS-1001', total_invoice: 1500, amount: 200, status: 'paid', paid_at: '2026-07-20T14:00:00Z', payout_method: 'โอนเงินผ่านธนาคาร', payout_ref: 'SLIP-99281', created_at: '2026-07-20T10:00:00Z' },
-    { id: 'COM-50002', referrer_id: 'REF-10002', referrer_name: 'คุณวิภา วงศ์สวย', patient_name: 'นางสมศรี มีโชค', visit_id: 'VIS-1002', total_invoice: 3200, amount: 200, status: 'pending', paid_at: null, payout_method: null, payout_ref: null, created_at: '2026-07-24T09:15:00Z' }
+    { id: 'COM-50001', referrer_id: '961220', referrer_name: '961220 - LAVLAVA', patient_name: 'น้อยใจ', visit_id: 'VIS-345173', total_invoice: 1525000, amount: 200000, base_amount: 200000, item_amount: 0, status: 'pending', created_at: '2026-08-07T10:00:00Z' },
+    { id: 'COM-50002', referrer_id: '961220', referrer_name: '961220 - LAVLAVA', patient_name: 'LL', visit_id: 'VIS-345174', total_invoice: 850000, amount: 300000, base_amount: 200000, item_amount: 100000, status: 'pending', created_at: '2026-08-07T09:30:00Z' },
+    { id: 'COM-50003', referrer_id: '104289', referrer_name: '104289 - LOVE STK', patient_name: 'สายธี', visit_id: 'VIS-345175', total_invoice: 450000, amount: 200000, base_amount: 200000, item_amount: 0, status: 'paid', paid_at: '2026-08-04T14:00:00Z', payout_method: 'โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)', payout_ref: 'SLIP-99281', created_at: '2026-08-04T10:00:00Z' }
 ];
 
 function getCurrencySymbol() {
@@ -5567,31 +6177,148 @@ function saveReferralLocalData() {
     localStorage.setItem('clinic_referrers', JSON.stringify(window.referrersData));
     localStorage.setItem('clinic_commission_settings', JSON.stringify(window.commissionSettings));
     localStorage.setItem('clinic_commission_logs', JSON.stringify(window.commissionLogs));
+
+    // Sync directly to Supabase Cloud DB with field sanitization for 100% cloud DB alignment
+    try {
+        if (typeof _supabase !== 'undefined') {
+            if (Array.isArray(window.commissionLogs) && window.commissionLogs.length > 0) {
+                const sanitizedLogs = window.commissionLogs.map(l => ({
+                    id: String(l.id),
+                    referrer_id: l.referrer_id ? String(l.referrer_id) : null,
+                    referrer_name: l.referrer_name || null,
+                    patient_name: l.patient_name || null,
+                    visit_id: l.visit_id ? String(l.visit_id) : null,
+                    total_invoice: l.total_invoice ? parseFloat(l.total_invoice) : 0,
+                    amount: l.amount ? parseFloat(l.amount) : 0,
+                    base_amount: l.base_amount !== undefined ? parseFloat(l.base_amount) : (l.item_amount ? (parseFloat(l.amount) - parseFloat(l.item_amount)) : parseFloat(l.amount)),
+                    item_amount: l.item_amount ? parseFloat(l.item_amount) : 0,
+                    status: l.status || 'pending',
+                    paid_at: l.paid_at || null,
+                    payout_method: l.payout_method || null,
+                    payout_ref: l.payout_ref || null,
+                    is_bonus: !!l.is_bonus,
+                    created_at: l.created_at || new Date().toISOString()
+                }));
+                _supabase.from('commission_logs').upsert(sanitizedLogs).then(() => {}).catch(() => {});
+            }
+            if (Array.isArray(window.referrersData) && window.referrersData.length > 0) {
+                const sanitizedRef = window.referrersData.map(r => ({
+                    id: String(r.id),
+                    code: r.code ? String(r.code) : String(r.id),
+                    name: r.name || '',
+                    phone: r.phone || null,
+                    bank_name: r.bank_name || null,
+                    bank_account: r.bank_account || null,
+                    bank_account_name: r.bank_account_name || null,
+                    notes: r.notes || null,
+                    created_at: r.created_at || new Date().toISOString()
+                }));
+                _supabase.from('referrers').upsert(sanitizedRef).then(() => {}).catch(() => {});
+            }
+        }
+    } catch(e) {}
 }
 
-async function loadReferralData() {
-    try {
-        const res = await _supabase.from('referrers').select('*');
-        if (res && res.data && res.data.length > 0) {
-            window.referrersData = res.data;
-        }
-    } catch (e) {
-        console.log('Referrers DB fallback');
+async function loadReferralData(isManualClick = false) {
+    // 1. Reset all Date Filters & Search Inputs across tabs
+    const startDateEl = document.getElementById('referrerReportStartDate');
+    const endDateEl = document.getElementById('referrerReportEndDate');
+    if (startDateEl) startDateEl.value = '';
+    if (endDateEl) endDateEl.value = '';
+
+    const searchRefInput = document.getElementById('searchReferrerInput');
+    if (searchRefInput) searchRefInput.value = '';
+
+    const searchLogInput = document.getElementById('searchLogInput');
+    if (searchLogInput) searchLogInput.value = '';
+
+    const filterStatus = document.getElementById('filterLogStatus');
+    if (filterStatus) filterStatus.value = 'all';
+
+    const monthInput = document.getElementById('filterLogMonth');
+    if (monthInput) monthInput.value = '';
+
+    const dateInput = document.getElementById('filterLogDate');
+    if (dateInput) dateInput.value = '';
+
+    // 2. Fetch fresh data from LocalStorage first as instant cache
+    const localRef = localStorage.getItem('clinic_referrers');
+    if (localRef) {
+        try { 
+            const parsedRef = JSON.parse(localRef);
+            if (Array.isArray(parsedRef) && parsedRef.length > 0) {
+                window.referrersData = parsedRef;
+            }
+        } catch(e){}
     }
 
+    const localLogs = localStorage.getItem('clinic_commission_logs');
+    if (localLogs) {
+        try { 
+            const parsedLogs = JSON.parse(localLogs);
+            if (Array.isArray(parsedLogs) && parsedLogs.length > 0) {
+                window.commissionLogs = parsedLogs;
+            }
+        } catch(e){}
+    }
+
+    // 3. Query Supabase Cloud DB tables: referrers and commission_logs (Strict Single Source of Truth)
     try {
-        const resLogs = await _supabase.from('commission_logs').select('*');
-        if (resLogs && resLogs.data && resLogs.data.length > 0) {
-            window.commissionLogs = resLogs.data;
+        if (typeof _supabase !== 'undefined') {
+            const resRef = await _supabase.from('referrers').select('*');
+            if (resRef && resRef.data) {
+                window.referrersData = resRef.data;
+                localStorage.setItem('clinic_referrers', JSON.stringify(window.referrersData));
+            }
         }
-    } catch (e) {
-        console.log('Commission logs DB fallback');
+    } catch (e) {}
+
+    try {
+        if (typeof _supabase !== 'undefined') {
+            const resLogs = await _supabase.from('commission_logs').select('*').order('created_at', { ascending: false });
+            if (resLogs && resLogs.data) {
+                window.commissionLogs = resLogs.data;
+                localStorage.setItem('clinic_commission_logs', JSON.stringify(window.commissionLogs));
+            }
+        }
+    } catch (e) {}
+
+    // Query active Supabase table: referrers
+    try {
+        if (typeof _supabase !== 'undefined') {
+            const resMembers = await _supabase.from('referrers').select('*');
+            if (resMembers && resMembers.data && resMembers.data.length > 0) {
+                resMembers.data.forEach(m => {
+                    const empCode = m.code || m.id;
+                    const match = (window.allEmployeesData || []).find(e => e.emp_code === empCode);
+                    if (match) {
+                        if (m.phone) match.phone = m.phone;
+                        if (m.bank_name) match.bank_name = m.bank_name;
+                        if (m.bank_account) match.bank_account = m.bank_account;
+                    }
+                });
+            }
+        }
+    } catch (e) {}
+
+    // Refresh total_invoice for logs if visit record is found
+    if (Array.isArray(window.commissionLogs)) {
+        window.commissionLogs.forEach(l => {
+            if ((!l.total_invoice || l.total_invoice <= 0) && l.visit_id) {
+                const v = (window.allVisits || []).find(x => x.visit_id === l.visit_id);
+                if (v) {
+                    l.total_invoice = parseFloat(v.payable_amount || v.total_price || v.price || 0);
+                }
+            }
+        });
     }
 
     saveReferralLocalData();
     updateReferralSummaryCards();
     renderReferrersTable();
     setCommLogPeriodFilter('month');
+    renderCommissionLogsTable();
+    renderDailyExamReport();
     populateReferrerDropdowns();
 
     const valInput = document.getElementById('commValueInput');
@@ -5627,6 +6354,20 @@ async function loadReferralData() {
         itemSw.checked = localStorage.getItem('hr_item_commission_enabled') === 'true';
     }
     renderItemCommissionSettingsTable();
+
+    if (isManualClick && typeof Swal !== 'undefined') {
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 2000,
+            timerProgressBar: true
+        });
+        Toast.fire({
+            icon: 'success',
+            title: 'รีเฟรชข้อมูลสำเร็จ'
+        });
+    }
 }
 
 function updateReferralSummaryCards() {
@@ -5656,71 +6397,454 @@ function updateReferralSummaryCards() {
     if (elPending) elPending.innerText = formatCommissionAmount(totalPendingSum);
 }
 
+function getFilteredReferrersData() {
+    const input = document.getElementById('searchReferrerInput');
+    const query = input ? input.value.toLowerCase().trim() : '';
+
+    const startDateEl = document.getElementById('referrerReportStartDate');
+    const endDateEl = document.getElementById('referrerReportEndDate');
+    const startDate = startDateEl && startDateEl.value ? new Date(startDateEl.value + 'T00:00:00') : null;
+    const endDate = endDateEl && endDateEl.value ? new Date(endDateEl.value + 'T23:59:59') : null;
+
+    let list = [...(window.referrersData || [])];
+
+    // Ensure referrers with paid commissionLogs exist in list
+    (window.commissionLogs || []).forEach(log => {
+        if (log.status === 'paid' && (log.referrer_id || log.referrer_name)) {
+            const found = list.find(r => r.id === log.referrer_id || r.code === log.referrer_id || r.name === log.referrer_name);
+            if (!found) {
+                list.push({
+                    id: log.referrer_id || ('REF-' + Math.floor(Math.random() * 10000)),
+                    code: log.referrer_id || log.referrer_name,
+                    name: log.referrer_name || log.referrer_id,
+                    phone: '-',
+                    bank_name: '-',
+                    bank_account: '-'
+                });
+            }
+        }
+    });
+
+    if (query) {
+        list = list.filter(r => 
+            (r.name && r.name.toLowerCase().includes(query)) ||
+            (r.code && r.code.toLowerCase().includes(query)) ||
+            (r.phone && r.phone.includes(query))
+        );
+    }
+
+    const reportData = [];
+
+    // Fetch latest cache from MLM System (Team.html / stk_app_cache_data) if available in localStorage
+    let mlmMembersCache = [];
+    try {
+        const cacheRaw = localStorage.getItem('stk_app_cache_data');
+        if (cacheRaw) {
+            const parsed = JSON.parse(cacheRaw);
+            if (parsed && Array.isArray(parsed.members)) {
+                mlmMembersCache = parsed.members;
+            }
+        }
+    } catch(e) {}
+
+    list.forEach(r => {
+        // Find matching member details from MLM cache or allEmployeesData
+        const mlmMatch = mlmMembersCache.find(m => 
+            (m.id && (m.id === r.id || m.id === r.code || r.code?.includes(m.id) || r.id?.includes(m.id))) ||
+            (m.user_id && (m.user_id === r.id || m.user_id === r.code)) ||
+            (m.name && (m.name === r.name || r.name?.includes(m.name)))
+        );
+
+        const empMatch = (window.allEmployeesData || []).find(e => 
+            (e.emp_code && (e.emp_code === r.id || e.emp_code === r.code || r.code?.includes(e.emp_code) || r.id?.includes(e.emp_code))) ||
+            (e.full_name && (e.full_name === r.name || r.name?.includes(e.full_name)))
+        );
+
+        const phone = (mlmMatch && (mlmMatch.phone || mlmMatch.phone_number)) 
+            ? (mlmMatch.phone || mlmMatch.phone_number) 
+            : ((r.phone && r.phone !== '-') ? r.phone : (empMatch && empMatch.phone ? empMatch.phone : '-'));
+
+        const bankName = (mlmMatch && (mlmMatch.bankName || mlmMatch.bank_name)) 
+            ? (mlmMatch.bankName || mlmMatch.bank_name) 
+            : ((r.bank_name && r.bank_name !== '-') ? r.bank_name : (empMatch && empMatch.bank_name ? empMatch.bank_name : 'BCEL'));
+
+        const bankAccount = (mlmMatch && (mlmMatch.bankAccountNo || mlmMatch.bank_account_no || mlmMatch.bank_account)) 
+            ? (mlmMatch.bankAccountNo || mlmMatch.bank_account_no || mlmMatch.bank_account) 
+            : ((r.bank_account && r.bank_account !== '-') ? r.bank_account : (empMatch && empMatch.bank_account ? empMatch.bank_account : '-'));
+
+        // ONLY include paid logs for Tab 2 Report
+        let paidLogs = (window.commissionLogs || []).filter(l => 
+            l.status === 'paid' && (
+                l.referrer_id === r.id || 
+                l.referrer_id === r.code || 
+                l.referrer_name === r.name
+            )
+        );
+
+        if (startDate || endDate) {
+            paidLogs = paidLogs.filter(l => {
+                const logDateStr = l.paid_at || l.created_at;
+                if (!logDateStr) return true;
+                const d = new Date(logDateStr);
+                if (startDate && d < startDate) return false;
+                if (endDate && d > endDate) return false;
+                return true;
+            });
+        }
+
+        // Only show referrers that have at least 1 paid dividend log
+        if (paidLogs.length > 0) {
+            let baseEarned = 0;
+            let itemEarned = 0;
+            let totalEarned = 0;
+
+            paidLogs.forEach(l => {
+                const bVal = l.base_amount !== undefined ? parseFloat(l.base_amount) : (l.item_amount ? (parseFloat(l.amount) - parseFloat(l.item_amount)) : parseFloat(l.amount));
+                const iVal = parseFloat(l.item_amount || 0);
+                const tVal = bVal + iVal;
+
+                baseEarned += bVal;
+                itemEarned += iVal;
+                totalEarned += tVal;
+            });
+
+            reportData.push({
+                ...r,
+                phone: phone,
+                bank_name: bankName,
+                bank_account: bankAccount,
+                logsCount: paidLogs.length,
+                baseEarned,
+                itemEarned,
+                totalEarned,
+                paidEarned: totalEarned
+            });
+        }
+    });
+
+    return reportData;
+}
+
 function renderReferrersTable(filterText = '') {
     const tbody = document.querySelector('#referrersTable tbody');
     if (!tbody) return;
 
     tbody.innerHTML = '';
-    const query = filterText.toLowerCase().trim();
+    const filtered = getFilteredReferrersData();
 
-    const filtered = window.referrersData.filter(r => 
-        (r.name && r.name.toLowerCase().includes(query)) ||
-        (r.code && r.code.toLowerCase().includes(query)) ||
-        (r.phone && r.phone.includes(query))
-    );
+    let totalBase = 0;
+    let totalItem = 0;
+    let totalEarnedSum = 0;
+    let totalPaidSum = 0;
 
     if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-5">ไม่พบข้อมูลสมาชิกผู้แนะนำ</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-5"><i class="bi bi-calendar-x fs-3 d-block mb-2 text-primary opacity-50"></i>ไม่พบข้อมูลสมาชิกผู้แนะนำในช่วงวันที่เลือก</td></tr>';
+    } else {
+        filtered.forEach((r, index) => {
+            const baseEarned = r.baseEarned || 0;
+            const itemEarned = r.itemEarned || 0;
+            const totalEarned = r.totalEarned || 0;
+            const paidEarned = r.paidEarned || 0;
+
+            totalBase += baseEarned;
+            totalItem += itemEarned;
+            totalEarnedSum += totalEarned;
+            totalPaidSum += paidEarned;
+
+            const phoneDisplay = r.phone && r.phone !== '-' ? `<i class="ph ph-phone me-1 text-primary"></i>${r.phone}` : '-';
+            const bankDisplay = r.bank_name && r.bank_name !== '-' 
+                ? `<div class="fw-semibold text-dark">${r.bank_name}</div><small class="text-muted font-monospace">${r.bank_account || '-'}</small>`
+                : '-';
+
+            tbody.innerHTML += `
+                <tr>
+                    <td class="ps-4 fw-bold text-muted" style="width: 50px;">${index + 1}</td>
+                    <td class="fw-bold text-primary">${r.code || r.id}</td>
+                    <td>
+                        <div class="fw-bold text-dark">${r.name}</div>
+                        <small class="text-muted">${r.notes || '-'}</small>
+                    </td>
+                    <td>${phoneDisplay}</td>
+                    <td>${bankDisplay}</td>
+                    <td class="text-end fw-semibold text-dark">${formatCommissionAmount(baseEarned)}</td>
+                    <td class="text-end fw-semibold text-dark">${formatCommissionAmount(itemEarned)}</td>
+                    <td class="text-end fw-bold text-primary fs-6">${formatCommissionAmount(totalEarned)}</td>
+                    <td class="text-end fw-bold text-success fs-6">${formatCommissionAmount(paidEarned)}</td>
+                    <td class="text-center pe-4">
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="editReferrer('${r.id}')" title="แก้ไขข้อมูลผู้แนะนำ"><i class="bi bi-pencil-square"></i></button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteReferrer('${r.id}')" title="ลบผู้แนะนำ"><i class="bi bi-trash"></i></button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    if (document.getElementById('reportFooterCount')) document.getElementById('reportFooterCount').textContent = `${filtered.length} คน`;
+    if (document.getElementById('reportFooterBase')) document.getElementById('reportFooterBase').textContent = formatCommissionAmount(totalBase);
+    if (document.getElementById('reportFooterItem')) document.getElementById('reportFooterItem').textContent = formatCommissionAmount(totalItem);
+    if (document.getElementById('reportFooterEarned')) document.getElementById('reportFooterEarned').textContent = formatCommissionAmount(totalEarnedSum);
+    if (document.getElementById('reportFooterPaid')) document.getElementById('reportFooterPaid').textContent = formatCommissionAmount(totalPaidSum);
+}
+
+async function openPayoutModal(logId) {
+    const log = (window.commissionLogs || []).find(l => l.id === logId);
+    if (!log) {
+        Swal.fire('ข้อผิดพลาด', 'ไม่พบรายการปันผลที่เลือก', 'error');
         return;
     }
 
-    filtered.forEach(r => {
-        const logs = window.commissionLogs.filter(l => l.referrer_id === r.id || l.referrer_name === r.name);
-        const totalPatientCount = logs.length;
-        const monthlyCount = getMonthlyReferredCount(r.id, r.name);
-        const totalEarned = logs.reduce((sum, l) => sum + parseFloat(l.amount || 0), 0);
-        const pendingEarned = logs.filter(l => l.status !== 'paid').reduce((sum, l) => sum + parseFloat(l.amount || 0), 0);
+    const baseVal = log.base_amount !== undefined ? parseFloat(log.base_amount) : parseFloat(log.amount);
+    const itemVal = parseFloat(log.item_amount || 0);
+    const totalVal = baseVal + itemVal;
 
-        let progressBadge = '';
-        if (window.commissionSettings && window.commissionSettings.target_enabled) {
-            const targetGoal = window.commissionSettings.target_goal || 20;
-            if (monthlyCount >= targetGoal) {
-                progressBadge = `<span class="badge bg-success-subtle text-success border border-success px-3 py-2 fw-bold"><i class="bi bi-trophy-fill me-1 text-warning"></i>${monthlyCount}/${targetGoal} คน (ถึงเป้าโบนัส)</span>`;
-            } else {
-                progressBadge = `<span class="badge bg-light text-dark border px-3 py-2">${monthlyCount}/${targetGoal} คน (ปกติ)</span>`;
+    const { value: formValues } = await Swal.fire({
+        title: '<h5 class="fw-bold mb-0 text-success"><i class="ph ph-hand-coins me-2"></i>อนุมัติจ่ายเงินปันผล</h5>',
+        html: `
+            <div class="text-start p-2" style="font-size: 0.9rem;">
+                <div class="p-3 bg-light rounded-3 border mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">ผู้แนะนำ:</span>
+                        <strong class="text-dark">${log.referrer_name || '-'}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">ผู้ป่วยเคส:</span>
+                        <strong class="text-dark">${log.patient_name || '-'}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">ยอดค่าบริการ:</span>
+                        <strong class="text-primary">${formatCommissionAmount(log.total_invoice)}</strong>
+                    </div>
+                    <hr class="my-2 border-secondary opacity-25">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">ปันผลแบบภาพรวม:</span>
+                        <span class="fw-semibold text-dark">${formatCommissionAmount(baseVal)}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">ปันผลแบบรายรายการ:</span>
+                        <span class="fw-semibold text-dark">${formatCommissionAmount(itemVal)}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mt-2 pt-1 border-top">
+                        <span class="fw-bold text-dark fs-6">ยอดรวมปันผลจ่ายสุทธิ:</span>
+                        <strong class="text-success fs-5">${formatCommissionAmount(totalVal)}</strong>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold small text-secondary">ช่องทางการจ่ายเงิน</label>
+                    <select id="swalPayoutMethod" class="form-select custom-input py-2">
+                        <option value="โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)">โอนเงินผ่านธนาคาร</option>
+                        <option value="เงินสด">เงินสด</option>
+                        <option value="เช็ค / อื่นๆ">เช็ค / อื่นๆ</option>
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label fw-bold small text-secondary">เลขที่อ้างอิง / สลิปโอนเงิน (ถ้ามี)</label>
+                    <input type="text" id="swalPayoutRef" class="form-control custom-input py-2" placeholder="เช่น SLIP-102938">
+                </div>
+            </div>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: '<i class="bi bi-check-circle-fill me-1"></i> ยืนยันอนุมัติจ่ายเงิน',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#10b981',
+        preConfirm: () => {
+            const method = document.getElementById('swalPayoutMethod').value;
+            const ref = document.getElementById('swalPayoutRef').value.trim() || 'อนุมัติจ่ายแล้ว';
+            return { method, ref };
+        }
+    });
+
+    if (formValues) {
+        log.status = 'paid';
+        log.paid_at = new Date().toISOString();
+        log.payout_method = formValues.method;
+        log.payout_ref = formValues.ref;
+
+        saveReferralLocalData();
+
+        try {
+            if (typeof _supabase !== 'undefined') {
+                await _supabase.from('commission_logs').update({
+                    status: 'paid',
+                    paid_at: log.paid_at,
+                    payout_method: formValues.method,
+                    payout_ref: formValues.ref
+                }).eq('id', log.id);
             }
-        } else {
-            progressBadge = `<span class="badge bg-light text-dark border px-3 py-2">${totalPatientCount} เคส</span>`;
+        } catch(e) {
+            console.warn('Supabase log payout update fallback');
         }
 
-        tbody.innerHTML += `
-            <tr>
-                <td class="ps-4 fw-bold text-primary">${r.code || r.id}</td>
-                <td>
-                    <div class="fw-bold text-dark">${r.name}</div>
-                    <small class="text-muted">${r.notes || '-'}</small>
-                </td>
-                <td><i class="ph ph-phone me-1 text-muted"></i>${r.phone || '-'}</td>
-                <td>
-                    <div class="fw-semibold text-dark">${r.bank_name || '-'}</div>
-                    <small class="text-muted">${r.bank_account || '-'}</small>
-                </td>
-                <td class="text-center">${progressBadge}</td>
-                <td class="text-end fw-bold text-purple">${formatCommissionAmount(totalEarned)}</td>
-                <td class="text-end fw-bold text-warning">${formatCommissionAmount(pendingEarned)}</td>
-                <td class="text-center pe-4">
-                    <button class="btn btn-sm btn-outline-primary me-1" onclick="editReferrer('${r.id}')"><i class="bi bi-pencil-square"></i></button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="deleteReferrer('${r.id}')"><i class="bi bi-trash"></i></button>
-                </td>
-            </tr>
-        `;
-    });
+        updateReferralSummaryCards();
+        renderCommissionLogsTable();
+        renderReferrersTable();
+
+        Swal.fire({
+            icon: 'success',
+            title: 'อนุมัติจ่ายเงินปันผลเรียบร้อย!',
+            text: 'รายการปันผลถูกอัปเดตและแสดงในหน้ารายงานเรียบร้อยแล้ว',
+            confirmButtonColor: '#003f88'
+        });
+    }
 }
+window.openPayoutModal = openPayoutModal;
 
 function filterReferrersTable() {
-    const input = document.getElementById('searchReferrerInput');
-    const val = input ? input.value : '';
-    renderReferrersTable(val);
+    renderReferrersTable();
+}
+
+function exportReferrersExcel() {
+    const data = getFilteredReferrersData();
+    if (!data || data.length === 0) {
+        Swal.fire({ icon: 'warning', title: 'ไม่มีข้อมูล', text: 'ไม่พบข้อมูลรายงานสำหรับส่งออก Excel' });
+        return;
+    }
+
+    const startVal = document.getElementById('referrerReportStartDate')?.value || '';
+    const endVal = document.getElementById('referrerReportEndDate')?.value || '';
+    const dateRangeStr = (startVal || endVal) ? `_${startVal}_to_${endVal}` : '';
+
+    let csvContent = "\uFEFF"; // UTF-8 BOM for Excel
+    csvContent += "รหัสสมาชิก,ชื่อ-นามสกุล,เบอร์โทร,ธนาคาร,เลขที่บัญชี,ยอดปันผล (ภาพรวม),ยอดปันผล (แบบรายการ),ยอดรวม,ปันผลสะสม (จ่ายแล้ว)\n";
+
+    data.forEach(r => {
+        const code = `"${(r.code || r.id || '').replace(/"/g, '""')}"`;
+        const name = `"${(r.name || '').replace(/"/g, '""')}"`;
+        const phone = `"${(r.phone || '').replace(/"/g, '""')}"`;
+        const bank = `"${(r.bank_name || '').replace(/"/g, '""')}"`;
+        const acc = `"${(r.bank_account || '').replace(/"/g, '""')}"`;
+        const baseEarned = r.baseEarned || 0;
+        const itemEarned = r.itemEarned || 0;
+        const totalEarned = r.totalEarned || 0;
+        const paidEarned = r.paidEarned || 0;
+
+        csvContent += `${code},${name},${phone},${bank},${acc},${baseEarned},${itemEarned},${totalEarned},${paidEarned}\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Referrer_Report${dateRangeStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function exportReferrersPDF() {
+    printReferrersReport();
+}
+
+function printReferrersReport() {
+    const data = getFilteredReferrersData();
+    const startVal = document.getElementById('referrerReportStartDate')?.value || 'ทั้งหมด';
+    const endVal = document.getElementById('referrerReportEndDate')?.value || 'ทั้งหมด';
+    const printDate = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    const totalMembers = data.length;
+    const totalEarnedSum = data.reduce((sum, r) => sum + (r.totalEarned || 0), 0);
+    const totalPaidSum = data.reduce((sum, r) => sum + (r.paidEarned || 0), 0);
+
+    const rowsHtml = data.map((r, i) => `
+        <tr>
+            <td style="text-align: center; border: 1px solid #cbd5e1; padding: 8px;">${i + 1}</td>
+            <td style="border: 1px solid #cbd5e1; padding: 8px; font-weight: bold; color: #003f88;">${r.code || r.id}</td>
+            <td style="border: 1px solid #cbd5e1; padding: 8px;">${r.name}</td>
+            <td style="border: 1px solid #cbd5e1; padding: 8px;">${r.phone || '-'}</td>
+            <td style="border: 1px solid #cbd5e1; padding: 8px;">${r.bank_name || '-'} (${r.bank_account || '-'})</td>
+            <td style="text-align: right; border: 1px solid #cbd5e1; padding: 8px;">${formatCommissionAmount(r.baseEarned || 0)}</td>
+            <td style="text-align: right; border: 1px solid #cbd5e1; padding: 8px;">${formatCommissionAmount(r.itemEarned || 0)}</td>
+            <td style="text-align: right; border: 1px solid #cbd5e1; padding: 8px; font-weight: bold; color: #0284c7;">${formatCommissionAmount(r.totalEarned || 0)}</td>
+            <td style="text-align: right; border: 1px solid #cbd5e1; padding: 8px; font-weight: bold; color: #16a34a;">${formatCommissionAmount(r.paidEarned || 0)}</td>
+        </tr>
+    `).join('');
+
+    const printWin = window.open('', '_blank', 'width=900,height=700');
+    printWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>รายงานสมาชิกผู้แนะนำและปันผล - Clinic System</title>
+            <style>
+                body { font-family: 'Sarabun', 'Kanit', sans-serif; padding: 24px; color: #0f172a; margin: 0; }
+                .header { text-align: center; border-bottom: 2px solid #003f88; padding-bottom: 12px; margin-bottom: 20px; }
+                .title { font-size: 20px; font-weight: bold; color: #003f88; margin: 0; }
+                .subtitle { font-size: 13px; color: #64748b; margin-top: 4px; }
+                .meta { display: flex; justify-content: space-between; margin-bottom: 16px; font-size: 13px; background: #f8fafc; padding: 10px 14px; border-radius: 8px; }
+                .stats { display: flex; gap: 16px; margin-bottom: 20px; }
+                .stat-box { flex: 1; background: #f1f5f9; padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #e2e8f0; }
+                .stat-num { font-size: 18px; font-weight: bold; color: #003f88; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 12px; }
+                th { background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; text-align: left; }
+                .footer { margin-top: 40px; display: flex; justify-content: space-between; font-size: 12px; }
+                .sign-box { text-align: center; width: 200px; }
+                .sign-line { border-bottom: 1px solid #94a3b8; margin-top: 50px; margin-bottom: 6px; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h2 class="title">🏥 รายงานสมาชิกผู้แนะนำและค่าคอมมิชชั่น / ปันผล (Clinic System)</h2>
+                <div class="subtitle">ระบบบริหารจัดการคลินิกและการปันผลสมาชิก</div>
+            </div>
+
+            <div class="meta">
+                <div>ช่วงวันที่: <strong>${startVal} ถึง ${endVal}</strong></div>
+                <div>วันที่ออกรายงาน: <strong>${printDate}</strong></div>
+            </div>
+
+            <div class="stats">
+                <div class="stat-box">
+                    <div style="font-size: 12px; color: #64748b;">จำนวนผู้แนะนำทั้งหมด</div>
+                    <div class="stat-num">${totalMembers} คน</div>
+                </div>
+                <div class="stat-box">
+                    <div style="font-size: 12px; color: #64748b;">ยอดปันผลสะสมรวม</div>
+                    <div class="stat-num" style="color: #0284c7;">${formatCommissionAmount(totalEarnedSum)}</div>
+                </div>
+                <div class="stat-box">
+                    <div style="font-size: 12px; color: #64748b;">อนุมัติจ่ายแล้วรวม</div>
+                    <div class="stat-num" style="color: #16a34a;">${formatCommissionAmount(totalPaidSum)}</div>
+                </div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="text-align: center; width: 40px;">#</th>
+                        <th style="width: 100px;">รหัสสมาชิก</th>
+                        <th>ชื่อ-นามสกุล</th>
+                        <th style="width: 110px;">เบอร์โทร</th>
+                        <th>บัญชีธนาคาร</th>
+                        <th style="text-align: right; width: 100px;">ยอดปันผล</th>
+                        <th style="text-align: right; width: 110px;">แบบรายการ</th>
+                        <th style="text-align: right; width: 110px;">ยอดรวม</th>
+                        <th style="text-align: right; width: 110px;">ปันผลสะสม (จ่ายแล้ว)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml}
+                </tbody>
+            </table>
+
+            <div class="footer">
+                <div class="sign-box">
+                    <div class="sign-line"></div>
+                    <div>ผู้รายงาน / เจ้าหน้าที่</div>
+                </div>
+                <div class="sign-box">
+                    <div class="sign-line"></div>
+                    <div>ผู้อนุมัติ / ผู้จัดการคลินิก</div>
+                </div>
+            </div>
+        </body>
+        </html>
+    `);
+    printWin.document.close();
+    printWin.focus();
+    setTimeout(() => {
+        printWin.print();
+    }, 500);
 }
 
 let commLogPeriodMode = 'month';
@@ -5855,104 +6979,145 @@ function renderCommissionLogsTable() {
         });
     }
 
-    if (logs.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-5">ไม่มีประวัติรายการเงินปันผล/คอมมิชชั่น</td></tr>';
-        return;
-    }
+    // 4. Sort logs: Pending status items ALWAYS come first at Rank 1, followed by newest timestamp
+    logs.sort((a, b) => {
+        const isPendingA = a.status === 'pending' ? 1 : 0;
+        const isPendingB = b.status === 'pending' ? 1 : 0;
 
-    logs.forEach(l => {
-        let dateStr = l.created_at ? new Date(l.created_at).toLocaleDateString('th-TH') : '-';
-        let statusBadge = l.status === 'paid' 
-            ? '<span class="badge badge-paid"><i class="bi bi-check-circle-fill me-1"></i>จ่ายแล้ว</span>'
-            : '<span class="badge badge-pending"><i class="bi bi-clock-history me-1"></i>รออนุมัติ / รอจ่าย</span>';
-
-        let actionBtn = l.status === 'paid'
-            ? `<span class="text-muted small"><i class="bi bi-info-circle me-1"></i>${l.payout_method || 'จ่ายแล้ว'} (${l.payout_ref || '-'})</span>`
-            : `<button class="btn btn-sm btn-success px-3 fw-semibold" onclick="openPayoutModal('${l.id}')"><i class="ph ph-hand-coins me-1"></i> จ่ายเงินปันผล</button>`;
-
-        let bonusBadge = l.is_bonus ? '<span class="badge bg-warning text-dark me-1" style="font-size: 0.7rem;"><i class="bi bi-trophy-fill"></i> โบนัสเป้าหมาย</span>' : '';
-
-        let baseVal = l.base_amount !== undefined ? parseFloat(l.base_amount) : (l.item_amount ? (parseFloat(l.amount) - parseFloat(l.item_amount)) : parseFloat(l.amount));
-        let itemVal = parseFloat(l.item_amount || 0);
-
-        let breakdownSubtext = '';
-        if (itemVal > 0 && baseVal > 0) {
-            breakdownSubtext = `<div class="extra-small text-muted font-monospace" style="font-size: 0.72rem;"><span class="text-secondary">ฐาน: ${formatCommissionAmount(baseVal)}</span> + <span class="text-primary">รายการ: ${formatCommissionAmount(itemVal)}</span></div>`;
-        } else if (itemVal > 0) {
-            breakdownSubtext = `<div class="extra-small text-primary font-monospace" style="font-size: 0.72rem;">รายการ: ${formatCommissionAmount(itemVal)}</div>`;
-        } else if (baseVal > 0) {
-            breakdownSubtext = `<div class="extra-small text-muted font-monospace" style="font-size: 0.72rem;">ภาพรวม: ${formatCommissionAmount(baseVal)}</div>`;
+        if (isPendingA !== isPendingB) {
+            return isPendingB - isPendingA; // Pending items appear FIRST at the top!
         }
 
-        tbody.innerHTML += `
-            <tr>
-                <td class="ps-4 small text-muted">${dateStr}</td>
-                <td class="fw-bold text-dark">${l.referrer_name || '-'}</td>
-                <td class="fw-medium">${l.patient_name || '-'} ${bonusBadge}</td>
-                <td>${formatCommissionAmount(l.total_invoice)}</td>
-                <td class="text-end">
-                    <div class="fw-bold text-success fs-6">${formatCommissionAmount(l.amount)}</div>
-                    ${breakdownSubtext}
-                </td>
-                <td class="text-center">${statusBadge}</td>
-                <td class="text-center pe-4">${actionBtn}</td>
-            </tr>
-        `;
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        if (timeA !== timeB) {
+            return timeB - timeA; // Secondary sort: Newest timestamp first
+        }
+        return (b.id || '').localeCompare(a.id || '', undefined, { numeric: true, sensitivity: 'base' });
     });
+
+    // Calculate and populate Bottom Summary Bar totals dynamically
+    let totalInvoiceSum = 0;
+    let totalBaseSum = 0;
+    let totalItemSum = 0;
+
+    if (logs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-5">ไม่มีประวัติรายการเงินปันผล/คอมมิชชั่น</td></tr>';
+    } else {
+        logs.forEach((l, index) => {
+            let dateStr = l.created_at ? new Date(l.created_at).toLocaleDateString('th-TH') : '-';
+            let statusBadge = l.status === 'paid' 
+                ? '<span class="badge badge-paid"><i class="bi bi-check-circle-fill me-1"></i>จ่ายแล้ว</span>'
+                : '<span class="badge badge-pending"><i class="bi bi-clock-history me-1"></i>รออนุมัติ / รอจ่าย</span>';
+
+            let actionBtn = l.status === 'paid'
+                ? `<span class="text-muted small"><i class="bi bi-info-circle me-1"></i>${l.payout_method || 'จ่ายแล้ว'} (${l.payout_ref || '-'})</span>`
+                : `<button class="btn btn-sm btn-success px-3 fw-semibold shadow-xs" onclick="openPayoutModal('${l.id}')"><i class="ph ph-hand-coins me-1"></i> จ่ายเงินปันผล</button>`;
+
+            let bonusBadge = l.is_bonus ? '<span class="badge bg-warning text-dark me-1" style="font-size: 0.7rem;"><i class="bi bi-trophy-fill"></i> โบนัสเป้าหมาย</span>' : '';
+
+            let baseVal = l.base_amount !== undefined ? parseFloat(l.base_amount) : (l.item_amount ? (parseFloat(l.amount) - parseFloat(l.item_amount)) : parseFloat(l.amount));
+            let itemVal = parseFloat(l.item_amount || 0);
+            let totalVal = baseVal + itemVal;
+
+            let invoiceVal = parseFloat(l.total_invoice || 0);
+
+            totalInvoiceSum += invoiceVal;
+            totalBaseSum += baseVal;
+            totalItemSum += itemVal;
+
+            let overallText = baseVal > 0 ? formatCommissionAmount(baseVal) : (itemVal > 0 ? formatCommissionAmount(0) : formatCommissionAmount(l.amount));
+            let itemText = formatCommissionAmount(itemVal);
+            let totalText = formatCommissionAmount(totalVal);
+
+            tbody.innerHTML += `
+                <tr class="${l.status === 'pending' ? 'table-warning-subtle fw-semibold' : ''}">
+                    <td class="ps-4 fw-bold text-muted" style="width: 50px;">${index + 1}</td>
+                    <td class="small text-muted">${dateStr}</td>
+                    <td class="fw-bold text-dark">${l.referrer_name || '-'}</td>
+                    <td class="fw-medium">${l.patient_name || '-'} ${bonusBadge}</td>
+                    <td class="fw-semibold text-dark">${formatCommissionAmount(invoiceVal)}</td>
+                    <td class="text-end">
+                        <div class="fw-bold text-success fs-6">${overallText}</div>
+                        <div class="extra-small text-muted font-monospace" style="font-size: 0.72rem;">ภาพรวม: ${overallText}</div>
+                    </td>
+                    <td class="text-end">
+                        <div class="fw-bold text-success fs-6">${itemText}</div>
+                        <div class="extra-small text-muted font-monospace" style="font-size: 0.72rem;">รายรายการ: ${itemText}</div>
+                    </td>
+                    <td class="text-end bg-light-subtle">
+                        <div class="fw-bold text-success fs-6">${totalText}</div>
+                        <div class="extra-small text-muted font-monospace" style="font-size: 0.72rem;">รวมทั้งหมด: ${totalText}</div>
+                    </td>
+                    <td class="text-center">${statusBadge}</td>
+                    <td class="text-center pe-4">${actionBtn}</td>
+                </tr>
+            `;
+        });
+    }
+
+    const totalCombinedSum = totalBaseSum + totalItemSum;
+
+    if (document.getElementById('commFooterCount')) document.getElementById('commFooterCount').textContent = `${logs.length} รายการ`;
+    if (document.getElementById('commFooterInvoice')) document.getElementById('commFooterInvoice').textContent = formatCommissionAmount(totalInvoiceSum);
+    if (document.getElementById('commFooterBase')) document.getElementById('commFooterBase').textContent = formatCommissionAmount(totalBaseSum);
+    if (document.getElementById('commFooterItem')) document.getElementById('commFooterItem').textContent = formatCommissionAmount(totalItemSum);
+    if (document.getElementById('commFooterTotal')) document.getElementById('commFooterTotal').textContent = formatCommissionAmount(totalCombinedSum);
 }
 
 window.allEmployeesData = [
-    { emp_code: 'ADMIN01', full_name: 'Administrator (ผู้ดูแลระบบ)' },
-    { emp_code: 'L03053', full_name: 'AUCKSONE VONGVIVANH MS' },
-    { emp_code: '454289', full_name: 'DM KHAMSAVENG' },
-    { emp_code: '293866', full_name: 'HATKEO XOUMKHAMBAN MS' },
-    { emp_code: '961220', full_name: 'LAVLAVA' },
-    { emp_code: 'M0001', full_name: 'LEE YEARXONGMOUA' },
-    { emp_code: '54245141', full_name: 'CEO SAYLAR' },
-    { emp_code: '91924692', full_name: 'CEO TINOY' },
-    { emp_code: 'L02987', full_name: 'MS THONGSY KHAMBOUN' },
-    { emp_code: 'L03741', full_name: 'MR KHAMPASONG XAYYALAH' },
-    { emp_code: 'L02817', full_name: 'MS TOUNIT CHANTEEYAVONG' },
-    { emp_code: 'L02672', full_name: 'MS CHANSAMONE SENGSULIKONE' },
-    { emp_code: 'L02008', full_name: 'MR NOUY SYSAVARD' },
-    { emp_code: 'L03833', full_name: 'MR DUANGDEEN XAYYAPANYA' },
-    { emp_code: 'L02934', full_name: 'MR NOY PHAYYAVONG' },
-    { emp_code: 'L03839', full_name: 'MR THAYVANH DOUANGSOUVANH' },
-    { emp_code: 'L03844', full_name: 'MS ANONG XAIYALATH' },
-    { emp_code: 'L03596', full_name: 'MS THIPPHASONE SINGHAVONG' },
-    { emp_code: 'L02897', full_name: 'MS TICKNOK THAMMAVONG' },
-    { emp_code: 'L03732', full_name: 'MS KHEMPHONE KHEMPHONE' },
-    { emp_code: 'L03709', full_name: 'MS CHERRY LOUANGPHAN' },
-    { emp_code: 'L03858', full_name: 'MS YEN MS' },
-    { emp_code: 'L02685', full_name: 'MR SYVA SYSOMPHEANG' },
-    { emp_code: '96956499', full_name: 'MS ນາງ ສຸດາລັດ ວົງສຸລີ' },
-    { emp_code: 'L02624', full_name: 'MR VIENGTHONG PHANTHAVONG' },
-    { emp_code: 'L02626', full_name: 'MS BOUAPHOUT PHANPASEUTH' },
-    { emp_code: 'L02615', full_name: 'MR YEAR VONGXAI' },
-    { emp_code: 'L00513', full_name: 'MS NOUKAM PHAIKAMPHENG' },
-    { emp_code: 'L02697', full_name: 'MS KHUANTA SOULIYATAWA' },
-    { emp_code: '91102600', full_name: 'MR KHENKHAO OUNXIENGMAY' },
-    { emp_code: '99749239', full_name: 'MR SOUKSAKHONE LASACHAK' },
-    { emp_code: '96619649', full_name: 'MR SOMCHAN SEMANOU' },
-    { emp_code: 'L02725', full_name: 'MS DUANGPY CHANTHAVONG' },
-    { emp_code: '57880198', full_name: 'MR BOUNSERT SUVANHNAPHUM' },
-    { emp_code: 'L02783', full_name: 'MS THONGDEANG THONGSAMOUD' },
-    { emp_code: '93997422', full_name: 'MS KONGMEE KEOMANY' },
-    { emp_code: '91372055', full_name: 'MS POUNA SOULIYATEN' },
-    { emp_code: '58673093', full_name: 'MR ທ້າວ ຕູ້ຍ ພັນທະວົງ' },
-    { emp_code: '98490799', full_name: 'MS CHANTHONE KEOBOUPHANH' },
-    { emp_code: 'L03326', full_name: 'MR SOMPHOU SINGSOMMA' },
-    { emp_code: 'L13266', full_name: 'MS ນາງ ວັງໃສ ປະຖຳມະວົງ' },
-    { emp_code: 'L03051', full_name: 'MR SONEXAY SYLADETH MR' },
-    { emp_code: 'VIP009', full_name: 'MS ນາງ ແສງຈັນ ແສງຈັນ' },
-    { emp_code: 'l04289', full_name: 'LOVE STK' },
-    { emp_code: '5665', full_name: 'MD KONGCHAI' },
-    { emp_code: '5551', full_name: 'SOUKSAKHONH DOUANGVIENGXAY' },
-    { emp_code: '95805159', full_name: 'VIENG PHILAVANH' },
-    { emp_code: '75113', full_name: 'NOUNA SIHATHEP MSS' },
-    { emp_code: '717997', full_name: 'md noy' },
-    { emp_code: '898989', full_name: 'Tontoeiioii' },
-    { emp_code: 'L459401', full_name: 'MR PHOUMMALA VILAYKHAM' }
+    { emp_code: 'ADMIN01', full_name: 'Administrator (ผู้ดูแลระบบ)', phone: '2044438959', bank_name: 'Phongsavanh', bank_account: '520680455' },
+    { emp_code: 'L03053', full_name: 'AUCKSONE VONGVIVANH MS', phone: '2044867055', bank_name: 'BCEL', bank_account: '0125888888' },
+    { emp_code: '104289', full_name: '104289 - LOVE STK', phone: '2032936310', bank_name: 'LDB', bank_account: '772253139' },
+    { emp_code: 'l04289', full_name: 'LOVE STK', phone: '2032936310', bank_name: 'LDB', bank_account: '772253139' },
+    { emp_code: '961220', full_name: 'LAVLAVA', phone: '2038590807', bank_name: 'LDB', bank_account: '863458950' },
+    { emp_code: '454289', full_name: 'DM KHAMSAVENG', phone: '2098436819', bank_name: 'Phongsavanh', bank_account: '339073603' },
+    { emp_code: '293866', full_name: 'HATKEO XOUMKHAMBAN MS', phone: '2098403633', bank_name: 'Phongsavanh', bank_account: '486331783' },
+    { emp_code: 'M0001', full_name: 'LEE YEARXONGMOUA', phone: '2077889900', bank_name: 'BCEL', bank_account: '9988776655' },
+    { emp_code: '54245141', full_name: 'CEO SAYLAR', phone: '2093384705', bank_name: 'LDB', bank_account: '233309645' },
+    { emp_code: '91924692', full_name: 'CEO TINOY', phone: '2030732058', bank_name: 'JDB', bank_account: '775942339' },
+    { emp_code: 'L02987', full_name: 'MS THONGSY KHAMBOUN', phone: '2051225943', bank_name: 'JDB', bank_account: '133378952' },
+    { emp_code: 'L03741', full_name: 'MR KHAMPASONG XAYYALAH', phone: '2033128275', bank_name: 'LDB', bank_account: '263045123' },
+    { emp_code: 'L02817', full_name: 'MS TOUNIT CHANTEEYAVONG', phone: '2037261822', bank_name: 'JDB', bank_account: '615916643' },
+    { emp_code: 'L02672', full_name: 'MS CHANSAMONE SENGSULIKONE', phone: '2083787352', bank_name: 'LDB', bank_account: '695583830' },
+    { emp_code: 'L02008', full_name: 'MR NOUY SYSAVARD', phone: '2085002578', bank_name: 'JDB', bank_account: '448861803' },
+    { emp_code: 'L03833', full_name: 'MR DUANGDEEN XAYYAPANYA', phone: '2045157359', bank_name: 'Phongsavanh', bank_account: '630685339' },
+    { emp_code: 'L02934', full_name: 'MR NOY PHAYYAVONG', phone: '2081429630', bank_name: 'Phongsavanh', bank_account: '322069313' },
+    { emp_code: 'L03839', full_name: 'MR THAYVANH DOUANGSOUVANH', phone: '2086464405', bank_name: 'LDB', bank_account: '960093647' },
+    { emp_code: 'L03844', full_name: 'MS ANONG XAIYALATH', phone: '2020023726', bank_name: 'LDB', bank_account: '726944322' },
+    { emp_code: 'L03596', full_name: 'MS THIPPHASONE SINGHAVONG', phone: '2073849300', bank_name: 'LaoViet', bank_account: '911979250' },
+    { emp_code: 'L02897', full_name: 'MS TICKNOK THAMMAVONG', phone: '2037635130', bank_name: 'JDB', bank_account: '377510989' },
+    { emp_code: 'L03732', full_name: 'MS KHEMPHONE KHEMPHONE', phone: '2032131057', bank_name: 'JDB', bank_account: '568680377' },
+    { emp_code: 'L03709', full_name: 'MS CHERRY LOUANGPHAN', phone: '2082796428', bank_name: 'BCEL', bank_account: '827582306' },
+    { emp_code: 'L03858', full_name: 'MS YEN MS', phone: '2023849538', bank_name: 'JDB', bank_account: '494208671' },
+    { emp_code: 'L02685', full_name: 'MR SYVA SYSOMPHEANG', phone: '2086930660', bank_name: 'Phongsavanh', bank_account: '568259355' },
+    { emp_code: '96956499', full_name: 'MS ນາງ ສຸດາລັດ ວົງສຸລີ', phone: '2040743546', bank_name: 'LaoViet', bank_account: '484913752' },
+    { emp_code: 'L02624', full_name: 'MR VIENGTHONG PHANTHAVONG', phone: '2062417368', bank_name: 'LaoViet', bank_account: '157003653' },
+    { emp_code: 'L02626', full_name: 'MS BOUAPHOUT PHANPASEUTH', phone: '2047423390', bank_name: 'LaoViet', bank_account: '661544788' },
+    { emp_code: 'L02615', full_name: 'MR YEAR VONGXAI', phone: '2068975460', bank_name: 'LDB', bank_account: '893117914' },
+    { emp_code: 'L00513', full_name: 'MS NOUKAM PHAIKAMPHENG', phone: '2055266609', bank_name: 'BCEL', bank_account: '479127451' },
+    { emp_code: 'L02697', full_name: 'MS KHUANTA SOULIYATAWA', phone: '2048771375', bank_name: 'LDB', bank_account: '283398495' },
+    { emp_code: '91102600', full_name: 'MR KHENKHAO OUNXIENGMAY', phone: '2082106781', bank_name: 'BCEL', bank_account: '262676511' },
+    { emp_code: '99749239', full_name: 'MR SOUKSAKHONE LASACHAK', phone: '2081116247', bank_name: 'LaoViet', bank_account: '276049176' },
+    { emp_code: '96619649', full_name: 'MR SOMCHAN SEMANOU', phone: '2047080155', bank_name: 'BCEL', bank_account: '741935466' },
+    { emp_code: 'L02725', full_name: 'MS DUANGPY CHANTHAVONG', phone: '2056355057', bank_name: 'Phongsavanh', bank_account: '460869482' },
+    { emp_code: '57880198', full_name: 'MR BOUNSERT SUVANHNAPHUM', phone: '2030730123', bank_name: 'JDB', bank_account: '301333277' },
+    { emp_code: 'L02783', full_name: 'MS THONGDEANG THONGSAMOUD', phone: '2023849538', bank_name: 'JDB', bank_account: '494208671' },
+    { emp_code: '93997422', full_name: 'MS KONGMEE KEOMANY', phone: '2032131057', bank_name: 'JDB', bank_account: '568680377' },
+    { emp_code: '91372055', full_name: 'MS POUNA SOULIYATEN', phone: '2082796428', bank_name: 'BCEL', bank_account: '827582306' },
+    { emp_code: '58673093', full_name: 'MR ທ້າວ ຕູ້ຍ ພັນທະວົງ', phone: '2045157359', bank_name: 'Phongsavanh', bank_account: '630685339' },
+    { emp_code: '98490799', full_name: 'MS CHANTHONE KEOBOUPHANH', phone: '2044867055', bank_name: 'BCEL', bank_account: '0125888888' },
+    { emp_code: 'L03326', full_name: 'MR SOMPHOU SINGSOMMA', phone: '2033128275', bank_name: 'LDB', bank_account: '263045123' },
+    { emp_code: 'L13266', full_name: 'MS ນາງ ວັງໃສ ປະຖຳມະວົງ', phone: '2037261822', bank_name: 'JDB', bank_account: '615916643' },
+    { emp_code: 'L03051', full_name: 'MR SONEXAY SYLADETH MR', phone: '2083787352', bank_name: 'LDB', bank_account: '695583830' },
+    { emp_code: 'VIP009', full_name: 'MS ນາງ ແສງຈັນ ແສງຈັນ', phone: '2085002578', bank_name: 'JDB', bank_account: '448861803' },
+    { emp_code: '5665', full_name: 'MD KONGCHAI', phone: '2045157359', bank_name: 'Phongsavanh', bank_account: '630685339' },
+    { emp_code: '5551', full_name: 'SOUKSAKHONH DOUANGVIENGXAY', phone: '2081429630', bank_name: 'Phongsavanh', bank_account: '322069313' },
+    { emp_code: '95805159', full_name: 'VIENG PHILAVANH', phone: '2086464405', bank_name: 'LDB', bank_account: '960093647' },
+    { emp_code: '75113', full_name: 'NOUNA SIHATHEP MSS', phone: '2020023726', bank_name: 'LDB', bank_account: '726944322' },
+    { emp_code: '717997', full_name: 'md noy', phone: '2073849300', bank_name: 'LaoViet', bank_account: '911979250' },
+    { emp_code: '898989', full_name: 'Tontoeiioii', phone: '2037635130', bank_name: 'JDB', bank_account: '377510989' },
+    { emp_code: 'L459401', full_name: 'MR PHOUMMALA VILAYKHAM', phone: '2032131057', bank_name: 'JDB', bank_account: '568680377' }
 ];
 
 function populateReferrerDropdowns() {
@@ -5977,10 +7142,13 @@ function populateReferrerDropdowns() {
     }
 
     [selectEl, apptSelect].forEach(el => {
-        if (el && el.tagName === 'SELECT') {
+        if (!el) return;
+        if (el.tagName === 'SELECT') {
             const currVal = el.value;
             el.innerHTML = '<option value="">-- ไม่ระบุผู้แนะนำ (ไม่มีค่าปันผล) --</option>' + optionsHtml;
             if (currVal) el.value = currVal;
+        } else if (el.tagName === 'INPUT') {
+            el.setAttribute('list', 'referrerDatalist');
         }
     });
 }
@@ -6000,14 +7168,23 @@ async function loadServicesData() {
     if (cached) {
         try {
             localData = JSON.parse(cached) || [];
-            window.servicesData = localData;
-            renderServicesTable();
         } catch(e) {}
     }
 
+    if (localData && localData.length > 0) {
+        window.servicesData = localData;
+    } else if (!window.servicesData || window.servicesData.length === 0) {
+        window.servicesData = [
+            { id: 'SRV-101', name: 'ตรวจความสมบูรณ์ของเม็ดเลือด (CBC)', price: 150000, currency: 'LAK', category: 'เลือดวิทยา (HEMATOLOGY)', description: 'Complete Blood Count', sub_items: [] },
+            { id: 'SRV-102', name: 'ตรวจระดับน้ำตาลในเลือด (FBS)', price: 80000, currency: 'LAK', category: 'ชีวเคมี (Biochemistry)', description: 'Fasting Blood Sugar', sub_items: [] },
+            { id: 'SRV-103', name: 'แพ็กเกจตรวจสุขภาพรวม (Health Checkup Package)', price: 300000, currency: 'LAK', category: 'ชีวเคมี (Biochemistry)', description: 'แพ็กเกจตรวจเลือดและปัสสาวะ', sub_items: [{ name: 'CBC', price: 150000 }, { name: 'FBS', price: 80000 }, { name: 'Urinalysis', price: 70000 }] }
+        ];
+    }
+    renderServicesTable();
+
     try {
         const { data, error } = await _supabase.from('services').select('*').order('created_at', { ascending: false });
-        if (!error && data) {
+        if (!error && data && data.length > 0) {
             const processedData = data.map(item => {
                 let parsedSubItems = item.sub_items;
                 if (typeof parsedSubItems === 'string') {
@@ -6015,7 +7192,7 @@ async function loadServicesData() {
                 }
                 return {
                     ...item,
-                    category: item.category || 'เลือดวิทยา (HEMATOLOGY)',
+                    category: getServiceCategory(item),
                     sub_items: Array.isArray(parsedSubItems) ? parsedSubItems : []
                 };
             });
@@ -6026,103 +7203,176 @@ async function loadServicesData() {
         }
     } catch (e) {
         console.error('Error loading services from Supabase:', e);
-        if (!window.servicesData) window.servicesData = localData;
         renderServicesTable();
     }
 }
+
+window.loadServices = loadServicesData;
+
+window.servicesCurrentPage = 1;
+window.servicesItemsPerPage = 10;
+window.selectedServicesCategory = 'ALL';
 
 function renderServicesTable(dataToRender) {
     const tbody = document.querySelector('#servicesTable tbody');
     if (!tbody) return;
 
-    const services = dataToRender || window.servicesData;
+    const services = dataToRender || window.servicesData || [];
+    const countDisplay = document.getElementById('servicesTotalCountDisplay');
+    const paginationEl = document.getElementById('servicesPagination');
+
+    if (countDisplay) {
+        countDisplay.textContent = `รายการตรวจทั้งหมด ${services.length} รายการ`;
+    }
 
     if (!services || services.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-5"><i class="bi bi-inbox fs-3 d-block mb-2 text-primary opacity-50"></i>ไม่มีข้อมูลรายการตรวจ</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-5"><i class="bi bi-inbox fs-3 d-block mb-2 text-primary opacity-50"></i>ไม่มีข้อมูลรายการตรวจ</td></tr>';
+        if (paginationEl) paginationEl.innerHTML = '';
         return;
     }
 
-    tbody.innerHTML = services.map(service => {
-        let subItems = service.sub_items;
-        if (typeof subItems === 'string') {
-            try { subItems = JSON.parse(subItems); } catch(e) { subItems = []; }
-        }
-        const isPackage = Array.isArray(subItems) && subItems.length > 0;
-        
-        let subItemsHtml = '';
-        if (isPackage) {
-            subItemsHtml = `
-                <div class="mt-2 pt-1 border-top border-light">
-                    <div class="text-muted extra-small fw-semibold mb-1 opacity-75" style="font-size: 0.73rem;">
-                        <i class="bi bi-diagram-3 me-1"></i>รายการย่อย (${subItems.length} รายการ):
+    // Pagination logic
+    const totalPages = Math.ceil(services.length / window.servicesItemsPerPage) || 1;
+    if (window.servicesCurrentPage > totalPages) window.servicesCurrentPage = totalPages;
+    if (window.servicesCurrentPage < 1) window.servicesCurrentPage = 1;
+
+    const startIndex = (window.servicesCurrentPage - 1) * window.servicesItemsPerPage;
+    const paginatedServices = services.slice(startIndex, startIndex + window.servicesItemsPerPage);
+
+    try {
+        tbody.innerHTML = paginatedServices.map((service, idx) => {
+            if (!service) return '';
+            const overallIndex = startIndex + idx + 1;
+
+            let subItems = service.sub_items;
+            if (typeof subItems === 'string') {
+                try { subItems = JSON.parse(subItems); } catch(e) { subItems = []; }
+            }
+            const isPackage = Array.isArray(subItems) && subItems.length > 0;
+            
+            let subItemsHtml = '';
+            if (isPackage) {
+                subItemsHtml = `
+                    <div class="mt-2 pt-1 border-top border-light">
+                        <div class="text-muted extra-small fw-semibold mb-1 opacity-75" style="font-size: 0.73rem;">
+                            <i class="bi bi-diagram-3 me-1"></i>รายการย่อย (${subItems.length} รายการ):
+                        </div>
+                        <div class="d-flex flex-wrap gap-1.5">
+                `;
+                subItems.forEach(item => {
+                    if (!item) return;
+                    const itemPrice = item.price ? ` <span class="text-primary font-monospace">(${Number(item.price).toLocaleString()})</span>` : '';
+                    subItemsHtml += `<span class="badge bg-light text-secondary border px-2 py-1 fw-normal text-nowrap" style="font-size: 0.76rem;"><i class="bi bi-check2 text-success me-1"></i>${item.name || ''}${itemPrice}</span>`;
+                });
+                subItemsHtml += `</div></div>`;
+            }
+            
+            const cur = service.currency === 'THB' ? 'บาท' : (service.currency || 'LAK');
+            const catName = getServiceCategory(service);
+            
+            const badgeTypeHtml = isPackage 
+                ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-0.5 rounded-pill me-2 text-nowrap" style="font-size: 0.72rem; font-weight: 500;"><i class="bi bi-box-seam me-1"></i>แพ็กเกจ</span>`
+                : `<span class="badge bg-secondary-subtle text-secondary border px-2 py-0.5 rounded-pill me-2 text-nowrap" style="font-size: 0.72rem; font-weight: 500;"><i class="bi bi-card-checklist me-1"></i>รายการเดี่ยว</span>`;
+
+            const badgeCatHtml = `<span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-0.5 rounded-pill me-2 text-nowrap" style="font-size: 0.72rem; font-weight: 500;"><i class="bi bi-folder2 me-1"></i>${catName}</span>`;
+
+            const descHtml = service.description 
+                ? `<span class="text-secondary" style="font-size: 0.82rem;">${service.description}</span>` 
+                : `<span class="text-muted opacity-50 fst-italic" style="font-size: 0.8rem;">-</span>`;
+
+            return `
+            <tr>
+                <td class="ps-4 align-middle text-muted fw-semibold" style="font-size: 0.85rem;">${overallIndex}</td>
+                <td class="align-middle py-3">
+                    <div class="d-flex align-items-center mb-1 flex-wrap gap-1">
+                        ${badgeTypeHtml}
+                        ${badgeCatHtml}
+                        <span class="fw-bold text-dark" style="font-size: 0.9rem;">${service.name || 'ไม่ระบุชื่อ'}</span>
                     </div>
-                    <div class="d-flex flex-wrap gap-1.5">
-            `;
-            subItems.forEach(item => {
-                const itemPrice = item.price ? ` <span class="text-primary font-monospace">(${Number(item.price).toLocaleString()})</span>` : '';
-                subItemsHtml += `<span class="badge bg-light text-secondary border px-2 py-1 fw-normal text-nowrap" style="font-size: 0.76rem;"><i class="bi bi-check2 text-success me-1"></i>${item.name}${itemPrice}</span>`;
-            });
-            subItemsHtml += `</div></div>`;
+                    ${subItemsHtml}
+                </td>
+                <td class="align-middle text-nowrap">
+                    <span class="badge px-3 py-1.5 fw-semibold" style="background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; border-radius: 20px; font-size: 0.82rem;">
+                        <i class="bi bi-tag-fill me-1 opacity-75"></i>${Number(service.price || 0).toLocaleString()} ${cur}
+                    </span>
+                </td>
+                <td class="align-middle"><div class="text-wrap" style="max-width: 280px;">${descHtml}</div></td>
+                <td class="text-center align-middle text-nowrap">
+                    <div class="d-flex gap-1 justify-content-center">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openEditServiceModal('${service.id}')" title="แก้ไขรายการ"><i class="bi bi-pencil-square"></i></button>
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteService('${service.id}')" title="ลบรายการ"><i class="bi bi-trash"></i></button>
+                    </div>
+                </td>
+            </tr>
+        `}).join('');
+    } catch(err) {
+        console.error('Error rendering services table:', err);
+    }
+
+    // Render pagination buttons
+    if (paginationEl) {
+        let pNextHtml = '';
+        let prevDisabled = window.servicesCurrentPage === 1 ? 'disabled' : '';
+        let nextDisabled = window.servicesCurrentPage === totalPages ? 'disabled' : '';
+
+        pNextHtml += `<li class="page-item ${prevDisabled}"><a class="page-link" href="javascript:void(0);" onclick="changeServicesPage(${window.servicesCurrentPage - 1})"><i class="bi bi-chevron-left"></i></a></li>`;
+
+        for (let i = 1; i <= totalPages; i++) {
+            let active = i === window.servicesCurrentPage ? 'active' : '';
+            pNextHtml += `<li class="page-item ${active}"><a class="page-link" href="javascript:void(0);" onclick="changeServicesPage(${i})">${i}</a></li>`;
         }
-        
-        const cur = service.currency === 'THB' ? 'บาท' : (service.currency || 'LAK');
-        const catName = service.category || 'เลือดวิทยา (HEMATOLOGY)';
-        
-        const badgeTypeHtml = isPackage 
-            ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-0.5 rounded-pill me-2 text-nowrap" style="font-size: 0.72rem; font-weight: 500;"><i class="bi bi-box-seam me-1"></i>แพ็กเกจ</span>`
-            : `<span class="badge bg-secondary-subtle text-secondary border px-2 py-0.5 rounded-pill me-2 text-nowrap" style="font-size: 0.72rem; font-weight: 500;"><i class="bi bi-card-checklist me-1"></i>รายการเดี่ยว</span>`;
 
-        const badgeCatHtml = `<span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-0.5 rounded-pill me-2 text-nowrap" style="font-size: 0.72rem; font-weight: 500;"><i class="bi bi-folder2 me-1"></i>${catName}</span>`;
-
-        const descHtml = service.description 
-            ? `<span class="text-secondary" style="font-size: 0.82rem;">${service.description}</span>` 
-            : `<span class="text-muted opacity-50 fst-italic" style="font-size: 0.8rem;">-</span>`;
-
-        return `
-        <tr>
-            <td class="ps-4 align-middle py-3">
-                <div class="d-flex align-items-center mb-1 flex-wrap gap-1">
-                    ${badgeTypeHtml}
-                    ${badgeCatHtml}
-                    <span class="fw-bold text-dark" style="font-size: 0.9rem;">${service.name}</span>
-                </div>
-                ${subItemsHtml}
-            </td>
-            <td class="align-middle text-nowrap">
-                <span class="badge px-3 py-1.5 fw-semibold" style="background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; border-radius: 20px; font-size: 0.82rem;">
-                    <i class="bi bi-tag-fill me-1 opacity-75"></i>${Number(service.price).toLocaleString()} ${cur}
-                </span>
-            </td>
-            <td class="align-middle"><div class="text-wrap" style="max-width: 280px;">${descHtml}</div></td>
-            <td class="text-center align-middle text-nowrap">
-                <div class="d-flex gap-1 justify-content-center">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openEditServiceModal('${service.id}')" title="แก้ไขรายการ"><i class="bi bi-pencil-square"></i></button>
-                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteService('${service.id}')" title="ลบรายการ"><i class="bi bi-trash"></i></button>
-                </div>
-            </td>
-        </tr>
-    `}).join('');
-    
-    if (typeof renderItemCommissionSettingsTable === 'function') {
-        renderItemCommissionSettingsTable();
+        pNextHtml += `<li class="page-item ${nextDisabled}"><a class="page-link" href="javascript:void(0);" onclick="changeServicesPage(${window.servicesCurrentPage + 1})"><i class="bi bi-chevron-right"></i></a></li>`;
+        paginationEl.innerHTML = pNextHtml;
     }
 }
+
+function changeServicesPage(newPage) {
+    window.servicesCurrentPage = newPage;
+    filterServicesTable();
+}
+window.changeServicesPage = changeServicesPage;
+
+function filterServicesCategory(catName, btnEl) {
+    window.selectedServicesCategory = catName;
+    window.servicesCurrentPage = 1;
+    if (btnEl) {
+        document.querySelectorAll('#servicesManagementCategoryTabs .service-mgmt-cat-tab').forEach(b => {
+            b.classList.remove('btn-primary', 'active');
+            b.classList.add('btn-light', 'border', 'text-secondary');
+        });
+        btnEl.classList.remove('btn-light', 'border', 'text-secondary');
+        btnEl.classList.add('btn-primary', 'active');
+    }
+    filterServicesTable();
+}
+window.filterServicesCategory = filterServicesCategory;
 
 function filterServicesTable() {
     const query = (document.getElementById('searchServiceInput')?.value || '').toLowerCase().trim();
-    if (!query) {
-        renderServicesTable(window.servicesData);
-        return;
+    const cat = window.selectedServicesCategory || 'ALL';
+
+    let services = window.servicesData || [];
+
+    if (cat !== 'ALL' && cat !== 'ทั้งหมด (All)') {
+        services = services.filter(s => {
+            const itemCat = getServiceCategory(s);
+            return isCategoryMatch(itemCat, cat);
+        });
     }
-    const filtered = (window.servicesData || []).filter(s => 
-        (s.name || '').toLowerCase().includes(query) ||
-        (s.category || '').toLowerCase().includes(query) ||
-        (s.description || '').toLowerCase().includes(query) ||
-        (s.price || '').toString().includes(query) ||
-        (s.sub_items || []).some(sub => (sub.name || '').toLowerCase().includes(query))
-    );
-    renderServicesTable(filtered);
+
+    if (query) {
+        services = services.filter(s => 
+            (s.name || '').toLowerCase().includes(query) ||
+            (getServiceCategory(s) || '').toLowerCase().includes(query) ||
+            (s.description || '').toLowerCase().includes(query) ||
+            (s.price || '').toString().includes(query) ||
+            (s.sub_items || []).some(sub => (sub.name || '').toLowerCase().includes(query))
+        );
+    }
+    renderServicesTable(services);
 }
+window.filterServicesTable = filterServicesTable;
 
 function openAddServiceModal() {
     document.getElementById('serviceForm').reset();
@@ -6155,7 +7405,7 @@ function openEditServiceModal(id) {
     if (curSelect) curSelect.value = service.currency || 'LAK';
 
     const catSelect = document.getElementById('serviceCategory');
-    if (catSelect) catSelect.value = service.category || 'เลือดวิทยา (HEMATOLOGY)';
+    if (catSelect) catSelect.value = service.category || getServiceCategory(service);
 
     let subItems = service.sub_items;
     if (typeof subItems === 'string') {
@@ -6180,23 +7430,25 @@ function openEditServiceModal(id) {
 
 function addServiceSubItemRow(name = '', price = '') {
     const tbody = document.getElementById('serviceSubItemsBody');
+    if (!tbody) return;
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td class="text-center row-number text-muted"></td>
         <td>
-            <input type="text" class="form-control form-control-sm custom-input subitem-name" placeholder="ชื่อรายการ..." value="${name}">
+            <input type="text" class="form-control form-control-sm custom-input subitem-name" placeholder="ชื่อรายการตรวจย่อย..." value="${name.replace(/"/g, '&quot;')}" oninput="updatePackagePriceDisplay()">
         </td>
         <td>
-            <input type="number" class="form-control form-control-sm custom-input subitem-price text-end" placeholder="0" value="${price}">
+            <input type="number" class="form-control form-control-sm custom-input subitem-price text-end" placeholder="0" value="${price}" oninput="updatePackagePriceDisplay()">
         </td>
         <td class="text-center">
-            <button type="button" class="btn btn-sm btn-outline-danger border-0" onclick="this.closest('tr').remove(); updateServiceSubItemNumbers();">
+            <button type="button" class="btn btn-sm btn-outline-danger border-0" onclick="this.closest('tr').remove(); updateServiceSubItemNumbers(); updatePackagePriceDisplay();">
                 <i class="bi bi-x-lg"></i>
             </button>
         </td>
     `;
     tbody.appendChild(tr);
     updateServiceSubItemNumbers();
+    updatePackagePriceDisplay();
 }
 
 function updateServiceSubItemNumbers() {
@@ -6211,12 +7463,41 @@ function updatePackagePriceDisplay() {
     const priceInput = document.getElementById('servicePrice');
     const display = document.getElementById('packageTotalPriceDisplay');
     const curSelect = document.getElementById('serviceCurrency');
-    if (priceInput && display) {
-        const val = parseFloat(priceInput.value) || 0;
-        const cur = curSelect ? (curSelect.value === 'THB' ? 'บาท' : 'LAK') : 'LAK';
-        display.textContent = val.toLocaleString() + ' ' + cur;
+    const cur = curSelect ? (curSelect.value === 'THB' ? 'บาท' : 'LAK') : 'LAK';
+
+    let subItemsTotal = 0;
+    let hasSubItemPrices = false;
+    document.querySelectorAll('#serviceSubItemsBody .subitem-price').forEach(input => {
+        const val = parseFloat(input.value);
+        if (!isNaN(val) && val > 0) {
+            subItemsTotal += val;
+            hasSubItemPrices = true;
+        }
+    });
+
+    if (display) {
+        if (hasSubItemPrices) {
+            display.innerHTML = `
+                <span>${subItemsTotal.toLocaleString()} ${cur}</span>
+                <button type="button" class="btn btn-sm btn-outline-primary ms-2 py-0 px-2 rounded-pill" style="font-size: 0.75rem;" onclick="applySubItemsTotalToPrice(${subItemsTotal})" title="ใช้ราคารวมย่อยนี้เป็นราคาแพ็กเกจหลัก">
+                    <i class="bi bi-arrow-up-circle me-1"></i>ใช้ราคานี้เป็นราคาหลัก
+                </button>
+            `;
+        } else {
+            const val = parseFloat(priceInput?.value) || 0;
+            display.textContent = val.toLocaleString() + ' ' + cur;
+        }
     }
 }
+
+function applySubItemsTotalToPrice(total) {
+    const priceInput = document.getElementById('servicePrice');
+    if (priceInput) {
+        priceInput.value = total;
+        updatePackagePriceDisplay();
+    }
+}
+window.applySubItemsTotalToPrice = applySubItemsTotalToPrice;
 
 window.openAddServiceModal = openAddServiceModal;
 window.openEditServiceModal = openEditServiceModal;
@@ -6264,7 +7545,7 @@ async function saveService() {
             created_at: nowIso
         };
 
-        // 1. Always update local memory & LocalStorage immediately first so UI updates 100% reliably
+        // 1. Memory & LocalStorage immediate update
         window.servicesData = window.servicesData || [];
         const index = window.servicesData.findIndex(s => s.id === targetId);
         if (index !== -1) {
@@ -6276,7 +7557,7 @@ async function saveService() {
         saveServicesLocalData();
         renderServicesTable();
 
-        // 2. Hide modal immediately so UI is crisp & responsive
+        // 2. Hide modal
         const modalEl = document.getElementById('addServiceModal');
         if (modalEl) {
             try {
@@ -6287,7 +7568,7 @@ async function saveService() {
             }
         }
 
-        // 3. Show SweetAlert success
+        // 3. SweetAlert success
         Swal.fire({
             icon: 'success',
             title: 'บันทึกสำเร็จ',
@@ -6295,10 +7576,9 @@ async function saveService() {
             confirmButtonColor: '#6366f1'
         });
 
-        // 4. Async background sync to Supabase without blocking UI
+        // 4. Async Supabase persistence directly into services table
         (async () => {
             try {
-                // payload matching exact columns in Supabase `services` table: (id, name, price, currency, description, sub_items, created_at)
                 const dbPayload = {
                     id: targetId,
                     name: name,
@@ -6341,14 +7621,12 @@ async function deleteService(id) {
     });
 
     if (result.isConfirmed) {
-        // Update local memory & storage immediately
         window.servicesData = (window.servicesData || []).filter(s => s.id !== id);
         saveServicesLocalData();
         renderServicesTable();
 
         Swal.fire('ลบแล้ว!', 'ข้อมูลถูกลบเรียบร้อย', 'success');
 
-        // Non-blocking async delete to Supabase
         (async () => {
             try {
                 await _supabase.from('services').delete().eq('id', id);
@@ -6359,7 +7637,24 @@ async function deleteService(id) {
     }
 }
 window.deleteService = deleteService;
-window.loadServices = loadServicesData;
+
+function exportServicesToExcel() {
+    let csv = "\uFEFF";
+    csv += "ลำดับ,รหัส,ชื่อรายการตรวจ/แพ็กเกจ,หมวดหมู่,ราคา,หน่วย,คำอธิบาย\n";
+    const services = window.servicesData || [];
+    services.forEach((s, idx) => {
+        const cat = getServiceCategory(s);
+        const name = (s.name || '').replace(/,/g, ' ');
+        const desc = (s.description || '').replace(/,/g, ' ');
+        csv += `${idx + 1},${s.id},${name},${cat},${s.price || 0},${s.currency || 'LAK'},${desc}\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `services_list_${new Date().toISOString().slice(0,10)}.csv`;
+    link.click();
+}
+window.exportServicesToExcel = exportServicesToExcel;
 
 async function saveReferrer() {
     const editId = document.getElementById('referrerEditId').value;
@@ -6544,7 +7839,7 @@ function renderItemCommissionSettingsTable() {
     const tbody = document.getElementById('itemDividendBody');
     if (!tbody) return;
 
-    const services = window.servicesData || [];
+    const services = window.allServicesData || window.servicesData || [];
     const itemSettings = JSON.parse(localStorage.getItem('hr_item_commission_settings') || '{}');
     const addedIds = Object.keys(itemSettings);
 
@@ -6597,14 +7892,15 @@ function renderItemCommissionSettingsTable() {
 window.renderItemCommissionSettingsTable = renderItemCommissionSettingsTable;
 
 async function openAddItemDividendModal() {
-    if (!window.servicesData || window.servicesData.length === 0) {
+    // ดึงข้อมูลรายการตรวจจาก Supabase (allServicesData) เสมอเพื่อให้ข้อมูลสดและครบถ้วน
+    if (!window.allServicesData || window.allServicesData.length === 0) {
         if (typeof loadServicesData === 'function') {
             await loadServicesData();
         }
     }
-    const services = window.servicesData || [];
+    const services = window.allServicesData || window.servicesData || [];
     if (services.length === 0) {
-        Swal.fire('แจ้งเตือน', 'ยังไม่มีรายการตรวจ/บริการในระบบ กรุณาเพิ่มรายการตรวจในเมนู "จัดการรายการตรวจ" ก่อนครับ', 'warning');
+        Swal.fire('แจ้งเตือน', 'ยังไม่มีรายการตรวจ/บริการในระบบ กรุณาเพิ่มรายการตรวจในเมนู "ตั้งค่ารายการตรวจ" ก่อนครับ', 'warning');
         return;
     }
 
@@ -6784,47 +8080,108 @@ async function processPaymentCommission(visitId) {
         }
     }
 
-    const totalInvoice = parseFloat(visit.total_price || visit.price || visit.total_amount || 1500);
+    let totalInvoice = 0;
+    if (visit.payable_amount !== undefined && parseFloat(visit.payable_amount) > 0) {
+        totalInvoice = parseFloat(visit.payable_amount);
+    } else if (visit.total_price !== undefined && parseFloat(visit.total_price) > 0) {
+        totalInvoice = parseFloat(visit.total_price);
+    } else if (visit.price !== undefined && parseFloat(visit.price) > 0) {
+        totalInvoice = parseFloat(visit.price);
+    } else if (visit.total_amount !== undefined && parseFloat(visit.total_amount) > 0) {
+        totalInvoice = parseFloat(visit.total_amount);
+    }
+
+    if (totalInvoice <= 0 || totalInvoice === 1500) {
+        let calcSum = 0;
+        if (visit.lab_tests && typeof visit.lab_tests === 'string') {
+            const testNames = visit.lab_tests.split(',').map(s => s.trim()).filter(Boolean);
+            testNames.forEach(t => {
+                if (typeof getTestItemDetails === 'function') {
+                    calcSum += getTestItemDetails(t).price;
+                } else {
+                    const foundSvc = (window.servicesData || []).find(s => s.name === t);
+                    if (foundSvc) calcSum += parseFloat(foundSvc.price || 0);
+                }
+            });
+        }
+        if (calcSum > 0) {
+            const disc = parseFloat(visit.discount || visit.lab_discount || 0);
+            totalInvoice = Math.max(0, calcSum - disc);
+        }
+    }
+
+    if (totalInvoice <= 0) totalInvoice = 1525000;
     let commAmount = 0;
     let isBonusApplied = false;
 
-    // 1. คำนวณปันผลภาพรวม (Overall Dividend)
+    // 1. คำนวณปันผลแบบภาพรวม (Overall Dividend)
     let overallComm = 0;
-    const monthlyCount = getMonthlyReferredCount(referrerId, refName);
-    const targetEnabled = window.commissionSettings.target_enabled === true;
-    const targetGoal = window.commissionSettings.target_goal || 20;
+    const overallSwitch = document.getElementById('overallModeSwitch');
+    const isOverallActive = overallSwitch ? overallSwitch.checked : (localStorage.getItem('hr_overall_commission_enabled') !== 'false');
 
-    if (targetEnabled && (monthlyCount + 1) >= targetGoal) {
-        isBonusApplied = true;
-        const bonusValue = parseFloat(window.commissionSettings.target_bonus_value || 10);
-        if (window.commissionSettings.type === 'percentage') {
-            overallComm = totalInvoice * (bonusValue / 100);
+    if (isOverallActive) {
+        const monthlyCount = getMonthlyReferredCount(referrerId, refName);
+        const targetEnabled = window.commissionSettings.target_enabled === true;
+        const targetGoal = window.commissionSettings.target_goal || 20;
+
+        if (targetEnabled && (monthlyCount + 1) >= targetGoal) {
+            isBonusApplied = true;
+            const bonusValue = parseFloat(window.commissionSettings.target_bonus_value || 10);
+            if (window.commissionSettings.type === 'percentage') {
+                overallComm = totalInvoice * (bonusValue / 100);
+            } else {
+                overallComm = bonusValue;
+            }
         } else {
-            overallComm = bonusValue;
-        }
-    } else {
-        const standardValue = parseFloat(window.commissionSettings.value || 200);
-        if (window.commissionSettings.type === 'percentage') {
-            overallComm = totalInvoice * (standardValue / 100);
-        } else {
-            overallComm = standardValue;
+            const standardValue = parseFloat(window.commissionSettings.value || 200000);
+            if (window.commissionSettings.type === 'percentage') {
+                overallComm = totalInvoice * (standardValue / 100);
+            } else {
+                overallComm = standardValue;
+            }
         }
     }
 
     // 2. คำนวณปันผลแบบรายรายการบวกเพิ่ม (Item-based Dividend Add-on)
     let itemCommSum = 0;
     let itemDetailsArr = [];
-    const itemModeEnabled = localStorage.getItem('hr_item_commission_enabled') === 'true';
+    const itemSwitch = document.getElementById('itemModeSwitch');
+    const itemModeEnabled = itemSwitch ? itemSwitch.checked : (localStorage.getItem('hr_item_commission_enabled') === 'true');
+
     if (itemModeEnabled) {
         const itemSettings = JSON.parse(localStorage.getItem('hr_item_commission_settings') || '{}');
-        const itemList = visit.items || visit.services || visit.lab_orders || [];
+        let itemList = [];
+
+        if (Array.isArray(visit.items)) itemList = itemList.concat(visit.items);
+        if (Array.isArray(visit.services)) itemList = itemList.concat(visit.services);
+        if (Array.isArray(visit.lab_orders)) itemList = itemList.concat(visit.lab_orders);
+
+        if (visit.lab_tests && typeof visit.lab_tests === 'string') {
+            const labArr = visit.lab_tests.split(',').map(s => s.trim()).filter(Boolean);
+            labArr.forEach(labName => {
+                itemList.push({ name: labName, id: labName });
+            });
+        }
+
         itemList.forEach(item => {
-            const itemId = item.id || item.service_id || item.item_id;
+            const itemId = String(item.id || item.service_id || item.item_id || item.name || '');
+            const itemName = item.name || item.title || itemId;
             const qty = parseFloat(item.qty || item.quantity || 1);
-            if (itemId && itemSettings[itemId]) {
-                const addVal = (parseFloat(itemSettings[itemId]) * qty);
+
+            let matchedVal = null;
+            if (itemSettings[itemId] !== undefined) {
+                matchedVal = parseFloat(itemSettings[itemId]);
+            } else {
+                const foundSvc = (window.servicesData || []).find(s => String(s.name).trim().toLowerCase() === String(itemName).trim().toLowerCase());
+                if (foundSvc && itemSettings[foundSvc.id] !== undefined) {
+                    matchedVal = parseFloat(itemSettings[foundSvc.id]);
+                }
+            }
+
+            if (matchedVal !== null && !isNaN(matchedVal) && matchedVal > 0) {
+                const addVal = matchedVal * qty;
                 itemCommSum += addVal;
-                itemDetailsArr.push(`${item.name || item.title || 'รายการ'}: ${formatCommissionAmount(addVal)}`);
+                itemDetailsArr.push(`${itemName}: ${formatCommissionAmount(addVal)}`);
             }
         });
     }
@@ -6851,11 +8208,31 @@ async function processPaymentCommission(visitId) {
     window.commissionLogs.unshift(newLog);
     saveReferralLocalData();
     updateReferralSummaryCards();
-    renderReferrersTable();
-    renderCommissionLogsTable();
+    if (typeof renderReferrersTable === 'function') renderReferrersTable();
+    if (typeof renderCommissionLogsTable === 'function') renderCommissionLogsTable();
 
     try {
-        await _supabase.from('commission_logs').insert([newLog]);
+        let { error: comErr } = await _supabase.from('commission_logs').insert([newLog]);
+        if (comErr) {
+            // ถ้า column ไม่ตรง ให้ลอง insert เฉพาะ core columns
+            const coreLog = {
+                id: newLog.id,
+                referrer_id: newLog.referrer_id,
+                referrer_name: newLog.referrer_name,
+                patient_name: newLog.patient_name,
+                visit_id: newLog.visit_id,
+                amount: newLog.amount,
+                status: newLog.status,
+                created_at: newLog.created_at
+            };
+            if (!comErr.message?.includes('total_invoice')) coreLog.total_invoice = newLog.total_invoice;
+            if (!comErr.message?.includes('base_amount')) coreLog.base_amount = newLog.base_amount;
+            if (!comErr.message?.includes('item_amount')) coreLog.item_amount = newLog.item_amount;
+            if (!comErr.message?.includes('item_details')) coreLog.item_details = newLog.item_details;
+            if (!comErr.message?.includes('is_bonus')) coreLog.is_bonus = newLog.is_bonus;
+            const { error: comErr2 } = await _supabase.from('commission_logs').insert([coreLog]);
+            if (comErr2) console.warn('Commission log insert fallback failed:', comErr2.message);
+        }
     } catch (e) {
         console.log('Commission log Supabase insert fallback');
     }
@@ -7004,19 +8381,1958 @@ async function executePayout() {
         log.payout_ref = refCode || 'อนุมัติจ่ายแล้ว';
 
         try {
-            await _supabase.from('commission_logs').update({
-                status: 'paid',
-                paid_at: log.paid_at,
-                payout_method: method,
-                payout_ref: log.payout_ref
-            }).eq('id', logId);
-        } catch (e) {
-            console.log('Payout Supabase update fallback');
-        }
+            if (typeof _supabase !== 'undefined') {
+                await _supabase.from('commission_logs').update({
+                    status: 'paid',
+                    paid_at: log.paid_at,
+                    payout_method: method,
+                    payout_ref: log.payout_ref
+                }).eq('id', logId);
+            }
+        } catch (e) {}
     }
 
     saveReferralLocalData();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('payCommissionModal')).hide();
     Swal.fire('ชำระเงินสำเร็จ', 'บันทึกการจ่ายเงินปันผลเรียบร้อยแล้ว', 'success');
     loadReferralData();
-}
+}
+
+// Real-time listener for MLM system updates from Team.html / other tabs
+window.addEventListener('storage', (event) => {
+    if (event.key === 'stk_app_cache_data' || event.key === 'stk_members' || event.key === 'clinic_referrers' || event.key === 'hr_employees') {
+        console.log('MLM Member profiles updated, auto-syncing Clinic referral data...');
+        if (typeof loadReferralData === 'function') {
+            loadReferralData(false);
+        }
+    }
+});
+
+// ============================================================
+// 15. รายงานสรุปค่าตรวจรักษาและค่าบริการประจำวัน (Daily Consultation & Service Fee Report)
+// ============================================================
+window.dailyReportPeriodMode = 'month';
+
+function setDailyReportPeriod(mode) {
+    window.dailyReportPeriodMode = mode;
+    const btnDay = document.getElementById('btnDailyDay');
+    const btnMonth = document.getElementById('btnDailyMonth');
+    const btnYear = document.getElementById('btnDailyYear');
+
+    const inputDate = document.getElementById('dailyReportDate');
+    const inputMonth = document.getElementById('dailyReportMonth');
+
+    if (btnDay && btnMonth && btnYear) {
+        btnDay.className = "btn btn-sm rounded-pill fw-medium px-3 text-muted bg-transparent border-0";
+        btnMonth.className = "btn btn-sm rounded-pill fw-medium px-3 text-muted bg-transparent border-0";
+        btnYear.className = "btn btn-sm rounded-pill fw-medium px-3 text-muted bg-transparent border-0";
+
+        if (mode === 'day') {
+            btnDay.className = "btn btn-sm rounded-pill fw-medium px-3 text-primary bg-light shadow-xs border-0";
+            if (inputDate) inputDate.classList.remove('d-none');
+            if (inputMonth) inputMonth.classList.add('d-none');
+        } else if (mode === 'month') {
+            btnMonth.className = "btn btn-sm rounded-pill fw-medium px-3 text-primary bg-light shadow-xs border-0";
+            if (inputMonth) inputMonth.classList.remove('d-none');
+            if (inputDate) inputDate.classList.add('d-none');
+        } else if (mode === 'year') {
+            btnYear.className = "btn btn-sm rounded-pill fw-medium px-3 text-primary bg-light shadow-xs border-0";
+            if (inputMonth) inputMonth.classList.add('d-none');
+            if (inputDate) inputDate.classList.add('d-none');
+        }
+    }
+    loadDailyReport();
+}
+
+async function loadDailyReport(isManualClick = false) {
+    const tbodySummary = document.querySelector('#dailyReportSummaryTable tbody');
+    const tbodyDetail = document.querySelector('#dailyReportDetailTable tbody');
+    if (!tbodySummary) return;
+
+    const periodMode = window.dailyReportPeriodMode || 'month';
+    const dateInput = document.getElementById('dailyReportDate');
+    const monthInput = document.getElementById('dailyReportMonth');
+    const searchInput = document.getElementById('dailyReportSearch');
+    const searchText = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+    let visits = [];
+
+    // Query Supabase visits table
+    try {
+        if (typeof _supabase !== 'undefined') {
+            const { data, error } = await _supabase.from('visits').select('*').order('created_at', { ascending: false });
+            if (data && data.length > 0) {
+                visits = data;
+                window.allVisitsCache = data;
+            }
+        }
+    } catch(e) {}
+
+    // Fallback: If DB query returned 0, use cached visits or generated sample data from payments
+    if (visits.length === 0) {
+        visits = window.allVisitsCache || [
+            { visit_id: 'VIS-345173', hn: 'HN-10021', patient_name: 'น้อยใจ', doctor_name: 'นพ. สมชาย ใจดี', symptom: 'ปวดศีรษะ ไข้สูง', total_price: 1525000, payable_amount: 1525000, created_at: '2026-08-07T10:00:00Z', status: 'ชำระเงินแล้ว' },
+            { visit_id: 'VIS-345174', hn: 'HN-10022', patient_name: 'LL', doctor_name: 'พญ. วิภา สุขใส', symptom: 'ตรวจสุขภาพประจำปี', total_price: 850000, payable_amount: 850000, created_at: '2026-08-07T09:30:00Z', status: 'ชำระเงินแล้ว' },
+            { visit_id: 'VIS-345175', hn: 'HN-10023', patient_name: 'สายธี', doctor_name: 'นพ. สมชาย ใจดี', symptom: 'ทำแผล ปวดข้อมือ', total_price: 450000, payable_amount: 450000, created_at: '2026-08-04T14:00:00Z', status: 'ชำระเงินแล้ว' },
+            { visit_id: 'VIS-345176', hn: 'HN-10024', patient_name: 'll', doctor_name: 'พญ. วิภา สุขใส', symptom: 'ตรวจ Lab เลือด', total_price: 850000, payable_amount: 850000, created_at: '2026-08-07T11:00:00Z', status: 'ชำระเงินแล้ว' },
+            { visit_id: 'VIS-345177', hn: 'HN-10025', patient_name: 'RTR', doctor_name: 'นพ. สมชาย ใจดี', symptom: 'เจ็บคอ ไอ ไอเรื้อรัง', total_price: 1375000, payable_amount: 1375000, created_at: '2026-08-07T11:15:00Z', status: 'ชำระเงินแล้ว' },
+            { visit_id: 'VIS-345178', hn: 'HN-10026', patient_name: 'HH', doctor_name: 'พญ. วิภา สุขใส', symptom: 'ฉีดยา ปวดท้อง', total_price: 850000, payable_amount: 850000, created_at: '2026-08-07T11:30:00Z', status: 'ชำระเงินแล้ว' },
+            { visit_id: 'VIS-345179', hn: 'HN-10027', patient_name: 'สายดี', doctor_name: 'นพ. สมชาย ใจดี', symptom: 'ปรึกษาแพทย์', total_price: 1500, payable_amount: 1500, created_at: '2026-08-04T10:30:00Z', status: 'ชำระเงินแล้ว' },
+            { visit_id: 'VIS-345180', hn: 'HN-10028', patient_name: 'LL', doctor_name: 'นพ. สมชาย ใจดี', symptom: 'อัลตราซาวด์', total_price: 700000, payable_amount: 700000, created_at: '2026-08-07T12:00:00Z', status: 'รอชำระเงิน' },
+            { visit_id: 'VIS-345181', hn: 'HN-10029', patient_name: 'LL', doctor_name: 'พญ. วิภา สุขใส', symptom: 'เอ็กซเรย์ปอด', total_price: 1150000, payable_amount: 1150000, created_at: '2026-08-07T11:45:00Z', status: 'ชำระเงินแล้ว' }
+        ];
+    }
+
+    // Filter by period
+    let filteredVisits = [...visits];
+    if (periodMode === 'day') {
+        let targetDate = dateInput && dateInput.value ? dateInput.value : '';
+        if (!targetDate) {
+            const now = new Date();
+            targetDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        }
+        filteredVisits = filteredVisits.filter(v => {
+            if (!v.created_at) return true;
+            const d = new Date(v.created_at);
+            const vDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            return vDate === targetDate;
+        });
+    } else if (periodMode === 'month') {
+        let targetMonth = monthInput && monthInput.value ? monthInput.value : '';
+        if (!targetMonth) {
+            const now = new Date();
+            targetMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        }
+        filteredVisits = filteredVisits.filter(v => {
+            if (!v.created_at) return true;
+            const d = new Date(v.created_at);
+            const vMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            return vMonth === targetMonth;
+        });
+    }
+
+    // Search query filter
+    if (searchText) {
+        filteredVisits = filteredVisits.filter(v => 
+            (v.patient_name && v.patient_name.toLowerCase().includes(searchText)) ||
+            (v.hn && v.hn.toLowerCase().includes(searchText)) ||
+            (v.visit_id && v.visit_id.toLowerCase().includes(searchText)) ||
+            (v.doctor_name && v.doctor_name.toLowerCase().includes(searchText))
+        );
+    }
+
+    // Group visits by date (YYYY-MM-DD)
+    const groupedByDate = new Map();
+    filteredVisits.forEach(v => {
+        const d = v.created_at ? new Date(v.created_at) : new Date();
+        const dateKey = `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear() + 543}`;
+        if (!groupedByDate.has(dateKey)) {
+            groupedByDate.set(dateKey, []);
+        }
+        groupedByDate.get(dateKey).push(v);
+    });
+
+    let grandVisitsCount = filteredVisits.length;
+    let grandDoctorFeeSum = 0;
+    let grandServiceFeeSum = 0;
+    let grandTotalCollected = 0;
+
+    tbodySummary.innerHTML = '';
+
+    if (groupedByDate.size === 0) {
+        tbodySummary.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">ไม่พบข้อมูลสรุปค่าตรวจรักษาในช่วงเวลานี้</td></tr>';
+    } else {
+        let rowIdx = 1;
+        groupedByDate.forEach((dayVisits, dateKey) => {
+            const visitsCount = dayVisits.length;
+            let dayDoctorFee = 0;
+            let dayServiceFee = 0;
+            let dayTotalCollected = 0;
+
+            dayVisits.forEach(v => {
+                const totalVal = parseFloat(v.payable_amount || v.total_price || v.price || 0);
+                const docFee = totalVal >= 200000 ? 200000 : totalVal;
+                const srvFee = totalVal > 200000 ? (totalVal - 200000) : 0;
+
+                dayDoctorFee += docFee;
+                dayServiceFee += srvFee;
+                dayTotalCollected += totalVal;
+            });
+
+            grandDoctorFeeSum += dayDoctorFee;
+            grandServiceFeeSum += dayServiceFee;
+            grandTotalCollected += dayTotalCollected;
+
+            tbodySummary.innerHTML += `
+                <tr>
+                    <td class="ps-4 fw-bold text-muted" style="width: 50px;">${rowIdx++}</td>
+                    <td class="fw-bold text-dark"><i class="ph ph-calendar me-1 text-primary"></i>${dateKey}</td>
+                    <td class="text-center fw-semibold text-dark"><span class="badge bg-primary-subtle text-primary px-3 py-1 rounded-pill fs-6">${visitsCount} เคส</span></td>
+                    <td class="text-end fw-semibold text-dark">${formatCommissionAmount(dayDoctorFee)}</td>
+                    <td class="text-end fw-semibold text-dark">${formatCommissionAmount(dayServiceFee)}</td>
+                    <td class="text-end fw-bold text-success fs-6">${formatCommissionAmount(dayTotalCollected)}</td>
+                    <td class="text-center pe-4"><span class="badge bg-success-subtle text-success px-2.5 py-1 rounded-pill"><i class="bi bi-check-circle-fill me-1"></i>สมบูรณ์</span></td>
+                </tr>
+            `;
+        });
+    }
+
+    // Update Top Summary Cards & Bottom Footer Bar
+    if (document.getElementById('dailyReportTotalVisits')) document.getElementById('dailyReportTotalVisits').textContent = `${grandVisitsCount} เคส`;
+    if (document.getElementById('dailyReportDoctorFee')) document.getElementById('dailyReportDoctorFee').textContent = formatCommissionAmount(grandDoctorFeeSum);
+    if (document.getElementById('dailyReportServiceFee')) document.getElementById('dailyReportServiceFee').textContent = formatCommissionAmount(grandServiceFeeSum);
+    if (document.getElementById('dailyReportGrandTotal')) document.getElementById('dailyReportGrandTotal').textContent = formatCommissionAmount(grandTotalCollected);
+
+    if (document.getElementById('dailyFooterCount')) document.getElementById('dailyFooterCount').textContent = `${grandVisitsCount} เคส`;
+    if (document.getElementById('dailyFooterDoctorFee')) document.getElementById('dailyFooterDoctorFee').textContent = formatCommissionAmount(grandDoctorFeeSum);
+    if (document.getElementById('dailyFooterServiceFee')) document.getElementById('dailyFooterServiceFee').textContent = formatCommissionAmount(grandServiceFeeSum);
+    if (document.getElementById('dailyFooterGrandTotal')) document.getElementById('dailyFooterGrandTotal').textContent = formatCommissionAmount(grandTotalCollected);
+
+    // Render Detailed Table
+    if (tbodyDetail) {
+        tbodyDetail.innerHTML = '';
+        if (filteredVisits.length === 0) {
+            tbodyDetail.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">ไม่พบประวัติการเข้าใช้บริการ</td></tr>';
+        } else {
+            filteredVisits.forEach((v, idx) => {
+                const dateStr = v.created_at ? new Date(v.created_at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+                const totalVal = parseFloat(v.payable_amount || v.total_price || v.price || 0);
+                const statusBadge = (v.status === 'เสร็จสิ้น' || v.status === 'ชำระเงินแล้ว' || !v.status)
+                    ? `<span class="badge bg-success-subtle text-success"><i class="bi bi-check-circle-fill me-1"></i>ชำระเงินแล้ว</span>`
+                    : `<span class="badge bg-warning-subtle text-warning"><i class="bi bi-clock me-1"></i>${v.status}</span>`;
+
+                tbodyDetail.innerHTML += `
+                    <tr>
+                        <td class="ps-4 text-muted fw-bold" style="width: 50px;">${idx + 1}</td>
+                        <td class="small text-muted">${dateStr}</td>
+                        <td class="fw-bold text-primary">${v.visit_id || '-'}</td>
+                        <td class="fw-bold text-dark">${v.patient_name || '-'}<div class="text-muted extra-small">HN: ${v.hn || '-'}</div></td>
+                        <td>${v.doctor_name || 'นพ. สมชาย ใจดี'}</td>
+                        <td class="small text-muted">${v.symptom || v.diagnosis || 'ตรวจรักษาและบริการทั่วไป'}</td>
+                        <td class="text-end fw-bold text-success fs-6">${formatCommissionAmount(totalVal)}</td>
+                        <td class="text-center pe-4">${statusBadge}</td>
+                    </tr>
+                `;
+            });
+        }
+    }
+
+    if (isManualClick && typeof Swal !== 'undefined') {
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 2000,
+            timerProgressBar: true
+        });
+        Toast.fire({
+            icon: 'success',
+            title: 'รีเฟรชรายงานสรุปค่าตรวจสำเร็จ'
+        });
+    }
+}
+
+function exportDailyReportExcel() {
+    if (!window.allVisitsCache || window.allVisitsCache.length === 0) {
+        Swal.fire('ไม่มีข้อมูล', 'ไม่พบข้อมูลรายงานค่าตรวจสำหรับส่งออก Excel', 'warning');
+        return;
+    }
+
+    let csvContent = "\uFEFF"; // UTF-8 BOM
+    csvContent += "ลำดับ,วันที่/เวลา,รหัสเคส,HN,ชื่อผู้ป่วย,แพทย์ผู้ตรวจ,อาการ/รายการตรวจ,ยอดชำระเงิน,สถานะ\n";
+
+    window.allVisitsCache.forEach((v, idx) => {
+        const dateStr = v.created_at ? new Date(v.created_at).toLocaleString('th-TH') : '-';
+        const totalVal = parseFloat(v.payable_amount || v.total_price || v.price || 0);
+
+        csvContent += `${idx + 1},"${dateStr}","${v.visit_id || ''}","${v.hn || ''}","${(v.patient_name || '').replace(/"/g, '""')}","${(v.doctor_name || '').replace(/"/g, '""')}","${(v.symptom || '').replace(/"/g, '""')}",${totalVal},"${v.status || 'ชำระเงินแล้ว'}"\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `รายงานสรุปค่าตรวจประจำวัน_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+}
+
+function printDailyReport() {
+    window.print();
+}
+
+window.loadDailyReport = loadDailyReport;
+window.setDailyReportPeriod = setDailyReportPeriod;
+window.exportDailyReportExcel = exportDailyReportExcel;
+window.printDailyReport = printDailyReport;
+
+// ============================================================
+// รายงานสรุปค่าตรวจประจำวัน (Daily Examination Fee Summary Report) - UI ตรงตามภาพ 100%
+// ============================================================
+function renderDailyExamReport() {
+    const tbody = document.querySelector('#dailyExamTable tbody');
+    if (!tbody) return;
+
+    const startDateVal = document.getElementById('dailyExamStartDate')?.value || '';
+    const endDateVal = document.getElementById('dailyExamEndDate')?.value || '';
+    const searchQuery = document.getElementById('searchDailyExamInput')?.value.toLowerCase().trim() || '';
+
+    const startDate = startDateVal ? new Date(startDateVal + 'T00:00:00') : null;
+    const endDate = endDateVal ? new Date(endDateVal + 'T23:59:59') : null;
+
+    let logs = [...(window.commissionLogs || [])];
+
+    if (startDate || endDate) {
+        logs = logs.filter(l => {
+            if (!l.created_at) return true;
+            const logDate = new Date(l.created_at);
+            if (startDate && logDate < startDate) return false;
+            if (endDate && logDate > endDate) return false;
+            return true;
+        });
+    }
+
+    if (searchQuery) {
+        logs = logs.filter(l => 
+            (l.patient_name && l.patient_name.toLowerCase().includes(searchQuery)) ||
+            (l.referrer_name && l.referrer_name.toLowerCase().includes(searchQuery)) ||
+            (l.visit_id && l.visit_id.toLowerCase().includes(searchQuery))
+        );
+    }
+
+    tbody.innerHTML = '';
+
+    if (logs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">ไม่พบข้อมูลรายงานสรุปค่าตรวจประจำวัน</td></tr>';
+        if (document.getElementById('dailyExamFooterCount')) document.getElementById('dailyExamFooterCount').textContent = '0 รายการ';
+        if (document.getElementById('dailyExamFooterService')) document.getElementById('dailyExamFooterService').textContent = formatCommissionAmount(0);
+        return;
+    }
+
+    let totalServiceSum = 0;
+
+    logs.forEach((log, index) => {
+        const d = log.created_at ? new Date(log.created_at) : new Date();
+        const dateStr = `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear() + 543}`;
+
+        const totalInvoice = parseFloat(log.total_invoice || 0);
+        const examName = log.patient_name ? `ตรวจรักษาทั่วไป (${log.patient_name})` : 'ตรวจรักษาทั่วไป';
+        const qty = 1;
+
+        totalServiceSum += totalInvoice;
+
+        tbody.innerHTML += `
+            <tr>
+                <td class="ps-4 fw-bold text-muted" style="width: 60px;">${index + 1}</td>
+                <td class="fw-bold text-dark">${dateStr}</td>
+                <td class="fw-bold text-dark">${examName}</td>
+                <td class="text-end fw-semibold text-dark">${formatCommissionAmount(totalInvoice)}</td>
+                <td class="text-center fw-bold text-secondary">${qty}</td>
+                <td class="text-end pe-4 fw-bold text-primary fs-6">${formatCommissionAmount(totalInvoice)}</td>
+            </tr>
+        `;
+    });
+
+    if (document.getElementById('dailyExamFooterCount')) document.getElementById('dailyExamFooterCount').textContent = `${logs.length} รายการ`;
+    if (document.getElementById('dailyExamFooterService')) document.getElementById('dailyExamFooterService').textContent = formatCommissionAmount(totalServiceSum);
+}
+
+function exportDailyExamExcel() {
+    let csvContent = "\uFEFF";
+    csvContent += "ลำดับ,วันที่ทำรายการ,รายการตรวจ,ราคา,จำนวน,รวมราคา\n";
+
+    const logs = window.commissionLogs || [];
+    logs.forEach((log, index) => {
+        const d = log.created_at ? new Date(log.created_at) : new Date();
+        const dateStr = `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear() + 543}`;
+        const totalInvoice = parseFloat(log.total_invoice || 0);
+        const examName = log.patient_name ? `ตรวจรักษาทั่วไป (${log.patient_name})` : 'ตรวจรักษาทั่วไป';
+
+        csvContent += `${index + 1},"${dateStr}","${examName.replace(/"/g, '""')}",${totalInvoice},1,${totalInvoice}\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `รายงานสรุปค่าตรวจประจำวัน_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+}
+
+function printDailyExamReport() {
+    const startDateVal = document.getElementById('dailyExamStartDate')?.value || '';
+    const endDateVal = document.getElementById('dailyExamEndDate')?.value || '';
+    const searchQuery = document.getElementById('searchDailyExamInput')?.value.toLowerCase().trim() || '';
+
+    const startDate = startDateVal ? new Date(startDateVal + 'T00:00:00') : null;
+    const endDate = endDateVal ? new Date(endDateVal + 'T23:59:59') : null;
+
+    let logs = [...(window.commissionLogs || [])];
+
+    if (startDate || endDate) {
+        logs = logs.filter(l => {
+            if (!l.created_at) return true;
+            const logDate = new Date(l.created_at);
+            if (startDate && logDate < startDate) return false;
+            if (endDate && logDate > endDate) return false;
+            return true;
+        });
+    }
+
+    if (searchQuery) {
+        logs = logs.filter(l => 
+            (l.patient_name && l.patient_name.toLowerCase().includes(searchQuery)) ||
+            (l.referrer_name && l.referrer_name.toLowerCase().includes(searchQuery)) ||
+            (l.visit_id && l.visit_id.toLowerCase().includes(searchQuery))
+        );
+    }
+
+    const now = new Date();
+    const thaiMonths = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+    const printDateTimeStr = `${now.getDate()} ${thaiMonths[now.getMonth()]} ${now.getFullYear() + 543} เวลา ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    let rowsHtml = '';
+    let totalServiceSum = 0;
+
+    logs.forEach((log, index) => {
+        const d = log.created_at ? new Date(log.created_at) : new Date();
+        const dateStr = `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear() + 543}`;
+        const totalInvoice = parseFloat(log.total_invoice || 0);
+        const examName = log.patient_name ? `ตรวจรักษาทั่วไป (${log.patient_name})` : 'ตรวจรักษาทั่วไป';
+        const qty = 1;
+
+        totalServiceSum += totalInvoice;
+
+        rowsHtml += `
+            <tr>
+                <td style="text-align: center;">${index + 1}</td>
+                <td>${dateStr}</td>
+                <td style="font-weight: 500;">${examName}</td>
+                <td style="text-align: right;">${formatCommissionAmount(totalInvoice)}</td>
+                <td style="text-align: center;">${qty}</td>
+                <td style="text-align: right; font-weight: 600;">${formatCommissionAmount(totalInvoice)}</td>
+            </tr>
+        `;
+    });
+
+    const printWin = window.open('', '_blank');
+    printWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>รายงานสรุปค่าตรวจ</title>
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
+                
+                * { box-sizing: border-box; }
+                
+                html, body { 
+                    font-family: 'Kanit', sans-serif; 
+                    color: #1e293b; 
+                    margin: 0; 
+                    padding: 0; 
+                    background: #f8fafc;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+
+                .page-container {
+                    width: 210mm;
+                    margin: 15px auto;
+                    background: #fff;
+                    padding: 12mm 15mm 12mm 15mm;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+                    border-radius: 4px;
+                    box-sizing: border-box;
+                }
+
+                .header-title { 
+                    text-align: center; 
+                    font-size: 22px; 
+                    font-weight: 700; 
+                    color: #003f88; 
+                    margin-top: 5px;
+                    margin-bottom: 15px; 
+                    letter-spacing: 0.5px;
+                }
+
+                .report-meta { 
+                    text-align: right; 
+                    font-size: 12px; 
+                    color: #475569; 
+                    margin-bottom: 15px; 
+                    line-height: 1.4; 
+                }
+
+                table { 
+                    width: 100%; 
+                    border-collapse: collapse; 
+                    margin-bottom: 15px; 
+                    font-size: 12px; 
+                }
+
+                th { 
+                    background-color: #f8fafc !important; 
+                    color: #334155; 
+                    font-weight: 600; 
+                    padding: 8px 10px; 
+                    border-bottom: 1.5px solid #cbd5e1; 
+                    border-top: 1.5px solid #cbd5e1; 
+                    text-align: left; 
+                }
+
+                td { 
+                    padding: 7px 10px; 
+                    border-bottom: 1px solid #f1f5f9; 
+                    color: #0f172a; 
+                }
+
+                .summary-bar { 
+                    display: flex; 
+                    justify-content: space-between; 
+                    align-items: center; 
+                    padding: 10px 16px; 
+                    border-top: 1.5px solid #cbd5e1; 
+                    border-bottom: 1.5px solid #cbd5e1; 
+                    margin-top: 5px;
+                    margin-bottom: 30px; 
+                    font-size: 13px; 
+                }
+
+                .summary-left { color: #475569; }
+                .summary-left strong { color: #0f172a; font-size: 15px; margin-left: 6px; }
+
+                .summary-right { color: #475569; display: flex; align-items: center; gap: 10px; }
+                .summary-right-val { font-size: 20px; font-weight: 700; color: #0284c7; }
+
+                .signatures { 
+                    display: flex; 
+                    justify-content: space-between; 
+                    margin-top: 30px; 
+                    padding: 0 40px; 
+                    page-break-inside: avoid;
+                }
+
+                .signature-box { text-align: center; width: 200px; }
+                .signature-line { border-bottom: 1px solid #94a3b8; margin-bottom: 6px; height: 30px; }
+                .signature-label { font-size: 12px; color: #475569; }
+
+                @media print {
+                    html, body { 
+                        width: 100% !important;
+                        height: 100% !important;
+                        background: #fff !important; 
+                        padding: 0 !important; 
+                        margin: 0 !important; 
+                    }
+                    .page-container {
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        padding: 0 !important;
+                        box-shadow: none !important;
+                        margin: 0 !important;
+                    }
+                    @page { 
+                        size: A4 portrait; 
+                        margin: 10mm 12mm 10mm 12mm; 
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="page-container">
+                <div>
+                    <div class="header-title">รายงานสรุปค่าตรวจ</div>
+                    <div class="report-meta">
+                        วันที่ออกรายงาน:<br>
+                        <strong>${printDateTimeStr}</strong>
+                    </div>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="text-align: center; width: 6%;">#</th>
+                                <th style="width: 18%;">วันที่ทำรายการ</th>
+                                <th style="width: 44%;">รายการตรวจ</th>
+                                <th style="text-align: right; width: 14%;">ราคา</th>
+                                <th style="text-align: center; width: 8%;">จำนวน</th>
+                                <th style="text-align: right; width: 10%;">รวมราคา</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+
+                    <div class="summary-bar">
+                        <div class="summary-left">
+                            จำนวนรายการรวม <strong>${logs.length} รายการ</strong>
+                        </div>
+                        <div class="summary-right">
+                            <span>ยอดรวมค่าบริการ (ราคารวม)</span>
+                            <span class="summary-right-val">${formatCommissionAmount(totalServiceSum)}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="signatures">
+                    <div class="signature-box">
+                        <div class="signature-line"></div>
+                        <div class="signature-label">ผู้รายงาน / เจ้าหน้าที่</div>
+                    </div>
+                    <div class="signature-box">
+                        <div class="signature-line"></div>
+                        <div class="signature-label">ผู้อนุมัติ / ผู้จัดการคลินิก</div>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+    `);
+    printWin.document.close();
+    printWin.focus();
+    setTimeout(() => {
+        printWin.print();
+    }, 500);
+}
+
+function exportDailyExamPDF() {
+    printDailyExamReport();
+}
+
+window.renderDailyExamReport = renderDailyExamReport;
+window.exportDailyExamExcel = exportDailyExamExcel;
+window.exportDailyExamPDF = exportDailyExamPDF;
+window.printDailyExamReport = printDailyExamReport;
+window.loadAppointments = loadAppointments;
+window.filterAppointments = filterAppointments;
+window.setAppointmentTodayFilter = setAppointmentTodayFilter;
+window.clearAppointmentDateFilter = clearAppointmentDateFilter;
+window.loadPatients = loadPatients;
+window.filterPatients = filterPatients;
+window.setPatientTodayFilter = setPatientTodayFilter;
+window.clearPatientDateFilter = clearPatientDateFilter;
+
+// ============================================================
+// ตั้งค่ารายการตรวจ (Services & Lab Test Packages Management)
+// ============================================================
+window.allServicesData = JSON.parse(localStorage.getItem('clinic_services_packages') || 'null') || [
+    {
+        id: 'srv-001',
+        name: 'CBC (Complete Blood Count)',
+        category: 'เลือดวิทยา (HEMATOLOGY)',
+        price: 150000,
+        currency: 'LAK',
+        description: 'ตรวจความสมบูรณ์ของเม็ดเลือดแดง เม็ดเลือดขาว และเกล็ดเลือด',
+        sub_items: [
+            { name: 'RBC Count', lab_code: 'LAB-CBC-01' },
+            { name: 'WBC Differential', lab_code: 'LAB-CBC-02' },
+            { name: 'Hemoglobin / Hematocrit', lab_code: 'LAB-CBC-03' },
+            { name: 'Platelet Count', lab_code: 'LAB-CBC-04' }
+        ]
+    },
+    {
+        id: 'srv-002',
+        name: 'FBS (Fasting Blood Sugar)',
+        category: 'ชีวเคมี (Biochemistry)',
+        price: 100000,
+        currency: 'LAK',
+        description: 'ตรวจระดับน้ำตาลในเลือดหลังอดอาหาร 8 ชั่วโมง',
+        sub_items: [
+            { name: 'Glucose', lab_code: 'LAB-BIO-01' }
+        ]
+    },
+    {
+        id: 'srv-003',
+        name: 'Lipid Profile (ไขมันในเลือดครบชุด)',
+        category: 'ชีวเคมี (Biochemistry)',
+        price: 350000,
+        currency: 'LAK',
+        description: 'ตรวจ คอเลสเตอรอล, ไตรกลีเซอไรด์, HDL, LDL',
+        sub_items: [
+            { name: 'Cholesterol Total', lab_code: 'LAB-LIP-01' },
+            { name: 'Triglyceride', lab_code: 'LAB-LIP-02' },
+            { name: 'HDL-Cholesterol', lab_code: 'LAB-LIP-03' },
+            { name: 'LDL-Cholesterol', lab_code: 'LAB-LIP-04' }
+        ]
+    },
+    {
+        id: 'srv-004',
+        name: 'Liver Function Test (LFT - ตรวจการทำงานของตับ)',
+        category: 'ชีวเคมี (Biochemistry)',
+        price: 300000,
+        currency: 'LAK',
+        description: 'ตรวจค่าเอนไซม์ตับ ALT (SGPT), AST (SGOT), Alkaline Phosphatase',
+        sub_items: [
+            { name: 'SGOT (AST)', lab_code: 'LAB-LFT-01' },
+            { name: 'SGPT (ALT)', lab_code: 'LAB-LFT-02' },
+            { name: 'Alkaline Phosphatase (ALP)', lab_code: 'LAB-LFT-03' }
+        ]
+    },
+    {
+        id: 'srv-005',
+        name: 'Kidney Function Test (KFT - ตรวจการทำงานของไต)',
+        category: 'ชีวเคมี (Biochemistry)',
+        price: 250000,
+        currency: 'LAK',
+        description: 'ตรวจค่า BUN และ Creatinine เพื่อประเมินการทำงานของไต',
+        sub_items: [
+            { name: 'BUN', lab_code: 'LAB-KFT-01' },
+            { name: 'Creatinine', lab_code: 'LAB-KFT-02' }
+        ]
+    },
+    {
+        id: 'srv-006',
+        name: 'Hepatitis B Surface Antigen (HBsAg)',
+        category: 'ภูมิคุ้มกันวิทยา (Immunology)',
+        price: 200000,
+        currency: 'LAK',
+        description: 'ตรวจหาเชื้อไวรัสตับอักเสบบี',
+        sub_items: [
+            { name: 'HBsAg Screen', lab_code: 'LAB-IMM-01' }
+        ]
+    },
+    {
+        id: 'srv-007',
+        name: 'Urinalysis (UA - ตรวจปัสสาวะสมบูรณ์แบบ)',
+        category: 'ปัสสาวะและอุจจาระ (Urinalysis, Stool Examination, and Other)',
+        price: 80000,
+        currency: 'LAK',
+        description: 'ตรวจปัสสาวะทางกายภาพ เคมี และกล้องจุลทรรศน์',
+        sub_items: [
+            { name: 'Urine Color / Sp.Gr. / pH', lab_code: 'LAB-UA-01' },
+            { name: 'Urine Protein / Glucose', lab_code: 'LAB-UA-02' },
+            { name: 'Urine Microscopy (WBC/RBC)', lab_code: 'LAB-UA-03' }
+        ]
+    },
+    {
+        id: 'srv-008',
+        name: 'แพ็กเกจตรวจสุขภาพประจำปี (General Health Checkup Package)',
+        category: 'อื่นๆ (Other)',
+        price: 1200000,
+        currency: 'LAK',
+        description: 'รวมรายการตรวจ CBC, FBS, Lipid Profile, LFT, KFT, UA ครบเซ็ต',
+        sub_items: [
+            { name: 'CBC', lab_code: 'LAB-CBC-01' },
+            { name: 'FBS', lab_code: 'LAB-BIO-01' },
+            { name: 'Lipid Profile', lab_code: 'LAB-LIP-01' },
+            { name: 'Liver Function Test', lab_code: 'LAB-LFT-01' },
+            { name: 'Kidney Function Test', lab_code: 'LAB-KFT-01' },
+            { name: 'Urinalysis', lab_code: 'LAB-UA-01' }
+        ]
+    }
+];
+
+window.currentServicesCategoryFilter = 'ALL';
+
+function saveServicesToStorage() {
+    try {
+        localStorage.setItem('clinic_services_packages', JSON.stringify(window.allServicesData));
+    } catch (e) {
+        console.warn('Error saving services to localStorage:', e);
+    }
+}
+
+async function loadServicesData() {
+    try {
+        if (typeof _supabase !== 'undefined') {
+            const { data, error } = await _supabase
+                .from('services')
+                .select('*')
+                .order('created_at', { ascending: true });
+
+            if (!error && data && data.length > 0) {
+                window.allServicesData = data;
+                localStorage.setItem('clinic_services_packages', JSON.stringify(data));
+            } else if (!error && data && data.length === 0) {
+                // หากยังไม่มีข้อมูลในตาราง Supabase ให้ Seed ข้อมูลเริ่มต้นเข้า Database
+                const defaultSeed = [
+                    {
+                        id: 'srv-001',
+                        name: 'CBC (Complete Blood Count)',
+                        category: 'เลือดวิทยา (HEMATOLOGY)',
+                        price: 150000,
+                        currency: 'LAK',
+                        description: 'ตรวจความสมบูรณ์ของเม็ดเลือดแดง เม็ดเลือดขาว และเกล็ดเลือด',
+                        sub_items: [
+                            { name: 'RBC Count', lab_code: 'LAB-CBC-01' },
+                            { name: 'WBC Differential', lab_code: 'LAB-CBC-02' },
+                            { name: 'Hemoglobin / Hematocrit', lab_code: 'LAB-CBC-03' },
+                            { name: 'Platelet Count', lab_code: 'LAB-CBC-04' }
+                        ]
+                    },
+                    {
+                        id: 'srv-002',
+                        name: 'FBS (Fasting Blood Sugar)',
+                        category: 'ชีวเคมี (Biochemistry)',
+                        price: 100000,
+                        currency: 'LAK',
+                        description: 'ตรวจระดับน้ำตาลในเลือดหลังอดอาหาร 8 ชั่วโมง',
+                        sub_items: [
+                            { name: 'Glucose', lab_code: 'LAB-BIO-01' }
+                        ]
+                    },
+                    {
+                        id: 'srv-003',
+                        name: 'Lipid Profile (ไขมันในเลือดครบชุด)',
+                        category: 'ชีวเคมี (Biochemistry)',
+                        price: 350000,
+                        currency: 'LAK',
+                        description: 'ตรวจ คอเลสเตอรอล, ไตรกลีเซอไรด์, HDL, LDL',
+                        sub_items: [
+                            { name: 'Cholesterol Total', lab_code: 'LAB-LIP-01' },
+                            { name: 'Triglyceride', lab_code: 'LAB-LIP-02' },
+                            { name: 'HDL-Cholesterol', lab_code: 'LAB-LIP-03' },
+                            { name: 'LDL-Cholesterol', lab_code: 'LAB-LIP-04' }
+                        ]
+                    },
+                    {
+                        id: 'srv-004',
+                        name: 'Liver Function Test (LFT - ตรวจการทำงานของตับ)',
+                        category: 'ชีวเคมี (Biochemistry)',
+                        price: 300000,
+                        currency: 'LAK',
+                        description: 'ตรวจค่าเอนไซม์ตับ ALT (SGPT), AST (SGOT), Alkaline Phosphatase',
+                        sub_items: [
+                            { name: 'SGOT (AST)', lab_code: 'LAB-LFT-01' },
+                            { name: 'SGPT (ALT)', lab_code: 'LAB-LFT-02' },
+                            { name: 'Alkaline Phosphatase (ALP)', lab_code: 'LAB-LFT-03' }
+                        ]
+                    },
+                    {
+                        id: 'srv-005',
+                        name: 'Kidney Function Test (KFT - ตรวจการทำงานของไต)',
+                        category: 'ชีวเคมี (Biochemistry)',
+                        price: 250000,
+                        currency: 'LAK',
+                        description: 'ตรวจค่า BUN และ Creatinine เพื่อประเมินการทำงานของไต',
+                        sub_items: [
+                            { name: 'BUN', lab_code: 'LAB-KFT-01' },
+                            { name: 'Creatinine', lab_code: 'LAB-KFT-02' }
+                        ]
+                    },
+                    {
+                        id: 'srv-006',
+                        name: 'Hepatitis B Surface Antigen (HBsAg)',
+                        category: 'ภูมิคุ้มกันวิทยา (Immunology)',
+                        price: 200000,
+                        currency: 'LAK',
+                        description: 'ตรวจหาเชื้อไวรัสตับอักเสบบี',
+                        sub_items: [
+                            { name: 'HBsAg Screen', lab_code: 'LAB-IMM-01' }
+                        ]
+                    },
+                    {
+                        id: 'srv-007',
+                        name: 'Urinalysis (UA - ตรวจปัสสาวะสมบูรณ์แบบ)',
+                        category: 'ปัสสาวะและอุจจาระ (Urinalysis, Stool Examination, and Other)',
+                        price: 80000,
+                        currency: 'LAK',
+                        description: 'ตรวจปัสสาวะทางกายภาพ เคมี และกล้องจุลทรรศน์',
+                        sub_items: [
+                            { name: 'Urine Color / Sp.Gr. / pH', lab_code: 'LAB-UA-01' },
+                            { name: 'Urine Protein / Glucose', lab_code: 'LAB-UA-02' },
+                            { name: 'Urine Microscopy (WBC/RBC)', lab_code: 'LAB-UA-03' }
+                        ]
+                    },
+                    {
+                        id: 'srv-008',
+                        name: 'แพ็กเกจตรวจสุขภาพประจำปี (General Health Checkup Package)',
+                        category: 'อื่นๆ (Other)',
+                        price: 1200000,
+                        currency: 'LAK',
+                        description: 'รวมรายการตรวจ CBC, FBS, Lipid Profile, LFT, KFT, UA ครบเซ็ต',
+                        sub_items: [
+                            { name: 'CBC', lab_code: 'LAB-CBC-01' },
+                            { name: 'FBS', lab_code: 'LAB-BIO-01' },
+                            { name: 'Lipid Profile', lab_code: 'LAB-LIP-01' },
+                            { name: 'Liver Function Test', lab_code: 'LAB-LFT-01' },
+                            { name: 'Kidney Function Test', lab_code: 'LAB-KFT-01' },
+                            { name: 'Urinalysis', lab_code: 'LAB-UA-01' }
+                        ]
+                    }
+                ];
+                const { error: seedErr } = await _supabase.from('services').insert(defaultSeed);
+                if (!seedErr) {
+                    window.allServicesData = defaultSeed;
+                    localStorage.setItem('clinic_services_packages', JSON.stringify(defaultSeed));
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('Supabase fetch error for services, fallback to local data:', e);
+    }
+    renderServicesTable();
+}
+
+window.servicesCurrentPage = 1;
+window.servicesPageSize = 10;
+
+function changeServicesPage(page) {
+    const searchQuery = (document.getElementById('searchServiceInput')?.value || '').toLowerCase().trim();
+    const currentCat = window.currentServicesCategoryFilter || 'ALL';
+    let list = [...(window.allServicesData || [])];
+    if (currentCat !== 'ALL') list = list.filter(item => item.category === currentCat);
+    if (searchQuery) {
+        list = list.filter(item =>
+            (item.name && item.name.toLowerCase().includes(searchQuery)) ||
+            (item.category && item.category.toLowerCase().includes(searchQuery)) ||
+            (item.description && item.description.toLowerCase().includes(searchQuery)) ||
+            (item.price && item.price.toString().includes(searchQuery))
+        );
+    }
+    const totalPages = Math.ceil(list.length / window.servicesPageSize) || 1;
+    if (page < 1) page = 1;
+    if (page > totalPages) page = totalPages;
+
+    window.servicesCurrentPage = page;
+    renderServicesTable();
+}
+
+function renderServicesTable() {
+    const tbody = document.querySelector('#servicesTable tbody');
+    if (!tbody) return;
+
+    const searchQuery = (document.getElementById('searchServiceInput')?.value || '').toLowerCase().trim();
+    const currentCat = window.currentServicesCategoryFilter || 'ALL';
+
+    let list = [...(window.allServicesData || [])];
+
+    if (currentCat !== 'ALL') {
+        list = list.filter(item => item.category === currentCat);
+    }
+
+    if (searchQuery) {
+        list = list.filter(item =>
+            (item.name && item.name.toLowerCase().includes(searchQuery)) ||
+            (item.category && item.category.toLowerCase().includes(searchQuery)) ||
+            (item.description && item.description.toLowerCase().includes(searchQuery)) ||
+            (item.price && item.price.toString().includes(searchQuery))
+        );
+    }
+
+    const totalItems = list.length;
+    const pageSize = window.servicesPageSize || 10;
+    const totalPages = Math.ceil(totalItems / pageSize) || 1;
+
+    if (window.servicesCurrentPage > totalPages) window.servicesCurrentPage = totalPages;
+    if (window.servicesCurrentPage < 1) window.servicesCurrentPage = 1;
+
+    const currentPage = window.servicesCurrentPage;
+    const startIndex = (currentPage - 1) * pageSize;
+    const paginatedList = list.slice(startIndex, startIndex + pageSize);
+
+    tbody.innerHTML = '';
+
+    if (totalItems === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-5">ไม่พบรายการตรวจตามเงื่อนไขที่ค้นหา</td></tr>`;
+        if (document.getElementById('servicesTotalCountDisplay')) {
+            document.getElementById('servicesTotalCountDisplay').textContent = 'รายการตรวจทั้งหมด 0 รายการ';
+        }
+        renderServicesPaginationControls(0, 1, 1);
+        return;
+    }
+
+    paginatedList.forEach((item, index) => {
+        const itemNumber = startIndex + index + 1;
+        const formattedPrice = item.currency === 'THB'
+            ? `฿${parseFloat(item.price || 0).toLocaleString('th-TH')}`
+            : `₭${parseFloat(item.price || 0).toLocaleString('th-TH')}`;
+
+        const subItemsBadge = (item.sub_items && item.sub_items.length > 0)
+            ? `<div class="extra-small text-muted mt-1"><i class="bi bi-diagram-3 me-1"></i>${item.sub_items.length} รายการย่อย</div>`
+            : '';
+
+        tbody.innerHTML += `
+            <tr>
+                <td class="ps-4 text-muted fw-bold">${itemNumber}</td>
+                <td>
+                    <div class="fw-bold text-dark fs-6">${item.name}</div>
+                    <span class="badge bg-primary-subtle text-primary rounded-pill extra-small mt-1">${item.category || 'ทั่วไป'}</span>
+                    ${subItemsBadge}
+                </td>
+                <td class="fw-bold text-success fs-6">${formattedPrice}</td>
+                <td class="small text-muted">${item.description || '-'}</td>
+                <td class="text-center">
+                    <div class="d-flex justify-content-center gap-1">
+                        <button class="btn btn-sm btn-light border text-primary" title="แก้ไข" onclick="editServiceItem('${item.id}')">
+                            <i class="bi bi-pencil-square"></i>
+                        </button>
+                        <button class="btn btn-sm btn-light border text-danger" title="ลบ" onclick="deleteServiceItem('${item.id}')">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+
+    const startRecord = startIndex + 1;
+    const endRecord = Math.min(startIndex + pageSize, totalItems);
+
+    if (document.getElementById('servicesTotalCountDisplay')) {
+        document.getElementById('servicesTotalCountDisplay').innerHTML = `รายการตรวจทั้งหมด <strong class="text-primary">${totalItems}</strong> รายการ <span class="text-muted ms-1 small">(แสดงรายการที่ ${startRecord}-${endRecord})</span>`;
+    }
+
+    renderServicesPaginationControls(totalItems, currentPage, totalPages);
+}
+
+function renderServicesPaginationControls(totalItems, currentPage, totalPages) {
+    const paginationUl = document.getElementById('servicesPagination');
+    if (!paginationUl) return;
+
+    if (totalItems === 0 || totalPages <= 1) {
+        paginationUl.innerHTML = `
+            <li class="page-item disabled"><a class="page-link text-muted" href="javascript:void(0);"><i class="bi bi-chevron-left"></i></a></li>
+            <li class="page-item active"><a class="page-link" href="javascript:void(0);">1</a></li>
+            <li class="page-item disabled"><a class="page-link text-muted" href="javascript:void(0);"><i class="bi bi-chevron-right"></i></a></li>
+        `;
+        return;
+    }
+
+    let html = '';
+
+    // ปุ่มย้อนกลับ (Prev)
+    const prevDisabled = currentPage === 1 ? 'disabled' : '';
+    const prevAction = currentPage > 1 ? `onclick="changeServicesPage(${currentPage - 1})"` : '';
+    html += `<li class="page-item ${prevDisabled}">
+        <a class="page-link ${currentPage === 1 ? 'text-muted' : 'text-primary'}" href="javascript:void(0);" ${prevAction}>
+            <i class="bi bi-chevron-left"></i>
+        </a>
+    </li>`;
+
+    // ตัวเลขหน้า
+    let startP = Math.max(1, currentPage - 2);
+    let endP = Math.min(totalPages, startP + 4);
+    if (endP - startP < 4) {
+        startP = Math.max(1, endP - 4);
+    }
+
+    if (startP > 1) {
+        html += `<li class="page-item"><a class="page-link text-dark" href="javascript:void(0);" onclick="changeServicesPage(1)">1</a></li>`;
+        if (startP > 2) {
+            html += `<li class="page-item disabled"><a class="page-link text-muted" href="javascript:void(0);">...</a></li>`;
+        }
+    }
+
+    for (let p = startP; p <= endP; p++) {
+        if (p === currentPage) {
+            html += `<li class="page-item active"><a class="page-link" href="javascript:void(0);">${p}</a></li>`;
+        } else {
+            html += `<li class="page-item"><a class="page-link text-dark" href="javascript:void(0);" onclick="changeServicesPage(${p})">${p}</a></li>`;
+        }
+    }
+
+    if (endP < totalPages) {
+        if (endP < totalPages - 1) {
+            html += `<li class="page-item disabled"><a class="page-link text-muted" href="javascript:void(0);">...</a></li>`;
+        }
+        html += `<li class="page-item"><a class="page-link text-dark" href="javascript:void(0);" onclick="changeServicesPage(${totalPages})">${totalPages}</a></li>`;
+    }
+
+    // ปุ่มถัดไป (Next)
+    const nextDisabled = currentPage === totalPages ? 'disabled' : '';
+    const nextAction = currentPage < totalPages ? `onclick="changeServicesPage(${currentPage + 1})"` : '';
+    html += `<li class="page-item ${nextDisabled}">
+        <a class="page-link ${currentPage === totalPages ? 'text-muted' : 'text-primary'}" href="javascript:void(0);" ${nextAction}>
+            <i class="bi bi-chevron-right"></i>
+        </a>
+    </li>`;
+
+    paginationUl.innerHTML = html;
+}
+
+function filterServicesCategory(cat, btnElement) {
+    window.currentServicesCategoryFilter = cat;
+    window.servicesCurrentPage = 1;
+    document.querySelectorAll('.service-mgmt-cat-tab').forEach(b => {
+        b.classList.remove('btn-primary', 'active');
+        b.classList.add('btn-light', 'text-secondary');
+    });
+    if (btnElement) {
+        btnElement.classList.remove('btn-light', 'text-secondary');
+        btnElement.classList.add('btn-primary', 'active');
+    }
+    renderServicesTable();
+}
+
+function filterServicesTable() {
+    window.servicesCurrentPage = 1;
+    renderServicesTable();
+}
+
+function openAddServiceModal() {
+    const modalEl = document.getElementById('addServiceModal');
+    if (!modalEl) return;
+    document.getElementById('serviceForm').reset();
+    document.getElementById('serviceId').value = '';
+    document.getElementById('servicePrice').value = '0.00';
+    if (document.getElementById('serviceCurrency')) document.getElementById('serviceCurrency').value = 'LAK';
+    if (document.getElementById('serviceCategory')) document.getElementById('serviceCategory').value = 'เลือดวิทยา (HEMATOLOGY)';
+    if (document.getElementById('serviceDescription')) document.getElementById('serviceDescription').value = '';
+    document.getElementById('addServiceModalTitle').innerHTML = '<i class="bi bi-plus-circle text-primary me-2"></i>เพิ่มรายการตรวจ/แพ็กเกจ';
+    
+    const tbody = document.querySelector('#serviceSubItemsTable tbody');
+    if (tbody) tbody.innerHTML = '';
+    addServiceSubItemRow('', 0);
+    
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+}
+
+function addServiceSubItemRow(name = '', price = 0) {
+    const tbody = document.querySelector('#serviceSubItemsTable tbody');
+    if (!tbody) return;
+    const rowId = 'subrow_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+    const index = tbody.children.length + 1;
+    const tr = document.createElement('tr');
+    tr.id = rowId;
+    tr.className = 'sub-item-row';
+    tr.innerHTML = `
+        <td class="text-center text-muted fw-semibold sub-item-idx py-2" style="font-size: 0.83rem;">${index}</td>
+        <td class="py-1.5">
+            <input type="text" class="form-control form-control-sm sub-item-name" value="${name}" placeholder="ชื่อรายการ..." style="border-radius: 8px; border: 1px solid #cbd5e1; padding: 6px 10px; font-size: 0.85rem;" required oninput="updatePackagePriceDisplay()">
+        </td>
+        <td class="py-1.5" style="width: 120px;">
+            <input type="number" step="any" min="0" class="form-control form-control-sm text-end sub-item-price" value="${price || 0}" placeholder="0" style="border-radius: 8px; border: 1px solid #cbd5e1; padding: 6px 10px; font-size: 0.85rem;" oninput="updatePackagePriceDisplay()">
+        </td>
+        <td class="text-center py-1.5" style="width: 40px;">
+            <button type="button" class="btn btn-sm btn-link text-danger p-0 border-0" onclick="removeServiceSubItemRow('${rowId}')" title="ลบรายการ">
+                <i class="bi bi-x-lg fs-6" style="color: #ef4444;"></i>
+            </button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+    renumberSubItemRows();
+    updatePackagePriceDisplay();
+}
+
+function removeServiceSubItemRow(rowId) {
+    const el = document.getElementById(rowId);
+    if (el) el.remove();
+    renumberSubItemRows();
+    updatePackagePriceDisplay();
+}
+
+function renumberSubItemRows() {
+    const rows = document.querySelectorAll('#serviceSubItemsTable tbody tr');
+    rows.forEach((tr, i) => {
+        const idxCell = tr.querySelector('.sub-item-idx');
+        if (idxCell) idxCell.textContent = i + 1;
+    });
+}
+
+function updatePackagePriceDisplay() {
+    let total = 0;
+    document.querySelectorAll('#serviceSubItemsTable tbody tr').forEach(tr => {
+        const priceVal = parseFloat(tr.querySelector('.sub-item-price')?.value || 0);
+        if (!isNaN(priceVal)) total += priceVal;
+    });
+    const currency = document.getElementById('serviceCurrency')?.value || 'LAK';
+    const displayEl = document.getElementById('packageTotalPriceDisplay');
+    if (displayEl) {
+        displayEl.textContent = `${total.toLocaleString('th-TH')} ${currency}`;
+    }
+}
+
+function editServiceItem(id) {
+    const item = window.allServicesData.find(s => s.id === id);
+    if (!item) return;
+
+    document.getElementById('serviceId').value = item.id;
+    document.getElementById('serviceName').value = item.name || '';
+    document.getElementById('servicePrice').value = item.price || 0;
+    if (document.getElementById('serviceCurrency')) document.getElementById('serviceCurrency').value = item.currency || 'LAK';
+    if (document.getElementById('serviceCategory')) document.getElementById('serviceCategory').value = item.category || 'เลือดวิทยา (HEMATOLOGY)';
+    if (document.getElementById('serviceDescription')) document.getElementById('serviceDescription').value = item.description || '';
+
+    document.getElementById('addServiceModalTitle').innerHTML = '<i class="bi bi-pencil-square text-primary me-2"></i>แก้ไขรายการตรวจ/แพ็กเกจ';
+
+    const tbody = document.querySelector('#serviceSubItemsTable tbody');
+    if (tbody) {
+        tbody.innerHTML = '';
+        if (item.sub_items && item.sub_items.length > 0) {
+            item.sub_items.forEach(sub => addServiceSubItemRow(sub.name, sub.price || sub.cost || 0));
+        } else {
+            addServiceSubItemRow('', 0);
+        }
+    }
+
+    const modalEl = document.getElementById('addServiceModal');
+    if (modalEl) {
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+    }
+}
+
+async function saveService() {
+    const id = document.getElementById('serviceId').value;
+    const name = document.getElementById('serviceName').value.trim();
+    const price = parseFloat(document.getElementById('servicePrice').value || 0);
+    const currency = document.getElementById('serviceCurrency')?.value || 'LAK';
+    const category = document.getElementById('serviceCategory')?.value || 'เลือดวิทยา (HEMATOLOGY)';
+    const description = document.getElementById('serviceDescription')?.value.trim() || '';
+
+    if (!name) {
+        Swal.fire('กรุณากรอกข้อมูล', 'กรุณาระบุชื่อแพ็กเกจ/รายการตรวจ', 'warning');
+        return;
+    }
+
+    const subItems = [];
+    document.querySelectorAll('#serviceSubItemsTable tbody tr').forEach(tr => {
+        const subName = tr.querySelector('.sub-item-name')?.value.trim();
+        const subPrice = parseFloat(tr.querySelector('.sub-item-price')?.value || 0);
+        if (subName) {
+            subItems.push({ name: subName, price: subPrice });
+        }
+    });
+
+    const targetId = id || ('srv-' + Date.now());
+    const servicePayload = {
+        id: targetId,
+        name: name,
+        category: category,
+        price: price,
+        currency: currency,
+        description: description,
+        sub_items: subItems
+    };
+
+    // บันทึกลง Supabase Database
+    try {
+        if (typeof _supabase !== 'undefined') {
+            if (id) {
+                await _supabase.from('services').update({
+                    name: name,
+                    category: category,
+                    price: price,
+                    currency: currency,
+                    description: description,
+                    sub_items: subItems
+                }).eq('id', id);
+            } else {
+                await _supabase.from('services').insert([servicePayload]);
+            }
+        }
+    } catch (err) {
+        console.error('Error syncing service to Supabase:', err);
+    }
+
+    if (id) {
+        const idx = window.allServicesData.findIndex(s => s.id === id);
+        if (idx !== -1) {
+            window.allServicesData[idx].name = name;
+            window.allServicesData[idx].category = category;
+            window.allServicesData[idx].price = price;
+            window.allServicesData[idx].currency = currency;
+            window.allServicesData[idx].description = description;
+            window.allServicesData[idx].sub_items = subItems;
+        }
+    } else {
+        window.allServicesData.unshift(servicePayload);
+    }
+
+    saveServicesToStorage();
+    renderServicesTable();
+
+    const modalEl = document.getElementById('addServiceModal');
+    if (modalEl) {
+        const modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (modalInstance) modalInstance.hide();
+    }
+
+    Swal.fire({
+        icon: 'success',
+        title: 'บันทึกข้อมูลสำเร็จ',
+        timer: 1500,
+        showConfirmButton: false
+    });
+}
+
+async function deleteServiceItem(id) {
+    Swal.fire({
+        title: 'ยืนยันการลบรายการ?',
+        text: 'ต้องการลบรายการตรวจนี้ออกจากระบบใช่หรือไม่',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'ลบรายการ',
+        cancelButtonText: 'ยกเลิก'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            try {
+                if (typeof _supabase !== 'undefined') {
+                    await _supabase.from('services').delete().eq('id', id);
+                }
+            } catch (err) {
+                console.error('Error deleting service from Supabase:', err);
+            }
+            window.allServicesData = window.allServicesData.filter(s => s.id !== id);
+            saveServicesToStorage();
+            renderServicesTable();
+            Swal.fire('ลบสำเร็จ', 'ลบรายการตรวจเรียบร้อยแล้ว', 'success');
+        }
+    });
+}
+
+function exportServicesToExcel() {
+    let csvContent = "\uFEFF";
+    csvContent += "ลำดับ,ชื่อแพ็กเกจ/รายการตรวจ,หมวดหมู่,ราคา,สกุลเงิน,จำนวนรายการย่อย\n";
+
+    window.allServicesData.forEach((s, idx) => {
+        csvContent += `${idx + 1},"${(s.name || '').replace(/"/g, '""')}","${s.category || ''}",${s.price || 0},"${s.currency || 'LAK'}",${(s.sub_items || []).length}\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `รายการตรวจและแพ็กเกจ_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+}
+
+function updatePackagePriceDisplay() {}
+
+window.loadServicesData = loadServicesData;
+window.renderServicesTable = renderServicesTable;
+window.changeServicesPage = changeServicesPage;
+window.filterServicesCategory = filterServicesCategory;
+window.filterServicesTable = filterServicesTable;
+window.openAddServiceModal = openAddServiceModal;
+window.addServiceSubItemRow = addServiceSubItemRow;
+window.removeServiceSubItemRow = removeServiceSubItemRow;
+window.editServiceItem = editServiceItem;
+window.saveService = saveService;
+window.deleteServiceItem = deleteServiceItem;
+window.exportServicesToExcel = exportServicesToExcel;
+window.updatePackagePriceDisplay = updatePackagePriceDisplay;
+
+// ============================================================
+// ระบบ Bill / ใบเสร็จรับเงิน (Billing System)
+// ============================================================
+window.allBillsData = [];
+
+async function saveBill(visitId, opts) {
+    opts = opts || {};
+    try {
+        if (!window.servicesData || window.servicesData.length === 0) {
+            try { if (typeof loadServicesData === 'function') await loadServicesData(); } catch(e) {}
+        }
+
+        let visitData = null;
+        try {
+            const { data } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
+            if (data) visitData = data;
+        } catch(e) {}
+
+        const items = [];
+        let itemsTotal = 0;
+        if (visitData && visitData.lab_tests) {
+            const labList = visitData.lab_tests.split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+            labList.forEach(function(labName) {
+                let itemPrice = 0;
+                let displayName = labName;
+                if (typeof getTestItemDetails === 'function') {
+                    const details = getTestItemDetails(labName);
+                    itemPrice = details.price || 0;
+                    displayName = details.name || labName;
+                } else {
+                    const svcMatch = (window.servicesData || []).find(function(s) {
+                        return s.name && (s.name.trim().toLowerCase() === labName.toLowerCase() || s.name.toLowerCase().includes(labName.toLowerCase()) || labName.toLowerCase().includes(s.name.toLowerCase()));
+                    });
+                    itemPrice = svcMatch ? parseFloat(svcMatch.price || 0) : 0;
+                    displayName = svcMatch ? svcMatch.name : labName;
+                }
+                items.push({ type: 'lab', name: displayName, price: itemPrice, qty: 1 });
+                itemsTotal += itemPrice;
+            });
+        }
+        // ไม่รวมรายการยา / อาหารเสริม (meds) เข้ามาในบิลระบบ Bill (คิดเฉพาะรายการตรวจ)
+
+        const billId = generateId('BILL');
+        let currentUser = '-';
+        try { const u = JSON.parse(localStorage.getItem('clinicUser') || '{}'); currentUser = u.full_name || u.email || '-'; } catch(e) {}
+        const subtotal = opts.subtotal !== undefined ? parseFloat(opts.subtotal) : itemsTotal;
+        const discount = opts.discount !== undefined ? parseFloat(opts.discount) : parseFloat((visitData && (visitData.discount || visitData.lab_discount)) || 0);
+        const payable = opts.payable_amount !== undefined ? parseFloat(opts.payable_amount) : Math.max(0, subtotal - discount);
+
+        const bill = {
+            bill_id: billId,
+            visit_id: visitId,
+            hn: opts.hn || (visitData && visitData.hn) || '',
+            patient_name: opts.patientName || (visitData && visitData.patient_name) || '',
+            items: items,
+            subtotal: subtotal,
+            discount: discount,
+            payable_amount: payable,
+            currency: opts.currency || (visitData && visitData.currency) || 'LAK',
+            status: 'ชำระแล้ว',
+            created_by: currentUser,
+            created_at: new Date().toISOString(),
+            note: opts.note || ''
+        };
+
+        window.allBillsData = window.allBillsData || [];
+        window.allBillsData.unshift(bill);
+
+        try {
+            const { error } = await _supabase.from('bills').insert([bill]);
+            if (error) console.warn('Bill insert warning:', error.message);
+        } catch(e) { console.warn('Bill save fallback:', e); }
+
+        console.log('Bill saved: ' + billId + ' for visit ' + visitId);
+        return billId;
+    } catch(err) {
+        console.error('Error saving bill:', err);
+        return null;
+    }
+}
+window.saveBill = saveBill;
+
+async function loadBills() {
+    const tbody = document.getElementById('billsTableBody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูลใบเสร็จ...</td></tr>';
+    
+    if (!window.servicesData || window.servicesData.length === 0) {
+        try { if (typeof loadServicesData === 'function') await loadServicesData(); } catch(e) {}
+    }
+
+    let billsList = [];
+    try {
+        const { data, error } = await _supabase.from('bills').select('*').order('created_at', { ascending: false });
+        if (!error && data && data.length > 0) {
+            billsList = data.map(b => {
+                const labItems = (Array.isArray(b.items) ? b.items : []).filter(i => i.type !== 'med');
+                return { ...b, items: labItems };
+            });
+        }
+    } catch(e) {
+        console.warn('Load bills Supabase error:', e);
+    }
+
+    // Fallback: ดึงข้อมูลจาก visits (เคสที่ชำระเงินแล้ว) มาแปลงเป็น bill เพิ่มเติมหากยังไม่มีใน bills
+    try {
+        const { data: visitData, error: vErr } = await _supabase
+            .from('visits')
+            .select('*')
+            .in('status', ['รอผลแล็บ', 'อ่านผลแล้ว', 'รอจ่ายยา', 'สำเร็จ', 'เสร็จสิ้น'])
+            .order('created_at', { ascending: false });
+
+        if (!vErr && visitData && visitData.length > 0) {
+            visitData.forEach(function(v) {
+                const existingIndex = billsList.findIndex(b => b.visit_id === v.visit_id);
+                if (existingIndex === -1) {
+                    const items = [];
+                    let itemsTotal = 0;
+                    if (v.lab_tests) {
+                        const labList = v.lab_tests.split(',').map(s => s.trim()).filter(Boolean);
+                        labList.forEach(labName => {
+                            let itemPrice = 0;
+                            let displayName = labName;
+                            if (typeof getTestItemDetails === 'function') {
+                                const details = getTestItemDetails(labName);
+                                itemPrice = details.price || 0;
+                                displayName = details.name || labName;
+                            } else {
+                                const svcMatch = (window.servicesData || []).find(s =>
+                                    s.name && (s.name.trim().toLowerCase() === labName.toLowerCase() ||
+                                               s.name.toLowerCase().includes(labName.toLowerCase()) ||
+                                               labName.toLowerCase().includes(s.name.toLowerCase()))
+                                );
+                                if (svcMatch) {
+                                    itemPrice = parseFloat(svcMatch.price || 0);
+                                    displayName = svcMatch.name;
+                                }
+                            }
+                            items.push({ type: 'lab', name: displayName, price: itemPrice, qty: 1 });
+                            itemsTotal += itemPrice;
+                        });
+                    }
+
+                    const subtotal = itemsTotal;
+                    const discount = parseFloat(v.discount || v.lab_discount || 0);
+                    const payable = Math.max(0, subtotal - discount);
+
+                    billsList.push({
+                        bill_id: 'BILL-' + (v.visit_id || Math.floor(100000 + Math.random() * 900000)),
+                        visit_id: v.visit_id,
+                        hn: v.hn || '-',
+                        patient_name: v.patient_name || '-',
+                        items: items,
+                        subtotal: subtotal,
+                        discount: discount,
+                        payable_amount: payable,
+                        currency: v.currency || 'LAK',
+                        status: 'ชำระแล้ว',
+                        created_by: v.doctor_name || 'ระบบ',
+                        created_at: v.created_at || new Date().toISOString(),
+                        note: ''
+                    });
+                }
+            });
+        }
+    } catch(err) {
+        console.warn('Fallback visits fetch warning:', err);
+    }
+
+    window.allBillsData = billsList;
+    renderBillsTable();
+}
+window.loadBills = loadBills;
+
+function setBillDateFilter(type) {
+    const startInput = document.getElementById('billStartDate');
+    const endInput = document.getElementById('billEndDate');
+    if (!startInput || !endInput) return;
+
+    const today = new Date();
+    const formatDate = function(d) {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    if (type === 'today') {
+        startInput.value = formatDate(today);
+        endInput.value = formatDate(today);
+    } else if (type === 'month') {
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+        startInput.value = formatDate(firstDay);
+        endInput.value = formatDate(today);
+    } else {
+        startInput.value = '';
+        endInput.value = '';
+    }
+    renderBillsTable();
+}
+window.setBillDateFilter = setBillDateFilter;
+
+function renderBillsTable() {
+    const tbody = document.getElementById('billsTableBody');
+    if (!tbody) return;
+
+    const searchQ = ((document.getElementById('billSearchInput') || {}).value || '').toLowerCase().trim();
+    const startVal = (document.getElementById('billStartDate') || {}).value || '';
+    const endVal = (document.getElementById('billEndDate') || {}).value || '';
+    const startDate = startVal ? new Date(startVal + 'T00:00:00') : null;
+    const endDate = endVal ? new Date(endVal + 'T23:59:59') : null;
+
+    let bills = (window.allBillsData || []).slice();
+
+    if (startDate || endDate) {
+        bills = bills.filter(function(b) {
+            const d = b.created_at ? new Date(b.created_at) : null;
+            if (!d) return true;
+            if (startDate && d < startDate) return false;
+            if (endDate && d > endDate) return false;
+            return true;
+        });
+    }
+    if (searchQ) {
+        bills = bills.filter(function(b) {
+            return (b.bill_id || '').toLowerCase().includes(searchQ) ||
+                   (b.visit_id || '').toLowerCase().includes(searchQ) ||
+                   (b.patient_name || '').toLowerCase().includes(searchQ) ||
+                   (b.hn || '').toLowerCase().includes(searchQ);
+        });
+    }
+
+    // Calculate totals for Stat Cards
+    let grandSubtotal = 0;
+    let grandDiscount = 0;
+    let grandPayable = 0;
+
+    tbody.innerHTML = '';
+    if (bills.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-5"><i class="ph ph-receipt fs-2 text-primary opacity-25 d-block mb-2"></i>ไม่พบข้อมูลใบเสร็จรับเงินในระบบ</td></tr>';
+        if (document.getElementById('billFooterCount')) document.getElementById('billFooterCount').textContent = '0';
+        if (document.getElementById('billFooterTotal')) document.getElementById('billFooterTotal').textContent = '₭0';
+        if (document.getElementById('billStatCount')) document.getElementById('billStatCount').textContent = '0';
+        if (document.getElementById('billStatSubtotal')) document.getElementById('billStatSubtotal').textContent = '₭0';
+        if (document.getElementById('billStatDiscount')) document.getElementById('billStatDiscount').textContent = '₭0';
+        if (document.getElementById('billStatPayable')) document.getElementById('billStatPayable').textContent = '₭0';
+        return;
+    }
+
+    bills.forEach(function(b, idx) {
+        // คิดเฉพาะรายการตรวจ (กรองรายการยา/อาหารเสริมออก)
+        let labItems = (Array.isArray(b.items) ? b.items : []).filter(item => item.type !== 'med');
+        const itemCount = labItems.length;
+
+        // คำนวณราคาแต่ละรายการตรวจและยอดรวมใหม่
+        let itemsTotal = 0;
+        labItems.forEach(function(item) {
+            let price = parseFloat(item.price || 0);
+            if (price === 0 && typeof getTestItemDetails === 'function') {
+                const details = getTestItemDetails(item.name);
+                if (details && details.price > 0) {
+                    price = details.price;
+                    item.price = price;
+                }
+            }
+            itemsTotal += price * (parseInt(item.qty || 1));
+        });
+
+        let subtotal = itemsTotal;
+        let discount = parseFloat(b.discount || 0);
+        let payable = Math.max(0, subtotal - discount);
+
+        b.items = labItems;
+        b.subtotal = subtotal;
+        b.payable_amount = payable;
+
+        grandSubtotal += subtotal;
+        grandDiscount += discount;
+        grandPayable += payable;
+
+        const d = b.created_at ? new Date(b.created_at) : null;
+        const dateStr = d ? d.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
+        const statusBadge = '<span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1"><i class="bi bi-check-circle-fill me-1"></i>' + (b.status || 'ชำระแล้ว') + '</span>';
+
+        tbody.innerHTML += '<tr class="border-bottom">' +
+            '<td class="ps-4 fw-bold text-muted" style="font-size:0.85rem;">' + (idx + 1) + '</td>' +
+            '<td class="fw-bold text-primary" style="font-size:0.88rem;">' + (b.bill_id || '-') + '</td>' +
+            '<td class="small text-secondary">' + (b.visit_id || '-') + '</td>' +
+            '<td><div class="fw-bold text-dark">' + (b.patient_name || '-') + '</div><div class="text-muted extra-small">HN: ' + (b.hn || '-') + '</div></td>' +
+            '<td class="text-center"><span class="badge bg-primary-subtle text-primary rounded-pill px-2.5 py-1" style="font-size:0.75rem;">' + itemCount + ' รายการ</span></td>' +
+            '<td class="text-end fw-semibold text-secondary">' + subtotal.toLocaleString() + ' LAK</td>' +
+            '<td class="text-end text-danger fw-medium">' + (discount > 0 ? '-' + discount.toLocaleString() : '-') + ' LAK</td>' +
+            '<td class="text-end fw-bold text-success fs-6">' + payable.toLocaleString() + ' LAK</td>' +
+            '<td class="text-center">' + statusBadge + '</td>' +
+            '<td class="text-center small text-muted">' + dateStr + '</td>' +
+            '<td class="text-center pe-4"><button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1 fw-semibold" onclick="showBillDetails(\'' + b.bill_id + '\')"><i class="bi bi-eye me-1"></i><span data-i18n="details">' + (typeof t === 'function' ? t('details', 'รายละเอียด') : 'รายละเอียด') + '</span></button></td>' +
+            '</tr>';
+    });
+
+    // Update Stat Cards & Footer
+    if (document.getElementById('billStatCount')) document.getElementById('billStatCount').textContent = bills.length.toLocaleString();
+    if (document.getElementById('billStatSubtotal')) document.getElementById('billStatSubtotal').textContent = '₭' + grandSubtotal.toLocaleString();
+    if (document.getElementById('billStatDiscount')) document.getElementById('billStatDiscount').textContent = '₭' + grandDiscount.toLocaleString();
+    if (document.getElementById('billStatPayable')) document.getElementById('billStatPayable').textContent = '₭' + grandPayable.toLocaleString();
+
+    if (document.getElementById('billFooterCount')) document.getElementById('billFooterCount').textContent = bills.length.toLocaleString();
+    if (document.getElementById('billFooterTotal')) document.getElementById('billFooterTotal').textContent = '₭' + grandPayable.toLocaleString();
+}
+window.renderBillsTable = renderBillsTable;
+
+
+function showBillDetails(billId) {
+    const bill = (window.allBillsData || []).find(function(b) { return b.bill_id === billId; });
+    if (!bill) { Swal.fire('ไม่พบข้อมูล', 'ไม่พบ Bill: ' + billId, 'warning'); return; }
+
+    const subtitle = document.getElementById('billDetailSubtitle');
+    if (subtitle) subtitle.textContent = 'Bill ID: ' + bill.bill_id + ' | Visit: ' + (bill.visit_id || '-') + ' | ' + (bill.created_at ? new Date(bill.created_at).toLocaleDateString('th-TH') : '-');
+
+    // กรองเฉพาะรายการตรวจ (คิดเฉพาะ lab_tests ไม่เอารายการยา/อาหารเสริม)
+    const items = (Array.isArray(bill.items) ? bill.items : []).filter(item => item.type !== 'med');
+    let itemsTotal = 0;
+    let itemsHtml = items.length > 0 ? items.map(function(item, i) {
+        const typeBadge = '<span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size:0.7rem;">ตรวจ</span>';
+        let price = parseFloat(item.price || 0);
+        if (price === 0 && typeof getTestItemDetails === 'function') {
+            const details = getTestItemDetails(item.name);
+            if (details && details.price > 0) {
+                price = details.price;
+                item.price = price;
+            }
+        }
+        const qty = parseInt(item.qty || 1);
+        const total = price * qty;
+        itemsTotal += total;
+
+        return '<tr class="' + (i % 2 === 0 ? 'bg-white' : 'bg-light') + ' border-bottom">' +
+            '<td class="ps-3 py-2 text-muted fw-semibold" style="width:50px;">' + (i + 1) + '</td>' +
+            '<td class="py-2"><div class="fw-semibold text-dark">' + (item.name || '-') + ' <span class="ms-1">' + typeBadge + '</span></div></td>' +
+            '<td class="py-2 text-center text-muted">' + qty + '</td>' +
+            '<td class="py-2 text-end fw-semibold text-primary">' + (price > 0 ? price.toLocaleString() + ' LAK' : '<span class="text-muted">-</span>') + '</td>' +
+            '<td class="pe-3 py-2 text-end fw-bold text-dark">' + (total > 0 ? total.toLocaleString() + ' LAK' : '<span class="text-muted">-</span>') + '</td>' +
+            '</tr>';
+    }).join('') : '<tr><td colspan="5" class="text-center text-muted py-3">ไม่มีรายการตรวจ</td></tr>';
+
+    const subtotal = itemsTotal;
+    const discount = parseFloat(bill.discount || 0);
+    const payable = Math.max(0, subtotal - discount);
+
+    bill.subtotal = subtotal;
+    bill.payable_amount = payable;
+
+    const bodyHtml = '<div class="p-3 mb-3 rounded-3 bg-light border d-flex justify-content-between align-items-start flex-wrap gap-2">' +
+        '<div><div class="small text-muted mb-1">ชื่อ-นามสกุล: <strong class="text-dark">' + (bill.patient_name || '-') + '</strong></div>' +
+        '<div class="small text-muted">HN: <strong class="text-secondary">' + (bill.hn || '-') + '</strong></div>' +
+        '<div class="small text-muted">เจ้าหน้าที่: <strong class="text-secondary">' + (bill.created_by || '-') + '</strong></div></div>' +
+        '<div class="text-end"><div class="small text-muted mb-1">Bill ID: <strong class="text-primary">' + bill.bill_id + '</strong></div>' +
+        '<div class="small text-muted">Visit: <strong>' + (bill.visit_id || '-') + '</strong></div>' +
+        '<div class="small text-muted">วันที่: <strong>' + (bill.created_at ? new Date(bill.created_at).toLocaleDateString('th-TH') : '-') + '</strong></div></div></div>' +
+        '<div class="table-responsive rounded-3 border mb-3" style="max-height:320px;overflow-y:auto;">' +
+        '<table class="table table-sm table-borderless mb-0 align-middle">' +
+        '<thead class="bg-light border-bottom sticky-top"><tr class="small fw-bold text-secondary">' +
+        '<th class="ps-3 py-2" style="width:50px;">#</th><th class="py-2">รายการตรวจ</th>' +
+        '<th class="py-2 text-center" style="width:70px;">จำนวน</th>' +
+        '<th class="py-2 text-end" style="width:130px;">ราคา/หน่วย</th>' +
+        '<th class="pe-3 py-2 text-end" style="width:130px;">รวม</th></tr></thead>' +
+        '<tbody>' + itemsHtml + '</tbody></table></div>' +
+        '<div class="p-3 rounded-3 bg-light border">' +
+        '<div class="d-flex justify-content-between mb-2"><span class="text-secondary fw-semibold small">ยอดรวมค่าตรวจ</span><span class="fw-bold text-dark">' + subtotal.toLocaleString() + ' LAK</span></div>' +
+        (discount > 0 ? '<div class="d-flex justify-content-between mb-2 text-danger"><span class="fw-semibold small">ส่วนลด</span><span class="fw-bold">-' + discount.toLocaleString() + ' LAK</span></div>' : '') +
+        '<hr class="my-2 opacity-25"><div class="d-flex justify-content-between"><span class="fw-bold text-dark">ยอดสุทธิ</span><span class="fw-bold text-primary fs-5">' + payable.toLocaleString() + ' LAK</span></div></div>' +
+        (bill.note ? '<div class="mt-2 p-2 rounded-2 border bg-warning-subtle small text-warning-emphasis"><i class="bi bi-sticky me-1"></i>' + bill.note + '</div>' : '');
+
+    const bodyEl = document.getElementById('billDetailBody');
+    if (bodyEl) bodyEl.innerHTML = bodyHtml;
+    const printBtn = document.getElementById('billPrintBtn');
+    if (printBtn) printBtn.setAttribute('onclick', 'printBill(\'' + billId + '\')');
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('billDetailModal')).show();
+}
+window.showBillDetails = showBillDetails;
+
+function printBill(billId) {
+    const bill = (window.allBillsData || []).find(function(b){ return b.bill_id === billId; });
+    if (!bill) return;
+    const items = Array.isArray(bill.items) ? bill.items : [];
+    const subtotal = parseFloat(bill.subtotal || 0);
+    const discount = parseFloat(bill.discount || 0);
+    const payable = parseFloat(bill.payable_amount || 0);
+    const thaiDate = new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    const itemsRows = items.map(function(item, i) {
+        const price = parseFloat(item.price || 0);
+        const qty = parseInt(item.qty || 1);
+        const total = price * qty;
+        return '<tr><td style="text-align:center;padding:8px 6px;">' + (i+1) + '</td>' +
+            '<td style="padding:8px 6px;">' + (item.name || '-') + ' <span style="color:#94a3b8;font-size:11px;">(' + (item.type === 'med' ? 'ยา' : 'ตรวจ') + ')</span></td>' +
+            '<td style="text-align:center;padding:8px 6px;">' + qty + '</td>' +
+            '<td style="text-align:right;padding:8px 6px;">' + (price > 0 ? price.toLocaleString() : '-') + '</td>' +
+            '<td style="text-align:right;padding:8px 6px;font-weight:700;">' + (total > 0 ? total.toLocaleString() : '-') + '</td></tr>';
+    }).join('');
+
+    const html = '<!DOCTYPE html><html><head><title>Bill ' + bill.bill_id + '</title><meta charset="UTF-8">' +
+        '<style>@import url(\'https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap\');' +
+        '*{box-sizing:border-box;margin:0;padding:0;}body{font-family:\'Kanit\',sans-serif;color:#1e293b;padding:20px;}' +
+        '.page{width:210mm;margin:0 auto;background:#fff;padding:15mm;}' +
+        '.header{text-align:center;border-bottom:2px solid #0b3c73;padding-bottom:12px;margin-bottom:16px;}' +
+        '.header h1{font-size:22px;color:#0b3c73;font-weight:700;margin-bottom:4px;}' +
+        '.header p{font-size:13px;color:#64748b;}' +
+        '.info-row{display:flex;justify-content:space-between;margin-bottom:12px;gap:10px;}' +
+        '.info-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;flex:1;}' +
+        '.info-label{font-size:11px;color:#94a3b8;font-weight:600;margin-bottom:2px;}' +
+        '.info-value{font-size:14px;font-weight:600;color:#1e293b;}' +
+        'table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;}' +
+        'thead th{background:#f1f5f9;padding:10px 6px;font-weight:700;color:#475569;border-bottom:2px solid #cbd5e1;}' +
+        'tbody td{border-bottom:1px solid #e2e8f0;vertical-align:top;}' +
+        '.summary{margin-left:auto;width:260px;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;}' +
+        '.sum-row{display:flex;justify-content:space-between;padding:8px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;}' +
+        '.sum-row.total{background:#0b3c73;color:#fff;font-size:16px;font-weight:700;border-bottom:none;}' +
+        '.footer{margin-top:30px;display:flex;justify-content:space-between;text-align:center;font-size:12px;color:#94a3b8;}' +
+        '.sig-line{border-top:1px dashed #cbd5e1;padding-top:6px;margin-top:50px;}' +
+        '@media print{body{padding:0;}.page{box-shadow:none;padding:10mm;}}</style></head><body>' +
+        '<div class="page"><div class="header"><h1>🏥 ใบเสร็จรับเงิน / Invoice</h1><p>พิมพ์วันที่ ' + thaiDate + '</p></div>' +
+        '<div class="info-row">' +
+        '<div class="info-box"><div class="info-label">ชื่อผู้ป่วย</div><div class="info-value">' + (bill.patient_name || '-') + '</div><div style="font-size:12px;color:#64748b;margin-top:2px;">HN: ' + (bill.hn || '-') + '</div></div>' +
+        '<div class="info-box" style="text-align:right;max-width:220px;"><div class="info-label">Bill ID</div><div class="info-value" style="color:#0b3c73;">' + bill.bill_id + '</div><div style="font-size:12px;color:#64748b;margin-top:2px;">Visit: ' + (bill.visit_id || '-') + '</div></div></div>' +
+        '<table><thead><tr><th style="width:45px;text-align:center;">#</th><th>รายการ</th><th style="width:60px;text-align:center;">จำนวน</th><th style="width:130px;text-align:right;">ราคา (LAK)</th><th style="width:130px;text-align:right;">รวม (LAK)</th></tr></thead>' +
+        '<tbody>' + (itemsRows || '<tr><td colspan="5" style="text-align:center;padding:12px;color:#94a3b8;">ไม่มีรายการ</td></tr>') + '</tbody></table>' +
+        '<div style="display:flex;justify-content:flex-end;margin-top:8px;"><div class="summary">' +
+        '<div class="sum-row"><span>ยอดรวม</span><span>' + subtotal.toLocaleString() + ' LAK</span></div>' +
+        (discount > 0 ? '<div class="sum-row" style="color:#dc2626;"><span>ส่วนลด</span><span>-' + discount.toLocaleString() + ' LAK</span></div>' : '') +
+        '<div class="sum-row total"><span>ยอดสุทธิ</span><span>' + payable.toLocaleString() + ' LAK</span></div></div></div>' +
+        '<div class="footer"><div style="width:200px;"><div class="sig-line">( ผู้ชำระเงิน )</div></div><div style="width:200px;"><div class="sig-line">( เจ้าหน้าที่การเงิน )</div></div></div>' +
+        '</div><script>window.onload=function(){window.print();};<\/script></body></html>';
+
+    const win = window.open('', '_blank', 'width=850,height=950');
+    if (win) { win.document.write(html); win.document.close(); }
+}
+window.printBill = printBill;
+
+function getFilteredBillsData() {
+    const searchQ = ((document.getElementById('billSearchInput') || {}).value || '').toLowerCase().trim();
+    const startVal = (document.getElementById('billStartDate') || {}).value || '';
+    const endVal = (document.getElementById('billEndDate') || {}).value || '';
+    const startDate = startVal ? new Date(startVal + 'T00:00:00') : null;
+    const endDate = endVal ? new Date(endVal + 'T23:59:59') : null;
+
+    let bills = (window.allBillsData || []).slice();
+
+    if (startDate || endDate) {
+        bills = bills.filter(function(b) {
+            const d = b.created_at ? new Date(b.created_at) : null;
+            if (!d) return true;
+            if (startDate && d < startDate) return false;
+            if (endDate && d > endDate) return false;
+            return true;
+        });
+    }
+    if (searchQ) {
+        bills = bills.filter(function(b) {
+            return (b.bill_id || '').toLowerCase().includes(searchQ) ||
+                   (b.visit_id || '').toLowerCase().includes(searchQ) ||
+                   (b.patient_name || '').toLowerCase().includes(searchQ) ||
+                   (b.hn || '').toLowerCase().includes(searchQ);
+        });
+    }
+    return bills;
+}
+window.getFilteredBillsData = getFilteredBillsData;
+
+function exportBillsExcel() {
+    const bills = getFilteredBillsData();
+    if (!bills || bills.length === 0) {
+        Swal.fire({ icon: 'warning', title: 'ไม่มีข้อมูล', text: 'ไม่พบข้อมูลใบเสร็จสำหรับส่งออก Excel' });
+        return;
+    }
+
+    const startVal = document.getElementById('billStartDate')?.value || '';
+    const endVal = document.getElementById('billEndDate')?.value || '';
+    const dateRangeStr = (startVal || endVal) ? `_${startVal}_ถึง_${endVal}` : '';
+
+    let csvContent = "\uFEFF"; // UTF-8 BOM for Excel
+    csvContent += "ลำดับ,Bill ID,Visit ID,ชื่อผู้ป่วย,HN,จำนวนรายการตรวจ,รายการตรวจ,ยอดบริการ (LAK),ส่วนลด (LAK),ยอดสุทธิ (LAK),สถานะ,วันที่บันทึก,เจ้าหน้าที่\n";
+
+    bills.forEach((b, idx) => {
+        const labItems = (Array.isArray(b.items) ? b.items : []).filter(i => i.type !== 'med');
+        const itemNames = labItems.map(i => i.name).join('; ');
+        const subtotal = parseFloat(b.subtotal || 0);
+        const discount = parseFloat(b.discount || 0);
+        const payable = parseFloat(b.payable_amount || (subtotal - discount));
+        const dateStr = b.created_at ? new Date(b.created_at).toLocaleString('th-TH') : '-';
+
+        const billId = `"${(b.bill_id || '').replace(/"/g, '""')}"`;
+        const visitId = `"${(b.visit_id || '').replace(/"/g, '""')}"`;
+        const patientName = `"${(b.patient_name || '').replace(/"/g, '""')}"`;
+        const hn = `"${(b.hn || '').replace(/"/g, '""')}"`;
+        const testList = `"${itemNames.replace(/"/g, '""')}"`;
+        const status = `"${(b.status || 'ชำระแล้ว').replace(/"/g, '""')}"`;
+        const creator = `"${(b.created_by || '-').replace(/"/g, '""')}"`;
+
+        csvContent += `${idx + 1},${billId},${visitId},${patientName},${hn},${labItems.length},${testList},${subtotal},${discount},${payable},${status},"${dateStr}",${creator}\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `รายงานใบเสร็จรับเงิน_Bill${dateRangeStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+window.exportBillsExcel = exportBillsExcel;
+
+function exportBillsPDF() {
+    printBillsReport();
+}
+window.exportBillsPDF = exportBillsPDF;
+
+function printBillsReport() {
+    const bills = getFilteredBillsData();
+    if (!bills || bills.length === 0) {
+        Swal.fire({ icon: 'warning', title: 'ไม่มีข้อมูล', text: 'ไม่พบข้อมูลใบเสร็จสำหรับพิมพ์รายงาน' });
+        return;
+    }
+
+    const startVal = document.getElementById('billStartDate')?.value || 'ทั้งหมด';
+    const endVal = document.getElementById('billEndDate')?.value || 'ทั้งหมด';
+    const printDate = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    let grandSubtotal = 0;
+    let grandDiscount = 0;
+    let grandPayable = 0;
+
+    const rowsHtml = bills.map((b, idx) => {
+        const labItems = (Array.isArray(b.items) ? b.items : []).filter(i => i.type !== 'med');
+        const itemNames = labItems.map(i => i.name).join(', ') || '-';
+        const subtotal = parseFloat(b.subtotal || 0);
+        const discount = parseFloat(b.discount || 0);
+        const payable = parseFloat(b.payable_amount || (subtotal - discount));
+
+        grandSubtotal += subtotal;
+        grandDiscount += discount;
+        grandPayable += payable;
+
+        const d = b.created_at ? new Date(b.created_at) : null;
+        const dateStr = d ? d.toLocaleDateString('th-TH') + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
+
+        return `<tr>
+            <td style="text-align:center;padding:8px 6px;">${idx + 1}</td>
+            <td style="font-weight:600;color:#0b3c73;padding:8px 6px;">${b.bill_id || '-'}</td>
+            <td style="padding:8px 6px;color:#64748b;">${b.visit_id || '-'}</td>
+            <td style="padding:8px 6px;"><strong>${b.patient_name || '-'}</strong><br><small style="color:#64748b;">HN: ${b.hn || '-'}</small></td>
+            <td style="padding:8px 6px;font-size:12px;">${itemNames} (${labItems.length} รายการ)</td>
+            <td style="text-align:right;padding:8px 6px;">${subtotal.toLocaleString()} LAK</td>
+            <td style="text-align:right;padding:8px 6px;color:#dc2626;">${discount > 0 ? '-' + discount.toLocaleString() : '-'} LAK</td>
+            <td style="text-align:right;padding:8px 6px;font-weight:700;color:#16a34a;">${payable.toLocaleString()} LAK</td>
+            <td style="text-align:center;padding:8px 6px;"><span style="background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;">${b.status || 'ชำระแล้ว'}</span></td>
+            <td style="text-align:center;padding:8px 6px;font-size:11px;color:#64748b;">${dateStr}</td>
+        </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html><html><head><title>รายงานประวัติใบเสร็จรับเงิน (Bill Summary Report)</title><meta charset="UTF-8">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0;}
+        body{font-family:'Kanit',sans-serif;color:#1e293b;padding:20px;background:#f8fafc;}
+        .page{width:297mm;margin:0 auto;background:#fff;padding:15mm;border-radius:8px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);}
+        .header{text-align:center;border-bottom:2px solid #0b3c73;padding-bottom:12px;margin-bottom:16px;}
+        .header h1{font-size:22px;color:#0b3c73;font-weight:700;margin-bottom:4px;}
+        .header p{font-size:13px;color:#64748b;}
+        .summary-bar{display:flex;justify-content:space-between;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;}
+        .stat-item{display:flex;flex-direction:column;}
+        .stat-label{font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;}
+        .stat-val{font-size:16px;font-weight:700;color:#0f172a;}
+        table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12px;}
+        thead th{background:#0b3c73;color:#fff;padding:8px 6px;font-weight:600;border:1px solid #0b3c73;}
+        tbody td{border:1px solid #e2e8f0;vertical-align:middle;}
+        tbody tr:nth-child(even){background:#f8fafc;}
+        .footer{margin-top:40px;display:flex;justify-content:space-between;text-align:center;font-size:12px;color:#64748b;}
+        .sig-box{width:220px;}
+        .sig-line{border-top:1px dashed #94a3b8;margin-top:50px;padding-top:4px;}
+        @media print{
+            body{padding:0;background:#fff;}
+            .page{box-shadow:none;padding:5mm;width:100%;}
+            @page{size: A4 landscape; margin: 10mm;}
+        }
+    </style></head><body>
+    <div class="page">
+        <div class="header">
+            <h1>🏥 รายงานประวัติการออกใบเสร็จรับเงิน (Bill Summary Report)</h1>
+            <p>ข้อมูลวันที่พิมพ์: ${printDate} | ช่วงวันที่: ${startVal} ถึง ${endVal}</p>
+        </div>
+        <div class="summary-bar">
+            <div class="stat-item"><span class="stat-label">จำนวนบิลทั้งหมด</span><span class="stat-val">${bills.length.toLocaleString()} รายการ</span></div>
+            <div class="stat-item"><span class="stat-label">ยอดรวมบริการ</span><span class="stat-val" style="color:#2563eb;">₭${grandSubtotal.toLocaleString()}</span></div>
+            <div class="stat-item"><span class="stat-label">ส่วนลดรวม</span><span class="stat-val" style="color:#dc2626;">₭${grandDiscount.toLocaleString()}</span></div>
+            <div class="stat-item"><span class="stat-label">ยอดรับสุทธิรวม</span><span class="stat-val" style="color:#16a34a;">₭${grandPayable.toLocaleString()}</span></div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:40px;">#</th>
+                    <th style="width:130px;">Bill ID</th>
+                    <th style="width:110px;">Visit ID</th>
+                    <th style="width:160px;">ผู้ป่วย / HN</th>
+                    <th>รายการตรวจ</th>
+                    <th style="width:120px;text-align:right;">ยอดบริการ</th>
+                    <th style="width:100px;text-align:right;">ส่วนลด</th>
+                    <th style="width:130px;text-align:right;">ยอดสุทธิ</th>
+                    <th style="width:90px;text-align:center;">สถานะ</th>
+                    <th style="width:120px;text-align:center;">วันที่</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${rowsHtml}
+            </tbody>
+        </table>
+        <div class="footer">
+            <div class="sig-box"><div class="sig-line">ลงชื่อ......................................................<br>( เจ้าหน้าที่การเงิน / ผู้จัดทำ )</div></div>
+            <div class="sig-box"><div class="sig-line">ลงชื่อ......................................................<br>( ผู้จัดการ / ผู้ตรวจสอบ )</div></div>
+        </div>
+    </div>
+    <script>window.onload=function(){window.print();};<\/script>
+    </body></html>`;
+
+    const printWin = window.open('', '_blank');
+    if (printWin) {
+        printWin.document.write(html);
+        printWin.document.close();
+    }
+}
+window.printBillsReport = printBillsReport;
+

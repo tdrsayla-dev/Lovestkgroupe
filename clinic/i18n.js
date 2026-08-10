@@ -1,0 +1,689 @@
+// =====================================
+// Clinic Internationalization (i18n) Module
+// Supports: Lao (la 🇱🇦), Thai (th 🇹🇭), English (en 🇬🇧)
+// =====================================
+
+const CLINIC_I18N_DICTIONARY = {
+    // -------------------------------------
+    // 🇱🇦 ภาษาลาว (Lao)
+    // -------------------------------------
+    la: {
+        // App Title & General
+        app_title: "ລະບົບການຈັດການຄລີນິກ (Clinic System)",
+        app_name: "ລະບົບຄລີນິກ",
+        logout: "ອອກຈາກລະບົບ",
+        refresh: "ຣີເຟຣຊຂໍ້ມູນ",
+        save: "ບັນທຶກ",
+        cancel: "ຍົກເລີກ",
+        edit: "ແກ້ໄຂ",
+        delete: "ລົບ",
+        close: "ປິດ",
+        actions: "ການຈັດການ",
+        search: "ຄົ້ນຫາ",
+        status: "ສະຖານະ",
+        date: "ວັນທີ",
+        all: "ທັງໝົດ",
+        today: "ມື້ນີ້",
+        this_month: "ເດືອນນີ້",
+        details: "ລາຍລະອຽດ",
+        print: "ພິມລາຍງານ",
+        export_excel: "Export Excel",
+        export_pdf: "Export PDF",
+        select_all: "ເລືອກທັງໝົດ",
+        clear_all: "ລ້າງທັງໝົດ",
+        back: "ກັບຄືນ",
+        confirm: "ຢືນຢັນ",
+
+        // Sidebar Menu Navigation
+        sidebar_dashboard: "ພາບລວມ",
+        sidebar_appointments: "ນັດໝາຍລ່ວງໜ້າ",
+        sidebar_registration: "ທະບຽນຜູ້ປ່ວຍ",
+        sidebar_triage: "ຈຸດຄັດກອງ",
+        sidebar_doctor: "ຫ້ອງກວດແພດ",
+        sidebar_payment: "ຊຳລະຄ່າປິ່ນປົວ",
+        sidebar_lab: "ຫ້ອງ Lab",
+        sidebar_queue: "ຈັດຄິວ",
+        sidebar_prescription: "ອ່ານຜົນ/ຈັດຢາ",
+        sidebar_pharmacy: "ຫ້ອງຈ່າຍຢາ",
+        sidebar_history: "ປະຫວັດຜູ້ປ່ວຍ",
+        sidebar_billing: "ລະບົບ ໃບບິນ / ໃບເສັດ",
+        sidebar_backend: "ຈັດການລະບົບຫຼັງບ້ານ",
+        sidebar_services: "ຕັ້ງຄ່າລາຍການກວດ",
+        sidebar_stock_drugs: "ຄັງຢາ",
+        sidebar_stock_equip: "ຄັງພັດສະດຸ",
+        sidebar_staff: "ຈັດການພະນັກງານ",
+        sidebar_referrals: "ລະບົບປັນຜົນ/ຜູ້ແນະນຳ",
+        sidebar_reports: "ບົດລາຍງານສະຫຼຸບ",
+
+        // Roles
+        role_admin: "ຜູ້ດູແລລະບົບ",
+        role_doctor: "ແພດ",
+        role_nurse: "ພະຍາບານ",
+        role_pharmacist: "ເພສັດກອນ",
+        role_staff: "ພະນັກງານ",
+
+        // Dashboard
+        db_title: "ພາບລວມລະບົບ",
+        db_subtitle: "ສະຖານະ ແລະ ການວິເຄາະຂໍ້ມູນຄລີນິກ",
+        db_stat_appointments: "ນັດໝາຍມື້ນີ້",
+        db_stat_payments: "ລໍຖ້າຊຳລະເງິນ",
+        db_stat_rescheduled: "ເລື່ອນນັດ",
+        db_stat_patients: "ຜູ້ປ່ວຍທັງໝົດ",
+        db_patient_type: "ປະເພດຜູ້ປ່ວຍ",
+        db_communicable: "ໂລກຕິດຕໍ່",
+        db_non_communicable: "ໂລກບໍ່ຕິດຕໍ່",
+
+        // Patient Registration
+        reg_title: "ທະບຽນຜູ້ປ່ວຍ",
+        reg_subtitle: "ຈັດການຂໍ້ມູນ ແລະ ປະຫວັດຜູ້ປ່ວຍ",
+        reg_add_patient: "ເພີ່ມຜູ້ປ່ວຍໃໝ່",
+        reg_hn: "ເລກ HN",
+        reg_name: "ຊື່-ນາມສະກຸນ",
+        reg_gender: "ເພດ",
+        reg_age: "ອາຍຸ",
+        reg_phone: "ເບີໂທ",
+        reg_idcard: "ເລກບັດປະຈຳຕົວ/Passport",
+
+        // Triage / Vitals
+        triage_title: "ຈຸດຄັດກອງ",
+        triage_subtitle: "ບັນທຶກສັນຍານຊີບ ແລະ ອາການເບື້ອງຕົ້ນ",
+        triage_temp: "ອຸນຫະພູມ (°C)",
+        triage_bp: "ຄວາມດັນ (BP)",
+        triage_pr: "ຊີບພະຈອນ (PR)",
+        triage_rr: "ການຫາຍໃຈ (RR)",
+        triage_weight: "ນ້ຳໜັກ (kg)",
+        triage_height: "ສ່ວນສູງ (cm)",
+        triage_bmi: "ດັດຊະນີມວນກາຍ (BMI)",
+        triage_chief_complaint: "ອາການສຳຄັນ",
+
+        // Doctor Room
+        doctor_title: "ຫ້ອງກວດແພດ",
+        doctor_subtitle: "ກວດວິນິດໄສ ແລະ ສັ່ງການປິ່ນປົວ",
+        doctor_diagnosis: "ຜົນການວິນິດໄສ",
+        doctor_treatment: "ແຜນການປິ່ນປົວ",
+
+        // Payment / Billing
+        bill_title: "ລະບົບ Bill / ໃບເສັດຮັບເງິນ",
+        bill_subtitle: "ຈັດການ ແລະ ກວດສອບປະຫວັດການອອກໃບເສັດ ແລະ ຍອດຊຳລະເງິນ",
+        bill_total_bills: "ບິນທັງໝົດ",
+        bill_total_services: "ຍອດລວມບໍລິການ",
+        bill_total_discounts: "ສ່ວນຫຼຸດລວມ",
+        bill_total_net: "ຍອດຮັບສຸດທິລວມ",
+        bill_id: "Bill ID",
+        bill_visit_id: "Visit ID",
+        bill_patient: "ຜູ້ປ່ວຍ / HN",
+        bill_test_count: "ຈຳນວນລາຍການກວດ",
+        bill_subtotal: "ຍອດບໍລິການ",
+        bill_discount: "ສ່ວນຫຼຸດ",
+        bill_payable: "ຍອດສຸດທິ",
+        bill_status_paid: "ຊຳລະແລ້ວ",
+        bill_print_report: "ພິມລາຍງານ (Print)",
+
+        // Equipment Inventory (ຄັງພັດສະດຸ)
+        equip_title: "ລະບົບຈັດການຄັງພັດສະດຸ",
+        equip_subtitle: "ຕິດຕາມສະຕັອກ ບັນທຶກການເບີກຈ່າຍ ແລະ ເບິ່ງປະຫວັດການເບີກພັດສະດຸຢ້ອນຫຼັງ",
+        equip_add: "ເພີ່ມພັດສະດຸ",
+        equip_withdraw: "ເບີກອອກ",
+        equip_stat_total: "ລາຍການພັດສະດຸທັງໝົດ",
+        equip_stat_low: "ພັດສະດຸສະຕັອກຕ່ຳ (≤ 5)",
+        equip_stat_last_in: "ຮັບເຂົ້າຮ່ວມມື້ນີ້ (ຄັ້ງ)",
+        equip_stat_withdrawn_today: "ເບີກມື້ນີ້ (ຄັ້ງ)",
+        equip_tab_list: "ລາຍການພັດສະດຸ",
+        equip_tab_withdraw_history: "ປະຫວັດການເບີກ",
+        equip_tab_intake_history: "ປະຫວັດການຮັບເຂົ້າ",
+        equip_search_placeholder: "ຄົ້ນຫາຊື່ພັດສະດຸ ຫຼື ປະເພດ...",
+        equip_th_code: "ລະຫັດພັດສະດຸ",
+        equip_th_name: "ຊື່ພັດສະດຸ",
+        equip_th_category: "ປະເພດ",
+        equip_th_import: "ນຳເຂົ້າ",
+        equip_th_total_qty: "ຈຳນວນທັງໝົດ",
+        equip_th_used_qty: "ຈຳນວນເບີກແລ້ວ",
+        equip_th_remaining: "ຄົງເຫຼືອ",
+        equip_th_unit: "ໜ່ວຍນັບ",
+
+        // Drug Inventory (ຄັງຢາ)
+        drugs_title: "ລະບົບຈັດການຄັງຢາ",
+        drugs_subtitle: "ຕິດຕາມສະຕັອກຢາ ບັນທຶກການຮັບເຂົ້າ ແລະ ຄວບຄຸມວັນໝົດອາຍຸ",
+        drugs_add: "ເພີ່ມຢາໃໝ່",
+        drugs_tab_list: "ລາຍການຢາໃນຄັງ",
+        drugs_tab_intake: "ປະຫວັດການຮັບເຂົ້າ",
+        drugs_search_placeholder: "ຄົ້ນຫາຊື່ຢາ, ລະຫັດຢາ ຫຼື ໝວດໝູ່...",
+        drugs_th_code: "ລະຫັດຢາ",
+        drugs_th_name: "ຊື່ຢາ",
+        drugs_th_category: "ໝວດໝູ່",
+        drugs_th_price: "ລາຄາ (LAK)",
+        drugs_th_qty: "ຈຳນວນຄົງເຫຼືອ",
+
+        // Lab Services Settings (ຕັ້ງຄ່າລາຍການກວດ)
+        services_title: "ຕັ້ງຄ່າລາຍການກວດ",
+        services_subtitle: "ຕັ້ງຄ່າແພັກເກັດລາຍການກວດສຸຂະພາບ, Lab ແລະ ລາຄາບໍລິການ",
+        services_add: "ເພີ່ມລາຍການກວດ",
+        services_search_placeholder: "ຄົ້ນຫາລາຍການກວດ, ລາຄາ...",
+        services_th_code: "ລ/ດ",
+        services_th_name: "ຊື່ແພັກເກັດ / ລາຍການກວດ",
+        services_th_price: "ລາຄາ (ໜ່ວຍ)",
+        services_th_desc: "ຄຳອະທິບາຍເພີ່ມເຕີມ",
+        services_total_count: "ລາຍການກວດທັງໝົດ",
+
+        // Staff & Permissions
+        staff_title: "ຈັດການພະນັກງານ / ຜູ້ໃຊ້ລະບົບ",
+        staff_subtitle: "ເພີ່ມ, ແກ້ໄຂ ແລະ ກຳນົດສິດການເຂົ້າເຖິງລະບົບ",
+        staff_add: "ເພີ່ມພະນັກງານ",
+        staff_code: "ລະຫັດພະນັກງານ",
+        staff_email: "ອີເມວ",
+        staff_role: "ສິດ/ໜ້າທີ່",
+        staff_perm_matrix: "ສິດການໃຊ້ງານລະບົບ",
+        staff_perm_view: "ດິ່ງຂໍ້ມູນ",
+        staff_perm_add: "ເພີ່ມ",
+        staff_perm_edit: "ແກ້ໄຂ",
+        staff_perm_delete: "ລົບ",
+        staff_perm_row: "ສິດແຖວ",
+        staff_perm_preset_view: "ສະເພາະດິ່ງຂໍ້ມູນ",
+        staff_perm_preset_full: "ສິດເຕັມ (ເລືອກໝົດ)",
+        staff_perm_preset_clear: "ລ້າງທັງໝົດ",
+
+        // Referrals & Dividends
+        ref_title: "ລະບົບປັນຜົນ / ຜູ້ແນະນຳ",
+        ref_subtitle: "ຈັດການຂໍ້ມູນຜູ້ແນະນຳ, ຄ່າຄອມມິດຊັ່ນ ແລະ ການປັນຜົນ",
+        ref_add_referrer: "ເພີ່ມຜູ້ແນະນຳໃໝ່",
+        ref_tab_logs: "ຄ່າຄອມມິດຊັ່ນ / ປັນຜົນ",
+        ref_tab_members: "ບົດລາຍງານປັນຜົນ",
+        ref_tab_daily: "ລາຍງານສະຫຼຸບຄ່າກວດປະຈຳວັນ",
+        ref_tab_settings: "ຕັ້ງຄ່າເງື່ອນໄຂປັນຜົນ",
+
+        // Login Screen
+        login_title: "ເຂົ້າສູ່ລະບົບ",
+        login_subtitle: "ລະບົບຈັດການຄລີນິກ (Clinic System)",
+        login_email_placeholder: "ອີເມວ ຫຼື ລະຫັດພະນັກງານ",
+        login_password_placeholder: "ລະຫັດຜ່ານ",
+        login_button: "ເຂົ້າສູ່ລະບົບ",
+
+        // System Settings
+        lang_selector_label: "ພາສາລະບົບ"
+    },
+
+    // -------------------------------------
+    // 🇹🇭 ภาษาไทย (Thai)
+    // -------------------------------------
+    th: {
+        // App Title & General
+        app_title: "ระบบจัดการคลินิก (Clinic System)",
+        app_name: "ระบบคลินิก",
+        logout: "ออกจากระบบ",
+        refresh: "รีเฟรชข้อมูล",
+        save: "บันทึก",
+        cancel: "ยกเลิก",
+        edit: "แก้ไข",
+        delete: "ลบ",
+        close: "ปิด",
+        actions: "การจัดการ",
+        search: "ค้นหา",
+        status: "สถานะ",
+        date: "วันที่",
+        all: "ทั้งหมด",
+        today: "วันนี้",
+        this_month: "เดือนนี้",
+        details: "รายละเอียด",
+        print: "พิมพ์รายงาน",
+        export_excel: "Export Excel",
+        export_pdf: "Export PDF",
+        select_all: "เลือกทั้งหมด",
+        clear_all: "ล้างทั้งหมด",
+        back: "ย้อนกลับ",
+        confirm: "ยืนยัน",
+
+        // Sidebar Menu Navigation
+        sidebar_dashboard: "ภาพรวม",
+        sidebar_appointments: "นัดหมายล่วงหน้า",
+        sidebar_registration: "ทะเบียนผู้ป่วย",
+        sidebar_triage: "จุดคัดกรอง",
+        sidebar_doctor: "ห้องตรวจแพทย์",
+        sidebar_payment: "จ่ายค่ารักษา",
+        sidebar_lab: "ห้อง Lab",
+        sidebar_queue: "จัดคิว",
+        sidebar_prescription: "อ่านผล/จัดยา",
+        sidebar_pharmacy: "ห้องจ่ายยา",
+        sidebar_history: "ประวัติผู้ป่วย",
+        sidebar_billing: "ระบบ Bill / ใบเสร็จ",
+        sidebar_backend: "จัดการระบบหลังบ้าน",
+        sidebar_services: "ตั้งค่ารายการตรวจ",
+        sidebar_stock_drugs: "คลังยา",
+        sidebar_stock_equip: "คลังพัสดุ",
+        sidebar_staff: "จัดการพนักงาน",
+        sidebar_referrals: "ระบบปันผล/ผู้แนะนำ",
+        sidebar_reports: "รายงานสรุป",
+
+        // Roles
+        role_admin: "ผู้ดูแลระบบ",
+        role_doctor: "แพทย์",
+        role_nurse: "พยาบาล",
+        role_pharmacist: "เภสัชกร",
+        role_staff: "พนักงาน",
+
+        // Dashboard
+        db_title: "ภาพรวมระบบ",
+        db_subtitle: "สถานะและการวิเคราะห์ข้อมูลคลินิก",
+        db_stat_appointments: "นัดหมายวันนี้",
+        db_stat_payments: "รอการชำระเงิน",
+        db_stat_rescheduled: "เลื่อนนัด",
+        db_stat_patients: "ผู้ป่วยทั้งหมด",
+        db_patient_type: "ประเภทผู้ป่วย",
+        db_communicable: "โรคติดต่อ",
+        db_non_communicable: "โรคไม่ติดต่อ",
+
+        // Patient Registration
+        reg_title: "ทะเบียนผู้ป่วย",
+        reg_subtitle: "จัดการข้อมูลและประวัติผู้ป่วย",
+        reg_add_patient: "เพิ่มผู้ป่วยใหม่",
+        reg_hn: "เลข HN",
+        reg_name: "ชื่อ-นามสกุล",
+        reg_gender: "เพศ",
+        reg_age: "อายุ",
+        reg_phone: "เบอร์โทร",
+        reg_idcard: "เลขบัตรประชาชน/Passport",
+
+        // Triage / Vitals
+        triage_title: "จุดคัดกรอง",
+        triage_subtitle: "บันทึกสัญญาณชีพและอาการเบื้องต้น",
+        triage_temp: "อุณหภูมิ (°C)",
+        triage_bp: "ความดัน (BP)",
+        triage_pr: "ชีพจร (PR)",
+        triage_rr: "การหายใจ (RR)",
+        triage_weight: "น้ำหนัก (kg)",
+        triage_height: "ส่วนสูง (cm)",
+        triage_bmi: "ดัชนีมวลกาย (BMI)",
+        triage_chief_complaint: "อาการสำคัญ",
+
+        // Doctor Room
+        doctor_title: "ห้องตรวจแพทย์",
+        doctor_subtitle: "ตรวจวินิจฉัยและสั่งการรักษา",
+        doctor_diagnosis: "ผลการวินิจฉัย",
+        doctor_treatment: "แผนการรักษา",
+
+        // Payment / Billing
+        bill_title: "ระบบ Bill / ใบเสร็จรับเงิน",
+        bill_subtitle: "จัดการและตรวจสอบประวัติการออกใบเสร็จและยอดรับชำระเงินของคลินิก",
+        bill_total_bills: "บิลทั้งหมด",
+        bill_total_services: "ยอดรวมบริการ",
+        bill_total_discounts: "ส่วนลดรวม",
+        bill_total_net: "ยอดรับสุทธิรวม",
+        bill_id: "Bill ID",
+        bill_visit_id: "Visit ID",
+        bill_patient: "ผู้ป่วย / HN",
+        bill_test_count: "จำนวนรายการตรวจ",
+        bill_subtotal: "ยอดบริการ",
+        bill_discount: "ส่วนลด",
+        bill_payable: "ยอดสุทธิ",
+        bill_status_paid: "ชำระแล้ว",
+        bill_print_report: "พิมพ์รายงาน (Print)",
+
+        // Equipment Inventory (คลังพัสดุ)
+        equip_title: "ระบบจัดการคลังพัสดุ",
+        equip_subtitle: "ติดตามสต็อก บันทึกการเบิกจ่าย และดูประวัติการเบิกพัสดุย้อนหลัง",
+        equip_add: "เพิ่มพัสดุ",
+        equip_withdraw: "เบิกออก",
+        equip_stat_total: "รายการพัสดุทั้งหมด",
+        equip_stat_low: "พัสดุสต็อกต่ำ (≤ 5)",
+        equip_stat_last_in: "รับเข้าวันนี้ (ครั้ง)",
+        equip_stat_withdrawn_today: "เบิกวันนี้ (ครั้ง)",
+        equip_tab_list: "รายการพัสดุ",
+        equip_tab_withdraw_history: "ประวัติการเบิก",
+        equip_tab_intake_history: "ประวัติการรับเข้า",
+        equip_search_placeholder: "ค้นหาชื่อพัสดุหรือประเภท...",
+        equip_th_code: "รหัสพัสดุ",
+        equip_th_name: "ชื่อพัสดุ",
+        equip_th_category: "ประเภท",
+        equip_th_import: "นำเข้า",
+        equip_th_total_qty: "จำนวนทั้งหมด",
+        equip_th_used_qty: "จำนวนเบิกแล้ว",
+        equip_th_remaining: "คงเหลือ",
+        equip_th_unit: "หน่วยนับ",
+
+        // Drug Inventory (คลังยา)
+        drugs_title: "ระบบจัดการคลังยา",
+        drugs_subtitle: "ติดตามสต็อกยา บันทึกการรับเข้า และควบคุมวันหมดอายุ",
+        drugs_add: "เพิ่มยาใหม่",
+        drugs_tab_list: "รายการยาในคลัง",
+        drugs_tab_intake: "ประวัติการรับเข้า",
+        drugs_search_placeholder: "ค้นหาชื่อยา, รหัสยา หรือหมวดหมู่...",
+        drugs_th_code: "รหัสยา",
+        drugs_th_name: "ชื่อยา",
+        drugs_th_category: "หมวดหมู่",
+        drugs_th_price: "ราคา (LAK)",
+        drugs_th_qty: "จำนวนคงเหลือ",
+
+        // Lab Services Settings (ตั้งค่ารายการตรวจ)
+        services_title: "ตั้งค่ารายการตรวจ",
+        services_subtitle: "ตั้งค่าแพ็กเกจรายการตรวจสุขภาพ, Lab และราคาบริการ",
+        services_add: "เพิ่มรายการตรวจ",
+        services_search_placeholder: "ค้นหารายการตรวจ, ราคา...",
+        services_th_code: "ล/ด",
+        services_th_name: "ชื่อแพ็กเกจ / รายการตรวจ",
+        services_th_price: "ราคา (หน่วย)",
+        services_th_desc: "คำอธิบายเพิ่มเติม",
+        services_total_count: "รายการตรวจทั้งหมด",
+
+        // Staff & Permissions
+        staff_title: "จัดการพนักงาน / ผู้ใช้ระบบ",
+        staff_subtitle: "เพิ่ม แก้ไข และกำหนดสิทธิ์การเข้าถึงระบบของพนักงาน",
+        staff_add: "เพิ่มพนักงาน",
+        staff_code: "รหัสพนักงาน",
+        staff_email: "อีเมล",
+        staff_role: "สิทธิ์/หน้าที่",
+        staff_perm_matrix: "สิทธิ์การใช้งานระบบ",
+        staff_perm_view: "ดูข้อมูล",
+        staff_perm_add: "เพิ่ม",
+        staff_perm_edit: "แก้ไข",
+        staff_perm_delete: "ลบ",
+        staff_perm_row: "สิทธิ์แถว",
+        staff_perm_preset_view: "เฉพาะดูข้อมูล",
+        staff_perm_preset_full: "สิทธิ์เต็ม (เลือกหมด)",
+        staff_perm_preset_clear: "ล้างทั้งหมด",
+
+        // Referrals & Dividends
+        ref_title: "ระบบปันผล / ผู้แนะนำ",
+        ref_subtitle: "จัดการข้อมูลผู้แนะนำ ค่าคอมมิชชั่น และการปันผล",
+        ref_add_referrer: "เพิ่มผู้แนะนำใหม่",
+        ref_tab_logs: "ค่าคอมมิชชั่น / ปันผล",
+        ref_tab_members: "รายงานปันผลผู้แนะนำ",
+        ref_tab_daily: "รายงานสรุปค่าตรวจประจำวัน",
+        ref_tab_settings: "ตั้งค่าเงื่อนไขปันผล",
+
+        // Login Screen
+        login_title: "เข้าสู่ระบบ",
+        login_subtitle: "ระบบจัดการคลินิก (Clinic System)",
+        login_email_placeholder: "อีเมล หรือ รหัสพนักงาน",
+        login_password_placeholder: "รหัสผ่าน",
+        login_button: "เข้าสู่ระบบ",
+
+        // System Settings
+        lang_selector_label: "ภาษาของระบบ"
+    },
+
+    // -------------------------------------
+    // 🇬🇧 ภาษาอังกฤษ (English)
+    // -------------------------------------
+    en: {
+        // App Title & General
+        app_title: "Clinic Management System",
+        app_name: "Clinic System",
+        logout: "Log Out",
+        refresh: "Refresh Data",
+        save: "Save",
+        cancel: "Cancel",
+        edit: "Edit",
+        delete: "Delete",
+        close: "Close",
+        actions: "Actions",
+        search: "Search",
+        status: "Status",
+        date: "Date",
+        all: "All",
+        today: "Today",
+        this_month: "This Month",
+        details: "Details",
+        print: "Print Report",
+        export_excel: "Export Excel",
+        export_pdf: "Export PDF",
+        select_all: "Select All",
+        clear_all: "Clear All",
+        back: "Back",
+        confirm: "Confirm",
+
+        // Sidebar Menu Navigation
+        sidebar_dashboard: "Dashboard",
+        sidebar_appointments: "Appointments",
+        sidebar_registration: "Patient Registration",
+        sidebar_triage: "Triage / Vitals",
+        sidebar_doctor: "Doctor Room",
+        sidebar_payment: "Cashier / Payments",
+        sidebar_lab: "Laboratory",
+        sidebar_queue: "Queue Management",
+        sidebar_prescription: "Prescription Review",
+        sidebar_pharmacy: "Pharmacy",
+        sidebar_history: "Patient History",
+        sidebar_billing: "Invoices & Billing",
+        sidebar_backend: "Backend Management",
+        sidebar_services: "Lab Services Settings",
+        sidebar_stock_drugs: "Drug Inventory",
+        sidebar_stock_equip: "Equipment Inventory",
+        sidebar_staff: "Staff Management",
+        sidebar_referrals: "Referrals & Dividends",
+        sidebar_reports: "Reports & Summary",
+
+        // Roles
+        role_admin: "Administrator",
+        role_doctor: "Doctor",
+        role_nurse: "Nurse",
+        role_pharmacist: "Pharmacist",
+        role_staff: "Staff",
+
+        // Dashboard
+        db_title: "System Dashboard",
+        db_subtitle: "Clinic Status and Operational Analytics",
+        db_stat_appointments: "Today's Appointments",
+        db_stat_payments: "Pending Payments",
+        db_stat_rescheduled: "Rescheduled",
+        db_stat_patients: "Total Patients",
+        db_patient_type: "Patient Categories",
+        db_communicable: "Communicable",
+        db_non_communicable: "Non-Communicable",
+
+        // Patient Registration
+        reg_title: "Patient Registration",
+        reg_subtitle: "Manage patient records and personal profiles",
+        reg_add_patient: "Add New Patient",
+        reg_hn: "HN Code",
+        reg_name: "Full Name",
+        reg_gender: "Gender",
+        reg_age: "Age",
+        reg_phone: "Phone Number",
+        reg_idcard: "ID Card / Passport No.",
+
+        // Triage / Vitals
+        triage_title: "Triage Station",
+        triage_subtitle: "Record vitals and primary chief complaints",
+        triage_temp: "Temperature (°C)",
+        triage_bp: "Blood Pressure (BP)",
+        triage_pr: "Pulse Rate (PR)",
+        triage_rr: "Resp. Rate (RR)",
+        triage_weight: "Weight (kg)",
+        triage_height: "Height (cm)",
+        triage_bmi: "Body Mass Index (BMI)",
+        triage_chief_complaint: "Chief Complaint",
+
+        // Doctor Room
+        doctor_title: "Doctor Examination Room",
+        doctor_subtitle: "Clinical diagnosis and treatment plan",
+        doctor_diagnosis: "Diagnosis Results",
+        doctor_treatment: "Treatment Plan",
+
+        // Payment / Billing
+        bill_title: "Invoices & Billing System",
+        bill_subtitle: "Manage, review and verify invoice history and payments",
+        bill_total_bills: "Total Bills",
+        bill_total_services: "Total Services",
+        bill_total_discounts: "Total Discounts",
+        bill_total_net: "Total Net Revenue",
+        bill_id: "Bill ID",
+        bill_visit_id: "Visit ID",
+        bill_patient: "Patient / HN",
+        bill_test_count: "Lab Tests Count",
+        bill_subtotal: "Subtotal",
+        bill_discount: "Discount",
+        bill_payable: "Net Payable",
+        bill_status_paid: "Paid",
+        bill_print_report: "Print Report",
+
+        // Equipment Inventory (คลังพัสดุ)
+        equip_title: "Equipment Inventory System",
+        equip_subtitle: "Track equipment stock, record usage disbursements and view history logs",
+        equip_add: "Add Equipment",
+        equip_withdraw: "Disburse / Issue",
+        equip_stat_total: "Total Equipment Items",
+        equip_stat_low: "Low Stock Alert (≤ 5)",
+        equip_stat_last_in: "Restocked Today",
+        equip_stat_withdrawn_today: "Disbursed Today",
+        equip_tab_list: "Equipment List",
+        equip_tab_withdraw_history: "Disbursement History",
+        equip_tab_intake_history: "Restock History",
+        equip_search_placeholder: "Search by equipment name or category...",
+        equip_th_code: "Equipment Code",
+        equip_th_name: "Equipment Name",
+        equip_th_category: "Category",
+        equip_th_import: "Imported",
+        equip_th_total_qty: "Total Quantity",
+        equip_th_used_qty: "Disbursed Quantity",
+        equip_th_remaining: "Stock Remaining",
+        equip_th_unit: "Unit",
+
+        // Drug Inventory (คลังยา)
+        drugs_title: "Drug Inventory System",
+        drugs_subtitle: "Track pharmaceutical stock, record intake and monitor expiration dates",
+        drugs_add: "Add New Drug",
+        drugs_tab_list: "Drug Inventory List",
+        drugs_tab_intake: "Stock Intake History",
+        drugs_search_placeholder: "Search drug name, code or category...",
+        drugs_th_code: "Drug Code",
+        drugs_th_name: "Drug Name",
+        drugs_th_category: "Category",
+        drugs_th_price: "Price (LAK)",
+        drugs_th_qty: "Stock Quantity",
+
+        // Lab Services Settings (ตั้งค่ารายการตรวจ)
+        services_title: "Lab Services Settings",
+        services_subtitle: "Configure health check packages, laboratory tests, and pricing",
+        services_add: "Add Test Service",
+        services_search_placeholder: "Search test name, price...",
+        services_th_code: "No.",
+        services_th_name: "Package / Test Service Name",
+        services_th_price: "Price (Unit)",
+        services_th_desc: "Description / Notes",
+        services_total_count: "Total Test Services",
+
+        // Staff & Permissions
+        staff_title: "Staff & User Management",
+        staff_subtitle: "Create, edit and manage user access permissions",
+        staff_add: "Add Staff Member",
+        staff_code: "Staff Code",
+        staff_email: "Email Address",
+        staff_role: "Role / Position",
+        staff_perm_matrix: "System Access Permissions",
+        staff_perm_view: "View",
+        staff_perm_add: "Add",
+        staff_perm_edit: "Edit",
+        staff_perm_delete: "Delete",
+        staff_perm_row: "Row Access",
+        staff_perm_preset_view: "Read Only",
+        staff_perm_preset_full: "Full Access",
+        staff_perm_preset_clear: "Clear All",
+
+        // Referrals & Dividends
+        ref_title: "Referrals & Dividend Commissions",
+        ref_subtitle: "Manage referrers, commission calculations and payout history",
+        ref_add_referrer: "Add New Referrer",
+        ref_tab_logs: "Commissions & Payouts",
+        ref_tab_members: "Referrers Dividend Report",
+        ref_tab_daily: "Daily Exam Commission Summary",
+        ref_tab_settings: "Dividend Rules & Rates Settings",
+
+        // Login Screen
+        login_title: "System Sign In",
+        login_subtitle: "Clinic Management System",
+        login_email_placeholder: "Email address or Staff Code",
+        login_password_placeholder: "Password",
+        login_button: "Sign In",
+
+        // System Settings
+        lang_selector_label: "System Language"
+    }
+};
+
+// -------------------------------------
+// i18n Engine & Helper Functions
+// -------------------------------------
+
+function getCurrentLanguage() {
+    return localStorage.getItem('clinic_lang') || 'la';
+}
+
+function setClinicLanguage(lang) {
+    if (!CLINIC_I18N_DICTIONARY[lang]) {
+        lang = 'la';
+    }
+    localStorage.setItem('clinic_lang', lang);
+    applyClinicLanguage(lang);
+
+    // Sync language select dropdowns in DOM
+    const selectors = document.querySelectorAll('.clinic-lang-select');
+    selectors.forEach(sel => {
+        sel.value = lang;
+    });
+
+    // Re-render dynamic components if functions exist
+    if (typeof renderBillsTable === 'function') renderBillsTable();
+    if (typeof renderStaffTable === 'function' && window.allStaffUsers) renderStaffTable(window.allStaffUsers);
+    if (typeof renderCommissionLogsTable === 'function') renderCommissionLogsTable();
+}
+
+function t(key, fallbackText = '') {
+    const currentLang = getCurrentLanguage();
+    const dict = CLINIC_I18N_DICTIONARY[currentLang] || CLINIC_I18N_DICTIONARY['la'];
+    if (dict && dict[key] !== undefined) {
+        return dict[key];
+    }
+    // Fallback to Thai or fallback text
+    const thDict = CLINIC_I18N_DICTIONARY['th'];
+    if (thDict && thDict[key] !== undefined) {
+        return thDict[key];
+    }
+    return fallbackText || key;
+}
+
+function applyClinicLanguage(lang = null) {
+    const targetLang = lang || getCurrentLanguage();
+    const dict = CLINIC_I18N_DICTIONARY[targetLang] || CLINIC_I18N_DICTIONARY['la'];
+    if (!dict) return;
+
+    // 1. Elements with data-i18n
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (dict[key] !== undefined) {
+            // Keep icons if element contains inner HTML icons
+            const iconEl = el.querySelector('i');
+            if (iconEl) {
+                const iconHtml = iconEl.outerHTML;
+                el.innerHTML = iconHtml + ' ' + dict[key];
+            } else {
+                el.textContent = dict[key];
+            }
+        }
+    });
+
+    // 2. Elements with data-i18n-placeholder
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        if (dict[key] !== undefined) {
+            el.setAttribute('placeholder', dict[key]);
+        }
+    });
+
+    // 3. Update HTML lang tag
+    document.documentElement.setAttribute('lang', targetLang);
+}
+
+// Auto apply language on DOM load
+document.addEventListener('DOMContentLoaded', function () {
+    const currentLang = getCurrentLanguage();
+    applyClinicLanguage(currentLang);
+    const selectors = document.querySelectorAll('.clinic-lang-select');
+    selectors.forEach(sel => {
+        sel.value = currentLang;
+    });
+});
+
+window.CLINIC_I18N_DICTIONARY = CLINIC_I18N_DICTIONARY;
+window.getCurrentLanguage = getCurrentLanguage;
+window.setClinicLanguage = setClinicLanguage;
+window.t = t;
+window.applyClinicLanguage = applyClinicLanguage;
