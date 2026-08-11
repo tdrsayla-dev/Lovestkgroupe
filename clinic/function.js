@@ -3364,10 +3364,15 @@ function populateRxMedDropdown() {
 
 async function openPrescribeModal(visitId, hn, patientName, pdfUrl) {
     document.getElementById('rxVisitId').value = visitId;
+    const remarkEl = document.getElementById('rxRemark');
+    const discountEl = document.getElementById('rxDiscountInput');
+    if (remarkEl) remarkEl.value = '';
+    if (discountEl) discountEl.value = '0';
     document.getElementById('rxHN').value = hn;
     document.getElementById('rxPatientName').value = patientName;
     document.getElementById('rxVisitIdDisplay').innerText = visitId;
     document.getElementById('rxPatientNameDisplay').innerText = patientName;
+
 
     // ดึงข้อมูลผู้ช่วย (Assistant / ReferredBy) สำหรับคนไข้เคสนี้
     let assistantText = 'L03709 - MS CHERRY LOUANGPHAN';
@@ -3564,7 +3569,9 @@ function renderRxMedsTable() {
             </tr>
         `;
     });
+    if (typeof updateRxTotals === 'function') updateRxTotals();
 }
+
 
 async function submitPrescription() {
     const visitId = document.getElementById('rxVisitId').value;
@@ -6464,7 +6471,13 @@ async function loadReferralData(isManualClick = false) {
     populateReferrerDropdowns();
 
     const valInput = document.getElementById('commValueInput');
-    if (valInput) valInput.value = window.commissionSettings.value || 200;
+    if (valInput) {
+        valInput.value = window.commissionSettings.value || 200;
+        // เรียกใช้ฟังก์ชันเติมลูกน้ำทันทีที่โหลดข้อมูลเสร็จ
+        if (typeof formatNumberInput === 'function') {
+            formatNumberInput(valInput);
+        }
+    }
 
     const currSelect = document.getElementById('commCurrencySelect');
     if (currSelect) currSelect.value = window.commissionSettings.currency || 'THB';
@@ -8108,7 +8121,8 @@ function saveItemCommissionSettings() {
     const settings = {};
     inputs.forEach(input => {
         const id = input.getAttribute('data-id');
-        const val = parseFloat(input.value);
+        const val = parseFloat(input.value.replace(/,/g, '')) || 0;
+
         if (id && !isNaN(val)) {
             settings[id] = val;
         }
@@ -10333,7 +10347,7 @@ function printBillsReport() {
     </style></head><body>
     <div class="page">
         <div class="header">
-            <h1>🏥 รายงานประวัติการออกใบเสร็จรับเงิน (Bill Summary Report)</h1>
+            <h1> รายงานประวัติการออกใบเสร็จรับเงิน (Bill Summary Report)</h1>
             <p>ข้อมูลวันที่พิมพ์: ${printDate} | ช่วงวันที่: ${startVal} ถึง ${endVal}</p>
         </div>
         <div class="summary-bar">
@@ -10376,4 +10390,85 @@ function printBillsReport() {
     }
 }
 window.printBillsReport = printBillsReport;
+// ฟังก์ชันคำนวณยอดรวมและส่วนลดในหน้าอ่านผล/จัดยา
+function updateRxTotals() {
+    // คำนวณยอดรวมทั้งหมดจากรายการยา
+    const subtotal = window.currentRxMeds.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 1)), 0);
 
+    // ดึงค่าจากช่องส่วนลด
+    const discountInput = document.getElementById('rxDiscountInput');
+    let discount = parseFloat(discountInput ? discountInput.value : 0) || 0;
+
+    if (discount < 0) {
+        discount = 0;
+        if (discountInput) discountInput.value = 0;
+    }
+
+    // ยอดรวมสุทธิ (ถ้าหักส่วนลดแล้วติดลบ ให้เป็น 0)
+    const netTotal = Math.max(0, subtotal - discount);
+
+    // แสดงผลบนหน้าจอ
+    const subtotalEl = document.getElementById('rxSubtotalDisplay');
+    const netTotalEl = document.getElementById('rxNetTotalDisplay');
+
+    if (subtotalEl) subtotalEl.innerText = subtotal.toLocaleString() + ' ฿';
+    if (netTotalEl) netTotalEl.innerText = netTotal.toLocaleString() + ' ฿';
+}
+// ฟังก์ชันจัดรูปแบบตัวเลขให้มีลูกน้ำ (Comma) อัตโนมัติเวลาพิมพ์
+function formatNumberInput(input) {
+    // จดจำตำแหน่งเคอร์เซอร์เดิม
+    let cursorPostion = input.selectionStart;
+    let originalLength = input.value.length;
+
+    // ลบอักขระที่ไม่ใช่ตัวเลข (และจุดทศนิยม) ออก เพื่อเตรียมคำนวณ
+    let value = input.value.replace(/[^0-9]/g, '');
+    if (value !== '') {
+        // แยกส่วนจำนวนเต็มและทศนิยม (ป้องกันการพิมพ์จุดหลายตัว)
+        let parts = value.split('.');
+
+        // ใส่ลูกน้ำเฉพาะส่วนจำนวนเต็ม
+        if (parts[0] !== '') {
+            parts[0] = parseInt(parts[0], 10).toLocaleString('en-US');
+        }
+
+        input.value = parts.join('.');
+    } else {
+        input.value = '';
+    }
+
+    // ปรับตำแหน่งเคอร์เซอร์ให้ไม่กระโดดไปด้านหลังสุดเวลาเติมลูกน้ำ
+    let newLength = input.value.length;
+    cursorPostion = cursorPostion + (newLength - originalLength);
+    input.setSelectionRange(cursorPostion, cursorPostion);
+}
+// ฟังก์ชันจัดรูปแบบตัวเลขให้มีลูกน้ำ (Comma) อัตโนมัติเวลาพิมพ์
+function formatNumberInput(input) {
+    // จดจำตำแหน่งเคอร์เซอร์เดิม
+    let cursorPosition = input.selectionStart;
+    let originalLength = input.value.length;
+
+    // ลบอักขระที่ไม่ใช่ตัวเลขและจุดทศนิยมออก
+    let value = input.value.replace(/[^0-9.]/g, '');
+
+    if (value !== '') {
+        // แยกส่วนจำนวนเต็มและทศนิยม
+        let parts = value.split('.');
+
+        // ใส่ลูกน้ำเฉพาะส่วนจำนวนเต็ม
+        if (parts[0] !== '') {
+            parts[0] = parseInt(parts[0], 10).toLocaleString('en-US');
+        }
+
+        // ประกอบกลับเข้าด้วยกัน (จำกัดให้มีจุดทศนิยมได้แค่ตัวเดียว)
+        input.value = parts.slice(0, 2).join('.');
+    } else {
+        input.value = '';
+    }
+
+    // ปรับตำแหน่งเคอร์เซอร์ให้ไม่กระโดดไปด้านหลังสุดเวลาเติม/ลบลูกน้ำ
+    let newLength = input.value.length;
+    cursorPosition = cursorPosition + (newLength - originalLength);
+
+    // ตั้งค่าเคอร์เซอร์กลับไปที่เดิม
+    input.setSelectionRange(cursorPosition, cursorPosition);
+}
