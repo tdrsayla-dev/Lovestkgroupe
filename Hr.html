@@ -240,7 +240,7 @@
             if (!row) return {};
             const headers = SHEET_HEADERS[table] || Object.keys(row || {});
             const map = COL_MAP[table] || {};
-            
+
             // Build a flexible key lookup dictionary from row keys
             const rowKeysLower = {};
             Object.keys(row).forEach(k => {
@@ -254,7 +254,7 @@
                 const cleanH = String(h).toLowerCase().trim().replace(/[\s_]/g, '');
 
                 let val = row[h] ?? row[dbMappedKey] ?? rowKeysLower[cleanMapped] ?? rowKeysLower[cleanH];
-                
+
                 // Extra fallback checks for common variations
                 if (val === undefined || val === null || val === '') {
                     if (cleanH.includes('id') && (cleanH.includes('budget') || cleanH.includes('req'))) {
@@ -838,7 +838,7 @@
                 const table = TABLE_MAP[sheetName] || sheetName;
                 const isDbUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(recordId || ''));
                 const key = isDbUuid ? 'id' : getKeyForTable(table);
-                
+
                 let dataObj;
                 if (method === 'updateRecordData') {
                     if (args.length >= 5 && typeof args[4] === 'object' && args[4] !== null) {
@@ -990,9 +990,11 @@
                         });
 
                         const rawSt = String(dataObj.status || dataObj.Status || dataObj.statusVal || payload.status || payload.Status || '').trim().toLowerCase();
-                        let existingPerms = matchedUser ? (matchedUser.permissions || matchedUser.Permissions || '') : (payload.permissions || dataObj.permissions || '');
+                        // เปลี่ยนให้ใช้สิทธิ์ใหม่ (payload.permissions) ก่อนเสมอ ถ้าไม่มีค่อยดึงของเก่าจาก matchedUser
+                        let existingPerms = payload.permissions !== undefined ? payload.permissions : (dataObj.Permissions || (matchedUser ? (matchedUser.permissions || matchedUser.Permissions || '') : ''));
                         if (rawSt) {
                             existingPerms = String(existingPerms || '').replace(/,?\s*status:(active|disabled|suspended|inactive)/gi, '').trim();
+                            // ...
                             existingPerms = existingPerms ? `${existingPerms}, status:${rawSt}` : `status:${rawSt}`;
                             payload.permissions = existingPerms;
                         }
@@ -1066,14 +1068,14 @@
                     try {
                         const localInfo = localStorage.getItem('stk_company_info');
                         if (localInfo) infoRows = JSON.parse(localInfo);
-                    } catch (e) {}
+                    } catch (e) { }
                 }
 
                 if (!Array.isArray(subRows) || subRows.length === 0) {
                     try {
                         const localSubs = localStorage.getItem('stk_subsidiaries');
                         if (localSubs) subRows = JSON.parse(localSubs);
-                    } catch (e) {}
+                    } catch (e) { }
                 }
 
                 if (Array.isArray(subRows)) {
@@ -1087,7 +1089,7 @@
                 try {
                     localStorage.setItem('stk_company_info', JSON.stringify(infoUpdates || []));
                     localStorage.setItem('stk_subsidiaries', JSON.stringify(subUpdates || []));
-                } catch (e) {}
+                } catch (e) { }
 
                 try {
                     if (Array.isArray(infoUpdates)) {
@@ -1378,15 +1380,26 @@
     </script>
     <style>
         @media print {
+
             /* Hide sidebars, headers, navigation bars, and print controls */
-            aside, header, #top-navbar, .print-hide, #toast-container, #main-loading, 
-            #table-controls-wrapper button, #calendar-section button, 
-            #fb-sub-controls-bar, #fb-date-filter-wrap, #fb-search-wrap, #fb-export-wrap {
+            aside,
+            header,
+            #top-navbar,
+            .print-hide,
+            #toast-container,
+            #main-loading,
+            #table-controls-wrapper button,
+            #calendar-section button,
+            #fb-sub-controls-bar,
+            #fb-date-filter-wrap,
+            #fb-search-wrap,
+            #fb-export-wrap {
                 display: none !important;
             }
 
             /* Reset body and outer layout wrappers for print flow */
-            html, body {
+            html,
+            body {
                 background: white !important;
                 color: black !important;
                 overflow: visible !important;
@@ -1397,7 +1410,8 @@
             }
 
             /* Override Tailwind h-screen & overflow-hidden on outer divs */
-            div, main {
+            div,
+            main {
                 height: auto !important;
                 max-height: none !important;
                 overflow: visible !important;
@@ -1412,8 +1426,12 @@
             }
 
             /* Make report section & table containers print full width */
-            #section-table, #table-wrapper, #calendar-section, 
-            #section-facebook-budget, #fb-budget-report, #fb-budget-dashboard {
+            #section-table,
+            #table-wrapper,
+            #calendar-section,
+            #section-facebook-budget,
+            #fb-budget-report,
+            #fb-budget-dashboard {
                 width: 100% !important;
                 max-width: 100% !important;
                 margin: 0 !important;
@@ -1425,15 +1443,20 @@
             }
 
             /* Format report tables cleanly for print */
-            #table-wrapper table, #fb-budget-report table, #fb-budget-dashboard table {
+            #table-wrapper table,
+            #fb-budget-report table,
+            #fb-budget-dashboard table {
                 width: 100% !important;
                 border-collapse: collapse !important;
                 table-layout: auto !important;
             }
 
-            #table-wrapper th, #table-wrapper td, 
-            #fb-budget-report th, #fb-budget-report td, 
-            #fb-budget-dashboard th, #fb-budget-dashboard td {
+            #table-wrapper th,
+            #table-wrapper td,
+            #fb-budget-report th,
+            #fb-budget-report td,
+            #fb-budget-dashboard th,
+            #fb-budget-dashboard td {
                 border: 1px solid #d1d5db !important;
                 padding: 8px 10px !important;
                 font-size: 11px !important;
@@ -1448,8 +1471,10 @@
             }
 
             /* Hide action buttons column during print for clean report output */
-            #fb-budget-report th:last-child, #fb-budget-report td:last-child,
-            #fb-budget-dashboard th:last-child, #fb-budget-dashboard td:last-child {
+            #fb-budget-report th:last-child,
+            #fb-budget-report td:last-child,
+            #fb-budget-dashboard th:last-child,
+            #fb-budget-dashboard td:last-child {
                 display: none !important;
             }
 
@@ -1573,7 +1598,8 @@
                     <i
                         class="fa-brands fa-facebook w-5 text-[15px] flex-shrink-0 text-center transition-colors group-hover:text-brandindigo"></i>
                     <span
-                        class="sidebar-text ml-3 text-sm whitespace-nowrap transition-opacity duration-200 font-medium">FB Budget</span>
+                        class="sidebar-text ml-3 text-sm whitespace-nowrap transition-opacity duration-200 font-medium">FB
+                        Budget</span>
                 </button>
 
                 <p class="sidebar-text text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-4 mb-2 px-2 admin-only hidden"
@@ -1879,7 +1905,8 @@
                         </div>
                         <div class="relative z-10">
                             <h2 class="text-2xl md:text-3xl font-extrabold mb-1"><span data-i18n="hello">สวัสดี,</span>
-                                <span id="staff-welcome-name">พนักงาน</span> 👋</h2>
+                                <span id="staff-welcome-name">พนักงาน</span> 👋
+                            </h2>
                             <p class="text-sm text-indigo-100 font-medium" data-i18n="welcome_hr">
                                 ยินดีต้อนรับเข้าสู่ระบบจัดการข้อมูลพนักงาน
                                 Love STK Groupe</p>
@@ -2482,12 +2509,17 @@
 
                             <!-- ส่วนที่ 1.5: รูปภาพแบนเนอร์สไลด์หน้าแรก (Hero Slider Images) -->
                             <div class="mt-8 space-y-6">
-                                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-indigo-50 pb-2">
+                                <div
+                                    class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-indigo-50 pb-2">
                                     <div>
-                                        <h4 class="text-sm font-bold text-brandindigo uppercase tracking-wider"><i class="fa-solid fa-images mr-1.5"></i>รูปภาพแบนเนอร์สไลด์หน้าแรก (Hero Slider Images)</h4>
-                                        <p class="text-xs text-gray-500 mt-0.5">จัดการรูปภาพสไลด์แบนเนอร์ด้านบนสุดของหน้าเว็บหลัก (index.html)</p>
+                                        <h4 class="text-sm font-bold text-brandindigo uppercase tracking-wider"><i
+                                                class="fa-solid fa-images mr-1.5"></i>รูปภาพแบนเนอร์สไลด์หน้าแรก (Hero
+                                            Slider Images)</h4>
+                                        <p class="text-xs text-gray-500 mt-0.5">
+                                            จัดการรูปภาพสไลด์แบนเนอร์ด้านบนสุดของหน้าเว็บหลัก (index.html)</p>
                                     </div>
-                                    <button type="button" onclick="addNewHeroSlideCard()" class="bg-indigo-50 hover:bg-indigo-100 text-brandindigo text-xs font-bold py-2 px-4 rounded-xl transition-all shadow-sm flex items-center gap-1.5">
+                                    <button type="button" onclick="addNewHeroSlideCard()"
+                                        class="bg-indigo-50 hover:bg-indigo-100 text-brandindigo text-xs font-bold py-2 px-4 rounded-xl transition-all shadow-sm flex items-center gap-1.5">
                                         <i class="fa-solid fa-plus"></i>เพิ่มรูปสไลด์ใหม่
                                     </button>
                                 </div>
@@ -2668,7 +2700,8 @@
                                 </div>
                             </div>
 
-                            <div class="flex items-center gap-2.5 w-full lg:w-auto flex-wrap sm:flex-nowrap justify-end ml-auto">
+                            <div
+                                class="flex items-center gap-2.5 w-full lg:w-auto flex-wrap sm:flex-nowrap justify-end ml-auto">
                                 <button id="btn-add-record" onclick="openFormModal()"
                                     class="w-full sm:w-auto text-white bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-600 font-bold rounded-xl text-sm px-6 py-3 flex items-center justify-center shadow-lg shadow-indigo-500/30 transition-all transform hover:-translate-y-0.5 shrink-0">
                                     <i class="fa-solid fa-plus mr-2"></i> <span data-i18n="add_record">Add Record</span>
@@ -2682,15 +2715,20 @@
                     <div id="calendar-section" class="hidden mb-6 glass-card rounded-2xl p-5 lg:p-8">
                         <div class="space-y-4 mb-6">
                             <!-- Header Row 1: Section Title + Primary Action Buttons -->
-                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-gray-100">
+                            <div
+                                class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-gray-100">
                                 <h3 class="text-base font-bold text-gray-900 flex items-center gap-3 tracking-wide"><i
-                                         class="fa-regular fa-calendar-days text-brandindigo text-lg"></i> <span data-i18n="attendance_calendar">Attendance Calendar</span></h3>
+                                        class="fa-regular fa-calendar-days text-brandindigo text-lg"></i> <span
+                                        data-i18n="attendance_calendar">Attendance Calendar</span></h3>
                                 <div class="flex items-center gap-2 flex-wrap">
-                                    <button id="btn-attendance-excel" onclick="exportToExcel('Fingerprint_Logs')" title="Export Excel"
+                                    <button id="btn-attendance-excel" onclick="exportToExcel('Fingerprint_Logs')"
+                                        title="Export Excel"
                                         class="bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm">
-                                        <i class="fa-solid fa-file-excel text-emerald-600 text-sm"></i> <span>Excel</span>
+                                        <i class="fa-solid fa-file-excel text-emerald-600 text-sm"></i>
+                                        <span>Excel</span>
                                     </button>
-                                    <button id="btn-attendance-pdf" onclick="exportToPDF('Fingerprint_Logs')" title="Export PDF"
+                                    <button id="btn-attendance-pdf" onclick="exportToPDF('Fingerprint_Logs')"
+                                        title="Export PDF"
                                         class="bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm">
                                         <i class="fa-solid fa-file-pdf text-rose-600 text-sm"></i> <span>PDF</span>
                                     </button>
@@ -2698,13 +2736,17 @@
                                         class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm hover:text-brandindigo">
                                         <i class="fa-solid fa-print text-sm"></i> <span>Print</span>
                                     </button>
-                                    <button id="btn-attendance-calc-payroll" onclick="openPayrollModal()" title="คำนวณเงินเดือน & สลิป"
+                                    <button id="btn-attendance-calc-payroll" onclick="openPayrollModal()"
+                                        title="คำนวณเงินเดือน & สลิป"
                                         class="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm hover:shadow-md">
-                                        <i class="fa-solid fa-calculator text-sm"></i> <span data-i18n="btn_calc_payroll">คำนวณเงินเดือน/สลิป</span>
+                                        <i class="fa-solid fa-calculator text-sm"></i> <span
+                                            data-i18n="btn_calc_payroll">คำนวณเงินเดือน/สลิป</span>
                                     </button>
-                                    <button id="btn-attendance-payroll-history" onclick="openPayrollHistoryModal()" title="ประวัติเงินเดือน"
+                                    <button id="btn-attendance-payroll-history" onclick="openPayrollHistoryModal()"
+                                        title="ประวัติเงินเดือน"
                                         class="bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-700 hover:to-indigo-800 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm hover:shadow-md">
-                                        <i class="fa-solid fa-clock-rotate-left text-sm"></i> <span data-i18n="btn_payroll_history">ประวัติเงินเดือน</span>
+                                        <i class="fa-solid fa-clock-rotate-left text-sm"></i> <span
+                                            data-i18n="btn_payroll_history">ประวัติเงินเดือน</span>
                                     </button>
                                 </div>
                             </div>
@@ -2751,7 +2793,8 @@
                                             class="bg-white border border-gray-300 text-gray-900 font-medium text-sm rounded-xl focus:ring-brandindigo block p-2.5 shadow-sm cursor-pointer">
                                             <option value="">กะเวลาทั้งหมด (All Shifts)</option>
                                         </select>
-                                        <button id="btn-attendance-shift-settings" onclick="openShiftSettingsModal()" title="ตั้งค่ากะเวลาเข้างาน"
+                                        <button id="btn-attendance-shift-settings" onclick="openShiftSettingsModal()"
+                                            title="ตั้งค่ากะเวลาเข้างาน"
                                             class="bg-white hover:bg-indigo-50 text-indigo-600 border border-indigo-200 w-[38px] h-[38px] rounded-full text-sm transition-all shadow-sm flex items-center justify-center flex-shrink-0">
                                             <i class="fa-solid fa-plus"></i>
                                         </button>
@@ -2763,8 +2806,8 @@
                                     <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                                         <i class="fa-solid fa-user-magnifying-glass text-gray-400"></i>
                                     </div>
-                                    <input type="text" id="calendarEmpId" placeholder="Search Emp ID/Name" data-i18n-placeholder="search_emp_id"
-                                        autocomplete="off"
+                                    <input type="text" id="calendarEmpId" placeholder="Search Emp ID/Name"
+                                        data-i18n-placeholder="search_emp_id" autocomplete="off"
                                         class="bg-white border border-gray-300 text-gray-900 font-medium text-sm rounded-xl focus:ring-brandindigo block w-full pl-10 p-2.5 uppercase transition-all placeholder-gray-400 shadow-sm"
                                         onfocus="showEmpDropdown()"
                                         onkeyup="filterEmpDropdown(); renderTable(tableCache[currentSheet].data)"
@@ -2790,65 +2833,83 @@
                             class="mt-6 flex flex-wrap items-center justify-center gap-6 text-xs text-gray-600 font-bold">
                             <div class="flex items-center gap-2"><span
                                     class="w-3 h-3 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></span>
-                                <span data-i18n="status_present">Present</span></div>
+                                <span data-i18n="status_present">Present</span>
+                            </div>
                             <div class="flex items-center gap-2"><span
                                     class="w-3 h-3 rounded-full bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.5)]"></span>
-                                <span data-i18n="status_absent">Absent</span></div>
+                                <span data-i18n="status_absent">Absent</span>
+                            </div>
                             <div class="flex items-center gap-2"><span
                                     class="w-3 h-3 rounded-full bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]"></span>
-                                <span data-i18n="status_absent_leave">On Leave</span></div>
+                                <span data-i18n="status_absent_leave">On Leave</span>
+                            </div>
                             <div class="flex items-center gap-2"><span
-                                    class="w-3 h-3 rounded bg-gray-200 border border-gray-300"></span> <span data-i18n="weekend">Weekend</span></div>
+                                    class="w-3 h-3 rounded bg-gray-200 border border-gray-300"></span> <span
+                                    data-i18n="weekend">Weekend</span></div>
                         </div>
                     </div>
 
                     <!-- 📌 ส่วนของกล่องสรุปผล (7 Cards: Late, Early, Early In, Late Out, Net Balance, Absent, OT) -->
                     <div id="table-summary" class="hidden grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
-                        <div class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-4 border-l-red-500 shadow-sm hover:shadow transition-all">
+                        <div
+                            class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-4 border-l-red-500 shadow-sm hover:shadow transition-all">
                             <div>
-                                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5" data-i18n="stat_late_hrs">Late (Hrs)</p>
+                                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5"
+                                    data-i18n="stat_late_hrs">Late (Hrs)</p>
                                 <h4 class="text-xl font-black text-red-500" id="filter-late">0</h4>
                             </div>
                             <i class="fa-regular fa-clock text-red-200 text-2xl hidden sm:block"></i>
                         </div>
-                        <div class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-4 border-l-amber-500 shadow-sm hover:shadow transition-all">
+                        <div
+                            class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-4 border-l-amber-500 shadow-sm hover:shadow transition-all">
                             <div>
-                                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5" data-i18n="stat_early_hrs">Early (Hrs)</p>
+                                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5"
+                                    data-i18n="stat_early_hrs">Early (Hrs)</p>
                                 <h4 class="text-xl font-black text-amber-500" id="filter-early">0</h4>
                             </div>
                             <i class="fa-solid fa-person-running text-amber-200 text-2xl hidden sm:block"></i>
                         </div>
-                        <div class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-4 border-l-teal-500 shadow-sm hover:shadow transition-all">
+                        <div
+                            class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-4 border-l-teal-500 shadow-sm hover:shadow transition-all">
                             <div>
-                                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5" data-i18n="stat_early_in_hrs">Early In (Hrs)</p>
+                                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5"
+                                    data-i18n="stat_early_in_hrs">Early In (Hrs)</p>
                                 <h4 class="text-xl font-black text-teal-600" id="filter-early-in">0</h4>
                             </div>
                             <i class="fa-solid fa-user-clock text-teal-200 text-2xl hidden sm:block"></i>
                         </div>
-                        <div class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-4 border-l-indigo-500 shadow-sm hover:shadow transition-all">
+                        <div
+                            class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-4 border-l-indigo-500 shadow-sm hover:shadow transition-all">
                             <div>
-                                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5" data-i18n="stat_late_out_hrs">Late Out (Hrs)</p>
+                                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5"
+                                    data-i18n="stat_late_out_hrs">Late Out (Hrs)</p>
                                 <h4 class="text-xl font-black text-indigo-600" id="filter-late-out">0</h4>
                             </div>
                             <i class="fa-solid fa-business-time text-indigo-200 text-2xl hidden sm:block"></i>
                         </div>
-                        <div class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-4 border-l-purple-500 shadow-sm hover:shadow transition-all">
+                        <div
+                            class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-4 border-l-purple-500 shadow-sm hover:shadow transition-all">
                             <div>
-                                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5" data-i18n="stat_net_offset_hrs">Net Offset (Hrs)</p>
+                                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5"
+                                    data-i18n="stat_net_offset_hrs">Net Offset (Hrs)</p>
                                 <h4 class="text-xl font-black text-purple-600" id="filter-net-balance">0</h4>
                             </div>
                             <i class="fa-solid fa-scale-balanced text-purple-200 text-2xl hidden sm:block"></i>
                         </div>
-                        <div class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-4 border-l-gray-400 shadow-sm hover:shadow transition-all">
+                        <div
+                            class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-4 border-l-gray-400 shadow-sm hover:shadow transition-all">
                             <div>
-                                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5" data-i18n="stat_absent">Absent</p>
+                                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5"
+                                    data-i18n="stat_absent">Absent</p>
                                 <h4 class="text-xl font-black text-gray-700" id="filter-absent">0</h4>
                             </div>
                             <i class="fa-solid fa-user-xmark text-gray-300 text-2xl hidden sm:block"></i>
                         </div>
-                        <div class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-4 border-l-emerald-500 shadow-sm hover:shadow transition-all">
+                        <div
+                            class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-4 border-l-emerald-500 shadow-sm hover:shadow transition-all">
                             <div>
-                                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5" data-i18n="stat_ot_amount">OT Amount</p>
+                                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5"
+                                    data-i18n="stat_ot_amount">OT Amount</p>
                                 <h4 class="text-xl font-black text-emerald-500" id="filter-ot">0</h4>
                             </div>
                             <i class="fa-solid fa-sack-dollar text-emerald-200 text-2xl hidden sm:block"></i>
@@ -2885,46 +2946,63 @@
 
                 <!-- 📌 ส่วนหน้าเบิกงบประมาณ Facebook -->
                 <div id="section-facebook-budget" class="page-section hidden max-w-6xl mx-auto relative z-10 space-y-4">
-                    
+
                     <!-- 📌 Main Header Bar (Sub-tabs Navigation on Top Right) -->
                     <div class="flex items-center justify-end gap-4 mb-2 pb-2 border-b border-gray-100">
                         <!-- Sub-tab navigation buttons (Top Level) -->
                         <div class="flex space-x-1 bg-gray-100 p-1 rounded-xl shadow-inner">
-                            <button id="fb-tab-btn-form" onclick="switchFbTab('form')" class="px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all text-gray-600 hover:text-gray-900">ฟอร์มเบิกงบ</button>
-                            <button id="fb-tab-btn-dashboard" onclick="switchFbTab('dashboard')" class="px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all bg-indigo-600 text-white shadow-sm">รายการ</button>
-                            <button id="fb-tab-btn-report" onclick="switchFbTab('report')" class="px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all text-gray-600 hover:text-gray-900">Report</button>
+                            <button id="fb-tab-btn-form" onclick="switchFbTab('form')"
+                                class="px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all text-gray-600 hover:text-gray-900">ฟอร์มเบิกงบ</button>
+                            <button id="fb-tab-btn-dashboard" onclick="switchFbTab('dashboard')"
+                                class="px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all bg-indigo-600 text-white shadow-sm">รายการ</button>
+                            <button id="fb-tab-btn-report" onclick="switchFbTab('report')"
+                                class="px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all text-gray-600 hover:text-gray-900">Report</button>
                         </div>
                     </div>
 
                     <!-- 📌 Sub-controls Bar (Date Range + Search + Export Dropdown on same row) -->
                     <div id="fb-sub-controls-bar" class="flex flex-wrap items-center justify-end gap-3 mb-2">
                         <!-- Date Range Picker -->
-                        <div id="fb-date-filter-wrap" class="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl px-3 py-1.5 shadow-sm text-xs font-semibold text-gray-600">
+                        <div id="fb-date-filter-wrap"
+                            class="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl px-3 py-1.5 shadow-sm text-xs font-semibold text-gray-600">
                             <span class="text-gray-400 font-medium">Date</span>
-                            <input type="date" id="fb_start_date" class="border-0 bg-transparent text-xs font-bold text-gray-700 focus:ring-0 p-0 cursor-pointer" onchange="filterFbBudgetRows()">
+                            <input type="date" id="fb_start_date"
+                                class="border-0 bg-transparent text-xs font-bold text-gray-700 focus:ring-0 p-0 cursor-pointer"
+                                onchange="filterFbBudgetRows()">
                             <span class="text-gray-300">-</span>
-                            <input type="date" id="fb_end_date" class="border-0 bg-transparent text-xs font-bold text-gray-700 focus:ring-0 p-0 cursor-pointer" onchange="filterFbBudgetRows()">
-                            <button type="button" onclick="clearFbDateFilter()" class="ml-1 text-gray-400 hover:text-rose-500 transition p-0.5" title="เคลียร์วันที่ (Clear Date)">
+                            <input type="date" id="fb_end_date"
+                                class="border-0 bg-transparent text-xs font-bold text-gray-700 focus:ring-0 p-0 cursor-pointer"
+                                onchange="filterFbBudgetRows()">
+                            <button type="button" onclick="clearFbDateFilter()"
+                                class="ml-1 text-gray-400 hover:text-rose-500 transition p-0.5"
+                                title="เคลียร์วันที่ (Clear Date)">
                                 <i class="fa-solid fa-circle-xmark text-sm"></i>
                             </button>
                         </div>
 
                         <!-- Search Input -->
                         <div id="fb-search-wrap" class="relative">
-                            <input type="text" id="fb_search_input" oninput="filterFbBudgetRows()" placeholder="Search..." class="w-36 sm:w-44 pl-8 pr-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm">
+                            <input type="text" id="fb_search_input" oninput="filterFbBudgetRows()"
+                                placeholder="Search..."
+                                class="w-36 sm:w-44 pl-8 pr-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm">
                             <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 text-gray-400 text-xs"></i>
                         </div>
 
                         <!-- Export button (PDF / Print dropdown) -->
                         <div id="fb-export-wrap" class="hidden relative inline-block">
-                            <button onclick="toggleFbExportDropdown()" class="px-3.5 py-1.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5">
-                                <i class="fa-solid fa-file-export text-rose-500"></i> Export <i class="fa-solid fa-chevron-down text-[10px] text-gray-400"></i>
+                            <button onclick="toggleFbExportDropdown()"
+                                class="px-3.5 py-1.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5">
+                                <i class="fa-solid fa-file-export text-rose-500"></i> Export <i
+                                    class="fa-solid fa-chevron-down text-[10px] text-gray-400"></i>
                             </button>
-                            <div id="fb-export-menu" class="hidden absolute right-0 mt-2 w-36 bg-white rounded-xl shadow-xl border border-gray-100 z-50 py-1.5 text-xs font-bold">
-                                <button onclick="exportFbReportPDF()" class="w-full text-left px-4 py-2 hover:bg-rose-50 text-rose-600 flex items-center gap-2">
+                            <div id="fb-export-menu"
+                                class="hidden absolute right-0 mt-2 w-36 bg-white rounded-xl shadow-xl border border-gray-100 z-50 py-1.5 text-xs font-bold">
+                                <button onclick="exportFbReportPDF()"
+                                    class="w-full text-left px-4 py-2 hover:bg-rose-50 text-rose-600 flex items-center gap-2">
                                     <i class="fa-solid fa-file-pdf"></i> PDF Document
                                 </button>
-                                <button onclick="exportFbReportPDF()" class="w-full text-left px-4 py-2 hover:bg-blue-50 text-blue-600 flex items-center gap-2">
+                                <button onclick="exportFbReportPDF()"
+                                    class="w-full text-left px-4 py-2 hover:bg-blue-50 text-blue-600 flex items-center gap-2">
                                     <i class="fa-solid fa-print"></i> Print Report
                                 </button>
                             </div>
@@ -2932,44 +3010,58 @@
                     </div>
 
                     <!-- 📌 Tab 1: Form View -->
-                    <div id="fb-budget-form" class="hidden bg-white p-6 rounded-2xl shadow-sm border border-gray-100 max-w-lg mx-auto mt-6">
+                    <div id="fb-budget-form"
+                        class="hidden bg-white p-6 rounded-2xl shadow-sm border border-gray-100 max-w-lg mx-auto mt-6">
                         <form id="fbBudgetForm" onsubmit="submitFacebookBudget(event)" class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">รหัสพนักงาน (Member ID)</label>
-                                <input type="text" id="fb_member_id" required class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="เช่น L03709">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">รหัสพนักงาน (Member
+                                    ID)</label>
+                                <input type="text" id="fb_member_id" required
+                                    class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    placeholder="เช่น L03709">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อแคมเปญ</label>
-                                <input type="text" id="fb_campaign_name" required class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="เช่น แคมเปญลดสิว">
+                                <input type="text" id="fb_campaign_name" required
+                                    class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    placeholder="เช่น แคมเปญลดสิว">
                             </div>
                             <div class="grid grid-cols-3 gap-4">
                                 <div class="col-span-2">
                                     <label class="block text-sm font-medium text-gray-700 mb-1">จำนวนเงิน</label>
-                                    <input type="text" id="fb_amount" required oninput="formatAmountWithCommas(this)" class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="เช่น 50,000">
+                                    <input type="text" id="fb_amount" required oninput="formatAmountWithCommas(this)"
+                                        class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        placeholder="เช่น 50,000">
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-1">สกุลเงิน</label>
-                                    <select id="fb_currency" class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white">
+                                    <select id="fb_currency"
+                                        class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white">
                                         <option value="THB">บาท (THB)</option>
                                         <option value="LAK">กีบ (LAK)</option>
                                         <option value="USD">ดอลลาร์ (USD)</option>
                                     </select>
                                 </div>
                             </div>
-                            <button type="submit" id="fb_submit_btn" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium mt-4 transition-colors">บันทึกคำขอเบิกงบ</button>
+                            <button type="submit" id="fb_submit_btn"
+                                class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium mt-4 transition-colors">บันทึกคำขอเบิกงบ</button>
                         </form>
                     </div>
 
                     <!-- 📌 Tab 2: Dashboard View -->
-                    <div id="fb-budget-dashboard" class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mt-6">
-                        <h3 class="text-xl font-semibold mb-4 text-gray-800">รายงานรายได้เทียบกับการเบิกงบ (ดึงข้อมูลจาก MLM)</h3>
+                    <div id="fb-budget-dashboard"
+                        class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mt-6">
+                        <h3 class="text-xl font-semibold mb-4 text-gray-800">รายงานรายได้เทียบกับการเบิกงบ (ดึงข้อมูลจาก
+                            MLM)</h3>
                         <div id="fb-dashboard-loading" class="text-center py-10 text-gray-500 hidden">
-                            <i class="fa-solid fa-spinner fa-spin text-2xl mb-2 text-indigo-500"></i><br>กำลังโหลดและคำนวณข้อมูล...
+                            <i
+                                class="fa-solid fa-spinner fa-spin text-2xl mb-2 text-indigo-500"></i><br>กำลังโหลดและคำนวณข้อมูล...
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full text-left border-collapse">
                                 <thead>
-                                    <tr class="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 font-bold uppercase tracking-wider">
+                                    <tr
+                                        class="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 font-bold uppercase tracking-wider">
                                         <th class="p-4">รหัสพนักงาน</th>
                                         <th class="p-4">ชื่อ และ นามสกุล</th>
                                         <th class="p-4">วันที่</th>
@@ -2982,19 +3074,24 @@
                                     </tr>
                                 </thead>
                                 <tbody id="fb-dashboard-body" class="divide-y divide-gray-100 text-sm">
-                                    <tr><td colspan="9" class="text-center py-6 text-gray-400">กรุณากดเปิด Dashboard เพื่อโหลดข้อมูล</td></tr>
+                                    <tr>
+                                        <td colspan="9" class="text-center py-6 text-gray-400">กรุณากดเปิด Dashboard
+                                            เพื่อโหลดข้อมูล</td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
 
                     <!-- 📌 Tab 3: Report View -->
-                    <div id="fb-budget-report" class="hidden bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mt-6">
+                    <div id="fb-budget-report"
+                        class="hidden bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mt-6">
                         <h3 class="text-xl font-semibold mb-4 text-gray-800">Facebook Budget Report</h3>
                         <div class="overflow-x-auto">
                             <table class="w-full text-left border-collapse">
                                 <thead>
-                                    <tr class="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 font-bold uppercase tracking-wider">
+                                    <tr
+                                        class="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 font-bold uppercase tracking-wider">
                                         <th class="p-4">รหัสพนักงาน</th>
                                         <th class="p-4">ชื่อ และ นามสกุล</th>
                                         <th class="p-4">วันที่</th>
@@ -3005,8 +3102,12 @@
                                         <th class="p-4 text-center">จัดการ</th>
                                     </tr>
                                 </thead>
-                                <tbody id="fb-report-body" class="divide-y divide-gray-100 text-sm font-semibold text-gray-700">
-                                    <tr><td colspan="8" class="text-center py-6 text-gray-400">กำลังดึงข้อมูลรายงาน...</td></tr>
+                                <tbody id="fb-report-body"
+                                    class="divide-y divide-gray-100 text-sm font-semibold text-gray-700">
+                                    <tr>
+                                        <td colspan="8" class="text-center py-6 text-gray-400">กำลังดึงข้อมูลรายงาน...
+                                        </td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
@@ -3016,7 +3117,7 @@
                     let editingFbId = null;
                     window.currentFbLoadId = 0;
 
-                    window.switchFbTab = function(tab) {
+                    window.switchFbTab = function (tab) {
                         const formSec = document.getElementById('fb-budget-form');
                         const dashSec = document.getElementById('fb-budget-dashboard');
                         const reportSec = document.getElementById('fb-budget-report');
@@ -3096,12 +3197,12 @@
                         }
                     };
 
-                    window.toggleFbExportDropdown = function() {
+                    window.toggleFbExportDropdown = function () {
                         const menu = document.getElementById('fb-export-menu');
                         if (menu) menu.classList.toggle('hidden');
                     };
 
-                    window.exportFbReportPDF = function() {
+                    window.exportFbReportPDF = function () {
                         let printContent = '';
                         const reportSec = document.getElementById('fb-budget-report');
                         const dashSec = document.getElementById('fb-budget-dashboard');
@@ -3166,19 +3267,19 @@
                             </body>
                             </html>
                         `);
-                        doc.close();
+                            doc.close();
 
-                        setTimeout(() => {
-                            printFrame.contentWindow.focus();
-                            printFrame.contentWindow.print();
-                        }, 250);
-                        } catch(err) {
+                            setTimeout(() => {
+                                printFrame.contentWindow.focus();
+                                printFrame.contentWindow.print();
+                            }, 250);
+                        } catch (err) {
                             console.warn('Iframe print failed under local origin, falling back to window print', err);
                         }
                     };
 
 
-                    window.clearFbDateFilter = function() {
+                    window.clearFbDateFilter = function () {
                         const sInput = document.getElementById('fb_start_date');
                         const eInput = document.getElementById('fb_end_date');
                         if (sInput) sInput.value = '';
@@ -3193,7 +3294,7 @@
                         return `${year}-${month}-${day}`;
                     }
 
-                    window.filterFbBudgetRows = function() {
+                    window.filterFbBudgetRows = function () {
                         const startVal = document.getElementById('fb_start_date')?.value || '';
                         const endVal = document.getElementById('fb_end_date')?.value || '';
                         const kw = (document.getElementById('fb_search_input')?.value || '').toLowerCase().trim();
@@ -3205,7 +3306,7 @@
                             rows.forEach(tr => {
                                 if (tr.innerText.includes('ไม่พบข้อมูล') || tr.innerText.includes('กำลังโหลด')) return;
                                 const text = tr.innerText.toLowerCase();
-                                
+
                                 let matchDate = true;
                                 const rowIsoDate = tr.getAttribute('data-date');
                                 if (rowIsoDate) {
@@ -3222,7 +3323,7 @@
                         applyFilterToTbody('fb-report-body');
                     };
 
-                    window.formatAmountWithCommas = function(inputEl) {
+                    window.formatAmountWithCommas = function (inputEl) {
                         if (!inputEl) return;
                         let raw = String(inputEl.value || '').replace(/,/g, '').replace(/[^0-9.]/g, '');
                         if (!raw) {
@@ -3235,7 +3336,7 @@
                         inputEl.value = formatted;
                     };
 
-                    window.editFbBudget = function(encodedFbRow) {
+                    window.editFbBudget = function (encodedFbRow) {
                         try {
                             const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
                             let userRole = 'Staff', userPerms = [];
@@ -3255,10 +3356,10 @@
 
                             let b = typeof encodedFbRow === 'object' ? encodedFbRow : JSON.parse(decodeURIComponent(encodedFbRow));
                             editingFbId = b.raw_id || b.id || b.Id_Budget;
-                            
+
                             document.getElementById('fb_member_id').value = b.member_id || b.Employee_ID || '';
                             document.getElementById('fb_campaign_name').value = b.campaign_name || b.Title || '';
-                            
+
                             const amtVal = b.amount || b.Amount || 0;
                             const amtInput = document.getElementById('fb_amount');
                             if (amtInput) {
@@ -3266,12 +3367,12 @@
                             }
 
                             document.getElementById('fb_currency').value = b.currency || 'THB';
-                            
+
                             switchFbTab('form');
-                            
+
                             const submitBtn = document.getElementById('fb_submit_btn');
                             if (submitBtn) submitBtn.innerText = 'อัปเดตคำขอเบิกงบ';
-                        } catch(e) {
+                        } catch (e) {
                             console.error('Error in editFbBudget:', e);
                         }
                     };
@@ -3301,7 +3402,7 @@
                         const btn = document.getElementById('fb_submit_btn');
                         btn.disabled = true;
                         btn.innerText = 'กำลังบันทึก...';
-                        
+
                         try {
                             const rawAmtStr = String(document.getElementById('fb_amount').value || '').replace(/,/g, '').trim();
                             const data = {
@@ -3311,10 +3412,10 @@
                                 currency: document.getElementById('fb_currency').value,
                                 status: 'Pending'
                             };
-                            
+
                             const bridge = window.SUPABASE_URL && window.SUPABASE_ANON_KEY ? createSupabaseBridge({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY }) : null;
-                            if(!bridge) throw new Error("Supabase is not configured.");
-                            
+                            if (!bridge) throw new Error("Supabase is not configured.");
+
                             if (editingFbId) {
                                 await bridge.updateRow('facebook_budget_requests', 'id', editingFbId, data);
                                 editingFbId = null;
@@ -3325,7 +3426,7 @@
                                 if (typeof Swal !== 'undefined') Swal.fire('สำเร็จ', 'บันทึกข้อมูลเบิกงบสำเร็จ', 'success');
                                 else alert('บันทึกข้อมูลเบิกงบสำเร็จ');
                             }
-                            
+
                             e.target.reset();
                             switchFbTab('dashboard');
                         } catch (err) {
@@ -3341,7 +3442,7 @@
                         }
                     }
 
-                    window.deleteFbBudget = function(id) {
+                    window.deleteFbBudget = function (id) {
                         const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
                         let userRole = 'Staff', userPerms = [];
                         if (sessionStr) {
@@ -3379,7 +3480,7 @@
                                 if (typeof window.loadFacebookBudgetDashboard === 'function') {
                                     window.loadFacebookBudgetDashboard();
                                 }
-                            } catch(err) {
+                            } catch (err) {
                                 if (typeof toggleLoading === 'function') toggleLoading(false);
                                 if (typeof showToast === 'function') {
                                     showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
@@ -3402,11 +3503,11 @@
                         }
                     };
 
-                    window.loadFacebookBudgetReport = async function() {
+                    window.loadFacebookBudgetReport = async function () {
                         await loadFacebookBudgetDashboard();
                     };
 
-                    window.getFbBudgetStatusInfo = function(b) {
+                    window.getFbBudgetStatusInfo = function (b) {
                         const mId = String(b.member_id || b.Employee_ID || '').trim().toUpperCase();
                         const primaryId = b.id || b.Id_Budget || ('FB-' + mId);
                         const dateStr = String(b.request_date || b.created_at || '').split('T')[0].slice(0, 10);
@@ -3478,7 +3579,7 @@
                         const tbody = document.getElementById('fb-dashboard-body');
                         const reportTbody = document.getElementById('fb-report-body');
                         const loading = document.getElementById('fb-dashboard-loading');
-                        
+
                         if (tbody) tbody.innerHTML = '';
                         if (reportTbody) reportTbody.innerHTML = '';
                         if (loading) loading.classList.remove('hidden');
@@ -3502,11 +3603,11 @@
                         const firstDayISO = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
                         if (sInput && !sInput.value) sInput.value = firstDayISO;
                         if (eInput && !eInput.value) eInput.value = todayISO;
-                        
+
                         try {
                             const hrBridge = window.SUPABASE_URL && window.SUPABASE_ANON_KEY ? createSupabaseBridge({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY }) : null;
-                            if(!hrBridge) throw new Error("HR Supabase is not configured.");
-                            
+                            if (!hrBridge) throw new Error("HR Supabase is not configured.");
+
                             // 1. ดึงข้อมูลเบิกงบฝั่ง HR และข้อมูลพนักงาน
                             let [budgets, staffRows] = await Promise.all([
                                 hrBridge.getTableData('facebook_budget_requests', { select: '*' }).catch(() => []),
@@ -3529,14 +3630,14 @@
                                     };
                                 }
                             });
-                            
-                             // 2. ดึงข้อมูลยอดขายฝั่ง MLM และข้อมูลสมาชิก MLM (stk_members)
+
+                            // 2. ดึงข้อมูลยอดขายฝั่ง MLM และข้อมูลสมาชิก MLM (stk_members)
                             const mlmUrl = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_URL) || window.MLM_SUPABASE_URL || 'https://mfpkeyrykqnrywyksyqp.supabase.co';
                             const mlmKey = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_ANON_KEY) || window.MLM_SUPABASE_ANON_KEY || 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
-                            
+
                             let salesMap = {};
                             let mlmMembersMap = {};
-                            
+
                             try {
                                 const headers = { 'apikey': mlmKey, 'Authorization': `Bearer ${mlmKey}` };
                                 const [prodRes, salesRes, stkSalesRes, memRes] = await Promise.all([
@@ -3545,7 +3646,7 @@
                                     fetch(`${mlmUrl}/rest/v1/stk_sales?select=*`, { headers }).catch(() => null),
                                     fetch(`${mlmUrl}/rest/v1/stk_members?select=*`, { headers }).catch(() => null)
                                 ]);
-                                
+
                                 if (loadId !== window.currentFbLoadId) return;
 
                                 const products = prodRes && prodRes.ok ? await prodRes.json() : [];
@@ -3627,10 +3728,10 @@
                                     const sellerId = String(s.seller_id || s.sellerId || s.seller || s.memberId || s.user_id || s.marketing || '').trim().toUpperCase();
                                     if (!sellerId) return;
                                     if (!salesMap[sellerId]) salesMap[sellerId] = 0;
-                                    
+
                                     let itemsList = [];
                                     if (s.items_json) {
-                                        try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e) {}
+                                        try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch (e) { }
                                     }
 
                                     if (Array.isArray(itemsList) && itemsList.length > 0) {
@@ -3651,10 +3752,10 @@
                                         });
                                     } else {
                                         const q = Number(s['ยอดรวมชิ้นทั้งหมด'] || 1);
-                                        
+
                                         // Legacy records logic exactly like OrgChart.html
                                         salesMap[sellerId] += (q * 200000);
-                                        
+
                                         Object.keys(downlineMap).forEach(uplineId => {
                                             if (downlineMap[uplineId] && downlineMap[uplineId].has(sellerId)) {
                                                 salesMap[uplineId] = (salesMap[uplineId] || 0) + (q * 100000);
@@ -3662,7 +3763,7 @@
                                         });
                                     }
                                 });
-                            } catch(mlmErr) {
+                            } catch (mlmErr) {
                                 console.warn('MLM fetch failed, proceeding with local data:', mlmErr);
                             }
 
@@ -3731,12 +3832,12 @@
                                     // Do not deduct/add rejected requests from the running balance
                                     const rawStatusLower = String(b.status || '').toLowerCase();
                                     const isRejected = rawStatusLower.includes('reject') || rawStatusLower.includes('ไม่อนุมัติ') || rawStatusLower.includes('ยกเลิก');
-                                    
+
                                     if (!isRejected) {
                                         runningBalLAKMap[mId] += clinicFeeLAK; // Clinic fee adds to available balance
                                         runningBalLAKMap[mId] -= amtInLAK;     // Request amount deducts from available balance
                                     }
-                                    
+
                                     b._remainingBalLAK = runningBalLAKMap[mId];
                                 });
 
@@ -3748,7 +3849,7 @@
                                     const mlmName = mlmMembersMap[mId];
                                     const staffName = staffMap[mId] ? staffMap[mId].name : '';
                                     const displayName = mlmName || staffName || mId;
-                                    
+
                                     const sInfo = {
                                         name: displayName,
                                         dept: staffMap[mId] ? staffMap[mId].dept : '-',
@@ -3767,7 +3868,7 @@
 
                                     const [yStr, mStr, dStr] = isoDateStr.split('-');
                                     const dateStr = `${dStr}/${mStr}/${yStr}`;
-                                    
+
                                     const salesLAK = salesMap[mId] || 0;
                                     const clinicFee = Number(b.clinic_fee || 0);
                                     const amt = Number(b.amount || 0);
@@ -3881,7 +3982,7 @@
                                     const mId = String(b.member_id || '').trim().toUpperCase();
                                     const amt = Number(b.amount || 0);
                                     const curr = String(b.currency || 'LAK').toUpperCase().trim();
-                                    
+
                                     let amtInLAK = amt;
                                     if (curr === 'USD' || curr === '$') {
                                         amtInLAK = amt * 24500;
@@ -4162,34 +4263,52 @@
                         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                             <div>
                                 <h3 class="text-xl font-extrabold text-gray-900 flex items-center">
-                                    <i class="fa-solid fa-book-bookmark text-brandindigo mr-3"></i> ผังบัญชี (Chart of Accounts)
+                                    <i class="fa-solid fa-book-bookmark text-brandindigo mr-3"></i> ผังบัญชี (Chart of
+                                    Accounts)
                                 </h3>
-                                <p class="text-xs text-gray-500 mt-1">รายการรหัสบัญชีมาตรฐาน 5 หมวด สำหรับลงบันทึกทางบัญชี</p>
+                                <p class="text-xs text-gray-500 mt-1">รายการรหัสบัญชีมาตรฐาน 5 หมวด
+                                    สำหรับลงบันทึกทางบัญชี</p>
                             </div>
-                            <button onclick="openAddAccountModal()" class="bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2">
+                            <button onclick="openAddAccountModal()"
+                                class="bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2">
                                 <i class="fa-solid fa-plus"></i> เพิ่มรหัสบัญชีใหม่
                             </button>
                         </div>
 
                         <!-- Category Filter Tabs -->
-                        <div class="flex flex-wrap items-center justify-between gap-3 mb-6 bg-gray-50 p-2 rounded-2xl border border-gray-100">
+                        <div
+                            class="flex flex-wrap items-center justify-between gap-3 mb-6 bg-gray-50 p-2 rounded-2xl border border-gray-100">
                             <div class="flex flex-wrap gap-1.5">
-                                <button onclick="filterCoaCategory('ALL')" data-cat="ALL" class="coa-filter-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-brandindigo text-white shadow-sm">ทั้งหมด</button>
-                                <button onclick="filterCoaCategory('Asset')" data-cat="Asset" class="coa-filter-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">1. สินทรัพย์ (Asset)</button>
-                                <button onclick="filterCoaCategory('Liability')" data-cat="Liability" class="coa-filter-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">2. หนี้สิน (Liability)</button>
-                                <button onclick="filterCoaCategory('Equity')" data-cat="Equity" class="coa-filter-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">3. ทุน (Equity)</button>
-                                <button onclick="filterCoaCategory('Revenue')" data-cat="Revenue" class="coa-filter-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">4. รายได้ (Revenue)</button>
-                                <button onclick="filterCoaCategory('Expense')" data-cat="Expense" class="coa-filter-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">5. ค่าใช้จ่าย (Expense)</button>
+                                <button onclick="filterCoaCategory('ALL')" data-cat="ALL"
+                                    class="coa-filter-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-brandindigo text-white shadow-sm">ทั้งหมด</button>
+                                <button onclick="filterCoaCategory('Asset')" data-cat="Asset"
+                                    class="coa-filter-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">1.
+                                    สินทรัพย์ (Asset)</button>
+                                <button onclick="filterCoaCategory('Liability')" data-cat="Liability"
+                                    class="coa-filter-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">2.
+                                    หนี้สิน (Liability)</button>
+                                <button onclick="filterCoaCategory('Equity')" data-cat="Equity"
+                                    class="coa-filter-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">3.
+                                    ทุน (Equity)</button>
+                                <button onclick="filterCoaCategory('Revenue')" data-cat="Revenue"
+                                    class="coa-filter-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">4.
+                                    รายได้ (Revenue)</button>
+                                <button onclick="filterCoaCategory('Expense')" data-cat="Expense"
+                                    class="coa-filter-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">5.
+                                    ค่าใช้จ่าย (Expense)</button>
                             </div>
                             <div class="w-full md:w-64">
-                                <input type="text" id="coa-search-input" oninput="renderChartOfAccounts()" placeholder="ค้นหารหัส หรือชื่อบัญชี..." class="w-full bg-white border border-gray-200 text-xs rounded-xl px-3 py-2 focus:ring-brandindigo focus:border-brandindigo">
+                                <input type="text" id="coa-search-input" oninput="renderChartOfAccounts()"
+                                    placeholder="ค้นหารหัส หรือชื่อบัญชี..."
+                                    class="w-full bg-white border border-gray-200 text-xs rounded-xl px-3 py-2 focus:ring-brandindigo focus:border-brandindigo">
                             </div>
                         </div>
 
                         <!-- Table -->
                         <div class="overflow-x-auto rounded-2xl border border-gray-100">
                             <table class="w-full text-left border-collapse">
-                                <thead class="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-bold">
+                                <thead
+                                    class="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-bold">
                                     <tr>
                                         <th class="py-3 px-4">รหัสบัญชี</th>
                                         <th class="py-3 px-4">ชื่อบัญชี (ไทย)</th>
@@ -4212,29 +4331,35 @@
                     <!-- Top Stat Cards -->
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex items-center gap-4">
-                            <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl font-bold">
+                            <div
+                                class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl font-bold">
                                 <i class="fa-solid fa-coins"></i>
                             </div>
                             <div>
-                                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">ค่าใช้จ่ายรวมทั้งหมด</p>
+                                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">ค่าใช้จ่ายรวมทั้งหมด
+                                </p>
                                 <h4 id="stat-total-expenses" class="text-xl font-black text-gray-900 mt-0.5">0.00</h4>
                             </div>
                         </div>
                         <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex items-center gap-4">
-                            <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl font-bold">
+                            <div
+                                class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl font-bold">
                                 <i class="fa-solid fa-circle-check"></i>
                             </div>
                             <div>
-                                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">จ่ายเงินเรียบร้อยแล้ว</p>
+                                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                                    จ่ายเงินเรียบร้อยแล้ว</p>
                                 <h4 id="stat-paid-expenses" class="text-xl font-black text-emerald-600 mt-0.5">0.00</h4>
                             </div>
                         </div>
                         <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex items-center gap-4">
-                            <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl font-bold">
+                            <div
+                                class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl font-bold">
                                 <i class="fa-solid fa-clock-rotate-left"></i>
                             </div>
                             <div>
-                                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">รอตั้งจ่าย / อนุมัติ</p>
+                                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">รอตั้งจ่าย / อนุมัติ
+                                </p>
                                 <h4 id="stat-pending-expenses" class="text-xl font-black text-blue-600 mt-0.5">0.00</h4>
                             </div>
                         </div>
@@ -4244,24 +4369,30 @@
                         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                             <div>
                                 <h3 class="text-xl font-extrabold text-gray-900 flex items-center">
-                                    <i class="fa-solid fa-receipt text-brandindigo mr-3"></i> บันทึกค่าใช้จ่าย (Expense Vouchers)
+                                    <i class="fa-solid fa-receipt text-brandindigo mr-3"></i> บันทึกค่าใช้จ่าย (Expense
+                                    Vouchers)
                                 </h3>
-                                <p class="text-xs text-gray-500 mt-1">ออกใบสำคัญจ่าย ตั้งค่าใช้จ่ายบริษัท และตัดเบิกจากใบขออนุมัติงบประมาณ</p>
+                                <p class="text-xs text-gray-500 mt-1">ออกใบสำคัญจ่าย ตั้งค่าใช้จ่ายบริษัท
+                                    และตัดเบิกจากใบขออนุมัติงบประมาณ</p>
                             </div>
-                            <button onclick="openAddExpenseModal()" class="bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2">
+                            <button onclick="openAddExpenseModal()"
+                                class="bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2">
                                 <i class="fa-solid fa-plus"></i> สร้างใบสำคัญจ่ายใหม่
                             </button>
                         </div>
 
                         <!-- Filter & Search -->
                         <div class="mb-6">
-                            <input type="text" id="expense-search-input" oninput="renderExpenseVouchers()" placeholder="ค้นหาเลขที่เอกสาร, ผู้รับเงิน, หมายเหตุ..." class="w-full md:w-80 bg-gray-50 border border-gray-200 text-xs rounded-xl px-4 py-2.5 focus:ring-brandindigo focus:border-brandindigo">
+                            <input type="text" id="expense-search-input" oninput="renderExpenseVouchers()"
+                                placeholder="ค้นหาเลขที่เอกสาร, ผู้รับเงิน, หมายเหตุ..."
+                                class="w-full md:w-80 bg-gray-50 border border-gray-200 text-xs rounded-xl px-4 py-2.5 focus:ring-brandindigo focus:border-brandindigo">
                         </div>
 
                         <!-- Table -->
                         <div class="overflow-x-auto rounded-2xl border border-gray-100">
                             <table class="w-full text-left border-collapse">
-                                <thead class="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-bold">
+                                <thead
+                                    class="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-bold">
                                     <tr>
                                         <th class="py-3 px-4">เลขที่เอกสาร</th>
                                         <th class="py-3 px-4">วันที่</th>
@@ -4287,22 +4418,28 @@
                         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                             <div>
                                 <h3 class="text-xl font-extrabold text-gray-900 flex items-center">
-                                    <i class="fa-solid fa-book-open text-brandindigo mr-3"></i> สมุดรายวันทั่วไป (General Ledger)
+                                    <i class="fa-solid fa-book-open text-brandindigo mr-3"></i> สมุดรายวันทั่วไป
+                                    (General Ledger)
                                 </h3>
-                                <p class="text-xs text-gray-500 mt-1">บันทึกรายการเดบิตและเครดิตคู่บัญชี (Double-Entry Journal Vouchers)</p>
+                                <p class="text-xs text-gray-500 mt-1">บันทึกรายการเดบิตและเครดิตคู่บัญชี (Double-Entry
+                                    Journal Vouchers)</p>
                             </div>
-                            <button onclick="openAddJournalModal()" class="bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2">
+                            <button onclick="openAddJournalModal()"
+                                class="bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2">
                                 <i class="fa-solid fa-plus"></i> เพิ่มรายการสมุดรายวัน (JV)
                             </button>
                         </div>
 
                         <div class="mb-6">
-                            <input type="text" id="gl-search-input" oninput="renderGeneralLedger()" placeholder="ค้นหาเลขที่ JV, คำอธิบาย, เลขที่อ้างอิง..." class="w-full md:w-80 bg-gray-50 border border-gray-200 text-xs rounded-xl px-4 py-2.5 focus:ring-brandindigo focus:border-brandindigo">
+                            <input type="text" id="gl-search-input" oninput="renderGeneralLedger()"
+                                placeholder="ค้นหาเลขที่ JV, คำอธิบาย, เลขที่อ้างอิง..."
+                                class="w-full md:w-80 bg-gray-50 border border-gray-200 text-xs rounded-xl px-4 py-2.5 focus:ring-brandindigo focus:border-brandindigo">
                         </div>
 
                         <div class="overflow-x-auto rounded-2xl border border-gray-100">
                             <table class="w-full text-left border-collapse">
-                                <thead class="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-bold">
+                                <thead
+                                    class="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-bold">
                                     <tr>
                                         <th class="py-3 px-4">เลขที่ JV</th>
                                         <th class="py-3 px-4">วันที่</th>
@@ -4326,22 +4463,28 @@
                         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                             <div>
                                 <h3 class="text-xl font-extrabold text-gray-900 flex items-center">
-                                    <i class="fa-solid fa-file-invoice text-brandindigo mr-3"></i> ใบแจ้งหนี้และรายรับ (Invoices & Revenue)
+                                    <i class="fa-solid fa-file-invoice text-brandindigo mr-3"></i> ใบแจ้งหนี้และรายรับ
+                                    (Invoices & Revenue)
                                 </h3>
-                                <p class="text-xs text-gray-500 mt-1">สร้างใบแจ้งหนี้ บันทึกรายได้บริษัท และสั่งพิมพ์ใบเสนอราคา/ใบเสร็จ</p>
+                                <p class="text-xs text-gray-500 mt-1">สร้างใบแจ้งหนี้ บันทึกรายได้บริษัท
+                                    และสั่งพิมพ์ใบเสนอราคา/ใบเสร็จ</p>
                             </div>
-                            <button onclick="openAddInvoiceModal()" class="bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2">
+                            <button onclick="openAddInvoiceModal()"
+                                class="bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2">
                                 <i class="fa-solid fa-plus"></i> สร้างใบแจ้งหนี้ใหม่
                             </button>
                         </div>
 
                         <div class="mb-6">
-                            <input type="text" id="invoice-search-input" oninput="renderInvoices()" placeholder="ค้นหาเลขที่ใบแจ้งหนี้, ชื่อลูกค้า..." class="w-full md:w-80 bg-gray-50 border border-gray-200 text-xs rounded-xl px-4 py-2.5 focus:ring-brandindigo focus:border-brandindigo">
+                            <input type="text" id="invoice-search-input" oninput="renderInvoices()"
+                                placeholder="ค้นหาเลขที่ใบแจ้งหนี้, ชื่อลูกค้า..."
+                                class="w-full md:w-80 bg-gray-50 border border-gray-200 text-xs rounded-xl px-4 py-2.5 focus:ring-brandindigo focus:border-brandindigo">
                         </div>
 
                         <div class="overflow-x-auto rounded-2xl border border-gray-100">
                             <table class="w-full text-left border-collapse">
-                                <thead class="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-bold">
+                                <thead
+                                    class="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-bold">
                                     <tr>
                                         <th class="py-3 px-4">เลขที่ใบแจ้งหนี้</th>
                                         <th class="py-3 px-4">วันที่ออกเอกสาร</th>
@@ -4367,21 +4510,26 @@
                         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                             <div>
                                 <h3 class="text-xl font-extrabold text-gray-900 flex items-center">
-                                    <i class="fa-solid fa-chart-line text-brandindigo mr-3"></i> รายงานทางการเงิน (Financial Reports)
+                                    <i class="fa-solid fa-chart-line text-brandindigo mr-3"></i> รายงานทางการเงิน
+                                    (Financial Reports)
                                 </h3>
-                                <p class="text-xs text-gray-500 mt-1">สรุปงบกำไรขาดทุน, งบทดลอง และงบฐานะการเงินแบบ Real-time</p>
+                                <p class="text-xs text-gray-500 mt-1">สรุปงบกำไรขาดทุน, งบทดลอง และงบฐานะการเงินแบบ
+                                    Real-time</p>
                             </div>
                         </div>
 
                         <!-- Report Tabs Switcher -->
                         <div class="flex flex-wrap gap-2 mb-6 bg-gray-50 p-2 rounded-2xl border border-gray-100">
-                            <button onclick="switchFinancialReportTab('PNL')" data-tab="PNL" class="report-tab-btn px-5 py-2.5 rounded-xl text-xs font-bold transition-all bg-brandindigo text-white shadow-sm">
+                            <button onclick="switchFinancialReportTab('PNL')" data-tab="PNL"
+                                class="report-tab-btn px-5 py-2.5 rounded-xl text-xs font-bold transition-all bg-brandindigo text-white shadow-sm">
                                 <i class="fas fa-chart-pie mr-1.5"></i> งบกำไรขาดทุน (P&L)
                             </button>
-                            <button onclick="switchFinancialReportTab('TRIAL')" data-tab="TRIAL" class="report-tab-btn px-5 py-2.5 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">
+                            <button onclick="switchFinancialReportTab('TRIAL')" data-tab="TRIAL"
+                                class="report-tab-btn px-5 py-2.5 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">
                                 <i class="fas fa-table-columns mr-1.5"></i> งบทดลอง (Trial Balance)
                             </button>
-                            <button onclick="switchFinancialReportTab('BALANCE')" data-tab="BALANCE" class="report-tab-btn px-5 py-2.5 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">
+                            <button onclick="switchFinancialReportTab('BALANCE')" data-tab="BALANCE"
+                                class="report-tab-btn px-5 py-2.5 rounded-xl text-xs font-bold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">
                                 <i class="fas fa-scale-balanced mr-1.5"></i> งบดุล (Balance Sheet)
                             </button>
                         </div>
@@ -4402,8 +4550,9 @@
         <div
             class="bg-white border border-gray-200 rounded-2xl shadow-2xl w-[96%] sm:w-full max-w-2xl flex flex-col max-h-[92vh] transform transition-all overflow-hidden">
             <div class="flex justify-between items-center p-4 sm:p-6 border-b border-gray-100 bg-gray-50/50">
-                <h3 class="text-base sm:text-lg font-bold text-gray-900 flex items-center tracking-tight" id="modal-title"><i
-                        class="fa-solid fa-pen-to-square text-brandindigo mr-3"></i> <span data-i18n="add_record">Add Record</span></h3>
+                <h3 class="text-base sm:text-lg font-bold text-gray-900 flex items-center tracking-tight"
+                    id="modal-title"><i class="fa-solid fa-pen-to-square text-brandindigo mr-3"></i> <span
+                        data-i18n="add_record">Add Record</span></h3>
                 <button onclick="closeFormModal()"
                     class="text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-lg p-2 transition-colors"><i
                         class="fa-solid fa-xmark text-lg w-5 h-5 flex items-center justify-center"></i></button>
@@ -4413,12 +4562,15 @@
                     <div id="form-fields" class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6"></div>
                 </form>
             </div>
-            <div class="flex flex-col-reverse sm:flex-row items-stretch sm:items-center p-4 sm:p-5 border-t border-gray-100 justify-end gap-2 sm:gap-4 space-x-0 sm:space-x-4 bg-gray-50/80">
+            <div
+                class="flex flex-col-reverse sm:flex-row items-stretch sm:items-center p-4 sm:p-5 border-t border-gray-100 justify-end gap-2 sm:gap-4 space-x-0 sm:space-x-4 bg-gray-50/80">
                 <button onclick="closeFormModal()" type="button"
-                    class="w-full sm:w-auto px-6 py-2.5 bg-white border border-gray-300 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm text-center"><span data-i18n="btn_cancel">Cancel</span></button>
+                    class="w-full sm:w-auto px-6 py-2.5 bg-white border border-gray-300 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm text-center"><span
+                        data-i18n="btn_cancel">Cancel</span></button>
                 <button type="submit" form="dynamic-form"
                     class="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-brandindigo to-brandpurple text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-500/20 transition-transform hover:-translate-y-0.5 flex items-center justify-center"><i
-                        class="fa-solid fa-cloud-arrow-up mr-2"></i> <span data-i18n="save_data">Save Data</span></button>
+                        class="fa-solid fa-cloud-arrow-up mr-2"></i> <span data-i18n="save_data">Save
+                        Data</span></button>
             </div>
         </div>
     </div>
@@ -4845,7 +4997,8 @@
                 </div>
 
                 <!-- Invoice Signature Lines (3 ช่อง: ผู้เสนอขอ -> หัวหน้าแผนก -> ผู้อนุมัติขั้นสุดท้าย) -->
-                <div class="mt-8 grid grid-cols-3 gap-4 text-center text-xs font-bold text-gray-500 pt-8 border-t border-gray-100">
+                <div
+                    class="mt-8 grid grid-cols-3 gap-4 text-center text-xs font-bold text-gray-500 pt-8 border-t border-gray-100">
                     <div>
                         <div class="h-16 flex items-end justify-center border-b border-gray-200 pb-1 max-w-[180px] mx-auto text-gray-900 font-bold text-xs md:text-sm italic"
                             id="bill-modal-sign-requester">-</div>
@@ -4867,43 +5020,55 @@
     </div>
 
     <!-- 📌 Modal ลงนามอนุมัติบนใบเสนอของบประมาณ (Direct Bill Approval Modal) -->
-    <div id="direct-approval-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] hidden items-center justify-center p-4">
-        <div class="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-fade-in-up border border-gray-100">
-            <div class="bg-gradient-to-r from-brandindigo to-brandpurple p-5 text-white flex justify-between items-center">
+    <div id="direct-approval-modal"
+        class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] hidden items-center justify-center p-4">
+        <div
+            class="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-fade-in-up border border-gray-100">
+            <div
+                class="bg-gradient-to-r from-brandindigo to-brandpurple p-5 text-white flex justify-between items-center">
                 <h3 class="font-bold text-base flex items-center gap-2">
                     <i class="fa-solid fa-pen-nib"></i> ลงนามอนุมัติเอกสาร (Sign & Approve)
                 </h3>
-                <button type="button" onclick="closeDirectApprovalModal()" class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-7 h-7 flex items-center justify-center">
+                <button type="button" onclick="closeDirectApprovalModal()"
+                    class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-7 h-7 flex items-center justify-center">
                     <i class="fa-solid fa-times"></i>
                 </button>
             </div>
             <form onsubmit="submitDirectBillApproval(event)" class="p-6 space-y-3.5">
                 <input type="hidden" id="direct-approve-target-slot" value="">
-                
+
                 <!-- Signature Canvas Pad (สำหรับจอสัมผัส/มือถือ/เมาส์) -->
                 <div>
                     <div class="flex justify-between items-center mb-1">
-                        <label class="block text-xs font-bold text-gray-700">วาดลายเซ็น (สำหรับจอสัมผัส/มือถือ) หรือข้ามได้</label>
-                        <button type="button" onclick="clearSignatureCanvas()" class="text-[11px] font-bold text-rose-500 hover:text-rose-700 flex items-center gap-1">
+                        <label class="block text-xs font-bold text-gray-700">วาดลายเซ็น (สำหรับจอสัมผัส/มือถือ)
+                            หรือข้ามได้</label>
+                        <button type="button" onclick="clearSignatureCanvas()"
+                            class="text-[11px] font-bold text-rose-500 hover:text-rose-700 flex items-center gap-1">
                             <i class="fa-solid fa-eraser"></i> ล้างลายเซ็น
                         </button>
                     </div>
-                    <div class="border-2 border-dashed border-gray-200 hover:border-brandindigo rounded-2xl bg-gray-50/50 p-1 transition-colors relative">
-                        <canvas id="signature-pad-canvas" width="380" height="150" class="w-full h-36 bg-white rounded-xl touch-none cursor-crosshair shadow-inner"></canvas>
-                        <div id="signature-pad-placeholder" class="absolute inset-0 flex items-center justify-center pointer-events-none text-gray-300 text-xs font-semibold">
+                    <div
+                        class="border-2 border-dashed border-gray-200 hover:border-brandindigo rounded-2xl bg-gray-50/50 p-1 transition-colors relative">
+                        <canvas id="signature-pad-canvas" width="380" height="150"
+                            class="w-full h-36 bg-white rounded-xl touch-none cursor-crosshair shadow-inner"></canvas>
+                        <div id="signature-pad-placeholder"
+                            class="absolute inset-0 flex items-center justify-center pointer-events-none text-gray-300 text-xs font-semibold">
                             <i class="fa-solid fa-signature mr-1.5"></i> เซ็นชื่อตรงนี้ด้วยนิ้วมือหรือเมาส์
                         </div>
                     </div>
                 </div>
 
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1">ชื่อ-นามสกุล ผู้อนุมัติ / Approver Name *</label>
-                    <input type="text" id="direct-approve-name" required placeholder="เช่น p.bouala" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm font-semibold focus:ring-brandindigo focus:border-brandindigo">
+                    <label class="block text-xs font-bold text-gray-700 mb-1">ชื่อ-นามสกุล ผู้อนุมัติ / Approver Name
+                        *</label>
+                    <input type="text" id="direct-approve-name" required placeholder="เช่น p.bouala"
+                        class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm font-semibold focus:ring-brandindigo focus:border-brandindigo">
                 </div>
 
                 <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1">ตำแหน่ง / Role *</label>
-                    <select id="direct-approve-role" required class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs font-bold focus:ring-brandindigo focus:border-brandindigo">
+                    <select id="direct-approve-role" required
+                        class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs font-bold focus:ring-brandindigo focus:border-brandindigo">
                         <option value="Dept Head">Dept Head (หัวหน้าแผนก)</option>
                         <option value="HR Manager">HR Manager (ผู้จัดการ)</option>
                         <option value="HR Admin">HR Admin (ผู้บริหาร)</option>
@@ -4915,15 +5080,18 @@
 
                 <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1">คำตัดสิน / Action *</label>
-                    <select id="direct-approve-action" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs font-bold focus:ring-brandindigo focus:border-brandindigo">
+                    <select id="direct-approve-action"
+                        class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs font-bold focus:ring-brandindigo focus:border-brandindigo">
                         <option value="Approve">✓ อนุมัติเอกสาร (Approve)</option>
                         <option value="Reject">✗ ปฏิเสธ / ไม่อนุมัติ (Reject)</option>
                     </select>
                 </div>
 
                 <div class="flex justify-end gap-2 pt-3 border-t border-gray-100">
-                    <button type="button" onclick="closeDirectApprovalModal()" class="px-4 py-2 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50">ยกเลิก</button>
-                    <button type="submit" id="direct-approve-submit-btn" class="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg flex items-center gap-1.5">
+                    <button type="button" onclick="closeDirectApprovalModal()"
+                        class="px-4 py-2 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50">ยกเลิก</button>
+                    <button type="submit" id="direct-approve-submit-btn"
+                        class="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg flex items-center gap-1.5">
                         <i class="fa-solid fa-check"></i> ยืนยันลงนามอนุมัติ
                     </button>
                 </div>
@@ -5090,7 +5258,8 @@
     <!-- 📌 My Profile Modal -->
     <div id="my-profile-modal"
         class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-3 sm:p-4">
-        <div class="bg-white rounded-3xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-fade-in-up">
+        <div
+            class="bg-white rounded-3xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-fade-in-up">
             <div
                 class="bg-gradient-to-r from-brandindigo to-brandpurple p-4 sm:p-5 flex justify-between items-center text-white relative overflow-hidden shrink-0">
                 <div
@@ -5103,21 +5272,25 @@
                 </button>
             </div>
 
-            <form id="form-my-profile" onsubmit="submitMyProfile(event)" class="flex flex-col flex-1 min-h-0 overflow-hidden">
+            <form id="form-my-profile" onsubmit="submitMyProfile(event)"
+                class="flex flex-col flex-1 min-h-0 overflow-hidden">
                 <div class="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 space-y-4">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="FIRST_NAME">First Name</label>
+                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="FIRST_NAME">First
+                                Name</label>
                             <input type="text" id="my-profile-firstname" required
                                 class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="LAST_NAME">Last Name</label>
+                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="LAST_NAME">Last
+                                Name</label>
                             <input type="text" id="my-profile-lastname" required
                                 class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="birthday">Birthday</label>
+                            <label class="block text-xs font-bold text-gray-700 mb-1"
+                                data-i18n="birthday">Birthday</label>
                             <input type="date" id="my-profile-birthday" required
                                 class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all">
                         </div>
@@ -5134,34 +5307,42 @@
                                 placeholder="email@example.com">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="line_id">Line ID</label>
+                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="line_id">Line
+                                ID</label>
                             <input type="text" id="my-profile-line"
                                 class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all"
                                 placeholder="Line ID">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="bank_name">Bank Name</label>
+                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="bank_name">Bank
+                                Name</label>
                             <input type="text" id="my-profile-bankname"
                                 class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all"
                                 placeholder="Bank Name" data-i18n-placeholder="enter_bank_name">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="bank_account_name">Bank Account Name</label>
+                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="bank_account_name">Bank
+                                Account Name</label>
                             <input type="text" id="my-profile-bankaccountname"
                                 class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all"
                                 placeholder="Account Name" data-i18n-placeholder="enter_account_name">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="bank_account_no">Bank Account No</label>
+                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="bank_account_no">Bank
+                                Account No</label>
                             <input type="text" id="my-profile-bankaccountno"
                                 class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-brandindigo focus:border-brandindigo block p-2.5 text-sm transition-all"
                                 placeholder="Account Number" data-i18n-placeholder="enter_account_number">
                         </div>
                         <div class="sm:col-span-2">
-                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="photo_label">Profile Photo</label>
+                            <label class="block text-xs font-bold text-gray-700 mb-1" data-i18n="photo_label">Profile
+                                Photo</label>
                             <div class="flex items-center gap-4">
-                                <div class="w-16 h-16 rounded-full overflow-hidden border border-gray-200 bg-gray-50 shrink-0">
-                                    <img id="my-profile-photo-preview" src="https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=User" class="w-full h-full object-cover">
+                                <div
+                                    class="w-16 h-16 rounded-full overflow-hidden border border-gray-200 bg-gray-50 shrink-0">
+                                    <img id="my-profile-photo-preview"
+                                        src="https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=User"
+                                        class="w-full h-full object-cover">
                                 </div>
                                 <input type="file" id="my-profile-photo-file" accept="image/*"
                                     class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-white file:text-brandindigo hover:file:bg-indigo-100 transition-colors border border-dashed border-indigo-200 rounded-xl p-2 bg-white"
@@ -5186,18 +5367,22 @@
 
 
     <!-- 📌 Export Preview & Confirmation Modal -->
-    <div id="export-preview-modal" class="fixed inset-0 bg-gray-900/60 z-[99999] hidden items-center justify-center backdrop-blur-sm p-4 print-hide">
-        <div class="bg-white rounded-3xl shadow-2xl border border-gray-100 w-full max-w-2xl overflow-hidden transform transition-all animate-fade-in max-h-[90vh] flex flex-col">
-            <div class="bg-gradient-to-r from-brandindigo to-brandpurple px-6 py-4 text-white flex justify-between items-center shrink-0">
+    <div id="export-preview-modal"
+        class="fixed inset-0 bg-gray-900/60 z-[99999] hidden items-center justify-center backdrop-blur-sm p-4 print-hide">
+        <div
+            class="bg-white rounded-3xl shadow-2xl border border-gray-100 w-full max-w-2xl overflow-hidden transform transition-all animate-fade-in max-h-[90vh] flex flex-col">
+            <div
+                class="bg-gradient-to-r from-brandindigo to-brandpurple px-6 py-4 text-white flex justify-between items-center shrink-0">
                 <h3 class="font-bold text-base flex items-center gap-2">
                     <i class="fa-solid fa-file-export text-lg"></i>
                     <span>ตัวอย่างและยืนยันการส่งออกข้อมูล (Export Preview)</span>
                 </h3>
-                <button onclick="closeExportPreviewModal()" class="text-white/80 hover:text-white text-xl font-bold w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors">&times;</button>
+                <button onclick="closeExportPreviewModal()"
+                    class="text-white/80 hover:text-white text-xl font-bold w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors">&times;</button>
             </div>
             <div class="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1">
                 <div id="export-modal-badge" class="flex items-center gap-2"></div>
-                
+
                 <div class="bg-gray-50 p-4 rounded-2xl border border-gray-200/80 space-y-2 text-xs sm:text-sm">
                     <div class="flex justify-between items-center">
                         <span class="text-gray-500 font-medium">รูปแบบไฟล์ (Format):</span>
@@ -5224,12 +5409,15 @@
                 <!-- Live Attendance Details Table Preview -->
                 <div>
                     <div class="flex justify-between items-center mb-1.5">
-                        <span class="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
-                            <i class="fa-solid fa-table text-brandindigo"></i> ตารางรายละเอียดการเข้างาน (Attendance Details Table)
+                        <span
+                            class="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                            <i class="fa-solid fa-table text-brandindigo"></i> ตารางรายละเอียดการเข้างาน (Attendance
+                            Details Table)
                         </span>
                         <span id="export-preview-showing-count" class="text-[11px] text-gray-400 font-medium"></span>
                     </div>
-                    <div class="border border-gray-200 rounded-2xl overflow-x-auto max-h-56 custom-scrollbar bg-white shadow-inner">
+                    <div
+                        class="border border-gray-200 rounded-2xl overflow-x-auto max-h-56 custom-scrollbar bg-white shadow-inner">
                         <table class="w-full text-left text-xs border-collapse">
                             <thead class="bg-indigo-900 text-white font-bold sticky top-0 z-10">
                                 <tr id="export-preview-thead"></tr>
@@ -5240,14 +5428,17 @@
                 </div>
 
                 <!-- Summary Stats Box Preview -->
-                <div id="export-summary-preview-box" class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs"></div>
+                <div id="export-summary-preview-box" class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                </div>
             </div>
-            
+
             <div class="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3 shrink-0">
-                <button onclick="closeExportPreviewModal()" class="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-50 transition-colors">
+                <button onclick="closeExportPreviewModal()"
+                    class="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-50 transition-colors">
                     ยกเลิก (Cancel)
                 </button>
-                <button id="btn-confirm-export-action" onclick="executeConfirmedExport()" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-600 text-white font-bold text-xs shadow-md transition-all flex items-center gap-2">
+                <button id="btn-confirm-export-action" onclick="executeConfirmedExport()"
+                    class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-brandindigo to-brandpurple hover:from-indigo-600 hover:to-purple-600 text-white font-bold text-xs shadow-md transition-all flex items-center gap-2">
                     <i class="fa-solid fa-download"></i> <span>ยืนยันส่งออกไฟล์ (Confirm Export)</span>
                 </button>
             </div>
@@ -5255,11 +5446,14 @@
     </div>
 
     <!-- 📌 Modal เพิ่มผังบัญชีใหม่ -->
-    <div id="modal-add-account" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+    <div id="modal-add-account"
+        class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
         <div class="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in-up">
-            <div class="bg-gradient-to-r from-brandindigo to-brandpurple p-6 text-white flex justify-between items-center">
+            <div
+                class="bg-gradient-to-r from-brandindigo to-brandpurple p-6 text-white flex justify-between items-center">
                 <h3 class="font-bold text-lg"><i class="fa-solid fa-book-bookmark mr-2"></i> เพิ่มผังบัญชีใหม่</h3>
-                <button onclick="closeAddAccountModal()" class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center">
+                <button onclick="closeAddAccountModal()"
+                    class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center">
                     <i class="fa-solid fa-times"></i>
                 </button>
             </div>
@@ -5267,11 +5461,13 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">รหัสบัญชี (Account Code) *</label>
-                        <input type="text" id="new-acc-code" required placeholder="เช่น 5006" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
+                        <input type="text" id="new-acc-code" required placeholder="เช่น 5006"
+                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">หมวดหมู่บัญชี *</label>
-                        <select id="new-acc-category" required class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
+                        <select id="new-acc-category" required
+                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
                             <option value="Asset">1. สินทรัพย์ (Asset)</option>
                             <option value="Liability">2. หนี้สิน (Liability)</option>
                             <option value="Equity">3. ทุน (Equity)</option>
@@ -5282,30 +5478,39 @@
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1">ชื่อบัญชี (ภาษาไทย) *</label>
-                    <input type="text" id="new-acc-name-th" required placeholder="เช่น ค่าการตลาดและโฆษณา" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
+                    <input type="text" id="new-acc-name-th" required placeholder="เช่น ค่าการตลาดและโฆษณา"
+                        class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1">Account Name (English)</label>
-                    <input type="text" id="new-acc-name-en" placeholder="e.g. Marketing & Advertising Expense" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
+                    <input type="text" id="new-acc-name-en" placeholder="e.g. Marketing & Advertising Expense"
+                        class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1">คำอธิบายรายละเอียด</label>
-                    <textarea id="new-acc-desc" rows="2" placeholder="รายละเอียดเพิ่มเติมของบัญชี..." class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo"></textarea>
+                    <textarea id="new-acc-desc" rows="2" placeholder="รายละเอียดเพิ่มเติมของบัญชี..."
+                        class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo"></textarea>
                 </div>
                 <div class="flex justify-end gap-3 pt-3 border-t border-gray-100">
-                    <button type="button" onclick="closeAddAccountModal()" class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50">ยกเลิก</button>
-                    <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-brandindigo to-brandpurple text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg">บันทึกผังบัญชี</button>
+                    <button type="button" onclick="closeAddAccountModal()"
+                        class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50">ยกเลิก</button>
+                    <button type="submit"
+                        class="px-6 py-2.5 bg-gradient-to-r from-brandindigo to-brandpurple text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg">บันทึกผังบัญชี</button>
                 </div>
             </form>
         </div>
     </div>
 
     <!-- 📌 Modal สร้างใบสำคัญจ่าย / บันทึกค่าใช้จ่าย -->
-    <div id="modal-add-expense" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+    <div id="modal-add-expense"
+        class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
         <div class="bg-white rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-fade-in-up">
-            <div class="bg-gradient-to-r from-brandindigo to-brandpurple p-6 text-white flex justify-between items-center">
-                <h3 class="font-bold text-lg"><i class="fa-solid fa-receipt mr-2"></i> สร้างใบสำคัญจ่าย / บันทึกค่าใช้จ่าย</h3>
-                <button onclick="closeAddExpenseModal()" class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center">
+            <div
+                class="bg-gradient-to-r from-brandindigo to-brandpurple p-6 text-white flex justify-between items-center">
+                <h3 class="font-bold text-lg"><i class="fa-solid fa-receipt mr-2"></i> สร้างใบสำคัญจ่าย /
+                    บันทึกค่าใช้จ่าย</h3>
+                <button onclick="closeAddExpenseModal()"
+                    class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center">
                     <i class="fa-solid fa-times"></i>
                 </button>
             </div>
@@ -5313,17 +5518,21 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">เลขที่เอกสาร *</label>
-                        <input type="text" id="new-exp-voucher-no" required class="w-full bg-gray-100 font-mono font-bold border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm">
+                        <input type="text" id="new-exp-voucher-no" required
+                            class="w-full bg-gray-100 font-mono font-bold border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">วันที่รายการ *</label>
-                        <input type="date" id="new-exp-date" required class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm">
+                        <input type="date" id="new-exp-date" required
+                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm">
                     </div>
                 </div>
 
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1">ดึงข้อมูลจากใบขออนุมัติงบประมาณ (Optional)</label>
-                    <select id="new-exp-budget-id" onchange="onBudgetSelectChange()" class="w-full bg-indigo-50/50 border border-indigo-200 text-brandindigo font-medium rounded-xl p-2.5 text-sm focus:ring-brandindigo">
+                    <label class="block text-xs font-bold text-gray-700 mb-1">ดึงข้อมูลจากใบขออนุมัติงบประมาณ
+                        (Optional)</label>
+                    <select id="new-exp-budget-id" onchange="onBudgetSelectChange()"
+                        class="w-full bg-indigo-50/50 border border-indigo-200 text-brandindigo font-medium rounded-xl p-2.5 text-sm focus:ring-brandindigo">
                         <option value="">-- ไม่เชื่อมโยง (จ่ายตรง) --</option>
                     </select>
                 </div>
@@ -5331,13 +5540,15 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">บัญชีตัดจ่าย *</label>
-                        <select id="new-exp-account-id" required class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
+                        <select id="new-exp-account-id" required
+                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
                             <!-- Populated dynamically -->
                         </select>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">ช่องทางชำระเงิน *</label>
-                        <select id="new-exp-method" required class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
+                        <select id="new-exp-method" required
+                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
                             <option value="Cash">เงินสด (Cash)</option>
                             <option value="Bank Transfer">โอนเงินผ่านธนาคาร (Bank Transfer)</option>
                             <option value="Petty Cash">เงินสดย่อย (Petty Cash)</option>
@@ -5348,33 +5559,44 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">ผู้รับเงิน / Payee *</label>
-                        <input type="text" id="new-exp-payee" required placeholder="เช่น นายสมชาย หรือ ชื่อบริษัทร้านค้า" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
+                        <input type="text" id="new-exp-payee" required
+                            placeholder="เช่น นายสมชาย หรือ ชื่อบริษัทร้านค้า"
+                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">จำนวนเงิน *</label>
-                        <input type="number" step="0.01" id="new-exp-amount" required placeholder="0.00" class="w-full bg-gray-50 border border-gray-200 text-gray-900 font-bold rounded-xl p-2.5 text-sm focus:ring-brandindigo">
+                        <input type="number" step="0.01" id="new-exp-amount" required placeholder="0.00"
+                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 font-bold rounded-xl p-2.5 text-sm focus:ring-brandindigo">
                     </div>
                 </div>
 
                 <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1">หมายเหตุ / รายละเอียด</label>
-                    <textarea id="new-exp-remark" rows="2" placeholder="วัตถุประสงค์การตั้งจ่าย หรือรายละเอียดใบเสร็จ..." class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo"></textarea>
+                    <textarea id="new-exp-remark" rows="2"
+                        placeholder="วัตถุประสงค์การตั้งจ่าย หรือรายละเอียดใบเสร็จ..."
+                        class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm focus:ring-brandindigo"></textarea>
                 </div>
 
                 <div class="flex justify-end gap-3 pt-3 border-t border-gray-100">
-                    <button type="button" onclick="closeAddExpenseModal()" class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50">ยกเลิก</button>
-                    <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-brandindigo to-brandpurple text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg">บันทึกใบสำคัญจ่าย</button>
+                    <button type="button" onclick="closeAddExpenseModal()"
+                        class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50">ยกเลิก</button>
+                    <button type="submit"
+                        class="px-6 py-2.5 bg-gradient-to-r from-brandindigo to-brandpurple text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg">บันทึกใบสำคัญจ่าย</button>
                 </div>
             </form>
         </div>
     </div>
 
     <!-- 📌 Modal สร้างรายการสมุดรายวันทั่วไป (Journal Voucher) -->
-    <div id="modal-add-journal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+    <div id="modal-add-journal"
+        class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
         <div class="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-fade-in-up">
-            <div class="bg-gradient-to-r from-brandindigo to-brandpurple p-6 text-white flex justify-between items-center">
-                <h3 class="font-bold text-lg"><i class="fa-solid fa-book-open mr-2"></i> เพิ่มรายการสมุดรายวันทั่วไป (Journal Voucher)</h3>
-                <button onclick="closeAddJournalModal()" class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center">
+            <div
+                class="bg-gradient-to-r from-brandindigo to-brandpurple p-6 text-white flex justify-between items-center">
+                <h3 class="font-bold text-lg"><i class="fa-solid fa-book-open mr-2"></i> เพิ่มรายการสมุดรายวันทั่วไป
+                    (Journal Voucher)</h3>
+                <button onclick="closeAddJournalModal()"
+                    class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center">
                     <i class="fa-solid fa-times"></i>
                 </button>
             </div>
@@ -5382,28 +5604,35 @@
                 <div class="grid grid-cols-3 gap-3">
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">เลขที่ JV *</label>
-                        <input type="text" id="new-jv-number" required class="w-full bg-gray-100 font-mono font-bold border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs">
+                        <input type="text" id="new-jv-number" required
+                            class="w-full bg-gray-100 font-mono font-bold border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">วันที่ *</label>
-                        <input type="date" id="new-jv-date" required class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs">
+                        <input type="date" id="new-jv-date" required
+                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">เลขที่อ้างอิง (Ref No)</label>
-                        <input type="text" id="new-jv-ref" placeholder="เช่น PO-001" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs">
+                        <input type="text" id="new-jv-ref" placeholder="เช่น PO-001"
+                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs">
                     </div>
                 </div>
 
                 <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1">คำอธิบายรายการ *</label>
-                    <input type="text" id="new-jv-desc" required placeholder="เช่น บันทึกรายการตั้งหนี้ค่าน้ำมันรถบริษัท" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm">
+                    <input type="text" id="new-jv-desc" required
+                        placeholder="เช่น บันทึกรายการตั้งหนี้ค่าน้ำมันรถบริษัท"
+                        class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm">
                 </div>
 
                 <!-- Journal Entry Items Rows -->
                 <div>
                     <div class="flex justify-between items-center mb-2">
-                        <label class="block text-xs font-bold text-gray-700">รายการคู่บัญชี (Debit / Credit Rows) *</label>
-                        <button type="button" onclick="addJournalRow()" class="text-xs font-bold text-brandindigo hover:text-indigo-800">
+                        <label class="block text-xs font-bold text-gray-700">รายการคู่บัญชี (Debit / Credit Rows)
+                            *</label>
+                        <button type="button" onclick="addJournalRow()"
+                            class="text-xs font-bold text-brandindigo hover:text-indigo-800">
                             <i class="fas fa-plus mr-1"></i> เพิ่มบรรทัด
                         </button>
                     </div>
@@ -5413,10 +5642,13 @@
                 </div>
 
                 <!-- Balance Summary Footer -->
-                <div class="bg-indigo-50/60 p-4 rounded-2xl border border-indigo-100 flex justify-between items-center text-xs">
+                <div
+                    class="bg-indigo-50/60 p-4 rounded-2xl border border-indigo-100 flex justify-between items-center text-xs">
                     <div class="space-x-4">
-                        <span>Total Debit: <strong id="jv-total-debit" class="font-mono text-sm text-indigo-950">0.00</strong></span>
-                        <span>Total Credit: <strong id="jv-total-credit" class="font-mono text-sm text-indigo-950">0.00</strong></span>
+                        <span>Total Debit: <strong id="jv-total-debit"
+                                class="font-mono text-sm text-indigo-950">0.00</strong></span>
+                        <span>Total Credit: <strong id="jv-total-credit"
+                                class="font-mono text-sm text-indigo-950">0.00</strong></span>
                     </div>
                     <div id="jv-total-diff" class="font-bold text-rose-600">
                         ⚠️ ไม่สมดุลกัน
@@ -5424,19 +5656,26 @@
                 </div>
 
                 <div class="flex justify-end gap-3 pt-3 border-t border-gray-100">
-                    <button type="button" onclick="closeAddJournalModal()" class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50">ยกเลิก</button>
-                    <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-brandindigo to-brandpurple text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg">บันทึกรายการ JV</button>
+                    <button type="button" onclick="closeAddJournalModal()"
+                        class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50">ยกเลิก</button>
+                    <button type="submit"
+                        class="px-6 py-2.5 bg-gradient-to-r from-brandindigo to-brandpurple text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg">บันทึกรายการ
+                        JV</button>
                 </div>
             </form>
         </div>
     </div>
 
     <!-- 📌 Modal สร้างใบแจ้งหนี้ (Invoice Modal) -->
-    <div id="modal-add-invoice" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+    <div id="modal-add-invoice"
+        class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
         <div class="bg-white rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-fade-in-up">
-            <div class="bg-gradient-to-r from-brandindigo to-brandpurple p-6 text-white flex justify-between items-center">
-                <h3 class="font-bold text-lg"><i class="fa-solid fa-file-invoice mr-2"></i> สร้างใบแจ้งหนี้ใหม่ (Invoice)</h3>
-                <button onclick="closeAddInvoiceModal()" class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center">
+            <div
+                class="bg-gradient-to-r from-brandindigo to-brandpurple p-6 text-white flex justify-between items-center">
+                <h3 class="font-bold text-lg"><i class="fa-solid fa-file-invoice mr-2"></i> สร้างใบแจ้งหนี้ใหม่
+                    (Invoice)</h3>
+                <button onclick="closeAddInvoiceModal()"
+                    class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center">
                     <i class="fa-solid fa-times"></i>
                 </button>
             </div>
@@ -5444,79 +5683,100 @@
                 <div class="grid grid-cols-3 gap-3">
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">เลขที่ใบแจ้งหนี้ *</label>
-                        <input type="text" id="new-inv-number" required class="w-full bg-gray-100 font-mono font-bold border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs">
+                        <input type="text" id="new-inv-number" required
+                            class="w-full bg-gray-100 font-mono font-bold border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">วันที่ออก *</label>
-                        <input type="date" id="new-inv-date" required class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs">
+                        <input type="date" id="new-inv-date" required
+                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">ครบกำหนด</label>
-                        <input type="date" id="new-inv-due-date" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs">
+                        <input type="date" id="new-inv-due-date"
+                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-xs">
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">ชื่อลูกค้า / บริษัท *</label>
-                        <input type="text" id="new-inv-customer" required placeholder="เช่น บริษัท เออบานี่ จำกัด" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm">
+                        <input type="text" id="new-inv-customer" required placeholder="เช่น บริษัท เออบานี่ จำกัด"
+                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">เลขประจำตัวผู้เสียภาษี</label>
-                        <input type="text" id="new-inv-tax-id" placeholder="13 หลัก" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm">
+                        <input type="text" id="new-inv-tax-id" placeholder="13 หลัก"
+                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm">
                     </div>
                 </div>
 
                 <div class="grid grid-cols-3 gap-3">
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">ยอดก่อนภาษี *</label>
-                        <input type="number" step="0.01" id="new-inv-subtotal" required oninput="calculateInvoiceTotals()" placeholder="0.00" class="w-full bg-gray-50 border border-gray-200 text-gray-900 font-bold rounded-xl p-2.5 text-sm">
+                        <input type="number" step="0.01" id="new-inv-subtotal" required
+                            oninput="calculateInvoiceTotals()" placeholder="0.00"
+                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 font-bold rounded-xl p-2.5 text-sm">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">อัตรา VAT (%)</label>
-                        <input type="number" step="0.1" id="new-inv-vat-rate" value="7.0" oninput="calculateInvoiceTotals()" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm">
+                        <input type="number" step="0.1" id="new-inv-vat-rate" value="7.0"
+                            oninput="calculateInvoiceTotals()"
+                            class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">ภาษี VAT (บาท)</label>
-                        <input type="text" id="new-inv-vat-amount" readonly value="0.00" class="w-full bg-gray-100 border border-gray-200 text-gray-700 font-mono font-bold rounded-xl p-2.5 text-sm">
+                        <input type="text" id="new-inv-vat-amount" readonly value="0.00"
+                            class="w-full bg-gray-100 border border-gray-200 text-gray-700 font-mono font-bold rounded-xl p-2.5 text-sm">
                     </div>
                 </div>
 
                 <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1">ยอดรวมทั้งสิ้น (Grand Total)</label>
-                    <input type="text" id="new-inv-grand-total" readonly value="0.00" class="w-full bg-emerald-50 border border-emerald-200 text-emerald-800 font-mono font-black rounded-xl p-3 text-lg">
+                    <input type="text" id="new-inv-grand-total" readonly value="0.00"
+                        class="w-full bg-emerald-50 border border-emerald-200 text-emerald-800 font-mono font-black rounded-xl p-3 text-lg">
                 </div>
 
                 <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1">รายละเอียด / หมายเหตุ</label>
-                    <textarea id="new-inv-remark" rows="2" placeholder="รายละเอียดรายการสินค้าหรือบริการ..." class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm"></textarea>
+                    <textarea id="new-inv-remark" rows="2" placeholder="รายละเอียดรายการสินค้าหรือบริการ..."
+                        class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-2.5 text-sm"></textarea>
                 </div>
 
                 <div class="flex justify-end gap-3 pt-3 border-t border-gray-100">
-                    <button type="button" onclick="closeAddInvoiceModal()" class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50">ยกเลิก</button>
-                    <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-brandindigo to-brandpurple text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg">สร้างใบแจ้งหนี้</button>
+                    <button type="button" onclick="closeAddInvoiceModal()"
+                        class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50">ยกเลิก</button>
+                    <button type="submit"
+                        class="px-6 py-2.5 bg-gradient-to-r from-brandindigo to-brandpurple text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg">สร้างใบแจ้งหนี้</button>
                 </div>
             </form>
         </div>
     </div>
 
     <!-- 💰 MODAL: คำนวณเงินเดือน & ออกใบจ่ายเงินเดือน (Payroll & Payslip Modal) -->
-    <div id="payroll-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[160] hidden items-center justify-center p-3 md:p-6 overflow-y-auto custom-scrollbar">
-        <div class="bg-white rounded-3xl w-full max-w-5xl overflow-hidden shadow-2xl animate-fade-in-up border border-gray-100 my-auto">
+    <div id="payroll-modal"
+        class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[160] hidden items-center justify-center p-3 md:p-6 overflow-y-auto custom-scrollbar">
+        <div
+            class="bg-white rounded-3xl w-full max-w-5xl overflow-hidden shadow-2xl animate-fade-in-up border border-gray-100 my-auto">
             <!-- Modal Header -->
-            <div class="bg-gradient-to-r from-indigo-800 via-purple-800 to-brandindigo p-5 text-white flex justify-between items-center shadow-md">
+            <div
+                class="bg-gradient-to-r from-indigo-800 via-purple-800 to-brandindigo p-5 text-white flex justify-between items-center shadow-md">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center text-white shadow-inner">
+                    <div
+                        class="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center text-white shadow-inner">
                         <i class="fa-solid fa-calculator text-lg"></i>
                     </div>
                     <div>
-                        <h3 class="font-bold text-base md:text-lg flex items-center gap-2" data-i18n="payroll_modal_title">
+                        <h3 class="font-bold text-base md:text-lg flex items-center gap-2"
+                            data-i18n="payroll_modal_title">
                             ຄຳນວນເງິນເດືອນ & ໃບຈ່າຍເງິນເດືອນ
                         </h3>
-                        <p class="text-xs text-indigo-100" data-i18n="payroll_modal_desc">ປ້ອນຂໍ້ມູນລາຍໄດ້, ໂອທີ, ໂບນັດ, ຄ່ານ້ຳມັນ ແລະ ລາຍການຫັກ</p>
+                        <p class="text-xs text-indigo-100" data-i18n="payroll_modal_desc">ປ້ອນຂໍ້ມູນລາຍໄດ້, ໂອທີ, ໂບນັດ,
+                            ຄ່ານ້ຳມັນ ແລະ ລາຍການຫັກ</p>
                     </div>
                 </div>
-                <button type="button" onclick="closePayrollModal()" class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center transition-colors">
+                <button type="button" onclick="closePayrollModal()"
+                    class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center transition-colors">
                     <i class="fa-solid fa-times"></i>
                 </button>
             </div>
@@ -5524,24 +5784,35 @@
             <!-- Modal Content -->
             <div class="p-5 md:p-6 space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
                 <!-- Header Info Controls Bar -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-3 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 text-xs">
+                <div
+                    class="grid grid-cols-1 md:grid-cols-4 gap-3 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 text-xs">
                     <div>
-                        <label class="block font-bold text-gray-700 mb-1" data-i18n="select_employee_label">ເລືອກພະນັກງານ *</label>
-                        <select id="payroll-emp-select" onchange="calculatePayroll()" class="w-full bg-white border border-gray-300 text-gray-900 rounded-xl p-2 font-bold focus:ring-brandindigo shadow-sm">
+                        <label class="block font-bold text-gray-700 mb-1"
+                            data-i18n="select_employee_label">ເລືອກພະນັກງານ *</label>
+                        <select id="payroll-emp-select" onchange="calculatePayroll()"
+                            class="w-full bg-white border border-gray-300 text-gray-900 rounded-xl p-2 font-bold focus:ring-brandindigo shadow-sm">
                             <option value="" data-i18n="select_employee_placeholder">-- ເລືອກພະນັກງານ --</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block font-bold text-gray-700 mb-1" data-i18n="full_name_label">ຊື່ ແລະ ນາມສະກຸນ</label>
-                        <input type="text" id="payroll-emp-name-display" oninput="calculatePayroll()" placeholder="MR. BOUALA PHONGPHANAM" class="w-full bg-white border border-gray-300 text-gray-900 rounded-xl p-2 font-bold focus:ring-brandindigo shadow-sm">
+                        <label class="block font-bold text-gray-700 mb-1" data-i18n="full_name_label">ຊື່ ແລະ
+                            ນາມສະກຸນ</label>
+                        <input type="text" id="payroll-emp-name-display" oninput="calculatePayroll()"
+                            placeholder="MR. BOUALA PHONGPHANAM"
+                            class="w-full bg-white border border-gray-300 text-gray-900 rounded-xl p-2 font-bold focus:ring-brandindigo shadow-sm">
                     </div>
                     <div>
-                        <label class="block font-bold text-gray-700 mb-1" data-i18n="bank_account_label">ເລກບັນຊີທະນາຄານ</label>
-                        <input type="text" id="payroll-emp-bank-display" oninput="calculatePayroll()" placeholder="160-12-00-01007465-001" class="w-full bg-white border border-gray-300 text-gray-900 rounded-xl p-2 font-semibold focus:ring-brandindigo shadow-sm">
+                        <label class="block font-bold text-gray-700 mb-1"
+                            data-i18n="bank_account_label">ເລກບັນຊີທະນາຄານ</label>
+                        <input type="text" id="payroll-emp-bank-display" oninput="calculatePayroll()"
+                            placeholder="160-12-00-01007465-001"
+                            class="w-full bg-white border border-gray-300 text-gray-900 rounded-xl p-2 font-semibold focus:ring-brandindigo shadow-sm">
                     </div>
                     <div>
-                        <label class="block font-bold text-gray-700 mb-1" data-i18n="payroll_date_label">ວັນທີຈ່າຍ</label>
-                        <input type="date" id="payroll-date" onchange="calculatePayroll()" class="w-full bg-white border border-gray-300 text-gray-900 rounded-xl p-2 font-bold focus:ring-brandindigo shadow-sm">
+                        <label class="block font-bold text-gray-700 mb-1"
+                            data-i18n="payroll_date_label">ວັນທີຈ່າຍ</label>
+                        <input type="date" id="payroll-date" onchange="calculatePayroll()"
+                            class="w-full bg-white border border-gray-300 text-gray-900 rounded-xl p-2 font-bold focus:ring-brandindigo shadow-sm">
                     </div>
                 </div>
 
@@ -5549,79 +5820,119 @@
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <!-- Column 1: รายละเอียดรายได้ (Earnings) -->
                     <div class="bg-emerald-50/40 p-4 rounded-2xl border border-emerald-100 space-y-2.5">
-                        <h4 class="font-bold text-xs uppercase tracking-wider text-emerald-800 flex items-center gap-1.5 border-b border-emerald-200/60 pb-2">
-                            <i class="fa-solid fa-money-bill-trend-up text-emerald-600"></i> <span data-i18n="earnings_section_title">ລາຍການລາຍໄດ້</span>
+                        <h4
+                            class="font-bold text-xs uppercase tracking-wider text-emerald-800 flex items-center gap-1.5 border-b border-emerald-200/60 pb-2">
+                            <i class="fa-solid fa-money-bill-trend-up text-emerald-600"></i> <span
+                                data-i18n="earnings_section_title">ລາຍການລາຍໄດ້</span>
                         </h4>
 
                         <div class="grid grid-cols-2 gap-2">
                             <div>
-                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="base_salary_label">ເງິນເດືອນພື້ນຖານ</label>
-                                <input type="number" id="payroll-base-salary" value="0" step="0.01" oninput="markInputUserModified(this); calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-gray-900 focus:ring-emerald-500">
+                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
+                                    data-i18n="base_salary_label">ເງິນເດືອນພື້ນຖານ</label>
+                                <input type="number" id="payroll-base-salary" value="0" step="0.01"
+                                    oninput="markInputUserModified(this); calculatePayroll()"
+                                    class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-gray-900 focus:ring-emerald-500">
                             </div>
                             <div>
-                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="ot_15_label">ໂອທີ 1.5</label>
-                                <input type="number" id="payroll-ot-15" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-gray-900 focus:ring-emerald-500">
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>
-                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="ot_25_label">ໂອທີ 2.5</label>
-                                <input type="number" id="payroll-ot-25" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-gray-900 focus:ring-emerald-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="sales_bonus_label">ໂບນັດຍອດຂາຍ</label>
-                                <input type="number" id="payroll-sales-bonus" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-emerald-700 focus:ring-emerald-500">
+                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
+                                    data-i18n="ot_15_label">ໂອທີ 1.5</label>
+                                <input type="number" id="payroll-ot-15" value="0" step="0.01"
+                                    oninput="calculatePayroll()"
+                                    class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-gray-900 focus:ring-emerald-500">
                             </div>
                         </div>
 
                         <div class="grid grid-cols-2 gap-2">
                             <div>
-                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="special_bonus_label">ໂບນັດພິເສດ</label>
-                                <input type="number" id="payroll-special-bonus" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-emerald-700 focus:ring-emerald-500">
+                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
+                                    data-i18n="ot_25_label">ໂອທີ 2.5</label>
+                                <input type="number" id="payroll-ot-25" value="0" step="0.01"
+                                    oninput="calculatePayroll()"
+                                    class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-gray-900 focus:ring-emerald-500">
                             </div>
                             <div>
-                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="fuel_allowance_label">ຄ່ານ້ຳມັນລົດ</label>
-                                <input type="number" id="payroll-fuel-allowance" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-gray-900 focus:ring-emerald-500">
+                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
+                                    data-i18n="sales_bonus_label">ໂບນັດຍອດຂາຍ</label>
+                                <input type="number" id="payroll-sales-bonus" value="0" step="0.01"
+                                    oninput="calculatePayroll()"
+                                    class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-emerald-700 focus:ring-emerald-500">
                             </div>
                         </div>
 
                         <div class="grid grid-cols-2 gap-2">
                             <div>
-                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="annual_bonus_label">ໂບນັດປະຈຳປີ</label>
-                                <input type="number" id="payroll-annual-bonus" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-emerald-700 focus:ring-emerald-500">
+                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
+                                    data-i18n="special_bonus_label">ໂບນັດພິເສດ</label>
+                                <input type="number" id="payroll-special-bonus" value="0" step="0.01"
+                                    oninput="calculatePayroll()"
+                                    class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-emerald-700 focus:ring-emerald-500">
                             </div>
                             <div>
-                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="other_income_label">ລາຍໄດ້ອື່ນໆ</label>
-                                <input type="number" id="payroll-other-income" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-gray-900 focus:ring-emerald-500">
+                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
+                                    data-i18n="fuel_allowance_label">ຄ່ານ້ຳມັນລົດ</label>
+                                <input type="number" id="payroll-fuel-allowance" value="0" step="0.01"
+                                    oninput="calculatePayroll()"
+                                    class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-gray-900 focus:ring-emerald-500">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
+                                    data-i18n="annual_bonus_label">ໂບນັດປະຈຳປີ</label>
+                                <input type="number" id="payroll-annual-bonus" value="0" step="0.01"
+                                    oninput="calculatePayroll()"
+                                    class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-emerald-700 focus:ring-emerald-500">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
+                                    data-i18n="other_income_label">ລາຍໄດ້ອື່ນໆ</label>
+                                <input type="number" id="payroll-other-income" value="0" step="0.01"
+                                    oninput="calculatePayroll()"
+                                    class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-gray-900 focus:ring-emerald-500">
                             </div>
                         </div>
                     </div>
 
                     <!-- Column 2: รายการหัก (Deductions) -->
                     <div class="bg-rose-50/40 p-4 rounded-2xl border border-rose-100 space-y-2.5">
-                        <h4 class="font-bold text-xs uppercase tracking-wider text-rose-800 flex items-center gap-1.5 border-b border-rose-200/60 pb-2">
-                            <i class="fa-solid fa-minus-circle text-rose-600"></i> <span data-i18n="deductions_section_title">ລາຍການຫັກ</span>
+                        <h4
+                            class="font-bold text-xs uppercase tracking-wider text-rose-800 flex items-center gap-1.5 border-b border-rose-200/60 pb-2">
+                            <i class="fa-solid fa-minus-circle text-rose-600"></i> <span
+                                data-i18n="deductions_section_title">ລາຍການຫັກ</span>
                         </h4>
 
                         <div>
-                            <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="absent_deduction_label">ຂາດງານບໍ່ມີເຫດຜົນ</label>
-                            <input type="number" id="payroll-absent-deduction" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-rose-700 focus:ring-rose-500">
+                            <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
+                                data-i18n="absent_deduction_label">ຂາດງານບໍ່ມີເຫດຜົນ</label>
+                            <input type="number" id="payroll-absent-deduction" value="0" step="0.01"
+                                oninput="calculatePayroll()"
+                                class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-rose-700 focus:ring-rose-500">
                         </div>
 
                         <div>
-                            <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="rule_violation_label">ຜິດລະບຽບບໍລິສັດ</label>
-                            <input type="number" id="payroll-rule-violation" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-rose-700 focus:ring-rose-500">
+                            <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
+                                data-i18n="rule_violation_label">ຜິດລະບຽບບໍລິສັດ</label>
+                            <input type="number" id="payroll-rule-violation" value="0" step="0.01"
+                                oninput="calculatePayroll()"
+                                class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-rose-700 focus:ring-rose-500">
                         </div>
 
                         <div>
-                            <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="welfare_deduction_label">ສວັດດີການຕ່າງໆ</label>
-                            <input type="number" id="payroll-welfare-deduction" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-rose-700 focus:ring-rose-500">
+                            <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
+                                data-i18n="welfare_deduction_label">ສວັດດີການຕ່າງໆ</label>
+                            <input type="number" id="payroll-welfare-deduction" value="0" step="0.01"
+                                oninput="calculatePayroll()"
+                                class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-rose-700 focus:ring-rose-500">
                         </div>
 
                         <div>
-                            <label class="block text-[11px] font-bold text-gray-700 mb-0.5" data-i18n="other_expense_label">ລາຍຈ່າຍອື່ນໆ</label>
-                            <input type="number" id="payroll-other-expense" value="0" step="0.01" oninput="calculatePayroll()" class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-rose-700 focus:ring-rose-500">
+                            <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
+                                data-i18n="other_expense_label">ລາຍຈ່າຍອື່ນໆ</label>
+                            <input type="number" id="payroll-other-expense" value="0" step="0.01"
+                                oninput="calculatePayroll()"
+                                class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-rose-700 focus:ring-rose-500">
                         </div>
                     </div>
                 </div>
@@ -5629,15 +5940,19 @@
                 <!-- Summary Badges -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-2xl text-center">
-                        <span class="text-[11px] text-emerald-700 font-bold block" data-i18n="total_earnings_badge">ລວມລາຍໄດ້ທັງໝົດ</span>
+                        <span class="text-[11px] text-emerald-700 font-bold block"
+                            data-i18n="total_earnings_badge">ລວມລາຍໄດ້ທັງໝົດ</span>
                         <span id="payroll-gross-display" class="text-xl font-black text-emerald-800">0</span>
                     </div>
                     <div class="bg-rose-50 border border-rose-200 p-3 rounded-2xl text-center">
-                        <span class="text-[11px] text-rose-700 font-bold block" data-i18n="total_deductions_badge">ລວມລາຍການຫັກ</span>
+                        <span class="text-[11px] text-rose-700 font-bold block"
+                            data-i18n="total_deductions_badge">ລວມລາຍການຫັກ</span>
                         <span id="payroll-deduction-display" class="text-xl font-black text-rose-800">0</span>
                     </div>
-                    <div class="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-3 rounded-2xl text-center shadow-md">
-                        <span class="text-[11px] text-emerald-100 font-bold block" data-i18n="net_to_pay_badge">ເງິນສຸດທິ</span>
+                    <div
+                        class="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-3 rounded-2xl text-center shadow-md">
+                        <span class="text-[11px] text-emerald-100 font-bold block"
+                            data-i18n="net_to_pay_badge">ເງິນສຸດທິ</span>
                         <span id="payroll-net-display" class="text-xl font-black text-white">0</span>
                     </div>
                 </div>
@@ -5645,7 +5960,8 @@
                 <!-- Live Payslip Preview Card -->
                 <div>
                     <h4 class="font-bold text-xs uppercase tracking-wider text-gray-600 mb-2 flex items-center gap-1.5">
-                        <i class="fa-solid fa-file-invoice text-brandindigo"></i> <span data-i18n="official_payslip_template">ຕົວຢ່າງໃບຈ່າຍເງິນເດືອນຈິງ</span>
+                        <i class="fa-solid fa-file-invoice text-brandindigo"></i> <span
+                            data-i18n="official_payslip_template">ຕົວຢ່າງໃບຈ່າຍເງິນເດືອນຈິງ</span>
                     </h4>
                     <div id="payslip-preview">
                         <!-- Populated by js/payroll.js -->
@@ -5655,15 +5971,20 @@
 
             <!-- Modal Footer -->
             <div class="p-4 bg-gray-50 border-t border-gray-100 flex flex-wrap justify-between items-center gap-3">
-                <button type="button" onclick="closePayrollModal()" class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors">
+                <button type="button" onclick="closePayrollModal()"
+                    class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors">
                     <i class="fa-solid fa-times mr-1"></i> <span data-i18n="btn_close">ປິດໜ້ານີ້</span>
                 </button>
                 <div class="flex gap-2">
-                    <button type="button" onclick="printPayslip()" class="px-4 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-800 rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5">
-                        <i class="fa-solid fa-print text-indigo-600"></i> <span data-i18n="btn_print_payslip">ພິມໃບຈ່າຍເງິນເດືອນ</span>
+                    <button type="button" onclick="printPayslip()"
+                        class="px-4 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-800 rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5">
+                        <i class="fa-solid fa-print text-indigo-600"></i> <span
+                            data-i18n="btn_print_payslip">ພິມໃບຈ່າຍເງິນເດືອນ</span>
                     </button>
-                    <button type="button" onclick="savePayrollRecord()" class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-1.5">
-                        <i class="fa-solid fa-floppy-disk"></i> <span data-i18n="btn_save_payroll">ບັນທຶກໃບຈ່າຍເງິນເດືອນ</span>
+                    <button type="button" onclick="savePayrollRecord()"
+                        class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-1.5">
+                        <i class="fa-solid fa-floppy-disk"></i> <span
+                            data-i18n="btn_save_payroll">ບັນທຶກໃບຈ່າຍເງິນເດືອນ</span>
                     </button>
                 </div>
             </div>
@@ -5671,22 +5992,29 @@
     </div>
 
     <!-- 📊 MODAL: ประวัติเงินเดือนพนักงาน (Employee Payroll History Modal) -->
-    <div id="payroll-history-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[160] hidden items-center justify-center p-3 md:p-6 overflow-y-auto custom-scrollbar">
-        <div class="bg-white rounded-3xl w-full max-w-6xl overflow-hidden shadow-2xl animate-fade-in-up border border-gray-100 my-auto">
+    <div id="payroll-history-modal"
+        class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[160] hidden items-center justify-center p-3 md:p-6 overflow-y-auto custom-scrollbar">
+        <div
+            class="bg-white rounded-3xl w-full max-w-6xl overflow-hidden shadow-2xl animate-fade-in-up border border-gray-100 my-auto">
             <!-- Modal Header -->
-            <div class="bg-gradient-to-r from-blue-700 via-indigo-700 to-brandindigo p-5 text-white flex justify-between items-center shadow-md">
+            <div
+                class="bg-gradient-to-r from-blue-700 via-indigo-700 to-brandindigo p-5 text-white flex justify-between items-center shadow-md">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center text-white shadow-inner">
+                    <div
+                        class="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center text-white shadow-inner">
                         <i class="fa-solid fa-clock-rotate-left text-lg"></i>
                     </div>
                     <div>
-                        <h3 class="font-bold text-base md:text-lg flex items-center gap-2" data-i18n="payroll_history_title">
+                        <h3 class="font-bold text-base md:text-lg flex items-center gap-2"
+                            data-i18n="payroll_history_title">
                             ປະຫວັດເງິນເດືອນພະນັກງານ
                         </h3>
-                        <p class="text-xs text-blue-100" data-i18n="payroll_history_desc">ເບິ່ງຂໍ້ມູນປະຫວັດເງິນເດືອນຍ້ອນຫຼັງພະນັກງານ</p>
+                        <p class="text-xs text-blue-100" data-i18n="payroll_history_desc">
+                            ເບິ່ງຂໍ້ມູນປະຫວັດເງິນເດືອນຍ້ອນຫຼັງພະນັກງານ</p>
                     </div>
                 </div>
-                <button type="button" onclick="closePayrollHistoryModal()" class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center transition-colors">
+                <button type="button" onclick="closePayrollHistoryModal()"
+                    class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center transition-colors">
                     <i class="fa-solid fa-times"></i>
                 </button>
             </div>
@@ -5694,17 +6022,22 @@
             <!-- Modal Content -->
             <div class="p-5 md:p-6 space-y-6 max-h-[82vh] overflow-y-auto custom-scrollbar">
                 <!-- Header Controls Bar -->
-                <div class="flex flex-wrap items-center justify-between gap-3 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 text-xs shadow-sm">
+                <div
+                    class="flex flex-wrap items-center justify-between gap-3 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 text-xs shadow-sm">
                     <div class="flex items-center gap-2">
                         <i class="fa-solid fa-user-gear text-brandindigo text-base"></i>
-                        <span class="font-bold text-gray-800 text-xs" data-i18n="select_employee_label">ເລືອກພະນັກງານ:</span>
+                        <span class="font-bold text-gray-800 text-xs"
+                            data-i18n="select_employee_label">ເລືອກພະນັກງານ:</span>
                     </div>
                     <div class="flex flex-wrap items-center gap-3 flex-1 max-w-2xl justify-end">
-                        <select id="payroll-history-emp-select" onchange="renderPayrollHistory(this.value)" class="bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2 text-xs font-bold focus:ring-brandindigo shadow-sm min-w-[220px]">
+                        <select id="payroll-history-emp-select" onchange="renderPayrollHistory(this.value)"
+                            class="bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2 text-xs font-bold focus:ring-brandindigo shadow-sm min-w-[220px]">
                             <option value="" data-i18n="select_employee_placeholder">-- เลือกพนักงาน --</option>
                         </select>
                         <div class="relative flex-1 min-w-[200px]">
-                            <input type="text" id="payroll-history-search" onkeyup="filterPayrollHistoryTable()" placeholder="ค้นหารหัสหรือชื่อพนักงาน..." class="w-full bg-white border border-gray-300 text-gray-900 rounded-xl pl-9 pr-3 py-2 text-xs font-medium focus:ring-brandindigo shadow-sm">
+                            <input type="text" id="payroll-history-search" onkeyup="filterPayrollHistoryTable()"
+                                placeholder="ค้นหารหัสหรือชื่อพนักงาน..."
+                                class="w-full bg-white border border-gray-300 text-gray-900 rounded-xl pl-9 pr-3 py-2 text-xs font-medium focus:ring-brandindigo shadow-sm">
                             <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-gray-400 text-xs"></i>
                         </div>
                     </div>
@@ -5713,15 +6046,20 @@
                 <!-- Top Section: Employee Profile Card & 4 KPI Cards -->
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
                     <!-- Profile Card (4 Cols) -->
-                    <div class="lg:col-span-4 bg-white border border-gray-200 p-5 rounded-3xl shadow-sm space-y-4 flex flex-col justify-between">
+                    <div
+                        class="lg:col-span-4 bg-white border border-gray-200 p-5 rounded-3xl shadow-sm space-y-4 flex flex-col justify-between">
                         <div class="flex items-center gap-4 border-b border-gray-100 pb-4">
-                            <div class="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 text-2xl font-bold overflow-hidden shadow-sm shrink-0">
-                                <img id="payroll-hist-emp-photo" src="" alt="Emp Photo" class="w-full h-full object-cover hidden">
+                            <div
+                                class="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 text-2xl font-bold overflow-hidden shadow-sm shrink-0">
+                                <img id="payroll-hist-emp-photo" src="" alt="Emp Photo"
+                                    class="w-full h-full object-cover hidden">
                                 <span id="payroll-hist-emp-avatar-icon"><i class="fa-solid fa-user"></i></span>
                             </div>
                             <div class="min-w-0 flex-1">
-                                <h4 id="payroll-hist-emp-name" class="font-black text-gray-900 text-base truncate">SELECT EMPLOYEE</h4>
-                                <span id="payroll-hist-emp-id-badge" class="inline-block bg-indigo-50 text-indigo-700 font-extrabold text-[11px] px-2.5 py-0.5 rounded-full border border-indigo-100 mt-0.5">-</span>
+                                <h4 id="payroll-hist-emp-name" class="font-black text-gray-900 text-base truncate">
+                                    SELECT EMPLOYEE</h4>
+                                <span id="payroll-hist-emp-id-badge"
+                                    class="inline-block bg-indigo-50 text-indigo-700 font-extrabold text-[11px] px-2.5 py-0.5 rounded-full border border-indigo-100 mt-0.5">-</span>
                             </div>
                         </div>
 
@@ -5748,58 +6086,74 @@
                     <!-- 4 Summary KPI Cards (8 Cols) -->
                     <div class="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <!-- Card 1: เงินเดือนปัจจุบัน -->
-                        <div class="bg-blue-50/70 border border-blue-100 p-4 rounded-2xl space-y-2 shadow-sm flex flex-col justify-between">
+                        <div
+                            class="bg-blue-50/70 border border-blue-100 p-4 rounded-2xl space-y-2 shadow-sm flex flex-col justify-between">
                             <div class="flex justify-between items-center">
-                                <span class="text-xs font-bold text-blue-900" data-i18n="current_base_salary">ເງິນເດືອນປັດຈຸບັນ</span>
-                                <div class="w-9 h-9 rounded-2xl bg-blue-500 text-white flex items-center justify-center text-xs shadow-sm">
+                                <span class="text-xs font-bold text-blue-900"
+                                    data-i18n="current_base_salary">ເງິນເດືອນປັດຈຸບັນ</span>
+                                <div
+                                    class="w-9 h-9 rounded-2xl bg-blue-500 text-white flex items-center justify-center text-xs shadow-sm">
                                     <i class="fa-solid fa-wallet text-sm"></i>
                                 </div>
                             </div>
                             <div>
                                 <div id="payroll-hist-stat-base" class="text-xl font-black text-blue-900">0 K</div>
-                                <span class="text-[10px] text-blue-600 font-semibold" data-i18n="per_month">ต่อเดือน</span>
+                                <span class="text-[10px] text-blue-600 font-semibold"
+                                    data-i18n="per_month">ต่อเดือน</span>
                             </div>
                         </div>
 
                         <!-- Card 2: รายได้รวม (เดือนล่าสุด) -->
-                        <div class="bg-emerald-50/70 border border-emerald-100 p-4 rounded-2xl space-y-2 shadow-sm flex flex-col justify-between">
+                        <div
+                            class="bg-emerald-50/70 border border-emerald-100 p-4 rounded-2xl space-y-2 shadow-sm flex flex-col justify-between">
                             <div class="flex justify-between items-center">
-                                <span class="text-xs font-bold text-emerald-900" data-i18n="total_income_last_month">ລາຍໄດ້ລວມ (ເດືອນຫຼ້າສຸດ)</span>
-                                <div class="w-9 h-9 rounded-2xl bg-emerald-500 text-white flex items-center justify-center text-xs shadow-sm">
+                                <span class="text-xs font-bold text-emerald-900"
+                                    data-i18n="total_income_last_month">ລາຍໄດ້ລວມ (ເດືອນຫຼ້າສຸດ)</span>
+                                <div
+                                    class="w-9 h-9 rounded-2xl bg-emerald-500 text-white flex items-center justify-center text-xs shadow-sm">
                                     <i class="fa-solid fa-chart-line text-sm"></i>
                                 </div>
                             </div>
                             <div>
                                 <div id="payroll-hist-stat-gross" class="text-xl font-black text-emerald-900">0 K</div>
-                                <span class="text-[10px] text-emerald-600 font-semibold" data-i18n="includes_ot_bonus">รวมเงินเดือน, OT, โบนัส</span>
+                                <span class="text-[10px] text-emerald-600 font-semibold"
+                                    data-i18n="includes_ot_bonus">รวมเงินเดือน, OT, โบนัส</span>
                             </div>
                         </div>
 
                         <!-- Card 3: หักสะสม (เดือนล่าสุด) -->
-                        <div class="bg-amber-50/70 border border-amber-100 p-4 rounded-2xl space-y-2 shadow-sm flex flex-col justify-between">
+                        <div
+                            class="bg-amber-50/70 border border-amber-100 p-4 rounded-2xl space-y-2 shadow-sm flex flex-col justify-between">
                             <div class="flex justify-between items-center">
-                                <span class="text-xs font-bold text-amber-900" data-i18n="total_deductions_last_month">ຫັກສະສົມ (ເດືອນຫຼ້າສຸດ)</span>
-                                <div class="w-9 h-9 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-xs shadow-sm">
+                                <span class="text-xs font-bold text-amber-900"
+                                    data-i18n="total_deductions_last_month">ຫັກສະສົມ (ເດືອນຫຼ້າສຸດ)</span>
+                                <div
+                                    class="w-9 h-9 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-xs shadow-sm">
                                     <i class="fa-solid fa-circle-minus text-sm"></i>
                                 </div>
                             </div>
                             <div>
                                 <div id="payroll-hist-stat-deduct" class="text-xl font-black text-amber-900">0 K</div>
-                                <span class="text-[10px] text-amber-600 font-semibold" data-i18n="taxes_social_sec">ภาษี, ประกันสังคม ฯลฯ</span>
+                                <span class="text-[10px] text-amber-600 font-semibold"
+                                    data-i18n="taxes_social_sec">ภาษี, ประกันสังคม ฯลฯ</span>
                             </div>
                         </div>
 
                         <!-- Card 4: รับสุทธิ (เดือนล่าสุด) -->
-                        <div class="bg-indigo-50/70 border border-indigo-100 p-4 rounded-2xl space-y-2 shadow-sm flex flex-col justify-between">
+                        <div
+                            class="bg-indigo-50/70 border border-indigo-100 p-4 rounded-2xl space-y-2 shadow-sm flex flex-col justify-between">
                             <div class="flex justify-between items-center">
-                                <span class="text-xs font-bold text-indigo-900" data-i18n="net_pay_last_month">ຮັບສຸດທິ (ເດືອນຫຼ້າສຸດ)</span>
-                                <div class="w-9 h-9 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-xs shadow-sm">
+                                <span class="text-xs font-bold text-indigo-900" data-i18n="net_pay_last_month">ຮັບສຸດທິ
+                                    (ເດືອນຫຼ້າສຸດ)</span>
+                                <div
+                                    class="w-9 h-9 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-xs shadow-sm">
                                     <i class="fa-solid fa-sack-dollar text-sm"></i>
                                 </div>
                             </div>
                             <div>
                                 <div id="payroll-hist-stat-net" class="text-xl font-black text-indigo-900">0 K</div>
-                                <span class="text-[10px] text-indigo-600 font-semibold" data-i18n="net_after_deductions">รับสุทธิหลังหักแล้ว</span>
+                                <span class="text-[10px] text-indigo-600 font-semibold"
+                                    data-i18n="net_after_deductions">รับสุทธิหลังหักแล้ว</span>
                             </div>
                         </div>
                     </div>
@@ -5814,13 +6168,15 @@
                         </h4>
 
                         <div class="flex flex-wrap items-center gap-2">
-                            <select id="payroll-history-year-filter" onchange="filterPayrollHistoryTable()" class="bg-gray-50 border border-gray-300 text-gray-800 rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-brandindigo">
+                            <select id="payroll-history-year-filter" onchange="filterPayrollHistoryTable()"
+                                class="bg-gray-50 border border-gray-300 text-gray-800 rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-brandindigo">
                                 <option value="" data-i18n="all_years">ทุกปี</option>
                                 <option value="2026">2026</option>
                                 <option value="2025">2025</option>
                             </select>
 
-                            <select id="payroll-history-month-filter" onchange="filterPayrollHistoryTable()" class="bg-gray-50 border border-gray-300 text-gray-800 rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-brandindigo">
+                            <select id="payroll-history-month-filter" onchange="filterPayrollHistoryTable()"
+                                class="bg-gray-50 border border-gray-300 text-gray-800 rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-brandindigo">
                                 <option value="" data-i18n="all_months">ทุกเดือน</option>
                                 <option value="01">01 - มกราคม (Jan)</option>
                                 <option value="02">02 - กุมภาพันธ์ (Feb)</option>
@@ -5859,7 +6215,8 @@
                     </div>
 
                     <!-- Footer Note -->
-                    <div class="bg-indigo-50/50 p-3 rounded-2xl border border-indigo-100 flex items-center gap-2 text-xs text-indigo-800">
+                    <div
+                        class="bg-indigo-50/50 p-3 rounded-2xl border border-indigo-100 flex items-center gap-2 text-xs text-indigo-800">
                         <i class="fa-solid fa-circle-info text-indigo-500 text-sm"></i>
                         <span>หมายเหตุ: ข้อมูลเงินเดือนอาจมีการเปลี่ยนแปลง หากมีข้อสงสัยกรุณาติดต่อฝ่ายบุคคล</span>
                     </div>
@@ -5868,7 +6225,8 @@
 
             <!-- Modal Footer -->
             <div class="p-4 bg-gray-50 border-t border-gray-100 flex justify-end">
-                <button type="button" onclick="closePayrollHistoryModal()" class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors">
+                <button type="button" onclick="closePayrollHistoryModal()"
+                    class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors">
                     <i class="fa-solid fa-times mr-1"></i> <span data-i18n="btn_close">ปิดหน้านี้</span>
                 </button>
             </div>
@@ -5876,12 +6234,16 @@
     </div>
 
     <!-- 📄 MODAL: ดูใบจ่ายเงินเดือนสำเร็จ (Read-Only Payslip View Modal) -->
-    <div id="payslip-view-modal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-[170] hidden items-center justify-center p-3 md:p-6 overflow-y-auto custom-scrollbar">
-        <div class="bg-white rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl animate-fade-in-up border border-gray-100 my-auto">
+    <div id="payslip-view-modal"
+        class="fixed inset-0 bg-black/75 backdrop-blur-sm z-[170] hidden items-center justify-center p-3 md:p-6 overflow-y-auto custom-scrollbar">
+        <div
+            class="bg-white rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl animate-fade-in-up border border-gray-100 my-auto">
             <!-- Modal Header -->
-            <div class="bg-gradient-to-r from-gray-900 via-indigo-950 to-gray-900 p-5 text-white flex justify-between items-center shadow-md">
+            <div
+                class="bg-gradient-to-r from-gray-900 via-indigo-950 to-gray-900 p-5 text-white flex justify-between items-center shadow-md">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-white/10 rounded-2xl flex items-center justify-center text-white shadow-inner">
+                    <div
+                        class="w-10 h-10 bg-white/10 rounded-2xl flex items-center justify-center text-white shadow-inner">
                         <i class="fa-solid fa-file-invoice text-lg"></i>
                     </div>
                     <div>
@@ -5891,7 +6253,8 @@
                         <p class="text-xs text-gray-300">ใบเสร็จจ่ายเงินเดือนพนักงาน (Read-Only View)</p>
                     </div>
                 </div>
-                <button type="button" onclick="closePayslipViewModal()" class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center transition-colors">
+                <button type="button" onclick="closePayslipViewModal()"
+                    class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center transition-colors">
                     <i class="fa-solid fa-times"></i>
                 </button>
             </div>
@@ -5905,11 +6268,14 @@
 
             <!-- Modal Footer -->
             <div class="p-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
-                <button type="button" onclick="closePayslipViewModal()" class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors">
+                <button type="button" onclick="closePayslipViewModal()"
+                    class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors">
                     <i class="fa-solid fa-arrow-left mr-1"></i> <span data-i18n="btn_close">ย้อนกลับ / ປິດ</span>
                 </button>
-                <button type="button" onclick="printPayslipFromViewModal()" class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-1.5">
-                    <i class="fa-solid fa-print text-sm"></i> <span data-i18n="btn_print_payslip">พิมใบจ่ายเงินเดือน / ພິມໃບຈ່າຍເງິນເດືອນ</span>
+                <button type="button" onclick="printPayslipFromViewModal()"
+                    class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-1.5">
+                    <i class="fa-solid fa-print text-sm"></i> <span data-i18n="btn_print_payslip">พิมใบจ่ายเงินเดือน /
+                        ພິມໃບຈ່າຍເງິນເດືອນ</span>
                 </button>
             </div>
         </div>
@@ -5917,11 +6283,12 @@
 
     <!-- ⚙️ Shift Settings Modal -->
     <div id="shift-settings-modal" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4 bg-gray-900/60"
-         style="z-index:9999;" onclick="if(event.target === this) closeShiftSettingsModal()">
+        style="z-index:9999;" onclick="if(event.target === this) closeShiftSettingsModal()">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden animate-fadeInUp">
 
             <!-- Header -->
-            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-indigo-600 to-purple-600">
+            <div
+                class="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-indigo-600 to-purple-600">
                 <div class="flex items-center gap-3">
                     <div class="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
                         <i class="fa-solid fa-clock text-white text-base"></i>
@@ -5931,7 +6298,8 @@
                         <p class="text-indigo-200 text-xs mt-0.5">Shift Time Settings</p>
                     </div>
                 </div>
-                <button onclick="closeShiftSettingsModal()" class="text-white/70 hover:text-white transition-colors text-lg">
+                <button onclick="closeShiftSettingsModal()"
+                    class="text-white/70 hover:text-white transition-colors text-lg">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
@@ -5958,7 +6326,8 @@
                         <p class="text-xs font-bold text-indigo-700 mb-3 uppercase tracking-wide">➕ เพิ่มกะเวลาใหม่</p>
                         <div class="grid grid-cols-2 gap-3 mb-3">
                             <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">เวลาเข้างาน (Start)</label>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">เวลาเข้างาน
+                                    (Start)</label>
                                 <input type="time" id="shift-new-start" value="08:00"
                                     class="w-full bg-white border border-gray-200 text-gray-900 text-sm font-mono rounded-xl p-2.5 focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none">
                             </div>
@@ -5969,7 +6338,8 @@
                             </div>
                         </div>
                         <div class="mb-3">
-                            <label class="block text-xs font-semibold text-gray-600 mb-1">ชื่อกะ (Label) <span class="text-gray-400 font-normal">— ไม่บังคับ</span></label>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">ชื่อกะ (Label) <span
+                                    class="text-gray-400 font-normal">— ไม่บังคับ</span></label>
                             <input type="text" id="shift-new-label" placeholder="เช่น กะเช้า, กะบ่าย..."
                                 class="w-full bg-white border border-gray-200 text-gray-900 text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none">
                         </div>
@@ -5980,9 +6350,11 @@
                     </div>
                     <!-- Shift List -->
                     <div>
-                        <p class="text-xs font-bold text-gray-600 mb-2 uppercase tracking-wide">📋 รายการกะเวลาที่ตั้งค่าไว้</p>
+                        <p class="text-xs font-bold text-gray-600 mb-2 uppercase tracking-wide">📋
+                            รายการกะเวลาที่ตั้งค่าไว้</p>
                         <div id="shift-config-list" class="flex flex-col gap-2"></div>
-                        <p id="shift-empty-msg" class="text-center text-gray-400 text-xs py-4 hidden">ยังไม่มีกะเวลา กรุณาเพิ่มกะเวลา</p>
+                        <p id="shift-empty-msg" class="text-center text-gray-400 text-xs py-4 hidden">ยังไม่มีกะเวลา
+                            กรุณาเพิ่มกะเวลา</p>
                     </div>
                 </div>
 
@@ -5992,9 +6364,11 @@
                     <div class="grid grid-cols-2 gap-2">
                         <div class="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 text-xs text-blue-700">
                             <p class="font-bold mb-1"><i class="fa-solid fa-shuffle mr-1"></i>พนักงานสลับกะ</p>
-                            <p class="text-blue-500 leading-relaxed">ทิ้งไว้ "ยังไม่กำหนด" — ระบบอ่านกะจาก log แต่ละวันอัตโนมัติ</p>
+                            <p class="text-blue-500 leading-relaxed">ทิ้งไว้ "ยังไม่กำหนด" — ระบบอ่านกะจาก log
+                                แต่ละวันอัตโนมัติ</p>
                         </div>
-                        <div class="bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2.5 text-xs text-indigo-700">
+                        <div
+                            class="bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2.5 text-xs text-indigo-700">
                             <p class="font-bold mb-1"><i class="fa-solid fa-clock mr-1"></i>พนักงานกะคงที่</p>
                             <p class="text-indigo-500 leading-relaxed">เลือกกะให้เขา — ระบบกรองข้อมูลแม่นยำ 100%</p>
                         </div>
@@ -6002,7 +6376,8 @@
                     <!-- Search + Add shift shortcut -->
                     <div class="flex gap-2">
                         <div class="relative flex-1">
-                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                            <i
+                                class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
                             <input type="text" id="shift-assign-search" placeholder="ค้นหาพนักงาน..."
                                 oninput="filterEmployeeAssignList()"
                                 class="w-full pl-8 pr-4 py-2.5 bg-white border border-gray-200 text-gray-900 text-sm rounded-xl focus:ring-2 focus:ring-indigo-400 outline-none">
