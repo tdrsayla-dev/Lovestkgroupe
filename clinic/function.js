@@ -7938,38 +7938,43 @@ function toggleCommTypeDisplay() {
 }
 
 function saveCommissionSettings() {
-    const pctRadio = document.getElementById('commTypePercent');
-    const valInput = document.getElementById('commValueInput');
-    const currSelect = document.getElementById('commCurrencySelect');
-    const autoSw = document.getElementById('autoTriggerComm');
+    const typeRadio = document.querySelector('input[name="commType"]:checked');
+    const commType = typeRadio ? typeRadio.value : 'fixed';
+    const currency = document.getElementById('commCurrencySelect').value;
 
-    const targetSw = document.getElementById('targetEnableSwitch');
-    const targetGoalInput = document.getElementById('targetGoalCount');
-    const targetBonusInput = document.getElementById('targetBonusValue');
+    // แก้ไข: ดึงค่ามาเป็นข้อความ ลบลูกน้ำออก แล้วค่อยแปลงเป็นตัวเลข
+    const rawCommValue = document.getElementById('commValueInput').value;
+    const commValue = parseFloat(rawCommValue.replace(/,/g, '')) || 0;
 
-    const isPercent = pctRadio ? pctRadio.checked : false;
-    const val = parseFloat((valInput ? valInput.value : 200) || 0);
-    const curr = currSelect ? currSelect.value : 'THB';
-    const auto = autoSw ? autoSw.checked : true;
+    // สำหรับ Target Bonus เผื่อมีการพิมพ์ลูกน้ำด้วย ก็ใส่ดักไว้เช่นกันครับ
+    const rawTargetBonus = document.getElementById('targetBonusValue').value;
+    const targetBonus = parseFloat(rawTargetBonus.replace(/,/g, '')) || 0;
 
-    const targetEnabled = targetSw ? targetSw.checked : false;
-    const targetGoal = parseInt((targetGoalInput ? targetGoalInput.value : 20) || 20);
-    const targetBonus = parseFloat((targetBonusInput ? targetBonusInput.value : 10) || 10);
+    const targetEnabled = document.getElementById('targetEnableSwitch').checked;
+    const targetGoal = parseInt(document.getElementById('targetGoalCount').value) || 0;
+    const autoTrigger = document.getElementById('autoTriggerComm').checked;
 
     window.commissionSettings = {
-        type: isPercent ? 'percentage' : 'fixed',
-        value: val,
-        currency: curr,
-        auto_trigger: auto,
+        type: commType,
+        value: commValue,
+        currency: currency,
         target_enabled: targetEnabled,
         target_goal: targetGoal,
-        target_bonus_value: targetBonus
+        target_bonus_value: targetBonus,
+        auto_trigger: autoTrigger
     };
 
-    saveReferralLocalData();
-    Swal.fire('สำเร็จ', 'บันทึกการตั้งค่าเงื่อนไขปันผลแบบภาพรวมเรียบร้อยแล้ว', 'success');
-    loadReferralData();
+    // บันทึกลง Local Storage
+    localStorage.setItem('clinic_commission_settings', JSON.stringify(window.commissionSettings));
+
+    Swal.fire({
+        icon: 'success',
+        title: 'บันทึกสำเร็จ',
+        text: 'บันทึกการตั้งค่ารูปแบบการจ่ายปันผลเรียบร้อยแล้ว',
+        confirmButtonColor: '#0b3c73'
+    });
 }
+window.saveCommissionSettings = saveCommissionSettings;
 
 function renderItemCommissionSettingsTable() {
     const tbody = document.getElementById('itemDividendBody');
@@ -8066,7 +8071,7 @@ async function openAddItemDividendModal() {
                 </div>
                 <div class="mb-2">
                     <label class="form-label fw-bold small text-secondary">จำนวนเงินปันผล (LAK / THB)</label>
-                    <input type="number" id="swalItemCommVal" class="form-control custom-input py-2 fw-bold text-primary" placeholder="กรอกยอดเงินปันผล เช่น 100000" min="0">
+                    <input type="text" id="newItemAmount" class="form-control" placeholder="0" oninput="formatNumberInput(this)">
                 </div>
             </div>
         `,
@@ -8077,7 +8082,7 @@ async function openAddItemDividendModal() {
         confirmButtonColor: '#003f88',
         preConfirm: () => {
             const sId = document.getElementById('swalSelectService').value;
-            const val = parseFloat(document.getElementById('swalItemCommVal').value);
+            const val = parseFloat(document.getElementById('newItemAmount').value.replace(/,/g, '')) || 0;
             if (isNaN(val) || val < 0) {
                 Swal.showValidationMessage('กรุณากรอกยอดเงินปันผลที่ถูกต้อง (ตัวเลขมากกว่าหรือเท่ากับ 0)');
                 return false;
