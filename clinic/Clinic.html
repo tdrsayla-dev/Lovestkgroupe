@@ -200,7 +200,7 @@
                     </div>
                 </div>
                 <div class="db-stat-card">
-                    <div class="db-stat-title" data-i18n="db_stat_patients">ผู้ป่วยทั้งหมด</div>
+                    <div class="db-stat-title" data-i18n="db_stat_patients">ทีมแพทย์</div>
                     <div class="db-stat-number-wrapper">
                         <span class="db-stat-number" id="db-stat-patients">0</span>
                         <span class="db-stat-unit">รายการ</span>
@@ -2140,7 +2140,7 @@
             <!-- Dashboard Stat Cards for Billing -->
             <div class="row g-3 mb-4">
                 <div class="col-md-3 col-6">
-                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 position-relative overflow-hidden"
+                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100"
                         style="border-left: 4px solid #3b82f6 !important;">
                         <div class="text-muted extra-small fw-bold text-uppercase mb-1"
                             style="letter-spacing: 0.5px; font-size: 0.75rem;" data-i18n="bill_total_bills">บิลทั้งหมด
@@ -2149,41 +2149,33 @@
                             <span class="fs-3 fw-bold text-dark" id="billStatCount">0</span>
                             <span class="text-muted small">รายการ</span>
                         </div>
-                        <i class="ph ph-files position-absolute end-0 bottom-0 m-2 text-primary opacity-10"
-                            style="font-size: 3rem;"></i>
                     </div>
                 </div>
                 <div class="col-md-3 col-6">
-                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 position-relative overflow-hidden"
+                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100"
                         style="border-left: 4px solid #6366f1 !important;">
                         <div class="text-muted extra-small fw-bold text-uppercase mb-1"
                             style="letter-spacing: 0.5px; font-size: 0.75rem;" data-i18n="bill_total_services">
                             ยอดรวมบริการ</div>
                         <div class="fs-4 fw-bold text-dark" id="billStatSubtotal">₭0</div>
-                        <i class="ph ph-calculator position-absolute end-0 bottom-0 m-2 text-indigo opacity-10"
-                            style="font-size: 3rem;"></i>
                     </div>
                 </div>
                 <div class="col-md-3 col-6">
-                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 position-relative overflow-hidden"
+                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100"
                         style="border-left: 4px solid #ef4444 !important;">
                         <div class="text-muted extra-small fw-bold text-uppercase mb-1"
                             style="letter-spacing: 0.5px; font-size: 0.75rem;" data-i18n="bill_total_discounts">
                             ส่วนลดรวม</div>
                         <div class="fs-4 fw-bold text-danger" id="billStatDiscount">₭0</div>
-                        <i class="ph ph-tag position-absolute end-0 bottom-0 m-2 text-danger opacity-10"
-                            style="font-size: 3rem;"></i>
                     </div>
                 </div>
                 <div class="col-md-3 col-6">
-                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 position-relative overflow-hidden"
+                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100"
                         style="border-left: 4px solid #10b981 !important; background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);">
                         <div class="text-success extra-small fw-bold text-uppercase mb-1"
                             style="letter-spacing: 0.5px; font-size: 0.75rem;" data-i18n="bill_total_net">ยอดรับสุทธิรวม
                         </div>
                         <div class="fs-4 fw-bold text-success" id="billStatPayable">₭0</div>
-                        <i class="ph ph-currency-dollar position-absolute end-0 bottom-0 m-2 text-success opacity-10"
-                            style="font-size: 3rem;"></i>
                     </div>
                 </div>
             </div>
@@ -2414,7 +2406,7 @@
                                     <input class="form-check-input d-none" type="radio" name="appointmentType"
                                         id="apptTypeDirect" value="direct" checked onchange="toggleApptReferrerField()">
                                     <i class="ph ph-user-circle fs-5"></i>
-                                    <span data-i18n="appts_modal_self">นัดหมายเอง (คนไข้)</span>
+                                    <span data-i18n="appts_modal_self">นัดหมายเอง</span>
                                 </label>
                                 <label
                                     class="flex-fill text-center py-2.5 px-3 rounded-3 cursor-pointer transition-all fw-bold d-flex align-items-center justify-content-center gap-2 mb-0 bg-transparent text-secondary"
@@ -2423,7 +2415,7 @@
                                     <input class="form-check-input d-none" type="radio" name="appointmentType"
                                         id="apptTypeAssisted" value="assisted" onchange="toggleApptReferrerField()">
                                     <i class="ph ph-user-gear fs-5"></i>
-                                    <span data-i18n="appts_modal_assisted">นัดหมายผ่านผู้ช่วย / พยาบาล</span>
+                                    <span data-i18n="appts_modal_assisted">นัดหมายผ่านผู้ช่วย</span>
                                 </label>
                             </div>
                         </div>
@@ -3121,11 +3113,12 @@
                                 <select class="form-select" id="userRole" required
                                     style="border-radius:10px;border:1.5px solid #dee2e6;padding:10px 14px;">
                                     <option value="">-- เลือกตำแหน่ง --</option>
-                                    <option value="admin">🛡️ Admin (ผู้ดูแลระบบ)</option>
-                                    <option value="doctor">🩺 Doctor (แพทย์)</option>
-                                    <option value="nurse">💉 Nurse (พยาบาล)</option>
-                                    <option value="pharmacist">💊 Pharmacist (เภสัชกร)</option>
-                                    <option value="staff">👤 Staff (พนักงานทั่วไป)</option>
+                                    <option value="admin">Admin (ผู้ดูแลระบบ)</option>
+                                    <option value="doctor">Doctor (แพทย์)</option>
+                                    <option value="nurse">Nurse (พยาบาล)</option>
+                                    <option value="pharmacist">Pharmacist (เภสัชกร)</option>
+                                    <option value="staff">Lab(วิเคราะ)</option>
+
                                 </select>
                             </div>
                         </div>
