@@ -21,6 +21,7 @@
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <!-- i18n Internationalization Engine -->
     <script src="i18n.js"></script>
+
     <!-- สคริปต์ตรวจสอบการล็อกอิน -->
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
     <script>
@@ -1359,6 +1360,7 @@
                                     <th>วันที่ทำรายการ</th>
                                     <th>ผู้แนะนำ</th>
                                     <th>ผู้ป่วยที่แนะนำ</th>
+                                    <th class="text-center">รายละเอียดบิล</th>
                                     <th>ยอดค่าบริการ</th>
                                     <th class="text-end">ยอดเงินปันผล</th>
                                     <th class="text-end">ยอดปันผล แบบรายการ</th>
@@ -1369,7 +1371,7 @@
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td colspan="10" class="text-center text-muted py-5">กำลังโหลดข้อมูล...</td>
+                                    <td colspan="11" class="text-center text-muted py-5">กำลังโหลดข้อมูล...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1593,6 +1595,7 @@
                     </div>
                 </div>
 
+
                 <!-- Tab 4: Commission Settings -->
                 <div class="tab-pane fade" id="ref-settings-pane" role="tabpanel">
                     <div class="row g-4">
@@ -1601,20 +1604,22 @@
                             <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100">
                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                     <h5 class="fw-bold mb-0 text-dark">
-                                        <i class="ph ph-gear text-primary me-2"></i>ตั้งค่ารูปแบบการจ่ายปันผล <span
-                                            class="text-primary fs-6 fw-normal">(แบบภาพรวม)</span>
+                                        <i class="ph ph-gear text-primary me-2"></i><span
+                                            data-i18n="ref_set_overall_title">ตั้งค่ารูปแบบการจ่ายปันผล
+                                            (แบบภาพรวม)</span>
                                     </h5>
                                     <div class="form-check form-switch mb-0">
                                         <input class="form-check-input" type="checkbox" id="overallModeSwitch" checked
                                             style="cursor: pointer;">
-                                        <label class="form-check-label small fw-bold text-muted"
-                                            for="overallModeSwitch">เปิดใช้งาน</label>
+                                        <label class="form-check-label small fw-bold text-muted" for="overallModeSwitch"
+                                            data-i18n="ref_set_enable">เปิดใช้งาน</label>
                                     </div>
                                 </div>
                                 <form id="commissionSettingsForm"
                                     onsubmit="event.preventDefault(); saveCommissionSettings();">
                                     <div class="mb-4">
-                                        <label class="form-label fw-bold">ประเภทการคิดค่าคอมมิชชั่น / ปันผล</label>
+                                        <label class="form-label fw-bold"
+                                            data-i18n="ref_set_calc_type">ประเภทการคิดค่าคอมมิชชั่น / ปันผล</label>
                                         <div class="row g-3">
                                             <div class="col-md-6">
                                                 <div class="form-check p-3 border rounded-3 bg-light cursor-pointer">
@@ -1622,10 +1627,11 @@
                                                         id="commTypeFixed" value="fixed" checked
                                                         onchange="toggleCommTypeDisplay()">
                                                     <label class="form-check-label fw-semibold" for="commTypeFixed">
-                                                        <i class="ph ph-currency-btc text-success me-1"></i> แบบคงที่
-                                                        (Fixed Amount)
-                                                        <div class="text-muted small fw-normal">
-                                                            จ่ายจำนวนเงินคงที่ต่อผู้ป่วย 1 คน</div>
+                                                        <i class="ph ph-currency-btc text-success me-1"></i> <span
+                                                            data-i18n="ref_set_fixed">แบบคงที่ (Fixed Amount)</span>
+                                                        <div class="text-muted small fw-normal"
+                                                            data-i18n="ref_set_fixed_desc">จ่ายจำนวนเงินคงที่ต่อผู้ป่วย
+                                                            1 คน</div>
                                                     </label>
                                                 </div>
                                             </div>
@@ -1635,10 +1641,11 @@
                                                         id="commTypePercent" value="percentage"
                                                         onchange="toggleCommTypeDisplay()">
                                                     <label class="form-check-label fw-semibold" for="commTypePercent">
-                                                        <i class="ph ph-percent text-primary me-1"></i> แบบเปอร์เซ็นต์
-                                                        (% Rate)
-                                                        <div class="text-muted small fw-normal">คิดตาม %
-                                                            จากยอดรวมค่ารักษา</div>
+                                                        <i class="ph ph-percent text-primary me-1"></i> <span
+                                                            data-i18n="ref_set_percent">แบบเปอร์เซ็นต์ (% Rate)</span>
+                                                        <div class="text-muted small fw-normal"
+                                                            data-i18n="ref_set_percent_desc">คิดตาม % จากยอดรวมค่ารักษา
+                                                        </div>
                                                     </label>
                                                 </div>
                                             </div>
@@ -1646,23 +1653,24 @@
                                     </div>
 
                                     <div class="mb-4">
-                                        <label class="form-label fw-bold">สกุลเงินหลักที่ใช้คำนวณปันผล
-                                            (Currency)</label>
+                                        <label class="form-label fw-bold"
+                                            data-i18n="ref_set_currency">สกุลเงินหลักที่ใช้คำนวณปันผล (Currency)</label>
                                         <select class="form-select custom-input" id="commCurrencySelect"
                                             style="max-width: 300px;" onchange="toggleCommTypeDisplay()">
                                             <option value="THB">บาท (THB / ฿)</option>
                                             <option value="LAK">กีบ (LAK / ₭)</option>
                                         </select>
                                         <div class="form-text text-muted small"><i
-                                                class="bi bi-info-circle me-1"></i>ระบบจะแสดงผลสัญลักษณ์และหน่วยเงินตามสกุลเงินที่เลือก
+                                                class="bi bi-info-circle me-1"></i><span
+                                                data-i18n="ref_set_currency_desc">ระบบจะแสดงผลสัญลักษณ์และหน่วยเงินตามสกุลเงินที่เลือก</span>
                                         </div>
                                     </div>
 
                                     <div class="mb-3" id="commRateContainer">
-                                        <label class="form-label fw-bold" id="commRateLabel">จำนวนเงินปันผลต่อผู้ป่วย 1
-                                            คน (บาท)</label>
+                                        <label class="form-label fw-bold" id="commRateLabel"
+                                            data-i18n="ref_set_amount_per_patient">จำนวนเงินปันผลต่อผู้ป่วย 1 คน
+                                            (ปกติ)</label>
                                         <div class="input-group" style="max-width: 300px;">
-                                            <!-- เปลี่ยน type เป็น text ลบ step/min ออก และเพิ่ม oninput -->
                                             <input type="text" class="form-control custom-input" id="commValueInput"
                                                 value="200" required oninput="formatNumberInput(this)">
                                             <span class="input-group-text" id="commUnitAddon">บาท</span>
@@ -1675,42 +1683,40 @@
                                                 onchange="toggleTargetGoalDisplay()">
                                             <label class="form-check-label fw-bold text-dark" for="targetEnableSwitch">
                                                 <i class="ph ph-trophy text-warning me-1"></i>
-                                                เปิดใช้งานระบบโบนัสตามเป้าหมาย (Monthly Target Goal)
+                                                <span data-i18n="ref_set_target_bonus">เปิดใช้งานระบบโบนัสตามเป้าหมาย
+                                                    (Monthly Target Goal)</span>
                                             </label>
                                         </div>
-                                        <div class="text-muted small mb-3">หากผู้แนะนำทำยอดผู้ป่วยถึงเป้าหมายประจำเดือน
-                                            จะได้รับอัตราโบนัสพิเศษ</div>
+                                        <div class="text-muted small mb-3" data-i18n="ref_set_target_desc">
+                                            หากผู้แนะนำทำยอดผู้ป่วยถึงเป้าหมายประจำเดือน จะได้รับอัตราโบนัสพิเศษ</div>
 
                                         <div id="targetGoalConfigContainer" style="display: none;">
                                             <div class="row g-3 mb-3">
                                                 <div class="col-md-6">
-                                                    <label class="form-label fw-bold small">เป้าหมายจำนวนผู้ป่วย
+                                                    <label class="form-label fw-bold small"
+                                                        data-i18n="ref_set_target_count">เป้าหมายจำนวนผู้ป่วย
                                                         (คน/เดือน)</label>
                                                     <div class="input-group">
                                                         <input type="number" min="1" class="form-control custom-input"
                                                             id="targetGoalCount" value="20"
                                                             oninput="toggleCommTypeDisplay()">
-                                                        <span class="input-group-text">คน / เดือน</span>
+                                                        <span class="input-group-text"
+                                                            data-i18n="ref_set_target_unit">คน / เดือน</span>
                                                     </div>
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label class="form-label fw-bold small text-success"
-                                                        id="targetBonusLabel">อัตราโบนัสพิเศษเมื่อถึงเป้าหมาย</label>
+                                                        id="targetBonusLabel"
+                                                        data-i18n="ref_set_target_bonus_rate">อัตราโบนัสพิเศษเมื่อถึงเป้าหมาย</label>
                                                     <div class="input-group">
-                                                        <input type="number" step="0.01" min="0"
+                                                        <input type="text" min="0"
                                                             class="form-control custom-input border-success"
-                                                            id="targetBonusValue" value="10">
+                                                            id="targetBonusValue" value="10"
+                                                            oninput="formatNumberInput(this)">
                                                         <span class="input-group-text bg-success text-white fw-bold"
                                                             id="targetBonusAddon">%</span>
                                                     </div>
                                                 </div>
-                                            </div>
-                                            <div class="alert alert-info py-2 px-3 small mb-0">
-                                                <i class="bi bi-info-circle me-1"></i> <strong>เงื่อนไข:</strong>
-                                                หากผู้แนะนำสะสมเคสในเดือนนี้ยังไม่ถึงเป้า จะคำนวณที่อัตราปกติ
-                                                แต่หากสะสมครบตั้งแต่ <span id="targetHelpGoalDisplay"
-                                                    class="fw-bold text-primary">20</span> คน/เดือนขึ้นไป
-                                                เคสในเดือนนั้นจะถูกคิดที่อัตราโบนัสพิเศษทันที
                                             </div>
                                         </div>
                                     </div>
@@ -1719,7 +1725,8 @@
                                         <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox" id="autoTriggerComm"
                                                 checked>
-                                            <label class="form-check-label fw-semibold" for="autoTriggerComm">
+                                            <label class="form-check-label fw-semibold" for="autoTriggerComm"
+                                                data-i18n="ref_set_auto_calc">
                                                 คำนวณและบันทึกยอดปันผลให้อัตโนมัติทันทีที่ชำระเงินเสร็จสิ้นในหน้า
                                                 (Payment)
                                             </label>
@@ -1728,7 +1735,8 @@
 
                                     <div class="d-flex justify-content-start gap-2">
                                         <button type="submit" class="btn btn-primary px-4 py-2 fw-semibold">
-                                            <i class="bi bi-save me-1"></i> บันทึกการตั้งค่า
+                                            <i class="bi bi-save me-1"></i> <span
+                                                data-i18n="ref_set_save_btn">บันทึกการตั้งค่า</span>
                                         </button>
                                     </div>
                                 </form>
@@ -1740,20 +1748,22 @@
                             <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100 d-flex flex-column">
                                 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                                     <h5 class="fw-bold mb-0 text-dark">
-                                        <i class="ph ph-list-checks text-primary me-2"></i>ตั้งค่ารูปแบบการจ่ายปันผล
-                                        <span class="text-primary fs-6 fw-normal">(แบบรายรายการ)</span>
+                                        <i class="ph ph-list-checks text-primary me-2"></i><span
+                                            data-i18n="ref_set_item_title">ตั้งค่ารูปแบบการจ่ายปันผล
+                                            (แบบรายรายการ)</span>
                                     </h5>
                                     <div class="d-flex align-items-center gap-2">
                                         <button type="button"
                                             class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold shadow-xs"
                                             onclick="openAddItemDividendModal()">
-                                            <i class="bi bi-plus-lg me-1"></i> เพิ่มรายการปันผล
+                                            <i class="bi bi-plus-lg me-1"></i> <span
+                                                data-i18n="ref_set_add_item">เพิ่มรายการปันผล</span>
                                         </button>
                                         <div class="form-check form-switch mb-0 ms-2">
                                             <input class="form-check-input" type="checkbox" id="itemModeSwitch"
                                                 onchange="toggleItemModeDisplay()" style="cursor: pointer;">
                                             <label class="form-check-label small fw-bold text-muted"
-                                                for="itemModeSwitch">เปิดใช้งาน</label>
+                                                for="itemModeSwitch" data-i18n="ref_set_enable">เปิดใช้งาน</label>
                                         </div>
                                     </div>
                                 </div>
@@ -1763,11 +1773,13 @@
                                     <table class="table table-hover align-middle mb-0" id="itemDividendTable">
                                         <thead class="table-light sticky-top" style="z-index: 5;">
                                             <tr>
-                                                <th class="text-center" width="50">ลำดับ</th>
-                                                <th>รายการ</th>
-                                                <th class="text-end" width="120">ราคา</th>
-                                                <th class="text-center" width="140">จำนวนปันผล</th>
-                                                <th class="text-center" width="60">จัดการ</th>
+                                                <th class="text-center" width="50" data-i18n="ref_set_th_no">ลำดับ</th>
+                                                <th data-i18n="ref_set_th_item">รายการ</th>
+                                                <th class="text-end" width="120" data-i18n="ref_set_th_price">ราคา</th>
+                                                <th class="text-center" width="140" data-i18n="ref_set_th_dividend">
+                                                    จำนวนปันผล</th>
+                                                <th class="text-center" width="60" data-i18n="ref_set_th_action">จัดการ
+                                                </th>
                                             </tr>
                                         </thead>
                                         <tbody id="itemDividendBody">
@@ -1782,7 +1794,8 @@
                                 <div class="d-flex justify-content-start gap-2 mt-auto pt-2">
                                     <button type="button" class="btn btn-primary px-4 py-2 fw-semibold"
                                         onclick="saveItemCommissionSettings()">
-                                        <i class="bi bi-save me-1"></i> บันทึกการตั้งค่า
+                                        <i class="bi bi-save me-1"></i> <span
+                                            data-i18n="ref_set_save_btn">บันทึกการตั้งค่า</span>
                                     </button>
                                 </div>
                             </div>
@@ -1971,10 +1984,10 @@
                             <tr>
                                 <th class="ps-4" style="width: 60px;">#</th>
                                 <th>เวลา/วันที่</th>
-                                <th>รหัสเคส (Visit ID)</th>
-                                <th>ผู้ป่วย (HN)</th>
+                                <th>รหัสเคส(Visit ID)</th>
+                                <th>ผู้ป่วย(HN)</th>
                                 <th>แพทย์ผู้ตรวจ</th>
-                                <th>รายการตรวจ / อาการ</th>
+                                <th>รายการตรวจ/อาการ</th>
                                 <th class="text-end text-success fw-bold">ยอดค่าบริการ</th>
                                 <th class="text-center pe-4">สถานะ</th>
                             </tr>
@@ -2465,60 +2478,84 @@
         <div class="modal-dialog modal-lg">
             <div class="modal-content" style="border-radius: 16px; border: none;">
                 <div class="modal-header bg-white">
-                    <h4 class="modal-title fw-bold" id="addPatientModalTitle">เพิ่มประวัติผู้ป่วยใหม่</h4><button
-                        type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <h4 class="modal-title fw-bold" id="addPatientModalTitle" data-i18n="reg_modal_title">
+                        เพิ่มประวัติผู้ป่วยใหม่</h4>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4 bg-white">
                     <form id="patientForm" onsubmit="event.preventDefault(); submitPatient();">
                         <input type="hidden" id="patientEditHn" value="">
                         <div class="row mb-3">
-                            <div class="col-md-6"><label class="form-label fw-bold">ชื่อ-นามสกุล <span
-                                        class="text-danger">*</span></label><input type="text"
-                                    class="form-control custom-input" name="FullName" required></div>
-                            <div class="col-md-4"><label class="form-label fw-bold">วันเกิด <span
-                                        class="text-danger">*</span></label><input type="date"
-                                    class="form-control custom-input" name="DOB" required onchange="calculateAge()">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold"><span data-i18n="reg_modal_name">ชื่อ-นามสกุล</span>
+                                    <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control custom-input" name="FullName" required>
                             </div>
-                            <div class="col-md-2"><label class="form-label fw-bold">อายุ (ปี)</label><input
-                                    type="number" class="form-control custom-input bg-light" name="Age" readonly></div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold"><span data-i18n="reg_modal_dob">วันเกิด</span> <span
+                                        class="text-danger">*</span></label>
+                                <input type="date" class="form-control custom-input" name="DOB" required
+                                    onchange="calculateAge()" oninput="calculateAge()">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label fw-bold" data-i18n="reg_modal_age">อายุ (ปี)</label>
+                                <input type="number" class="form-control custom-input" name="Age" min="0" max="150"
+                                    placeholder="อายุ" oninput="calculateDOBFromAge()" onchange="calculateDOBFromAge()">
+                            </div>
                         </div>
                         <div class="row mb-3">
-                            <div class="col-md-4"><label class="form-label fw-bold">แขวง / จังหวัด</label>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold" data-i18n="reg_modal_province">แขวง / จังหวัด</label>
                                 <select class="form-select custom-input" name="Province" id="patientProvinceSelect"
                                     onchange="onPatientProvinceChange()">
                                     <option value="">-- เลือกแขวง / จังหวัด --</option>
                                 </select>
                             </div>
-                            <div class="col-md-4"><label class="form-label fw-bold">เมือง / ตำบล</label>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold" data-i18n="reg_modal_district">เมือง / ตำบล</label>
                                 <select class="form-select custom-input" name="District" id="patientDistrictSelect"
                                     disabled>
                                     <option value="">-- กรุณาเลือกแขวง / จังหวัดก่อน --</option>
                                 </select>
                             </div>
-                            <div class="col-md-4"><label class="form-label fw-bold">หมู่บ้าน</label><input type="text"
-                                    class="form-control custom-input" name="Village"></div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold" data-i18n="reg_modal_village">หมู่บ้าน</label>
+                                <input type="text" class="form-control custom-input" name="Village">
+                            </div>
                         </div>
                         <div class="row mb-3">
-                            <div class="col-md-4"><label class="form-label fw-bold">อาชีพ</label><input type="text"
-                                    class="form-control custom-input" name="Job"></div>
-                            <div class="col-md-4"><label class="form-label fw-bold">เบอร์โทรศัพท์ <span
-                                        class="text-danger">*</span></label><input type="text"
-                                    class="form-control custom-input" name="Tel" required></div>
-                            <div class="col-md-4"><label class="form-label fw-bold">เบอร์ติดต่อฉุกเฉิน</label><input
-                                    type="text" class="form-control custom-input" name="EmergencyTel"></div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold" data-i18n="reg_modal_job">อาชีพ</label>
+                                <input type="text" class="form-control custom-input" name="Job">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold"><span data-i18n="reg_modal_phone">เบอร์โทรศัพท์</span>
+                                    <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control custom-input" name="Tel" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold"
+                                    data-i18n="reg_modal_emergency">เบอร์ติดต่อฉุกเฉิน</label>
+                                <input type="text" class="form-control custom-input" name="EmergencyTel">
+                            </div>
                         </div>
                         <div class="row mb-3">
-                            <div class="col-md-6"><label class="form-label fw-bold">โรคประจำตัว</label><input
-                                    type="text" class="form-control custom-input" name="PastHistory"></div>
-                            <div class="col-md-6"><label class="form-label fw-bold">ประวัติการแพ้ยา</label><input
-                                    type="text" class="form-control custom-input" name="Allergies"></div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold" data-i18n="reg_modal_disease">โรคประจำตัว</label>
+                                <input type="text" class="form-control custom-input" name="PastHistory">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold" data-i18n="reg_modal_allergy">ประวัติการแพ้ยา</label>
+                                <input type="text" class="form-control custom-input" name="Allergies">
+                            </div>
                         </div>
                         <div class="row mb-3">
                             <div class="col-md-12">
                                 <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <label class="form-label fw-bold text-primary mb-0"><i
-                                            class="ph ph-hand-coins me-1"></i>ผู้แนะนำผู้ป่วย (Referrer /
-                                        Dividend)</label>
+                                    <label class="form-label fw-bold text-primary mb-0">
+                                        <i class="ph ph-hand-coins me-1"></i><span
+                                            data-i18n="reg_modal_referrer">ผู้แนะนำผู้ป่วย (Referrer / Dividend)</span>
+                                    </label>
                                     <span id="patientRefLockHint"
                                         class="badge bg-warning-subtle text-dark border border-warning px-2 py-1 small"
                                         style="display: none;">
@@ -2527,14 +2564,18 @@
                                 </div>
                                 <input type="text" class="form-select custom-input" list="referrerDatalist"
                                     id="patientReferredBySelect" name="ReferredBy"
+                                    data-i18n-placeholder="reg_modal_referrer_ph"
                                     placeholder="พิมพ์รหัส/ชื่อ พนักงาน หรือคลิกเพื่อเลือก..." autocomplete="off">
                                 <datalist id="referrerDatalist"></datalist>
                             </div>
                         </div>
                         <input type="hidden" name="appointmentId" id="linkAppointmentId">
-                        <div class="d-flex justify-content-end gap-2 mt-4"><button type="button"
-                                class="btn btn-light border" data-bs-dismiss="modal">ยกเลิก</button><button
-                                type="submit" class="btn btn-primary px-4">บันทึกข้อมูล</button></div>
+                        <div class="d-flex justify-content-end gap-2 mt-4">
+                            <button type="button" class="btn btn-light border" data-bs-dismiss="modal"
+                                data-i18n="cancel">ยกเลิก</button>
+                            <button type="submit" class="btn btn-primary px-4"
+                                data-i18n="reg_modal_save">บันทึกข้อมูล</button>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -2671,6 +2712,16 @@
                                 </div>
                             </div>
                         </div>
+                        <!-- ช่องหมายเหตุการสั่งแล็บสำหรับคุณหมอ -->
+                        <div class="mb-3 px-1">
+                            <label for="labOrderNoteInput" class="form-label fw-bold text-dark small mb-1">
+                                <i class="bi bi-pencil-square text-primary me-1"></i> หมายเหตุ / ข้อเน้นย้ำจากแพทย์ (Lab
+                                Note)
+                            </label>
+                            <input type="text" id="labOrderNoteInput" class="form-control custom-input"
+                                placeholder="เช่น เน้นย้ำตรวจดูค่าไตเป็นพิเศษ หรือระบุอาการเพิ่มเติม..."
+                                style="border-radius: 10px; padding: 10px 14px; font-size: 0.88rem;">
+                        </div>
 
                         <!-- Summary Footer & Action Buttons -->
                         <div class="mt-4 pt-3 border-top">
@@ -2706,10 +2757,20 @@
                 <div class="modal-body p-4 bg-white">
                     <form id="labUploadForm" onsubmit="event.preventDefault(); submitLabUpload();">
                         <input type="hidden" id="uploadVisitId" name="visitId">
-                        <div class="mb-3"><label class="form-label fw-bold">เลือกไฟล์ผลตรวจ (.pdf, .png, .jpg, .jpeg)
-                                <span class="text-danger">*</span></label><input type="file"
-                                class="form-control custom-input" id="pdfFile"
-                                accept=".pdf,.png,.jpg,.jpeg,image/png,image/jpeg" required></div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">เลือกไฟล์ผลตรวจ (.pdf, .png, .jpg, .jpeg) <span
+                                    class="text-danger">*</span></label>
+                            <!-- เพิ่ม onchange="previewLabFile(this)" เข้าไปเพื่อจับเหตุการณ์ตอนเลือกไฟล์ -->
+                            <input type="file" class="form-control custom-input" id="pdfFile"
+                                accept=".pdf,.png,.jpg,.jpeg,image/png,image/jpeg" onchange="previewLabFile(this)"
+                                required>
+                        </div>
+
+                        <!-- กล่องสำหรับแสดงพรีวิว (เพิ่มใหม่) -->
+                        <div id="labFilePreviewContainer" class="text-center mt-3 mb-2"
+                            style="display: none; border: 2px dashed #cbd5e1; padding: 10px; border-radius: 8px; background: #f8fafc;">
+                            <!-- รูปหรือ PDF จะมาโผล่ตรงนี้ -->
+                        </div>
                         <div class="d-flex justify-content-end gap-2 mt-4"><button type="button"
                                 class="btn btn-light border" data-bs-dismiss="modal">ยกเลิก</button><button
                                 type="submit" class="btn btn-primary px-4">อัปโหลด & ส่งจัดคิว</button></div>
@@ -3204,6 +3265,9 @@
                                         class="text-dark">-</strong></p>
                                 <p class="mb-1 text-muted" id="histReferrerContainer" style="display: none;">ผู้แนะนำ:
                                     <strong id="histReferrer" class="text-primary">-</strong>
+                                </p>
+                                <p class="mb-1 text-muted" id="histDoctorContainer" style="display: none;">แพทย์ผู้ตรวจ:
+                                    <strong id="histDoctorName" style="color: #0d6efd;">-</strong>
                                 </p>
                             </div>
                         </div>

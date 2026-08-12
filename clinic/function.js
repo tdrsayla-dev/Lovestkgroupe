@@ -1254,6 +1254,7 @@ async function loadPaymentQueue() {
         return;
     }
 
+    // 🌟 กำหนดตัวแปร Label สำหรับหน้าจ่ายค่ารักษาให้ถูกต้อง
     const detailsLabel = typeof t === 'function' ? t('payment_btn_details', 'ดูรายละเอียด') : 'ดูรายละเอียด';
     const pendingLabel = typeof t === 'function' ? t('payment_status_pending', 'รอชำระเงิน') : 'รอชำระเงิน';
     const payBtnLabel = typeof t === 'function' ? t('payment_btn_pay', 'รับชำระเงิน & ส่ง Lab') : 'รับชำระเงิน & ส่ง Lab';
@@ -1262,11 +1263,13 @@ async function loadPaymentQueue() {
         const testCount = row.lab_tests ? row.lab_tests.split(',').filter(Boolean).length : 0;
         const safeTests = (row.lab_tests || '').replace(/'/g, "\\'");
         const safeName = (row.patient_name || '').replace(/'/g, "\\'");
+
+        // 🌟 ใช้ detailsLabel แทน itemsLabel เพื่อแก้ไขเออเรอร์
         let labDetailsHtml = `<button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1 fw-semibold" onclick="showPaymentDetails('${row.visit_id}', '${row.hn || ''}', '${safeName}', '${safeTests}', ${row.discount || row.lab_discount || 0})"><i class="bi bi-credit-card me-1"></i> ${detailsLabel} (${testCount} รายการ)</button>`;
+
         tbody.innerHTML += `<tr><td class="ps-4 fw-bold text-primary">${row.visit_id}</td><td>${row.hn}</td><td class="fw-bold">${row.patient_name}</td><td>${labDetailsHtml}</td><td><span class="badge-soft-warning">${pendingLabel}</span></td><td class="text-center"><button class="btn btn-sm btn-success rounded-pill px-3" onclick="confirmPayment('${row.visit_id}')"><i class="bi bi-check-circle me-1"></i> ${payBtnLabel}</button></td></tr>`;
     });
 }
-
 // ฟังก์ชันยืนยันการชำระเงินและส่งผู้ป่วยไป Lab
 async function confirmPayment(visitId) {
     const result = await Swal.fire({
@@ -1338,7 +1341,13 @@ async function loadLabQueue() {
         const testCount = row.lab_tests ? row.lab_tests.split(',').filter(Boolean).length : 0;
         const safeTests = (row.lab_tests || '').replace(/'/g, "\\'");
         const safeName = (row.patient_name || '').replace(/'/g, "\\'");
-        let labDetailsHtml = `<button class="btn btn-sm btn-light border" onclick="showLabDetails('${row.visit_id}', '${row.hn || ''}', '${safeName}', '${safeTests}')"><i class="ph ph-flask text-primary me-1"></i> ${itemsLabel} (${testCount} รายการ)</button>`;
+
+        // 🌟 ดึงข้อมูลหมายเหตุและจัดการอักขระพิเศษเพื่อป้องกัน Error
+        const safeNote = (row.lab_note || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+        // 🌟 ส่งตัวแปร safeNote เข้าไปเป็นพารามิเตอร์ตัวที่ 5 ของ showLabDetails
+        let labDetailsHtml = `<button class="btn btn-sm btn-light border" onclick="showLabDetails('${row.visit_id}', '${row.hn || ''}', '${safeName}', '${safeTests}', '${safeNote}')"><i class="ph ph-flask text-primary me-1"></i> ${itemsLabel} (${testCount} รายการ)</button>`;
+
         tbody.innerHTML += `<tr><td class="ps-4 fw-bold text-primary">${row.visit_id}</td><td>${row.hn}</td><td class="fw-bold">${row.patient_name}</td><td>${labDetailsHtml}</td><td><span class="badge-soft-warning">${pendingLabel}</span></td><td class="text-center"><button class="btn btn-sm btn-primary px-3" onclick="openLabUploadModal('${row.visit_id}')"><i class="bi bi-upload"></i> ${uploadLabel}</button></td></tr>`;
     });
 }
@@ -1775,8 +1784,9 @@ function getTestItemDetails(testStr) {
     };
 }
 
+
 // ฟังก์ชั่นดูรายละเอียดรายการแล็บสำหรับ "ห้อง Lab" (แสดงรายการหลัก + รายการย่อยในแพ็กเกจ ไม่มีราคา)
-async function showLabDetails(visitId, hn, patientName, testsString) {
+async function showLabDetails(visitId, hn, patientName, testsString, labNote = '') {
     if (!hn && (!testsString || testsString === '')) {
         testsString = visitId;
         visitId = '-';
@@ -1839,6 +1849,21 @@ async function showLabDetails(visitId, hn, patientName, testsString) {
         rowsHtml = `<tr><td colspan="2" class="text-center text-muted py-3">ไม่มีรายการแล็บ</td></tr>`;
     }
 
+    // 🌟 สร้าง HTML สำหรับกล่องแสดงหมายเหตุ (ถ้ามีข้อความจะแสดงขึ้นมา)
+    let noteHtml = '';
+    if (labNote && labNote.trim() !== '') {
+        noteHtml = `
+            <div class="alert alert-warning py-2 px-3 mb-3 d-flex align-items-start gap-2" style="font-size: 0.85rem; border-radius: 8px;">
+                <i class="bi bi-exclamation-triangle-fill text-warning mt-1"></i>
+                <div>
+                    <strong class="text-dark d-block mb-1">หมายเหตุ / ข้อเน้นย้ำจากแพทย์:</strong>
+                    <span class="text-dark" style="white-space: pre-wrap;">${labNote}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // 🌟 ประกอบร่าง HTML ทั้งหมด
     const modalContentHtml = `
         <div class="text-start mt-2">
             <div class="p-3 mb-3 rounded-3 bg-light border d-flex justify-content-between align-items-center">
@@ -1850,6 +1875,9 @@ async function showLabDetails(visitId, hn, patientName, testsString) {
                     <div class="small text-muted mb-1" style="font-size: 0.85rem;">รหัส VISIT : <strong class="text-primary ms-1">${visitId || '-'}</strong></div>
                 </div>
             </div>
+
+            <!-- 🌟 นำกล่องหมายเหตุมาแทรกไว้ตรงนี้ (ก่อนตารางรายการตรวจ) -->
+            ${noteHtml}
 
             <div class="table-responsive rounded-3 border mb-3" style="max-height: 420px; overflow-y: auto;">
                 <table class="table table-borderless table-sm mb-0 align-middle">
@@ -1868,7 +1896,7 @@ async function showLabDetails(visitId, hn, patientName, testsString) {
     `;
 
     Swal.fire({
-        title: '<h5 class="fw-bold mb-0 text-primary"><i class="bi bi-card-text me-2"></i>รายละเอียดการชำระเงิน</h5>',
+        title: '<h5 class="fw-bold mb-0 text-primary"><i class="bi bi-card-text me-2"></i>รายละเอียดการสั่งแล็บ</h5>',
         html: modalContentHtml,
         width: '620px',
         showCloseButton: true,
@@ -1986,7 +2014,22 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
     const priceNote = (totalPrice === 0 && savedTotal > 0)
         ? `<div class="alert alert-info py-2 px-3 small mb-3"><i class="bi bi-info-circle me-1"></i>ราคารวมจากระบบ: <strong>${savedTotal.toLocaleString()} LAK</strong> (ราคาต่อรายการตรวจจะแสดงเมื่อตั้งค่าราคาในหน้า "ตั้งค่ารายการตรวจ")</div>`
         : '';
+    // 🌟 ดึงข้อมูล lab_note จาก visitRecord ของหน้านี้
+    const labNote = visitRecord ? visitRecord.lab_note : '';
 
+    // 🌟 สร้าง HTML สำหรับกล่องแสดงหมายเหตุ (ถ้ามีข้อความจะแสดงขึ้นมา)
+    let noteHtml = '';
+    if (labNote && labNote.trim() !== '') {
+        noteHtml = `
+            <div class="alert alert-warning py-2 px-3 mb-3 d-flex align-items-start gap-2" style="font-size: 0.85rem; border-radius: 8px;">
+                <i class="bi bi-exclamation-triangle-fill text-warning mt-1"></i>
+                <div>
+                    <strong class="text-dark d-block mb-1">หมายเหตุ / ข้อเน้นย้ำจากแพทย์:</strong>
+                    <span class="text-dark" style="white-space: pre-wrap;">${labNote}</span>
+                </div>
+            </div>
+        `;
+    }
 
     const modalContentHtml = `
         <div class="text-start mt-2">
@@ -1999,6 +2042,9 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
                     <div class="small text-muted mb-1" style="font-size: 0.85rem;">รหัส VISIT : <strong class="text-primary ms-1">${visitId || '-'}</strong></div>
                 </div>
             </div>
+            ${priceNote}
+            ${noteHtml} <!-- 🌟 แทรกตัวแปรตรงนี้ -->
+            <div class="table-responsive rounded-3 border mb-3" style="max-height: 400px; overflow-y: auto;">
 
             ${priceNote}
             <div class="table-responsive rounded-3 border mb-3" style="max-height: 400px; overflow-y: auto;">
@@ -2048,6 +2094,7 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
             </div>
         </div>
     `;
+
 
     Swal.fire({
         title: '<h5 class="fw-bold mb-0 text-primary"><i class="bi bi-card-text me-2"></i>รายละเอียดการชำระเงิน</h5>',
@@ -2908,6 +2955,8 @@ function renderServicesLabContainer() {
 async function openLabOrder(visitId, patientName, hn) {
     const form = document.getElementById('labOrderForm');
     if (form) form.reset();
+    const labNoteInput = document.getElementById('labOrderNoteInput');
+    if (labNoteInput) labNoteInput.value = '';
 
     const vId = document.getElementById('labVisitId');
     if (vId) vId.value = visitId;
@@ -2954,7 +3003,7 @@ async function submitLabOrder() {
     window.checkedLabState = window.checkedLabState || {};
     const selectedLabs = Object.keys(window.checkedLabState);
 
-    // Also include custom lab checkboxes if any checked in #customLabContainer
+    // ดึงรายการแล็บเพิ่มเติมจากช่อง Custom หากมี
     form.querySelectorAll('#customLabContainer input[name="lab"]:checked').forEach((cb) => {
         if (!selectedLabs.includes(cb.value)) {
             selectedLabs.push(cb.value);
@@ -2966,10 +3015,16 @@ async function submitLabOrder() {
         return;
     }
 
+    // 🌟 ดึงข้อความจากช่องหมายเหตุที่เราเพิ่งเพิ่มเข้ามา
+    const labNoteInput = document.getElementById('labOrderNoteInput');
+    const labNoteVal = labNoteInput ? labNoteInput.value.trim() : '';
+
     Swal.fire({ title: 'กำลังบันทึกส่งแล็บ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
+    // ข้อมูลที่จะอัปเดตลงฐานข้อมูล Supabase
     const updateData = {
         lab_tests: selectedLabs.join(', '),
+        lab_note: labNoteVal, // บันทึกข้อความหมายเหตุลงฐานข้อมูล
         status: 'รอชำระเงิน'
     };
 
@@ -3042,6 +3097,11 @@ async function confirmPayment(visitId) {
 function openLabUploadModal(visitId) {
     document.getElementById('labUploadForm').reset();
     document.getElementById('uploadVisitId').value = visitId;
+    const previewContainer = document.getElementById('labFilePreviewContainer');
+    if (previewContainer) {
+        previewContainer.innerHTML = '';
+        previewContainer.style.display = 'none';
+    }
     bootstrap.Modal.getOrCreateInstance(document.getElementById('labUploadModal')).show();
 }
 
@@ -4220,13 +4280,21 @@ function renderHistoryTable(list) {
             </div>
         `;
 
+        // 🌟 ส่วนที่แก้ไข: จัดการข้อความที่ยาวเกินไป
+        let detailText = row.symptom || row.reason || row.lab_tests || '-';
+        // ใช้คลาส text-truncate และกำหนด max-width เพื่อตัดคำ พร้อมใส่ title สำหรับ hover
+        let detailDisplay = detailText !== '-'
+            ? `<div class="text-truncate" style="max-width: 350px;" title="${detailText.replace(/"/g, '&quot;')}">${detailText}</div>`
+            : `<span class="text-muted">-</span>`;
+
+        // 🌟 ส่วนที่แก้ไข: นำ detailDisplay มาใส่ใน <td> แทนของเดิม
         tbody.innerHTML += `
             <tr data-visit-id="${(row.visit_id || '').toLowerCase()}" data-hn="${(row.hn || '').toLowerCase()}" data-name="${(row.patient_name || '').toLowerCase()}">
                 <td class="ps-4 fw-bold text-primary">${row.visit_id || '-'}</td>
                 <td class="fw-bold">${row.hn || '-'}</td>
                 <td class="fw-bold text-dark">${row.patient_name || '-'}</td>
                 <td>${formattedDate}</td>
-                <td>${row.symptom || row.reason || row.lab_tests || '<span class="text-muted">-</span>'}</td>
+                <td>${detailDisplay}</td> 
                 <td class="text-center">${actionBtn}</td>
             </tr>
         `;
@@ -4366,7 +4434,7 @@ async function showHistoryDetails(visitId) {
     document.getElementById('histPatientName').innerText = row.patient_name;
     document.getElementById('histHN').innerText = row.hn;
 
-    // ประมวลผลและแสดงผลข้อมูลผู้แนะนำ (Referrer)
+    // 🌟 ส่วนที่ 1: ประมวลผลและแสดงผลข้อมูลผู้แนะนำ (Referrer)
     let refId = row.referred_by;
     if (!refId && row.hn) {
         const pat = (window.allPatients || []).find(p => p.hn === row.hn || p.patient_name === row.patient_name);
@@ -4404,9 +4472,27 @@ async function showHistoryDetails(visitId) {
         if (refElem) refElem.innerHTML = `<i class="ph ph-hand-coins me-1 text-primary"></i>${displayRef}`;
         if (refContainer) refContainer.style.display = 'block';
     } else {
-        if (refContainer) refContainer.style.display = 'none';
-        if (refElem) refElem.innerText = '-';
+        // บังคับให้แสดงกรอบเสมอ แม้ไม่มีข้อมูลผู้แนะนำ
+        if (refContainer) refContainer.style.display = 'block';
+        if (refElem) refElem.innerHTML = '<span class="text-muted">-</span>';
     }
+
+    // 🌟 ส่วนที่ 2: เพิ่มการดึงข้อมูลและแสดงผลแพทย์ผู้ตรวจ (Doctor)
+    const docContainer = document.getElementById('histDoctorContainer');
+    const docElem = document.getElementById('histDoctorName');
+
+    if (row.doctor_name && row.doctor_name !== '-' && row.doctor_name.trim() !== '') {
+        if (docElem) docElem.innerHTML = `<i class="bi bi-person-workspace me-1"></i>${row.doctor_name}`;
+        if (docContainer) docContainer.style.display = 'block';
+    } else {
+        // บังคับให้แสดงกรอบเสมอ แม้ไม่มีข้อมูลแพทย์
+        if (docContainer) docContainer.style.display = 'block';
+        if (docElem) docElem.innerHTML = '<span class="text-muted">-</span>';
+    }
+    // -----------------------------------------------------------
+
+
+    // ...(โค้ดส่วนที่เหลือด้านล่างจะเหมือนเดิมครับ)...
 
     document.getElementById('histTemp').innerText = row.temp || '-';
     document.getElementById('histBP').innerText = row.bp || '-';
@@ -10476,4 +10562,47 @@ function formatNumberInput(input) {
 
     // ตั้งค่าเคอร์เซอร์กลับไปที่เดิม
     input.setSelectionRange(cursorPosition, cursorPosition);
+}
+// ฟังก์ชันสำหรับแสดงภาพตัวอย่างไฟล์ (Preview) ก่อนอัปโหลด
+function previewLabFile(input) {
+    const previewContainer = document.getElementById('labFilePreviewContainer');
+
+    // ตรวจสอบว่ามีคอนเทนเนอร์และมีการเลือกไฟล์หรือไม่
+    if (!previewContainer) return;
+
+    // ล้างข้อมูลเก่าออกก่อน
+    previewContainer.innerHTML = '';
+
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+
+        // สร้าง URL จำลองชั่วคราวเพื่อแสดงผลไฟล์
+        const fileUrl = URL.createObjectURL(file);
+
+        // ตรวจสอบประเภทไฟล์ว่าเป็นรูปภาพหรือ PDF
+        if (file.type.startsWith('image/')) {
+            // กรณีเป็นรูปภาพ (PNG, JPG, JPEG)
+            previewContainer.innerHTML = `
+                <div class="text-muted small mb-2 fw-semibold"><i class="bi bi-image me-1"></i> ภาพตัวอย่างรูปภาพ</div>
+                <img src="${fileUrl}" class="img-fluid rounded shadow-sm" style="max-height: 280px; object-fit: contain;">
+            `;
+            previewContainer.style.display = 'block';
+
+        } else if (file.type === 'application/pdf') {
+            // กรณีเป็นไฟล์ PDF
+            previewContainer.innerHTML = `
+                <div class="text-muted small mb-2 fw-semibold"><i class="bi bi-file-earmark-pdf text-danger me-1"></i> ภาพตัวอย่างเอกสาร PDF</div>
+                <iframe src="${fileUrl}#toolbar=0" style="width: 100%; height: 350px; border: 1px solid #cbd5e1; border-radius: 8px;" type="application/pdf"></iframe>
+            `;
+            previewContainer.style.display = 'block';
+
+        } else {
+            // กรณีเป็นไฟล์ประเภทอื่นที่ไม่รองรับ
+            previewContainer.innerHTML = `<span class="text-danger small"><i class="bi bi-exclamation-triangle-fill me-1"></i> ไม่สามารถแสดงภาพตัวอย่างไฟล์ประเภทนี้ได้</span>`;
+            previewContainer.style.display = 'block';
+        }
+    } else {
+        // หากถูกยกเลิกการเลือกไฟล์ ให้ซ่อนกล่องพรีวิว
+        previewContainer.style.display = 'none';
+    }
 }
