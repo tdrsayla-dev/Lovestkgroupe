@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -9,8 +9,8 @@
     body { font-family: 'Sukhumvit Set', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
     @media (min-width: 1024px) {
       aside.lg\:flex { display: flex !important; position: fixed !important; top: 0; left: 0; height: 100vh; z-index: 30; }
-      main.lg\:ml-64 { margin-left: 16rem !important; }
-      main.lg\:ml-20 { margin-left: 5rem !important; }
+      main.lg\:ml-64 { margin-left: 16rem !important; width: calc(100% - 16rem) !important; }
+      main.lg\:ml-20 { margin-left: 5rem !important; width: calc(100% - 5rem) !important; }
       div.lg\:hidden { display: none !important; }
     }
     @media (max-width: 1023.98px) {
@@ -24,14 +24,19 @@
   </style>
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="lib/react.production.min.js"></script>
-  <script src="lib/react-dom.production.min.js"></script>
-  <script src="lib/babel.min.js"></script>
-  <script src="lib/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script>
     window.SUPABASE_URL='https://mfpkeyrykqnrywyksyqp.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
     if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
+    window.supabaseSelect = async function(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:window.SUPABASE_HEADERS});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();};
+    window.supabaseInsert = async function(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('INSERT '+t+':'+r.status);return r.json();};
+    window.supabaseUpdate = async function(t,id,d,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('UPDATE '+t+':'+r.status);return r.json();};
+    window.supabaseDelete = async function(t,id){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'DELETE',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'})});if(!r.ok)throw new Error('DELETE '+t+':'+r.status);return true;};
+    window.supabaseUpsert = async function(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'resolution=merge-duplicates,return=representation'}),body:JSON.stringify(d)});if(!r.ok)throw new Error('UPSERT '+t+':'+r.status);return r.json();};
   </script>
   <script src="CommonComponents.js"></script>
 </head>
@@ -94,15 +99,24 @@
         setLoading(true);
         let dbList = [];
         let localList = [];
+        let dbSalesList = [];
+
+        // ─── 0. ดึงประวัติการขายล่าสุดจาก stk_sales เพื่อวิเคราะห์สถานะการจ่ายยา ───
+        try {
+          if (typeof window.supabaseSelect === 'function') {
+            const data = await window.supabaseSelect('stk_sales', 'order=order_id.desc&limit=300');
+            if (Array.isArray(data)) {
+              dbSalesList = data;
+            }
+          }
+        } catch (err) {
+          console.warn('Supabase fetch sales error:', err);
+        }
 
         // ─── 1. ดึงจาก Supabase (ข้อมูลถาวร) ────────────────────────────────
         try {
-          const dbRes = await fetch(
-            window.SUPABASE_REST_URL + '/stk_nutrient_orders?order=created_at.desc&limit=200',
-            { method: 'GET', headers: window.SUPABASE_HEADERS }
-          );
-          if (dbRes.ok) {
-            const data = await dbRes.json();
+          if (typeof window.supabaseSelect === 'function') {
+            const data = await window.supabaseSelect('stk_nutrient_orders', 'order=created_at.desc&limit=200');
             if (Array.isArray(data)) {
               dbList = data.map(item => ({
                 id: item.order_id || String(item.id),
@@ -176,11 +190,9 @@
                   status: localEntry.status,
                   items_json: JSON.stringify(normalizedItems)
                 };
-                await fetch(window.SUPABASE_REST_URL + '/stk_nutrient_orders', {
-                  method: 'POST',
-                  headers: Object.assign({}, window.SUPABASE_HEADERS, { 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
-                  body: JSON.stringify(upsertPayload)
-                });
+                if (typeof window.supabaseInsert === 'function') {
+                  await window.supabaseInsert('stk_nutrient_orders', upsertPayload);
+                }
                 dbIdSet.add(orderId);
               } catch(syncErr) {
                 console.warn('Sync to Supabase failed:', syncErr);
@@ -192,10 +204,20 @@
           console.warn('LocalStorage parse error:', ex);
         }
 
-        // ─── 3. รวมและ deduplicate ────────────────────────────────────────────
+        // ─── 3. รวมและ deduplicate + วิเคราะห์สถานะจากประวัติการขายจริง ────────────────
         const idMap = new Map();
         [...dbList, ...localList].forEach(o => {
           if (o.visit_id && o.visit_id !== '-' && !idMap.has(o.id)) {
+            // ค้นหาบิลขายใน stk_sales ที่มีรหัส VISIT นี้อยู่ในบันทึกการชำระเงิน
+            const matched = dbSalesList.find(s => {
+              const note = (s.payment_note || '').toUpperCase();
+              return note.includes(`VISIT: ${(o.visit_id || '').toUpperCase()}`) || note.includes((o.visit_id || '').toUpperCase());
+            });
+            if (matched) {
+              o.status = 'ขายสำเร็จแล้ว';
+              o.sale_order_id = matched.order_id;
+              o.sale_date = matched.date;
+            }
             idMap.set(o.id, o);
           }
         });
@@ -228,6 +250,14 @@
           return matchSearch && matchStart && matchEnd;
         });
       }, [orders, searchTerm, startDate, endDate]);
+
+      const pendingOrders = useMemo(() => {
+        return filteredOrders.filter(ord => ord.status !== 'ขายสำเร็จแล้ว');
+      }, [filteredOrders]);
+
+      const completedOrders = useMemo(() => {
+        return filteredOrders.filter(ord => ord.status === 'ขายสำเร็จแล้ว');
+      }, [filteredOrders]);
 
       // ฟังก์ชันดำเนินการสร้าง "ร่างใบสั่งซื้อ" / "จ่ายยาเสร็จสิ้น"
       const handleCreateDraftOrder = (order) => {
@@ -285,7 +315,7 @@
       };
 
       return (
-        <div class="min-h-screen bg-slate-50 flex flex-col">
+        <div class="w-full flex-1 flex flex-col">
           {/* Header Bar */}
           <div class="bg-white border-b border-slate-200 px-6 py-5 shadow-xs">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 max-w-7xl mx-auto">
@@ -349,8 +379,15 @@
           </div>
 
           {/* Main Table Content */}
-          <div class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6">
+          <div class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-8">
+            {/* 📋 รายการรอดำเนินการ */}
             <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+              <div class="p-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
+                <span class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                  รายการรอดำเนินการ ({pendingOrders.length})
+                </span>
+              </div>
               <div class="overflow-x-auto custom-scrollbar">
                 <table class="w-full text-left border-collapse">
                   <thead>
@@ -370,37 +407,29 @@
                           <p>กำลังดึงข้อมูลสารอาหารจากระบบ...</p>
                         </td>
                       </tr>
-                    ) : filteredOrders.length === 0 ? (
+                    ) : pendingOrders.length === 0 ? (
                       <tr>
                         <td colSpan="5" class="py-16 text-center text-slate-400 font-semibold">
                           <div class="flex flex-col items-center justify-center gap-2">
                             <div class="p-3 bg-slate-100 text-slate-400 rounded-full mb-1">
                               <InboxIcon size={36} />
                             </div>
-                            <p class="text-sm font-bold text-slate-600">ยังไม่มีรายการสั่งจ่ายสารอาหารจากคลินิก</p>
-                            <p class="text-xs text-slate-400">รายการจะปรากฏที่นี่โดยอัตโนมัติ เมื่อมีการกดปุ่ม "สารอาหาร" จากระบบคลินิกเท่านั้น</p>
+                            <p class="text-sm font-bold text-slate-600">ไม่มีรายการรอดำเนินการ</p>
                           </div>
                         </td>
                       </tr>
                     ) : (
-                      filteredOrders.map((ord, index) => (
+                      pendingOrders.map((ord, index) => (
                         <tr key={ord.id || index} class="hover:bg-slate-50/60 transition-colors">
-                          {/* รหัส VISIT */}
                           <td class="py-4 px-4 font-bold text-slate-900 align-middle whitespace-nowrap border-r border-slate-100">
                             {ord.visit_id}
                           </td>
-
-                          {/* HN */}
                           <td class="py-4 px-4 text-slate-700 font-semibold align-middle whitespace-nowrap border-r border-slate-100">
                             {ord.hn}
                           </td>
-
-                          {/* ชื่อ-นามสกุล */}
                           <td class="py-4 px-4 font-bold text-slate-900 align-middle whitespace-nowrap border-r border-slate-100">
                             {ord.customer_name}
                           </td>
-
-                          {/* รายการจัดสั่งจ่ายยา / จำนวน - Inner Nested Table 100% ตาม Mockup */}
                           <td class="p-2 align-middle border-r border-slate-100">
                             <div class="rounded-xl border border-slate-200/80 overflow-hidden bg-white shadow-xs">
                               <table class="w-full text-left border-collapse">
@@ -420,10 +449,8 @@
                                     const subtotal = Number(item.total || (unitPrice * qty));
                                     const itemSource = item.source || 'คลังยา';
                                     const priceTypeBadge = getItemTypeLabel(item);
-
                                     return (
                                       <tr key={idx} class="hover:bg-slate-50/80 transition-colors">
-                                        {/* ชื่อยา/อาหารเสริม + Tag */}
                                         <td class="py-2.5 px-3 border-r border-slate-100 align-middle">
                                           <div class="flex items-center gap-2">
                                             <span class="font-bold text-slate-800">{item.name}</span>
@@ -432,8 +459,6 @@
                                             </span>
                                           </div>
                                         </td>
-
-                                        {/* ประเภท (เช่น ราคาส่ง/สมาชิก, ราคาโปร, ราคาปกติ, แถมฟรี) */}
                                         <td class="py-2.5 px-3 text-center border-r border-slate-100 align-middle">
                                           <span class={`inline-block px-2.5 py-0.5 rounded-md text-[11px] font-bold shadow-2xs ${
                                             priceTypeBadge === 'ราคาส่ง/สมาชิก' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
@@ -444,18 +469,12 @@
                                             {priceTypeBadge}
                                           </span>
                                         </td>
-
-                                        {/* จำนวน */}
                                         <td class="py-2.5 px-3 text-center font-bold text-slate-800 border-r border-slate-100 align-middle">
                                           {qty}
                                         </td>
-
-                                        {/* ราคา */}
                                         <td class="py-2.5 px-3 text-right text-slate-600 border-r border-slate-100 align-middle">
                                           {unitPrice.toLocaleString()}
                                         </td>
-
-                                        {/* รวมราคา */}
                                         <td class="py-2.5 px-3 text-right font-bold text-slate-900 align-middle">
                                           {subtotal.toLocaleString()}
                                         </td>
@@ -466,8 +485,6 @@
                               </table>
                             </div>
                           </td>
-
-                          {/* ดำเนินการ - ปุ่มสร้างร่างใบสั่งซื้อ / จ่ายยาเสร็จสิ้น */}
                           <td class="py-4 px-4 text-center align-middle whitespace-nowrap">
                             <button
                               onClick={() => handleCreateDraftOrder(ord)}
@@ -476,6 +493,130 @@
                               <CheckCircle size={15} />
                               ร่างใบสั่งซื้อ
                             </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* ✅ ประวัติการทำรายการสำเร็จแล้ว (Completed History) */}
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+              <div class="p-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
+                <span class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                  ประวัติการสั่งจ่ายสารอาหารสำเร็จแล้ว ({completedOrders.length})
+                </span>
+              </div>
+              <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left border-collapse">
+                  <thead>
+                    <tr class="bg-slate-50/90 border-b border-slate-200 text-xs font-bold text-slate-700">
+                      <th class="py-4 px-4 w-32 border-r border-slate-200/60">รหัส VISIT</th>
+                      <th class="py-4 px-4 w-28 border-r border-slate-200/60">HN</th>
+                      <th class="py-4 px-4 w-36 border-r border-slate-200/60">ชื่อ-นามสกุล</th>
+                      <th class="py-4 px-4 border-r border-slate-200/60">รายการที่ทำจ่ายแล้ว / จำนวน</th>
+                      <th class="py-4 px-4 text-center w-36">สถานะการขาย</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-200 text-xs font-medium text-slate-800">
+                    {loading ? (
+                      <tr>
+                        <td colSpan="5" class="py-12 text-center text-slate-400 font-semibold">
+                          <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-emerald-500 border-t-transparent mb-2"></div>
+                          <p>กำลังดึงข้อมูล...</p>
+                        </td>
+                      </tr>
+                    ) : completedOrders.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" class="py-16 text-center text-slate-400 font-semibold">
+                          <div class="flex flex-col items-center justify-center gap-2">
+                            <div class="p-3 bg-slate-100 text-slate-400 rounded-full mb-1">
+                              <InboxIcon size={36} />
+                            </div>
+                            <p class="text-sm font-bold text-slate-600">ยังไม่มีประวัติการทำรายการสำเร็จ</p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      completedOrders.map((ord, index) => (
+                        <tr key={ord.id || index} class="bg-slate-50/20 hover:bg-slate-50/60 transition-colors">
+                          <td class="py-4 px-4 font-bold text-slate-900 align-middle whitespace-nowrap border-r border-slate-100">
+                            {ord.visit_id}
+                          </td>
+                          <td class="py-4 px-4 text-slate-700 font-semibold align-middle whitespace-nowrap border-r border-slate-100">
+                            {ord.hn}
+                          </td>
+                          <td class="py-4 px-4 font-bold text-slate-900 align-middle whitespace-nowrap border-r border-slate-100">
+                            {ord.customer_name}
+                          </td>
+                          <td class="p-2 align-middle border-r border-slate-100">
+                            <div class="rounded-xl border border-slate-200/80 overflow-hidden bg-white shadow-xs opacity-75">
+                              <table class="w-full text-left border-collapse">
+                                <thead>
+                                  <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-700">
+                                    <th class="py-2 px-3 border-r border-slate-200/60">ชื่อยา/อาหารเสริม</th>
+                                    <th class="py-2 px-3 text-center w-28 border-r border-slate-200/60">ประเภท</th>
+                                    <th class="py-2 px-3 text-center w-16 border-r border-slate-200/60">จำนวน</th>
+                                    <th class="py-2 px-3 text-right w-24 border-r border-slate-200/60">ราคา</th>
+                                    <th class="py-2 px-3 text-right w-24">รวมราคา</th>
+                                  </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 text-xs font-semibold text-slate-700">
+                                  {ord.items && ord.items.map((item, idx) => {
+                                    const unitPrice = Number(item.price || 1300);
+                                    const qty = Number(item.qty || 1);
+                                    const subtotal = Number(item.total || (unitPrice * qty));
+                                    const itemSource = item.source || 'คลังยา';
+                                    const priceTypeBadge = getItemTypeLabel(item);
+                                    return (
+                                      <tr key={idx} class="hover:bg-slate-50/80 transition-colors">
+                                        <td class="py-2.5 px-3 border-r border-slate-100 align-middle">
+                                          <div class="flex items-center gap-2">
+                                            <span class="font-bold text-slate-800">{item.name}</span>
+                                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">
+                                              {itemSource}
+                                            </span>
+                                          </div>
+                                        </td>
+                                        <td class="py-2.5 px-3 text-center border-r border-slate-100 align-middle">
+                                          <span class={`inline-block px-2.5 py-0.5 rounded-md text-[11px] font-bold shadow-2xs bg-slate-100 text-slate-700 border border-slate-200`}>
+                                            {priceTypeBadge}
+                                          </span>
+                                        </td>
+                                        <td class="py-2.5 px-3 text-center font-bold text-slate-800 border-r border-slate-100 align-middle">
+                                          {qty}
+                                        </td>
+                                        <td class="py-2.5 px-3 text-right text-slate-600 border-r border-slate-100 align-middle">
+                                          {unitPrice.toLocaleString()}
+                                        </td>
+                                        <td class="py-2.5 px-3 text-right font-bold text-slate-900 align-middle">
+                                          {subtotal.toLocaleString()}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </td>
+                          <td class="py-4 px-4 text-center align-middle whitespace-nowrap">
+                            <span class="inline-flex flex-col items-center gap-1">
+                              <span class="px-3 py-1 bg-emerald-100 text-emerald-800 font-bold rounded-xl text-xs border border-emerald-200">
+                                ขายสำเร็จแล้ว
+                              </span>
+                              {ord.sale_order_id && (
+                                <a 
+                                  href={window.resolvePageUrl ? window.resolvePageUrl(`Sales.html?editId=${encodeURIComponent(ord.sale_order_id)}`) : `Sales.html?editId=${encodeURIComponent(ord.sale_order_id)}`}
+                                  class="text-[10px] text-blue-600 font-bold hover:underline"
+                                  title="กดเพื่อดูประวัติการขายบิลนี้"
+                                >
+                                  บิลเลขที่: {ord.sale_order_id}
+                                </a>
+                              )}
+                            </span>
                           </td>
                         </tr>
                       ))

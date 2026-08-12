@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -24,10 +24,10 @@
   </style>
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="lib/react.production.min.js"></script>
-  <script src="lib/react-dom.production.min.js"></script>
-  <script src="lib/babel.min.js"></script>
-  <script src="lib/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     window.SUPABASE_URL      = 'https://mfpkeyrykqnrywyksyqp.supabase.co';
     window.SUPABASE_ANON_KEY = 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
@@ -109,26 +109,30 @@
         const cleanName = String(prodName || '').trim().toUpperCase();
 
         if (Array.isArray(dbProductsList)) {
-            const found = dbProductsList.find(p => String(p.name || p.product_name || p.id || '').trim().toUpperCase() === cleanName);
+            const found = dbProductsList.find(p => 
+                String(p.name || p.product_name || p.id || '').trim().toUpperCase() === cleanName ||
+                String(p.category || '').trim().toUpperCase() === cleanName
+            );
             if (found) {
                 const cat = String(found.category || '').trim();
-                const selfFee = Number(found.self_fee || 200000);
-                const l1Fee = Number(found.level_1_fee || 100000);
-                return { categoryKey: cat, categoryName: `หมวด ${cat}`, rate: selfFee, l1Rate: l1Fee };
+                const selfFee = Number(found.self_fee ?? found.selfFee ?? 250000);
+                const l1Fee = Number(found.level_1_fee ?? found.level1Fee ?? 200000);
+                const margin = Number(found.full_margin_amount ?? found.fullMarginAmount ?? 0);
+                return { categoryKey: cat, categoryName: `หมวด ${cat}`, rate: selfFee, l1Rate: l1Fee, full_margin_amount: margin };
             }
         }
 
         // Clean Category Names (Without Rate Text Suffixed)
         if (cleanName.includes('COFFEE') || cleanName.includes('ARABICA')) {
-            return { categoryKey: 'Coffee', categoryName: 'หมวด Coffee', rate: 20000, l1Rate: 10000 };
+            return { categoryKey: 'Coffee', categoryName: 'หมวด Coffee', rate: 20000, l1Rate: 10000, full_margin_amount: 0 };
         }
         if (cleanName.includes('SERUM') || cleanName.includes('SUNCREAM') || cleanName.includes('TONER') || cleanName.includes('CREAM') || cleanName.includes('APPLE') || cleanName.includes('ZINC')) {
-            return { categoryKey: 'Cosmetic', categoryName: 'หมวด Cosmetic', rate: 70000, l1Rate: 30000 };
+            return { categoryKey: 'Cosmetic', categoryName: 'หมวด Cosmetic', rate: 70000, l1Rate: 30000, full_margin_amount: 0 };
         }
         if (cleanName.includes('GLUTA') || cleanName.includes('COLLAGEN') || cleanName.includes('BALANCE') || cleanName.includes('KUT-SO') || cleanName.includes('LIPO') || cleanName.includes('LUTEIN') || cleanName.includes('ORYZA')) {
-            return { categoryKey: 'Supplement02', categoryName: 'หมวด Supplement 02', rate: 150000, l1Rate: 50000 };
+            return { categoryKey: 'Supplement02', categoryName: 'หมวด Supplement 02', rate: 150000, l1Rate: 50000, full_margin_amount: 0 };
         }
-        return { categoryKey: 'Supplement', categoryName: 'หมวด Supplement', rate: 200000, l1Rate: 100000 };
+        return { categoryKey: 'Supplement', categoryName: 'หมวด Supplement', rate: 250000, l1Rate: 200000, full_margin_amount: 0 };
     };
 
     // 🟢 Detailed Modal Component (Match User Requirements)
@@ -142,7 +146,6 @@
                 return saved ? JSON.parse(saved) : {};
             } catch(e) { return {}; }
         }, []);
-
         const getDefaultMonthRange = () => {
             const now = new Date();
             const y = now.getFullYear();
@@ -153,10 +156,26 @@
         const defRange = getDefaultMonthRange();
         const [modalStartDate, setModalStartDate] = useState(startDate || defRange.start);
         const [modalEndDate, setModalEndDate] = useState(endDate || defRange.end);
-
         const mId = useMemo(() => String(member.id || '').trim().toUpperCase(), [member]);
 
-        // Get downlines in all levels with level depth breakdown
+        const filteredSales = useMemo(() => {
+            return (sales || []).filter(s => {
+                const sellerId = String(s.sellerId || s.seller_id || s.seller || s.memberId || s.marketing || '').trim().toUpperCase();
+                if (!sellerId) return false;
+                const sDate = s.date || s.sale_date || '';
+                if (modalStartDate && sDate < modalStartDate) return false;
+                if (modalEndDate && sDate > modalEndDate) return false;
+                return true;
+            });
+        }, [sales, modalStartDate, modalEndDate]);
+
+        const personalSalesList = useMemo(() => {
+            return filteredSales.filter(s => {
+                const sellerId = String(s.sellerId || s.seller_id || s.seller || s.memberId || s.marketing || '').trim().toUpperCase();
+                return sellerId === mId;
+            });
+        }, [filteredSales, mId]);
+
         const getDownlinesWithLevels = useCallback((parentId, depth = 1, visited = new Set()) => {
             if (visited.has(parentId)) return [];
             visited.add(parentId);
@@ -170,9 +189,17 @@
         }, [members]);
 
         const downlinesWithLevels = useMemo(() => getDownlinesWithLevels(mId), [mId, getDownlinesWithLevels]);
+        const downlineIdsSet = useMemo(() => new Set(downlinesWithLevels.map(d => String(d.member.id).trim().toUpperCase())), [downlinesWithLevels]);
+        
+        const downlineSalesList = useMemo(() => {
+            return filteredSales.filter(s => {
+                const sellerId = String(s.sellerId || s.seller_id || s.seller || s.memberId || s.marketing || '').trim().toUpperCase();
+                return downlineIdsSet.has(sellerId);
+            });
+        }, [filteredSales, downlineIdsSet]);
+
         const isLeaderWithTeam = downlinesWithLevels.length > 0;
 
-        // 🔄 Calculate PV points dynamically from personal sales only within date range
         const calculatedPeriodPV = useMemo(() => {
             let totalPV = 0;
             (personalSalesList || []).forEach(s => {
@@ -207,44 +234,14 @@
             return parts.length > 0 ? parts.join(', ') : 'ไม่มีลูกทีม';
         }, [downlinesByLevelCount]);
 
-        // Filter sales by date range
-        const filteredSales = useMemo(() => {
-            return (sales || []).filter(s => {
-                const sellerId = String(s.sellerId || s.seller_id || s.seller || s.memberId || s.marketing || '').trim().toUpperCase();
-                if (!sellerId) return false;
-                
-                const sDate = s.date || s.sale_date || '';
-                if (modalStartDate && sDate < modalStartDate) return false;
-                if (modalEndDate && sDate > modalEndDate) return false;
 
-                return true;
-            });
-        }, [sales, modalStartDate, modalEndDate]);
 
-        // Personal Sales List
-        const personalSalesList = useMemo(() => {
-            return filteredSales.filter(s => {
-                const sellerId = String(s.sellerId || s.seller_id || s.seller || s.memberId || s.marketing || '').trim().toUpperCase();
-                return sellerId === mId;
-            });
-        }, [filteredSales, mId]);
-
-        // Downlines Sales List
-        const downlineIdsSet = useMemo(() => new Set(downlinesWithLevels.map(d => String(d.member.id).trim().toUpperCase())), [downlinesWithLevels]);
-        const downlineSalesList = useMemo(() => {
-            return filteredSales.filter(s => {
-                const sellerId = String(s.sellerId || s.seller_id || s.seller || s.memberId || s.marketing || '').trim().toUpperCase();
-                return downlineIdsSet.has(sellerId);
-            });
-        }, [filteredSales, downlineIdsSet]);
-
-        // 📊 Helper to parse sales list into 4 clean category breakdown & 4 price mode counts
         const parseSalesIntoCategories = useCallback((salesList, isDownline = false) => {
             const catMap = {
-                'Supplement': { key: 'Supplement', name: 'หมวด Supplement', rate: 200000, l1Rate: 100000, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, totalQty: 0, totalLAK: 0 },
-                'Supplement02': { key: 'Supplement02', name: 'หมวด Supplement 02', rate: 150000, l1Rate: 50000, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, totalQty: 0, totalLAK: 0 },
-                'Cosmetic': { key: 'Cosmetic', name: 'หมวด Cosmetic', rate: 70000, l1Rate: 30000, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, totalQty: 0, totalLAK: 0 },
-                'Coffee': { key: 'Coffee', name: 'หมวด Coffee', rate: 20000, l1Rate: 10000, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, totalQty: 0, totalLAK: 0 }
+                'Supplement': { key: 'Supplement', name: 'หมวด Supplement', rate: 250000, l1Rate: 200000, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, totalQty: 0, totalLAK: 0, marginLAK: 0 },
+                'Supplement02': { key: 'Supplement02', name: 'หมวด Supplement 02', rate: 150000, l1Rate: 50000, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, totalQty: 0, totalLAK: 0, marginLAK: 0 },
+                'Cosmetic': { key: 'Cosmetic', name: 'หมวด Cosmetic', rate: 70000, l1Rate: 30000, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, totalQty: 0, totalLAK: 0, marginLAK: 0 },
+                'Coffee': { key: 'Coffee', name: 'หมวด Coffee', rate: 20000, l1Rate: 10000, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, totalQty: 0, totalLAK: 0, marginLAK: 0 }
             };
 
             salesList.forEach(s => {
@@ -266,7 +263,12 @@
                         else if (catInfo.categoryKey === 'Coffee' || catInfo.categoryName.includes('Coffee')) targetKey = 'Coffee';
 
                         // 4 Price Types Categorization
-                        if (typeStr === 'ราคาเต็ม') catMap[targetKey].fullQty += q;
+                        if (typeStr === 'ราคาเต็ม') {
+                            catMap[targetKey].fullQty += q;
+                            if (!isDownline) {
+                                catMap[targetKey].marginLAK += q * Number(catInfo.full_margin_amount || 0);
+                            }
+                        }
                         else if (typeStr === 'ราคาสมาชิก') catMap[targetKey].memberQty += q;
                         else if (typeStr === 'ราคาโปร' || typeStr === 'โปรโมชั่น') catMap[targetKey].promoQty += q;
                         else if (typeStr === 'ราคาศูนย์' || typeStr === 'ราคาฟรี') catMap[targetKey].zeroQty += q;
@@ -290,8 +292,11 @@
                     if (f === 0 && m === 0 && p === 0 && z === 0) catMap['Supplement'].fullQty += q;
 
                     catMap['Supplement'].totalQty += q;
-                    const applicableRate = isDownline ? 100000 : 200000;
+                    const applicableRate = isDownline ? 200000 : 250000;
                     catMap['Supplement'].totalLAK += q * applicableRate;
+                    if (!isDownline) {
+                        catMap['Supplement'].marginLAK += f * 200000;
+                    }
                 }
             });
 
@@ -343,8 +348,47 @@
         const totalZeroBoxes = useMemo(() => Object.values(totalTeamCategorized).reduce((acc, c) => acc + c.zeroQty, 0), [totalTeamCategorized]);
 
         const personalTotalLAK = useMemo(() => Object.values(personalCategorized).reduce((acc, c) => acc + c.totalLAK, 0), [personalCategorized]);
+        const personalTotalMarginTHB = useMemo(() => Object.values(personalCategorized).reduce((acc, c) => acc + (c.marginLAK || 0), 0), [personalCategorized]);
         const downlineTotalLAK = useMemo(() => Object.values(downlineCategorized).reduce((acc, c) => acc + c.totalLAK, 0), [downlineCategorized]);
         const overallTeamTotalLAK = personalTotalLAK + downlineTotalLAK;
+
+        const marginConfig = useMemo(() => {
+            try {
+                const confStr = systemSettings.retail_margin_config;
+                return confStr ? (typeof confStr === 'string' ? JSON.parse(confStr) : confStr) : null;
+            } catch(e) { return null; }
+        }, [systemSettings.retail_margin_config]);
+
+        const marginMinBoxes = Number(marginConfig?.min_boxes ?? systemSettings.margin_min_boxes ?? 10);
+        const totalFullBoxesPersonal = useMemo(() => Object.values(personalCategorized).reduce((acc, c) => acc + c.fullQty, 0), [personalCategorized]);
+
+        const isEligibleForMargin = useMemo(() => {
+            if (totalFullBoxesPersonal < marginMinBoxes) return false;
+            if (!marginConfig) return true;
+
+            const scope = marginConfig.target_scope || 'all';
+            const memberIdUpper = mId.toUpperCase();
+            const memberTeamUpper = String(member.team || '').trim().toUpperCase();
+
+            let isScopeEligible = true;
+            if (scope === 'specific_members') {
+                isScopeEligible = (marginConfig.selected_members || []).map(id => id.toUpperCase()).includes(memberIdUpper);
+            } else if (scope === 'specific_teams') {
+                isScopeEligible = (marginConfig.selected_teams || []).map(t => t.toUpperCase()).includes(memberTeamUpper);
+            }
+
+            // Exclusions
+            if (isScopeEligible) {
+                if ((marginConfig.exclude_members || []).map(id => id.toUpperCase()).includes(memberIdUpper)) {
+                    isScopeEligible = false;
+                }
+                if ((marginConfig.exclude_teams || []).map(t => t.toUpperCase()).includes(memberTeamUpper)) {
+                    isScopeEligible = false;
+                }
+            }
+
+            return isScopeEligible;
+        }, [totalFullBoxesPersonal, marginMinBoxes, marginConfig, mId, member]);
 
         // Product Summary List for entire downline team
         const productSummaryMap = useMemo(() => {
@@ -464,13 +508,13 @@
                             {/* 🏆 PV ACCUMULATED KPI CARD */}
                             <div className="bg-purple-50/80 border border-purple-200/80 p-3.5 rounded-2xl text-center shadow-xs relative overflow-hidden">
                                 <span className="text-[11px] font-bold text-purple-700 block">⭐ แต้ม PV สะสม</span>
-                                <span className="text-2xl sm:text-3xl font-black text-purple-800 mt-1 block font-mono">{memberAccumulatedPV.toLocaleString()}</span>
+                                <span className="text-2xl sm:text-3xl font-black text-purple-800 mt-1 block font-mono">{(memberAccumulatedPV || 0).toLocaleString()}</span>
                             </div>
 
-                            <div className="bg-amber-50/80 border border-amber-100 p-3.5 rounded-2xl text-center shadow-xs">
-                                <span className="text-[11px] font-bold text-amber-600 block">ทีมงานใต้ดูแล</span>
-                                <span className="text-2xl sm:text-3xl font-black text-amber-700 mt-1 block">{downlinesWithLevels.length}</span>
-                                <span className="text-[10px] text-amber-600 font-bold block truncate">คน ({levelSummaryText})</span>
+                            <div className="bg-slate-50/80 border border-slate-200 p-3.5 rounded-2xl text-center shadow-xs">
+                                <span className="text-[11px] font-bold text-slate-600 block">ทีมงานใต้ดูแล</span>
+                                <span className="text-2xl sm:text-3xl font-black text-slate-700 mt-1 block">{downlinesWithLevels.length}</span>
+                                <span className="text-[10px] text-slate-600 font-bold block truncate">คน ({levelSummaryText})</span>
                             </div>
                         </div>
 
@@ -559,6 +603,80 @@
                                     </div>
                                 </div>
                             )}
+
+                            {/* Table 3: Personal Sales Margin (Retail Profit) */}
+                            <div className="space-y-2 pt-2 border-t border-slate-200">
+                                <div className="flex justify-between items-center">
+                                    <h4 className="text-xs font-black text-amber-700 flex items-center gap-1.5">
+                                        <span>💰 3. รายการค่าส่วนต่างราคาเต็ม (Personal Retail Profit / Margin)</span>
+                                    </h4>
+                                    <span className="text-xs font-black text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-lg border border-amber-200/60 font-mono font-bold">
+                                        รวม {Object.values(personalCategorized).reduce((acc, c) => acc + c.fullQty, 0)} กล่องราคาเต็ม | ส่วนต่าง {personalTotalMarginTHB.toLocaleString()} บาท
+                                    </span>
+                                </div>
+                                <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                                    <table className="w-full text-xs text-left">
+                                        <thead className="bg-amber-50/60 text-slate-600 font-bold border-b border-slate-200">
+                                            <tr>
+                                                <th className="p-2.5 text-center">ลำดับ</th>
+                                                <th className="p-2.5">หมวดสินค้า</th>
+                                                <th className="p-2.5 text-center">จำนวนกล่องราคาเต็ม</th>
+                                                <th className="p-2.5 text-right">ส่วนต่างปันผล/กล่อง (บาท)</th>
+                                                <th className="p-2.5 text-right">ยอดรวมค่าส่วนต่าง (บาท)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 font-bold">
+                                            {Object.values(personalCategorized).filter(cat => cat.fullQty > 0 && cat.marginLAK > 0).map((cat, idx) => {
+                                                const rate = cat.fullQty > 0 ? (cat.marginLAK / cat.fullQty) : 0;
+                                                return (
+                                                    <tr key={cat.key} className="bg-amber-50/20">
+                                                        <td className="p-2.5 text-center text-slate-400">{idx + 1}</td>
+                                                        <td className="p-2.5 text-slate-800">{cat.name}</td>
+                                                        <td className="p-2.5 text-center text-amber-600 font-black">{cat.fullQty}</td>
+                                                        <td className="p-2.5 text-right text-slate-500 font-mono">{rate.toLocaleString()} บาท</td>
+                                                        <td className="p-2.5 text-right text-amber-600 font-black font-mono">{cat.marginLAK.toLocaleString()} บาท</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                            {Object.values(personalCategorized).every(cat => cat.fullQty === 0 || cat.marginLAK === 0) && (
+                                                <tr><td colSpan="5" className="p-4 text-center text-slate-400 text-xs">ไม่มียอดขายสินค้าโหมดราคาเต็มที่มีค่าส่วนต่างในช่วงเวลาที่เลือก</td></tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* 💰 WIDE RETAIL PROFIT MARGIN BLOCK (Moved to bottom) */}
+                            <div className="bg-amber-50 border border-amber-200 p-5 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+                                <div>
+                                    <span className="text-xs font-black tracking-wider uppercase block text-amber-800">
+                                        💰 ค่าส่วนต่างราคาเต็มสะสม (Personal Retail Profit / Margin)
+                                    </span>
+                                    <span className="text-[10px] font-bold text-amber-600 block mt-1">
+                                        ยอดสะสมจากสินค้าโหมดราคาเต็มทั้งหมด: {totalFullBoxesPersonal} กล่อง
+                                    </span>
+                                    {!isEligibleForMargin && (
+                                        <span className="text-[11px] font-black text-rose-600 block mt-1">
+                                            ⚠️ ยอดกล่องราคาเต็มยังไม่ถึงเกณฑ์ขั้นต่ำ {marginMinBoxes} กล่อง เพื่อรับปันผลส่วนต่างนี้
+                                        </span>
+                                    )}
+                                    {isEligibleForMargin && (
+                                        <span className="text-[11px] font-black text-emerald-600 block mt-1">
+                                            ✅ บรรลุเกณฑ์ขั้นต่ำเพื่อรับปันผลส่วนต่างนี้เรียบร้อยแล้ว
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="text-right">
+                                    <span className={`text-2xl font-black block font-mono ${isEligibleForMargin ? 'text-amber-600' : 'text-slate-400 line-through'}`}>
+                                        {personalTotalMarginTHB.toLocaleString()} บาท (THB)
+                                    </span>
+                                    {!isEligibleForMargin && (
+                                        <span className="text-[10px] text-rose-500 font-bold block">
+                                            สิทธิ์ได้รับจริง: 0 บาท
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
 
                             {/* Overall Total & Payout Net Balance Banner */}
                             <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-5 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg border border-slate-800">
@@ -1228,7 +1346,19 @@
       }, []);
 
       const applyDataToStates = (response) => {
-           if (Array.isArray(response.products)) setProducts(response.products);
+           if (Array.isArray(response.products)) {
+               setProducts(response.products.map(p => ({
+                   ...p,
+                   id: String(p.product_id || p.id || '').trim(),
+                   name: String(p.name || '').trim(),
+                   category: String(p.category || '').trim(),
+                   self_fee: Number(p.self_fee ?? p.selfFee ?? 0),
+                   level_1_fee: Number(p.level_1_fee ?? p.level1Fee ?? 0),
+                   price_full: Number(p.price_full ?? p.priceFull ?? 0),
+                   price_member: Number(p.price_member ?? p.priceMember ?? 0),
+                   full_margin_amount: Number(p.full_margin_amount ?? p.fullMarginAmount ?? 0)
+               })));
+           }
            if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes);
            if (Array.isArray(response.systemSettings) && response.systemSettings.length > 0) {
                const settingsObj = {};

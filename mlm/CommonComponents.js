@@ -1069,13 +1069,29 @@
   // ⚡ HIGH-SPEED MEMORY CACHE ENGINE: แคชการดึงข้อมูลจาก Supabase ลงหน่วยความจำแบบ Real-time 
   // ทำให้อ่านข้อมูลซ้ำข้ามหน้าได้ทันที 0ms ไม่ต้องรอโหลดผ่านเน็ตเวิร์กใหม่ทุกครั้ง
   if (typeof window !== 'undefined') {
-    if (!window.top.stkDbCache) {
-      window.top.stkDbCache = {};
+    const loadCache = () => {
+      try {
+        const cached = sessionStorage.getItem('stkDbCache');
+        return cached ? JSON.parse(cached) : {};
+      } catch (e) {
+        return {};
+      }
+    };
+
+    const saveCache = (cache) => {
+      try {
+        sessionStorage.setItem('stkDbCache', JSON.stringify(cache));
+      } catch (e) {}
+    };
+
+    if (!window.top.stkDbCache || Object.keys(window.top.stkDbCache).length === 0) {
+      window.top.stkDbCache = loadCache();
     }
     
     // Clear cache helper
     window.clearDbCache = () => {
       window.top.stkDbCache = {};
+      try { sessionStorage.removeItem('stkDbCache'); } catch (e) {}
       console.log("%c⚡ Database Cache Cleared!", "color:orange;font-weight:bold");
     };
 
@@ -1095,23 +1111,32 @@
       const originalSelect = window.supabaseSelect;
       window.supabaseSelect = async function(table, query) {
         const cacheKey = table + (query ? '?' + query : '');
-        if (window.top.stkDbCache[cacheKey]) {
-          console.log(`%c⚡ [Cache Hit] Serving ${cacheKey} from memory`, "color:green;font-weight:bold");
-          return JSON.parse(JSON.stringify(window.top.stkDbCache[cacheKey]));
+        const currentCache = loadCache();
+        if (currentCache[cacheKey]) {
+          console.log(`%c⚡ [Cache Hit] Serving ${cacheKey} from sessionStorage`, "color:green;font-weight:bold");
+          window.top.stkDbCache = currentCache;
+          return JSON.parse(JSON.stringify(currentCache[cacheKey]));
         }
         const result = await originalSelect(table, query);
-        window.top.stkDbCache[cacheKey] = result;
+        currentCache[cacheKey] = result;
+        saveCache(currentCache);
+        window.top.stkDbCache = currentCache;
         return result;
       };
     }
 
     const invalidateCache = (table) => {
-      if (window.top.stkDbCache) {
-        Object.keys(window.top.stkDbCache).forEach(key => {
-          if (key === table || key.startsWith(table + '?')) {
-            delete window.top.stkDbCache[key];
-          }
-        });
+      const currentCache = loadCache();
+      let invalidated = false;
+      Object.keys(currentCache).forEach(key => {
+        if (key === table || key.startsWith(table + '?')) {
+          delete currentCache[key];
+          invalidated = true;
+        }
+      });
+      if (invalidated) {
+        saveCache(currentCache);
+        window.top.stkDbCache = currentCache;
         console.log(`%c⚡ [Cache Invalidate] Cleared cache for table: ${table}`, "color:red;font-weight:bold");
       }
     };
@@ -1140,6 +1165,15 @@
       window.supabaseDelete = async function(table, id, pk='id') {
         invalidateCache(table);
         return await originalDelete(table, id, pk);
+      };
+    }
+
+    // Decorate supabaseUpsert
+    if (typeof window.supabaseUpsert === 'function') {
+      const originalUpsert = window.supabaseUpsert;
+      window.supabaseUpsert = async function(table, data) {
+        invalidateCache(table);
+        return await originalUpsert(table, data);
       };
     }
   }

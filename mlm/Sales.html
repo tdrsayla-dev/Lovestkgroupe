@@ -22,10 +22,10 @@
   </style>
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="lib/react.production.min.js"></script>
-  <script src="lib/react-dom.production.min.js"></script>
-  <script src="lib/babel.min.js"></script>
-  <script src="lib/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     window.SUPABASE_URL='https://mfpkeyrykqnrywyksyqp.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
     if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
@@ -144,11 +144,11 @@
         const updateMemberPVInSupabase = async (memberId, pvChange) => {
             if (!memberId || pvChange === 0) return;
             try {
-                let pk = 'id';
+                let pk = 'user_id';
                 let memRes;
-                try { memRes = await supabaseSelect('stk_members', `id=eq.${encodeURIComponent(memberId)}`); }
+                try { memRes = await supabaseSelect('stk_members', `user_id=eq.${encodeURIComponent(memberId)}`); }
                 catch(err) {
-                    try { memRes = await supabaseSelect('stk_members', `user_id=eq.${encodeURIComponent(memberId)}`); pk = 'user_id'; }
+                    try { memRes = await supabaseSelect('stk_members', `id=eq.${encodeURIComponent(memberId)}`); pk = 'id'; }
                     catch(err2) { memRes = await supabaseSelect('stk_members', `User_ID=eq.${encodeURIComponent(memberId)}`); pk = 'User_ID'; }
                 }
                 
@@ -240,6 +240,10 @@
 
                     if (pending && pending.recorded_by) {
                         setMemberIdInput(pending.recorded_by);
+                    }
+
+                    if (pending && pending.visit_id) {
+                        setPaymentNote(`VISIT: ${pending.visit_id}`);
                     }
 
                     if (pending && (pending.hn || pending.customer_name)) {
@@ -1239,23 +1243,32 @@
 
             if (record) {
                 const oldCart = [];
-                Object.keys(record).forEach(k => {
-                    const qty = parseInt(record[k], 10) || 0;
-                    if (qty > 0) {
-                        if (k.endsWith('_ราคาเต็ม') && k !== 'รวมชิ้นราคาเต็ม') oldCart.push({ productName: k.replace('_ราคาเต็ม', ''), priceType: 'ราคาเต็ม', qty });
-                        else if (k.endsWith('_ราคาสมาชิก') && k !== 'รวมชิ้นราคาสมาชิก') oldCart.push({ productName: k.replace('_ราคาสมาชิก', ''), priceType: 'ราคาสมาชิก', qty });
-                        else if (k.endsWith('_ราคาโปร') && k !== 'รวมชิ้นราคาโปร') oldCart.push({ productName: k.replace('_ราคาโปร', ''), priceType: 'ราคาโปร', qty });
-                        else if (k.endsWith('_ราคาศูนย์') && k !== 'รวมชิ้นราคาศูนย์') oldCart.push({ productName: k.replace('_ราคาศูนย์', ''), priceType: 'ราคาศูนย์', qty });
+                let itemsList = [];
+                if (record.items_json) {
+                    try {
+                        itemsList = typeof record.items_json === 'string' ? JSON.parse(record.items_json) : record.items_json;
+                    } catch(e) {
+                        console.warn('Failed to parse items_json in delete:', e);
                     }
-                });
+                }
+                
+                if (Array.isArray(itemsList)) {
+                    itemsList.forEach(it => {
+                        const pName = String(it.prod || it.productName || it.name || '').trim();
+                        let typeStr = String(it.type || '').trim();
+                        if (typeStr === 'ราคาพิเศษ' || typeStr === 'ราคาโปรโมชั่น') typeStr = 'ราคาโปร';
+                        if (typeStr === 'ราคาแถม') typeStr = 'ราคาศูนย์';
+                        const qty = Number(it.qty || it.quantity || 1);
+                        oldCart.push({ productName: pName, priceType: typeStr, qty });
+                    });
+                }
                 pvToSubtract = calculateBillPV(oldCart, products);
                 
-                {
-                    const inQtyMap = {};
-                    oldCart.forEach(item => {
-                        const p = (products || []).find(prod => prod.name === item.productName);
-                        if (p) inQtyMap[p.id] = (inQtyMap[p.id] || 0) + item.qty;
-                    });
+                const inQtyMap = {};
+                oldCart.forEach(item => {
+                    const p = (products || []).find(prod => prod.name?.trim() === item.productName || prod.id?.trim() === item.productName);
+                    if (p) inQtyMap[p.id] = (inQtyMap[p.id] || 0) + item.qty;
+                });
                     if (typeof supabaseUpdate === 'function') {
                         for (const pid of Object.keys(inQtyMap)) {
                             const addQty = inQtyMap[pid];
@@ -1263,6 +1276,19 @@
                             if (pInfo && addQty > 0) {
                                 const newStock = (pInfo.current_stock || pInfo.stock || 0) + addQty;
                                 await supabaseUpdate('stk_products', pid, { current_stock: newStock }, 'product_id');
+                                await supabaseUpdate('products', pid, { stock: newStock }).catch(() => {});
+                                if (typeof supabaseInsert === 'function') {
+                                    await supabaseInsert('stk_stock_movements', {
+                                        movement_id: 'MOV-IN-' + Date.now() + '-' + Math.floor(Math.random()*1000),
+                                        date: record.date ? record.date.split('T')[0] : new Date().toISOString().split('T')[0],
+                                        product_id: pid,
+                                        type: 'IN',
+                                        sub_type: 'คืนสต๊อกจากการลบบิล',
+                                        quantity: addQty,
+                                        notes: 'คืนสต๊อกบิล ' + saleId,
+                                        created_by: 'SYSTEM'
+                                    }).catch(e => console.warn('Stock movement restoration log error:', e));
+                                }
                             }
                         }
                     }
@@ -1271,10 +1297,10 @@
                             const add = inQtyMap[p.id] || 0;
                             return add > 0 ? {...p, stock: p.stock + add} : p;
                         }));
-                    }
                 }
             }
 
+            try { localStorage.removeItem('stk_app_cache_data'); localStorage.removeItem('stk_app_cache_time'); } catch(e){}
             if (typeof supabaseDelete === 'function') {
                 supabaseDelete('stk_sales', saleId, 'order_id');
                 if (custId) supabaseDelete('stk_customers', custId, 'customer_id');
@@ -1524,6 +1550,13 @@
              pvChange = newPv;
           }
 
+          const clearAppCache = () => {
+             try {
+                 localStorage.removeItem('stk_app_cache_data');
+                 localStorage.removeItem('stk_app_cache_time');
+             } catch(e){}
+          };
+
           if (editingSaleId) {
              newRecord.id = editingSaleId;
              const supaSalesData = {
@@ -1537,43 +1570,54 @@
                  status: 'Completed',
                  recorded_by: newRecord.recordedBy,
                  items_json: cart.map(item => ({qty: item.qty, prod: item.productName, type: item.priceType})),
-                 payment_note: newRecord.paymentNote || newRecord.payment_note
+                 payment_note: newRecord.paymentNote || newRecord.payment_note || ''
              };
-             if (typeof supabaseUpsert === 'function') await supabaseUpsert('stk_sales', supaSalesData);
-
-                 if (newCustomerObj && typeof supabaseUpsert === 'function') {
-                     await supabaseUpsert('stk_customers', { customer_id: newCustomerObj.id, name: newCustomerObj.name, phone: newCustomerObj.phone, line_id: newCustomerObj.lineId || '', customer_type: newCustomerObj.type, symptom_disease: newCustomerObj.symptom, owner_member_id: newCustomerObj.memberId, closer_id: newCustomerObj.closer, extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName }, status: 'Active' });
+             if (typeof supabaseUpsert === 'function') {
+                 try {
+                     await supabaseUpsert('stk_sales', supaSalesData);
+                 } catch (e1) {
+                     console.warn('stk_sales upsert with payment_note failed, trying without payment_note:', e1);
+                     const fallbackData = { ...supaSalesData };
+                     delete fallbackData.payment_note;
+                     await supabaseUpsert('stk_sales', fallbackData).catch(e2 => console.error('stk_sales fallback upsert failed:', e2));
                  }
+             }
 
-                 const oldQtyMap = {};
-                 const oldRecord = (sales || []).find(s => s.id === editingSaleId);
-                 if (oldRecord) {
-                     Object.keys(oldRecord).forEach(k => {
-                         if ((k.endsWith('_ราคาเต็ม') || k.endsWith('_ราคาโปร') || k.endsWith('_ราคาสมาชิก') || k.endsWith('_ราคาศูนย์')) && !k.startsWith('รวมชิ้น')) {
-                             const pName = k.replace(/_ราคาเต็ม$|_ราคาโปร$|_ราคาสมาชิก$|_ราคาศูนย์$/, '');
-                             const p = (products || []).find(prod => prod.name === pName);
-                             if (p) oldQtyMap[p.id] = (oldQtyMap[p.id] || 0) + (parseInt(oldRecord[k], 10)||0);
-                         }
-                     });
-                 }
+             if (newCustomerObj && typeof supabaseUpsert === 'function') {
+                 const custPayload = { customer_id: newCustomerObj.id, name: newCustomerObj.name, phone: newCustomerObj.phone, line_id: newCustomerObj.lineId || '', customer_type: newCustomerObj.type, symptom_disease: newCustomerObj.symptom, owner_member_id: newCustomerObj.memberId, closer_id: newCustomerObj.closer, extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName }, status: 'Active' };
+                 await supabaseUpsert('stk_customers', custPayload).catch(e => console.warn('stk_customers upsert error:', e));
+             }
 
-                  if (!isHistoryBypass && typeof supabaseUpdate === 'function') {
-                     for (const pid of [...new Set([...Object.keys(oldQtyMap), ...Object.keys(qtyMap)])]) {
-                         const diff = (qtyMap[pid] || 0) - (oldQtyMap[pid] || 0);
-                         const pInfo = (products || []).find(p => p.id === pid);
-                         if (pInfo && diff !== 0) {
-                             const newStock = (pInfo.current_stock || pInfo.stock || 0) - diff;
-                             await supabaseUpdate('stk_products', pid, { current_stock: newStock }, 'product_id');
-                         }
+             const oldQtyMap = {};
+             const oldRecord = (sales || []).find(s => s.id === editingSaleId);
+             if (oldRecord) {
+                 Object.keys(oldRecord).forEach(k => {
+                     if ((k.endsWith('_ราคาเต็ม') || k.endsWith('_ราคาโปร') || k.endsWith('_ราคาสมาชิก') || k.endsWith('_ราคาศูนย์')) && !k.startsWith('รวมชิ้น')) {
+                         const pName = k.replace(/_ราคาเต็ม$|_ราคาโปร$|_ราคาสมาชิก$|_ราคาศูนย์$/, '');
+                         const p = (products || []).find(prod => prod.name === pName);
+                         if (p) oldQtyMap[p.id] = (oldQtyMap[p.id] || 0) + (parseInt(oldRecord[k], 10)||0);
+                     }
+                 });
+             }
+
+             if (!isHistoryBypass && typeof supabaseUpdate === 'function') {
+                 for (const pid of [...new Set([...Object.keys(oldQtyMap), ...Object.keys(qtyMap)])]) {
+                     const diff = (qtyMap[pid] || 0) - (oldQtyMap[pid] || 0);
+                     const pInfo = (products || []).find(p => p.id === pid);
+                     if (pInfo && diff !== 0) {
+                         const newStock = Math.max(0, (pInfo.current_stock || pInfo.stock || 0) - diff);
+                         await supabaseUpdate('stk_products', pid, { current_stock: newStock }, 'product_id').catch(() => {});
+                         await supabaseUpdate('products', pid, { stock: newStock }).catch(() => {});
                      }
                  }
+             }
 
-                  if (!isHistoryBypass && setProducts) {
-                     setProducts(prev => prev.map(p => {
-                         const diff = (qtyMap[p.id] || 0) - (oldQtyMap[p.id] || 0);
-                         return diff !== 0 ? {...p, stock: p.stock - diff} : p;
-                     }));
-                 }
+             if (!isHistoryBypass && setProducts) {
+                 setProducts(prev => prev.map(p => {
+                     const diff = (qtyMap[p.id] || 0) - (oldQtyMap[p.id] || 0);
+                     return diff !== 0 ? {...p, stock: Math.max(0, p.stock - diff)} : p;
+                 }));
+             }
              
              setSales(prev => prev.map(s => s.id === editingSaleId ? newRecord : s)); 
              if(newCustomerObj) {
@@ -1585,6 +1629,7 @@
                  });
              }
              if (foundMember && foundMember.id && pvChange !== 0) await updateMemberPVInSupabase(foundMember.id, pvChange, 'user_id');
+             clearAppCache();
              handleCancelEdit();
              setSuccessModal({ show: true, saleRecord: newRecord });
              setIsSubmitting(false);
@@ -1601,21 +1646,46 @@
                  status: 'Completed',
                  recorded_by: newRecord.recordedBy,
                  items_json: cart.map(item => ({qty: item.qty, prod: item.productName, type: item.priceType})),
-                 payment_note: newRecord.paymentNote || newRecord.payment_note
+                 payment_note: newRecord.paymentNote || newRecord.payment_note || ''
              };
-             if (typeof supabaseUpsert === 'function') await supabaseUpsert('stk_sales', supaSalesData);
-
-             if (newCustomerObj && typeof supabaseUpsert === 'function') {
-                 await supabaseUpsert('stk_customers', { customer_id: newCustomerObj.id, name: newCustomerObj.name, phone: newCustomerObj.phone, line_id: newCustomerObj.lineId || '', customer_type: newCustomerObj.type, symptom_disease: newCustomerObj.symptom, owner_member_id: newCustomerObj.memberId, closer_id: newCustomerObj.closer, extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName }, status: 'Active' });
+             if (typeof supabaseUpsert === 'function') {
+                 try {
+                     await supabaseUpsert('stk_sales', supaSalesData);
+                 } catch (e1) {
+                     console.warn('stk_sales upsert with payment_note failed, trying without payment_note:', e1);
+                     const fallbackData = { ...supaSalesData };
+                     delete fallbackData.payment_note;
+                     await supabaseUpsert('stk_sales', fallbackData).catch(e2 => console.error('stk_sales fallback upsert failed:', e2));
+                 }
              }
 
-              if (!isHistoryBypass && typeof supabaseUpdate === 'function') {
+             if (newCustomerObj && typeof supabaseUpsert === 'function') {
+                 const custPayload = { customer_id: newCustomerObj.id, name: newCustomerObj.name, phone: newCustomerObj.phone, line_id: newCustomerObj.lineId || '', customer_type: newCustomerObj.type, symptom_disease: newCustomerObj.symptom, owner_member_id: newCustomerObj.memberId, closer_id: newCustomerObj.closer, extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName }, status: 'Active' };
+                 await supabaseUpsert('stk_customers', custPayload).catch(e => console.warn('stk_customers upsert error:', e));
+             }
+
+              if (!isHistoryBypass) {
                  for (const pid of Object.keys(qtyMap)) {
                      const deductQty = qtyMap[pid];
                      const pInfo = (products || []).find(p => p.id === pid);
                      if (pInfo && deductQty > 0) {
-                         const newStock = (pInfo.current_stock || pInfo.stock || 0) - deductQty;
-                         await supabaseUpdate('stk_products', pid, { current_stock: newStock }, 'product_id');
+                         const newStock = Math.max(0, (pInfo.current_stock || pInfo.stock || 0) - deductQty);
+                         if (typeof supabaseUpdate === 'function') {
+                             await supabaseUpdate('stk_products', pid, { current_stock: newStock }, 'product_id').catch(() => {});
+                             await supabaseUpdate('products', pid, { stock: newStock }).catch(() => {});
+                         }
+                         if (typeof supabaseInsert === 'function') {
+                             await supabaseInsert('stk_stock_movements', {
+                                 movement_id: 'MOV-OUT-' + Date.now() + '-' + Math.floor(Math.random()*1000),
+                                 date: newRecord.date,
+                                 product_id: pid,
+                                 type: 'OUT',
+                                 sub_type: 'ตัดสต๊อกขาย',
+                                 quantity: deductQty,
+                                 notes: 'ตัดสต๊อกบิล ' + newRecord.id,
+                                 created_by: newRecord.recordedBy || 'SYSTEM'
+                             }).catch(e => console.warn('Stock movement log error:', e));
+                         }
                      }
                  }
              }
@@ -1624,11 +1694,12 @@
               if (!isHistoryBypass && setProducts) {
                  setProducts(prev => prev.map(p => {
                      const deduct = qtyMap[p.id] || 0;
-                     return deduct > 0 ? {...p, stock: p.stock - deduct} : p;
+                     return deduct > 0 ? {...p, stock: Math.max(0, p.stock - deduct)} : p;
                  }));
              }
              setSales(prev => [newRecord, ...(prev || [])]); 
              if(newCustomerObj) setCustomers(prev => [newCustomerObj, ...(prev || [])]); 
+             clearAppCache();
              handleSuccessFinish(newRecord);
           } catch (err) {
               console.error("Save Error:", err);
@@ -2374,16 +2445,7 @@
             }
         } catch (e) { console.warn("Cache error", e); }
 
-        // ถ้า cache ยังสดใหม่มาก (ไม่เกิน 5 นาที) ไม่ต้องดึงใหม่เลย ประหยัด bandwidth
-        const urlParams = new URLSearchParams(window.location.search);
-        const hasEditId = !!urlParams.get('editId');
-        if (hasCacheData && cacheAge < CACHE_REFRESH_MS && !hasEditId) {
-            // อัปเดตเฉพาะ products เบื้องหลัง (สต๊อกต้องสดเสมอ)
-            supabaseSelect('stk_products').then(pRes => {
-                if (Array.isArray(pRes)) applyDataToStates({ products: pRes });
-            }).catch(() => {});
-            return;
-        }
+        // ดึงข้อมูลทั้งหมดเบื้องหลัง เพื่อให้ข้อมูลตรงกับ Database ล่าสุดเสมอ
 
         // ดึงข้อมูลทั้งหมดในพร้อมกัน แต่แสดงหน้าจอจาก cache ก่อน (ถ้ามี)
         // ถ้าไม่มี cache จะยังคง loading อยู่ระหว่างรอ

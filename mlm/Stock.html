@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -22,10 +22,10 @@
   </style>
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="lib/react.production.min.js"></script>
-  <script src="lib/react-dom.production.min.js"></script>
-  <script src="lib/babel.min.js"></script>
-  <script src="lib/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     window.SUPABASE_URL='https://mfpkeyrykqnrywyksyqp.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
     if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
@@ -779,8 +779,17 @@
     const MovementLogTab = ({ products, stockMovements, setStockMovements, showToast }) => {
       const [filterType, setFilterType] = useState('ALL');
       const [filterProduct, setFilterProduct] = useState('');
-      const [dateFrom, setDateFrom] = useState('');
-      const [dateTo, setDateTo] = useState('');
+      
+      // Default to current local date
+      const getLocalDateString = () => {
+        const d = new Date();
+        const offset = d.getTimezoneOffset();
+        const local = new Date(d.getTime() - (offset * 60 * 1000));
+        return local.toISOString().split('T')[0];
+      };
+      
+      const [dateFrom, setDateFrom] = useState(getLocalDateString());
+      const [dateTo, setDateTo] = useState(getLocalDateString());
       const [isLoading, setIsLoading] = useState(false);
 
       const filtered = useMemo(() => {
@@ -1004,6 +1013,17 @@
                 minPvComm: product.minPvComm || 0,
                 givePv: product.givePv || 0
             };
+            
+            let conf = {};
+            try {
+                const confStr = systemSettings.retail_margin_config;
+                conf = confStr ? (typeof confStr === 'string' ? JSON.parse(confStr) : confStr) : {};
+            } catch(e) {}
+            const prodId = String(product.id || '').trim();
+            const prodMargin = conf.product_margins?.[prodId] || { amount: 0, currency: 'LAK' };
+            data.fullMarginAmount = prodMargin.amount || 0;
+            data.fullMarginCurrency = prodMargin.currency || 'LAK';
+
             data.selfFee = product.selfFee || 0;
             for (let i = 1; i < maxLevels; i++) {
               data[`level${i}Fee`] = product[`level${i}Fee`] !== undefined ? product[`level${i}Fee`] : (i === 1 ? product.directFee : (i === 2 ? product.uplineFee : 0));
@@ -1065,7 +1085,9 @@
                        self_fee: dataToSave.selfFee,
                        self_percent_full: dataToSave.selfPercentFull,
                        self_percent_member: dataToSave.selfPercentMember,
-                       image_url: dataToSave.imageUrl || ''
+                       image_url: dataToSave.imageUrl || '',
+                       full_margin_amount: Number(dataToSave.fullMarginAmount || 0),
+                       full_margin_currency: dataToSave.fullMarginCurrency || 'LAK'
                    };
                    for (let i = 1; i < maxLevels; i++) {
                        supaData[`level_${i}_fee`] = dataToSave[`level${i}Fee`];
@@ -2124,8 +2146,325 @@
             </div>
         );
     };
+    // 💰 TAB: ตั้งค่าจ่ายส่วนต่าง (Retail Profit/Margin Payout Settings)
+    const MarginSettingsTab = ({ members, businessTeams, systemSettings, setSystemSettings, showToast, currentUser }) => {
+        const config = useMemo(() => {
+            try {
+                return systemSettings.retail_margin_config ? (typeof systemSettings.retail_margin_config === 'string' ? JSON.parse(systemSettings.retail_margin_config) : systemSettings.retail_margin_config) : { min_boxes: 10, target_scope: 'all', selected_members: [], selected_teams: [], exclude_members: [], exclude_teams: [] };
+            } catch(e) {
+                return { min_boxes: 10, target_scope: 'all', selected_members: [], selected_teams: [], exclude_members: [], exclude_teams: [] };
+            }
+        }, [systemSettings.retail_margin_config]);
 
-    const StockManagementView = ({ products, setProducts, stockMovements, setStockMovements, isAdmin, currentUser, showToast, systemSettings, setSystemSettings, productCategories, setProductCategories }) => {
+        const history = useMemo(() => {
+            try {
+                return systemSettings.retail_margin_history ? (typeof systemSettings.retail_margin_history === 'string' ? JSON.parse(systemSettings.retail_margin_history) : systemSettings.retail_margin_history) : [];
+            } catch(e) {
+                return [];
+            }
+        }, [systemSettings.retail_margin_history]);
+
+        const [minBoxes, setMinBoxes] = useState(Number(config.min_boxes ?? 10));
+        const [targetScope, setTargetScope] = useState(config.target_scope || 'all');
+        const [selectedMembers, setSelectedMembers] = useState(config.selected_members || []);
+        const [selectedTeams, setSelectedTeams] = useState(config.selected_teams || []);
+        const [excludeMembers, setExcludeMembers] = useState(config.exclude_members || []);
+        const [excludeTeams, setExcludeTeams] = useState(config.exclude_teams || []);
+        const [isSaving, setIsSaving] = useState(false);
+
+        // Autocomplete search states
+        const [memberSearch, setMemberSearch] = useState('');
+        const [excludeSearch, setExcludeSearch] = useState('');
+
+        const allTeams = useMemo(() => {
+            return Array.from(new Set([
+                ...(businessTeams || []).map(t => t.name || t.team_name || t.id || ''),
+                ...(members || []).map(m => m.team || 'Marketing')
+            ])).filter(Boolean);
+        }, [businessTeams, members]);
+
+        const handleSave = async () => {
+            setIsSaving(true);
+            const newConfig = {
+                min_boxes: minBoxes,
+                target_scope: targetScope,
+                selected_members: selectedMembers,
+                selected_teams: selectedTeams,
+                exclude_members: excludeMembers,
+                exclude_teams: excludeTeams
+            };
+
+            const newHistoryEntry = {
+                id: 'HIST_' + Date.now(),
+                date: new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString('th-TH'),
+                user: currentUser?.name || currentUser?.username || 'Admin',
+                min_boxes: minBoxes,
+                scope: targetScope === 'all' ? 'ทุกคน' : targetScope === 'specific_members' ? 'เฉพาะบุคคล' : 'เฉพาะทีม',
+                details: `เป้าหมาย: ${targetScope === 'all' ? 'ทุกคน' : targetScope === 'specific_members' ? selectedMembers.length + ' คน' : selectedTeams.length + ' ทีม'}, ยกเว้น: ${excludeMembers.length} คน, ${excludeTeams.length} ทีม`
+            };
+
+            const updatedHistory = [newHistoryEntry, ...history].slice(0, 50); // Keep last 50 entries
+
+            try {
+                if (typeof supabaseUpsert === 'function') {
+                    await supabaseUpsert('stk_system_settings', {
+                        key: 'retail_margin_config',
+                        value: JSON.stringify(newConfig)
+                    });
+                    await supabaseUpsert('stk_system_settings', {
+                        key: 'retail_margin_history',
+                        value: JSON.stringify(updatedHistory)
+                    });
+                    // Also sync min_boxes to global setting key
+                    await supabaseUpsert('stk_system_settings', {
+                        key: 'margin_min_boxes',
+                        value: String(minBoxes)
+                    });
+                }
+
+                setSystemSettings(prev => ({
+                    ...prev,
+                    retail_margin_config: newConfig,
+                    retail_margin_history: updatedHistory,
+                    margin_min_boxes: minBoxes
+                }));
+
+                // Save to localStorage for quick restore
+                localStorage.setItem('stk_system_settings', JSON.stringify({
+                    ...systemSettings,
+                    retail_margin_config: newConfig,
+                    retail_margin_history: updatedHistory,
+                    margin_min_boxes: minBoxes
+                }));
+
+                showToast('บันทึกการตั้งค่าส่วนต่างราคาเต็มและประวัติเรียบร้อยแล้ว!', 'success');
+            } catch(err) {
+                console.error("Save error:", err);
+                showToast('เกิดข้อผิดพลาดในการบันทึก: ' + err.message, 'error');
+            } finally {
+                setIsSaving(false);
+            }
+        };
+
+        return (
+            <div className="space-y-6 animation-fade-in text-slate-800">
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
+                    <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">💰 ตั้งค่าเกณฑ์และผู้ได้รับสิทธิ์ปันผลส่วนต่างราคาเต็ม</h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* Minimum Boxes input */}
+                        <div className="bg-slate-50 p-4.5 rounded-2xl border border-slate-200">
+                            <label className="text-xs font-bold text-slate-600 block mb-1.5">📦 ยอดขายราคาเต็มขั้นต่ำ (กล่องต่อเดือน)</label>
+                            <input 
+                                type="number" 
+                                min="1" 
+                                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 font-black text-slate-800 focus:outline-none focus:border-blue-600" 
+                                value={minBoxes} 
+                                onChange={e => setMinBoxes(Number(e.target.value))}
+                            />
+                            <p className="text-[10px] text-slate-400 font-bold mt-1.5">ระบุจำนวนกล่องที่สมาชิกต้องขายในราคาเต็มขั้นต่ำ เพื่อจะมีสิทธิ์รับค่าส่วนต่าง</p>
+                        </div>
+
+                        {/* Target Scope select */}
+                        <div className="bg-slate-50 p-4.5 rounded-2xl border border-slate-200 col-span-2">
+                            <label className="text-xs font-bold text-slate-600 block mb-1.5">👥 กำหนดกลุ่มผู้ได้รับสิทธิ์ปันผลส่วนต่าง</label>
+                            <div className="flex flex-wrap gap-3 mt-2">
+                                <label className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-300 font-bold text-xs cursor-pointer hover:border-slate-400">
+                                    <input type="radio" checked={targetScope === 'all'} onChange={() => setTargetScope('all')} />
+                                    <span>ทุกคน (All Members)</span>
+                                </label>
+                                <label className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-300 font-bold text-xs cursor-pointer hover:border-slate-400">
+                                    <input type="radio" checked={targetScope === 'specific_members'} onChange={() => setTargetScope('specific_members')} />
+                                    <span>เฉพาะบุคคล (Specific Members)</span>
+                                </label>
+                                <label className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-300 font-bold text-xs cursor-pointer hover:border-slate-400">
+                                    <input type="radio" checked={targetScope === 'specific_teams'} onChange={() => setTargetScope('specific_teams')} />
+                                    <span>เฉพาะทีมบริหาร (Specific Teams)</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Scope details depending on targetScope */}
+                    {targetScope === 'specific_members' && (
+                        <div className="bg-slate-50 p-4.5 rounded-2xl border border-slate-200 space-y-3">
+                            <label className="text-xs font-bold text-slate-700 block">👤 ค้นหาและเพิ่มสมาชิกที่ได้รับสิทธิ์</label>
+                            <div className="flex gap-2">
+                                <input 
+                                    type="text" 
+                                    placeholder="ใส่ชื่อ หรือ รหัสสมาชิก..." 
+                                    className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold focus:outline-none"
+                                    value={memberSearch}
+                                    onChange={e => setMemberSearch(e.target.value)}
+                                />
+                            </div>
+                            {memberSearch.trim() && (
+                                <div className="bg-white border border-slate-200 rounded-xl max-h-40 overflow-y-auto p-1 divide-y divide-slate-100 shadow-sm">
+                                    {members.filter(m => String(m.name || '').toLowerCase().includes(memberSearch.toLowerCase()) || String(m.id || '').toLowerCase().includes(memberSearch.toLowerCase())).map(m => (
+                                        <button 
+                                            key={m.id} 
+                                            onClick={() => {
+                                                if (!selectedMembers.includes(m.id)) setSelectedMembers([...selectedMembers, m.id]);
+                                                setMemberSearch('');
+                                            }}
+                                            className="w-full text-left p-2 hover:bg-slate-50 font-bold text-xs text-slate-700 flex justify-between"
+                                        >
+                                            <span>{m.name}</span> <span className="text-slate-400">{m.id}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                            <div className="flex flex-wrap gap-2 pt-2">
+                                {selectedMembers.map(id => {
+                                    const mObj = members.find(m => m.id === id) || { name: id };
+                                    return (
+                                        <span key={id} className="bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-lg text-xs font-black flex items-center gap-1.5">
+                                            {mObj.name} ({id})
+                                            <button onClick={() => setSelectedMembers(selectedMembers.filter(x => x !== id))} className="text-blue-500 hover:text-blue-700 font-bold">&times;</button>
+                                        </span>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {targetScope === 'specific_teams' && (
+                        <div className="bg-slate-50 p-4.5 rounded-2xl border border-slate-200 space-y-3">
+                            <label className="text-xs font-bold text-slate-700 block">👑 เลือกทีมบริหารที่ได้รับสิทธิ์</label>
+                            <div className="flex flex-wrap gap-3">
+                                {allTeams.map(teamName => (
+                                    <label key={teamName} className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-300 font-bold text-xs cursor-pointer">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={selectedTeams.includes(teamName)} 
+                                            onChange={e => {
+                                                if (e.target.checked) setSelectedTeams([...selectedTeams, teamName]);
+                                                else setSelectedTeams(selectedTeams.filter(t => t !== teamName));
+                                            }}
+                                        />
+                                        <span>{teamName}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Exclusions Section */}
+                    <div className="bg-rose-50/50 p-4.5 rounded-2xl border border-rose-200/60 space-y-4">
+                        <h4 className="text-xs font-black text-rose-800 flex items-center gap-1.5">🚫 รายการยกเว้นสิทธิ์การจ่าย (Exclusions)</h4>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Member Exclusions */}
+                            <div className="space-y-2">
+                                <label className="text-[11px] font-bold text-slate-600 block">ยกเว้นสิทธิ์รายบุคคล (Exclude Members)</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="พิมพ์ชื่อ หรือ รหัสสมาชิก เพื่อยกเว้น..." 
+                                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold focus:outline-none"
+                                    value={excludeSearch}
+                                    onChange={e => setExcludeSearch(e.target.value)}
+                                />
+                                {excludeSearch.trim() && (
+                                    <div className="bg-white border border-slate-200 rounded-xl max-h-40 overflow-y-auto p-1 divide-y divide-slate-100 shadow-sm">
+                                        {members.filter(m => String(m.name || '').toLowerCase().includes(excludeSearch.toLowerCase()) || String(m.id || '').toLowerCase().includes(excludeSearch.toLowerCase())).map(m => (
+                                            <button 
+                                                key={m.id} 
+                                                onClick={() => {
+                                                    if (!excludeMembers.includes(m.id)) setExcludeMembers([...excludeMembers, m.id]);
+                                                    setExcludeSearch('');
+                                                }}
+                                                className="w-full text-left p-2 hover:bg-slate-50 font-bold text-xs text-rose-700 flex justify-between"
+                                            >
+                                                <span>{m.name}</span> <span className="text-slate-400">{m.id}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                    {excludeMembers.map(id => {
+                                        const mObj = members.find(m => m.id === id) || { name: id };
+                                        return (
+                                            <span key={id} className="bg-red-50 text-red-700 border border-red-200 px-2.5 py-1 rounded-lg text-xs font-black flex items-center gap-1.5">
+                                                {mObj.name} ({id})
+                                                <button onClick={() => setExcludeMembers(excludeMembers.filter(x => x !== id))} className="text-red-500 hover:text-red-700 font-bold">&times;</button>
+                                            </span>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Team Exclusions */}
+                            <div className="space-y-2">
+                                <label className="text-[11px] font-bold text-slate-600 block">ยกเว้นสิทธิ์ทั้งทีม (Exclude Teams)</label>
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                    {allTeams.map(teamName => (
+                                        <label key={teamName} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-300 font-bold text-[11px] cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={excludeTeams.includes(teamName)} 
+                                                onChange={e => {
+                                                    if (e.target.checked) setExcludeTeams([...excludeTeams, teamName]);
+                                                    else setExcludeTeams(excludeTeams.filter(t => t !== teamName));
+                                                }}
+                                            />
+                                            <span>{teamName}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex justify-end pt-3">
+                        <button 
+                            onClick={handleSave} 
+                            disabled={isSaving}
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2 disabled:opacity-50"
+                        >
+                            {isSaving ? '正在บันทึก...' : '💾 บันทึกการตั้งค่า'}
+                        </button>
+                    </div>
+                </div>
+
+                {/* History Log Section */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+                    <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">📜 ประวัติบันทึกการตั้งค่าจ่ายส่วนต่าง (Audit Log)</h3>
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                        <table className="w-full text-xs text-left">
+                            <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                                <tr>
+                                    <th className="p-3 text-center">ลำดับ</th>
+                                    <th className="p-3">วันเวลาที่แก้ไข</th>
+                                    <th className="p-3">ผู้แก้ไข</th>
+                                    <th className="p-3 text-center">เป้าขั้นต่ำ (กล่อง)</th>
+                                    <th className="p-3">เกณฑ์สิทธิ์ที่เลือก</th>
+                                    <th className="p-3">รายละเอียดเชิงลึก</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 font-bold text-slate-700">
+                                {history.map((h, idx) => (
+                                    <tr key={h.id || idx} className="hover:bg-slate-50/50">
+                                        <td className="p-3 text-center text-slate-400">{idx + 1}</td>
+                                        <td className="p-3 text-slate-600">{h.date}</td>
+                                        <td className="p-3 text-blue-700">{h.user}</td>
+                                        <td className="p-3 text-center text-slate-800 font-black">{h.min_boxes}</td>
+                                        <td className="p-3 text-emerald-700">{h.scope}</td>
+                                        <td className="p-3 text-[11px] text-slate-500 font-medium">{h.details}</td>
+                                    </tr>
+                                ))}
+                                {history.length === 0 && (
+                                    <tr><td colSpan="6" className="p-4 text-center text-slate-400 font-bold">ยังไม่พบประวัติการแก้ไขตั้งค่าส่วนต่าง</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const StockManagementView = ({ products, setProducts, stockMovements, setStockMovements, isAdmin, currentUser, showToast, systemSettings, setSystemSettings, productCategories, setProductCategories, members, businessTeams }) => {
       const [activeTab, setActiveTab] = useState(() => {
         try {
           const urlParams = new URLSearchParams(window.location.search);
@@ -2142,7 +2481,8 @@
         ...(isAdmin ? [
           { id: 'products', label: '📦 จัดการสินค้า', icon: null },
           { id: 'categories', label: '🏷️ จัดการหมวดหมู่', icon: null },
-          { id: 'commission_settings', label: '💵 ตั้งค่าคอมมิชชั่นสินค้า & ระบบ', icon: null }
+          { id: 'commission_settings', label: '💵 ตั้งค่าคอมมิชชั่นสินค้า & ระบบ', icon: null },
+          { id: 'margin_settings', label: '💰 ตั้งค่าจ่ายส่วนต่าง', icon: null }
         ] : [])
       ];
 
@@ -2205,6 +2545,16 @@
               productCategories={productCategories}
               setProductCategories={setProductCategories}
               showToast={showToast}
+            />
+          )}
+          {activeTab === 'margin_settings' && isAdmin && (
+            <MarginSettingsTab 
+              members={members}
+              businessTeams={businessTeams}
+              systemSettings={systemSettings}
+              setSystemSettings={setSystemSettings}
+              showToast={showToast}
+              currentUser={currentUser}
             />
           )}
         </div>
@@ -2315,6 +2665,7 @@
           if (Array.isArray(data.members)) setMembers(data.members);
           if (Array.isArray(data.closers)) setClosers(data.closers);
           if (Array.isArray(data.customerTypes)) setCustomerTypes(data.customerTypes);
+          if (Array.isArray(data.businessTeams)) setBusinessTeams(data.businessTeams);
         };
 
         try {
@@ -2359,8 +2710,9 @@
           supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
           supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
           supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
-          supabaseSelect('stk_system_settings').catch(() => supabaseSelect('system_settings')).catch(() => [])
-        ]).then(([pRes, catRes, movRes, memRes, cloRes, typeRes, settingsRes]) => {
+          supabaseSelect('stk_system_settings').catch(() => supabaseSelect('system_settings')).catch(() => []),
+          supabaseSelect('stk_business_teams').catch(() => [])
+        ]).then(([pRes, catRes, movRes, memRes, cloRes, typeRes, settingsRes, teamRes]) => {
           let loadedSettings = null;
           if (Array.isArray(settingsRes) && settingsRes.length > 0) {
             const mainRow = settingsRes.find(s => s && (s.key === 'MAIN' || s.setting_key === 'MAIN' || s.setting_id === 'MAIN' || s.id === 'MAIN'));
@@ -2391,7 +2743,8 @@
              members: memRes,
              closers: cloRes,
              customerTypes: typeRes,
-             systemSettings: loadedSettings
+             systemSettings: loadedSettings,
+             businessTeams: teamRes
           };
 
           applyStockDataToStates(freshData);
@@ -2479,6 +2832,8 @@
                   setSystemSettings={setSystemSettings}
                   productCategories={productCategories}
                   setProductCategories={setProductCategories}
+                  members={members}
+                  businessTeams={businessTeams}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center py-32 gap-5">
