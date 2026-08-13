@@ -410,14 +410,16 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 function calculateAge() {
-    const dobInput = document.querySelector('input[name="DOB"]').value;
+    const dobEl = document.querySelector('input[name="DOB"]');
+    const dobInput = dobEl ? dobEl.value : null;
     if (dobInput) {
         const dob = new Date(dobInput);
         const today = new Date();
         let age = today.getFullYear() - dob.getFullYear();
         const m = today.getMonth() - dob.getMonth();
         if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) { age--; }
-        document.querySelector('input[name="Age"]').value = age >= 0 ? age : 0;
+        const ageEl = document.querySelector('input[name="Age"]');
+        if (ageEl) ageEl.value = age >= 0 ? age : 0;
     }
 }
 
@@ -1045,120 +1047,7 @@ function onPatientProvinceChange(targetDistrictVal = null) {
     }
 }
 
-function openAddPatientModal() {
-    const form = document.getElementById('patientForm');
-    if (form) form.reset();
-    if (document.getElementById('patientEditHn')) document.getElementById('patientEditHn').value = '';
-    if (document.getElementById('linkAppointmentId')) document.getElementById('linkAppointmentId').value = '';
 
-    const title = document.getElementById('addPatientModalTitle');
-    if (title) title.innerHTML = 'เพิ่มประวัติผู้ป่วยใหม่';
-
-    populateProvinceDropdown();
-    onPatientProvinceChange();
-    populateReferrerDropdowns();
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('addPatientModal')).show();
-}
-
-function editPatient(hn) {
-    const p = (window.allPatients || []).find(x => x.hn === hn);
-    if (!p) return;
-
-    populateProvinceDropdown();
-    populateReferrerDropdowns();
-
-    const form = document.getElementById('patientForm');
-    if (document.getElementById('patientEditHn')) document.getElementById('patientEditHn').value = p.hn;
-    if (document.getElementById('linkAppointmentId')) document.getElementById('linkAppointmentId').value = '';
-
-    if (form.FullName) form.FullName.value = p.patient_name || '';
-    if (form.DOB) form.DOB.value = p.dob || '';
-    if (form.Age) form.Age.value = p.age || '';
-    if (form.Village) form.Village.value = p.village || '';
-    if (form.Job) form.Job.value = p.job || '';
-    if (form.Tel) form.Tel.value = p.phone || '';
-    if (form.EmergencyTel) form.EmergencyTel.value = p.emergency_tel || '';
-    if (form.PastHistory) form.PastHistory.value = p.past_history || '';
-    if (form.Allergies) form.Allergies.value = p.allergies || '';
-
-    const provSelect = document.getElementById('patientProvinceSelect');
-    if (provSelect && p.province) {
-        let savedProv = p.province.trim();
-        provSelect.value = savedProv;
-
-        // Fallback: If exact match fails, try partial matching
-        if (!provSelect.value) {
-            for (let i = 0; i < provSelect.options.length; i++) {
-                let optVal = provSelect.options[i].value;
-                if (optVal && (optVal.includes(savedProv) || savedProv.includes(optVal))) {
-                    provSelect.value = optVal;
-                    break;
-                }
-            }
-        }
-
-        onPatientProvinceChange(p.district ? p.district.trim() : null);
-
-        // Fallback for district partial matching
-        const distSelect = document.getElementById('patientDistrictSelect');
-        if (p.district && (!distSelect.value || distSelect.value === '')) {
-            let savedDist = p.district.trim();
-            for (let i = 0; i < distSelect.options.length; i++) {
-                let optVal = distSelect.options[i].value;
-                if (optVal && (optVal.includes(savedDist) || savedDist.includes(optVal))) {
-                    distSelect.value = optVal;
-                    break;
-                }
-            }
-        }
-    } else {
-        onPatientProvinceChange();
-    }
-
-    const refSelect = document.getElementById('patientReferredBySelect');
-    if (refSelect) refSelect.value = p.referred_by || '';
-
-    const title = document.getElementById('addPatientModalTitle');
-    if (title) title.innerHTML = `<i class="bi bi-pencil-square text-primary me-2"></i>แก้ไขประวัติผู้ป่วย (${p.hn})`;
-
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('addPatientModal')).show();
-}
-
-async function deletePatient(hn) {
-    const p = (window.allPatients || []).find(x => x.hn === hn);
-    const displayName = p ? `${p.patient_name} (${hn})` : hn;
-
-    const res = await Swal.fire({
-        title: 'ยืนยันการลบประวัติผู้ป่วย?',
-        text: `ต้องการลบประวัติผู้ป่วยของคุณ ${displayName} ออกจากระบบใช่หรือไม่?`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#ef4444',
-        confirmButtonText: 'ลบข้อมูล',
-        cancelButtonText: 'ยกเลิก'
-    });
-
-    if (res.isConfirmed) {
-        Swal.fire({ title: 'กำลังลบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
-        try {
-            await _supabase.from('patients').delete().eq('hn', hn);
-        } catch (e) {
-            console.log('Supabase patient delete fallback');
-        }
-
-        if (window.allPatients) {
-            window.allPatients = window.allPatients.filter(x => x.hn !== hn);
-        }
-        if (window.patientReferrersMap) {
-            delete window.patientReferrersMap[hn];
-            localStorage.setItem('clinic_patient_referrers', JSON.stringify(window.patientReferrersMap));
-        }
-
-        loadPatients();
-        Swal.fire('ลบข้อมูลแล้ว', 'ลบประวัติผู้ป่วยเรียบร้อยแล้ว', 'success');
-    }
-}
 
 async function loadTriage() {
     const tbody = document.querySelector('#triageTable tbody');
@@ -1233,133 +1122,15 @@ async function completeDoctorCheck(visitId) {
     }
 }
 
-async function loadPaymentQueue() {
-    const tbody = document.querySelector('#paymentTable tbody');
-    if (!tbody) return;
-
-    const { data, error } = await _supabase
-        .from('visits')
-        .select('*')
-        .eq('status', 'รอชำระเงิน')
-        .order('created_at', { ascending: true });
-
-    tbody.innerHTML = '';
-    if (error) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
-        return;
-    }
-    if (!data || data.length === 0) {
-        const emptyText = typeof t === 'function' ? t('payment_empty', 'ไม่มีรายการรอชำระเงิน') : 'ไม่มีรายการรอชำระเงิน';
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-3">${emptyText}</td></tr>`;
-        return;
-    }
-
-    // 🌟 กำหนดตัวแปร Label สำหรับหน้าจ่ายค่ารักษาให้ถูกต้อง
-    const detailsLabel = typeof t === 'function' ? t('payment_btn_details', 'ดูรายละเอียด') : 'ดูรายละเอียด';
-    const pendingLabel = typeof t === 'function' ? t('payment_status_pending', 'รอชำระเงิน') : 'รอชำระเงิน';
-    const payBtnLabel = typeof t === 'function' ? t('payment_btn_pay', 'รับชำระเงิน & ส่ง Lab') : 'รับชำระเงิน & ส่ง Lab';
-
-    data.forEach(row => {
-        const testCount = row.lab_tests ? row.lab_tests.split(',').filter(Boolean).length : 0;
-        const safeTests = (row.lab_tests || '').replace(/'/g, "\\'");
-        const safeName = (row.patient_name || '').replace(/'/g, "\\'");
-
-        // 🌟 ใช้ detailsLabel แทน itemsLabel เพื่อแก้ไขเออเรอร์
-        let labDetailsHtml = `<button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1 fw-semibold" onclick="showPaymentDetails('${row.visit_id}', '${row.hn || ''}', '${safeName}', '${safeTests}', ${row.discount || row.lab_discount || 0})"><i class="bi bi-credit-card me-1"></i> ${detailsLabel} (${testCount} รายการ)</button>`;
-
-        tbody.innerHTML += `<tr><td class="ps-4 fw-bold text-primary">${row.visit_id}</td><td>${row.hn}</td><td class="fw-bold">${row.patient_name}</td><td>${labDetailsHtml}</td><td><span class="badge-soft-warning">${pendingLabel}</span></td><td class="text-center"><button class="btn btn-sm btn-success rounded-pill px-3" onclick="confirmPayment('${row.visit_id}')"><i class="bi bi-check-circle me-1"></i> ${payBtnLabel}</button></td></tr>`;
-    });
-}
-// ฟังก์ชันยืนยันการชำระเงินและส่งผู้ป่วยไป Lab
-async function confirmPayment(visitId) {
-    const result = await Swal.fire({
-        title: 'ยืนยันการชำระเงิน?',
-        text: `ต้องการยืนยันชำระเงินและส่งผู้ป่วยเคส ${visitId} ไปห้อง Lab ใช่หรือไม่?`,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: '#10b981',
-        cancelButtonColor: '#64748b',
-        confirmButtonText: 'ยืนยันจ่าย & ส่ง Lab',
-        cancelButtonText: 'ยกเลิก'
-    });
-
-    if (!result.isConfirmed) return;
-
-    Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
-    const { error } = await _supabase
-        .from('visits')
-        .update({ status: 'รอผลแล็บ' })
-        .eq('visit_id', visitId);
-
-    if (error) {
-        Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
-    } else {
-        // บันทึก Bill อัตโนมัติหลังยืนยันชำระเงิน
-        if (typeof saveBill === 'function') {
-            try { await saveBill(visitId); } catch (e) { console.warn('saveBill error:', e); }
-        }
-        if (typeof loadBills === 'function') {
-            loadBills();
-        }
-        if (typeof processPaymentCommission === 'function') {
-            await processPaymentCommission(visitId);
-        }
-        Swal.fire('สำเร็จ', 'ยืนยันชำระเงินและส่งผู้ป่วยไปห้อง Lab เรียบร้อยแล้ว', 'success');
-        loadPaymentQueue();
-        if (typeof loadLabQueue === 'function') loadLabQueue();
-        if (typeof loadPatients === 'function') loadPatients();
-    }
-}
-
-async function loadLabQueue() {
-    const tbody = document.querySelector('#labTable tbody');
-    if (!tbody) return;
-
-    const { data, error } = await _supabase
-        .from('visits')
-        .select('*')
-        .eq('status', 'รอผลแล็บ')
-        .order('created_at', { ascending: true });
-
-    tbody.innerHTML = '';
-    if (error) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
-        return;
-    }
-    if (!data || data.length === 0) {
-        const emptyText = typeof t === 'function' ? t('lab_empty', 'ไม่มีรายการรอตรวจ Lab') : 'ไม่มีรายการรอตรวจ Lab';
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-3">${emptyText}</td></tr>`;
-        return;
-    }
-
-    const itemsLabel = typeof t === 'function' ? t('lab_btn_items', 'รายการส่งแล็บ') : 'รายการส่งแล็บ';
-    const pendingLabel = typeof t === 'function' ? t('lab_status_pending', 'รอผลแล็บ') : 'รอผลแล็บ';
-    const uploadLabel = typeof t === 'function' ? t('lab_btn_upload', 'อัปโหลดผล') : 'อัปโหลดผล';
-
-    data.forEach(row => {
-        const testCount = row.lab_tests ? row.lab_tests.split(',').filter(Boolean).length : 0;
-        const safeTests = (row.lab_tests || '').replace(/'/g, "\\'");
-        const safeName = (row.patient_name || '').replace(/'/g, "\\'");
-
-        // 🌟 ดึงข้อมูลหมายเหตุและจัดการอักขระพิเศษเพื่อป้องกัน Error
-        const safeNote = (row.lab_note || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-
-        // 🌟 ส่งตัวแปร safeNote เข้าไปเป็นพารามิเตอร์ตัวที่ 5 ของ showLabDetails
-        let labDetailsHtml = `<button class="btn btn-sm btn-light border" onclick="showLabDetails('${row.visit_id}', '${row.hn || ''}', '${safeName}', '${safeTests}', '${safeNote}')"><i class="ph ph-flask text-primary me-1"></i> ${itemsLabel} (${testCount} รายการ)</button>`;
-
-        tbody.innerHTML += `<tr><td class="ps-4 fw-bold text-primary">${row.visit_id}</td><td>${row.hn}</td><td class="fw-bold">${row.patient_name}</td><td>${labDetailsHtml}</td><td><span class="badge-soft-warning">${pendingLabel}</span></td><td class="text-center"><button class="btn btn-sm btn-primary px-3" onclick="openLabUploadModal('${row.visit_id}')"><i class="bi bi-upload"></i> ${uploadLabel}</button></td></tr>`;
-    });
-}
-
 async function loadQueueList() {
     const tbody = document.querySelector('#queueTable tbody');
     if (!tbody) return;
 
+    // 1. ดึงข้อมูลผู้ป่วยที่เกี่ยวข้องกับหน้าจัดคิวทั้งหมด
     const queueRes = await _supabase
         .from('visits')
         .select('*')
-        .eq('status', 'รอจัดคิว')
+        .in('status', ['รอจัดคิว', 'รออ่านผล', 'กำลังคุยกับแพทย์'])
         .order('created_at', { ascending: true });
 
     // ดึงข้อมูลแพทย์จาก staff_users หรือ staff
@@ -1416,7 +1187,8 @@ async function loadQueueList() {
         });
     }
 
-    let docOptions = `<option value="">-- เลือกแพทย์ --</option>`;
+    // 2. จัดเตรียมตัวเลือกรายชื่อแพทย์
+    let docOptionsTemplate = `<option value="">-- เลือกแพทย์ --</option>`;
     if (doctors && doctors.length > 0) {
         doctors.forEach(doc => {
             const docStatus = busyDoctorMap[doc.name];
@@ -1429,24 +1201,57 @@ async function loadQueueList() {
                 statusText = "🔴 ติดเคส";
             }
 
-            docOptions += `<option value="${doc.name}">${doc.name} ( ${statusText} )</option>`;
+            docOptionsTemplate += `<option value="${doc.name}">${doc.name} ( ${statusText} )</option>`;
         });
     } else {
-        docOptions += `<option value="">กรุณาเพิ่มแพทย์ในระบบ</option>`;
+        docOptionsTemplate += `<option value="">กรุณาเพิ่มแพทย์ในระบบ</option>`;
     }
 
+    // 3. แสดงผลตารางและแบ่งแยกตามสถานะ
     queue.forEach(row => {
-        let selectHtml = `<select id="select-doc-${row.visit_id}" class="form-select form-select-sm d-inline-block w-auto mb-1">${docOptions}</select>`;
+        let actionColumnHtml = '';
+
+        if (row.status === 'รอจัดคิว') {
+            // สถานะปกติ: ให้เลือกหมอและกดส่งได้
+            actionColumnHtml = `
+                <td class="py-3">
+                    <select id="select-doc-${row.visit_id}" class="form-select form-select-sm d-inline-block w-auto mb-1">${docOptionsTemplate}</select>
+                </td>
+                <td class="text-center py-3">
+                    <button class="btn btn-sm btn-primary ms-1" onclick="sendToPrescriptionWithDoc('${row.visit_id}')">ส่งห้องอ่านผล</button>
+                </td>
+            `;
+        } else if (row.status === 'รออ่านผล') {
+            // สถานะส่งคิวแล้ว: ล็อกไม่ให้แก้ โชว์ชื่อหมอ และปุ่มรอเรียกพบ
+            actionColumnHtml = `
+                <td class="py-3 fw-semibold text-secondary">
+                    <i class="bi bi-person-workspace text-primary me-1"></i> ${row.doctor_name || '-'}
+                </td>
+                <td class="text-center py-3">
+                    <button class="btn btn-sm btn-secondary ms-1 fw-bold" disabled style="opacity: 0.8;">
+                        <i class="bi bi-hourglass-split me-1"></i>รอหมอเรียกพบ
+                    </button>
+                </td>
+            `;
+        } else if (row.status === 'กำลังคุยกับแพทย์') {
+            // สถานะหมอกำลังตรวจ: ล็อกไม่ให้แก้ โชว์ชื่อหมอ และปุ่มกำลังตรวจ
+            actionColumnHtml = `
+                <td class="py-3 fw-bold text-success">
+                    <i class="bi bi-person-workspace text-primary me-1"></i> ${row.doctor_name || '-'}
+                </td>
+                <td class="text-center py-3">
+                    <button class="btn btn-sm btn-warning ms-1 fw-bold text-dark" disabled style="opacity: 0.9;">
+                        <i class="bi bi-mic-fill me-1"></i>กำลังตรวจอยู่
+                    </button>
+                </td>
+            `;
+        }
+
         tbody.innerHTML += `<tr>
         <td class="ps-4 py-3 fw-bold text-primary">${row.visit_id}</td>
         <td class="py-3">${row.hn}</td>
         <td class="py-3 fw-bold text-dark">${row.patient_name}</td>
-        <td class="py-3">
-            ${selectHtml}
-        </td>
-        <td class="text-center py-3">
-            <button class="btn btn-sm btn-primary ms-1" onclick="sendToPrescriptionWithDoc('${row.visit_id}')">ส่งห้องอ่านผล</button>
-        </td>
+        ${actionColumnHtml}
       </tr>`;
     });
 }
@@ -2430,7 +2235,7 @@ async function submitPatient() {
     const patientData = {
         hn: hn,
         patient_name: form.FullName.value,
-        dob: form.DOB.value || null,
+        dob: (form.DOB ? form.DOB.value : null) || null,
         age: parseInt(form.Age.value) || null,
         village: form.Village.value || null,
         district: (document.getElementById('patientDistrictSelect')?.value || form.District?.value || null),
@@ -3075,7 +2880,20 @@ function addCustomLabCheckbox() {
 }
 
 async function confirmPayment(visitId) {
-    Swal.fire({ title: 'กำลังบันทึกชำระเงิน...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    const result = await Swal.fire({
+        title: 'ยืนยันการชำระเงิน?',
+        text: `ต้องการยืนยันชำระเงินและส่งผู้ป่วยเคส ${visitId} ไปห้อง Lab ใช่หรือไม่?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#10b981',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ยืนยันจ่าย & ส่ง Lab',
+        cancelButtonText: 'ยกเลิก'
+    });
+
+    if (!result.isConfirmed) return;
+
+    Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     const { error } = await _supabase
         .from('visits')
@@ -3083,17 +2901,97 @@ async function confirmPayment(visitId) {
         .eq('visit_id', visitId);
 
     if (error) {
-        Swal.fire('ข้อผิดพลาด', error.message, 'error');
+        Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
     } else {
+        if (typeof saveBill === 'function') {
+            try { await saveBill(visitId); } catch (e) { console.warn('saveBill error:', e); }
+        }
+        if (typeof loadBills === 'function') {
+            loadBills();
+        }
         if (typeof processPaymentCommission === 'function') {
             await processPaymentCommission(visitId);
         }
-        loadPaymentQueue();
-        loadLabQueue();
-        Swal.fire('ชำระเงินสำเร็จ', 'ส่งตัวเข้าห้องแล็บตรวจเรียบร้อย', 'success');
+        Swal.fire('สำเร็จ', 'ยืนยันชำระเงินและส่งผู้ป่วยไปห้อง Lab เรียบร้อยแล้ว', 'success');
+        if (typeof loadPaymentQueue === 'function') loadPaymentQueue();
+        if (typeof loadLabQueue === 'function') loadLabQueue();
+        if (typeof loadPatients === 'function') loadPatients();
     }
 }
 
+async function loadPaymentQueue() {
+    const tbody = document.querySelector('#paymentTable tbody');
+    if (!tbody) return;
+
+    const { data, error } = await _supabase
+        .from('visits')
+        .select('*')
+        .eq('status', 'รอชำระเงิน')
+        .order('created_at', { ascending: true });
+
+    tbody.innerHTML = '';
+    if (error) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
+        return;
+    }
+    if (!data || data.length === 0) {
+        const emptyText = typeof t === 'function' ? t('payment_empty', 'ไม่มีรายการรอชำระเงิน') : 'ไม่มีรายการรอชำระเงิน';
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-3">${emptyText}</td></tr>`;
+        return;
+    }
+
+    const detailsLabel = typeof t === 'function' ? t('payment_btn_details', 'ดูรายละเอียด') : 'ดูรายละเอียด';
+    const pendingLabel = typeof t === 'function' ? t('payment_status_pending', 'รอชำระเงิน') : 'รอชำระเงิน';
+    const payBtnLabel = typeof t === 'function' ? t('payment_btn_pay', 'รับชำระเงิน & ส่ง Lab') : 'รับชำระเงิน & ส่ง Lab';
+
+    data.forEach(row => {
+        const testCount = row.lab_tests ? row.lab_tests.split(',').filter(Boolean).length : 0;
+        const safeTests = (row.lab_tests || '').replace(/'/g, "\\'");
+        const safeName = (row.patient_name || '').replace(/'/g, "\\'");
+
+        let labDetailsHtml = `<button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1 fw-semibold" onclick="showPaymentDetails('${row.visit_id}', '${row.hn || ''}', '${safeName}', '${safeTests}', ${row.discount || row.lab_discount || 0})"><i class="bi bi-credit-card me-1"></i> ${detailsLabel} (${testCount} รายการ)</button>`;
+
+        tbody.innerHTML += `<tr><td class="ps-4 fw-bold text-primary">${row.visit_id}</td><td>${row.hn}</td><td class="fw-bold">${row.patient_name}</td><td>${labDetailsHtml}</td><td><span class="badge-soft-warning">${pendingLabel}</span></td><td class="text-center"><button class="btn btn-sm btn-success rounded-pill px-3" onclick="confirmPayment('${row.visit_id}')"><i class="bi bi-check-circle me-1"></i> ${payBtnLabel}</button></td></tr>`;
+    });
+}
+
+async function loadLabQueue() {
+    const tbody = document.querySelector('#labTable tbody');
+    if (!tbody) return;
+
+    const { data, error } = await _supabase
+        .from('visits')
+        .select('*')
+        .eq('status', 'รอผลแล็บ')
+        .order('created_at', { ascending: true });
+
+    tbody.innerHTML = '';
+    if (error) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
+        return;
+    }
+    if (!data || data.length === 0) {
+        const emptyText = typeof t === 'function' ? t('lab_empty', 'ไม่มีรายการรอตรวจ Lab') : 'ไม่มีรายการรอตรวจ Lab';
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-3">${emptyText}</td></tr>`;
+        return;
+    }
+
+    const itemsLabel = typeof t === 'function' ? t('lab_btn_items', 'รายการส่งแล็บ') : 'รายการส่งแล็บ';
+    const pendingLabel = typeof t === 'function' ? t('lab_status_pending', 'รอผลแล็บ') : 'รอผลแล็บ';
+    const uploadLabel = typeof t === 'function' ? t('lab_btn_upload', 'อัปโหลดผล') : 'อัปโหลดผล';
+
+    data.forEach(row => {
+        const testCount = row.lab_tests ? row.lab_tests.split(',').filter(Boolean).length : 0;
+        const safeTests = (row.lab_tests || '').replace(/'/g, "\\'");
+        const safeName = (row.patient_name || '').replace(/'/g, "\\'");
+
+        const safeNote = (row.lab_note || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+        let labDetailsHtml = `<button class="btn btn-sm btn-light border" onclick="showLabDetails('${row.visit_id}', '${row.hn || ''}', '${safeName}', '${safeTests}', '${safeNote}')"><i class="ph ph-flask text-primary me-1"></i> ${itemsLabel} (${testCount} รายการ)</button>`;
+
+        tbody.innerHTML += `<tr><td class="ps-4 fw-bold text-primary">${row.visit_id}</td><td>${row.hn}</td><td class="fw-bold">${row.patient_name}</td><td>${labDetailsHtml}</td><td><span class="badge-soft-warning">${pendingLabel}</span></td><td class="text-center"><button class="btn btn-sm btn-primary px-3" onclick="openLabUploadModal('${row.visit_id}')"><i class="bi bi-upload"></i> ${uploadLabel}</button></td></tr>`;
+    });
+}
 function openLabUploadModal(visitId) {
     document.getElementById('labUploadForm').reset();
     document.getElementById('uploadVisitId').value = visitId;
@@ -3119,33 +3017,41 @@ async function submitLabUpload() {
 
     const reader = new FileReader();
     reader.onload = async function (e) {
-        const fileDataUrl = e.target.result;
-        let publicUrl = fileDataUrl; // ใช้ไฟล์จริงที่อัปโหลดทันที (DataURL Base64)
+        const fileDataUrl = e.target.result; // Base64 สำหรับเก็บไว้ดู Offline
+        let publicUrl = ''; // ลิงก์จริงจาก Supabase สำหรับเซฟลง Database
 
         const ext = file.name.split('.').pop() || 'pdf';
         const fileName = `${visitId}_LabResult_${Date.now()}.${ext}`;
 
         try {
-            // อัปโหลดขึ้น Supabase Storage พร้อมกันเพื่อการใช้งานระยะยาว
+            // 1. อัปโหลดขึ้น Supabase Storage
             const { data: uploadData, error: uploadError } = await _supabase
                 .storage
                 .from('lab-results')
                 .upload(fileName, file, { cacheControl: '3600', upsert: true, contentType: file.type });
 
-            if (!uploadError) {
-                const { data: urlData } = _supabase
-                    .storage
-                    .from('lab-results')
-                    .getPublicUrl(fileName);
-                if (urlData && urlData.publicUrl) {
-                    publicUrl = urlData.publicUrl;
-                }
+            if (uploadError) {
+                console.error("Storage Upload Error:", uploadError);
+                Swal.fire('ข้อผิดพลาด', 'ไม่สามารถอัปโหลดไฟล์ไปที่ Storage ได้ กรุณาตรวจสอบการตั้งค่า Bucket', 'error');
+                return; // หยุดการทำงานทันที ป้องกันการเอา Base64 ไปยัดลง DB
+            }
+
+            // ดึง URL กลับมา
+            const { data: urlData } = _supabase
+                .storage
+                .from('lab-results')
+                .getPublicUrl(fileName);
+
+            if (urlData && urlData.publicUrl) {
+                publicUrl = urlData.publicUrl;
             }
         } catch (err) {
-            console.warn('Optional Supabase storage upload notice:', err);
+            console.error("Storage Catch Error:", err);
+            Swal.fire('ข้อผิดพลาด', 'เกิดข้อผิดพลาดในการเชื่อมต่อ Storage', 'error');
+            return;
         }
 
-        // บันทึก URL ไฟล์จริงลงในตาราง visits ใน Supabase DB
+        // 2. บันทึก URL ไฟล์จริง (ลิงก์สั้นๆ) ลงในตาราง visits ใน Supabase DB
         const { error: dbError } = await _supabase
             .from('visits')
             .update({
@@ -3154,21 +3060,23 @@ async function submitLabUpload() {
             })
             .eq('visit_id', visitId);
 
-        // บันทึกลงใน LocalStorage Cache เป็นเกราะป้องกันกรณีออฟไลน์
+        if (dbError) {
+            console.error('Update visit lab pdf_url error:', dbError.message);
+            Swal.fire('ข้อผิดพลาด', 'อัปเดตสถานะในฐานข้อมูลไม่สำเร็จ: ' + dbError.message, 'error');
+            return;
+        }
+
+        // 3. บันทึก Base64 ลงใน LocalStorage Cache เป็นเกราะป้องกันกรณีออฟไลน์
         try {
             const cachedRealFiles = JSON.parse(localStorage.getItem('clinic_real_lab_files') || '{}');
             cachedRealFiles[visitId] = {
-                url: publicUrl,
+                url: fileDataUrl, // เก็บ Base64 ไว้ใช้ในเครื่องเครื่องเดียว
                 fileName: file.name,
                 fileType: file.type,
                 updatedAt: new Date().toISOString()
             };
             localStorage.setItem('clinic_real_lab_files', JSON.stringify(cachedRealFiles));
         } catch (ex) { }
-
-        if (dbError) {
-            console.error('Update visit lab pdf_url error:', dbError.message);
-        }
 
         Swal.fire({
             icon: 'success',
@@ -3180,8 +3088,9 @@ async function submitLabUpload() {
 
         const modalEl = document.getElementById('labUploadModal');
         if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-        loadLabQueue();
-        loadQueueList();
+
+        if (typeof loadLabQueue === 'function') loadLabQueue();
+        if (typeof loadQueueList === 'function') loadQueueList();
         if (typeof loadPrescriptionList === 'function') loadPrescriptionList();
     };
 

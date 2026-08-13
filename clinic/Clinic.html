@@ -2486,21 +2486,15 @@
                     <form id="patientForm" onsubmit="event.preventDefault(); submitPatient();">
                         <input type="hidden" id="patientEditHn" value="">
                         <div class="row mb-3">
-                            <div class="col-md-6">
+                            <div class="col-md-8">
                                 <label class="form-label fw-bold"><span data-i18n="reg_modal_name">ชื่อ-นามสกุล</span>
                                     <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control custom-input" name="FullName" required>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label fw-bold"><span data-i18n="reg_modal_dob">วันเกิด</span> <span
-                                        class="text-danger">*</span></label>
-                                <input type="date" class="form-control custom-input" name="DOB" required
-                                    onchange="calculateAge()" oninput="calculateAge()">
-                            </div>
-                            <div class="col-md-2">
                                 <label class="form-label fw-bold" data-i18n="reg_modal_age">อายุ (ปี)</label>
                                 <input type="number" class="form-control custom-input" name="Age" min="0" max="150"
-                                    placeholder="อายุ" oninput="calculateDOBFromAge()" onchange="calculateDOBFromAge()">
+                                    placeholder="อายุ">
                             </div>
                         </div>
                         <div class="row mb-3">
