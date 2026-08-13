@@ -380,6 +380,15 @@
                 if (!mapped) return;
 
                 let val = dataObj[k];
+
+                if (typeof val === 'string' && /^(NEW|DEPT|NEWS|ANN|DOC|POL|COURSE|ASSET)-/.test(val)) {
+                    if (mapped === 'rating_id') {
+                        val = Math.floor(Date.now() / 1000);
+                    } else {
+                        return;
+                    }
+                }
+
                 if (typeof val === 'string') {
                     if (val.startsWith('data:image')) {
                         val = val.replace(/[\r\n\t\s]+/g, "");
@@ -392,11 +401,8 @@
                     val = String(val).toLowerCase() === 'true' || val === true;
                 }
                 if (mapped === 'star_point') {
-                    let numVal = parseFloat(val) || 0;
-                    if (numVal > 5) {
-                        numVal = numVal / 100;
-                    }
-                    val = numVal;
+                    // 🚀 ปล่อยค่าเป็นทศนิยมตามเดิม (เช่น 0.6) ไม่ต้องปัดเศษแล้ว
+                    val = parseFloat(val) || 0;
                 }
                 if (val === '') {
                     val = null;
@@ -405,7 +411,6 @@
             });
             return out;
         }
-
         function getKeyForTable(table) {
             return {
                 staff: 'Employee_ID',
