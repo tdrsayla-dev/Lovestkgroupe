@@ -343,7 +343,7 @@ function renderFormStarPreviewIconsHtml(scoreVal) {
     return html;
 }
 
-window.updateFormStarPreview = function(val) {
+window.updateFormStarPreview = function (val) {
     const pts = parseFloat(val) || 0;
     const hiddenInput = document.getElementById('hidden-star-input');
     if (hiddenInput) hiddenInput.value = pts;
@@ -563,7 +563,7 @@ function openFormModal(rowDataStr = null) {
     formFields.classList.remove('hidden-important');
     formFields.style.cssText = '';
     formFields.innerHTML = '';
-    
+
     console.log("[openFormModal] currentSheet:", currentSheet, "initial currentHeaders:", currentHeaders);
     currentHeaders = ensureHeadersForSheet(currentSheet, currentHeaders);
     console.log("[openFormModal] after ensureHeadersForSheet - currentHeaders:", currentHeaders);
@@ -599,10 +599,12 @@ function openFormModal(rowDataStr = null) {
                 { id: 'dashboard', name: 'Dashboard (หน้าหลัก)' },
                 { id: 'scan', name: 'Time Tracking (ลงเวลา)' },
                 { id: 'FB_Budget_Form', name: 'FB Budget Form (ฟอร์มขอเบิกงบ)' },
-                { id: 'FB_Budget_List', name: 'FB Budget List (รายการเบิกงบ)', subFeatures: [
-                    { id: 'approve', name: 'อนุมัติ/ปฏิเสธงบ (Approve Budget)' },
-                    { id: 'export', name: 'ส่งออกรายงาน (Export Report)' }
-                ]},
+                {
+                    id: 'FB_Budget_List', name: 'FB Budget List (รายการเบิกงบ)', subFeatures: [
+                        { id: 'approve', name: 'อนุมัติ/ปฏิเสธงบ (Approve Budget)' },
+                        { id: 'export', name: 'ส่งออกรายงาน (Export Report)' }
+                    ]
+                },
                 { id: 'FB_Budget_Report', name: 'FB Budget Report (รายงานเบิกงบ)' },
                 { id: 'Leave application', name: 'Leave Requests (คำขอลา)' },
                 { id: 'Budget Request', name: 'Budget Requests (ขออนุมัติงบ)' },
@@ -611,16 +613,20 @@ function openFormModal(rowDataStr = null) {
                 { id: 'general-ledger', name: 'General Ledger (สมุดบัญชีทั่วไป)' },
                 { id: 'invoices', name: 'Invoices & AR (ใบแจ้งหนี้)' },
                 { id: 'financial-reports', name: 'Financial Reports (รายงานการเงิน)' },
-                { id: 'Fingerprint_Logs', name: 'Attendance Logs (ประวัติลงเวลา)', subFeatures: [
-                    { id: 'shift_settings', name: 'ตั้งค่ากะเวลาเข้างาน (Shift Settings / +)' },
-                    { id: 'calc_payroll', name: 'คำนวณเงินเดือน/สลิป (Calculate Payroll)' },
-                    { id: 'payroll_history', name: 'ประวัติเงินเดือน (Payroll History)' },
-                    { id: 'export', name: 'ส่งออกรายงาน (Export Excel / PDF / Print)' }
-                ]},
-                { id: 'staff', name: 'Staff Directory (รายชื่อพนักงาน)', subFeatures: [
-                    { id: 'salary_info', name: 'ข้อมูลเงินเดือน (Salary Info)' },
-                    { id: 'export', name: 'ส่งออกรายชื่อพนักงาน (Export Staff)' }
-                ]},
+                {
+                    id: 'Fingerprint_Logs', name: 'Attendance Logs (ประวัติลงเวลา)', subFeatures: [
+                        { id: 'shift_settings', name: 'ตั้งค่ากะเวลาเข้างาน (Shift Settings / +)' },
+                        { id: 'calc_payroll', name: 'คำนวณเงินเดือน/สลิป (Calculate Payroll)' },
+                        { id: 'payroll_history', name: 'ประวัติเงินเดือน (Payroll History)' },
+                        { id: 'export', name: 'ส่งออกรายงาน (Export Excel / PDF / Print)' }
+                    ]
+                },
+                {
+                    id: 'staff', name: 'Staff Directory (รายชื่อพนักงาน)', subFeatures: [
+                        { id: 'salary_info', name: 'ข้อมูลเงินเดือน (Salary Info)' },
+                        { id: 'export', name: 'ส่งออกรายชื่อพนักงาน (Export Staff)' }
+                    ]
+                },
                 { id: 'digital-card', name: 'Digital Card (บัตรพนักงาน)' },
                 { id: 'Organization ', name: 'Organization (ข้อมูลองค์กร)' },
                 { id: 'Employees Ranting', name: 'Employee Rating (ประเมินพนักงาน / STK WOW)' },
@@ -634,13 +640,17 @@ function openFormModal(rowDataStr = null) {
                 { id: 'Training', name: 'Training (การฝึกอบรม)' },
                 { id: 'orientation', name: 'Orientation (ปฐมนิเทศ)' },
                 { id: 'Policy ', name: 'Policy (นโยบาย)' },
-                { id: 'user', name: 'Users Management (จัดการผู้ใช้งาน)', subFeatures: [
-                    { id: 'assign_role', name: 'กำหนด Role & สิทธิ์ (Assign Roles & Permissions)' }
-                ]},
-                { id: 'company-settings', name: 'Company Settings (ตั้งค่าบริษัท)', subFeatures: [
-                    { id: 'dept_settings', name: 'ตั้งค่าแผนก (Department Settings)' },
-                    { id: 'org_structure', name: 'ผังองค์กร (Org Structure)' }
-                ]}
+                {
+                    id: 'user', name: 'Users Management (จัดการผู้ใช้งาน)', subFeatures: [
+                        { id: 'assign_role', name: 'กำหนด Role & สิทธิ์ (Assign Roles & Permissions)' }
+                    ]
+                },
+                {
+                    id: 'company-settings', name: 'Company Settings (ตั้งค่าบริษัท)', subFeatures: [
+                        { id: 'dept_settings', name: 'ตั้งค่าแผนก (Department Settings)' },
+                        { id: 'org_structure', name: 'ผังองค์กร (Org Structure)' }
+                    ]
+                }
             ];
 
             let checkedValues = typeof parsePermissionsList === 'function' ? parsePermissionsList(val) : (val ? val.split(',').map(v => String(v).trim().toLowerCase()) : []);
@@ -945,71 +955,71 @@ function openFormModal(rowDataStr = null) {
             return;
         }
 
-/* =====================================================================
- * 📌 Date Formatting Helper for ISO Dates (YYYY-MM-DD)
- * ===================================================================== */
-function formatToIsoDate(val) {
-    if (!val || val === '-' || val === 'null' || val === 'undefined') return '';
-    const str = String(val).trim();
+        /* =====================================================================
+         * 📌 Date Formatting Helper for ISO Dates (YYYY-MM-DD)
+         * ===================================================================== */
+        function formatToIsoDate(val) {
+            if (!val || val === '-' || val === 'null' || val === 'undefined') return '';
+            const str = String(val).trim();
 
-    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+            if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
 
-    if (str.includes('/')) {
-        const parts = str.split('/');
-        if (parts.length === 3) {
-            let day = parts[0].padStart(2, '0');
-            let month = parts[1].padStart(2, '0');
-            let year = parts[2];
-            if (year.length === 4) return `${year}-${month}-${day}`;
-        }
-    }
-
-    if (str.includes('-')) {
-        const parts = str.split('-');
-        if (parts.length === 3) {
-            if (parts[0].length === 4) {
-                return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-            } else if (parts[2].length === 4) {
-                return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-            }
-        }
-    }
-
-    if (str.includes('T')) return str.split('T')[0];
-    return str;
-}
-
-function openAttendanceEditModalByDate(empId, dateStr) {
-    if (!empId || !dateStr) return;
-    
-    currentSheet = 'Fingerprint_Logs';
-    const logs = (tableCache['Fingerprint_Logs'] && Array.isArray(tableCache['Fingerprint_Logs'].data)) ? tableCache['Fingerprint_Logs'].data : [];
-    const targetDateIso = formatToIsoDate(dateStr);
-
-    let rowIndex = logs.findIndex(r => {
-        let rEmp = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').toUpperCase().trim();
-        let rDateIso = formatToIsoDate(r.Date || r.date || '');
-        return rEmp === empId.toUpperCase().trim() && rDateIso === targetDateIso;
-    });
-
-    if (rowIndex >= 0) {
-        openFormModal(rowIndex);
-    } else {
-        openFormModal(null);
-        setTimeout(() => {
-            const form = document.getElementById('record-form');
-            if (form) {
-                const empEl = form.querySelector('[name="Employee_ID"], [name="employee_id"]');
-                const dateEl = form.querySelector('[name="Date"], [name="date"]');
-                if (empEl) empEl.value = empId;
-                if (dateEl) dateEl.value = targetDateIso;
-                if (typeof autoCalculateAttendanceTimes === 'function') {
-                    autoCalculateAttendanceTimes();
+            if (str.includes('/')) {
+                const parts = str.split('/');
+                if (parts.length === 3) {
+                    let day = parts[0].padStart(2, '0');
+                    let month = parts[1].padStart(2, '0');
+                    let year = parts[2];
+                    if (year.length === 4) return `${year}-${month}-${day}`;
                 }
             }
-        }, 120);
-    }
-}
+
+            if (str.includes('-')) {
+                const parts = str.split('-');
+                if (parts.length === 3) {
+                    if (parts[0].length === 4) {
+                        return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+                    } else if (parts[2].length === 4) {
+                        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                    }
+                }
+            }
+
+            if (str.includes('T')) return str.split('T')[0];
+            return str;
+        }
+
+        function openAttendanceEditModalByDate(empId, dateStr) {
+            if (!empId || !dateStr) return;
+
+            currentSheet = 'Fingerprint_Logs';
+            const logs = (tableCache['Fingerprint_Logs'] && Array.isArray(tableCache['Fingerprint_Logs'].data)) ? tableCache['Fingerprint_Logs'].data : [];
+            const targetDateIso = formatToIsoDate(dateStr);
+
+            let rowIndex = logs.findIndex(r => {
+                let rEmp = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').toUpperCase().trim();
+                let rDateIso = formatToIsoDate(r.Date || r.date || '');
+                return rEmp === empId.toUpperCase().trim() && rDateIso === targetDateIso;
+            });
+
+            if (rowIndex >= 0) {
+                openFormModal(rowIndex);
+            } else {
+                openFormModal(null);
+                setTimeout(() => {
+                    const form = document.getElementById('record-form');
+                    if (form) {
+                        const empEl = form.querySelector('[name="Employee_ID"], [name="employee_id"]');
+                        const dateEl = form.querySelector('[name="Date"], [name="date"]');
+                        if (empEl) empEl.value = empId;
+                        if (dateEl) dateEl.value = targetDateIso;
+                        if (typeof autoCalculateAttendanceTimes === 'function') {
+                            autoCalculateAttendanceTimes();
+                        }
+                    }
+                }, 120);
+            }
+        }
 
         const isDate = lw.includes('date') || lw.includes('birthday') || lw.includes('วันเกิด');
         let displayVal = val;
@@ -1507,7 +1517,7 @@ function closeFormModal() {
 function handleFormPhotoPreview(inputEl) {
     if (!inputEl || !inputEl.files || !inputEl.files[0]) return;
     const f = inputEl.files[0];
-    
+
     // Find wrapper container to locate img and hidden input reliably
     const wrapper = inputEl.closest('.col-span-1') || inputEl.closest('.bg-indigo-50\\/30') || inputEl.closest('.flex.items-center') || inputEl.closest('.flex') || inputEl.closest('div');
     const imgEl = wrapper ? wrapper.querySelector('img') : document.getElementById('preview-profile-img');
@@ -1518,7 +1528,7 @@ function handleFormPhotoPreview(inputEl) {
     const fallbackAvatar = 'https://ui-avatars.com/api/?background=e0e7ff&color=4f46e5&name=Pic';
 
     if (imgEl) {
-        imgEl.onerror = function() {
+        imgEl.onerror = function () {
             this.onerror = null;
             this.src = fallbackAvatar;
         };
@@ -1531,15 +1541,15 @@ function handleFormPhotoPreview(inputEl) {
         }
     } else {
         const reader = new FileReader();
-        reader.onerror = function(err) {
+        reader.onerror = function (err) {
             console.warn('FileReader preview error:', err);
         };
-        reader.onload = function(e) {
+        reader.onload = function (e) {
             const rawBase64 = e.target.result;
             // Instantly display preview image & sync hidden input synchronously
             if (imgEl) imgEl.src = rawBase64;
             if (hiddenEl) hiddenEl.value = rawBase64;
-            
+
             // Compress thumbnail in background for hidden input / database saving
             compressImageFile(f, 480, 0.75).then(compressedBase64 => {
                 if (compressedBase64 && compressedBase64.startsWith('data:image') && compressedBase64.length > 50 && compressedBase64 !== 'data:,') {
@@ -1584,7 +1594,7 @@ function submitData(e) {
     const dataObj = {};
     let permissionsArray = [];
     let permKeyName = '';
-    
+
     // PREVENT DATA LOSS: Initialize dataObj with existing row data if in edit mode
     let existingRowData = null;
     if (isEditMode && typeof rawData !== 'undefined' && Array.isArray(rawData)) {
@@ -1597,7 +1607,7 @@ function submitData(e) {
     currentHeaders.forEach(h => {
         // Fallback to existing value if available, else empty string
         dataObj[h] = (existingRowData && existingRowData[h] !== undefined && existingRowData[h] !== null) ? existingRowData[h] : '';
-        
+
         let lwK = h.toLowerCase().trim();
         if (lwK === 'permissions' || lwK === 'สิทธิ์' || lwK === 'สิทธิ์การเข้าถึง') {
             permKeyName = h;
@@ -1625,7 +1635,10 @@ function submitData(e) {
     if (typeof isEmployeeRatingSheet === 'function' && isEmployeeRatingSheet(currentSheet)) {
         let ratingKey = Object.keys(dataObj).find(k => ['star point', 'star_point', 'rating', 'score'].includes(k.toLowerCase().trim())) || 'Star Point';
         let scoreVal = parseFloat(dataObj[ratingKey]) || 0;
+
+        // 🚀 คืนค่าโค้ดกลับเป็นแบบเดิม ให้เก็บเป็นดาวแบบมีทศนิยม (60 คะแนน = 0.6 ดาว)
         let starVal = scoreVal > 5 ? (scoreVal / 100) : scoreVal;
+
         dataObj[ratingKey] = starVal;
         if (dataObj['Star Point'] !== undefined) dataObj['Star Point'] = starVal;
         if (dataObj['star_point'] !== undefined) dataObj['star_point'] = starVal;
@@ -1637,20 +1650,19 @@ function submitData(e) {
 
     let allFileInputs = Array.from(e.target.querySelectorAll('input[type="file"]'));
     let fileInput = allFileInputs.find(inp => inp.files && inp.files.length > 0);
-    let hiddenImgInput = e.target.querySelector('input[type="hidden"][id="hidden-profile-input"]') 
-                      || e.target.querySelector('input[type="hidden"][id="hidden-document-input"]')
-                      || e.target.querySelector('input[type="hidden"][name="PHOTOS"]')
-                      || e.target.querySelector('input[type="hidden"][name="photos"]')
-                      || e.target.querySelector('input[type="hidden"][name="photo"]')
-                      || e.target.querySelector('input[type="hidden"][name="Photo"]');
+    let hiddenImgInput = e.target.querySelector('input[type="hidden"][id="hidden-profile-input"]')
+        || e.target.querySelector('input[type="hidden"][id="hidden-document-input"]')
+        || e.target.querySelector('input[type="hidden"][name="PHOTOS"]')
+        || e.target.querySelector('input[type="hidden"][name="photos"]')
+        || e.target.querySelector('input[type="hidden"][name="photo"]')
+        || e.target.querySelector('input[type="hidden"][name="Photo"]');
 
     if (fileInput && fileInput.files.length > 0) {
         toggleLoading(true, 'UPLOADING FILE...');
         let file = fileInput.files[0];
-        // Always use the actual header column name (e.g. "Photos") — NOT the hidden input name which may differ in case
         let targetColName = currentHeaders.find(h => /^(photo|photos|profile|pic|image)$/i.test(h.trim()))
             || (hiddenImgInput ? hiddenImgInput.name : 'Photos');
-        
+
         if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
             let reader = new FileReader();
             reader.onload = function (evt) {
@@ -1713,7 +1725,6 @@ function submitData(e) {
         executeSaveToSheet(dataObj, currentEditId);
     }
 }
-
 function executeSaveToSheet(dataObj, currentEditId) {
     if (currentEditId === '-' || currentEditId === 'NEW-' || String(currentEditId || '').trim() === '') {
         currentEditId = null;
@@ -1844,7 +1855,8 @@ function executeSaveToSheet(dataObj, currentEditId) {
         const rowIndex = rawData.findIndex(r => String(getRecordId(r) || '').trim() === String(currentEditId || '').trim());
         if (rowIndex > -1) {
             Object.keys(dataObj).forEach(k => {
-                if (dataObj[k] !== undefined && dataObj[k] !== null && dataObj[k] !== '') {
+                // เอาเงื่อนไข !== '' ออก เพื่อให้อัปเดตค่าว่าง (กรณีเอาติ๊กถูกออกหมด) ได้
+                if (dataObj[k] !== undefined && dataObj[k] !== null) {
                     rawData[rowIndex][k] = dataObj[k];
                 }
             });
@@ -1858,7 +1870,7 @@ function executeSaveToSheet(dataObj, currentEditId) {
                 const s = JSON.parse(sessionStr);
                 const savedEmp = String(dataObj.Employee_ID || dataObj.employee_id || dataObj.Username || dataObj.username || '').trim().toUpperCase();
                 const sessionEmp = String(s.empId || s.username || s.email || '').trim().toUpperCase();
-                
+
                 if (savedEmp && (savedEmp === sessionEmp || String(s.email).trim().toLowerCase() === String(dataObj.Username || dataObj.username || '').trim().toLowerCase())) {
                     s.permissions = dataObj.Permissions || dataObj.permissions || '';
                     s.role = dataObj.Role || dataObj.role || s.role;
@@ -1870,7 +1882,7 @@ function executeSaveToSheet(dataObj, currentEditId) {
                         applyRolePermissions(s.role, s.permissions);
                     }
                 }
-            } catch (e) {}
+            } catch (e) { }
         }
     }
 
@@ -1880,7 +1892,7 @@ function executeSaveToSheet(dataObj, currentEditId) {
     // Save to local cache & localStorage
     try {
         localStorage.setItem(`hr_cache_${currentSheet}`, JSON.stringify(rawData));
-    } catch(e) {}
+    } catch (e) { }
 
     // Save to Supabase if active — always map keys via toPayload() to match exact DB column names
     if (window.supabase && (currentSheet.toLowerCase() === 'staff' || currentSheet.toLowerCase() === 'user'
@@ -1889,7 +1901,7 @@ function executeSaveToSheet(dataObj, currentEditId) {
         let supaPayload;
         try {
             supaPayload = (typeof toPayload === 'function') ? toPayload(tableName, dataObj) : dataObj;
-        } catch(e) {
+        } catch (e) {
             supaPayload = dataObj;
         }
         // Sanitize any data: URIs in the payload to remove whitespace and filter corrupted strings
@@ -2114,7 +2126,7 @@ window.initializeBillEditor = function (jsonStr) {
             if (decoded.includes('%')) {
                 try {
                     decoded = decodeURIComponent(decoded);
-                } catch (e) {}
+                } catch (e) { }
             }
         }
         const items = typeof decoded === 'object' ? decoded : JSON.parse(decoded || '[]');
@@ -2146,7 +2158,7 @@ window.showBillDetailsModal = function (encodedRow) {
                 if (str.includes('%')) {
                     str = decodeURIComponent(str);
                 }
-            } catch (e) {}
+            } catch (e) { }
             try {
                 row = JSON.parse(str);
             } catch (e) {
@@ -2272,7 +2284,7 @@ window.showBillDetailsModal = function (encodedRow) {
         if (String(decodedItems).includes('%')) {
             try {
                 decodedItems = decodeURIComponent(decodedItems);
-            } catch (e) {}
+            } catch (e) { }
         }
 
         let itemsList = [];
@@ -2431,7 +2443,7 @@ window.downloadBillPDF = function () {
 
     const rawId = document.getElementById('bill-modal-id')?.innerText || 'Invoice';
     const cleanId = rawId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    
+
     // Check if html2pdf is available
     if (typeof html2pdf !== 'function') {
         alert('ระบบสร้าง PDF กำลังโหลด กรุณาลองใหม่อีกครั้ง');
@@ -2740,10 +2752,10 @@ window.submitDirectBillApproval = async function (e) {
         const empId = activeRow.Employee_ID || activeRow.employee_id || activeRow.member_id;
         const fbPayload = { status: newStatus, approved_by: signFormatted };
         if (targetRecordId) {
-            await bridge.updateRow('facebook_budget_requests', 'id', targetRecordId, fbPayload).catch(() => {});
+            await bridge.updateRow('facebook_budget_requests', 'id', targetRecordId, fbPayload).catch(() => { });
         }
         if (empId) {
-            await bridge.updateRow('facebook_budget_requests', 'member_id', empId, fbPayload).catch(() => {});
+            await bridge.updateRow('facebook_budget_requests', 'member_id', empId, fbPayload).catch(() => { });
         }
 
         if (typeof fetchData === 'function') {
@@ -2780,7 +2792,7 @@ window.changeBillCurrency = function (newCurrency) {
     }
 };
 
-window.handleMasterPermToggle = function(masterCb) {
+window.handleMasterPermToggle = function (masterCb) {
     if (!masterCb) return;
     const mId = masterCb.getAttribute('data-menu');
     if (!mId) return;
@@ -2791,7 +2803,7 @@ window.handleMasterPermToggle = function(masterCb) {
     });
 };
 
-window.handleSubMasterPermToggle = function(subMasterCb) {
+window.handleSubMasterPermToggle = function (subMasterCb) {
     if (!subMasterCb) return;
     const mId = subMasterCb.getAttribute('data-menu');
     const parentRow = subMasterCb.closest('.grid');
@@ -2808,7 +2820,7 @@ window.handleSubMasterPermToggle = function(subMasterCb) {
     }
 };
 
-window.handleActionPermToggle = function(actionCb) {
+window.handleActionPermToggle = function (actionCb) {
     if (!actionCb) return;
     const parentRow = actionCb.closest('.grid');
     const mId = actionCb.getAttribute('data-menu');
@@ -2830,7 +2842,7 @@ window.handleActionPermToggle = function(actionCb) {
     }
 };
 
-window.toggleAllPermissionCheckboxes = function(selectAll) {
+window.toggleAllPermissionCheckboxes = function (selectAll) {
     const allCbs = document.querySelectorAll('.perm-master-cb, .perm-submaster-cb, .perm-action-cb');
     allCbs.forEach(cb => cb.checked = selectAll);
 };
