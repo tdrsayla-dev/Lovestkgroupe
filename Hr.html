@@ -384,9 +384,8 @@
                 if (typeof val === 'string' && /^(NEW|DEPT|NEWS|ANN|DOC|POL|COURSE|ASSET)-/.test(val)) {
                     if (mapped === 'rating_id') {
                         val = Math.floor(Date.now() / 1000);
-                    } else {
-                        return;
                     }
+                    // นำ else { return; } ออก เพื่อให้ค่า ID ที่เป็น String ถูกส่งไป Supabase ได้ปกติ
                 }
 
                 if (typeof val === 'string') {
