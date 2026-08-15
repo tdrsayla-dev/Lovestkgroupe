@@ -151,6 +151,12 @@
     React.createElement('circle', { cx: "11", cy: "11", r: "8" }),
     React.createElement('line', { x1: "21", y1: "21", x2: "16.65", y2: "16.65" })
   );
+  const Gift = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('rect', { x: "3", y: "8", width: "18", height: "4", rx: "1" }),
+    React.createElement('path', { d: "M12 8v13" }),
+    React.createElement('path', { d: "M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7" }),
+    React.createElement('path', { d: "M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5" })
+  );
   const PillIcon = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
     React.createElement('path', { d: "m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z" }),
     React.createElement('path', { d: "m8.5 8.5 7 7" })
@@ -406,7 +412,7 @@
 
     const defaultRolePermissions = {
         'พนักงานการตลาด': {
-            dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'none', nutrients: 'none', orders: 'none', customers: 'none',
+            dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'none', nutrients: 'none', orders: 'view', customers: 'none',
             team: 'edit', business_teams: 'none', stock: 'none', customer_types: 'none', closers: 'none',
             exchange_rate: 'none', system_users: 'none'
         },
@@ -540,6 +546,19 @@
       return React.createElement(SidebarItem, { icon: BarChart3, label: "รายงานสรุปผลงาน", id: "reports", activeTab: activeTab, href: SCRIPT_URL + '?page=reports', onTabClick: handleTabClick, isSidebarCollapsed: true });
     }
 
+    const getActiveGroup = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('group') || 'sales';
+      } catch(e) { return 'sales'; }
+    };
+    const activeGroup = isPageInReports ? getActiveGroup() : '';
+
+    const getLinkClass = (groupName) => {
+      const isActive = isPageInReports && activeGroup === groupName;
+      return `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${isActive ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3 font-black' : 'text-slate-400 hover:text-slate-200 hover:translate-x-1'}`;
+    };
+
     return React.createElement('div', { className: "space-y-1" },
       React.createElement('button', {
         type: "button",
@@ -553,10 +572,10 @@
         React.createElement('div', { className: `transition-transform duration-300 ${isOpen ? 'rotate-180' : ''} text-slate-500` }, React.createElement(ChevronDown, { size: 16 }))
       ),
       isOpen ? React.createElement('div', { className: "pl-4 ml-5 border-l border-slate-800 space-y-1 relative animation-slide-down", style: { animationDuration: '0.2s' } },
-        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=sales'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=sales'); }, className: "flex items-center px-4 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all hover:translate-x-1" }, "📊 ยอดขาย & พนักงาน"),
-        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=finance'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=finance'); }, className: "flex items-center px-4 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all hover:translate-x-1" }, "💰 การเงิน & รายรับ"),
-        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=stock'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=stock'); }, className: "flex items-center px-4 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all hover:translate-x-1" }, "📦 สต๊อก & สินค้าตัดศูนย์"),
-        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'); }, className: "flex items-center px-4 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all hover:translate-x-1" }, "🎁 ค่าแนะนำ & ปันผล")
+        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=sales'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=sales'); }, className: getLinkClass('sales') }, React.createElement(BarChart3, { size: 16, className: "mr-2 shrink-0" }), "ยอดขาย & พนักงาน"),
+        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=finance'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=finance'); }, className: getLinkClass('finance') }, React.createElement(Coins, { size: 16, className: "mr-2 shrink-0" }), "การเงิน & รายรับ"),
+        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=stock'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=stock'); }, className: getLinkClass('stock') }, React.createElement(PackageIcon, { size: 16, className: "mr-2 shrink-0" }), "สต๊อก & สินค้าตัดศูนย์"),
+        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'); }, className: getLinkClass('referral') }, React.createElement(Gift, { size: 16, className: "mr-2 shrink-0" }), "ค่าแนะนำ & ปันผล")
       ) : null
     );
   };
@@ -573,7 +592,7 @@
     const hasAnySettings = canSysUsers || canTeam || canBusTeams || canStock || canCustTypes || canClosers || canExRate;
     if (!hasAnySettings) return null;
 
-    const settingsPages = ['system_users', 'team', 'stock', 'customer_types', 'closers', 'exchange_rate'];
+    const settingsPages = ['system_users', 'team', 'business_teams', 'stock', 'customer_types', 'closers', 'exchange_rate'];
     const isPageInSettings = settingsPages.includes(activeTab);
     const [isOpen, setIsOpen] = React.useState(isPageInSettings);
 
@@ -586,7 +605,7 @@
     if (isSidebarCollapsed) {
       return React.createElement(React.Fragment, null,
         canSysUsers ? React.createElement(SidebarItem, { icon: UserCircle, label: "สิทธิ์เข้าใช้งานระบบ", id: "system_users", activeTab: activeTab, href: SCRIPT_URL + '?page=system_users', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
-        canTeam ? React.createElement(SidebarItem, { icon: Users, label: "ข้อมูลพนักงาน (Team)", id: "team", activeTab: activeTab, href: SCRIPT_URL + '?page=team', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
+        canTeam ? React.createElement(SidebarItem, { icon: Users, label: "ข้อมูลพนักงาน", id: "team", activeTab: activeTab, href: SCRIPT_URL + '?page=team', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
         canStock ? React.createElement(SidebarItem, { icon: Archive, label: "คลังสินค้า & สต๊อก", id: "stock", activeTab: activeTab, href: SCRIPT_URL + '?page=stock', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
         canCustTypes ? React.createElement(SidebarItem, { icon: Tags, label: "จัดการประเภทลูกค้า", id: "customer_types", activeTab: activeTab, href: SCRIPT_URL + '?page=customer_types', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
         canClosers ? React.createElement(SidebarItem, { icon: Headset, label: "จัดการผู้ปิดการขาย", id: "closers", activeTab: activeTab, href: SCRIPT_URL + '?page=closers', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
@@ -598,7 +617,7 @@
       React.createElement('button', {
         type: "button",
         onClick: () => setIsOpen(!isOpen),
-        className: `w-full flex items-center justify-between px-4 py-3 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-slate-100 transition-all duration-300 h-[50px]`
+        className: `w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300 h-[50px] ${isPageInSettings ? 'text-blue-400 bg-slate-800/80 font-bold' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-100'}`
       },
         React.createElement('div', { className: "flex items-center gap-3.5" },
           React.createElement('div', { className: "shrink-0 text-slate-400" }, React.createElement(SettingsIcon, { size: 22 })),
@@ -620,7 +639,7 @@
             handleTabClick();
           },
           className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'team' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}`
-        }, "ข้อมูลพนักงาน (Team)") : null,
+        }, "ข้อมูลพนักงาน") : null,
         canBusTeams ? React.createElement('a', {
           href: resolvePageUrl(SCRIPT_URL + '?page=team&tab=business_teams'),
           onClick: (e) => {
@@ -699,6 +718,7 @@
     const canSales = getUserPagePermission(currentUser, 'sales') !== 'none';
     const canNutrients = getUserPagePermission(currentUser, 'nutrients') !== 'none';
     const canCustomers = getUserPagePermission(currentUser, 'customers') !== 'none';
+    const canOrders = getUserPagePermission(currentUser, 'orders') !== 'none';
 
     const canSysUsers = getUserPagePermission(currentUser, 'system_users') !== 'none';
     const canTeam = getUserPagePermission(currentUser, 'team') !== 'none';
@@ -720,15 +740,15 @@
           )
         ),
         React.createElement('div', { className: "flex-1 p-4 space-y-2 overflow-y-auto pb-28 hide-scroll" },
-          canDashboard ? React.createElement(SidebarItem, { icon: LayoutDashboard, label: "แดชบอร์ด (Dashboard)", id: "dashboard", activeTab: activePage, href: SCRIPT_URL + '?page=dashboard', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
+          canDashboard ? React.createElement(SidebarItem, { icon: LayoutDashboard, label: "แดชบอร์ด", id: "dashboard", activeTab: activePage, href: SCRIPT_URL + '?page=dashboard', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
           isLoggedIn ? React.createElement(React.Fragment, null,
             React.createElement(SidebarReportsGroup, { activeTab: activePage, isSidebarCollapsed: isSidebarCollapsed, handleTabClick: handleTabClick, SCRIPT_URL: SCRIPT_URL, currentUser: currentUser }),
             canOrgChart ? React.createElement(SidebarItem, { icon: GitBranch, label: "ผังองค์กรสายงาน", id: "org_chart", activeTab: activePage, href: SCRIPT_URL + '?page=org_chart', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
-            (canSales || canCustomers) ? React.createElement('div', { className: "pt-3 pb-1.5" }, React.createElement('p', { className: `text-[10px] font-black text-slate-500 uppercase tracking-widest ${isSidebarCollapsed ? 'text-center' : 'px-4'}` }, "ธุรกรรมประจำวัน")) : null,
-            canSales ? React.createElement(SidebarItem, { icon: ShoppingCart, label: "ป้อนข้อมูลขาย (Sales)", id: "sales", activeTab: activePage, href: SCRIPT_URL + '?page=sales', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
-            canNutrients ? React.createElement(SidebarItem, { icon: PillIcon, label: "สารอาหาร", id: "nutrients", activeTab: activePage, href: SCRIPT_URL + '?page=nutrients', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
-            canSales ? React.createElement(SidebarItem, { icon: FileText, label: "จัดการบิล (Orders)", id: "orders", activeTab: activePage, href: SCRIPT_URL + '?page=orders', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
-            canCustomers ? React.createElement(SidebarItem, { icon: Contact, label: "ข้อมูลลูกค้า (Customers)", id: "customers", activeTab: activePage, href: SCRIPT_URL + '?page=customers', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
+            (canSales || canCustomers || canOrders) ? React.createElement('div', { className: "pt-3 pb-1.5" }, React.createElement('p', { className: `text-[10px] font-black text-slate-500 uppercase tracking-widest ${isSidebarCollapsed ? 'text-center' : 'px-4'}` }, "ธุรกรรมประจำวัน")) : null,
+            canSales ? React.createElement(SidebarItem, { icon: ShoppingCart, label: "ป้อนข้อมูลขาย", id: "sales", activeTab: activePage, href: SCRIPT_URL + '?page=sales', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
+            canNutrients ? React.createElement(SidebarItem, { icon: PillIcon, label: "จ่ายยา", id: "nutrients", activeTab: activePage, href: SCRIPT_URL + '?page=nutrients', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
+            canOrders ? React.createElement(SidebarItem, { icon: FileText, label: "จัดการบิล", id: "orders", activeTab: activePage, href: SCRIPT_URL + '?page=orders', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
+            canCustomers ? React.createElement(SidebarItem, { icon: Contact, label: "ข้อมูลลูกค้า", id: "customers", activeTab: activePage, href: SCRIPT_URL + '?page=customers', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
             React.createElement(SidebarSettingsGroup, { activeTab: activePage, isSidebarCollapsed: isSidebarCollapsed, isAdmin: isAdmin, handleTabClick: handleTabClick, SCRIPT_URL: SCRIPT_URL, currentUser: currentUser })
           ) : null
         ),
@@ -774,15 +794,15 @@
             }, React.createElement(BarChart3, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, 'รายงาน')),
             isMobileReportsOpen ? React.createElement('div', { className: "absolute left-0 bottom-14 w-60 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-2 z-50 flex flex-col gap-1 animation-slide-up" },
               React.createElement('div', { className: "px-3 py-1.5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800/80 mb-1 text-left" }, "เลือกหัวข้อรายงาน"),
-              React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=sales'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=sales'); }, className: "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 transition-all text-left" }, "📊 ยอดขาย & พนักงาน"),
-              React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=finance'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=finance'); }, className: "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 transition-all text-left" }, "💰 การเงิน & รายรับ"),
-              React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=stock'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=stock'); }, className: "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 transition-all text-left" }, "📦 สต๊อก & สินค้าตัดศูนย์"),
-              React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'); }, className: "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 transition-all text-left" }, "🎁 ค่าแนะนำ & ปันผล")
+              React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=sales'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=sales'); }, className: "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 transition-all text-left" }, React.createElement(BarChart3, { size: 16, className: "shrink-0" }), "ยอดขาย & พนักงาน"),
+              React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=finance'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=finance'); }, className: "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 transition-all text-left" }, React.createElement(Coins, { size: 16, className: "shrink-0" }), "การเงิน & รายรับ"),
+              React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=stock'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=stock'); }, className: "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 transition-all text-left" }, React.createElement(PackageIcon, { size: 16, className: "shrink-0" }), "สต๊อก & สินค้าตัดศูนย์"),
+              React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'); }, className: "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 transition-all text-left" }, React.createElement(Gift, { size: 16, className: "shrink-0" }), "ค่าแนะนำ & ปันผล")
             ) : null
           ) : null,
           (isLoggedIn && canSales) ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=sales'), onClick: handleTabClick, title: "การขาย", className: `flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all ${activePage === 'sales' ? 'text-blue-400' : 'text-slate-500 hover:text-white'}` }, React.createElement(ShoppingCart, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, 'ขาย')) : null,
-          (isLoggedIn && canNutrients) ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=nutrients'), onClick: handleTabClick, title: "สารอาหาร", className: `flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all ${activePage === 'nutrients' ? 'text-blue-400' : 'text-slate-500 hover:text-white'}` }, React.createElement(PillIcon, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, 'สารอาหาร')) : null,
-          (isLoggedIn && canSales) ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=orders'), onClick: handleTabClick, title: "จัดการบิล", className: `flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all ${activePage === 'orders' ? 'text-blue-400' : 'text-slate-500 hover:text-white'}` }, React.createElement(FileText, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, 'บิล')) : null,
+          (isLoggedIn && canNutrients) ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=nutrients'), onClick: handleTabClick, title: "จ่ายยา", className: `flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all ${activePage === 'nutrients' ? 'text-blue-400' : 'text-slate-500 hover:text-white'}` }, React.createElement(PillIcon, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, 'จ่ายยา')) : null,
+          (isLoggedIn && canOrders) ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=orders'), onClick: handleTabClick, title: "จัดการบิล", className: `flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all ${activePage === 'orders' ? 'text-blue-400' : 'text-slate-500 hover:text-white'}` }, React.createElement(FileText, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, 'บิล')) : null,
           (isLoggedIn && canCustomers) ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=customers'), onClick: handleTabClick, title: "ข้อมูลลูกค้า", className: `flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all ${activePage === 'customers' ? 'text-blue-400' : 'text-slate-500 hover:text-white'}` }, React.createElement(Contact, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, 'ลูกค้า')) : null,
           (isLoggedIn && canOrgChart) ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=org_chart'), onClick: handleTabClick, title: "ผังสายงาน", className: `flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all ${activePage === 'org_chart' ? 'text-blue-400' : 'text-slate-500 hover:text-white'}` }, React.createElement(GitBranch, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, 'ทีม')) : null,
           (isLoggedIn && canSettings) ? React.createElement('div', { className: "flex-1 flex justify-center relative" },
@@ -794,7 +814,7 @@
             isMobileSettingsOpen ? React.createElement('div', { className: "absolute right-0 bottom-14 w-56 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-2 z-50 flex flex-col gap-1 animation-slide-up" },
               React.createElement('div', { className: "px-3 py-1.5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800/80 mb-1 text-left" }, "เลือกหน้าตั้งค่า"),
               canSysUsers ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=system_users'), onClick: handleTabClick, className: `flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${activePage === 'system_users' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}` }, React.createElement(UserCircle, { size: 16 }), "สิทธิ์เข้าใช้งานระบบ") : null,
-              canTeam ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=team'), onClick: handleTabClick, className: `flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${activePage === 'team' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}` }, React.createElement(Users, { size: 16 }), "ข้อมูลพนักงาน (Team)") : null,
+              canTeam ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=team'), onClick: handleTabClick, className: `flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${activePage === 'team' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}` }, React.createElement(Users, { size: 16 }), "ข้อมูลพนักงาน") : null,
               canBusTeams ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=team&tab=business_teams'), onClick: handleTabClick, className: `flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${activePage === 'business_teams' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}` }, React.createElement(Users, { size: 16 }), "ข้อมูลทีมสังกัด") : null,
               canStock ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=stock'), onClick: handleTabClick, className: `flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${activePage === 'stock' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}` }, React.createElement(Archive, { size: 16 }), "คลังสินค้า & สต๊อก") : null,
               canCustTypes ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=customer_types'), onClick: handleTabClick, className: `flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${activePage === 'customer_types' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}` }, React.createElement(Tags, { size: 16 }), "จัดการประเภทลูกค้า") : null,
@@ -815,10 +835,10 @@
           isLoggedIn ? React.createElement(React.Fragment, null,
             React.createElement(SidebarReportsGroup, { activeTab: activePage, isSidebarCollapsed: false, handleTabClick: handleTabClick, SCRIPT_URL: SCRIPT_URL, currentUser: currentUser }),
             canOrgChart ? React.createElement(SidebarItem, { icon: GitBranch, label: "ผังองค์กรสายงาน", id: "org_chart", activeTab: activePage, href: SCRIPT_URL + '?page=org_chart', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
-            (canSales || canCustomers) ? React.createElement('div', { className: "pt-3 pb-1.5" }, React.createElement('p', { className: "text-[10px] font-black text-slate-500 uppercase tracking-widest px-4" }, "ธุรกรรมประจำวัน")) : null,
+            (canSales || canCustomers || canOrders) ? React.createElement('div', { className: "pt-3 pb-1.5" }, React.createElement('p', { className: "text-[10px] font-black text-slate-500 uppercase tracking-widest px-4" }, "ธุรกรรมประจำวัน")) : null,
             canSales ? React.createElement(SidebarItem, { icon: ShoppingCart, label: "ป้อนข้อมูลขาย (Sales)", id: "sales", activeTab: activePage, href: SCRIPT_URL + '?page=sales', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
-            canNutrients ? React.createElement(SidebarItem, { icon: PillIcon, label: "สารอาหาร", id: "nutrients", activeTab: activePage, href: SCRIPT_URL + '?page=nutrients', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
-            canSales ? React.createElement(SidebarItem, { icon: FileText, label: "จัดการบิล (Orders)", id: "orders", activeTab: activePage, href: SCRIPT_URL + '?page=orders', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
+            canNutrients ? React.createElement(SidebarItem, { icon: PillIcon, label: "จ่ายยา", id: "nutrients", activeTab: activePage, href: SCRIPT_URL + '?page=nutrients', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
+            canOrders ? React.createElement(SidebarItem, { icon: FileText, label: "จัดการบิล (Orders)", id: "orders", activeTab: activePage, href: SCRIPT_URL + '?page=orders', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
             canCustomers ? React.createElement(SidebarItem, { icon: Contact, label: "ข้อมูลลูกค้า (Customers)", id: "customers", activeTab: activePage, href: SCRIPT_URL + '?page=customers', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
             React.createElement(SidebarSettingsGroup, { activeTab: activePage, isSidebarCollapsed: false, isAdmin: isAdmin, handleTabClick: handleTabClick, SCRIPT_URL: SCRIPT_URL, currentUser: currentUser })
           ) : null
@@ -987,6 +1007,7 @@
   window.Trophy = Trophy;
   window.Activity = Activity;
   window.SearchIcon = SearchIcon;
+  window.Gift = Gift;
   window.Eye = Eye;
   window.Tags = Tags;
   window.CheckCircle = CheckCircle;
@@ -1110,17 +1131,26 @@
     if (typeof window.supabaseSelect === 'function') {
       const originalSelect = window.supabaseSelect;
       window.supabaseSelect = async function(table, query) {
-        const cacheKey = table + (query ? '?' + query : '');
+        let bypassCache = false;
+        let cleanQuery = query;
+        if (query && query.includes('nocache=true')) {
+          bypassCache = true;
+          cleanQuery = query.replace('nocache=true', '').replace('&&', '&').replace('?&', '?').replace(/&\s*$/, '').replace(/\?\s*$/, '');
+        }
+        
+        const cacheKey = table + (cleanQuery ? '?' + cleanQuery : '');
         const currentCache = loadCache();
-        if (currentCache[cacheKey]) {
+        if (!bypassCache && currentCache[cacheKey]) {
           console.log(`%c⚡ [Cache Hit] Serving ${cacheKey} from sessionStorage`, "color:green;font-weight:bold");
           window.top.stkDbCache = currentCache;
           return JSON.parse(JSON.stringify(currentCache[cacheKey]));
         }
-        const result = await originalSelect(table, query);
-        currentCache[cacheKey] = result;
-        saveCache(currentCache);
-        window.top.stkDbCache = currentCache;
+        const result = await originalSelect(table, cleanQuery);
+        if (!bypassCache) {
+          currentCache[cacheKey] = result;
+          saveCache(currentCache);
+          window.top.stkDbCache = currentCache;
+        }
         return result;
       };
     }

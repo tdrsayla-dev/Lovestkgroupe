@@ -6,8 +6,8 @@
   <title>ระบบแดชบอร์ด (Dashboard) - LOVE STK GROUPE</title>
   <!-- Standalone & GAS Libraries -->
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
-    body { font-family: 'Sukhumvit Set', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
+    body { font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
     @media (min-width: 1024px) {
       aside.lg\:flex { display: flex !important; position: fixed !important; top: 0; left: 0; height: 100vh; z-index: 30; }
       main.lg\:ml-64 { margin-left: 16rem !important; }
@@ -41,7 +41,12 @@
     .animate-float-1 { animation: floatCard 3s ease-in-out infinite; }
     .animate-float-2 { animation: floatCard 3.5s ease-in-out infinite 0.5s; }
     .animate-float-3 { animation: floatCard 4s ease-in-out infinite 1s; }
-  </style>
+  
+    /* Force global font-family styling to override Tailwind default sans stack */
+    body, button, input, select, textarea, .font-sans, [class*="font-"] {
+        font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif !important;
+    }
+</style>
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
@@ -1300,6 +1305,7 @@
       });
       
       const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+      const [saleNotify, setSaleNotify] = useState({ show: false, sellerName: '', profileUrl: '', bottles: 0, points: 0 });
       const showToast = (message, type = 'success') => {
         setToast({ show: true, message, type });
       };
@@ -1357,10 +1363,15 @@
         return () => document.removeEventListener('click', handleInterceptClick, true);
       }, []);
 
-      // Listen to postMessage to sync auth state from child pages
+
+      if (typeof window.stkLastRefreshTime === 'undefined') window.stkLastRefreshTime = Date.now();
+      // Listen to postMessage, BroadcastChannel, and localStorage polling (for file:// protocol) to trigger notifications
       useEffect(() => {
         const handleMessage = (e) => {
-          if (e.data === 'sync_auth') {
+          const data = e.data;
+          if (!data) return;
+
+          if (data === 'sync_auth') {
             const userStr = localStorage.getItem('stk_current_user');
             if (userStr) {
               try {
@@ -1372,11 +1383,93 @@
               setCurrentUser(null);
               setIsLoggedIn(false);
             }
+          } else if (data === 'refresh_data') {
+            if (typeof window.clearDbCache === 'function') window.clearDbCache();
+            if (typeof window.refreshAppDashboardData === 'function') {
+                window.refreshAppDashboardData();
+            }
+          } else if (data.type === 'new_sale_toast') {
+             if (typeof window.refreshAppDashboardData === 'function') {
+                 window.refreshAppDashboardData();
+             }
+             // 🔔 ONLY show pop-up alert if currently on the dashboard page
+             if (activePage === 'dashboard') {
+                 setSaleNotify({
+                     show: true,
+                     sellerName: data.sellerName,
+                     profileUrl: data.profileUrl,
+                     bottles: data.bottles,
+                     points: data.points
+                 });
+                 // Auto hide after 6 seconds
+                 setTimeout(() => {
+                     setSaleNotify(prev => ({ ...prev, show: false }));
+                 }, 6000);
+             }
           }
         };
+
         window.addEventListener('message', handleMessage);
-        return () => window.removeEventListener('message', handleMessage);
-      }, []);
+
+        // Listen on BroadcastChannel for multi-tab/window support
+        let bc;
+        if (typeof BroadcastChannel !== 'undefined') {
+            bc = new BroadcastChannel('stk_mlm_channel');
+            bc.onmessage = (e) => {
+                if (e.data === 'refresh_data') {
+                    if (typeof window.clearDbCache === 'function') window.clearDbCache();
+                    if (typeof window.refreshAppDashboardData === 'function') {
+                        window.refreshAppDashboardData();
+                    }
+                } else {
+                    handleMessage({ data: e.data });
+                }
+            };
+        }
+
+        // 🔒 Polling localStorage to bypass file:// protocol storage event restrictions in Chrome
+        let lastProcessedTimestamp = 0;
+        try {
+            const initialTrigger = localStorage.getItem('stk_new_sale_trigger');
+            if (initialTrigger) {
+                const parsed = JSON.parse(initialTrigger);
+                if (parsed && parsed.timestamp) {
+                    lastProcessedTimestamp = parsed.timestamp;
+                }
+            }
+        } catch (e) {}
+
+        const pollInterval = setInterval(() => {
+            try {
+                const rawTrigger = localStorage.getItem('stk_new_sale_trigger');
+                if (rawTrigger) {
+                    const parsed = JSON.parse(rawTrigger);
+                    if (parsed && parsed.timestamp && parsed.timestamp > lastProcessedTimestamp) {
+                        lastProcessedTimestamp = parsed.timestamp;
+                        handleMessage({ data: { type: 'new_sale_toast', ...parsed } });
+                    }
+                }
+                
+                // Also poll refresh trigger
+                const rawRefresh = localStorage.getItem('stk_refresh_trigger');
+                if (rawRefresh) {
+                    const refreshTime = Number(rawRefresh);
+                    if (!isNaN(refreshTime) && refreshTime > window.stkLastRefreshTime) {
+                        window.stkLastRefreshTime = refreshTime;
+                        if (typeof window.refreshAppDashboardData === 'function') {
+                            window.refreshAppDashboardData();
+                        }
+                    }
+                }
+            } catch (err) {}
+        }, 1000);
+
+        return () => {
+            window.removeEventListener('message', handleMessage);
+            if (bc) bc.close();
+            clearInterval(pollInterval);
+        };
+      }, [activePage]);
 
       const SCRIPT_URL = "<?= getScriptUrl() ?>";
 
@@ -1392,37 +1485,14 @@
           return filtered.length > 0 ? filtered : fallbackCustomerTypes;
       }, [customerTypes]);
 
-      useEffect(() => {
-        const savedUserStr = localStorage.getItem('stk_current_user');
-        if (savedUserStr) {
-          const user = JSON.parse(savedUserStr);
-          setCurrentUser(user);
-          setIsLoggedIn(true);
-        }
-
-        const initialLoader = document.getElementById('initial-loader');
-        if (initialLoader) {
-            initialLoader.style.display = 'none';
-        }
-
-        // 💡 SMART CACHING & PAGE TRANSITION SPEED FIX (SWR):
-        // ดึงข้อมูลจาก Cache ขึ้นมาแสดงผลทันที เพื่อสลับหน้าได้อย่างรวดเร็วโดยไม่ต้องรอโหลดผ่านเน็ตเวิร์ก
-        try {
-            const cachedData = localStorage.getItem('stk_app_cache_data');
-            if (cachedData) {
-                const parsedData = JSON.parse(cachedData);
-                applyDataToStates(parsedData);
-                setIsAppLoading(false); // ปิดการหมุนโหลดทันทีเพื่อความเร็วระดับไฮสปีด!
-            }
-        } catch (e) { console.warn("Cache error", e); }
-
+      const fetchFreshData = () => {
+        setIsAppLoading(true);
         Promise.all([
           supabaseSelect('stk_products').catch(() => []),
           supabaseSelect('stk_customer_types').catch(() => []),
           supabaseSelect('stk_closers').catch(() => []),
           supabaseSelect('stk_members').catch(() => []),
-          supabaseSelect('stk_customers', 'limit=500').catch(() => []),
-          // ⚡ SPEED FIX: โหลดข้อมูลการขายเฉพาะ 300 รายการล่าสุด ป้องกันระบบช้าเมื่อประวัติเยอะ
+          supabaseSelect('stk_customers', 'limit=10000').catch(() => []),
           supabaseSelect('stk_sales', 'order=order_id.desc&limit=300').catch(() => []),
           supabaseSelect('stk_business_teams').catch(() => []),
           supabaseSelect('stk_target_history').catch(() => [])
@@ -1447,6 +1517,33 @@
         }).finally(() => {
           setIsAppLoading(false);
         });
+      };
+
+      window.refreshAppDashboardData = fetchFreshData;
+
+      useEffect(() => {
+        const savedUserStr = localStorage.getItem('stk_current_user');
+        if (savedUserStr) {
+          const user = JSON.parse(savedUserStr);
+          setCurrentUser(user);
+          setIsLoggedIn(true);
+        }
+
+        const initialLoader = document.getElementById('initial-loader');
+        if (initialLoader) {
+            initialLoader.style.display = 'none';
+        }
+
+        try {
+            const cachedData = localStorage.getItem('stk_app_cache_data');
+            if (cachedData) {
+                const parsedData = JSON.parse(cachedData);
+                applyDataToStates(parsedData);
+                setIsAppLoading(false);
+            }
+        } catch (e) { console.warn("Cache error", e); }
+
+        fetchFreshData();
       }, []);
 
       const applyDataToStates = (response) => {
@@ -1585,6 +1682,54 @@
                     <p className="text-slate-600 font-medium text-sm mb-6">{toast.message}</p>
                     <button onClick={() => setToast({ ...toast, show: false })} className="w-full py-2.5 rounded-lg font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors">ตกลง</button>
                  </div>
+              </div>
+            , document.body)}
+
+            {saleNotify.show && ReactDOM.createPortal(
+              <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-[999999] flex items-center justify-center p-4 animation-fade-in" style={{ animationDuration: '0.25s' }}>
+                <style>{`
+                  @keyframes scaleUp {
+                    from { transform: scale(0.9); opacity: 0; }
+                    to { transform: scale(1); opacity: 1; }
+                  }
+                  .animate-scale-up {
+                    animation: scaleUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+                  }
+                `}</style>
+                <div className="bg-gradient-to-br from-amber-300 via-yellow-500 to-amber-600 rounded-3xl shadow-[0_30px_70px_rgba(245,158,11,0.45)] border-2 border-amber-200/40 p-8 max-w-sm w-full text-center relative overflow-hidden animate-scale-up">
+                  
+                  {/* Decorative background glow */}
+                  <div className="absolute -top-12 -left-12 w-32 h-32 bg-white/20 rounded-full blur-2xl"></div>
+                  <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-amber-200/30 rounded-full blur-2xl"></div>
+                  
+                  <button 
+                    onClick={() => setSaleNotify(prev => ({ ...prev, show: false }))} 
+                    className="absolute top-4 right-4 text-amber-950 hover:bg-white/20 p-1.5 rounded-full transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+
+                  <div className="relative inline-block mx-auto mb-5">
+                    <img 
+                      src={saleNotify.profileUrl && saleNotify.profileUrl !== '-' ? saleNotify.profileUrl : `https://ui-avatars.com/api/?name=${encodeURIComponent(saleNotify.sellerName)}&background=1e293b&color=94a3b8&rounded=true&bold=true`} 
+                      className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-2xl bg-slate-900" 
+                    />
+                    <span className="absolute -bottom-1 right-1 bg-amber-950 text-yellow-400 rounded-full p-1.5 flex items-center justify-center border-2 border-white shadow-lg">
+                      <Trophy size={16} />
+                    </span>
+                  </div>
+
+                  <h3 className="text-xs font-black text-amber-950 uppercase tracking-widest mb-1">เปิดบิลขายใหม่สำเร็จ!</h3>
+                  <div className="text-xl font-black text-amber-950 truncate mb-4">{saleNotify.sellerName}</div>
+                  
+                  <div className="bg-amber-950/10 backdrop-blur-xs py-4 px-6 rounded-2xl border border-amber-900/10 inline-block w-full">
+                    <div className="text-[10px] font-bold text-amber-900 uppercase tracking-wider mb-1">ยอดขายสะสมกล่องในบิล</div>
+                    <div className="text-3xl font-black text-amber-950 leading-none">
+                      {saleNotify.bottles} <span className="text-lg font-bold">กล่อง</span>
+                    </div>
+                  </div>
+
+                </div>
               </div>
             , document.body)}
 

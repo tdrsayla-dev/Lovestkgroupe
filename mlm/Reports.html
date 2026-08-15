@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>รายงานสรุปและผลประโยชน์ (Reports) - LOVE STK GROUPE</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
-    body { font-family: 'Sukhumvit Set', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
+    body { font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
     @media (min-width: 1024px) {
       aside.lg\:flex { display: flex !important; position: fixed !important; top: 0; left: 0; height: 100vh; z-index: 30; }
       main.lg\:ml-64 { margin-left: 16rem !important; }
@@ -18,7 +18,12 @@
       div.lg\:hidden { display: flex !important; }
       main { margin-left: 0 !important; width: 100% !important; }
     }
-  </style>
+  
+    /* Force global font-family styling to override Tailwind default sans stack */
+    body, button, input, select, textarea, .font-sans, [class*="font-"] {
+        font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif !important;
+    }
+</style>
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
@@ -265,6 +270,62 @@
             return Math.round(converted).toLocaleString();
         }, [convertVal, currencyMode]);
 
+        const parseSaleCurrencyAmounts = useCallback((s, exRate) => {
+            const rawAmt = Number(s['ยอดขายรวม'] || s.total_amount || 0);
+            const pModeStr = String(s.payMode || s.pay_mode || s.saleType || s.payment_method || '').trim();
+            
+            let lakAmt = 0;
+            let thbAmt = 0;
+            
+            if (pModeStr.toLowerCase().includes(':')) {
+                const parts = pModeStr.split('|');
+                let hasParsedLAK = false;
+                let hasParsedTHB = false;
+                
+                parts.forEach(part => {
+                    const trimmed = part.trim();
+                    if (trimmed.includes(':')) {
+                        const subParts = trimmed.split(':');
+                        const key = subParts[0].trim().toLowerCase();
+                        const val = parseFloat(subParts[1]) || 0;
+                        
+                        if (key.includes('กีบ') || key.includes('lak')) {
+                            lakAmt += val;
+                            hasParsedLAK = true;
+                        } else if (key.includes('สด') || key.includes('โอนไทย') || key.includes('โอนลาวบาท') || key.includes('thb') || key.includes('บาท')) {
+                            thbAmt += val;
+                            hasParsedTHB = true;
+                        }
+                    }
+                });
+                
+                if (hasParsedLAK || hasParsedTHB) {
+                    return { lakAmt, thbAmt, isLakBill: lakAmt > 0, isThbBill: thbAmt > 0 };
+                }
+            }
+            
+            const lowerPMode = pModeStr.toLowerCase();
+            let isLakBill = lowerPMode.includes('กีบ') || lowerPMode.includes('lak') || lowerPMode.includes('โอนลาวกีบ') || lowerPMode.includes('สดกีบ') || lowerPMode.includes('โอนลาว');
+            let isThbBill = lowerPMode.includes('บาท') || lowerPMode.includes('thb') || lowerPMode.includes('โอนไทย') || lowerPMode.includes('โอนลาวบาท') || lowerPMode.includes('สด');
+            
+            if (!isLakBill && !isThbBill) {
+                if (rawAmt >= 10000) isLakBill = true;
+                else isThbBill = true;
+            }
+            
+            if (isLakBill) {
+                let amt = Number(s.total_amount_lak || s.totalAmountLak || 0);
+                if (!amt || amt <= 0) amt = rawAmt >= 10000 ? rawAmt : rawAmt * exRate;
+                lakAmt = amt;
+            } else {
+                let amt = Number(s.total_amount_thb || s.totalAmountThb || 0);
+                if (!amt || amt <= 0) amt = rawAmt >= 10000 ? rawAmt / exRate : rawAmt;
+                thbAmt = amt;
+            }
+            
+            return { lakAmt, thbAmt, isLakBill, isThbBill };
+        }, []);
+
         const debouncedSearchQuery = useDebounce(searchQuery, 300);
         const [detailModalEarner, setDetailModalEarner] = useState(null);
 
@@ -411,16 +472,22 @@
                     if (!p) return false;
                     const pName = cleanProdName(p.name);
                     const pId = cleanProdName(p.id);
-                    return target === pName || target === pId || pName.includes(target) || target.includes(pName);
-                }) || { priceFull: 0, givePv: 0, selfFee: 0, level1Fee: 0 };
+                    return target === pName || target === pId;
+                }) || {};
+
+                let fallbackSelfFee = 250000;
+                let fallbackL1Fee = 200000;
+                if (target.includes('COFFEE') || target.includes('ARABICA')) { fallbackSelfFee = 20000; fallbackL1Fee = 10000; }
+                else if (target.includes('SERUM') || target.includes('SUNCREAM') || target.includes('TONER') || target.includes('CREAM') || target.includes('APPLE') || target.includes('ZINC')) { fallbackSelfFee = 70000; fallbackL1Fee = 30000; }
+                else if (target.includes('GLUTA') || target.includes('COLLAGEN') || target.includes('BALANCE') || target.includes('KUT-SO') || target.includes('LIPO') || target.includes('LUTEIN') || target.includes('ORYZA')) { fallbackSelfFee = 150000; fallbackL1Fee = 50000; }
 
                 const computePayout = (levelIdx) => {
                     let feePerBox = 0; let feePercent = 0;
                     if (levelIdx === 0) {
-                        feePerBox = Number(prodConfig.selfFee || prodConfig.directFee || prodConfig.self_fee || prodConfig.level0Fee || 0);
+                        feePerBox = Number(prodConfig.selfFee ?? prodConfig.directFee ?? prodConfig.self_fee ?? prodConfig.level0Fee ?? fallbackSelfFee);
                         feePercent = s.priceType === 'ราคาสมาชิก' ? Number(prodConfig.selfPercentMember || prodConfig.self_percent_member || 0) : Number(prodConfig.selfPercentFull || prodConfig.self_percent_full || prodConfig.selfPercent || 0);
                     } else if (levelIdx === 1) {
-                        feePerBox = Number(prodConfig.level1Fee || prodConfig.uplineFee || prodConfig.level_1_fee || 0);
+                        feePerBox = Number(prodConfig.level1Fee ?? prodConfig.uplineFee ?? prodConfig.level_1_fee ?? fallbackL1Fee);
                         feePercent = s.priceType === 'ราคาสมาชิก' ? Number(prodConfig.level1PercentMember || prodConfig.level_1_percent_member || 0) : Number(prodConfig.level1PercentFull || prodConfig.level_1_percent_full || prodConfig.level1Percent || 0);
                     } else {
                         feePerBox = Number(prodConfig[`level${levelIdx}Fee`] || prodConfig[`level_${levelIdx}_fee`] || 0);
@@ -515,16 +582,22 @@
                     if (!p) return false;
                     const pName = cleanProdName(p.name);
                     const pId = cleanProdName(p.id);
-                    return target === pName || target === pId || pName.includes(target) || target.includes(pName);
-                }) || { priceFull: 0, givePv: 0, selfFee: 0, level1Fee: 0 };
+                    return target === pName || target === pId;
+                }) || {};
+
+                let fallbackSelfFee = 250000;
+                let fallbackL1Fee = 200000;
+                if (target.includes('COFFEE') || target.includes('ARABICA')) { fallbackSelfFee = 20000; fallbackL1Fee = 10000; }
+                else if (target.includes('SERUM') || target.includes('SUNCREAM') || target.includes('TONER') || target.includes('CREAM') || target.includes('APPLE') || target.includes('ZINC')) { fallbackSelfFee = 70000; fallbackL1Fee = 30000; }
+                else if (target.includes('GLUTA') || target.includes('COLLAGEN') || target.includes('BALANCE') || target.includes('KUT-SO') || target.includes('LIPO') || target.includes('LUTEIN') || target.includes('ORYZA')) { fallbackSelfFee = 150000; fallbackL1Fee = 50000; }
 
                 const computePayout = (levelIdx) => {
                     let feePerBox = 0; let feePercent = 0;
                     if (levelIdx === 0) {
-                        feePerBox = Number(prodConfig.selfFee || prodConfig.directFee || prodConfig.self_fee || prodConfig.level0Fee || 0);
+                        feePerBox = Number(prodConfig.selfFee ?? prodConfig.directFee ?? prodConfig.self_fee ?? prodConfig.level0Fee ?? fallbackSelfFee);
                         feePercent = s.priceType === 'ราคาสมาชิก' ? Number(prodConfig.selfPercentMember || prodConfig.self_percent_member || 0) : Number(prodConfig.selfPercentFull || prodConfig.self_percent_full || prodConfig.selfPercent || 0);
                     } else if (levelIdx === 1) {
-                        feePerBox = Number(prodConfig.level1Fee || prodConfig.uplineFee || prodConfig.level_1_fee || 0);
+                        feePerBox = Number(prodConfig.level1Fee ?? prodConfig.uplineFee ?? prodConfig.level_1_fee ?? fallbackL1Fee);
                         feePercent = s.priceType === 'ราคาสมาชิก' ? Number(prodConfig.level1PercentMember || prodConfig.level_1_percent_member || 0) : Number(prodConfig.level1PercentFull || prodConfig.level_1_percent_full || prodConfig.level1Percent || 0);
                     } else {
                         feePerBox = Number(prodConfig[`level${levelIdx}Fee`] || prodConfig[`level_${levelIdx}_fee`] || 0);
@@ -534,23 +607,9 @@
                     const boxEarn = feePerBox * s.qty;
                     const percentEarn = (itemPrice * s.qty) * (feePercent / 100);
 
-                    // 📌 ส่วนต่างราคาเต็ม (เฉพาะผู้ขายตัวเอง levelIdx === 0 และขายราคาเต็ม)
-                    let retailMarginEarn = 0;
-                    if (levelIdx === 0 && (s.priceType === 'ราคาเต็ม' || !s.priceType)) {
-                        const marginAmt = Number(prodConfig.fullMarginAmount || prodConfig.full_margin_amount || 0);
-                        const marginCurr = prodConfig.fullMarginCurrency || prodConfig.full_margin_currency || 'LAK';
-                        if (marginAmt > 0) {
-                            if (marginCurr === 'THB') {
-                                retailMarginEarn = currencyMode === 'THB' ? (marginAmt * s.qty) : (marginAmt * s.qty * rate);
-                            } else {
-                                retailMarginEarn = currencyMode === 'THB' ? (marginAmt * s.qty / rate) : (marginAmt * s.qty);
-                            }
-                        }
-                    }
-
-                    if (referralCalcMode === 'percent') return percentEarn + retailMarginEarn;
-                    if (referralCalcMode === 'combo') return boxEarn + percentEarn + retailMarginEarn;
-                    return boxEarn + retailMarginEarn;
+                    if (referralCalcMode === 'percent') return percentEarn;
+                    if (referralCalcMode === 'combo') return boxEarn + percentEarn;
+                    return boxEarn;
                 };
 
                 const sDate = s.date || '';
@@ -666,20 +725,26 @@
                     if (!p) return false;
                     const pName = cleanProdName(p.name);
                     const pId = cleanProdName(p.id);
-                    return target === pName || target === pId || pName.includes(target) || target.includes(pName);
-                }) || { priceFull: 0, givePv: 0, selfFee: 0, level1Fee: 0 };
+                    return target === pName || target === pId;
+                }) || {};
+
+                let fallbackSelfFee = 250000;
+                let fallbackL1Fee = 200000;
+                if (target.includes('COFFEE') || target.includes('ARABICA')) { fallbackSelfFee = 20000; fallbackL1Fee = 10000; }
+                else if (target.includes('SERUM') || target.includes('SUNCREAM') || target.includes('TONER') || target.includes('CREAM') || target.includes('APPLE') || target.includes('ZINC')) { fallbackSelfFee = 70000; fallbackL1Fee = 30000; }
+                else if (target.includes('GLUTA') || target.includes('COLLAGEN') || target.includes('BALANCE') || target.includes('KUT-SO') || target.includes('LIPO') || target.includes('LUTEIN') || target.includes('ORYZA')) { fallbackSelfFee = 150000; fallbackL1Fee = 50000; }
 
                 const computePayout = (levelIdx) => {
                     let feePerBox = 0;
                     let feePercent = 0;
 
                     if (levelIdx === 0) {
-                        feePerBox = Number(prodConfig.selfFee || prodConfig.directFee || prodConfig.self_fee || prodConfig.level0Fee || 0);
+                        feePerBox = Number(prodConfig.selfFee ?? prodConfig.directFee ?? prodConfig.self_fee ?? prodConfig.level0Fee ?? fallbackSelfFee);
                         feePercent = s.priceType === 'ราคาสมาชิก' 
                             ? Number(prodConfig.selfPercentMember || prodConfig.self_percent_member || 0)
                             : Number(prodConfig.selfPercentFull || prodConfig.self_percent_full || prodConfig.selfPercent || 0);
                     } else if (levelIdx === 1) {
-                        feePerBox = Number(prodConfig.level1Fee || prodConfig.uplineFee || prodConfig.level_1_fee || 0);
+                        feePerBox = Number(prodConfig.level1Fee ?? prodConfig.uplineFee ?? prodConfig.level_1_fee ?? fallbackL1Fee);
                         feePercent = s.priceType === 'ราคาสมาชิก'
                             ? Number(prodConfig.level1PercentMember || prodConfig.level_1_percent_member || 0)
                             : Number(prodConfig.level1PercentFull || prodConfig.level_1_percent_full || prodConfig.level1Percent || 0);
@@ -756,23 +821,6 @@
                         <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
                             {groupTitles[activeGroup] || '📊 รายงานสรุปผลงาน'}
                         </h2>
-                    </div>
-                    <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
-                        <span className="text-xs font-bold text-slate-500 pl-2">แสดงผลสกุลเงิน:</span>
-                        <button
-                            type="button"
-                            onClick={() => setCurrencyMode('THB')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${currencyMode === 'THB' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}
-                        >
-                            🇹🇭 เงินบาท (THB)
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setCurrencyMode('LAK')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${currencyMode === 'LAK' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}
-                        >
-                            🇱🇦 เงินกีบ (LAK)
-                        </button>
                     </div>
                 </div>
 
@@ -1155,15 +1203,21 @@
 
                     // สรุปยอดการเงินรวม Cards
                     const financeKpi = (() => {
-                        let grandRevenue = 0, fullBoxes = 0, memberBoxes = 0, proBoxes = 0, zeroBoxes = 0, totalBills = financeBills.length;
+                        let sumLak = 0;
+                        let sumThb = 0;
+                        let fullBoxes = 0, memberBoxes = 0, proBoxes = 0, zeroBoxes = 0, totalBills = financeBills.length;
                         financeBills.forEach(s => {
-                            grandRevenue += Number(s['ยอดขายรวม'] || s.total_amount || 0);
+                            const { lakAmt, thbAmt } = parseSaleCurrencyAmounts(s, exchangeRate);
+                            sumLak += lakAmt;
+                            sumThb += thbAmt;
                             fullBoxes += Number(s['รวมชิ้นราคาเต็ม'] || 0);
                             memberBoxes += Number(s['รวมชิ้นราคาสมาชิก'] || 0);
                             proBoxes += Number(s['รวมชิ้นราคาโปร'] || 0);
                             zeroBoxes += Number(s['รวมชิ้นราคาศูนย์'] || 0);
                         });
-                        return { grandRevenue, fullBoxes, memberBoxes, proBoxes, zeroBoxes, totalBills };
+                        const grandCombinedLAK = sumLak + (sumThb * exchangeRate);
+                        const grandCombinedTHB = sumThb + (sumLak / exchangeRate);
+                        return { sumLak, sumThb, grandCombinedLAK, grandCombinedTHB, fullBoxes, memberBoxes, proBoxes, zeroBoxes, totalBills };
                     })();
 
                     // สรุปรายเดือน/รายวัน (Summary View)
@@ -1172,14 +1226,16 @@
                         financeBills.forEach(s => {
                             const monthKey = (s.date || '').substring(0, 7);
                             if (!grouped[monthKey]) {
-                                grouped[monthKey] = { period: monthKey, billsCount: 0, fullBoxes: 0, memberBoxes: 0, proBoxes: 0, zeroBoxes: 0, revenue: 0 };
+                                grouped[monthKey] = { period: monthKey, billsCount: 0, fullBoxes: 0, memberBoxes: 0, proBoxes: 0, zeroBoxes: 0, sumLak: 0, sumThb: 0 };
                             }
                             grouped[monthKey].billsCount += 1;
                             grouped[monthKey].fullBoxes += Number(s['รวมชิ้นราคาเต็ม'] || 0);
                             grouped[monthKey].memberBoxes += Number(s['รวมชิ้นราคาสมาชิก'] || 0);
                             grouped[monthKey].proBoxes += Number(s['รวมชิ้นราคาโปร'] || 0);
                             grouped[monthKey].zeroBoxes += Number(s['รวมชิ้นราคาศูนย์'] || 0);
-                            grouped[monthKey].revenue += Number(s['ยอดขายรวม'] || s.total_amount || 0);
+                            const { lakAmt: rowLak, thbAmt: rowThb } = parseSaleCurrencyAmounts(s, exchangeRate);
+                            grouped[monthKey].sumLak += rowLak;
+                            grouped[monthKey].sumThb += rowThb;
                         });
                         return Object.values(grouped).sort((a, b) => b.period.localeCompare(a.period));
                     })();
@@ -1189,9 +1245,8 @@
                             {/* Summary KPI Cards */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                                 <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl shadow-sm">
-                                    <div className="text-xs font-bold text-emerald-600 mb-1">รายรับรวมสุทธิ</div>
-                                    <div className="text-2xl font-black text-emerald-700">{formatValDisplay(financeKpi.grandRevenue)}</div>
-                                    <div className="text-[10px] text-emerald-500 font-bold mt-1">{getCurrencySuffix()}/ช่วงเวลา</div>
+                                    <div className="text-xs font-bold text-emerald-600 mb-1">รายรับรวมสุทธิ (บาท)</div>
+                                    <div className="text-xl font-black text-blue-700">฿{(Math.round(financeKpi.grandCombinedTHB * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
                                 </div>
                                 <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
                                     <div className="text-xs font-bold text-slate-500 mb-1">ยอดขายราคาเต็ม</div>
@@ -1237,33 +1292,14 @@
                                             </thead>
                                             <tbody>
                                                 {financeBills.map((s, idx) => {
-                                                    const rawAmt = Number(s['ยอดขายรวม'] || s.total_amount || 0);
+                                
                                                     const displayCust = (s.customerName && s.customerName !== 'ไม่ระบุชื่อ') 
                                                         ? s.customerName 
                                                         : (s.customerId ? `ลูกค้า (${s.customerId})` : 'ลูกค้าทั่วไป');
                                                     
-                                                    const pModeStr = String(s.payMode || s.pay_mode || s.saleType || s.payment_method || '').toLowerCase();
-                                                    
-                                                    let isLakBill = pModeStr.includes('กีบ') || pModeStr.includes('lak') || pModeStr.includes('โอนลาวกีบ') || pModeStr.includes('สดกีบ');
-                                                    let isThbBill = pModeStr.includes('บาท') || pModeStr.includes('thb') || pModeStr.includes('โอนไทย') || pModeStr.includes('โอนลาวบาท');
-
-                                                    if (!isLakBill && !isThbBill) {
-                                                        if (rawAmt >= 100000) isLakBill = true;
-                                                        else isThbBill = true;
-                                                    }
-
-                                                    let displayLakStr = '-';
-                                                    let displayThbStr = '-';
-
-                                                    if (isLakBill) {
-                                                        let lakAmt = Number(s.total_amount_lak || s.totalAmountLak || 0);
-                                                        if (!lakAmt || lakAmt <= 0) lakAmt = rawAmt >= 100000 ? rawAmt : rawAmt * exchangeRate;
-                                                        displayLakStr = `${Math.round(lakAmt).toLocaleString()} ₭`;
-                                                    } else {
-                                                        let thbAmt = Number(s.total_amount_thb || s.totalAmountThb || 0);
-                                                        if (!thbAmt || thbAmt <= 0) thbAmt = rawAmt >= 100000 ? rawAmt / exchangeRate : rawAmt;
-                                                        displayThbStr = `฿${(thbAmt % 1 === 0 ? thbAmt.toLocaleString() : thbAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}`;
-                                                    }
+                                                    const { lakAmt, thbAmt } = parseSaleCurrencyAmounts(s, exchangeRate);
+                                                    let displayLakStr = lakAmt > 0 ? `${Math.round(lakAmt).toLocaleString()} ₭` : '-';
+                                                    let displayThbStr = thbAmt > 0 ? `฿${(thbAmt % 1 === 0 ? thbAmt.toLocaleString() : thbAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}` : '-';
 
                                                     return (
                                                         <tr key={s.id || idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
@@ -1308,23 +1344,9 @@
                                                 let sumLak = 0;
                                                 let sumThb = 0;
                                                 financeBills.forEach(s => {
-                                                    const rawAmt = Number(s['ยอดขายรวม'] || s.total_amount || 0);
-                                                    const pModeStr = String(s.payMode || s.pay_mode || s.saleType || s.payment_method || '').toLowerCase();
-                                                    let isLakBill = pModeStr.includes('กีบ') || pModeStr.includes('lak') || pModeStr.includes('โอนลาวกีบ') || pModeStr.includes('สดกีบ');
-                                                    let isThbBill = pModeStr.includes('บาท') || pModeStr.includes('thb') || pModeStr.includes('โอนไทย') || pModeStr.includes('โอนลาวบาท');
-                                                    if (!isLakBill && !isThbBill) {
-                                                        if (rawAmt >= 100000) isLakBill = true;
-                                                        else isThbBill = true;
-                                                    }
-                                                    if (isLakBill) {
-                                                        let lakAmt = Number(s.total_amount_lak || s.totalAmountLak || 0);
-                                                        if (!lakAmt || lakAmt <= 0) lakAmt = rawAmt >= 100000 ? rawAmt : rawAmt * exchangeRate;
-                                                        sumLak += lakAmt;
-                                                    } else {
-                                                        let thbAmt = Number(s.total_amount_thb || s.totalAmountThb || 0);
-                                                        if (!thbAmt || thbAmt <= 0) thbAmt = rawAmt >= 100000 ? rawAmt / exchangeRate : rawAmt;
-                                                        sumThb += thbAmt;
-                                                    }
+                                                    const { lakAmt, thbAmt } = parseSaleCurrencyAmounts(s, exchangeRate);
+                                                    sumLak += lakAmt;
+                                                    sumThb += thbAmt;
                                                 });
                                                 const grandCombinedTHB = sumThb + (sumLak / exchangeRate);
 
@@ -1379,7 +1401,8 @@
                                                     <th className={`${thBase} text-center text-blue-700`}>กล่องราคาสมาชิก</th>
                                                     <th className={`${thBase} text-center text-amber-700`}>กล่องราคาโปร</th>
                                                     <th className={`${thBase} text-center text-slate-500`}>กล่องราคาศูนย์</th>
-                                                    <th className={`${thBase} text-right text-emerald-700 font-bold`}>รายรับรวม (เงิน)</th>
+                                                    <th className={`${thBase} text-right text-emerald-700 font-bold`}>รายรับ (เงินกีบ ₭)</th>
+                                                    <th className={`${thBase} text-right text-blue-700 font-bold`}>รายรับ (เงินบาท ฿)</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -1392,12 +1415,15 @@
                                                         <td className="p-4 text-center text-xs font-bold text-amber-700 bg-amber-50/20">{row.proBoxes} กล่อง</td>
                                                         <td className="p-4 text-center text-xs font-bold text-slate-500">{row.zeroBoxes} กล่อง</td>
                                                         <td className="p-4 text-right text-sm font-black text-emerald-700 whitespace-nowrap">
-                                                            {formatValDisplay(row.revenue)} <span className="text-[10px] font-bold text-slate-400">{getCurrencySuffix()}</span>
+                                                            {row.sumLak > 0 ? `${Math.round(row.sumLak).toLocaleString()} ₭` : <span className="text-slate-300">-</span>}
+                                                        </td>
+                                                        <td className="p-4 text-right text-sm font-black text-blue-700 whitespace-nowrap">
+                                                            {row.sumThb > 0 ? `฿${row.sumThb.toLocaleString(undefined, {minimumFractionDigits: 2})}` : <span className="text-slate-300">-</span>}
                                                         </td>
                                                     </tr>
                                                 ))}
                                                 {financeSummaryData.length === 0 && (
-                                                    <tr><td colSpan={7} className="p-12 text-center text-slate-400 font-bold">ไม่พบสรุปข้อมูลการเงินตามเงื่อนไขที่ระบุ</td></tr>
+                                                    <tr><td colSpan={8} className="p-12 text-center text-slate-400 font-bold">ไม่พบสรุปข้อมูลการเงินตามเงื่อนไขที่ระบุ</td></tr>
                                                 )}
                                             </tbody>
                                         </table>
@@ -2009,20 +2035,52 @@
 
         const fetchAllData = useCallback(async () => {
             try {
+                const cachedData = localStorage.getItem('stk_app_cache_data');
+                if (cachedData) {
+                    try {
+                        const parsedData = JSON.parse(cachedData);
+                        if (parsedData.products) setProducts(parsedData.products);
+                        if (parsedData.customerTypes) setCustomerTypes(parsedData.customerTypes);
+                        if (parsedData.closers) setClosers(parsedData.closers);
+                        if (parsedData.members) setMembers(parsedData.members);
+                        if (parsedData.customers) setCustomers(parsedData.customers);
+                        if (parsedData.businessTeams) setBusinessTeams(parsedData.businessTeams);
+                        if (parsedData.sales) setSales(parsedData.sales);
+                        // We set loading to false immediately to show UI fast!
+                        setIsAppLoading(false);
+                    } catch(e) {}
+                }
+            } catch(err) {}
+
+            try {
                 const [pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes, settingsRes, movRes, payRes] = await Promise.all([
-                    supabaseSelect('stk_products', 'limit=1000').catch(() => []),
-                    supabaseSelect('stk_customer_types', 'limit=1000').catch(() => fallbackCustomerTypes),
-                    supabaseSelect('stk_closers', 'limit=1000').catch(() => []),
-                    supabaseSelect('stk_members', 'limit=5000').catch(() => []),
-                    supabaseSelect('stk_customers', 'limit=5000').catch(() => []),
-                    supabaseSelect('stk_sales', 'limit=10000').catch(() => []),
-                    supabaseSelect('stk_business_teams', 'limit=1000').catch(() => []),
-                    supabaseSelect('stk_system_settings', 'limit=100').catch(() => []),
-                    supabaseSelect('stk_stock_movements', 'limit=5000').catch(() => []),
-                    supabaseSelect('stk_payout_logs', 'limit=5000').catch(() => [])
+                    supabaseSelect('stk_products').catch(() => []),
+                    supabaseSelect('stk_customer_types').catch(() => fallbackCustomerTypes),
+                    supabaseSelect('stk_closers').catch(() => []),
+                    supabaseSelect('stk_members').catch(() => []),
+                    supabaseSelect('stk_customers', 'order=customer_id.desc&limit=2000').catch(() => []),
+                    supabaseSelect('stk_sales', 'order=order_id.desc&limit=1500').catch(() => []),
+                    supabaseSelect('stk_business_teams').catch(() => []),
+                    supabaseSelect('stk_system_settings').catch(() => []),
+                    supabaseSelect('stk_stock_movements', 'order=created_at.desc&limit=1500').catch(() => []),
+                    supabaseSelect('stk_payout_logs', 'order=payout_id.desc&limit=1500').catch(() => [])
                 ]);
 
-                setSystemSettings({ exchange_rate: 700, commission_levels: 6, ...(settingsRes[0] || {}) });
+                let loadedSettings = { exchange_rate: 700, commission_levels: 6 };
+                if (Array.isArray(settingsRes) && settingsRes.length > 0) {
+                    const mainRow = settingsRes.find(s => s && (s.key === 'MAIN' || s.setting_key === 'MAIN' || s.setting_id === 'MAIN' || s.id === 'MAIN'));
+                    if (mainRow) {
+                        try {
+                            if (mainRow.value && typeof mainRow.value === 'string') {
+                                const parsedVal = JSON.parse(mainRow.value);
+                                loadedSettings.commission_levels = parsedVal.commission_levels != null ? Number(parsedVal.commission_levels) : (parsedVal.commissionLevels != null ? Number(parsedVal.commissionLevels) : 6);
+                            } else {
+                                loadedSettings.commission_levels = mainRow.commission_levels != null ? Number(mainRow.commission_levels) : (mainRow.commissionLevels != null ? Number(mainRow.commissionLevels) : 6);
+                            }
+                        } catch(e) {}
+                    }
+                }
+                setSystemSettings(loadedSettings);
                 
                 const formattedProducts = (pRes || []).map(p => ({
                     ...p,
@@ -2056,7 +2114,17 @@
                 })).filter(m => m.id !== '');
                 setMembers(formattedMembers);
                 
-                setCustomers(custRes);
+                if (Array.isArray(custRes)) {
+            setCustomers(custRes.map(c => ({
+                ...c,
+                id: String(c.id || c.customer_id || c.hn || '').trim(),
+                name: String(c.name || c.customer_name || '').trim(),
+                type: String(c.type || c.customer_type || c.customerType || '').trim(),
+                memberId: String(c.memberId || c.member_id || c.owner_member_id || '').trim()
+            })));
+        } else {
+            setCustomers([]);
+        }
                 
                 if (Array.isArray(saleRes)) {
                     const processedSales = saleRes.map(s => {
@@ -2111,6 +2179,7 @@
                             }
                         }
                         
+                        s['customerId'] = rawCustId;
                         s['customerName'] = resolvedCustName || (rawCustId ? `ลูกค้า (${rawCustId})` : 'ไม่ระบุชื่อ');
                         s['payMode'] = s.payMode || s.pay_mode || s.payment_method || s.payment || 'เงินโอน';
                         

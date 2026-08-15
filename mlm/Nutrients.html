@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>สั่งจ่ายสารอาหาร - LOVE STK GROUPE</title>
+  <title>สั่งจ่ายยา - LOVE STK GROUPE</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
-    body { font-family: 'Sukhumvit Set', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
+    body { font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
     @media (min-width: 1024px) {
       aside.lg\:flex { display: flex !important; position: fixed !important; top: 0; left: 0; height: 100vh; z-index: 30; }
       main.lg\:ml-64 { margin-left: 16rem !important; width: calc(100% - 16rem) !important; }
@@ -21,7 +21,12 @@
     .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-  </style>
+  
+    /* Force global font-family styling to override Tailwind default sans stack */
+    body, button, input, select, textarea, .font-sans, [class*="font-"] {
+        font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif !important;
+    }
+</style>
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
@@ -46,7 +51,7 @@
     <div style="width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top-color: #047857; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 24px;"></div>
     <style>@keyframes initial-spin { to { transform: rotate(360deg); } }</style>
     <h2 style="font-size: 1.75rem; font-weight: 800; color: #047857; margin: 0; letter-spacing: -0.025em;">LOVE <span style="color: #2563eb;">STK GROUPE</span></h2>
-    <p style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 8px;">กำลังโหลดระบบสั่งจ่ายสารอาหาร...</p>
+    <p style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 8px;">กำลังโหลดระบบสั่งจ่ายยา...</p>
   </div>
 
   <div id="root"></div>
@@ -127,7 +132,11 @@
                 date: item.date || item.created_at || new Date().toISOString(),
                 status: item.status || 'รอดำเนินการ',
                 items: (() => {
-                  try { return JSON.parse(item.items_json || '[]'); } catch(e) { return []; }
+                  try {
+                    let parsed = item.items_json || item.items || item.products;
+                    if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+                    return Array.isArray(parsed) ? parsed : [];
+                  } catch(e) { return []; }
                 })()
               }));
             }
@@ -147,7 +156,7 @@
           for (const item of rawCombined) {
             let parsedItems = [];
             try {
-              parsedItems = typeof item.items === 'string' ? JSON.parse(item.items) : (item.items || item.products || []);
+              parsedItems = typeof item.items === 'string' ? JSON.parse(item.items) : (item.items || item.products || item.items_json || []);
               if (typeof parsedItems === 'string') parsedItems = JSON.parse(parsedItems);
             } catch(e) { parsedItems = []; }
 
@@ -198,6 +207,8 @@
                 console.warn('Sync to Supabase failed:', syncErr);
               }
               localList.push(localEntry);
+            } else if (!dbIdSet.has(orderId)) {
+              localList.push(localEntry);
             }
           }
         } catch (ex) {
@@ -211,7 +222,10 @@
             // ค้นหาบิลขายใน stk_sales ที่มีรหัส VISIT นี้อยู่ในบันทึกการชำระเงิน
             const matched = dbSalesList.find(s => {
               const note = (s.payment_note || '').toUpperCase();
-              return note.includes(`VISIT: ${(o.visit_id || '').toUpperCase()}`) || note.includes((o.visit_id || '').toUpperCase());
+              const vIdStr = (o.visit_id || '').trim().toUpperCase();
+              if (!vIdStr || vIdStr === '-') return false;
+              if (s.sale_type === 'สั่งซื้อสารอาหาร (Clinic System)') return false;
+              return note.includes(`VISIT: ${vIdStr}`);
             });
             if (matched) {
               o.status = 'ขายสำเร็จแล้ว';
@@ -228,9 +242,27 @@
 
       useEffect(() => {
         fetchOrders();
-        const handleStorageChange = () => fetchOrders();
+        const handleStorageChange = (e) => {
+          if (!e || !e.key || e.key === 'stk_nutrient_orders' || e.key === 'clinic_mlm_orders' || e.key === 'stk_refresh_trigger') {
+            fetchOrders();
+          }
+        };
         window.addEventListener('storage', handleStorageChange);
-        return () => window.removeEventListener('storage', handleStorageChange);
+
+        let bc = null;
+        if (typeof BroadcastChannel !== 'undefined') {
+          try {
+            bc = new BroadcastChannel('stk_mlm_channel');
+            bc.onmessage = (msg) => {
+              if (msg && msg.data) fetchOrders();
+            };
+          } catch(ex) {}
+        }
+
+        return () => {
+          window.removeEventListener('storage', handleStorageChange);
+          if (bc) bc.close();
+        };
       }, []);
 
       // กรองรายการตามคำค้นหา และ ช่วงเวลา
@@ -270,7 +302,7 @@
               <p><strong>ชื่อคนไข้:</strong> ${order.customer_name}</p>
               <p><strong>ผู้บันทึก:</strong> ${order.recorded_by}</p>
               <hr/>
-              <p class="font-bold text-slate-700">รายการสารอาหาร:</p>
+              <p class="font-bold text-slate-700">รายการยา:</p>
               <ul class="list-disc pl-5 text-xs text-slate-600 space-y-1">
                 ${order.items.map(i => `<li>${i.name} (${getItemTypeLabel(i)}) x ${i.qty} = ${((i.price || 0) * (i.qty || 1)).toLocaleString()} ฿</li>`).join('')}
               </ul>
@@ -324,10 +356,10 @@
                   <span class="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
                     <PillIcon size={26} />
                   </span>
-                  สั่งจ่ายสารอาหาร
+                  สั่งจ่ายยา
                 </h1>
                 <p class="text-xs font-semibold text-slate-500 mt-1">
-                  รายการคำสั่งจ่ายสารอาหารเสริมจากระบบคลินิก (Clinic System Integration)
+                  รายการคำสั่งจ่ายยาเสริมจากระบบคลินิก (Clinic System Integration)
                 </p>
               </div>
 
@@ -404,7 +436,7 @@
                       <tr>
                         <td colSpan="5" class="py-12 text-center text-slate-400 font-semibold">
                           <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-emerald-500 border-t-transparent mb-2"></div>
-                          <p>กำลังดึงข้อมูลสารอาหารจากระบบ...</p>
+                          <p>กำลังดึงข้อมูลใบสั่งจ่ายยาจากระบบ...</p>
                         </td>
                       </tr>
                     ) : pendingOrders.length === 0 ? (
@@ -507,7 +539,7 @@
               <div class="p-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
                 <span class="text-sm font-bold text-slate-800 flex items-center gap-2">
                   <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                  ประวัติการสั่งจ่ายสารอาหารสำเร็จแล้ว ({completedOrders.length})
+                  ประวัติการสั่งจ่ายยาสำเร็จแล้ว ({completedOrders.length})
                 </span>
               </div>
               <div class="overflow-x-auto custom-scrollbar">

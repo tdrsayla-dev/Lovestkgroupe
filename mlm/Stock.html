@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -6,8 +6,8 @@
   <title>Stock - LOVE STK GROUPE</title>
   <!-- Standalone & GAS Libraries -->
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
-    body { font-family: 'Sukhumvit Set', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
+    body { font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
     @media (min-width: 1024px) {
       aside.lg\:flex { display: flex !important; position: fixed !important; top: 0; left: 0; height: 100vh; z-index: 30; }
       main.lg\:ml-64 { margin-left: 16rem !important; }
@@ -19,7 +19,12 @@
       div.lg\:hidden { display: flex !important; }
       main { margin-left: 0 !important; width: 100% !important; }
     }
-  </style>
+  
+    /* Force global font-family styling to override Tailwind default sans stack */
+    body, button, input, select, textarea, .font-sans, [class*="font-"] {
+        font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif !important;
+    }
+</style>
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
@@ -340,7 +345,7 @@
               setNotes('');
            }).catch(err => {
               setIsSubmitting(false);
-              showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
+              showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
            });
         } else {
           setTimeout(() => {
@@ -593,7 +598,7 @@
               setCustomSubType('');
            }).catch(err => {
               setIsSubmitting(false);
-              showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
+              showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
            });
         } else {
           setTimeout(() => {
@@ -1008,22 +1013,16 @@
             setIsAddingNewCategory(false); 
             setNewCategoryVal('');
             
+            const localMargins = systemSettings.product_margins ? (typeof systemSettings.product_margins === 'string' ? JSON.parse(systemSettings.product_margins) : systemSettings.product_margins) : {};
+            const margin = localMargins[product.id] || { amount: 0, currency: 'LAK' };
+
             const data = { 
                 ...product, 
                 minPvComm: product.minPvComm || 0,
-                givePv: product.givePv || 0
+                givePv: product.givePv || 0,
+                fullMarginAmount: margin.amount,
+                fullMarginCurrency: margin.currency
             };
-            
-            let conf = {};
-            try {
-                const confStr = systemSettings.retail_margin_config;
-                conf = confStr ? (typeof confStr === 'string' ? JSON.parse(confStr) : confStr) : {};
-            } catch(e) {}
-            const prodId = String(product.id || '').trim();
-            const prodMargin = conf.product_margins?.[prodId] || { amount: 0, currency: 'LAK' };
-            data.fullMarginAmount = prodMargin.amount || 0;
-            data.fullMarginCurrency = prodMargin.currency || 'LAK';
-
             data.selfFee = product.selfFee || 0;
             for (let i = 1; i < maxLevels; i++) {
               data[`level${i}Fee`] = product[`level${i}Fee`] !== undefined ? product[`level${i}Fee`] : (i === 1 ? product.directFee : (i === 2 ? product.uplineFee : 0));
@@ -1085,9 +1084,7 @@
                        self_fee: dataToSave.selfFee,
                        self_percent_full: dataToSave.selfPercentFull,
                        self_percent_member: dataToSave.selfPercentMember,
-                       image_url: dataToSave.imageUrl || '',
-                       full_margin_amount: Number(dataToSave.fullMarginAmount || 0),
-                       full_margin_currency: dataToSave.fullMarginCurrency || 'LAK'
+                       image_url: dataToSave.imageUrl || ''
                    };
                    for (let i = 1; i < maxLevels; i++) {
                        supaData[`level_${i}_fee`] = dataToSave[`level${i}Fee`];
@@ -1099,16 +1096,36 @@
                         ? supabaseUpdate('stk_products', dataToSave.id, supaData, 'product_id')
                        : supabaseInsert('stk_products', supaData);
                        
-                   req.then(() => {
-                       if (isEditing) {
-                           setProducts((products || []).map(p => p && safeUpper(p.id) === safeUpper(dataToSave.id) ? dataToSave : p));
-                       } else {
-                           setProducts([...(products || []), dataToSave]);
-                       }
-                       setShowForm(false); setIsSubmitting(false); showToast(isEditing ? 'แก้ไขสินค้าสำเร็จ' : 'เพิ่มสินค้าสำเร็จ', 'success');
-                   }).catch(err => {
-                        setIsSubmitting(false); showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
-                   });
+                   req.then(async () => {
+                        try {
+                            const localMarginsStr = systemSettings.product_margins;
+                            const localMargins = localMarginsStr ? (typeof localMarginsStr === 'string' ? JSON.parse(localMarginsStr) : localMarginsStr) : {};
+                            localMargins[dataToSave.id] = {
+                                amount: Number(dataToSave.fullMarginAmount || 0),
+                                currency: dataToSave.fullMarginCurrency || 'LAK'
+                            };
+                            if (typeof supabaseUpsert === 'function') {
+                                await supabaseUpsert('stk_system_settings', {
+                                    key: 'product_margins',
+                                    value: JSON.stringify(localMargins)
+                                });
+                            }
+                            setSystemSettings(prev => ({ ...prev, product_margins: localMargins }));
+                            localStorage.setItem('stk_system_settings', JSON.stringify({
+                                ...systemSettings,
+                                product_margins: localMargins
+                            }));
+                        } catch(e) { console.error("Error saving product margins:", e); }
+
+                        if (isEditing) {
+                            setProducts((products || []).map(p => p && safeUpper(p.id) === safeUpper(dataToSave.id) ? dataToSave : p));
+                        } else {
+                            setProducts([...(products || []), dataToSave]);
+                        }
+                        setShowForm(false); setIsSubmitting(false); showToast(isEditing ? 'แก้ไขสินค้าสำเร็จ' : 'เพิ่มสินค้าสำเร็จ', 'success');
+                    }).catch(err => {
+                         setIsSubmitting(false); showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
+                    });
                 }
             };
 
@@ -1121,7 +1138,7 @@
                     setProductCategories(prev => [...prev, mockCat]);
                     saveProductCore(catName);
                 }).catch(err => {
-                    setIsSubmitting(false); showToast('เพิ่มหมวดหมู่ล้มเหลว: ' + err.message, 'error');
+                    setIsSubmitting(false); showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
                 });
             } else {
                 saveProductCore(formData.category);
@@ -1133,7 +1150,7 @@
              supabaseDelete('stk_products', id, 'product_id').then(() => {
                 setProducts((products || []).filter(p => p && p.id !== id)); showToast('ลบสำเร็จ', 'success');
              }).catch(err => {
-                showToast('ลบล้มเหลว: ' + err.message, 'error');
+                showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
              });
          };
  
@@ -1531,7 +1548,7 @@
               setIsSubmitting(false);
               showToast('แก้ไขหมวดหมู่สำเร็จ', 'success');
            }).catch(err => {
-              setIsSubmitting(false); showToast('แก้ไขล้มเหลว: ' + err.message, 'error');
+              setIsSubmitting(false); showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
            });
         }
       };
@@ -1550,7 +1567,7 @@
             setIsSubmitting(false);
             showToast('เพิ่มหมวดหมู่สำเร็จ', 'success');
           }).catch(err => {
-             setIsSubmitting(false); showToast('เพิ่มล้มเหลว: ' + err.message, 'error');
+             setIsSubmitting(false); showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
           });
         }
       };
@@ -1563,7 +1580,7 @@
           setIsSubmitting(false);
           showToast('ลบหมวดหมู่สำเร็จ', 'success');
         }).catch(err => {
-          setIsSubmitting(false); showToast('ลบล้มเหลว: ' + err.message, 'error');
+          setIsSubmitting(false); showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
         });
       };
 
@@ -2240,7 +2257,7 @@
                 showToast('บันทึกการตั้งค่าส่วนต่างราคาเต็มและประวัติเรียบร้อยแล้ว!', 'success');
             } catch(err) {
                 console.error("Save error:", err);
-                showToast('เกิดข้อผิดพลาดในการบันทึก: ' + err.message, 'error');
+                showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
             } finally {
                 setIsSaving(false);
             }
@@ -2615,10 +2632,16 @@
              setSystemSettings(prev => ({ ...prev, ...data.systemSettings }));
           }
           if (Array.isArray(data.products)) {
+             const settingsObj = data.systemSettings || systemSettings || {};
+             const localMarginsStr = settingsObj.product_margins;
+             const localMargins = localMarginsStr ? (typeof localMarginsStr === 'string' ? JSON.parse(localMarginsStr) : localMarginsStr) : {};
+
              const formatted = data.products.map(p => {
+               const pId = p.product_id || p.id;
+               const margin = localMargins[pId] || { amount: 0, currency: 'LAK' };
                const mapped = {
                  ...p,
-                 id: p.product_id || p.id,
+                 id: pId,
                  name: p.name,
                  barcode: p.barcode || '',
                  category: p.category,
@@ -2630,8 +2653,8 @@
                  givePv: Number(p.give_pv ?? p.b2n_give_pv ?? p.givePv ?? 0) || 0,
                  minPvComm: Number(p.min_pv_comm ?? p.minPvComm ?? 0) || 0,
                  imageUrl: p.image_url || p.imageUrl || '',
-                 fullMarginAmount: Number(p.full_margin_amount ?? p.fullMarginAmount ?? 0) || 0,
-                 fullMarginCurrency: p.full_margin_currency || p.fullMarginCurrency || 'LAK',
+                 fullMarginAmount: Number(margin.amount ?? 0),
+                 fullMarginCurrency: margin.currency || 'LAK',
                  selfFee: Number(p.self_fee ?? p.selfFee ?? 0) || 0,
                  selfPercentFull: Number(p.self_percent_full ?? p.selfPercentFull ?? 0) || 0,
                  selfPercentMember: Number(p.self_percent_member ?? p.selfPercentMember ?? 0) || 0

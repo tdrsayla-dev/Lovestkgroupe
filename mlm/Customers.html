@@ -6,8 +6,8 @@
   <title>ข้อมูลลูกค้า (Customers) - LOVE STK GROUPE</title>
   <!-- Standalone & GAS Libraries -->
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
-    body { font-family: 'Sukhumvit Set', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
+    body { font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
     @media (min-width: 1024px) {
       aside.lg\:flex { display: flex !important; position: fixed !important; top: 0; left: 0; height: 100vh; z-index: 30; }
       main.lg\:ml-64 { margin-left: 16rem !important; }
@@ -19,7 +19,12 @@
       div.lg\:hidden { display: flex !important; }
       main { margin-left: 0 !important; width: 100% !important; }
     }
-  </style>
+  
+    /* Force global font-family styling to override Tailwind default sans stack */
+    body, button, input, select, textarea, .font-sans, [class*="font-"] {
+        font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif !important;
+    }
+</style>
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
@@ -43,7 +48,7 @@
     async function supabaseSelect(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:window.SUPABASE_HEADERS});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();}
     async function supabaseInsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('INSERT '+t+':'+r.status);return r.json();}
     async function supabaseUpdate(t,id,d,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('UPDATE '+t+':'+r.status);return r.json();}
-    async function supabaseDelete(t,id){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'DELETE',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'})});if(!r.ok)throw new Error('DELETE '+t+':'+r.status);return true;}
+    async function supabaseDelete(t,id,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'DELETE',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'})});if(!r.ok){var e=await r.text();throw new Error('DELETE '+t+': '+r.status+' '+e);}return true;}
     async function supabaseUpsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'resolution=merge-duplicates,return=representation'}),body:JSON.stringify(d)});if(!r.ok)throw new Error('UPSERT '+t+':'+r.status);return r.json();}
   </script>
   <script src="CommonComponents.js"></script>
@@ -85,6 +90,20 @@
     // 📌 Customer Management View Component
     // ==========================================
     const CustomerManagementView = ({ sales, customers, members, closers, activeCustomerTypes, setCustomers, showToast, isAdmin }) => {
+        const triggerGlobalRefresh = () => {
+            try {
+                localStorage.removeItem('stk_app_cache_data');
+                localStorage.removeItem('stk_app_cache_time');
+                if (typeof window.clearDbCache === 'function') window.clearDbCache();
+                window.parent.postMessage('refresh_data', '*');
+                if (typeof BroadcastChannel !== 'undefined') {
+                    const bc = new BroadcastChannel('stk_mlm_channel');
+                    bc.postMessage('refresh_data');
+                    bc.close();
+                }
+                localStorage.setItem('stk_refresh_trigger', String(Date.now()));
+            } catch(e) {}
+        };
         const [activeCustTab, setActiveCustTab] = useState('allData'); 
         const [rankingModal, setRankingModal] = useState(null); 
         const todayStr = getLocalISODate();
@@ -104,10 +123,29 @@
         const [newCustData, setNewCustData] = useState({ id: '', name: '', phone: '', lineId: '', type: '', symptom: '', closer: '', memberId: '', memberName: '' });
         const [isAddingCust, setIsAddingCust] = useState(false);
 
-        const handleOpenAddCustomer = () => {
+        const handleOpenAddCustomer = async () => {
+            const usedIds = new Set((customers || []).map(c => {
+                const match = c && c.id && c.id.match(/^C(\d+)$/i);
+                return match ? parseInt(match[1], 10) : 0;
+            }).filter(n => n > 0));
+
+            // Query DB to include existing DB records
+            try {
+                const dbCusts = await supabaseSelect('stk_customers', 'customer_id=like.C*&select=customer_id&limit=10000');
+                if (Array.isArray(dbCusts)) {
+                    dbCusts.forEach(c => {
+                        const match = c && c.customer_id && c.customer_id.match(/^C(\d+)$/i);
+                        if (match) usedIds.add(parseInt(match[1], 10));
+                    });
+                }
+            } catch (e) {
+                console.warn('Querying stk_customers for unique ID failed:', e);
+            }
+
             let nextIdNum = 1;
-            const cIds = (customers || []).map(c => { const match = c && c.id && c.id.match(/^C(\d+)$/i); return match ? parseInt(match[1], 10) : 0; });
-            if (cIds.length > 0) nextIdNum = Math.max(...cIds) + 1;
+            while (usedIds.has(nextIdNum)) {
+                nextIdNum++;
+            }
             setNewCustData({ 
                 id: "C" + nextIdNum.toString().padStart(3, '0'), 
                 name: '', phone: '', lineId: '', type: activeCustomerTypes.length > 0 ? activeCustomerTypes[0].name : '', 
@@ -121,34 +159,87 @@
             if(!newCustData.name) { showToast('กรุณากรอกชื่อลูกค้า', 'error'); return; }
             setIsAddingCust(true);
             
-            const mFull = (members || []).find(m => m && String(m.id).toUpperCase() === String(newCustData.memberId).toUpperCase());
-            const finalData = { ...newCustData, memberName: mFull ? mFull.name : newCustData.memberId };
+            // 🔒 RACE CONDITION FIX: Generate/recalculate Customer ID right before saving to prevent concurrent collisions
+            const usedIds = new Set();
+            (customers || []).forEach(c => {
+                const match = c && c.id && c.id.match(/^C(\d+)$/i);
+                if (match) usedIds.add(parseInt(match[1], 10));
+            });
 
-            const supaPayload = {
-                customer_id: finalData.id,
-                name: finalData.name,
-                phone: finalData.phone || '',
-                line_id: finalData.lineId || '',
-                type: finalData.type || '',
-                symptom: finalData.symptom || '',
-                closer: finalData.closer || '',
-                member_id: finalData.memberId || '',
-                member_name: finalData.memberName || ''
-            };
-
-            let savedOk = false;
-            if (window.supabaseClient) {
-                try {
-                    const { error } = await window.supabaseClient.from('stk_customers').insert(supaPayload);
-                    if (!error) savedOk = true;
-                } catch(e) {}
+            try {
+                const dbCusts = await supabaseSelect('stk_customers', 'customer_id=like.C*&select=customer_id&limit=10000');
+                if (Array.isArray(dbCusts)) {
+                    dbCusts.forEach(c => {
+                        const match = c && c.customer_id && c.customer_id.match(/^C(\d+)$/i);
+                        if (match) usedIds.add(parseInt(match[1], 10));
+                    });
+                }
+            } catch (e) {
+                console.warn('Querying stk_customers for unique ID failed:', e);
             }
 
-            if (!savedOk) {
+            let nextIdNum = 1;
+            while (usedIds.has(nextIdNum)) {
+                nextIdNum++;
+            }
+
+            let finalCustomerId = "";
+            let idCheckAttempts = 0;
+            while (idCheckAttempts < 10) {
+                const candidateId = "C" + nextIdNum.toString().padStart(3, '0');
                 try {
-                    await supabaseInsert('stk_customers', supaPayload).catch(() => supabaseInsert('customers', supaPayload));
+                    const existCheck = await supabaseSelect('stk_customers', `customer_id=eq.${candidateId}&select=customer_id`);
+                    if (!Array.isArray(existCheck) || existCheck.length === 0) {
+                        finalCustomerId = candidateId;
+                        break;
+                    }
+                    nextIdNum++;
+                } catch (_) {
+                    finalCustomerId = candidateId;
+                    break;
+                }
+                idCheckAttempts++;
+            }
+            if (!finalCustomerId) {
+                finalCustomerId = "C" + nextIdNum.toString().padStart(3, '0');
+            }
+
+            const mFull = (members || []).find(m => m && String(m.id).toUpperCase() === String(newCustData.memberId).toUpperCase());
+            const finalData = { ...newCustData, id: finalCustomerId, memberName: mFull ? mFull.name : newCustData.memberId };
+
+            // 🔒 RACE CONDITION LOCK: Insert customer with duplicate key violation retry loop
+            let savedOk = false;
+            let retryCount = 0;
+            let currentCustId = finalData.id;
+            let custNum = parseInt(currentCustId.replace('C', ''), 10);
+
+            while (!savedOk && retryCount < 10) {
+                const supaPayload = {
+                    customer_id: currentCustId,
+                    name: finalData.name,
+                    phone: finalData.phone || '',
+                    line_id: finalData.lineId || '',
+                    customer_type: finalData.type || '',
+                    symptom_disease: finalData.symptom || '',
+                    closer_id: finalData.closer || '',
+                    owner_member_id: finalData.memberId || '',
+                    member_name: finalData.memberName || ''
+                };
+
+                try {
+                    await supabaseInsert('stk_customers', supaPayload);
+                    savedOk = true;
+                    finalData.id = currentCustId;
                 } catch (err) {
-                    console.warn("Supabase insert fallback", err);
+                    const errMsg = String(err.message || '').toLowerCase();
+                    if (errMsg.includes('duplicate') || errMsg.includes('409') || errMsg.includes('already exists')) {
+                        custNum++;
+                        currentCustId = "C" + custNum.toString().padStart(3, '0');
+                        retryCount++;
+                    } else {
+                        console.error('Database customer insert failed:', err);
+                        break;
+                    }
                 }
             }
 
@@ -156,70 +247,77 @@
             setShowAddCustModal(false);
             setIsAddingCust(false);
             showToast('เพิ่มข้อมูลลูกค้าใหม่สำเร็จ!', 'success');
+            triggerGlobalRefresh();
         };
 
         const handleSaveCust = async (e) => {
             e.preventDefault();
             setIsSubmitting(true);
-            const mFull = (members || []).find(m => m && String(m.id).toUpperCase() === String(editCustData.memberId || '').toUpperCase());
-            const finalData = { ...editCustData, memberName: mFull ? mFull.name : editCustData.memberId };
+            try {
+                const mFull = (members || []).find(m => m && String(m.id).toUpperCase() === String(editCustData.memberId || '').toUpperCase());
+                const finalData = { ...editCustData, memberName: mFull ? mFull.name : editCustData.memberId };
 
-            const supaPayload = {
-                customer_id: finalData.id,
-                id: finalData.id,
-                name: finalData.name,
-                customer_name: finalData.name,
-                phone: finalData.phone || '',
-                phone_number: finalData.phone || '',
-                line_id: finalData.lineId || '',
-                type: finalData.type || '',
-                customer_type: finalData.type || '',
-                symptom: finalData.symptom || '',
-                symptom_disease: finalData.symptom || '',
-                closer: finalData.closer || '',
-                closer_id: finalData.closer || '',
-                member_id: finalData.memberId || '',
-                owner_member_id: finalData.memberId || '',
-                member_name: finalData.memberName || ''
-            };
+                const supaPayload = {
+                    customer_id: finalData.id,
+                    name: finalData.name,
+                    phone: finalData.phone || '',
+                    line_id: finalData.lineId || '',
+                    customer_type: finalData.type || '',
+                    symptom_disease: finalData.symptom || '',
+                    closer_id: finalData.closer || '',
+                    owner_member_id: finalData.memberId || '',
+                    member_name: finalData.memberName || ''
+                };
 
-            let savedOk = false;
-            if (window.supabaseClient) {
-                try {
-                    const { error } = await window.supabaseClient.from('stk_customers').update(supaPayload).eq('customer_id', finalData.id);
-                    if (!error) savedOk = true;
-                    else {
-                        const { error: err2 } = await window.supabaseClient.from('stk_customers').update(supaPayload).eq('id', finalData.id);
-                        if (!err2) savedOk = true;
-                    }
-                } catch(e) {}
-            }
-
-            if (!savedOk) {
-                try {
-                    await supabaseUpdate('stk_customers', finalData.id, supaPayload, 'customer_id');
-                    savedOk = true;
-                } catch (err) {
+                let savedOk = false;
+                if (window.supabaseClient) {
                     try {
-                        await supabaseUpdate('stk_customers', finalData.id, supaPayload, 'id');
-                        savedOk = true;
-                    } catch(e2){}
+                        const { error } = await window.supabaseClient.from('stk_customers').update(supaPayload).eq('customer_id', finalData.id);
+                        if (!error) savedOk = true;
+                        else {
+                            const { error: err2 } = await window.supabaseClient.from('stk_customers').update(supaPayload).eq('id', finalData.id);
+                            if (!err2) savedOk = true;
+                        }
+                    } catch(e) {}
                 }
-            }
 
-            setCustomers(customers.map(c => c.id === editCustData.id ? finalData : c));
-            setEditCustData(null);
-            setIsSubmitting(false);
-            showToast('อัปเดตข้อมูลลูกค้าสำเร็จ!', 'success');
+                if (!savedOk) {
+                    try {
+                        await supabaseUpdate('stk_customers', finalData.id, supaPayload, 'customer_id');
+                        savedOk = true;
+                    } catch (err) {
+                        try {
+                            await supabaseUpdate('stk_customers', finalData.id, supaPayload, 'id');
+                            savedOk = true;
+                        } catch(e2){}
+                    }
+                }
+
+                setCustomers(customers.map(c => c.id === editCustData.id ? finalData : c));
+                setEditCustData(null);
+                showToast('อัปเดตข้อมูลลูกค้าสำเร็จ!', 'success');
+                triggerGlobalRefresh();
+            } catch (err) {
+                console.error("Save customer error:", err);
+                showToast('เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + err.message, 'error');
+            } finally {
+                setIsSubmitting(false);
+            }
         };
 
         const executeDeleteCust = async () => {
             const id = confirmDeleteCust.id;
             try {
-                await supabaseDelete('stk_customers', id).catch(() => supabaseDelete('customers', id));
+                await supabaseDelete('stk_customers', id, 'customer_id').catch(() => {});
+                await supabaseDelete('stk_customers', id, 'id').catch(() => {});
+                await supabaseDelete('customers', id, 'customer_id').catch(() => {});
+                await supabaseDelete('customers', id, 'id').catch(() => {});
+                
                 setCustomers(customers.filter(c => c.id !== id));
                 setConfirmDeleteCust({ show: false, id: null, title: '' });
                 showToast('ลบข้อมูลลูกค้าสำเร็จ', 'success');
+                try { localStorage.removeItem('stk_app_cache_data'); localStorage.removeItem('stk_app_cache_time'); } catch(e){}
+                window.parent.postMessage('refresh_data', '*');
             } catch (err) {
                 console.error("Delete customer error:", err);
                 showToast('เกิดข้อผิดพลาดในการลบข้อมูล: ' + err.message, 'error');
@@ -854,7 +952,7 @@
           supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
           supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
           supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
-          supabaseSelect('stk_customers', 'limit=500').catch(() => supabaseSelect('customers')),
+          supabaseSelect('stk_customers', 'limit=10000').catch(() => supabaseSelect('customers')),
           // ⚡ SPEED FIX: ดึงประวัติการขายล่าสุดแค่ 200 รายการ เพื่อความรวดเร็วในการวิเคราะห์ข้อมูลลูกค้าล่าสุด
           supabaseSelect('stk_sales', 'order=order_id.desc&limit=200').catch(() => supabaseSelect('sales'))
         ]).then(([pRes, typeRes, cloRes, memRes, custRes, saleRes]) => {

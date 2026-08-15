@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>โครงสร้างทีมขาย (Sales Team Hierarchy) - LOVE STK GROUPE</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
-    body { font-family: 'Sukhumvit Set', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
+    body { font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
     @media (min-width: 1024px) {
       aside.lg\:flex { display: flex !important; position: fixed !important; top: 0; left: 0; height: 100vh; z-index: 30; }
       main.lg\:ml-64 { margin-left: 16rem !important; }
@@ -21,7 +21,12 @@
     
     .tree-line-vertical { width: 2px; height: 24px; background-color: #cbd5e1; margin: 0 auto; }
     .tree-line-horizontal { height: 2px; background-color: #cbd5e1; position: absolute; top: 0; }
-  </style>
+  
+    /* Force global font-family styling to override Tailwind default sans stack */
+    body, button, input, select, textarea, .font-sans, [class*="font-"] {
+        font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif !important;
+    }
+</style>
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
@@ -209,10 +214,15 @@
                 }
                 if (Array.isArray(itemsList) && itemsList.length > 0) {
                     itemsList.forEach(it => {
-                        totalPV += Number(it.qty || it.quantity || 1);
+                        const typeStr = String(it.type || '').trim();
+                        if (typeStr === 'ราคาเต็ม' || typeStr === 'ราคาสมาชิก') {
+                            totalPV += Number(it.qty || it.quantity || 1);
+                        }
                     });
                 } else {
-                    totalPV += Number(s['ยอดรวมชิ้นทั้งหมด'] || s.total_bottles || s.totalBottles || 1);
+                    const f = Number(s['รวมชิ้นราคาเต็ม'] || 0);
+                    const m = Number(s['รวมชิ้นราคาสมาชิก'] || 0);
+                    totalPV += (f + m);
                 }
             });
             return totalPV;
@@ -274,9 +284,11 @@
                         else if (typeStr === 'ราคาศูนย์' || typeStr === 'ราคาฟรี') catMap[targetKey].zeroQty += q;
                         else catMap[targetKey].promoQty += q; // default promo
 
-                        catMap[targetKey].totalQty += q;
-                        const applicableRate = isDownline ? catInfo.l1Rate : catInfo.rate;
-                        catMap[targetKey].totalLAK += q * applicableRate;
+                        if (typeStr === 'ราคาเต็ม' || typeStr === 'ราคาสมาชิก') {
+                            catMap[targetKey].totalQty += q;
+                            const applicableRate = isDownline ? catInfo.l1Rate : catInfo.rate;
+                            catMap[targetKey].totalLAK += q * applicableRate;
+                        }
                     });
                 } else {
                     const q = Number(s['ยอดรวมชิ้นทั้งหมด'] || 1);
@@ -289,13 +301,19 @@
                     catMap['Supplement'].memberQty += m;
                     catMap['Supplement'].promoQty += p;
                     catMap['Supplement'].zeroQty += z;
-                    if (f === 0 && m === 0 && p === 0 && z === 0) catMap['Supplement'].fullQty += q;
+                    
+                    let validQty = f + m;
+                    if (f === 0 && m === 0 && p === 0 && z === 0) {
+                        catMap['Supplement'].fullQty += q;
+                        validQty = q;
+                    }
 
-                    catMap['Supplement'].totalQty += q;
+                    catMap['Supplement'].totalQty += validQty;
                     const applicableRate = isDownline ? 200000 : 250000;
-                    catMap['Supplement'].totalLAK += q * applicableRate;
+                    catMap['Supplement'].totalLAK += validQty * applicableRate;
                     if (!isDownline) {
-                        catMap['Supplement'].marginLAK += f * 200000;
+                        const finalFullQty = (f === 0 && m === 0 && p === 0 && z === 0) ? q : f;
+                        catMap['Supplement'].marginLAK += finalFullQty * 200000;
                     }
                 }
             });
@@ -984,7 +1002,7 @@
     };
 
     // 🟢 Main View Component with Responsive Flexible Grid Layout
-    const SalesTeamHierarchyView = ({ members, sales, businessTeams, products, customerTypes, systemSettings, currentUser, isAdmin }) => {
+    const SalesTeamHierarchyView = ({ members, sales, businessTeams, products, customerTypes, systemSettings, currentUser, isAdmin, loading }) => {
         const [searchQuery, setSearchQuery] = useState('');
         const [viewMode, setViewMode] = useState('tree');
         const [selectedMember, setSelectedMember] = useState(null);
@@ -1068,11 +1086,11 @@
         // Filter root members by search query
         const filteredRootMembers = useMemo(() => {
             if (!searchQuery) return rootMembers;
-            return rootMembers.filter(m => 
+            return scopedMembers.filter(m => 
                 m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                 m.id.toLowerCase().includes(searchQuery.toLowerCase())
             );
-        }, [rootMembers, searchQuery]);
+        }, [rootMembers, scopedMembers, searchQuery]);
 
         return (
             <div className="space-y-6 animation-fade-in pb-10 w-full">
@@ -1172,7 +1190,13 @@
 
                 {/* 🌳 Responsive Tree / Team Layout Container */}
                 <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8 w-full overflow-x-auto flex flex-col items-center min-h-[500px]">
-                    
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center py-32 gap-3 animation-fade-in w-full h-full">
+                            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                            <span className="text-sm font-bold text-slate-500">กำลังโหลดโครงสร้างสายงานในระบบ...</span>
+                        </div>
+                    ) : (
+                        <React.Fragment>
                     {/* Top Root Header Card: STK Sales Management — แสดงเฉพาะ Admin */}
                     {isAdmin && viewMode === 'tree' && (
                         <>
@@ -1259,6 +1283,8 @@
                             })()}
                         </div>
                     )}
+                    </React.Fragment>
+                    )}
                 </div>
 
                 {/* 🟢 Detail Modal Popup */}
@@ -1284,15 +1310,20 @@
       const [currentUser, setCurrentUser] = useState(null);
       const [showLoginModal, setShowLoginModal] = useState(false);
       
-      const [products, setProducts] = useState([]);
-      const [customerTypes, setCustomerTypes] = useState(fallbackCustomerTypes);
-      const [members, setMembers] = useState([]);
-      const [customers, setCustomers] = useState([]);
-      const [sales, setSales] = useState([]);
-      const [businessTeams, setBusinessTeams] = useState([]);
+      const initialCache = (() => {
+        try { const data = localStorage.getItem('stk_app_cache_data'); return data ? JSON.parse(data) : null; }
+        catch(e) { return null; }
+      })();
+
+      const [products, setProducts] = useState(() => initialCache && Array.isArray(initialCache.products) ? initialCache.products : []);
+      const [customerTypes, setCustomerTypes] = useState(() => initialCache && Array.isArray(initialCache.customerTypes) ? initialCache.customerTypes : fallbackCustomerTypes);
+      const [members, setMembers] = useState(() => initialCache && Array.isArray(initialCache.members) ? initialCache.members.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name })) : []);
+      const [customers, setCustomers] = useState(() => initialCache && Array.isArray(initialCache.customers) ? initialCache.customers : []);
+      const [sales, setSales] = useState(() => initialCache && Array.isArray(initialCache.sales) ? initialCache.sales : []);
+      const [businessTeams, setBusinessTeams] = useState(() => initialCache && Array.isArray(initialCache.businessTeams) ? initialCache.businessTeams.map(t => ({ ...t, id: t.id || t.team_id, name: t.name || t.team_name })) : []);
       const [systemUsers, setSystemUsers] = useState([]);
-      const [systemSettings, setSystemSettings] = useState({});
-      const [isAppLoading, setIsAppLoading] = useState(true);
+      const [systemSettings, setSystemSettings] = useState(() => initialCache && initialCache.systemSettings ? initialCache.systemSettings : {});
+      const [isAppLoading, setIsAppLoading] = useState(() => !initialCache);
       const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
         try { return localStorage.getItem('stk_sidebar_collapsed') === 'true'; } catch(e) { return false; }
       });
@@ -1318,13 +1349,12 @@
         const initialLoader = document.getElementById('initial-loader');
         if (initialLoader) initialLoader.style.display = 'none';
 
-        // Load real data directly from Supabase
         Promise.all([
           supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
           supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
           supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
-          supabaseSelect('stk_customers').catch(() => supabaseSelect('customers')),
-          supabaseSelect('stk_sales').catch(() => supabaseSelect('sales')),
+          supabaseSelect('stk_customers', 'order=customer_id.desc&limit=2000').catch(() => supabaseSelect('customers')),
+          supabaseSelect('stk_sales', 'order=order_id.desc&limit=1500').catch(() => supabaseSelect('sales')),
           supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams')),
           supabaseSelect('stk_system_settings').catch(() => supabaseSelect('system_settings'))
         ]).then(([pRes, typeRes, memRes, custRes, saleRes, teamRes, setRes]) => {
@@ -1338,6 +1368,10 @@
             systemSettings: setRes
           };
           applyDataToStates(resObj);
+          try {
+              localStorage.setItem('stk_app_cache_data', JSON.stringify(resObj));
+              localStorage.setItem('stk_app_cache_time', String(Date.now()));
+          } catch(e){}
         }).catch(err => {
           console.error("Supabase load error:", err);
         }).finally(() => {
@@ -1346,18 +1380,32 @@
       }, []);
 
       const applyDataToStates = (response) => {
+           let localSettings = {};
+           if (Array.isArray(response.systemSettings) && response.systemSettings.length > 0) {
+               response.systemSettings.forEach(s => {
+                   if (s.key || s.setting_key) localSettings[s.key || s.setting_key] = s.value || s.setting_value;
+               });
+           }
+           const localMarginsStr = localSettings.product_margins;
+           const localMargins = localMarginsStr ? (typeof localMarginsStr === 'string' ? JSON.parse(localMarginsStr) : localMarginsStr) : {};
+
            if (Array.isArray(response.products)) {
-               setProducts(response.products.map(p => ({
-                   ...p,
-                   id: String(p.product_id || p.id || '').trim(),
-                   name: String(p.name || '').trim(),
-                   category: String(p.category || '').trim(),
-                   self_fee: Number(p.self_fee ?? p.selfFee ?? 0),
-                   level_1_fee: Number(p.level_1_fee ?? p.level1Fee ?? 0),
-                   price_full: Number(p.price_full ?? p.priceFull ?? 0),
-                   price_member: Number(p.price_member ?? p.priceMember ?? 0),
-                   full_margin_amount: Number(p.full_margin_amount ?? p.fullMarginAmount ?? 0)
-               })));
+               setProducts(response.products.map(p => {
+                   const pId = String(p.product_id || p.id || '').trim();
+                   const margin = localMargins[pId] || { amount: 0, currency: 'LAK' };
+                   return {
+                       ...p,
+                       id: pId,
+                       name: String(p.name || '').trim(),
+                       category: String(p.category || '').trim(),
+                       self_fee: Number(p.self_fee ?? p.selfFee ?? 0),
+                       level_1_fee: Number(p.level_1_fee ?? p.level1Fee ?? 0),
+                       price_full: Number(p.price_full ?? p.priceFull ?? 0),
+                       price_member: Number(p.price_member ?? p.priceMember ?? 0),
+                       full_margin_amount: Number(margin.amount ?? 0),
+                       full_margin_currency: margin.currency || 'LAK'
+                   };
+               }));
            }
            if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes);
            if (Array.isArray(response.systemSettings) && response.systemSettings.length > 0) {
@@ -1465,12 +1513,6 @@
 
             <div className="p-3 sm:p-6 lg:p-8 flex-1 w-full">
               <div className="w-full">
-                {isAppLoading ? (
-                  <div className="flex flex-col items-center justify-center py-32 gap-3 animation-fade-in">
-                    <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                    <span className="text-sm font-bold text-slate-500">กำลังโหลดโครงสร้างสายงานในระบบ...</span>
-                  </div>
-                ) : (
                   <SalesTeamHierarchyView 
                     members={members}
                     sales={sales}
@@ -1480,8 +1522,8 @@
                     systemSettings={systemSettings}
                     currentUser={currentUser}
                     isAdmin={isAdmin}
+                    loading={isAppLoading}
                   />
-                )}
               </div>
             </div>
 

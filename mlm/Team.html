@@ -6,8 +6,8 @@
   <title>Team - LOVE STK GROUPE</title>
   <!-- Standalone & GAS Libraries -->
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
-    body { font-family: 'Sukhumvit Set', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
+    body { font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
     @media (min-width: 1024px) {
       aside.lg\:flex { display: flex !important; position: fixed !important; top: 0; left: 0; height: 100vh; z-index: 30; }
       main.lg\:ml-64 { margin-left: 16rem !important; }
@@ -19,7 +19,12 @@
       div.lg\:hidden { display: flex !important; }
       main { margin-left: 0 !important; width: 100% !important; }
     }
-  </style>
+  
+    /* Force global font-family styling to override Tailwind default sans stack */
+    body, button, input, select, textarea, .font-sans, [class*="font-"] {
+        font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif !important;
+    }
+</style>
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
@@ -94,7 +99,7 @@
 
   <script type="text/babel">
     const { useState, useMemo, useEffect, useRef, useCallback } = React;
-    // ðŸ›¡ï¸ GLOBAL ICONS DESTRUCTURING: à¸›à¸¥à¸­à¸”à¸ à¸±à¸¢à¸ˆà¸²à¸à¸•à¸±à¸§à¹à¸›à¸£à¸‹à¹‰à¸³à¸‹à¹‰à¸­à¸™ à¹à¸¥à¸°à¸”à¸¶à¸‡à¹‚à¸¡à¸”à¸¹à¸¥à¹à¸¥à¸°à¸„à¸­à¸¡à¹‚à¸žà¹€à¸™à¸™à¸•à¹Œà¸¡à¸²à¸„à¸£à¸šà¸–à¹‰à¸§à¸™
+    // 🛡️ GLOBAL ICONS DESTRUCTURING: ปลอดภัยจากตัวแปรซ้ำซ้อน และดึงโมดูลและคอมโพเนนต์มาครบถ้วน
     const { LayoutDashboard, ShoppingCart, Users, Contact, Headset, BarChart3, Plus, Edit, Trash2, UserCircle, Menu, X, Save, Info, PackageIcon, Package, Target, Trophy, Activity, Eye, Tags, CheckCircle, GitBranch, Archive, ChevronDown, FileText, SettingsIcon, Coins, ShieldCheck, AlertTriangle, AlertCircle, LoginModal, Toast, Sidebar, Header, ConfirmModal, EditModal, DonutChart, AutoSuggestInput, SearchIcon } = window;
     
     
@@ -139,7 +144,7 @@
         return result;
     };
 
-    const TeamManagementView = ({ members, setMembers, businessTeams, isAdmin, showToast, sales, products, currentUser }) => {
+    const TeamManagementView = ({ members, setMembers, businessTeams, isAdmin, showToast, sales, products, currentUser, loading, refreshData }) => {
         const defaultRolePermissions = {
             'à¸œà¸¹à¹‰à¸”à¸¹à¹à¸¥à¸£à¸°à¸šà¸š': {
                 dashboard: 'full', reports: 'full', orgchart: 'full', sales: 'full', nutrients: 'full', customers: 'full',
@@ -391,6 +396,9 @@
                     setMembers([...(members || []), finalData]);
                     showToast('เพิ่มสมาชิกใหม่เรียบร้อยแล้ว', 'success');
                 }
+                if (refreshData) {
+                    refreshData();
+                }
                 setShowForm(false);
             } catch (error) {
                 showToast('เกิดข้อผิดพลาด: ' + (error.message || error), 'error');
@@ -437,6 +445,16 @@
            .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'th'));
 
         const filterBtn = "px-5 py-2 rounded-xl text-[13px] font-bold transition-all border shadow-sm shrink-0 h-[38px] sm:h-[40px] flex items-center justify-center";
+
+        if (loading) {
+            return (
+                <div className="flex flex-col items-center justify-center py-32 gap-5 animation-fade-in w-full">
+                    <div className="w-16 h-16 border-[4px] border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+                    <h2 className="text-lg font-bold text-slate-700">กำลังโหลดข้อมูล...</h2>
+                    <p className="text-slate-500 text-sm">กรุณารอสักครู่ ระบบกำลังจัดเตรียมข้อมูล</p>
+                </div>
+            );
+        }
 
         return (
           <div className="space-y-6 animation-fade-in relative w-full">
@@ -975,7 +993,7 @@
     // ==========================================
     // 📌 ส่วนจัดการข้อมูลทีมสังกัด (Business Teams Management View)
     // ==========================================
-    const BusinessTeamsManagementView = ({ businessTeams, setBusinessTeams, members, isAdmin, showToast }) => {
+    const BusinessTeamsManagementView = ({ businessTeams, setBusinessTeams, members, isAdmin, showToast, loading, refreshData }) => {
         const [showModal, setShowModal] = useState(false);
         const [editingTeam, setEditingTeam] = useState(null);
         const [teamName, setTeamName] = useState('');
@@ -1038,6 +1056,7 @@
                     setBusinessTeams(prev => [...prev, uiTeam]);
                     showToast('เพิ่มทีมใหม่เรียบร้อย!', 'success');
                 }
+                if (refreshData) refreshData();
                 setShowModal(false);
             } catch (error) {
                 showToast('เกิดข้อผิดพลาด: ' + (error.message || error), 'error');
@@ -1071,6 +1090,16 @@
                 showToast('เกิดข้อผิดพลาด: ' + (error.message || error), 'error');
             }
         };
+
+        if (loading) {
+            return (
+                <div className="flex flex-col items-center justify-center py-32 gap-5 animation-fade-in w-full">
+                    <div className="w-16 h-16 border-[4px] border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+                    <h2 className="text-lg font-bold text-slate-700">กำลังโหลดข้อมูล...</h2>
+                    <p className="text-slate-500 text-sm">กรุณารอสักครู่ ระบบกำลังจัดเตรียมข้อมูล</p>
+                </div>
+            );
+        }
 
         return (
             <div className="space-y-6 animation-fade-in">
@@ -1227,15 +1256,20 @@
         return () => window.removeEventListener('popstate', handleLocationChange);
       }, []);
 
-      const [products, setProducts] = useState([]);
-      const [customerTypes, setCustomerTypes] = useState(fallbackCustomerTypes);
-      const [closers, setClosers] = useState([]);
-      const [members, setMembers] = useState([]);
-      const [customers, setCustomers] = useState([]);
-      const [sales, setSales] = useState([]);
+      const initialCache = (() => {
+        try { const data = localStorage.getItem('stk_app_cache_data'); return data ? JSON.parse(data) : null; }
+        catch(e) { return null; }
+      })();
+
+      const [products, setProducts] = useState(() => initialCache && Array.isArray(initialCache.products) ? initialCache.products : []);
+      const [customerTypes, setCustomerTypes] = useState(() => initialCache && Array.isArray(initialCache.customerTypes) ? initialCache.customerTypes : fallbackCustomerTypes);
+      const [closers, setClosers] = useState(() => initialCache && Array.isArray(initialCache.closers) ? initialCache.closers : []);
+      const [members, setMembers] = useState(() => initialCache && Array.isArray(initialCache.members) ? initialCache.members.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name })) : []);
+      const [customers, setCustomers] = useState(() => initialCache && Array.isArray(initialCache.customers) ? initialCache.customers : []);
+      const [sales, setSales] = useState(() => initialCache && Array.isArray(initialCache.sales) ? initialCache.sales : []);
       const [systemUsers, setSystemUsers] = useState([]);
-      const [businessTeams, setBusinessTeams] = useState([]);
-      const [isAppLoading, setIsAppLoading] = useState(false);
+      const [businessTeams, setBusinessTeams] = useState(() => initialCache && Array.isArray(initialCache.businessTeams) ? initialCache.businessTeams : []);
+      const [isAppLoading, setIsAppLoading] = useState(() => !initialCache);
       const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
         try { return localStorage.getItem('stk_sidebar_collapsed') === 'true'; } catch (e) { return false; }
       });
@@ -1250,6 +1284,29 @@
           String(currentUser.role).trim().toLowerCase() === 'admin'
       );
       const currentUserProfileUrl = currentUser?.profileUrl || '';
+
+      const fetchData = () => {
+        Promise.all([
+            supabaseSelect('stk_products').catch(() => []),
+            supabaseSelect('stk_customer_types').catch(() => []),
+            supabaseSelect('stk_closers').catch(() => []),
+            supabaseSelect('stk_members').catch(() => []),
+            supabaseSelect('stk_customers').catch(() => []),
+            supabaseSelect('stk_sales').catch(() => []),
+            supabaseSelect('stk_business_teams').catch(() => []),
+            supabaseSelect('stk_target_history').catch(() => [])
+        ]).then(([products, customerTypes, closers, members, customers, sales, businessTeams, targetHistory]) => {
+            const response = {
+                products, customerTypes, closers, members, customers, sales, businessTeams, targetHistory
+            };
+            try { localStorage.setItem('stk_app_cache_data', JSON.stringify(response)); } catch(e){}
+            applyDataToStates(response);
+            setIsAppLoading(false);
+        }).catch((error) => {
+            setIsAppLoading(false);
+            showToast('เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + (error.message || error), 'error');
+        });
+      };
 
       useEffect(() => {
         const savedUserStr = localStorage.getItem('stk_current_user');
@@ -1266,33 +1323,11 @@
         const initialLoader = document.getElementById('initial-loader');
         if (initialLoader) initialLoader.style.display = 'none';
 
-        Promise.all([
-            supabaseSelect('stk_products').catch(() => []),
-            supabaseSelect('stk_customer_types').catch(() => []),
-            supabaseSelect('stk_closers').catch(() => []),
-            supabaseSelect('stk_members').catch(() => []),
-            supabaseSelect('stk_customers').catch(() => []),
-            supabaseSelect('stk_sales').catch(() => []),
-            supabaseSelect('stk_business_teams').catch(() => []),
-            supabaseSelect('stk_target_history').catch(() => [])
-        ]).then(([products, customerTypes, closers, members, customers, sales, businessTeams, targetHistory]) => {
-            const response = {
-                products: products,
-                customerTypes: customerTypes,
-                closers: closers,
-                members: members,
-                customers: customers,
-                sales: sales,
-                businessTeams: businessTeams,
-                targetHistory: targetHistory
-            };
-            try { localStorage.setItem('stk_app_cache_data', JSON.stringify(response)); } catch(e){}
-            applyDataToStates(response);
-            setIsAppLoading(false);
-        }).catch((error) => {
-            setIsAppLoading(false);
-            showToast('เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + (error.message || error), 'error');
-        });
+        if (!initialCache) {
+            setIsAppLoading(true);
+        }
+        
+        fetchData();
       }, []);
 
       const applyDataToStates = (response) => {
@@ -1395,13 +1430,7 @@
 
             <div className="p-3 sm:p-6 flex-1 w-full relative z-0 space-y-4">
               <div className="w-full relative z-10">
-                {isAppLoading ? (
-                  <div className="flex flex-col items-center justify-center py-32 gap-5 animation-fade-in">
-                    <div className="w-16 h-16 border-[4px] border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
-                    <h2 className="text-lg font-bold text-slate-700">กำลังโหลดข้อมูล...</h2>
-                    <p className="text-slate-500 text-sm">กรุณารอสักครู่ ระบบกำลังดึงข้อมูลล่าสุด</p>
-                  </div>
-                ) : isLoggedIn ? (
+                {isLoggedIn ? (
                   activeSubTab === 'business_teams' ? (
                     <BusinessTeamsManagementView
                       businessTeams={businessTeams}
@@ -1409,6 +1438,8 @@
                       members={members}
                       isAdmin={isAdmin}
                       showToast={showToast}
+                      loading={isAppLoading}
+                      refreshData={fetchData}
                     />
                   ) : (
                     <TeamManagementView
@@ -1420,6 +1451,8 @@
                       sales={sales}
                       products={products}
                       currentUser={currentUser}
+                      loading={isAppLoading}
+                      refreshData={fetchData}
                     />
                   )
                 ) : (

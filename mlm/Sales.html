@@ -6,8 +6,8 @@
   <title>ป้อนข้อมูลขาย (Sales) - LOVE STK GROUPE</title>
   <!-- Standalone & GAS Libraries -->
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
-    body { font-family: 'Sukhumvit Set', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
+    body { font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
     @media (min-width: 1024px) {
       aside.lg\:flex { display: flex !important; position: fixed !important; top: 0; left: 0; height: 100vh; z-index: 30; }
       main.lg\:ml-64 { margin-left: 16rem !important; }
@@ -19,7 +19,12 @@
       div.lg\:hidden { display: flex !important; }
       main { margin-left: 0 !important; width: 100% !important; }
     }
-  </style>
+  
+    /* Force global font-family styling to override Tailwind default sans stack */
+    body, button, input, select, textarea, .font-sans, [class*="font-"] {
+        font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif !important;
+    }
+</style>
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
@@ -66,7 +71,7 @@
 
   <script type="text/babel">
     const { useState, useMemo, useEffect, useRef, useCallback } = React;
-    // ðŸ›¡ï¸ GLOBAL ICONS DESTRUCTURING: à¸›à¸¥à¸­à¸”à¸ à¸±à¸¢à¸ˆà¸²à¸à¸•à¸±à¸§à¹à¸›à¸£à¸‹à¹‰à¸³à¸‹à¹‰à¸­à¸™ à¹à¸¥à¸°à¸”à¸¶à¸‡à¹‚à¸¡à¸”à¸¹à¸¥à¹à¸¥à¸°à¸„à¸­à¸¡à¹‚à¸žà¹€à¸™à¸™à¸•à¹Œà¸¡à¸²à¸„à¸£à¸šà¸–à¹‰à¸§à¸™
+    // 🛡️ GLOBAL ICONS DESTRUCTURING: ปลอดภัยจากตัวแปรซ้ำซ้อน และดึงโมดูลและคอมโพเนนต์มาครบถ้วน
     const { LayoutDashboard, ShoppingCart, Users, Contact, Headset, BarChart3, Plus, Edit, Trash2, UserCircle, Menu, X, Save, Info, PackageIcon, Package, Target, Trophy, Activity, Eye, Tags, CheckCircle, GitBranch, Archive, ChevronDown, FileText, SettingsIcon, Coins, ShieldCheck, AlertTriangle, AlertCircle, LoginModal, Toast, Sidebar, Header, ConfirmModal, EditModal, DonutChart, AutoSuggestInput, SearchIcon } = window;
     
     
@@ -109,7 +114,21 @@
     // ==========================================
     // 📌 Sales Entry View Component
     // ==========================================
-    const SalesEntryView = ({ members, customers, closers, businessTeams = [], sales, setSales, setCustomers, activeProductsList, activeCustomerTypes, isAdmin, showToast, currentUser, products, setProducts, systemSettings }) => {
+    const SalesEntryView = ({ members, customers, closers, businessTeams = [], sales, setSales, setCustomers, activeProductsList, activeCustomerTypes, isAdmin, showToast, currentUser, products, setProducts, systemSettings, loading }) => {
+        const triggerGlobalRefresh = () => {
+            try {
+                localStorage.removeItem('stk_app_cache_data');
+                localStorage.removeItem('stk_app_cache_time');
+                if (typeof window.clearDbCache === 'function') window.clearDbCache();
+                window.parent.postMessage('refresh_data', '*');
+                if (typeof BroadcastChannel !== 'undefined') {
+                    const bc = new BroadcastChannel('stk_mlm_channel');
+                    bc.postMessage('refresh_data');
+                    bc.close();
+                }
+                localStorage.setItem('stk_refresh_trigger', String(Date.now()));
+            } catch(e) {}
+        };
         const [saleTab, setSaleTab] = useState('B2M');
         
         const [formData, setFormData] = useState({ date: getLocalISODate() });
@@ -296,7 +315,7 @@
                     }
 
                     if (showToast) {
-                        showToast(`โหลดข้อมูลสั่งจ่ายสารอาหาร VISIT: ${pending.visit_id || ''} เข้าสู่หน้าขายเรียบร้อย!`, 'success');
+                        showToast(`โหลดข้อมูลสั่งจ่ายยา VISIT: ${pending.visit_id || ''} เข้าสู่หน้าขายเรียบร้อย!`, 'success');
                     }
                 }
             } catch(e) {
@@ -944,8 +963,8 @@
                     <meta charset="utf-8">
                     <title>ใบเสร็จรับเงิน Receipt - ${rs.id}</title>
                     <style>
-                      @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap');
-                      body { font-family: 'Sarabun', sans-serif; background-color: #f1f5f9; margin: 0; padding: 0; color: #1e293b; }
+                      @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Sarabun:wght@400;500;600;700;800&display=swap');
+                      body { font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', sans-serif; background-color: #f1f5f9; margin: 0; padding: 0; color: #1e293b; }
                       
                       .control-bar {
                         background: #0f172a; color: white; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
@@ -1300,7 +1319,7 @@
                 }
             }
 
-            try { localStorage.removeItem('stk_app_cache_data'); localStorage.removeItem('stk_app_cache_time'); } catch(e){}
+            triggerGlobalRefresh();
             if (typeof supabaseDelete === 'function') {
                 supabaseDelete('stk_sales', saleId, 'order_id');
                 if (custId) supabaseDelete('stk_customers', custId, 'customer_id');
@@ -1322,6 +1341,48 @@
             } else {
                 showToast('บันทึกการขายสำเร็จ!', 'success');
             }
+            
+            // 🔔 Post message to parent dashboard, broadcast channel, and localStorage (for file:// protocol) for custom pop-up notification
+            try {
+                let targetBottles = 0;
+                (cart || []).forEach(item => {
+                    if (item.priceType === 'ราคาเต็ม' || item.priceType === 'ราคาสมาชิก') {
+                        targetBottles += (parseInt(item.qty) || 0);
+                    }
+                });
+                const earnedPV = typeof calculateBillPV === 'function' ? calculateBillPV(cart, products) : 0;
+                
+                const toastData = {
+                    type: 'new_sale_toast',
+                    sellerName: foundMember ? foundMember.name : (recordToShow ? recordToShow.memberName : 'สมาชิก'),
+                    profileUrl: foundMember ? foundMember.profileUrl : '',
+                    bottles: targetBottles,
+                    points: earnedPV
+                };
+
+                window.parent.postMessage(toastData, '*');
+
+                // Broadcast to other tabs/windows
+                if (typeof BroadcastChannel !== 'undefined') {
+                    const bc = new BroadcastChannel('stk_mlm_channel');
+                    bc.postMessage(toastData);
+                    bc.close();
+                }
+
+                // 🔒 localStorage sync for file:// protocol support across separate windows
+                try {
+                    localStorage.setItem('stk_new_sale_trigger', JSON.stringify({
+                        sellerName: toastData.sellerName,
+                        profileUrl: toastData.profileUrl,
+                        bottles: toastData.bottles,
+                        points: toastData.points,
+                        timestamp: Date.now() // Force update to trigger storage event
+                    }));
+                } catch (e) {}
+            } catch (err) {
+                console.warn('Failed to send sale toast message:', err);
+            }
+
             setIsSubmitting(false);
             setCart([]);
             setCustData({ id: '', name: '', phone: '', lineId: '', symptom: '', closerTeam: '', closer: '' });
@@ -1351,21 +1412,97 @@
             if (!custData.closerTeam) { showToast('กรุณาเลือกทีมผู้ปิดการขาย', 'error'); return; }
             if (!custData.closer) { showToast('กรุณาระบุผู้ปิดการขาย', 'error'); return; }
             if (!finalCustomerId) {
+                const usedIds = new Set();
+                (customers || []).forEach(c => {
+                    const match = c && c.id && c.id.match(/^C(\d+)$/i);
+                    if (match) usedIds.add(parseInt(match[1], 10));
+                });
+                (sales || []).forEach(s => {
+                    const match = s && s.customerId && s.customerId.match(/^C(\d+)$/i);
+                    if (match) usedIds.add(parseInt(match[1], 10));
+                });
+
+                // Query DB to prevent race conditions on Customer ID
+                try {
+                    const dbCusts = await supabaseSelect('stk_customers', 'customer_id=like.C*&select=customer_id&limit=10000');
+                    if (Array.isArray(dbCusts)) {
+                        dbCusts.forEach(c => {
+                            const match = c && c.customer_id && c.customer_id.match(/^C(\d+)$/i);
+                            if (match) usedIds.add(parseInt(match[1], 10));
+                        });
+                    }
+                } catch (e) {
+                    console.warn('Querying stk_customers for unique ID failed:', e);
+                }
+
                 let nextIdNum = 1;
-                const cIds = [
-                    ...(customers || []).map(c => { const match = c && c.id && c.id.match(/^C(\d+)$/i); return match ? parseInt(match[1], 10) : 0; }),
-                    ...(sales || []).map(s => { const match = s && s.customerId && s.customerId.match(/^C(\d+)$/i); return match ? parseInt(match[1], 10) : 0; })
-                ];
-                if (cIds.length > 0) nextIdNum = Math.max(0, ...cIds) + 1;
-                finalCustomerId = "C" + nextIdNum.toString().padStart(3, '0'); 
+                while (usedIds.has(nextIdNum)) {
+                    nextIdNum++;
+                }
+
+                // Double check uniqueness in database loop
+                let idCheckAttempts = 0;
+                while (idCheckAttempts < 10) {
+                    const candidateId = "C" + nextIdNum.toString().padStart(3, '0');
+                    try {
+                        const existCheck = await supabaseSelect('stk_customers', `customer_id=eq.${candidateId}&select=customer_id`);
+                        if (!Array.isArray(existCheck) || existCheck.length === 0) {
+                            finalCustomerId = candidateId;
+                            break;
+                        }
+                        nextIdNum++;
+                    } catch (_) {
+                        finalCustomerId = candidateId;
+                        break;
+                    }
+                    idCheckAttempts++;
+                }
+                if (!finalCustomerId) {
+                    finalCustomerId = "C" + nextIdNum.toString().padStart(3, '0');
+                }
             }
             newCustomerObj = { id: finalCustomerId, name: custData.name, phone: custData.phone, lineId: custData.lineId || '', type: custMode, symptom: custData.symptom, closerTeam: custData.closerTeam, closer: custData.closer, memberId: foundMember.id, memberName: foundMember.name };
           } else {
-            const originalCust = (customers || []).find(c => c && safeUpper(c.id) === safeUpper(finalCustomerId));
-            if (!originalCust) { showToast('ไม่พบข้อมูลลูกค้าเก่ารหัสนี้', 'error'); return; }
+            let originalCust = (customers || []).find(c => c && safeUpper(c.id) === safeUpper(finalCustomerId));
+            
+            // 🔒 CASE STEALING PROTECTION: If customer is not found in client state, query DB directly
+            if (!originalCust) {
+                try {
+                    const dbCheck = await supabaseSelect('stk_customers', `customer_id=eq.${finalCustomerId}`);
+                    if (Array.isArray(dbCheck) && dbCheck.length > 0) {
+                        const c = dbCheck[0];
+                        originalCust = {
+                            id: c.customer_id,
+                            name: c.name,
+                            phone: c.phone || '',
+                            lineId: c.line_id || '',
+                            type: c.customer_type || '',
+                            symptom: c.symptom_disease || '',
+                            closer: c.closer_id || '',
+                            closerTeam: c.extra_details_json?.closerTeam || '',
+                            memberId: c.owner_member_id || c.member_id || '',
+                            memberName: c.member_name || c.extra_details_json?.memberName || ''
+                        };
+                    }
+                } catch (e) {
+                    console.warn('Checking customer owner in DB failed:', e);
+                }
+            }
+
+            if (!originalCust) { 
+                showToast('ไม่พบข้อมูลลูกค้าเก่ารหัสนี้ในระบบ', 'error'); 
+                return; 
+            }
             if (!custData.closerTeam) { showToast('กรุณาเลือกทีมผู้ปิดการขาย', 'error'); return; }
             if (!custData.closer) { showToast('กรุณาระบุผู้ปิดการขาย', 'error'); return; }
-            if (originalCust.memberId && safeUpper(originalCust.memberId) !== safeUpper(foundMember.id)) { showToast('ขออภัย! เจ้าของเคสเดิมไม่ใช่สมาชิกผู้ขายท่านนี้', 'error'); return; }
+            
+            // Compare original owner member ID with the entered seller member ID
+            const ownerId = String(originalCust.memberId || '').trim().toUpperCase();
+            const sellerId = String(foundMember.id || '').trim().toUpperCase();
+            if (ownerId && ownerId !== sellerId) {
+                showToast(`ขออภัย! ลูกค้าท่านนี้ไม่ใช่เคสที่คุณดูแล (เป็นเคสของสมาชิก ${originalCust.memberId})`, 'error');
+                return;
+            }
             
             if (originalCust.closer !== custData.closer || originalCust.type !== custMode || originalCust.phone !== custData.phone || originalCust.lineId !== custData.lineId || originalCust.symptom !== custData.symptom) {
                const updatedCust = { ...originalCust, closer: custData.closer, type: custMode, phone: custData.phone, lineId: custData.lineId, symptom: custData.symptom };
@@ -1555,38 +1692,75 @@
                  localStorage.removeItem('stk_app_cache_data');
                  localStorage.removeItem('stk_app_cache_time');
              } catch(e){}
+             window.parent.postMessage('refresh_data', '*');
           };
 
           if (editingSaleId) {
              newRecord.id = editingSaleId;
-             const supaSalesData = {
-                 order_id: newRecord.id,
-                 date: newRecord.date,
-                 seller_id: newRecord.memberId,
-                 customer_id: newRecord.customerId,
-                 sale_type: newRecord.saleType,
-                 total_amount: newRecord.totalAmount,
-                 total_bottles: cart.reduce((sum, item) => sum + (parseInt(item.qty)||0), 0),
-                 status: 'Completed',
-                 recorded_by: newRecord.recordedBy,
-                 items_json: cart.map(item => ({qty: item.qty, prod: item.productName, type: item.priceType})),
-                 payment_note: newRecord.paymentNote || newRecord.payment_note || ''
-             };
-             if (typeof supabaseUpsert === 'function') {
-                 try {
-                     await supabaseUpsert('stk_sales', supaSalesData);
-                 } catch (e1) {
-                     console.warn('stk_sales upsert with payment_note failed, trying without payment_note:', e1);
-                     const fallbackData = { ...supaSalesData };
-                     delete fallbackData.payment_note;
-                     await supabaseUpsert('stk_sales', fallbackData).catch(e2 => console.error('stk_sales fallback upsert failed:', e2));
-                 }
-             }
+             // 🔒 RACE CONDITION LOCK: Insert customer first and retry if ID collision occurs
+            if (newCustomerObj && typeof supabaseInsert === 'function') {
+                let success = false;
+                let retryCount = 0;
+                let currentCustId = newCustomerObj.id;
+                let custNum = parseInt(currentCustId.replace('C', ''), 10);
+                
+                while (!success && retryCount < 10) {
+                    const custPayload = { 
+                        customer_id: currentCustId, 
+                        name: newCustomerObj.name, 
+                        phone: newCustomerObj.phone, 
+                        line_id: newCustomerObj.lineId || '', 
+                        customer_type: newCustomerObj.type, 
+                        symptom_disease: newCustomerObj.symptom, 
+                        owner_member_id: newCustomerObj.memberId, 
+                        closer_id: newCustomerObj.closer, 
+                        extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName }, 
+                        status: 'Active' 
+                    };
+                    
+                    try {
+                        await supabaseInsert('stk_customers', custPayload);
+                        success = true;
+                        newCustomerObj.id = currentCustId;
+                        newRecord.customerId = currentCustId;
+                    } catch (err) {
+                        const errMsg = String(err.message || '').toLowerCase();
+                        if (errMsg.includes('duplicate') || errMsg.includes('409') || errMsg.includes('already exists')) {
+                            custNum++;
+                            currentCustId = "C" + custNum.toString().padStart(3, '0');
+                            retryCount++;
+                        } else {
+                            console.error('Database customer insert failed:', err);
+                            break;
+                        }
+                    }
+                }
+            }
 
-             if (newCustomerObj && typeof supabaseUpsert === 'function') {
-                 const custPayload = { customer_id: newCustomerObj.id, name: newCustomerObj.name, phone: newCustomerObj.phone, line_id: newCustomerObj.lineId || '', customer_type: newCustomerObj.type, symptom_disease: newCustomerObj.symptom, owner_member_id: newCustomerObj.memberId, closer_id: newCustomerObj.closer, extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName }, status: 'Active' };
-                 await supabaseUpsert('stk_customers', custPayload).catch(e => console.warn('stk_customers upsert error:', e));
-             }
+            const supaSalesData = {
+                  order_id: newRecord.id,
+                  date: newRecord.date,
+                  seller_id: newRecord.memberId,
+                  customer_id: newRecord.customerId,
+                  sale_type: newRecord.saleType,
+                  total_amount: newRecord.totalAmount,
+                  total_bottles: cart.reduce((sum, item) => sum + (parseInt(item.qty)||0), 0),
+                  status: 'Completed',
+                  recorded_by: newRecord.recordedBy,
+                  items_json: cart.map(item => ({qty: item.qty, prod: item.productName, type: item.priceType})),
+                  payment_note: newRecord.paymentNote || newRecord.payment_note || ''
+            };
+
+            if (typeof supabaseUpsert === 'function') {
+                try {
+                    await supabaseUpsert('stk_sales', supaSalesData);
+                } catch (e1) {
+                    console.warn('stk_sales upsert with payment_note failed, trying without payment_note:', e1);
+                    const fallbackData = { ...supaSalesData };
+                    delete fallbackData.payment_note;
+                    await supabaseUpsert('stk_sales', fallbackData).catch(e2 => console.error('stk_sales fallback upsert failed:', e2));
+                }
+            }
 
              const oldQtyMap = {};
              const oldRecord = (sales || []).find(s => s.id === editingSaleId);
@@ -2082,7 +2256,12 @@
                             <div className="px-4 py-2 border-b border-slate-100 bg-slate-50 sticky top-0 z-10 -mt-2 mb-2">
                                 <span className="text-xs font-black text-slate-600">👇 กรุณาคลิกเลือกราคาเพื่อเพิ่มลงตะกร้า</span>
                             </div>
-                            {filteredProductsList.length > 0 ? filteredProductsList.map(prod => {
+                            {loading ? (
+                                <div className="flex flex-col items-center justify-center py-20 gap-4">
+                                    <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+                                    <p className="text-slate-500 font-bold text-sm">กำลังโหลดสินค้า...</p>
+                                </div>
+                            ) : filteredProductsList.length > 0 ? filteredProductsList.map(prod => {
                                 const isOutOfStock = prod.stock <= 0;
                                 return (
                                 <div key={prod.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3.5 border-b border-slate-100 hover:bg-slate-50 gap-4">
@@ -2091,7 +2270,10 @@
                                             {prod.imageUrl ? <img src={prod.imageUrl} className="w-full h-full object-cover" /> : <PackageIcon size={20} className="text-slate-300"/>}
                                         </div>
                                         <div>
-                                            <div className="font-black text-[15px] text-slate-800">{prod.name}</div>
+                                            <div className="font-black text-[15px] text-slate-800 flex items-center gap-2">
+                                                {prod.name}
+                                                <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">#{prod.id}</span>
+                                            </div>
                                             <div className={`text-xs font-bold mt-1 ${isOutOfStock ? 'text-red-500' : 'text-emerald-600'}`}>คงเหลือ: {prod.stock} ชิ้น</div>
                                         </div>
                                     </div>
@@ -2190,7 +2372,7 @@
         );
 
         return (
-          <div className="flex flex-col gap-5 h-full animation-fade-in relative z-10 w-full mx-auto">
+          <div className="flex flex-col gap-5 h-full animation-fade-in relative z-10 w-full mx-auto pb-28 xl:pb-6">
             <ConfirmModal isOpen={confirmDelete.show} onClose={() => setConfirmDelete({show: false, id: null, title: ''})} onConfirm={executeDeleteSale} title="ยืนยันการลบประวัติการขาย" message={`คุณต้องการลบข้อมูลบิล "${confirmDelete.title}" ใช่หรือไม่? (ไม่สามารถกู้คืนได้)`} />
             
             <EditModal isOpen={successModal.show} onClose={() => { setSuccessModal({show: false, saleRecord: null}); handleCancelEdit(); }} title="สถานะการบันทึก" icon={CheckCircle} maxWidthClass="max-w-md">
@@ -2364,16 +2546,22 @@
       const [currentUser, setCurrentUser] = useState(null);
       const [showLoginModal, setShowLoginModal] = useState(false);
       
-      const [products, setProducts] = useState([]);
-      const [customerTypes, setCustomerTypes] = useState(fallbackCustomerTypes);
-      const [closers, setClosers] = useState([]);
-      const [businessTeams, setBusinessTeams] = useState([]);
-      const [members, setMembers] = useState([]);
-      const [customers, setCustomers] = useState([]);
-      const [sales, setSales] = useState([]);
+      // ⚡ INSTANT MOUNT CACHE INJECTION
+      const initialCache = (() => {
+        try { const data = localStorage.getItem('stk_app_cache_data'); return data ? JSON.parse(data) : null; }
+        catch(e) { return null; }
+      })();
+
+      const [products, setProducts] = useState(() => initialCache && Array.isArray(initialCache.products) ? initialCache.products.map(p => ({ ...p, id: p.id || p.product_id, name: p.name || p.product_name })) : []);
+      const [customerTypes, setCustomerTypes] = useState(() => initialCache && Array.isArray(initialCache.customerTypes) ? initialCache.customerTypes.map(c => ({ ...c, id: c.id || c.type_id, name: c.name || c.type_name })) : fallbackCustomerTypes);
+      const [closers, setClosers] = useState(() => initialCache && Array.isArray(initialCache.closers) ? initialCache.closers.map(c => ({ ...c, id: c.id || c.closer_id, name: c.name || c.closer_name })) : []);
+      const [businessTeams, setBusinessTeams] = useState(() => initialCache && Array.isArray(initialCache.businessTeams) ? initialCache.businessTeams.map(t => ({ ...t, id: t.id || t.team_id, name: t.name || t.team_name })) : []);
+      const [members, setMembers] = useState(() => initialCache && Array.isArray(initialCache.members) ? initialCache.members.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name })) : []);
+      const [customers, setCustomers] = useState(() => initialCache && Array.isArray(initialCache.customers) ? initialCache.customers.map(c => ({ ...c, id: c.id || c.customer_id, name: c.name || c.customer_name })) : []);
+      const [sales, setSales] = useState(() => initialCache && Array.isArray(initialCache.sales) ? initialCache.sales.map(s => ({ ...s, id: s.id || s.sale_id || s.order_id, customerId: s.customerId || s.customer_id, memberId: s.memberId || s.sellerId || s.seller_id })) : []);
       const [systemUsers, setSystemUsers] = useState([]);
-      const [systemSettings, setSystemSettings] = useState({ exchange_rate: 700 }); 
-      const [isAppLoading, setIsAppLoading] = useState(true);
+      const [systemSettings, setSystemSettings] = useState(() => initialCache && initialCache.systemSettings ? initialCache.systemSettings : { exchange_rate: 700 }); 
+      const [isAppLoading, setIsAppLoading] = useState(() => !initialCache);
       const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
         try {
           return localStorage.getItem('stk_sidebar_collapsed') === 'true';
@@ -2445,38 +2633,49 @@
             }
         } catch (e) { console.warn("Cache error", e); }
 
-        // ดึงข้อมูลทั้งหมดเบื้องหลัง เพื่อให้ข้อมูลตรงกับ Database ล่าสุดเสมอ
+        // ⚡ REAL-TIME SYNC & QUICK MOUNT:
+        // ดึงข้อมูลทั้งหมดในพร้อมกัน แต่แสดงหน้าจอจาก cache ก่อน (ถ้ามี) เพื่อแก้ปัญหาหมุนค้างและให้ข้อมูลเรียลไทม์
+        const doFullRefresh = () => {
+            Promise.all([
+              supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
+              supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
+              supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
+              supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
+              supabaseSelect('stk_customers', 'order=customer_id.desc&limit=10000').catch(() => supabaseSelect('customers')),
+              supabaseSelect('stk_sales', 'order=order_id.desc&limit=200').catch(() => supabaseSelect('sales')),
+              supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams'))
+            ]).then(([pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes]) => {
+              const resObj = {
+                products: pRes,
+                customerTypes: typeRes,
+                closers: cloRes,
+                members: memRes,
+                customers: custRes,
+                sales: saleRes,
+                businessTeams: teamRes
+              };
+              applyDataToStates(resObj);
+              try { 
+                  localStorage.setItem('stk_app_cache_data', JSON.stringify(resObj)); 
+                  localStorage.setItem('stk_app_cache_time', String(Date.now()));
+              } catch(e){}
+            }).catch(err => {
+              console.error("Supabase load error:", err);
+            }).finally(() => {
+              setIsAppLoading(false);
+            });
+        };
 
-        // ดึงข้อมูลทั้งหมดในพร้อมกัน แต่แสดงหน้าจอจาก cache ก่อน (ถ้ามี)
-        // ถ้าไม่มี cache จะยังคง loading อยู่ระหว่างรอ
-        Promise.all([
-          supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
-          supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
-          supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
-          supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
-          supabaseSelect('stk_customers', 'limit=500').catch(() => supabaseSelect('customers')),
-          supabaseSelect('stk_sales', 'order=order_id.desc&limit=200').catch(() => supabaseSelect('sales')),
-          supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams'))
-        ]).then(([pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes]) => {
-          const resObj = {
-            products: pRes,
-            customerTypes: typeRes,
-            closers: cloRes,
-            members: memRes,
-            customers: custRes,
-            sales: saleRes,
-            businessTeams: teamRes
-          };
-          applyDataToStates(resObj);
-          try { 
-              localStorage.setItem('stk_app_cache_data', JSON.stringify(resObj)); 
-              localStorage.setItem('stk_app_cache_time', String(Date.now()));
-          } catch(e){}
-        }).catch(err => {
-          console.error("Supabase load error:", err);
-        }).finally(() => {
-          setIsAppLoading(false);
-        });
+        doFullRefresh();
+
+        // ตั้ง EVENT LISTENERS ดึงข้อมูลเมื่อผู้ใช้สลับกลับมาที่หน้าป้อนข้อมูลขาย (Focus) หรือสลับแท็บกลับมา เพื่อความเรียลไทม์สูงสุด
+        window.addEventListener('focus', doFullRefresh);
+        window.addEventListener('pageshow', doFullRefresh);
+
+        return () => {
+            window.removeEventListener('focus', doFullRefresh);
+            window.removeEventListener('pageshow', doFullRefresh);
+        };
       }, []);
 
       const applyDataToStates = (response) => {
@@ -2602,13 +2801,7 @@
 
             <div className="p-3 sm:p-5 flex-1 w-full relative z-0 custom-scrollbar">
               <div className="w-full relative z-10 xl:h-full flex flex-col min-h-0 pos-layout">
-                {isAppLoading ? (
-                  <div className="flex flex-col items-center justify-center py-32 gap-5 animation-fade-in flex-1">
-                    <div className="w-16 h-16 border-[4px] border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
-                    <h2 className="text-lg font-bold text-slate-700">กำลังซิงค์ข้อมูลกับฐานข้อมูล...</h2>
-                    <p className="text-slate-500 text-sm">กรุณารอสักครู่ ระบบกำลังดึงข้อมูลล่าสุด</p>
-                  </div>
-                ) : isLoggedIn ? (
+                {isLoggedIn ? (
                   <SalesEntryView 
                     members={members} 
                     customers={customers} 
@@ -2625,6 +2818,7 @@
                     products={products}
                     setProducts={setProducts}
                     systemSettings={systemSettings}
+                    loading={isAppLoading}
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center py-32 gap-5 animation-fade-in flex-1">
