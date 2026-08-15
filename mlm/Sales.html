@@ -1747,7 +1747,15 @@
                   total_bottles: cart.reduce((sum, item) => sum + (parseInt(item.qty)||0), 0),
                   status: 'Completed',
                   recorded_by: newRecord.recordedBy,
-                  items_json: cart.map(item => ({qty: item.qty, prod: item.productName, type: item.priceType})),
+                  items_json: cart.map(item => {
+                      const prodObj = (products || []).find(p => p.name === item.productName) || {};
+                      return {
+                          qty: item.qty,
+                          prod: item.productName,
+                          type: item.priceType,
+                          id: prodObj.id || prodObj.product_id || ''
+                      };
+                  }),
                   payment_note: newRecord.paymentNote || newRecord.payment_note || ''
             };
 
@@ -1819,7 +1827,15 @@
                  total_bottles: cart.reduce((sum, item) => sum + (parseInt(item.qty)||0), 0),
                  status: 'Completed',
                  recorded_by: newRecord.recordedBy,
-                 items_json: cart.map(item => ({qty: item.qty, prod: item.productName, type: item.priceType})),
+                 items_json: cart.map(item => {
+                     const prodObj = (products || []).find(p => p.name === item.productName) || {};
+                     return {
+                         qty: item.qty,
+                         prod: item.productName,
+                         type: item.priceType,
+                         id: prodObj.id || prodObj.product_id || ''
+                     };
+                 }),
                  payment_note: newRecord.paymentNote || newRecord.payment_note || ''
              };
              if (typeof supabaseUpsert === 'function') {

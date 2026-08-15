@@ -135,46 +135,48 @@
         return (
           <div className="space-y-6 animation-fade-in relative w-full">
             <div>
-              <h2 className="text-2xl font-bold text-slate-800">ตั้งค่าอัตราแลกเปลี่ยนเงินกีบ (Exchange Rate Settings)</h2>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">ตั้งค่าอัตราแลกเปลี่ยนเงินกีบ</h2>
               <p className="text-sm text-slate-500 mt-1">จัดการอัตราการแลกเปลี่ยนสกุลเงินกีบลาว (LAK) ต่อบาทไทย (THB) และตรวจสอบประวัติการเปลี่ยนแปลงทั้งหมด</p>
             </div>
 
-            <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-3xl p-6 text-white shadow-xl shadow-amber-500/10 border border-amber-400/20">
-              <form onSubmit={handleSave} className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">🇱🇦</span>
-                    <h3 className="text-lg font-extrabold uppercase tracking-wider">กำหนดมูลค่าอัตราแลกเปลี่ยน</h3>
+            <div className="bg-white rounded-3xl p-6 sm:p-8 text-slate-800 shadow-md border border-slate-200/80">
+              <form onSubmit={handleSave} className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-8">
+                <div className="space-y-4 flex-1">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">🇱🇦</span>
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900">กำหนดมูลค่าอัตราแลกเปลี่ยน</h3>
+                      <p className="text-xs text-slate-500 font-medium">
+                        กรุณากรอกจำนวนกีบลาวที่เท่ากับ 1 บาทไทย (THB) อัตราแลกเปลี่ยนนี้จะมีผลต่อหน้าขาย POS ทันที
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-xs text-amber-100/90 font-medium max-w-xl">
-                    กรุณากรอกจำนวนกีบลาวที่เท่ากับ 1 บาทไทย (THB) อัตราแลกเปลี่ยนนี้จะมีผลต่อหน้าขาย POS ทันที
-                  </p>
-                  <div className="mt-4 flex items-center gap-3">
-                    <span className="text-2xl font-black">1 ฿ (THB) =</span>
+                  <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100 max-w-md">
+                    <span className="text-lg font-bold text-slate-600 whitespace-nowrap">1 ฿ (THB) =</span>
                     <input
                       type="number"
                       min="1"
                       step="1"
                       disabled={!isAdmin || isSaving}
-                      className="border-2 border-white/40 bg-white/10 focus:bg-white text-amber-900 focus:text-slate-800 px-4 py-3 rounded-2xl outline-none text-2xl font-black focus:border-white focus:ring-4 focus:ring-amber-300/30 transition-all max-w-[180px] disabled:opacity-60"
+                      className="w-full bg-white border border-slate-200 focus:border-amber-500 focus:ring-4 focus:ring-amber-100 text-slate-900 px-4 py-2.5 rounded-xl outline-none text-2xl font-black transition-all disabled:opacity-60"
                       value={rateInput}
                       onChange={e => setRateInput(e.target.value)}
                     />
-                    <span className="text-2xl font-black">₭ (LAK)</span>
+                    <span className="text-lg font-bold text-slate-600 whitespace-nowrap">₭ (LAK)</span>
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full md:w-auto shrink-0">
-                  <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-5 py-3.5 text-center">
-                    <div className="text-[10px] font-bold text-amber-100 uppercase tracking-widest">เรทที่ใช้งานปัจจุบัน</div>
-                    <div className="font-black text-2xl text-white mt-1">1 ฿ = {(systemSettings?.exchange_rate || 700).toLocaleString()} ₭</div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 shrink-0 lg:border-l lg:border-slate-100 lg:pl-8">
+                  <div className="bg-amber-50 border border-amber-200/80 rounded-2xl px-6 py-4 text-center min-w-[200px]">
+                    <div className="text-xs font-bold text-amber-800/80 uppercase tracking-wider">เรทปัจจุบัน</div>
+                    <div className="font-black text-3xl text-amber-900 mt-1">1 ฿ = {(systemSettings?.exchange_rate || 700).toLocaleString()} ₭</div>
                   </div>
                   
                   {isAdmin && (
                     <button
                       type="submit"
                       disabled={isSaving}
-                      className="bg-white hover:bg-amber-50 text-amber-700 hover:text-amber-800 font-extrabold py-4 px-6 rounded-2xl shadow-lg transition-all text-sm disabled:opacity-60 whitespace-nowrap active:scale-95"
+                      className="bg-amber-500 hover:bg-amber-600 text-white font-extrabold py-4 px-6 rounded-2xl shadow-md hover:shadow-lg transition-all text-sm disabled:opacity-60 whitespace-nowrap active:scale-95 flex items-center justify-center gap-2"
                     >
                       {isSaving ? '⏳ กำลังบันทึก...' : '💾 บันทึกอัตราแลกเปลี่ยน'}
                     </button>
@@ -185,7 +187,7 @@
 
             <div className={`${boxWrapper} flex-1 flex flex-col min-h-[400px] relative`}>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5 border-b border-slate-100 pb-5">
-                 <h3 className={titleClass}><Activity size={24} className="text-amber-500"/> ประวัติการเปลี่ยนแปลง (Update History)</h3>
+                 <h3 className={titleClass}><Activity size={24} className="text-amber-500"/> ประวัติการเปลี่ยนแปลง</h3>
                  
                  <div className="flex items-center bg-slate-50/30 focus-within:bg-white border border-slate-200 rounded-xl px-3 shadow-sm focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 transition-all duration-300 w-full sm:w-72 h-[38px] sm:h-[40px]">
                     <SearchIcon size={18} className="text-slate-400 shrink-0" />
@@ -203,9 +205,9 @@
                 <table className="w-full text-left border-collapse relative">
                    <thead className="sticky top-0 z-20 bg-slate-50 shadow-sm border-b border-slate-200">
                      <tr>
-                       <th className={`${tableHeaderClass} w-[80px] text-center`}>รอบที่ (No.)</th>
+                       <th className={`${tableHeaderClass} w-[80px] text-center`}>รอบที่</th>
                        <th className={`${tableHeaderClass} text-center w-[25%]`}>วันเวลาที่อัปเดต</th>
-                       <th className={`${tableHeaderClass} text-center w-[30%]`}>อัตราแลกเปลี่ยนที่เปลี่ยน (LAK)</th>
+                       <th className={`${tableHeaderClass} text-center w-[30%]`}>อัตราแลกเปลี่ยน</th>
                        <th className={`${tableHeaderClass} text-center`}>ผู้ดำเนินการ</th>
                      </tr>
                    </thead>
@@ -274,7 +276,7 @@
         }
       }, []);
 
-      const currentUserProfileUrl = 'https://ui-avatars.com/api/?name=Admin&background=3b82f6&color=ffffff&rounded=true&bold=true';
+      const currentUserProfileUrl = currentUser?.profileUrl || '';
       const isAdmin = currentUser && (
         String(currentUser.role).trim() === 'ผู้ดูแลระบบ' ||
         String(currentUser.role).trim().toLowerCase() === 'admin'

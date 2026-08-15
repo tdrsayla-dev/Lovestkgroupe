@@ -81,59 +81,65 @@
 
     const OrdersView = ({ sales, setSales, members, customers, products = [], systemSettings = { exchange_rate: 700 }, isAdmin, showToast, currentUser, closers = [], loading }) => {
         const parseSaleCurrencyAmounts = (s, exRate) => {
+            // total_amount ใน DB เก็บเป็น THB เสมอ
             const rawAmt = Number(s.totalAmount || s.total_amount || 0);
-            const pModeStr = String(s.payMode || s.pay_mode || s.saleType || '').trim();
-            
+            const pModeStr = String(s.payMode || s.pay_mode || s.saleType || s.sale_type || s.payment_method || '').trim();
+
             let lakAmt = 0;
             let thbAmt = 0;
-            
-            if (pModeStr.toLowerCase().includes(':')) {
+
+            // === กรณี 1: มีรูปแบบ key:value|key:value เช่น "สด:500 | สดกีบ:350000 | เรท:700" ===
+            if (pModeStr.includes(':')) {
                 const parts = pModeStr.split('|');
                 let hasParsedLAK = false;
                 let hasParsedTHB = false;
-                
+
                 parts.forEach(part => {
                     const trimmed = part.trim();
-                    if (trimmed.includes(':')) {
-                        const subParts = trimmed.split(':');
-                        const key = subParts[0].trim().toLowerCase();
-                        const val = parseFloat(subParts[1]) || 0;
-                        
-                        if (key.includes('กีบ') || key.includes('lak')) {
-                            lakAmt += val;
-                            hasParsedLAK = true;
-                        } else if (key.includes('สด') || key.includes('โอนไทย') || key.includes('โอนลาวบาท') || key.includes('thb') || key.includes('บาท')) {
-                            thbAmt += val;
-                            hasParsedTHB = true;
-                        }
+                    if (!trimmed.includes(':')) return;
+                    const colonIdx = trimmed.indexOf(':');
+                    const key = trimmed.substring(0, colonIdx).trim().toLowerCase();
+                    const val = parseFloat(trimmed.substring(colonIdx + 1)) || 0;
+
+                    // ข้าม metadata
+                    if (key === 'เรท' || key === 'rate' || key === 'อัตรา') return;
+
+                    // กีบ/LAK
+                    if (key.includes('กีบ') || key.includes('lak') || key === 'สดกีบ' || key.includes('โอนลาวกีบ')) {
+                        lakAmt += val;
+                        hasParsedLAK = true;
+                    }
+                    // บาท/THB
+                    else if (key === 'สด' || key.includes('โอนไทย') || key.includes('โอนลาวบาท') || key.includes('thb') || key.includes('บาท') || key.includes('โอน')) {
+                        thbAmt += val;
+                        hasParsedTHB = true;
                     }
                 });
-                
+
                 if (hasParsedLAK || hasParsedTHB) {
                     return { lakAmt, thbAmt, isLakBill: lakAmt > 0, isThbBill: thbAmt > 0 };
                 }
             }
-            
+
+            // === กรณี 2: keyword ธรรมดา ===
             const lowerPMode = pModeStr.toLowerCase();
-            let isLakBill = lowerPMode.includes('กีบ') || lowerPMode.includes('lak') || lowerPMode.includes('โอนลาวกีบ') || lowerPMode.includes('สดกีบ') || lowerPMode.includes('โอนลาว');
-            let isThbBill = lowerPMode.includes('บาท') || lowerPMode.includes('thb') || lowerPMode.includes('โอนไทย') || lowerPMode.includes('โอนลาวบาท') || lowerPMode.includes('สด');
-            
-            if (!isLakBill && !isThbBill) {
-                if (rawAmt >= 10000) isLakBill = true;
-                else isThbBill = true;
-            }
-            
+            const isLakBill = lowerPMode.includes('กีบ')
+                || lowerPMode.includes('lak')
+                || lowerPMode.includes('โอนลาวกีบ')
+                || lowerPMode.includes('สดกีบ')
+                || lowerPMode.includes('โอนลาว');
+
             if (isLakBill) {
                 let amt = Number(s.total_amount_lak || s.totalAmountLak || 0);
-                if (!amt || amt <= 0) amt = rawAmt >= 10000 ? rawAmt : rawAmt * exRate;
-                lakAmt = amt;
-            } else {
-                let amt = Number(s.total_amount_thb || s.totalAmountThb || 0);
-                if (!amt || amt <= 0) amt = rawAmt >= 10000 ? rawAmt / exRate : rawAmt;
-                thbAmt = amt;
+                // rawAmt เป็น THB → คูณ exchange rate เป็นกีบ
+                if (!amt || amt <= 0) amt = rawAmt * exRate;
+                return { lakAmt: amt, thbAmt: 0, isLakBill: true, isThbBill: false };
             }
-            
-            return { lakAmt, thbAmt, isLakBill, isThbBill };
+
+            // === Default: ถือเป็นบาท (THB) เสมอ — ห้ามใช้ขนาดตัวเลขตัดสิน ===
+            let amt = Number(s.total_amount_thb || s.totalAmountThb || 0);
+            if (!amt || amt <= 0) amt = rawAmt;
+            return { lakAmt: 0, thbAmt: amt, isLakBill: false, isThbBill: true };
         };
 
         const triggerGlobalRefresh = () => {
@@ -852,25 +858,31 @@
                         }
                         
                         for (const it of itemsList) {
-                            const pid = it.id || it.productId || it.product_id;
                             const qty = parseInt(it.qty) || 0;
-                            if (pid && qty > 0) {
+                            if (qty > 0) {
+                                const pName = String(it.prod || it.productName || it.name || '').trim();
                                 // Find product to get current stock
-                                const pInfo = currentProducts.find(p => p.id === pid || p.product_id === pid);
+                                const pInfo = currentProducts.find(p => {
+                                    const pNameFromDB = String(p.name || p.product_name || '').trim();
+                                    const pIdFromDB = String(p.id || p.product_id || '').trim();
+                                    return pNameFromDB === pName || pIdFromDB === pName || (it.id && p.id === it.id) || (it.product_id && p.product_id === it.product_id);
+                                });
                                 if (pInfo) {
+                                    const realProductId = pInfo.product_id || pInfo.id;
                                     const currentStock = parseInt(pInfo.current_stock || pInfo.stock) || 0;
                                     const newStock = currentStock + qty;
                                     
                                     // 1. Return stock to stk_products
-                                    if (typeof supabaseUpdate === 'function') {
-                                        await supabaseUpdate('stk_products', pid, { current_stock: newStock }, 'product_id').catch(() => {});
+                                    if (typeof supabaseUpdate === 'function' && realProductId) {
+                                        await supabaseUpdate('stk_products', realProductId, { current_stock: newStock }, 'product_id').catch(() => {});
+                                        await supabaseUpdate('products', realProductId, { stock: newStock }).catch(() => {});
                                     }
                                     
                                     // 2. Insert into stk_stock_movements
-                                    if (typeof supabaseInsert === 'function') {
+                                    if (typeof supabaseInsert === 'function' && realProductId) {
                                         await supabaseInsert('stk_stock_movements', {
                                             movement_id: 'MOV-' + Date.now() + '-' + Math.floor(Math.random()*1000),
-                                            product_id: pid,
+                                            product_id: realProductId,
                                             type: 'IN',
                                             sub_type: 'ยกเลิกบิล',
                                             quantity: qty,
@@ -967,15 +979,19 @@
             const calculatedQty = [...fullItems, ...memberItems, ...proItems, ...zeroItems].reduce((sum, item) => sum + item.qty, 0);
             const totalQtyInRow = calculatedQty > 0 ? calculatedQty : recordedBottles;
 
-            let rAmt = Number(record.total_amount || record.totalAmount || record.amount || 0);
-            let pMode = String(record.payment_mode || record.paymentMode || '').toLowerCase();
-            let isLak = pMode.includes('กีบ') || pMode.includes('lak') || pMode.includes('laos') || pMode.includes('ลาว');
-            let isThb = pMode.includes('บาท') || pMode.includes('thb') || pMode.includes('thai') || pMode.includes('ไทย');
-            if (!isLak && !isThb) isLak = rAmt >= 10000;
-            
-            let formattedVal = isLak 
-                ? `${Math.round(rAmt).toLocaleString()} ₭` 
-                : `฿${(rAmt % 1 === 0 ? rAmt.toLocaleString() : rAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}))}`;
+            const exchangeRate = Number(systemSettings?.exchange_rate || 700);
+            const { lakAmt: rLakAmt, thbAmt: rThbAmt, isLakBill } = parseSaleCurrencyAmounts(record, exchangeRate);
+
+            // แสดงยอดถูกสกุลเงิน: กีบ หรือ บาท หรือทั้งคู่
+            let formattedVal;
+            if (rLakAmt > 0 && rThbAmt > 0) {
+                // จ่ายทั้ง 2 สกุล
+                formattedVal = `${Math.round(rLakAmt).toLocaleString()} ₭ + ฿${rThbAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            } else if (rLakAmt > 0) {
+                formattedVal = `${Math.round(rLakAmt).toLocaleString()} ₭`;
+            } else {
+                formattedVal = `฿${(rThbAmt % 1 === 0 ? rThbAmt.toLocaleString() : rThbAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}))}`;
+            }
 
 
             const renderList = (items, textClass) => {
@@ -1176,8 +1192,8 @@
                          </tr>
                        ) : paginatedSalesHistory.length === 0 ? (
                            <tr>
-                              <td colSpan={isMarketing ? 4 : 6} className="py-12 text-center text-slate-400">
-                                 ไม่พบข้อมูลประวัติการขาย
+                              <td colSpan={isMarketing ? 4 : 6} className="py-12 text-center text-slate-400 font-bold text-sm">
+                                 ไม่พบประวัติการขายในช่วงเวลาที่ค้นหา
                               </td>
                            </tr>
                        ) : paginatedSalesHistory.map((rs, index) => {
@@ -1243,7 +1259,6 @@
                            </tr>
                          )
                        })}
-                       {paginatedSalesHistory.length === 0 && <tr><td colSpan={isMarketing ? 4 : 6} className="p-12 text-center text-slate-400 font-bold text-sm bg-slate-50/30">ไม่พบประวัติการขายในช่วงเวลาที่ค้นหา</td></tr>}
                      </tbody>
                      {!loading && (
                      <tfoot className="bg-slate-50 border-t-2 border-slate-200">
@@ -1418,7 +1433,7 @@
 
         Promise.all([
           supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
-          supabaseSelect('stk_customers', 'order=customer_id.desc&limit=10000').catch(() => supabaseSelect('customers')),
+          supabaseSelect('stk_customers', 'order=customer_id.desc&limit=2000').catch(() => supabaseSelect('customers')),
           // ⚡ SPEED FIX 2: ดึงรายการบิลล่าสุดแค่ 300 รายการ ไม่โหลดทั้งหมดของระบบเพื่อความเร็ว
           supabaseSelect('stk_sales', 'order=order_id.desc&limit=300').catch(() => supabaseSelect('sales')),
           supabaseSelect('stk_products').catch(() => supabaseSelect('products')),

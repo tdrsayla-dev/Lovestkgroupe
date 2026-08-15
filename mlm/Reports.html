@@ -271,59 +271,74 @@
         }, [convertVal, currencyMode]);
 
         const parseSaleCurrencyAmounts = useCallback((s, exRate) => {
-            const rawAmt = Number(s['ยอดขายรวม'] || s.total_amount || 0);
+            // ดึงยอดรวมจากฟิลด์ต่างๆ (total_amount เก็บเป็น THB เป็น default)
+            const rawAmt = Number(s['ยอดขายรวม'] || s.total_amount || s.totalAmount || 0);
             const pModeStr = String(s.payMode || s.pay_mode || s.saleType || s.payment_method || '').trim();
-            
+
             let lakAmt = 0;
             let thbAmt = 0;
-            
-            if (pModeStr.toLowerCase().includes(':')) {
+
+            // === กรณีที่ 1: saleType มีรูปแบบ key:value|key:value (ใหม่ เช่น "สด:500 | สดกีบ:13760 | เรท:700") ===
+            if (pModeStr.includes(':')) {
                 const parts = pModeStr.split('|');
                 let hasParsedLAK = false;
                 let hasParsedTHB = false;
-                
+
                 parts.forEach(part => {
                     const trimmed = part.trim();
-                    if (trimmed.includes(':')) {
-                        const subParts = trimmed.split(':');
-                        const key = subParts[0].trim().toLowerCase();
-                        const val = parseFloat(subParts[1]) || 0;
-                        
-                        if (key.includes('กีบ') || key.includes('lak')) {
-                            lakAmt += val;
-                            hasParsedLAK = true;
-                        } else if (key.includes('สด') || key.includes('โอนไทย') || key.includes('โอนลาวบาท') || key.includes('thb') || key.includes('บาท')) {
-                            thbAmt += val;
-                            hasParsedTHB = true;
-                        }
+                    if (!trimmed.includes(':')) return;
+                    const colonIdx = trimmed.indexOf(':');
+                    const key = trimmed.substring(0, colonIdx).trim().toLowerCase();
+                    const val = parseFloat(trimmed.substring(colonIdx + 1)) || 0;
+
+                    // ข้าม metadata (เรท, rate)
+                    if (key === 'เรท' || key === 'rate' || key === 'อัตรา') return;
+
+                    // กีบ/LAK ก่อน — สดกีบ, โอนลาวกีบ, lak
+                    if (key.includes('กีบ') || key.includes('lak') || key === 'สดกีบ' || key.includes('โอนลาวกีบ')) {
+                        lakAmt += val;
+                        hasParsedLAK = true;
+                    }
+                    // บาท/THB — สด (ไม่ใช่สดกีบ), โอนไทย, โอนลาวบาท, thb, บาท, โอน
+                    else if (key === 'สด' || key.includes('โอนไทย') || key.includes('โอนลาวบาท') || key.includes('thb') || key.includes('บาท') || key.includes('โอน')) {
+                        thbAmt += val;
+                        hasParsedTHB = true;
                     }
                 });
-                
+
                 if (hasParsedLAK || hasParsedTHB) {
                     return { lakAmt, thbAmt, isLakBill: lakAmt > 0, isThbBill: thbAmt > 0 };
                 }
             }
-            
+
+            // === กรณีที่ 2: saleType เป็น keyword ธรรมดา (ไม่มี :) ===
             const lowerPMode = pModeStr.toLowerCase();
-            let isLakBill = lowerPMode.includes('กีบ') || lowerPMode.includes('lak') || lowerPMode.includes('โอนลาวกีบ') || lowerPMode.includes('สดกีบ') || lowerPMode.includes('โอนลาว');
-            let isThbBill = lowerPMode.includes('บาท') || lowerPMode.includes('thb') || lowerPMode.includes('โอนไทย') || lowerPMode.includes('โอนลาวบาท') || lowerPMode.includes('สด');
             
-            if (!isLakBill && !isThbBill) {
-                if (rawAmt >= 10000) isLakBill = true;
-                else isThbBill = true;
-            }
-            
+            // ตรวจสอบ keyword กีบ (LAK) — ต้องมี keyword ชัดเจน ไม่ใช้ขนาดตัวเลขตัดสิน
+            const isLakBill = lowerPMode.includes('กีบ') 
+                || lowerPMode.includes('lak') 
+                || lowerPMode.includes('โอนลาวกีบ') 
+                || lowerPMode.includes('สดกีบ') 
+                || lowerPMode.includes('โอนลาว');
+
             if (isLakBill) {
+                // ถ้ามี field แยก total_amount_lak ให้ใช้ก่อน
                 let amt = Number(s.total_amount_lak || s.totalAmountLak || 0);
-                if (!amt || amt <= 0) amt = rawAmt >= 10000 ? rawAmt : rawAmt * exRate;
+                if (!amt || amt <= 0) {
+                    // rawAmt (total_amount) เก็บเป็น THB → แปลงเป็นกีบ
+                    amt = rawAmt * exRate;
+                }
                 lakAmt = amt;
-            } else {
-                let amt = Number(s.total_amount_thb || s.totalAmountThb || 0);
-                if (!amt || amt <= 0) amt = rawAmt >= 10000 ? rawAmt / exRate : rawAmt;
-                thbAmt = amt;
+                return { lakAmt, thbAmt: 0, isLakBill: true, isThbBill: false };
             }
-            
-            return { lakAmt, thbAmt, isLakBill, isThbBill };
+
+            // === Default: ถ้าไม่มี keyword กีบเลย → ถือเป็นเงินบาท (THB) เสมอ ===
+            // (เงินบาทอาจมีหลายแสน เช่น ฿300,000 ก็ได้ ห้ามใช้ขนาดตัวเลขตัดสิน)
+            let amt = Number(s.total_amount_thb || s.totalAmountThb || 0);
+            if (!amt || amt <= 0) amt = rawAmt; // rawAmt เก็บเป็น THB อยู่แล้ว
+            thbAmt = amt;
+
+            return { lakAmt: 0, thbAmt, isLakBill: false, isThbBill: true };
         }, []);
 
         const debouncedSearchQuery = useDebounce(searchQuery, 300);
@@ -1243,30 +1258,36 @@
                     return (
                         <div className="space-y-6 animation-fade-in">
                             {/* Summary KPI Cards */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                                <div className="col-span-2 sm:col-span-1 bg-gradient-to-br from-amber-500 to-orange-600 p-4 rounded-2xl shadow-md text-white">
+                                    <div className="text-xs font-bold text-amber-100 mb-1">💰 รวมสุทธิ (คิดเป็นบาท)</div>
+                                    <div className="text-xl font-black">฿{(Math.round(financeKpi.grandCombinedTHB * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                                    <div className="text-[10px] text-amber-100 mt-1">อัตรา {exchangeRate.toLocaleString()} ₭/฿</div>
+                                </div>
                                 <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl shadow-sm">
-                                    <div className="text-xs font-bold text-emerald-600 mb-1">รายรับรวมสุทธิ (บาท)</div>
-                                    <div className="text-xl font-black text-blue-700">฿{(Math.round(financeKpi.grandCombinedTHB * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                                    <div className="text-xs font-bold text-emerald-700 mb-1">🇱🇦 ยอดรับ (กีบ)</div>
+                                    <div className="text-lg font-black text-emerald-700">{Math.round(financeKpi.sumLak).toLocaleString()} ₭</div>
+                                    <div className="text-[10px] text-emerald-500 font-bold mt-1">{financeKpi.totalBills} บิล</div>
+                                </div>
+                                <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl shadow-sm">
+                                    <div className="text-xs font-bold text-blue-700 mb-1">🇹🇭 ยอดรับ (บาท)</div>
+                                    <div className="text-lg font-black text-blue-700">฿{financeKpi.sumThb.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                                    <div className="text-[10px] text-blue-500 font-bold mt-1">{financeKpi.totalBills} บิล</div>
                                 </div>
                                 <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
-                                    <div className="text-xs font-bold text-slate-500 mb-1">ยอดขายราคาเต็ม</div>
+                                    <div className="text-xs font-bold text-slate-500 mb-1">กล่องราคาเต็ม</div>
                                     <div className="text-2xl font-black text-slate-800">{financeKpi.fullBoxes.toLocaleString()}</div>
                                     <div className="text-[10px] text-slate-400 font-bold mt-1">กล่อง</div>
                                 </div>
-                                <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl shadow-sm">
-                                    <div className="text-xs font-bold text-blue-600 mb-1">ยอดขายราคาสมาชิก</div>
+                                <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl shadow-sm">
+                                    <div className="text-xs font-bold text-blue-600 mb-1">กล่องราคาสมาชิก</div>
                                     <div className="text-2xl font-black text-blue-700">{financeKpi.memberBoxes.toLocaleString()}</div>
                                     <div className="text-[10px] text-blue-500 font-bold mt-1">กล่อง</div>
                                 </div>
-                                <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl shadow-sm">
-                                    <div className="text-xs font-bold text-amber-600 mb-1">ยอดขายราคาโปร</div>
+                                <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl shadow-sm">
+                                    <div className="text-xs font-bold text-amber-600 mb-1">กล่องราคาโปร</div>
                                     <div className="text-2xl font-black text-amber-700">{financeKpi.proBoxes.toLocaleString()}</div>
                                     <div className="text-[10px] text-amber-500 font-bold mt-1">กล่อง</div>
-                                </div>
-                                <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl shadow-sm">
-                                    <div className="text-xs font-bold text-slate-500 mb-1">ยอดขายราคาศูนย์</div>
-                                    <div className="text-2xl font-black text-slate-600">{financeKpi.zeroBoxes.toLocaleString()}</div>
-                                    <div className="text-[10px] text-slate-400 font-bold mt-1">กล่อง</div>
                                 </div>
                             </div>
 
@@ -1314,12 +1335,26 @@
                                                                         if (st.includes('|') || st.includes(':')) {
                                                                             return st.split('|').map((part, pIdx) => {
                                                                                 let pTrim = part.trim();
-                                                                                if (pTrim.startsWith('สด:')) pTrim = `เงินสด (THB): ฿${Number(pTrim.replace('สด:', '')).toLocaleString()}`;
-                                                                                else if (pTrim.startsWith('สดกีบ:')) pTrim = `เงินสด (LAK): ${Number(pTrim.replace('สดกีบ:', '')).toLocaleString()} ₭`;
-                                                                                return <span key={pIdx} className="block px-2.5 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded-md text-[11px] font-semibold whitespace-nowrap">{pTrim}</span>;
-                                                                            });
+                                                                                if (!pTrim.includes(':')) return null;
+                                                                                const colonIdx = pTrim.indexOf(':');
+                                                                                const k = pTrim.substring(0, colonIdx).trim();
+                                                                                const v = pTrim.substring(colonIdx + 1).trim();
+                                                                                const kLow = k.toLowerCase();
+                                                                                // Skip metadata (เรท)
+                                                                                if (k === 'เรท' || k === 'rate') return null;
+                                                                                let label = k;
+                                                                                let valDisplay = v;
+                                                                                let colorClass = 'bg-slate-100 text-slate-700 border-slate-200';
+                                                                                if (k === 'สด') { label = '💵 เงินสด'; valDisplay = `฿${Number(v).toLocaleString()}`; colorClass = 'bg-blue-50 text-blue-700 border-blue-200'; }
+                                                                                else if (kLow.includes('สดกีบ') || k === 'สดกีบ') { label = '💴 เงินสด (₭)'; valDisplay = `${Number(v).toLocaleString()} ₭`; colorClass = 'bg-emerald-50 text-emerald-700 border-emerald-200'; }
+                                                                                else if (kLow.includes('โอนไทย')) { label = `🏦 ${k}`; valDisplay = `฿${Number(v).toLocaleString()}`; colorClass = 'bg-blue-50 text-blue-700 border-blue-200'; }
+                                                                                else if (kLow.includes('โอนลาวบาท')) { label = `🏦 ${k}`; valDisplay = `฿${Number(v).toLocaleString()}`; colorClass = 'bg-indigo-50 text-indigo-700 border-indigo-200'; }
+                                                                                else if (kLow.includes('โอนลาวกีบ') || kLow.includes('กีบ')) { label = `🏦 ${k}`; valDisplay = `${Number(v).toLocaleString()} ₭`; colorClass = 'bg-emerald-50 text-emerald-700 border-emerald-200'; }
+                                                                                return <span key={pIdx} className={`block px-2.5 py-0.5 border rounded-md text-[11px] font-semibold whitespace-nowrap ${colorClass}`}>{label}: <span className="font-black">{valDisplay}</span></span>;
+                                                                            }).filter(Boolean);
                                                                         }
-                                                                        return <span className="px-2.5 py-1 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs whitespace-nowrap">{st}</span>;
+                                                                        const isLak = st.toLowerCase().includes('กีบ') || st.toLowerCase().includes('lak');
+                                                                        return <span className={`px-2.5 py-1 border rounded-lg text-xs whitespace-nowrap ${isLak ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>{st}</span>;
                                                                     })()}
                                                                 </div>
                                                             </td>
@@ -1369,10 +1404,10 @@
                                                                 {financeBills.reduce((acc, curr) => acc + Number(curr['รวมชิ้นราคาศูนย์'] || 0), 0)}
                                                             </td>
                                                             <td className="p-4 text-right text-sm font-black text-emerald-400 bg-emerald-950/60 whitespace-nowrap">
-                                                                {Math.round(sumLak).toLocaleString()} ₭
+                                                                {sumLak > 0 ? `${Math.round(sumLak).toLocaleString()} ₭` : <span className="text-slate-600">-</span>}
                                                             </td>
                                                             <td className="p-4 text-right text-sm font-black text-blue-400 bg-blue-950/60 whitespace-nowrap">
-                                                                ฿{sumThb.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                {sumThb > 0 ? `฿${sumThb.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : <span className="text-slate-600">-</span>}
                                                             </td>
                                                         </tr>
                                                         <tr className="bg-slate-950 text-slate-200 border-t border-slate-800">
@@ -1426,6 +1461,39 @@
                                                     <tr><td colSpan={8} className="p-12 text-center text-slate-400 font-bold">ไม่พบสรุปข้อมูลการเงินตามเงื่อนไขที่ระบุ</td></tr>
                                                 )}
                                             </tbody>
+                                            {financeSummaryData.length > 0 && (() => {
+                                                const totLak = financeSummaryData.reduce((a, r) => a + r.sumLak, 0);
+                                                const totThb = financeSummaryData.reduce((a, r) => a + r.sumThb, 0);
+                                                const totBills = financeSummaryData.reduce((a, r) => a + r.billsCount, 0);
+                                                const grandThb = totThb + (totLak / exchangeRate);
+                                                return (
+                                                    <tfoot className="bg-slate-900 text-white border-t-4 border-slate-950 sticky bottom-0">
+                                                        <tr>
+                                                            <td className="p-4 text-right font-black text-sm text-slate-300" colSpan={2}>
+                                                                ยอดรวมทั้งหมด ({totBills} บิล):
+                                                            </td>
+                                                            <td className="p-4 text-center font-bold text-slate-300">{financeSummaryData.reduce((a,r)=>a+r.fullBoxes,0)} กล่อง</td>
+                                                            <td className="p-4 text-center font-black text-blue-400">{financeSummaryData.reduce((a,r)=>a+r.memberBoxes,0)} กล่อง</td>
+                                                            <td className="p-4 text-center font-bold text-amber-400">{financeSummaryData.reduce((a,r)=>a+r.proBoxes,0)} กล่อง</td>
+                                                            <td className="p-4 text-center font-bold text-slate-400">{financeSummaryData.reduce((a,r)=>a+r.zeroBoxes,0)} กล่อง</td>
+                                                            <td className="p-4 text-right font-black text-emerald-400 bg-emerald-950/60 whitespace-nowrap">
+                                                                {totLak > 0 ? `${Math.round(totLak).toLocaleString()} ₭` : <span className="text-slate-600">-</span>}
+                                                            </td>
+                                                            <td className="p-4 text-right font-black text-blue-400 bg-blue-950/60 whitespace-nowrap">
+                                                                {totThb > 0 ? `฿${totThb.toLocaleString(undefined, {minimumFractionDigits: 2})}` : <span className="text-slate-600">-</span>}
+                                                            </td>
+                                                        </tr>
+                                                        <tr className="bg-slate-950 text-slate-200 border-t border-slate-800">
+                                                            <td colSpan={6} className="p-3 text-right font-black text-xs text-amber-400 tracking-wide">
+                                                                💡 รวมคำนวณรวบยอดคิดเป็นเงินบาททั้งหมด:
+                                                            </td>
+                                                            <td colSpan={2} className="p-3 text-right font-black text-base text-amber-300">
+                                                                ฿{grandThb.toLocaleString(undefined, {minimumFractionDigits: 2})} <span className="text-[10px] font-bold text-slate-400">(อัตรา {exchangeRate.toLocaleString()} ₭/฿)</span>
+                                                            </td>
+                                                        </tr>
+                                                    </tfoot>
+                                                );
+                                            })()}
                                         </table>
                                     </div>
                                 </div>
