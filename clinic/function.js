@@ -1244,7 +1244,7 @@ async function loadPrescriptionList() {
             actionBtn = `<button class="btn btn-sm btn-warning fw-bold px-3 text-white" onclick="startDoctorConsult('${row.visit_id}')"><i class="bi bi-megaphone me-1"></i>เรียกพบคนไข้</button>`;
         } else if (row.status === 'กำลังคุยกับแพทย์') {
             statusBadge = `<span class="badge-soft-danger">กำลังตรวจอยู่</span>`;
-            actionBtn = `<button class="btn btn-sm btn-success px-3" onclick="openPrescribeModal('${row.visit_id}', '${row.hn}', '${row.patient_name}', '${row.pdf_url}')"><i class="bi bi-file-earmark-medical me-1"></i>อ่านผล & สั่งยา</button>`;
+            actionBtn = `<button class="btn btn-sm btn-success px-3" onclick="openPrescribeModal('${row.visit_id}')"><i class="bi bi-file-earmark-medical me-1"></i>อ่านผล & สั่งยา</button>`;
         }
 
         tbody.innerHTML += `
@@ -3018,26 +3018,72 @@ const LabDB = {
 
 // Helper สำหรับดึงไฟล์แล็บทั้งหมดของ Visit (สะสมหลายไฟล์ได้ และไม่เกิน Quota)
 function isValidLabFileUrl(u) {
-    return u && typeof u === 'string' && u.trim() !== '' && u !== '#' && u !== 'undefined' && u !== 'null' && !u.includes('sample.pdf');
+    if (!u || typeof u !== 'string') return false;
+    const s = u.trim();
+    if (s === '' || s === '#' || s === 'undefined' || s === 'null' || s.includes('sample.pdf')) return false;
+    return s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:') || s.startsWith('blob:');
 }
 
 function getLabFilesForVisit(visitId, rowPdfUrl) {
     let files = [];
 
-    // 1. ดึงจาก Metadata ใน LocalStorage
+    // 1. ดึงจาก DB pdf_url โดยตรง (ถ้าเป็น JSON Array)
+    if (rowPdfUrl && typeof rowPdfUrl === 'string' && rowPdfUrl.trim() !== '') {
+        const raw = rowPdfUrl.trim();
+        if (raw.startsWith('[')) {
+            try {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    parsed.forEach(p => {
+                        if (p && (p.id || isValidLabFileUrl(p.url || p.publicUrl))) {
+                            const u = p.url || p.publicUrl || '';
+                            const cat = p.category || 'ผลแล็บ';
+                            if (!files.some(f => (p.id && f.id === p.id) || (f.fileName === p.fileName && f.category === cat) || (u && (f.url === u || f.publicUrl === u)))) {
+                                files.push({
+                                    id: p.id || 'FILE-DB-' + Date.now(),
+                                    url: u,
+                                    publicUrl: u,
+                                    fileName: p.fileName || 'ไฟล์ผลแล็บ',
+                                    fileType: p.fileType || 'application/pdf',
+                                    category: cat,
+                                    updatedAt: p.updatedAt || new Date().toISOString()
+                                });
+                            }
+                        }
+                    });
+                }
+            } catch (e) {
+                console.warn('JSON parse rowPdfUrl error:', e);
+            }
+        } else if (isValidLabFileUrl(raw)) {
+            files.push({
+                id: 'FILE-DB-' + Date.now(),
+                url: raw,
+                publicUrl: raw,
+                fileName: 'ไฟล์ผลแล็บ',
+                category: 'ผลแล็บ',
+                updatedAt: new Date().toISOString()
+            });
+        }
+    }
+
+    // 2. ดึงจาก Metadata ใน LocalStorage
     try {
         const metaMap = JSON.parse(localStorage.getItem('clinic_lab_files_meta') || '{}');
         const metaList = metaMap[visitId];
         if (Array.isArray(metaList)) {
             metaList.forEach(m => {
                 if (m && (m.id || isValidLabFileUrl(m.url || m.publicUrl))) {
-                    files.push(m);
+                    const cat = m.category || 'ผลแล็บ';
+                    if (!files.some(f => (m.id && f.id === m.id) || (f.fileName === m.fileName && f.category === cat))) {
+                        files.push(m);
+                    }
                 }
             });
         }
     } catch (e) {}
 
-    // 2. ดึงจาก Legacy Storage ใน LocalStorage (เผื่อไฟล์เก่าที่เคยเซฟไว้)
+    // 3. ดึงจาก Legacy Storage ใน LocalStorage (เผื่อไฟล์เก่าที่เคยเซฟไว้)
     try {
         const cachedMap = JSON.parse(localStorage.getItem('clinic_real_lab_files') || '{}');
         const raw = cachedMap[visitId];
@@ -3049,27 +3095,13 @@ function getLabFilesForVisit(visitId, rowPdfUrl) {
         }
         legacyList.forEach(legacyItem => {
             if (legacyItem && (legacyItem.id || isValidLabFileUrl(legacyItem.url || legacyItem.publicUrl))) {
-                if (!files.some(f => f.id === legacyItem.id || (f.fileName === legacyItem.fileName && f.category === legacyItem.category))) {
+                const cat = legacyItem.category || 'ผลแล็บ';
+                if (!files.some(f => (legacyItem.id && f.id === legacyItem.id) || (f.fileName === legacyItem.fileName && f.category === cat))) {
                     files.push(legacyItem);
                 }
             }
         });
     } catch (e) {}
-
-    // 3. Fallback หากมี pdf_url ใน DB ที่ยังไม่มีใน list (ข้าม sample.pdf)
-    if (isValidLabFileUrl(rowPdfUrl)) {
-        const exists = files.some(f => f.publicUrl === rowPdfUrl || f.url === rowPdfUrl);
-        if (!exists) {
-            files.unshift({
-                id: 'FILE-DB-' + Date.now(),
-                url: rowPdfUrl,
-                publicUrl: rowPdfUrl,
-                fileName: 'ไฟล์ผลแล็บ',
-                category: 'ผลแล็บ',
-                updatedAt: new Date().toISOString()
-            });
-        }
-    }
 
     return files;
 }
@@ -3083,7 +3115,8 @@ async function getLabFilesForVisitAsync(visitId, rowPdfUrl) {
         if (Array.isArray(idbFiles)) {
             idbFiles.forEach(idbItem => {
                 if (idbItem && (idbItem.id || isValidLabFileUrl(idbItem.url || idbItem.publicUrl))) {
-                    if (!files.some(f => f.id === idbItem.id || (f.fileName === idbItem.fileName && f.category === idbItem.category))) {
+                    const cat = idbItem.category || 'ผลแล็บ';
+                    if (!files.some(f => (idbItem.id && f.id === idbItem.id) || (f.fileName === idbItem.fileName && f.category === cat))) {
                         files.push(idbItem);
                     }
                 }
@@ -3100,22 +3133,24 @@ async function getLabFilesForVisitAsync(visitId, rowPdfUrl) {
                 .eq('visit_id', visitId)
                 .maybeSingle();
 
-            if (data) {
+            if (data && data.pdf_url) {
                 const rawUrl = data.pdf_url;
-                if (rawUrl && rawUrl.trim().startsWith('[')) {
+                if (rawUrl.trim().startsWith('[')) {
                     try {
                         const parsed = JSON.parse(rawUrl);
                         if (Array.isArray(parsed)) {
                             parsed.forEach(p => {
                                 if (p && (p.id || isValidLabFileUrl(p.url || p.publicUrl))) {
                                     const u = p.url || p.publicUrl || '';
-                                    if (!files.some(f => (p.id && f.id === p.id) || (u && (f.url === u || f.publicUrl === u)))) {
+                                    const cat = p.category || 'ผลแล็บ';
+                                    if (!files.some(f => (p.id && f.id === p.id) || (f.fileName === p.fileName && f.category === cat) || (u && (f.url === u || f.publicUrl === u)))) {
                                         files.push({
                                             id: p.id || 'FILE-DB-' + Date.now(),
                                             url: u,
                                             publicUrl: u,
                                             fileName: p.fileName || 'ไฟล์ผลแล็บ',
-                                            category: p.category || 'ผลแล็บ',
+                                            category: cat,
+                                            fileType: p.fileType || 'application/pdf',
                                             updatedAt: p.updatedAt || new Date().toISOString()
                                         });
                                     }
@@ -3224,11 +3259,10 @@ async function loadLabQueue() {
                 btnClass = 'btn-outline-secondary';
             }
 
-            const targetArg = (fileItem.id || fileItem.url || fileItem.publicUrl || '').replace(/'/g, "\\'");
             const safeCat = catName.replace(/'/g, "\\'");
 
             allResultButtons.push(`
-                <button class="btn btn-sm ${btnClass} me-1 mb-1" onclick="viewRealLabFile('${targetArg}', '${row.visit_id}', '${safeName}', '${safeCat}')">
+                <button class="btn btn-sm ${btnClass} me-1 mb-1" onclick="viewRealLabFile('', '${row.visit_id}', '${safeName}', '${safeCat}')">
                     <i class="bi ${btnIcon} me-1"></i> ${catName}
                 </button>
             `);
@@ -3558,9 +3592,9 @@ async function viewRealLabFile(fileUrlOrId, visitId, patientName, categoryName) 
             html: `
                 <div class="text-center p-2">
                     <div class="d-flex justify-content-end mb-2">
-                        <a href="${fileUrl}" target="_blank" download="lab_result_${visitId}.png" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold">
+                        <button type="button" onclick="openLabPdfDirect('${fileUrl}', 'lab_${visitId}.png')" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold">
                             <i class="bi bi-box-arrow-up-right me-1"></i> เปิดดูรูปขนาดเต็ม / ดาวน์โหลด
-                        </a>
+                        </button>
                     </div>
                     <img src="${fileUrl}" class="img-fluid rounded border shadow-sm" style="max-height: 70vh; object-fit: contain;">
                 </div>
@@ -3582,6 +3616,9 @@ async function viewRealLabFile(fileUrlOrId, visitId, patientName, categoryName) 
             }
         }
 
+        window._currentLabPdfBlobUrl = pdfTargetUrl;
+        window._currentLabPdfRawUrl = fileUrl;
+
         Swal.fire({
             title: `<h5 class="fw-bold mb-0 text-danger"><i class="bi bi-file-earmark-pdf-fill me-2"></i>${titleText} (PDF) - ${patientName || visitId}</h5>`,
             html: `
@@ -3589,23 +3626,18 @@ async function viewRealLabFile(fileUrlOrId, visitId, patientName, categoryName) 
                     <div class="d-flex justify-content-between align-items-center mb-2 px-1">
                         <span class="small text-muted"><i class="bi bi-person me-1"></i>${patientName || visitId}</span>
                         <div class="d-flex gap-2">
-                            <a href="${pdfTargetUrl}" target="_blank" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold shadow-xs">
+                            <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold shadow-xs" onclick="openLabPdfDirect(window._currentLabPdfBlobUrl || window._currentLabPdfRawUrl, 'lab_${visitId}.pdf')">
                                 <i class="bi bi-box-arrow-up-right me-1"></i> เปิดในแท็บใหม่ / ดาวน์โหลด PDF
-                            </a>
+                            </button>
                         </div>
                     </div>
-                    <div class="flex-grow-1 border rounded-3 overflow-hidden bg-light position-relative">
-                        <object data="${pdfTargetUrl}#toolbar=1" type="application/pdf" width="100%" height="100%" style="min-height: 100%; border: none;">
-                            <embed src="${pdfTargetUrl}#toolbar=1" type="application/pdf" width="100%" height="100%">
-                            <div class="d-flex flex-column align-items-center justify-content-center h-100 p-4 text-center">
-                                <i class="bi bi-file-earmark-pdf text-danger fs-1 mb-2"></i>
-                                <p class="text-dark fw-semibold mb-1">เปิดไฟล์ PDF ผลตรวจ</p>
-                                <p class="text-muted small mb-3">หากเบราว์เซอร์ไม่แสดงตัวอย่างเอกสาร กรุณากดปุ่มด้านล่างเพื่อเปิดไฟล์</p>
-                                <a href="${pdfTargetUrl}" target="_blank" class="btn btn-primary rounded-pill px-4 shadow-sm">
-                                    <i class="bi bi-download me-1"></i> เปิดหรือดาวน์โหลดไฟล์ PDF
-                                </a>
-                            </div>
-                        </object>
+                    <div class="flex-grow-1 border rounded-3 overflow-hidden bg-light position-relative d-flex flex-column">
+                        <iframe src="${pdfTargetUrl}" style="width: 100%; height: 100%; min-height: 480px; border: none;" allowfullscreen></iframe>
+                        <div class="p-3 bg-white border-top text-center">
+                            <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-4 fw-semibold" onclick="openLabPdfDirect(window._currentLabPdfBlobUrl || window._currentLabPdfRawUrl, 'lab_${visitId}.pdf')">
+                                <i class="bi bi-file-earmark-pdf me-1"></i> หากเอกสารไม่แสดงผล กรุณากดที่นี่เพื่อเปิดดูหรือดาวน์โหลดไฟล์ PDF
+                            </button>
+                        </div>
                     </div>
                 </div>
             `,
@@ -3616,6 +3648,43 @@ async function viewRealLabFile(fileUrlOrId, visitId, patientName, categoryName) 
         });
     }
 }
+
+window.openLabPdfDirect = function (targetUrl, filename) {
+    const urlToOpen = targetUrl || window._currentLabPdfBlobUrl || window._currentLabPdfRawUrl;
+    if (!urlToOpen) return;
+
+    if (urlToOpen.startsWith('data:application/pdf;base64,')) {
+        try {
+            const base64Data = urlToOpen.split(',')[1];
+            const blob = base64ToBlob(base64Data, 'application/pdf');
+            const blobUrl = URL.createObjectURL(blob);
+            const w = window.open(blobUrl, '_blank');
+            if (!w) {
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.target = '_blank';
+                a.download = filename || 'lab_result.pdf';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
+            return;
+        } catch (e) {
+            console.warn('openLabPdfDirect blob error:', e);
+        }
+    }
+
+    const w = window.open(urlToOpen, '_blank');
+    if (!w) {
+        const a = document.createElement('a');
+        a.href = urlToOpen;
+        a.target = '_blank';
+        a.download = filename || 'lab_result.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+};
 
 function base64ToBlob(base64, type = 'application/octet-stream') {
     const binStr = atob(base64);
@@ -3797,6 +3866,26 @@ function populateRxMedDropdown() {
 }
 
 async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds = null, refillBatchTag = null) {
+    if (!visitId) return;
+
+    // ถ้าไม่มี hn หรือ patientName หรือ pdfUrl ให้ค้นหาจาก cache หรือ Supabase
+    let visitRow = null;
+    if (window.allHistoryVisits) visitRow = window.allHistoryVisits.find(v => v.visit_id === visitId);
+    if (!visitRow && window.allQueueData) visitRow = window.allQueueData.find(v => v.visit_id === visitId);
+
+    if ((!visitRow || !patientName) && typeof _supabase !== 'undefined') {
+        try {
+            const { data } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
+            if (data) visitRow = data;
+        } catch (e) {}
+    }
+
+    if (visitRow) {
+        if (!hn) hn = visitRow.hn;
+        if (!patientName) patientName = visitRow.patient_name;
+        if (!pdfUrl) pdfUrl = visitRow.pdf_url;
+    }
+
     document.getElementById('rxVisitId').value = visitId || '';
     const remarkEl = document.getElementById('rxRemark');
     const discountEl = document.getElementById('rxDiscountInput');
@@ -3840,6 +3929,8 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
         const pat = (window.allPatients || []).find(p => p.hn === hn);
         if (pat && pat.referred_by) {
             assistantText = pat.referred_by;
+        } else if (visitRow && visitRow.referred_by) {
+            assistantText = visitRow.referred_by;
         }
     }
     const assistantEl = document.getElementById('rxAssistantDisplay');
@@ -3869,7 +3960,12 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
         } catch (e) {}
 
         const cachedVasc = cachedVascularMap[visitId];
-        const vascText = cachedVasc ? cachedVasc.resultText : '';
+        let hasVasc = false;
+        if (cachedVasc && cachedVasc.resultText) {
+            hasVasc = true;
+        } else if (visitRow && visitRow.lab_note && visitRow.lab_note.includes('[ผลตรวจหลอดเลือด]')) {
+            hasVasc = true;
+        }
 
         filesList.forEach((fileItem) => {
             const catName = fileItem.category || 'ผลแล็บ';
@@ -3893,17 +3989,16 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
                 btnClass = 'btn-outline-secondary';
             }
 
-            const targetArg = (fileItem.id || fileItem.url || fileItem.publicUrl || '').replace(/'/g, "\\'");
             const safeCat = catName.replace(/'/g, "\\'");
 
             allResultButtons.push(`
-                <button type="button" class="btn btn-sm ${btnClass} me-1 mb-1 fw-semibold" onclick="viewRealLabFile('${targetArg}', '${visitId}', '${safeName}', '${safeCat}')">
+                <button type="button" class="btn btn-sm ${btnClass} me-1 mb-1 fw-semibold" onclick="viewRealLabFile('', '${visitId}', '${safeName}', '${safeCat}')">
                     <i class="bi ${btnIcon} me-1"></i> ${catName}
                 </button>
             `);
         });
 
-        if (vascText) {
+        if (hasVasc) {
             allResultButtons.push(`
                 <button type="button" class="btn btn-sm btn-outline-primary me-1 mb-1 fw-semibold" onclick="viewVascularResult('${visitId}')">
                     <i class="bi bi-activity me-1"></i> ผลวินิจฉัย
@@ -5901,10 +5996,25 @@ async function showHistoryDetails(visitId) {
         }) + ' น.';
     }
 
-    document.getElementById('histVisitId').innerText = row.visit_id;
-    document.getElementById('histDate').innerText = formattedDate;
-    document.getElementById('histPatientName').innerText = row.patient_name;
-    document.getElementById('histHN').innerText = row.hn;
+    const setSafeText = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = (val !== undefined && val !== null && val !== '') ? val : '-';
+    };
+
+    const setSafeHtml = (id, html) => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = html || '';
+    };
+
+    const setSafeDisplay = (id, isShow, displayVal = 'block') => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = isShow ? displayVal : 'none';
+    };
+
+    setSafeText('histVisitId', row.visit_id);
+    setSafeText('histDate', formattedDate);
+    setSafeText('histPatientName', row.patient_name);
+    setSafeText('histHN', row.hn);
 
     // 🌟 ส่วนที่ 1: ประมวลผลและแสดงผลข้อมูลผู้แนะนำ (Referrer)
     let refId = row.referred_by;
@@ -5923,9 +6033,6 @@ async function showHistoryDetails(visitId) {
             || (window.appointmentReferrersMap && row.appointment_id && window.appointmentReferrersMap[row.appointment_id]);
     }
 
-    const refContainer = document.getElementById('histReferrerContainer');
-    const refElem = document.getElementById('histReferrer');
-
     if (refId && refId !== '-' && refId !== 'undefined' && refId !== 'null') {
         const refObj = (window.referrersData || []).find(r => r.id === refId || r.code === refId || r.name === refId);
         const staffObj = (window.allStaffUsers || window.defaultTeamStaffUsers || []).find(s => s.emp_code === refId || s.id === refId || s.full_name === refId);
@@ -5941,20 +6048,16 @@ async function showHistoryDetails(visitId) {
             displayRef = refId;
         }
 
-        if (refElem) refElem.innerHTML = `<i class="ph ph-hand-coins me-1 text-primary"></i>${displayRef}`;
-        if (refContainer) refContainer.style.display = 'block';
+        setSafeHtml('histReferrer', `<i class="ph ph-hand-coins me-1 text-primary"></i>${displayRef}`);
+        setSafeDisplay('histReferrerContainer', true);
     } else {
-        if (refContainer) refContainer.style.display = 'block';
-        if (refElem) refElem.innerHTML = '<span class="text-muted">-</span>';
+        setSafeDisplay('histReferrerContainer', true);
+        setSafeHtml('histReferrer', '<span class="text-muted">-</span>');
     }
 
     // 🌟 ส่วนที่ 2: เพิ่มการดึงข้อมูลและแสดงผลแพทย์ผู้ตรวจ (Doctor)
-    const docContainer = document.getElementById('histDoctorContainer');
-    const docElem = document.getElementById('histDoctorName');
-
     let doctorName = (row.doctor_name && row.doctor_name !== '-' && row.doctor_name.trim() !== '') ? row.doctor_name : '';
 
-    // หากไม่มี doctor_name ให้ค้นหาจากประวัติการตรวจก่อนหน้าของคนไข้ (HN หรือชื่อ) เดียวกัน (กรณีเคสต่อยา)
     if (!doctorName) {
         const pastVisitWithDoc = (window.allHistoryVisits || []).find(v => ((row.hn && v.hn === row.hn) || (row.patient_name && v.patient_name === row.patient_name)) && v.doctor_name && v.doctor_name !== '-' && v.doctor_name.trim() !== '');
         if (pastVisitWithDoc) {
@@ -5963,25 +6066,23 @@ async function showHistoryDetails(visitId) {
     }
 
     if (doctorName) {
-        if (docElem) docElem.innerHTML = `<i class="bi bi-person-workspace me-1"></i>${doctorName}`;
-        if (docContainer) docContainer.style.display = 'block';
+        setSafeHtml('histDoctorName', `<i class="bi bi-person-workspace me-1"></i>${doctorName}`);
+        setSafeDisplay('histDoctorContainer', true);
     } else {
-        if (docContainer) docContainer.style.display = 'block';
-        if (docElem) docElem.innerHTML = '<span class="text-muted">-</span>';
+        setSafeDisplay('histDoctorContainer', true);
+        setSafeHtml('histDoctorName', '<span class="text-muted">-</span>');
     }
 
-    document.getElementById('histTemp').innerText = row.temp || '-';
-    document.getElementById('histBP').innerText = row.bp || '-';
-    document.getElementById('histPulse').innerText = row.pulse || '-';
-    document.getElementById('histSpo2').innerText = row.spo2 || '-';
-    document.getElementById('histWeight').innerText = row.weight || '-';
-    document.getElementById('histHeight').innerText = row.height || '-';
-    document.getElementById('histBMI').innerText = row.bmi || '-';
-
-    document.getElementById('histSymptom').innerText = row.symptom || 'ไม่มีระบุ';
+    setSafeText('histTemp', row.temp);
+    setSafeText('histBP', row.bp);
+    setSafeText('histPulse', row.pulse);
+    setSafeText('histSpo2', row.spo2);
+    setSafeText('histWeight', row.weight);
+    setSafeText('histHeight', row.height);
+    setSafeText('histBMI', row.bmi);
+    setSafeText('histSymptom', row.symptom || 'ไม่มีระบุ');
 
     // 🌟 ส่วนที่ 3: ดึงและประมวลผลไฟล์ผลตรวจ (Lab, Echo, X-ray, Vascular)
-    const pdfContainer = document.getElementById('histPdfContainer');
     let allResultButtons = [];
     const safeName = (row.patient_name || '').replace(/'/g, "\\'");
 
@@ -6021,11 +6122,10 @@ async function showHistoryDetails(visitId) {
             btnClass = 'btn-outline-secondary';
         }
 
-        const targetArg = (fileItem.id || fileItem.url || fileItem.publicUrl || '').replace(/'/g, "\\'");
         const safeCat = catName.replace(/'/g, "\\'");
 
         allResultButtons.push(`
-            <button type="button" class="btn btn-sm ${btnClass} me-1 mb-1 fw-semibold" onclick="viewRealLabFile('${targetArg}', '${row.visit_id}', '${safeName}', '${safeCat}')">
+            <button type="button" class="btn btn-sm ${btnClass} me-1 mb-1 fw-semibold" onclick="viewRealLabFile('', '${row.visit_id}', '${safeName}', '${safeCat}')">
                 <i class="bi ${btnIcon} me-1"></i> ${catName}
             </button>
         `);
@@ -6091,123 +6191,114 @@ async function showHistoryDetails(visitId) {
         });
     }
 
-    if (pdfContainer) {
-        pdfContainer.innerHTML = '';
-    }
+    setSafeHtml('histPdfContainer', '');
 
     // 🌟 แสดงส่วนผลการตรวจทางห้องแล็บ & เอกซเรย์ / เอโก (histLabContainer)
-    const labContainer = document.getElementById('histLabContainer');
-    const labTestsEl = document.getElementById('histLabTests');
-    const labNoteContent = document.getElementById('histLabNoteContent');
-    const labNoteText = document.getElementById('histLabNoteText');
-    const labFilesContent = document.getElementById('histLabFilesContent');
-    const labFilesButtons = document.getElementById('histLabFilesButtons');
-
     const hasTests = row.lab_tests && row.lab_tests.trim() !== '';
     const hasNote = (row.lab_note && row.lab_note.trim() !== '') || vascText;
     const hasFiles = allResultButtons.length > 0;
 
     if (hasTests || hasNote || hasFiles) {
-        if (labContainer) labContainer.style.display = 'block';
-        if (labTestsEl) labTestsEl.innerText = row.lab_tests || 'ไม่ได้ระบุชื่อรายการส่งแล็บ';
+        setSafeDisplay('histLabContainer', true);
+        setSafeText('histLabTests', row.lab_tests || 'ไม่ได้ระบุชื่อรายการส่งแล็บ');
 
-        if (labNoteContent && labNoteText) {
-            let noteContentText = (row.lab_note || vascText || '').trim();
-            // 🌟 ตัดข้อความแท็กระบบ เช่น [เอกสารผลตรวจแนบเพิ่มเติม: ...] หรือ [เอกสารแนบ: ...] ออกให้สะอาดตา
-            noteContentText = noteContentText.replace(/\[เอกสารผลตรวจ[^\]]*\]/gi, '').trim();
-            noteContentText = noteContentText.replace(/\[เอกสารแนบ[^\]]*\]/gi, '').trim();
-            noteContentText = noteContentText.replace(/\[ไฟล์แนบ[^\]]*\]/gi, '').trim();
+        let noteContentText = (row.lab_note || vascText || '').trim();
+        noteContentText = noteContentText.replace(/\[เอกสารผลตรวจ[^\]]*\]/gi, '').trim();
+        noteContentText = noteContentText.replace(/\[เอกสารแนบ[^\]]*\]/gi, '').trim();
+        noteContentText = noteContentText.replace(/\[ไฟล์แนบ[^\]]*\]/gi, '').trim();
 
-            if (noteContentText) {
-                labNoteText.innerText = noteContentText;
-                labNoteContent.style.display = 'block';
-            } else {
-                labNoteContent.style.display = 'none';
-            }
+        if (noteContentText) {
+            setSafeText('histLabNoteText', noteContentText);
+            setSafeDisplay('histLabNoteContent', true);
+        } else {
+            setSafeDisplay('histLabNoteContent', false);
         }
 
-        if (labFilesContent && labFilesButtons) {
-            if (hasFiles) {
-                labFilesButtons.innerHTML = allResultButtons.join(' ');
-                labFilesContent.style.display = 'block';
-            } else {
-                labFilesContent.style.display = 'none';
-            }
+        if (hasFiles) {
+            setSafeHtml('histLabFilesButtons', allResultButtons.join(' '));
+            setSafeDisplay('histLabFilesContent', true);
+        } else {
+            setSafeDisplay('histLabFilesContent', false);
         }
     } else {
-        if (labContainer) labContainer.style.display = 'none';
+        setSafeDisplay('histLabContainer', false);
     }
 
-    const medsTbody = document.querySelector('#histMedsTable tbody');
-    medsTbody.innerHTML = '';
-    if (row.meds) {
-        try {
-            // รองรับทั้ง JSON array, double-encoded JSON, หรือ plain string
-            let medsRaw = row.meds;
-            if (typeof medsRaw === 'string') {
-                medsRaw = medsRaw.trim();
-                // ถ้าเป็น double-encoded: ขึ้นต้นด้วย "\"
-                if (medsRaw.startsWith('"[') || medsRaw.startsWith('"\\"')) {
-                    medsRaw = JSON.parse(medsRaw);
-                }
-            }
-            const medsList = typeof medsRaw === 'string' ? JSON.parse(medsRaw) : medsRaw;
-            if (Array.isArray(medsList) && medsList.length > 0) {
-                medsList.forEach(m => {
-                    let tierText = 'ปกติ';
-                    let badgeClass = 'bg-secondary-subtle text-dark border';
-                    if (m.tier === 'promo') {
-                        tierText = 'โปรโมชั่น';
-                        badgeClass = 'bg-warning-subtle text-warning-emphasis border border-warning';
-                    } else if (m.tier === 'high') {
-                        tierText = 'ส่ง/สมาชิก';
-                        badgeClass = 'bg-primary-subtle text-primary-emphasis border border-primary';
-                    } else if (m.tier === 'free') {
-                        tierText = 'แถมฟรี';
-                        badgeClass = 'bg-danger-subtle text-danger-emphasis border border-danger';
+    // 🌟 แสดงรายการสั่งจ่ายยา/อาหารเสริม
+    const medsTbody = document.querySelector('#histMedsTable tbody') || document.querySelector('#histMedsTable');
+    if (medsTbody) {
+        medsTbody.innerHTML = '';
+        if (row.meds) {
+            try {
+                let medsRaw = row.meds;
+                if (typeof medsRaw === 'string') {
+                    medsRaw = medsRaw.trim();
+                    if (medsRaw.startsWith('"[') || medsRaw.startsWith('"\\"')) {
+                        medsRaw = JSON.parse(medsRaw);
                     }
-
-                    let cleanName = m.name || String(m);
-                    if (cleanName.endsWith(' (โปร)')) cleanName = cleanName.replace(' (โปร)', '');
-                    else if (cleanName.endsWith(' (ส่ง/สมาชิก)')) cleanName = cleanName.replace(' (ส่ง/สมาชิก)', '');
-                    else if (cleanName.endsWith(' (แถมฟรี)')) cleanName = cleanName.replace(' (แถมฟรี)', '');
-
-                    let srcBadge = m.source === 'mlm'
-                        ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size: 0.68rem;">STK MLM</span>'
-                        : '<span class="badge bg-info-subtle text-info border border-info-subtle ms-1" style="font-size: 0.68rem;">คลังยา</span>';
-
-                    medsTbody.innerHTML += `
-                        <tr>
-                            <td class="ps-3 align-middle text-dark fw-medium">${cleanName} ${srcBadge}</td>
-                            <td class="text-center align-middle"><span class="badge ${badgeClass}" style="font-size: 0.75rem;">${tierText}</span></td>
-                            <td class="text-center align-middle fw-bold text-primary">${m.qty || 1}</td>
-                        </tr>
-                    `;
-                });
-            } else {
-                medsTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">ไม่มีรายการยา/อาหารเสริมสั่งจ่าย</td></tr>';
-            }
-        } catch (e) {
-            console.warn('Error parsing meds JSON, showing raw:', e);
-            // Fallback: ถ้า meds เป็น plain text ให้แสดงตรงๆ
-            if (typeof row.meds === 'string' && row.meds.trim()) {
-                const items = row.meds.split(',').map(s => s.trim()).filter(Boolean);
-                if (items.length > 0) {
-                    medsTbody.innerHTML = items.map((item, i) =>
-                        `<tr><td class="ps-3 text-dark fw-medium">${item}</td><td class="text-center">-</td><td class="text-center">-</td></tr>`
-                    ).join('');
-                } else {
-                    medsTbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger py-3">ข้อมูลยาไม่ถูกต้อง</td></tr>';
                 }
-            } else {
-                medsTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">ไม่มีรายการยา/อาหารเสริมสั่งจ่าย</td></tr>';
+                const medsList = typeof medsRaw === 'string' ? JSON.parse(medsRaw) : medsRaw;
+                if (Array.isArray(medsList) && medsList.length > 0) {
+                    let rowsHtml = '';
+                    medsList.forEach(m => {
+                        let tierText = 'ปกติ';
+                        let badgeClass = 'bg-secondary-subtle text-dark border';
+                        if (m.tier === 'promo') {
+                            tierText = 'โปรโมชั่น';
+                            badgeClass = 'bg-warning-subtle text-warning-emphasis border border-warning';
+                        } else if (m.tier === 'high') {
+                            tierText = 'ส่ง/สมาชิก';
+                            badgeClass = 'bg-primary-subtle text-primary-emphasis border border-primary';
+                        } else if (m.tier === 'free') {
+                            tierText = 'แถมฟรี';
+                            badgeClass = 'bg-danger-subtle text-danger-emphasis border border-danger';
+                        }
+
+                        let cleanName = m.name || String(m);
+                        if (cleanName.endsWith(' (โปร)')) cleanName = cleanName.replace(' (โปร)', '');
+                        else if (cleanName.endsWith(' (ส่ง/สมาชิก)')) cleanName = cleanName.replace(' (ส่ง/สมาชิก)', '');
+                        else if (cleanName.endsWith(' (แถมฟรี)')) cleanName = cleanName.replace(' (แถมฟรี)', '');
+
+                        let srcBadge = m.source === 'mlm'
+                            ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size: 0.68rem;">STK MLM</span>'
+                            : '<span class="badge bg-info-subtle text-info border border-info-subtle ms-1" style="font-size: 0.68rem;">คลังยา</span>';
+
+                        rowsHtml += `
+                            <tr>
+                                <td class="ps-3 align-middle text-dark fw-medium">${cleanName} ${srcBadge}</td>
+                                <td class="text-center align-middle"><span class="badge ${badgeClass}" style="font-size: 0.75rem;">${tierText}</span></td>
+                                <td class="text-center align-middle fw-bold text-primary">${m.qty || 1}</td>
+                            </tr>
+                        `;
+                    });
+                    medsTbody.innerHTML = rowsHtml;
+                } else {
+                    medsTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">ไม่มีรายการยา/อาหารเสริมสั่งจ่าย</td></tr>';
+                }
+            } catch (e) {
+                console.warn('Error parsing meds JSON, showing raw:', e);
+                if (typeof row.meds === 'string' && row.meds.trim()) {
+                    const items = row.meds.split(',').map(s => s.trim()).filter(Boolean);
+                    if (items.length > 0) {
+                        medsTbody.innerHTML = items.map((item, i) =>
+                            `<tr><td class="ps-3 text-dark fw-medium">${item}</td><td class="text-center">-</td><td class="text-center">-</td></tr>`
+                        ).join('');
+                    } else {
+                        medsTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">ไม่มีรายการยา/อาหารเสริมสั่งจ่าย</td></tr>';
+                    }
+                } else {
+                    medsTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">ไม่มีรายการยา/อาหารเสริมสั่งจ่าย</td></tr>';
+                }
             }
+        } else {
+            medsTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">ไม่มีรายการยา/อาหารเสริมสั่งจ่าย</td></tr>';
         }
-    } else {
-        medsTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">ไม่มีรายการยา/อาหารเสริมสั่งจ่าย</td></tr>';
     }
 
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('historyDetailModal')).show();
+    const modalEl = document.getElementById('historyDetailModal');
+    if (modalEl) {
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
 }
 
 // ฟังก์ชันสำหรับ "ต่อยา" (สั่งยาเดิมซ้ำจากประวัติการตรวจรักษา - Instant Flow)
@@ -12699,6 +12790,24 @@ async function openVascularCheckModal(targetVisitId) {
                 if (data.height) patientData.height = data.height;
                 if (data.bmi) patientData.bmi = data.bmi;
                 if (data.symptom) patientData.symptom = data.symptom;
+
+                // 🌟 ดึงผลตรวจหลอดเลือดจาก lab_note มาคืนค่า checkbox และหมายเหตุข้ามเครื่อง
+                if (data.lab_note && data.lab_note.includes('[ผลตรวจหลอดเลือด]')) {
+                    const noteStr = data.lab_note.substring(data.lab_note.indexOf('[ผลตรวจหลอดเลือด]'));
+                    const matchLevels = noteStr.match(/ระดับที่พบ:\s*([^\n]+)/);
+                    if (matchLevels && matchLevels[1]) {
+                        const lvlList = matchLevels[1].split(',').map(s => s.trim()).filter(Boolean);
+                        lvlList.forEach(lvl => {
+                            const cb = document.getElementById(`vascLevel${lvl}`);
+                            if (cb) cb.checked = true;
+                        });
+                    }
+                    const matchAdvice = noteStr.match(/คำแนะนำแพทย์:\s*([\s\S]+)/);
+                    if (matchAdvice && matchAdvice[1] && matchAdvice[1].trim() !== '-') {
+                        const elNotes = document.getElementById('vascNotes');
+                        if (elNotes) elNotes.value = matchAdvice[1].trim();
+                    }
+                }
             }
         } catch (e) {
             console.warn('ดึงข้อมูล Visit ล้มเหลว ใช้ข้อมูลจำลอง/Mock แทน:', e);
@@ -12745,7 +12854,7 @@ async function openVascularCheckModal(targetVisitId) {
     const elSymptom = document.getElementById('vascSymptom');
     if (elSymptom) elSymptom.innerText = patientData.symptom || 'ไม่มีระบุ';
 
-    // คืนค่าที่เคยกดเลือกไว้เดิม (ถ้ามี)
+    // คืนค่าที่เคยกดเลือกไว้เดิม (ถ้ามีจาก LocalStorage)
     if (cachedVasc) {
         if (cachedVasc.notes) {
             const elNotes = document.getElementById('vascNotes');
@@ -12802,7 +12911,7 @@ async function submitVascularCheck() {
         }
     }
 
-    // 2. หากมี visitId และ _supabase ให้ลองอัปเดตลงตาราง visits (ต่อท้ายเพื่อไม่ให้ทับหมายเหตุแพทย์เดิม)
+    // 2. หากมี visitId และ _supabase ให้อัปเดตลงตาราง visits
     if (visitId && typeof _supabase !== 'undefined') {
         try {
             const { data: existingVisit } = await _supabase.from('visits').select('lab_note').eq('visit_id', visitId).single();
@@ -12820,7 +12929,7 @@ async function submitVascularCheck() {
                 })
                 .eq('visit_id', visitId);
         } catch (err) {
-            console.warn('อัปเดต Supabase ล้มเหลว หรือเป็นข้อมูล Mock:', err);
+            console.warn('อัปเดต Supabase ล้มเหลว:', err);
         }
     }
 
@@ -12856,21 +12965,54 @@ async function submitVascularCheck() {
     if (typeof loadQueueList === 'function') loadQueueList();
 }
 
-// 3. ฟังก์ชันสำหรับคลิกดูรายละเอียดผลวินิจฉัยหลอดเลือดจากคอลัมน์ "ผลตรวจทั้งหมด"
-function viewVascularResult(visitId) {
-    let cachedVascularMap = {};
+// 3. 🌟 ฟังก์ชันสำหรับคลิกดูรายละเอียดผลวินิจฉัยหลอดเลือดจากคอลัมน์ "ผลตรวจทั้งหมด" (รองรับทุกเครื่อง)
+async function viewVascularResult(visitId) {
+    let resultText = '';
+
+    // 1. ดึงจาก LocalStorage (ถ้ามีในเครื่องนี้)
     try {
-        cachedVascularMap = JSON.parse(localStorage.getItem('clinic_vascular_results') || '{}');
+        const cachedVascularMap = JSON.parse(localStorage.getItem('clinic_vascular_results') || '{}');
+        const cachedVasc = cachedVascularMap[visitId];
+        if (cachedVasc && cachedVasc.resultText) {
+            resultText = cachedVasc.resultText;
+        }
     } catch (e) {}
 
-    const cachedVasc = cachedVascularMap[visitId];
-    let resultText = cachedVasc ? cachedVasc.resultText : '';
+    // 2. ดึงจาก memory cache (window.labRowCache)
+    if (!resultText && window.labRowCache && window.labRowCache[visitId] && window.labRowCache[visitId].labNote) {
+        const note = window.labRowCache[visitId].labNote;
+        if (note.includes('[ผลตรวจหลอดเลือด]')) {
+            resultText = note.substring(note.indexOf('[ผลตรวจหลอดเลือด]'));
+        }
+    }
 
+    // 3. ดึงจาก window.allHistoryVisits
+    if (!resultText && window.allHistoryVisits) {
+        const histVisit = window.allHistoryVisits.find(v => v.visit_id === visitId);
+        if (histVisit && histVisit.lab_note && histVisit.lab_note.includes('[ผลตรวจหลอดเลือด]')) {
+            resultText = histVisit.lab_note.substring(histVisit.lab_note.indexOf('[ผลตรวจหลอดเลือด]'));
+        }
+    }
+
+    // 4. 🌟 ดึงสดจาก Supabase DB visits table เพื่อให้เครื่องอื่นๆ เปิดดูได้ 100%
+    if (!resultText && visitId && typeof _supabase !== 'undefined') {
+        try {
+            const { data } = await _supabase.from('visits').select('lab_note').eq('visit_id', visitId).maybeSingle();
+            if (data && data.lab_note && data.lab_note.includes('[ผลตรวจหลอดเลือด]')) {
+                resultText = data.lab_note.substring(data.lab_note.indexOf('[ผลตรวจหลอดเลือด]'));
+            }
+        } catch (e) {
+            console.warn('Fetch vascular note from Supabase error:', e);
+        }
+    }
+
+    // 5. หากไม่มีผลตรวจเดิม ให้เปิดหน้าต่างกรอกผลตรวจใหม่
     if (!resultText) {
         openVascularCheckModal(visitId);
         return;
     }
 
+    // 6. 🌟 แสดงหน้าต่าง Popup "ผลวินิจฉัยตรวจหลอดเลือด" สวยงามเหมือนกันทุกเครื่อง
     Swal.fire({
         title: 'ผลวินิจฉัยตรวจหลอดเลือด',
         html: `
