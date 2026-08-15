@@ -966,7 +966,11 @@
         const maxLevels = Number(systemSettings?.commission_levels || 6);
 
         const getInitialFormState = () => {
-          const init = { id: '', name: '', barcode: '', status: 'เข้าใช้งาน', category: '', description: '', imageUrl: '', stock: 0, priceFull: 0, priceMember: 0, pricePromo: 0, givePv: 0, minPvComm: 0, fullMarginAmount: 0, fullMarginCurrency: 'LAK' };
+          const init = { id: '', name: '', barcode: '', status: 'เข้าใช้งาน', category: '', description: '', imageUrl: '', stock: 0, priceFull: 0, priceMember: 0, pricePromo: 0, givePv: 0, minPvComm: 0, fullMarginAmount: 0, fullMarginCurrency: 'LAK' ,
+            isBundle: false, 
+            baseProduct: '', 
+            bundleQty: 1
+          };
           init.selfFee = 0;
           for (let i = 1; i < maxLevels; i++) {
             init[`level${i}Fee`] = 0;
@@ -981,13 +985,11 @@
         };
 
         const [formData, setFormData] = useState(getInitialFormState);
-
         const [isAddingNewCategory, setIsAddingNewCategory] = useState(false);
         const [newCategoryVal, setNewCategoryVal] = useState('');
         const [newCategoryMode, setNewCategoryMode] = useState('จ่ายตามกล่อง');
 
         const defaultImg = "https://ui-avatars.com/api/?name=" + encodeURIComponent("Product") + "&background=3b82f6&color=ffffff&rounded=true&bold=true";
-        const [minDivPvInput, setMinDivPvInput] = useState(systemSettings?.min_dividend_pv || 100);
 
         const handleOpenAdd = () => {
           setIsEditing(false); 
@@ -1013,15 +1015,15 @@
             setIsAddingNewCategory(false); 
             setNewCategoryVal('');
             
-            const localMargins = systemSettings.product_margins ? (typeof systemSettings.product_margins === 'string' ? JSON.parse(systemSettings.product_margins) : systemSettings.product_margins) : {};
-            const margin = localMargins[product.id] || { amount: 0, currency: 'LAK' };
-
             const data = { 
                 ...product, 
                 minPvComm: product.minPvComm || 0,
                 givePv: product.givePv || 0,
-                fullMarginAmount: margin.amount,
-                fullMarginCurrency: margin.currency
+                fullMarginAmount: product.fullMarginAmount || 0,
+                fullMarginCurrency: product.fullMarginCurrency || 'LAK',
+                isBundle: product.isBundle || false,
+                baseProduct: product.baseProduct || '',
+                bundleQty: product.bundleQty || 1
             };
             data.selfFee = product.selfFee || 0;
             for (let i = 1; i < maxLevels; i++) {
@@ -1053,7 +1055,10 @@
                    pricePromo: Number(formData.pricePromo || 0),
                    givePv: Number(formData.givePv || 0),
                    minPvComm: Number(formData.minPvComm || 0),
-                   selfFee: Number(formData.selfFee || 0)
+                   selfFee: Number(formData.selfFee || 0),
+                   isBundle: Boolean(formData.isBundle),
+                   baseProduct: formData.baseProduct || '',
+                   bundleQty: Number(formData.bundleQty || 1)
                 };
                 for (let i = 1; i < maxLevels; i++) {
                   dataToSave[`level${i}Fee`] = Number(formData[`level${i}Fee`] || 0);
@@ -1084,7 +1089,12 @@
                        self_fee: dataToSave.selfFee,
                        self_percent_full: dataToSave.selfPercentFull,
                        self_percent_member: dataToSave.selfPercentMember,
-                       image_url: dataToSave.imageUrl || ''
+                       image_url: dataToSave.imageUrl || '',
+                       is_bundle: dataToSave.isBundle,
+                       base_product: dataToSave.baseProduct,
+                       bundle_qty: dataToSave.bundleQty,
+                       full_margin_amount: dataToSave.fullMarginAmount,
+                       full_margin_currency: dataToSave.fullMarginCurrency
                    };
                    for (let i = 1; i < maxLevels; i++) {
                        supaData[`level_${i}_fee`] = dataToSave[`level${i}Fee`];
@@ -1097,26 +1107,6 @@
                        : supabaseInsert('stk_products', supaData);
                        
                    req.then(async () => {
-                        try {
-                            const localMarginsStr = systemSettings.product_margins;
-                            const localMargins = localMarginsStr ? (typeof localMarginsStr === 'string' ? JSON.parse(localMarginsStr) : localMarginsStr) : {};
-                            localMargins[dataToSave.id] = {
-                                amount: Number(dataToSave.fullMarginAmount || 0),
-                                currency: dataToSave.fullMarginCurrency || 'LAK'
-                            };
-                            if (typeof supabaseUpsert === 'function') {
-                                await supabaseUpsert('stk_system_settings', {
-                                    key: 'product_margins',
-                                    value: JSON.stringify(localMargins)
-                                });
-                            }
-                            setSystemSettings(prev => ({ ...prev, product_margins: localMargins }));
-                            localStorage.setItem('stk_system_settings', JSON.stringify({
-                                ...systemSettings,
-                                product_margins: localMargins
-                            }));
-                        } catch(e) { console.error("Error saving product margins:", e); }
-
                         if (isEditing) {
                             setProducts((products || []).map(p => p && safeUpper(p.id) === safeUpper(dataToSave.id) ? dataToSave : p));
                         } else {
@@ -1154,8 +1144,10 @@
              });
          };
  
-         const filteredProducts = (products || []).filter(p => (p.id && p.id.toLowerCase().includes(searchTerm.toLowerCase())) || (p.name && p.name.toLowerCase().includes(searchTerm.toLowerCase())));
- 
+         const filteredProducts = (products || [])
+             .filter(p => !p.isBundle) 
+             .filter(p => (p.id && p.id.toLowerCase().includes(searchTerm.toLowerCase())) || (p.name && p.name.toLowerCase().includes(searchTerm.toLowerCase())));
+         
          const renderNumberInput = (label, valueKey, colorKey) => {
              const isPercent = valueKey.toLowerCase().includes("percent");
              return (
@@ -1522,6 +1514,281 @@
          );
     };
 
+    const BundlesManagementView = ({ products, setProducts, isAdmin, showToast, systemSettings, setSystemSettings, productCategories }) => {
+        const [showForm, setShowForm] = useState(false);
+        const [isEditing, setIsEditing] = useState(false);
+        const [isSubmitting, setIsSubmitting] = useState(false);
+        const [searchTerm, setSearchTerm] = useState(''); 
+        const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null, title: '' });
+        
+        const maxLevels = Number(systemSettings?.commission_levels || 6);
+
+        const getInitialFormState = () => {
+          const init = { id: '', name: '', status: 'เข้าใช้งาน', category: 'Promotion', description: '', imageUrl: '', stock: 99999, priceFull: 0, priceMember: 0, pricePromo: 0, givePv: 0, minPvComm: 0, fullMarginAmount: 0, fullMarginCurrency: 'LAK', isBundle: true, baseProduct: '', bundleQty: 1 };
+          init.selfFee = 0;
+          for (let i = 1; i < maxLevels; i++) init[`level${i}Fee`] = 0;
+          init.selfPercentFull = 0; init.selfPercentMember = 0;
+          for (let i = 1; i < maxLevels; i++) { init[`level${i}PercentFull`] = 0; init[`level${i}PercentMember`] = 0; }
+          return init;
+        };
+
+        const [formData, setFormData] = useState(getInitialFormState);
+
+        const handleOpenAdd = () => {
+          setIsEditing(false); 
+          let nextIdNum = 1;
+          const pIds = (products || []).map(p => { 
+            const match = p && p.id && p.id.match(/^PRO(\d+)$/i); 
+            return match ? parseInt(match[1], 10) : 0; 
+          });
+          if (pIds.length > 0) nextIdNum = Math.max(0, ...pIds) + 1;
+          
+          const init = getInitialFormState();
+          init.id = "PRO" + nextIdNum.toString().padStart(3, '0');
+          setFormData(init);
+          setShowForm(true);
+        };
+
+        const handleOpenEdit = (product) => { 
+            setIsEditing(true); 
+            const data = { 
+                ...product, 
+                minPvComm: product.minPvComm || 0, 
+                givePv: product.givePv || 0, 
+                fullMarginAmount: product.fullMarginAmount || 0, 
+                fullMarginCurrency: product.fullMarginCurrency || 'LAK', 
+                isBundle: true, 
+                baseProduct: product.baseProduct || '', 
+                bundleQty: product.bundleQty || 1, 
+                stock: 99999
+            };
+            data.selfFee = product.selfFee || 0;
+            for (let i = 1; i < maxLevels; i++) data[`level${i}Fee`] = product[`level${i}Fee`] !== undefined ? product[`level${i}Fee`] : (i === 1 ? product.directFee : (i === 2 ? product.uplineFee : 0));
+            data.selfPercentFull = product.selfPercentFull || 0; data.selfPercentMember = product.selfPercentMember || 0;
+            for (let i = 1; i < maxLevels; i++) { data[`level${i}PercentFull`] = product[`level${i}PercentFull`] || 0; data[`level${i}PercentMember`] = product[`level${i}PercentMember`] || 0; }
+            setFormData(data);
+            setShowForm(true);
+        };
+
+        const handleSaveProduct = (e) => {
+            e.preventDefault();
+            if (formData.name.trim() === '') { showToast('กรุณาระบุชื่อเซ็ตโปรโมชั่น', 'error'); return; }
+            if (!formData.baseProduct) { showToast('กรุณาเลือกสินค้าหลักที่จะตัดสต๊อก', 'error'); return; }
+            setIsSubmitting(true);
+
+            const dataToSave = {
+               ...formData, stock: 99999, barcode: '', category: formData.category || 'Promotion',
+               priceFull: Number(formData.priceFull || 0), priceMember: Number(formData.priceMember || 0), pricePromo: Number(formData.pricePromo || 0), givePv: Number(formData.givePv || 0), minPvComm: Number(formData.minPvComm || 0), selfFee: Number(formData.selfFee || 0), isBundle: true, baseProduct: formData.baseProduct, bundleQty: Number(formData.bundleQty || 1)
+            };
+            for (let i = 1; i < maxLevels; i++) dataToSave[`level${i}Fee`] = Number(formData[`level${i}Fee`] || 0);
+            dataToSave.selfPercentFull = Number(formData.selfPercentFull || 0); dataToSave.selfPercentMember = Number(formData.selfPercentMember || 0);
+            for (let i = 1; i < maxLevels; i++) { dataToSave[`level${i}PercentFull`] = Number(formData[`level${i}PercentFull`] || 0); dataToSave[`level${i}PercentMember`] = Number(formData[`level${i}PercentMember`] || 0); }
+            dataToSave.directFee = dataToSave.level1Fee; dataToSave.uplineFee = dataToSave.level2Fee;
+
+            if (window.SUPABASE_REST_URL) {
+               const supaData = {
+                   product_id: dataToSave.id, name: dataToSave.name, category: dataToSave.category, status: dataToSave.status, barcode: '', price_full: dataToSave.priceFull, price_member: dataToSave.priceMember, price_promo: dataToSave.pricePromo, current_stock: dataToSave.stock, give_pv: dataToSave.givePv, min_pv_comm: dataToSave.minPvComm, self_fee: dataToSave.selfFee, self_percent_full: dataToSave.selfPercentFull, self_percent_member: dataToSave.selfPercentMember, image_url: dataToSave.imageUrl || '', is_bundle: true, base_product: dataToSave.baseProduct, bundle_qty: dataToSave.bundleQty,
+                   full_margin_amount: dataToSave.fullMarginAmount,
+                   full_margin_currency: dataToSave.fullMarginCurrency
+               };
+               for (let i = 1; i < maxLevels; i++) { supaData[`level_${i}_fee`] = dataToSave[`level${i}Fee`]; supaData[`level_${i}_percent_full`] = dataToSave[`level${i}PercentFull`]; supaData[`level_${i}_percent_member`] = dataToSave[`level${i}PercentMember`]; }
+               
+               const req = isEditing ? supabaseUpdate('stk_products', dataToSave.id, supaData, 'product_id') : supabaseInsert('stk_products', supaData);
+                   
+               req.then(async () => {
+                    if (isEditing) setProducts((products || []).map(p => p && safeUpper(p.id) === safeUpper(dataToSave.id) ? dataToSave : p));
+                    else setProducts([...(products || []), dataToSave]);
+                    setShowForm(false); setIsSubmitting(false); showToast(isEditing ? 'แก้ไขโปรโมชั่นสำเร็จ' : 'เพิ่มโปรโมชั่นสำเร็จ', 'success');
+                }).catch(err => { setIsSubmitting(false); showToast('ข้อผิดพลาด: ' + err.message, 'error'); });
+            }
+        };
+        const executeDelete = () => { 
+             supabaseDelete('stk_products', confirmDelete.id, 'product_id').then(() => { setProducts((products || []).filter(p => p && p.id !== confirmDelete.id)); showToast('ลบสำเร็จ', 'success'); }).catch(err => { showToast('ข้อผิดพลาด: ' + err.message, 'error'); });
+         };
+         const filteredBundles = (products || []).filter(p => p.isBundle).filter(p => (p.id && p.id.toLowerCase().includes(searchTerm.toLowerCase())) || (p.name && p.name.toLowerCase().includes(searchTerm.toLowerCase())));
+         const renderNumberInput = (label, valueKey, colorKey) => {
+             const isPercent = valueKey.toLowerCase().includes("percent");
+             return (
+                 <div key={valueKey} className={`bg-${colorKey}-50 p-3 rounded-xl border border-${colorKey}-100`}>
+                     <label className={`${labelClassHud} text-${colorKey}-800`}>{label}</label>
+                     <input type="text" className={`${inputClassHud} border-${colorKey}-200 focus:border-${colorKey}-500 font-bold text-${colorKey}-700`} value={formData[valueKey] !== undefined && formData[valueKey] !== null ? (isPercent ? formData[valueKey] : Number(formData[valueKey]).toLocaleString()) : ''} onChange={e => {
+                             if (isPercent) { const raw = e.target.value.replace(/[^0-9.]/g, ''); if (raw.split('.').length - 1 <= 1) setFormData({...formData, [valueKey]: raw}); } 
+                             else { const raw = e.target.value.replace(/,/g, '').replace(/[^0-9]/g, ''); setFormData({...formData, [valueKey]: raw ? Number(raw) : 0}); }
+                         }} placeholder="0" />
+                 </div>
+             );
+         };
+         return (
+           <div className="space-y-6 animation-fade-in relative w-full">
+             <ConfirmModal isOpen={confirmDelete.show} onClose={() => setConfirmDelete({show: false, id: null, title: ''})} onConfirm={executeDelete} title="ยืนยันการลบโปรโมชั่น" message={`คุณต้องการลบเซ็ตโปรโมชั่น "${confirmDelete.title}" ใช่หรือไม่?`} />
+              <EditModal isOpen={showForm} onClose={() => setShowForm(false)} title={isEditing ? 'แก้ไขเซ็ตโปรโมชั่น' : 'เพิ่มเซ็ตโปรโมชั่นใหม่'} icon={PackageIcon} maxWidthClass="max-w-4xl">
+                  <form onSubmit={handleSaveProduct} className="space-y-6">
+                    <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-200 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className={`${labelClassHud} text-indigo-700`}>รหัสเซ็ตโปรโมชั่น</label>
+                            <input type="text" disabled className={`${inputClassHud} border-indigo-200 text-indigo-700 bg-white`} value={formData.id} />
+                        </div>
+                        <div>
+                            <label className={`${labelClassHud} text-indigo-700`}>ชื่อเซ็ตโปรโมชั่น *</label>
+                            <input type="text" required className={`${inputClassHud} border-indigo-200 focus:border-indigo-500`} value={formData.name} onChange={e=>setFormData({...formData,name:e.target.value})} placeholder="เช่น โปร SESAMIN 3 กล่อง" />
+                        </div>
+                        <div>
+                            <label className={`${labelClassHud} text-indigo-700`}>ตัดสต๊อกจากสินค้าหลักใด? *</label>
+                            <select required className={`${inputClassHud} border-indigo-200 focus:border-indigo-500`} value={formData.baseProduct} onChange={e=>setFormData({...formData,baseProduct:e.target.value})}>
+                                <option value="">-- เลือกสินค้าหลักที่จะนำมาตัดสต๊อก --</option>
+                                {(products || []).filter(p => !p.isBundle).map(p => (
+                                    <option key={p.id} value={p.name}>{p.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className={`${labelClassHud} text-indigo-700`}>จำนวนที่ต้องตัดต่อ 1 เซ็ต *</label>
+                            <input type="number" min="1" required className={`${inputClassHud} border-indigo-200 focus:border-indigo-500`} value={formData.bundleQty} onChange={e=>setFormData({...formData,bundleQty:parseInt(e.target.value)||1})} />
+                        </div>
+                        <div className="md:col-span-2">
+                             <label className={labelClassHud}>หมวดหมู่การคิดคอมมิชชั่น (ใช้แบบ % หรือ แบบกล่อง)</label>
+                             <select className={inputClassHud} value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
+                                 {(productCategories || []).map(cat => <option key={cat.id || cat.name} value={cat.name}>{cat.name}</option>)}
+                             </select>
+                        </div>
+                    </div>
+                   <div className="pt-4 border-t border-slate-100">
+                       <h4 className="font-bold text-slate-700 mb-3 flex items-center gap-2"><Coins size={18} className="text-blue-500"/> ตั้งค่าราคาและแต้มของเซ็ตนี้</h4>
+                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+                           {renderNumberInput("ราคาเต็ม (บาท)", "priceFull", "slate")}
+                           {renderNumberInput("ราคาสมาชิก (บาท)", "priceMember", "slate")}
+                           {renderNumberInput("ราคาโปร (บาท)", "pricePromo", "slate")}
+                           {renderNumberInput("คะแนน PV (ต่อ 1 เซ็ต)", "givePv", "amber")}
+                           {renderNumberInput("คะแนนปันผลขั้นต่ำ", "minPvComm", "amber")}
+                       </div>
+                   </div>
+                   {(() => {
+                      const selectedCat = productCategories.find(c => c && c.name && c.name.trim().toLowerCase() === String(formData.category || '').trim().toLowerCase());
+                     const commMode = selectedCat?.commissionMode || 'จ่ายตามกล่อง';
+                     if (commMode === 'เปอร์เซ็นต์') {
+                       return (
+                         <div className="pt-4 border-t border-slate-100 space-y-4">
+                           <div>
+                             <h4 className="font-bold text-indigo-700 mb-1 flex items-center gap-2">
+                               <Trophy size={18} className="text-indigo-600"/> ตั้งค่าคอมมิชชั่นเปอร์เซ็นต์ (%) สำหรับ ราคาเต็ม
+                             </h4>
+                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                               {renderNumberInput("ตัวเอง (%)", "selfPercentFull", "indigo")}
+                               {Array.from({ length: maxLevels - 1 }).map((_, idx) => renderNumberInput(`แนะนำชั้นที่ ${idx + 1} (%)`, `level${idx + 1}PercentFull`, "indigo"))}
+                             </div>
+                           </div>
+                         </div>
+                       );
+                     } else {
+                       return (
+                         <div className="pt-4 border-t border-slate-100">
+                           <h4 className="font-bold text-emerald-700 mb-1 flex items-center gap-2">
+                             <Trophy size={18} className="text-emerald-600"/> ตั้งค่าคอมมิชชั่นคงที่ต่อ 1 เซ็ต (หน่วย: กีบ)
+                           </h4>
+                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                             {renderNumberInput("ตัวเอง", "selfFee", "emerald")}
+                             {Array.from({ length: maxLevels - 1 }).map((_, idx) => renderNumberInput(`แนะนำชั้นที่ ${idx + 1}`, `level${idx + 1}Fee`, "emerald"))}
+                           </div>
+                         </div>
+                       );
+                     }
+                   })()}
+                   
+                   <div className="pt-4 border-t border-slate-100 bg-amber-50/60 p-4 rounded-2xl border border-amber-200">
+                        <h4 className="font-bold text-amber-900 mb-1 flex items-center gap-2 text-xs sm:text-sm">
+                            <Trophy size={18} className="text-amber-600"/> 🎁 ตั้งค่าส่วนต่างการขายเฉพาะราคาเต็ม (Retail Margin Bonus)
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="bg-white p-3 rounded-xl border border-amber-200">
+                              <label className={labelClassHud + " text-amber-900 font-bold"}>จำนวนเงินส่วนต่าง</label>
+                              <input 
+                                  type="text" 
+                                  className={inputClassHud + " border-amber-300 focus:border-amber-500 font-bold text-amber-900 text-sm"} 
+                                  value={formData.fullMarginAmount !== undefined && formData.fullMarginAmount !== null ? Number(formData.fullMarginAmount).toLocaleString() : ''} 
+                                  onChange={e => {
+                                      const rawValue = e.target.value.replace(/,/g, '').replace(/[^0-9]/g, '');
+                                      setFormData({...formData, fullMarginAmount: rawValue ? Number(rawValue) : 0});
+                                  }}
+                                  placeholder="0"
+                              />
+                            </div>
+                            <div className="bg-white p-3 rounded-xl border border-amber-200">
+                              <label className={labelClassHud + " text-amber-900 font-bold"}>สกุลเงินที่จ่ายส่วนต่าง</label>
+                              <select 
+                                  className={inputClassHud + " border-amber-300 focus:border-amber-500 font-bold text-amber-900 text-sm"} 
+                                  value={formData.fullMarginCurrency || 'LAK'} 
+                                  onChange={e => setFormData({...formData, fullMarginCurrency: e.target.value})}
+                              >
+                                  <option value="LAK">₭ เงินกีบ (LAK)</option>
+                                  <option value="THB">฿ เงินบาท (THB)</option>
+                              </select>
+                            </div>
+                        </div>
+                    </div>
+
+                   <div className="text-right pt-4 border-t border-slate-100 mt-2 flex justify-end gap-3">
+                       <button type="button" onClick={()=>setShowForm(false)} className={btnClassSecondary}>ยกเลิก</button>
+                       <button type="submit" disabled={isSubmitting} className={btnClassPrimary}>{isSubmitting ? 'กำลังบันทึก...' : 'บันทึกโปรโมชั่น'}</button>
+                   </div>
+                 </form>
+             </EditModal>
+             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+               <h2 className="text-2xl font-bold text-slate-800">จัดการเซ็ตโปรโมชั่น (Combo & Bundles)</h2>
+               <div className="flex w-full sm:w-auto items-center gap-3">
+                  <div className="flex items-center bg-slate-50/30 focus-within:bg-white border border-slate-200 rounded-xl px-3 shadow-sm focus-within:border-blue-500 transition-all duration-300 flex-1 sm:w-72 h-[38px] sm:h-[40px]">
+                     <SearchIcon size={18} className="text-slate-400 shrink-0" />
+                     <input type="text" placeholder="ค้นหารหัส หรือ ชื่อโปรโมชั่น..." className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                  </div>
+                  <button onClick={handleOpenAdd} className={`${btnClassPrimary} shrink-0 bg-indigo-600 hover:bg-indigo-700 border-indigo-600`}><Plus size={18}/> สร้างเซ็ตโปรโมชั่น</button>
+               </div>
+             </div>
+             <div className={`${boxWrapper} p-0 overflow-hidden`}>
+                 <div className="overflow-x-auto">
+                     <table className="w-full text-left min-w-[1000px]">
+                         <thead>
+                             <tr className="bg-indigo-50">
+                                 <th className={tableHeaderClass + " text-indigo-800"}>รหัสโปร</th>
+                                 <th className={tableHeaderClass + " text-indigo-800"}>ชื่อเซ็ตโปรโมชั่น</th>
+                                 <th className={tableHeaderClass + " text-indigo-800"}>ตัดสต๊อกสินค้าหลัก</th>
+                                 <th className={`${tableHeaderClass} text-right text-indigo-800`}>ราคาเต็ม</th>
+                                 <th className={`${tableHeaderClass} text-right text-indigo-800`}>ราคาโปร</th>
+                                 <th className={`${tableHeaderClass} text-right text-indigo-800`}>แต้ม (PV)</th>
+                                 <th className={`${tableHeaderClass} text-indigo-800`}>ค่าแนะนำ (Commissions)</th>
+                                 <th className={`${tableHeaderClass} text-center text-indigo-800`}>จัดการ</th>
+                             </tr>
+                         </thead>
+                         <tbody>
+                         {filteredBundles.map(p=>(
+                             <tr key={p?.id} className="hover:bg-indigo-50/30 transition-colors">
+                                 <td className={tableCellClass + " font-bold text-slate-500"}>{p?.id}</td>
+                                 <td className={`${tableCellClass} text-indigo-700 font-bold`}>{p?.name}</td>
+                                 <td className={tableCellClass}>
+                                    <span className="text-[11px] bg-slate-100 px-2 py-1 rounded border border-slate-200 text-slate-600 font-bold flex items-center gap-1.5 w-fit">
+                                        📦 ตัด "{p?.baseProduct}" จำนวน {p?.bundleQty} กล่อง
+                                    </span>
+                                 </td>
+                                 <td className={`${tableCellClass} text-right font-bold text-slate-700`}>{Number(p?.priceFull || 0).toLocaleString()}</td>
+                                 <td className={`${tableCellClass} text-right font-bold text-slate-700`}>{Number(p?.pricePromo || 0).toLocaleString()}</td>
+                                 <td className={`${tableCellClass} text-right font-black text-amber-600`}>{Number(p?.givePv || 0).toLocaleString()}</td>
+                                 <td className={tableCellClass}>
+                                     {(() => {
+                                          const catObj = productCategories.find(c => c && c.name && c.name.trim().toLowerCase() === String(p?.category || '').trim().toLowerCase());
+                                         const isPct = catObj?.commissionMode === 'เปอร์เซ็นต์';
+                                         if (isPct) return (<div className="text-[11px] font-semibold text-indigo-600">ราคาเต็ม: {p?.selfPercentFull || 0}% &rarr; {p?.level1PercentFull || 0}% ...</div>);
+                                         return (<div className="text-[11px] font-bold text-emerald-600">กล่อง: {Number(p?.selfFee || 0).toLocaleString()} &rarr; {Number(p?.level1Fee || p?.directFee || 0).toLocaleString()} ...</div>);
+                                     })()}
+                                 </td>
+                                 <td className={`${tableCellClass} text-center whitespace-nowrap`}><button onClick={()=>handleOpenEdit(p)} className="text-blue-500 hover:text-blue-700 mx-1 transition-colors bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm"><Edit size={16}/></button>{isAdmin && <button onClick={()=>setConfirmDelete({show: true, id: p.id, title: p.name})} className="text-red-500 hover:text-red-700 transition-colors bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm"><Trash2 size={16}/></button>}</td>
+                             </tr>
+                         ))}
+                         {filteredBundles.length === 0 && <tr><td colSpan="8" className="p-10 text-center text-slate-500 font-bold bg-slate-50/50">ยังไม่มีข้อมูลเซ็ตโปรโมชั่น</td></tr>}
+                         </tbody>
+                     </table>
+                 </div>
+             </div>
+           </div>
+         );
+    };
     const CategoriesManagementView = ({ productCategories, setProductCategories, showToast }) => {
       const [editingId, setEditingId] = useState(null);
       const [editName, setEditName] = useState('');
@@ -2497,6 +2764,7 @@
         { id: 'movement_log', label: '📜 ประวัติการเคลื่อนไหว', icon: null },
         ...(isAdmin ? [
           { id: 'products', label: '📦 จัดการสินค้า', icon: null },
+          { id: 'bundles', label: '🎁 จัดการเซ็ตโปรโมชั่น', icon: null },
           { id: 'categories', label: '🏷️ จัดการหมวดหมู่', icon: null },
           { id: 'commission_settings', label: '💵 ตั้งค่าคอมมิชชั่นสินค้า & ระบบ', icon: null },
           { id: 'margin_settings', label: '💰 ตั้งค่าจ่ายส่วนต่าง', icon: null }
@@ -2544,6 +2812,18 @@
               setSystemSettings={setSystemSettings}
               productCategories={productCategories}
               setProductCategories={setProductCategories}
+            />
+          )}
+          {/* เพิ่มชุดนี้ต่อท้าย ProductsManagementView ทันทีครับ */}
+          {activeTab === 'bundles' && isAdmin && (
+            <BundlesManagementView 
+              products={products} 
+              setProducts={setProducts} 
+              isAdmin={isAdmin} 
+              showToast={showToast} 
+              systemSettings={systemSettings} 
+              setSystemSettings={setSystemSettings}
+              productCategories={productCategories}
             />
           )}
           {activeTab === 'categories' && isAdmin && (
@@ -2632,13 +2912,8 @@
              setSystemSettings(prev => ({ ...prev, ...data.systemSettings }));
           }
           if (Array.isArray(data.products)) {
-             const settingsObj = data.systemSettings || systemSettings || {};
-             const localMarginsStr = settingsObj.product_margins;
-             const localMargins = localMarginsStr ? (typeof localMarginsStr === 'string' ? JSON.parse(localMarginsStr) : localMarginsStr) : {};
-
              const formatted = data.products.map(p => {
                const pId = p.product_id || p.id;
-               const margin = localMargins[pId] || { amount: 0, currency: 'LAK' };
                const mapped = {
                  ...p,
                  id: pId,
@@ -2653,11 +2928,14 @@
                  givePv: Number(p.give_pv ?? p.b2n_give_pv ?? p.givePv ?? 0) || 0,
                  minPvComm: Number(p.min_pv_comm ?? p.minPvComm ?? 0) || 0,
                  imageUrl: p.image_url || p.imageUrl || '',
-                 fullMarginAmount: Number(margin.amount ?? 0),
-                 fullMarginCurrency: margin.currency || 'LAK',
+                 fullMarginAmount: Number(p.full_margin_amount ?? p.fullMarginAmount ?? 0) || 0,
+                 fullMarginCurrency: p.full_margin_currency ?? p.fullMarginCurrency ?? 'LAK',
                  selfFee: Number(p.self_fee ?? p.selfFee ?? 0) || 0,
                  selfPercentFull: Number(p.self_percent_full ?? p.selfPercentFull ?? 0) || 0,
-                 selfPercentMember: Number(p.self_percent_member ?? p.selfPercentMember ?? 0) || 0
+                 selfPercentMember: Number(p.self_percent_member ?? p.selfPercentMember ?? 0) || 0,
+                 isBundle: p.is_bundle || p.isBundle || false,
+                 baseProduct: p.base_product || p.baseProduct || '',
+                 bundleQty: Number(p.bundle_qty || p.bundleQty || 1)
                };
                for (let i = 1; i <= 6; i++) {
                  mapped[`level${i}Fee`] = Number(p[`level_${i}_fee`] !== undefined && p[`level_${i}_fee`] !== null ? p[`level_${i}_fee`] : (p[`level${i}Fee`] || 0)) || 0;

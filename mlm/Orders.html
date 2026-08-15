@@ -80,15 +80,23 @@
     };
 
     const OrdersView = ({ sales, setSales, members, customers, products = [], systemSettings = { exchange_rate: 700 }, isAdmin, showToast, currentUser, closers = [], loading }) => {
+        // ⚡ SPEED FIX: สร้าง Index Map สำหรับหาสินค้าแบบรวดเร็ว (O(1)) เพื่อแก้ปัญหาหน้าจอค้าง
+        const prodMap = useMemo(() => {
+            const m = {};
+            (products || []).forEach(p => {
+                if (p.name) m[p.name] = p;
+                if (p.id) m[p.id] = p;
+            });
+            return m;
+        }, [products]);
+
         const parseSaleCurrencyAmounts = (s, exRate) => {
-            // total_amount ใน DB เก็บเป็น THB เสมอ
             const rawAmt = Number(s.totalAmount || s.total_amount || 0);
             const pModeStr = String(s.payMode || s.pay_mode || s.saleType || s.sale_type || s.payment_method || '').trim();
 
             let lakAmt = 0;
             let thbAmt = 0;
 
-            // === กรณี 1: มีรูปแบบ key:value|key:value เช่น "สด:500 | สดกีบ:350000 | เรท:700" ===
             if (pModeStr.includes(':')) {
                 const parts = pModeStr.split('|');
                 let hasParsedLAK = false;
@@ -99,18 +107,15 @@
                     if (!trimmed.includes(':')) return;
                     const colonIdx = trimmed.indexOf(':');
                     const key = trimmed.substring(0, colonIdx).trim().toLowerCase();
-                    const val = parseFloat(trimmed.substring(colonIdx + 1)) || 0;
+                    const val = parseFloat(trimmed.substring(colonIdx + 1).replace(/,/g, '')) || 0;
 
-                    // ข้าม metadata
                     if (key === 'เรท' || key === 'rate' || key === 'อัตรา') return;
 
-                    // กีบ/LAK
-                    if (key.includes('กีบ') || key.includes('lak') || key === 'สดกีบ' || key.includes('โอนลาวกีบ')) {
+                    if (key.includes('กีบ') || key.includes('lak') || key === 'สดกีบ' || (key.includes('ลาว') && !key.includes('บาท'))) {
                         lakAmt += val;
                         hasParsedLAK = true;
                     }
-                    // บาท/THB
-                    else if (key === 'สด' || key.includes('โอนไทย') || key.includes('โอนลาวบาท') || key.includes('thb') || key.includes('บาท') || key.includes('โอน')) {
+                    else if (key === 'สด' || key.includes('ไทย') || key.includes('บาท') || key.includes('thb') || key.includes('โอน')) {
                         thbAmt += val;
                         hasParsedTHB = true;
                     }
@@ -121,22 +126,15 @@
                 }
             }
 
-            // === กรณี 2: keyword ธรรมดา ===
             const lowerPMode = pModeStr.toLowerCase();
-            const isLakBill = lowerPMode.includes('กีบ')
-                || lowerPMode.includes('lak')
-                || lowerPMode.includes('โอนลาวกีบ')
-                || lowerPMode.includes('สดกีบ')
-                || lowerPMode.includes('โอนลาว');
+            const isLakBill = lowerPMode.includes('กีบ') || lowerPMode.includes('lak') || (lowerPMode.includes('ลาว') && !lowerPMode.includes('บาท'));
 
             if (isLakBill) {
                 let amt = Number(s.total_amount_lak || s.totalAmountLak || 0);
-                // rawAmt เป็น THB → คูณ exchange rate เป็นกีบ
                 if (!amt || amt <= 0) amt = rawAmt * exRate;
                 return { lakAmt: amt, thbAmt: 0, isLakBill: true, isThbBill: false };
             }
 
-            // === Default: ถือเป็นบาท (THB) เสมอ — ห้ามใช้ขนาดตัวเลขตัดสิน ===
             let amt = Number(s.total_amount_thb || s.totalAmountThb || 0);
             if (!amt || amt <= 0) amt = rawAmt;
             return { lakAmt: 0, thbAmt: amt, isLakBill: false, isThbBill: true };
@@ -156,11 +154,9 @@
                 localStorage.setItem('stk_refresh_trigger', String(Date.now()));
             } catch(e) {}
         };
-                const [dbSalesHistory, setDbSalesHistory] = useState([]);
         const [isFetchingHistory, setIsFetchingHistory] = useState(false);
         const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-        // 🔔 Listen to storage and postMessage events to auto-refresh when other tabs edit data
         useEffect(() => {
             const handleStorage = (e) => {
                 if (e.key === 'stk_refresh_trigger') {
@@ -180,7 +176,6 @@
             };
         }, []);
 
-        // ✅ Declare date-related state BEFORE the fetchHistory useEffect so dependency array evaluates correctly
         const isMarketing = currentUser && (
             String(currentUser.role).trim() === 'พนักงานการตลาด' ||
             String(currentUser.role).trim().toLowerCase() === 'marketing'
@@ -189,90 +184,63 @@
         const [historyStartDate, setHistoryStartDate] = useState(todayStr);
         const [historyEndDate, setHistoryEndDate] = useState(todayStr);
 
-        // 🔔 Automatically fetch sales history for the selected date range from Supabase
-        useEffect(() => {
-            let active = true;
-            const fetchHistory = async () => {
-                if (!historyStartDate || !historyEndDate) return;
-                setIsFetchingHistory(true);
-                try {
-                    let query = `date=gte.${historyStartDate}&date=lte.${historyEndDate}&order=order_id.desc&nocache=true`;
-                    if (isMarketing && currentUser) {
-                        const myId = String(currentUser.id || '').toUpperCase();
-                        query += `&seller_id=eq.${myId}`;
-                    }
-                    const res = await supabaseSelect('stk_sales', query);
-                    if (active) {
-                        if (Array.isArray(res)) {
-                            const formatted = res.map(s => {
-                                let sumF = 0, sumP = 0, sumZ = 0, sumM = 0;
-                                let itemsList = [];
-                                if (s.items_json) {
-                                    try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
-                                }
-                                if (Array.isArray(itemsList) && itemsList.length > 0) {
-                                    itemsList.forEach(it => {
-                                        const typeStr = String(it.type || '').trim();
-                                        const qtyNum = Number(it.qty || it.quantity || 1);
-                                        const pName = String(it.prod || it.productName || it.name || 'Unknown').trim();
-                                        s[`${pName}_${typeStr}`] = qtyNum;
-                                        if (typeStr === 'ราคาเต็ม') sumF += qtyNum;
-                                        else if (typeStr === 'ราคาสมาชิก') sumM += qtyNum;
-                                        else if (typeStr === 'ราคาโปร' || typeStr === 'โปรโมชั่น') sumP += qtyNum;
-                                        else if (typeStr === 'ราคาศูนย์') sumZ += qtyNum;
-                                        else sumM += qtyNum;
-                                    });
-                                } else {
-                                    Object.keys(s).forEach(k => {
-                                        if (k !== 'รวมชิ้นราคาเต็ม' && k !== 'รวมชิ้นราคาโปร' && k !== 'รวมชิ้นราคาศูนย์' && k !== 'ยอดรวมชิ้นทั้งหมด') {
-                                            if (k.endsWith('_ราคาเต็ม')) sumF += (parseInt(s[k]) || 0);
-                                            else if (k.endsWith('_ราคาโปร')) sumP += (parseInt(s[k]) || 0);
-                                            else if (k.endsWith('_ราคาศูนย์')) sumZ += (parseInt(s[k]) || 0);
-                                            else if (k.endsWith('_ราคาสมาชิก')) sumM += (parseInt(s[k]) || 0);
-                                        }
-                                    });
-                                }
-                                
-                                const mId = String(s.member_id || s.memberId || s.seller_id || s.sellerId || s.seller || s.marketing_name || s.marketing || '').trim();
-                                const cId = String(s.customer_id || s.customerId || '').trim();
-                                const cName = String(s.customer_name || s.customerName || '').trim();
-                                const recBy = String(s.recorded_by || s.recordedBy || s.recorded || '').trim();
-                                const closerVal = String(s.closer || s.closer_id || s.closerId || '').trim();
-                                
-                                return {
-                                    ...s,
-                                    id: s.id || s.sale_id || s.order_id,
-                                    date: s.date || s.sale_date,
-                                    memberId: mId,
-                                    sellerId: mId,
-                                    customerId: cId,
-                                    customerName: cName,
-                                    customerType: s.customer_type || s.customerType || '',
-                                    saleType: s.sale_type || s.saleType || '',
-                                    paymentNote: s.payment_note || s.paymentNote || '',
-                                    recordedBy: recBy,
-                                    closer: closerVal,
-                                    'รวมชิ้นราคาเต็ม': sumF,
-                                    'รวมชิ้นราคาโปร': sumP,
-                                    'รวมชิ้นราคาศูนย์': sumZ,
-                                    'รวมชิ้นราคาสมาชิก': sumM,
-                                    'ยอดรวมชิ้นทั้งหมด': sumF + sumM + sumP + sumZ
-                                };
-                            });
-                            setDbSalesHistory(formatted);
-                        } else {
-                            setDbSalesHistory([]);
-                        }
-                    }
-                } catch (err) {
-                    console.error("Failed to auto-fetch history:", err);
-                } finally {
-                    if (active) setIsFetchingHistory(false);
+        const dbSalesHistory = useMemo(() => {
+            return (sales || []).map(s => {
+                let sumF = 0, sumP = 0, sumZ = 0, sumM = 0;
+                let itemsList = [];
+                if (s.items_json) {
+                    try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
                 }
-            };
-            fetchHistory();
-            return () => { active = false; };
-        }, [historyStartDate, historyEndDate, refreshTrigger, isMarketing, currentUser]);
+                if (Array.isArray(itemsList) && itemsList.length > 0) {
+                    itemsList.forEach(it => {
+                        const typeStr = String(it.type || '').trim();
+                        const qtyNum = Number(it.qty || it.quantity || 1);
+                        const pName = String(it.prod || it.productName || it.name || 'Unknown').trim();
+                        s[`${pName}_${typeStr}`] = qtyNum;
+                        if (typeStr === 'ราคาเต็ม') sumF += qtyNum;
+                        else if (typeStr === 'ราคาสมาชิก') sumM += qtyNum;
+                        else if (typeStr === 'ราคาโปร' || typeStr === 'โปรโมชั่น') sumP += qtyNum;
+                        else if (typeStr === 'ราคาศูนย์') sumZ += qtyNum;
+                        else sumM += qtyNum;
+                    });
+                } else {
+                    Object.keys(s).forEach(k => {
+                        if (k !== 'รวมชิ้นราคาเต็ม' && k !== 'รวมชิ้นราคาโปร' && k !== 'รวมชิ้นราคาศูนย์' && k !== 'ยอดรวมชิ้นทั้งหมด') {
+                            if (k.endsWith('_ราคาเต็ม')) sumF += (parseInt(s[k]) || 0);
+                            else if (k.endsWith('_ราคาโปร')) sumP += (parseInt(s[k]) || 0);
+                            else if (k.endsWith('_ราคาศูนย์')) sumZ += (parseInt(s[k]) || 0);
+                            else if (k.endsWith('_ราคาสมาชิก')) sumM += (parseInt(s[k]) || 0);
+                        }
+                    });
+                }
+                
+                const mId = String(s.member_id || s.memberId || s.seller_id || s.sellerId || s.seller || s.marketing_name || s.marketing || '').trim();
+                const cId = String(s.customer_id || s.customerId || '').trim();
+                const cName = String(s.customer_name || s.customerName || '').trim();
+                const recBy = String(s.recorded_by || s.recordedBy || s.recorded || '').trim();
+                const closerVal = String(s.closer || s.closer_id || s.closerId || '').trim();
+                
+                return {
+                    ...s,
+                    id: s.id || s.sale_id || s.order_id,
+                    date: s.date || s.sale_date,
+                    memberId: mId,
+                    sellerId: mId,
+                    customerId: cId,
+                    customerName: cName,
+                    customerType: s.customer_type || s.customerType || '',
+                    saleType: s.sale_type || s.saleType || '',
+                    paymentNote: s.payment_note || s.paymentNote || '',
+                    recordedBy: recBy,
+                    closer: closerVal,
+                    'รวมชิ้นราคาเต็ม': sumF,
+                    'รวมชิ้นราคาโปร': sumP,
+                    'รวมชิ้นราคาศูนย์': sumZ,
+                    'รวมชิ้นราคาสมาชิก': sumM,
+                    'ยอดรวมชิ้นทั้งหมด': sumF + sumM + sumP + sumZ
+                };
+            });
+        }, [sales]);
 
         const [salesSearchTerm, setSalesSearchTerm] = useState('');
         const thirtyDaysAgoStr = (() => { const d = new Date(); d.setDate(d.getDate() - 30); const year = d.getFullYear(); const month = String(d.getMonth() + 1).padStart(2, "0"); const day = String(d.getDate()).padStart(2, "0"); return `${year}-${month}-${day}`; })();
@@ -327,21 +295,39 @@
                        const qty = parseInt(it.qty) || 0;
                        if (qty > 0) {
                            const type = it.type || it.priceType || 'ราคาเต็ม';
-                           if (type === 'ราคาเต็ม') rowF += qty;
-                           else if (type === 'ราคาสมาชิก') rowM += qty;
-                           else if (type === 'ราคาโปร') rowP += qty;
-                           else if (type === 'ราคาศูนย์') rowZ += qty;
-                           else rowF += qty;
+                           const pName = String(it.prod || it.productName || it.name || '').trim();
+                           const pObj = prodMap[pName]; 
+                           const multiplier = (pObj && (pObj.isBundle || pObj.is_bundle)) ? (parseInt(pObj.bundleQty || pObj.bundle_qty) || 1) : 1;
+                           const realQty = qty * multiplier; 
+
+                           if (type === 'ราคาเต็ม') rowF += realQty;
+                           else if (type === 'ราคาสมาชิก') rowM += realQty;
+                           else if (type === 'ราคาโปร') rowP += realQty;
+                           else if (type === 'ราคาศูนย์') rowZ += realQty;
+                           else rowF += realQty;
                        }
                    });
                } else {
                    Object.keys(s).forEach(key => {
                        const qty = parseInt(s[key]) || 0;
                        if (qty > 0) {
-                           if (key.endsWith('_ราคาเต็ม') && key !== 'รวมชิ้นราคาเต็ม') rowF += qty;
-                           else if (key.endsWith('_ราคาสมาชิก') && key !== 'รวมชิ้นราคาสมาชิก') rowM += qty;
-                           else if (key.endsWith('_ราคาโปร') && key !== 'รวมชิ้นราคาโปร') rowP += qty;
-                           else if (key.endsWith('_ราคาศูนย์') && key !== 'รวมชิ้นราคาศูนย์') rowZ += qty;
+                           let pName = ''; let type = '';
+                           if (key.endsWith('_ราคาเต็ม') && key !== 'รวมชิ้นราคาเต็ม') { pName = key.replace('_ราคาเต็ม', ''); type = 'ราคาเต็ม'; }
+                           else if (key.endsWith('_ราคาสมาชิก') && key !== 'รวมชิ้นราคาสมาชิก') { pName = key.replace('_ราคาสมาชิก', ''); type = 'ราคาสมาชิก'; }
+                           else if (key.endsWith('_ราคาโปร') && key !== 'รวมชิ้นราคาโปร') { pName = key.replace('_ราคาโปร', ''); type = 'ราคาโปร'; }
+                           else if (key.endsWith('_ราคาศูนย์') && key !== 'รวมชิ้นราคาศูนย์') { pName = key.replace('_ราคาศูนย์', ''); type = 'ราคาศูนย์'; }
+                           
+                           if (pName) {
+                               const cleanProdName = pName.replace(/\(.*?\)/g, '').trim();
+                               const pObj = prodMap[cleanProdName]; 
+                               const multiplier = (pObj && (pObj.isBundle || pObj.is_bundle)) ? (parseInt(pObj.bundleQty || pObj.bundle_qty) || 1) : 1;
+                               const realQty = qty * multiplier;
+
+                               if (type === 'ราคาเต็ม') rowF += realQty;
+                               else if (type === 'ราคาสมาชิก') rowM += realQty;
+                               else if (type === 'ราคาโปร') rowP += realQty;
+                               else if (type === 'ราคาศูนย์') rowZ += realQty;
+                           }
                        }
                    });
                }
@@ -360,7 +346,7 @@
                totalAmountTHB += thbAmt;
             });
             return { totalFull, totalMember, totalPro, totalZero, grandTotal, totalAmountTHB, count: filteredSalesHistory.length };
-        }, [filteredSalesHistory]);
+        }, [filteredSalesHistory, prodMap, systemSettings]);
 
         const totalSalesPages = Math.max(1, Math.ceil(filteredSalesHistory.length / SALES_PER_PAGE));
         const paginatedSalesHistory = useMemo(() => {
@@ -416,29 +402,28 @@
             if (saleTypeStr.includes(':') || saleTypeStr.includes('โอน') || saleTypeStr.includes('|')) {
                 const parts = saleTypeStr.split('|').map(p => p.trim());
                 parts.forEach(p => {
-                    if (p.startsWith('สด:')) cTHB = parseFloat(p.replace('สด:', '').trim()) || 0;
-                    else if (p.startsWith('สดกีบ:')) cLAK = parseFloat(p.replace('สดกีบ:', '').trim()) || 0;
-                    else if (p.match(/^โอนไทย\(([^)]+)\):(.*)$/)) {
-                        const m = p.match(/^โอนไทย\(([^)]+)\):(.*)$/);
-                        bThaiTHB = m[1].trim(); tThaiTHB = parseFloat(m[2].trim()) || 0;
+                    if (!p.includes(':')) return;
+                    const colonIdx = p.indexOf(':');
+                    const key = p.substring(0, colonIdx).trim().toLowerCase();
+                    const val = parseFloat(p.substring(colonIdx + 1).replace(/,/g, '')) || 0;
+
+                    let bank = 'ไม่ระบุ';
+                    const bankMatch = key.match(/\(([^)]+)\)/);
+                    if (bankMatch) bank = bankMatch[1].toUpperCase();
+
+                    if (key === 'เรท' || key === 'rate') {
+                        rate = val || 700;
+                    } else if (key === 'สด') {
+                        cTHB = val;
+                    } else if (key === 'สดกีบ' || key === 'สด (กีบ)' || key === 'สด(กีบ)') {
+                        cLAK = val;
+                    } else if (key.includes('กีบ') || key.includes('lak')) {
+                        bLaosLAK = bank; tLaosLAK = val;
+                    } else if (key.includes('ลาว') && (key.includes('บาท') || key.includes('thb'))) {
+                        bLaosTHB = bank; tLaosTHB = val;
+                    } else if (key.includes('ไทย') || key.includes('โอน')) {
+                        bThaiTHB = bank; tThaiTHB = val;
                     }
-                    else if (p.match(/^โอนลาวบาท\(([^)]+)\):(.*)$/)) {
-                        const m = p.match(/^โอนลาวบาท\(([^)]+)\):(.*)$/);
-                        bLaosTHB = m[1].trim(); tLaosTHB = parseFloat(m[2].trim()) || 0;
-                    }
-                    else if (p.match(/^โอนลาวกีบ\(([^)]+)\):(.*)$/)) {
-                        const m = p.match(/^โอนลาวกีบ\(([^)]+)\):(.*)$/);
-                        bLaosLAK = m[1].trim(); tLaosLAK = parseFloat(m[2].trim()) || 0;
-                    }
-                    else if (p.match(/^โอน\(([^)]+)\):(.*)$/)) {
-                        const m = p.match(/^โอน\(([^)]+)\):(.*)$/);
-                        bThaiTHB = m[1].trim(); tThaiTHB = parseFloat(m[2].trim()) || 0;
-                    }
-                    else if (p.match(/^โอนกีบ\(([^)]+)\):(.*)$/)) {
-                        const m = p.match(/^โอนกีบ\(([^)]+)\):(.*)$/);
-                        bLaosLAK = m[1].trim(); tLaosLAK = parseFloat(m[2].trim()) || 0;
-                    }
-                    else if (p.startsWith('เรท:')) rate = parseFloat(p.replace('เรท:', '').trim()) || 700;
                 });
             } else {
                 const amt = parseFloat(saleRecord.totalAmount || saleRecord.total_amount || 0);
@@ -470,7 +455,9 @@
                     if (qty > 0) {
                         const productName = it.prod || it.productName || it.name || 'สินค้า';
                         const priceType = it.type || it.priceType || 'ราคาเต็ม';
-                        const prodObj = (products || []).find(p => p.name === productName) || {};
+                        const prodObj = prodMap[productName] || {};
+                        const multiplier = (prodObj && (prodObj.isBundle || prodObj.is_bundle)) ? (parseInt(prodObj.bundleQty || prodObj.bundle_qty) || 1) : 1;
+                        
                         let fullPrice = parseFloat(prodObj.priceFull || 0);
 
                         let unitPrice = 0;
@@ -490,10 +477,10 @@
 
                         totalBaseAmount += itemBaseTotal;
                         totalDiscountAmount += itemDiscount;
-                        totalItemQuantity += qty;
+                        totalItemQuantity += (qty * multiplier); 
 
                         items.push({ 
-                            name: productName, priceType, qty, unitPrice, fullPrice, total: itemTotal, discount: itemDiscount
+                            name: productName, priceType, qty, unitPrice, fullPrice, total: itemTotal, discount: itemDiscount, multiplier
                         });
                     }
                 });
@@ -511,7 +498,10 @@
                         else if (key.endsWith('_ราคาศูนย์') && key !== 'รวมชิ้นราคาศูนย์') { productName = key.replace('_ราคาศูนย์', ''); priceType = 'ราคาศูนย์'; }
                         
                         if (productName) {
-                            const prodObj = (products || []).find(p => p.name === productName) || {};
+                            const cleanProdName = productName.replace(/\(.*?\)/g, '').trim();
+                            const prodObj = prodMap[cleanProdName] || {};
+                            const multiplier = (prodObj && (prodObj.isBundle || prodObj.is_bundle)) ? (parseInt(prodObj.bundleQty || prodObj.bundle_qty) || 1) : 1;
+                            
                             let fullPrice = parseFloat(prodObj.priceFull || 0);
 
                             if (priceType === 'ราคาเต็ม') unitPrice = fullPrice;
@@ -528,10 +518,10 @@
 
                             totalBaseAmount += itemBaseTotal;
                             totalDiscountAmount += itemDiscount;
-                            totalItemQuantity += qty;
+                            totalItemQuantity += (qty * multiplier); 
 
                             items.push({ 
-                                name: productName, priceType, qty, unitPrice, fullPrice, total: itemTotal, discount: itemDiscount
+                                name: productName, priceType, qty, unitPrice, fullPrice, total: itemTotal, discount: itemDiscount, multiplier
                             });
                         }
                     }
@@ -551,13 +541,13 @@
                 payMethodLabel = 'เงินโอน';
             }
 
-            breakdownParts.push(`<tr><td colspan="2" style="padding: 4px 0; font-weight: bold; color: #1e3a8a;">ชำระโดย: \${payMethodLabel}</td></tr>`);
+            breakdownParts.push(`<tr><td colspan="2" style="padding: 4px 0; font-weight: bold; color: #1e3a8a;">ชำระโดย: ${payMethodLabel}</td></tr>`);
 
-            if (cTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- เงินสด (THB):</td><td style="padding: 2px 0; text-align: right; font-weight: bold;">฿\${cTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
-            if (cLAK > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- เงินสด (LAK):</td><td style="padding: 2px 0; text-align: right; font-weight: bold;">\${cLAK.toLocaleString()} ₭</td></tr>`);
-            if (tThaiTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนไทย (\${bThaiTHB}):</td><td style="padding: 2px 0; text-align: right; font-weight: bold;">฿\${tThaiTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
-            if (tLaosTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนลาวบาท (\${bLaosTHB}):</td><td style="padding: 2px 0; text-align: right; font-weight: bold;">฿\${tLaosTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
-            if (tLaosLAK > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนลาวกีบ (\${bLaosLAK}):</td><td style="padding: 2px 0; text-align: right; font-weight: bold;">\${tLaosLAK.toLocaleString()} ₭</td></tr>`);
+            if (cTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- เงินสด (THB):</td><td style="padding: 2px 0; text-align: right; font-weight: bold;">฿${cTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
+            if (cLAK > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- เงินสด (LAK):</td><td style="padding: 2px 0; text-align: right; font-weight: bold;">${cLAK.toLocaleString()} ₭</td></tr>`);
+            if (tThaiTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนไทย (${bThaiTHB}):</td><td style="padding: 2px 0; text-align: right; font-weight: bold;">฿${tThaiTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
+            if (tLaosTHB > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนลาวบาท (${bLaosTHB}):</td><td style="padding: 2px 0; text-align: right; font-weight: bold;">฿${tLaosTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
+            if (tLaosLAK > 0) breakdownParts.push(`<tr><td style="padding: 2px 0; padding-left: 8px;">- โอนลาวกีบ (${bLaosLAK}):</td><td style="padding: 2px 0; text-align: right; font-weight: bold;">${tLaosLAK.toLocaleString()} ₭</td></tr>`);
             
             const totalRecordAmt = parseFloat(saleRecord.totalAmount || saleRecord.total_amount || 0);
             if (totalBaseAmount === 0) totalBaseAmount = totalRecordAmt;
@@ -570,7 +560,7 @@
                 const totalPaidLak = cLAK + (cTHB * rate) + (tThaiTHB * rate) + (tLaosTHB * rate) + tLaosLAK;
                 const changeLAK = totalPaidLak - totalLakBill;
                 if (changeLAK > 0.5) {
-                    breakdownParts.push(`<tr><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; font-weight: bold; color: #047857;">เงินทอน (LAK):</td><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; text-align: right; font-weight: bold; color: #047857;">\${Math.round(changeLAK).toLocaleString()} ₭</td></tr>`);
+                    breakdownParts.push(`<tr><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; font-weight: bold; color: #047857;">เงินทอน (LAK):</td><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; text-align: right; font-weight: bold; color: #047857;">${Math.round(changeLAK).toLocaleString()} ₭</td></tr>`);
                 }
             } else {
                 const totalThbBill = Number(saleRecord.total_amount_thb || saleRecord.totalAmountThb || (totalRecordAmt >= 100000 ? totalRecordAmt / rate : totalRecordAmt));
@@ -578,100 +568,56 @@
                 const changeTHB = totalPaidThb - totalThbBill;
                 if (changeTHB > 0.05) {
                     if (cLAK > 0 && cTHB === 0) {
-                        breakdownParts.push(`<tr><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; font-weight: bold; color: #047857;">เงินทอน (LAK):</td><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; text-align: right; font-weight: bold; color: #047857;">\${Math.round(changeTHB * rate).toLocaleString()} ₭</td></tr>`);
+                        breakdownParts.push(`<tr><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; font-weight: bold; color: #047857;">เงินทอน (LAK):</td><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; text-align: right; font-weight: bold; color: #047857;">${Math.round(changeTHB * rate).toLocaleString()} ₭</td></tr>`);
                     } else {
-                        breakdownParts.push(`<tr><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; font-weight: bold; color: #1e3a8a;">เงินทอน (THB):</td><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; text-align: right; font-weight: bold; color: #1e3a8a;">฿\${(Math.round(changeTHB * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
+                        breakdownParts.push(`<tr><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; font-weight: bold; color: #1e3a8a;">เงินทอน (THB):</td><td style="padding: 4px 0; border-top: 1px dashed #cbd5e1; text-align: right; font-weight: bold; color: #1e3a8a;">฿${(Math.round(changeTHB * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>`);
                     }
                 }
             }
             
             if (saleRecord.paymentNote && String(saleRecord.paymentNote).trim() !== String(saleRecord.saleType).trim()) {
-                breakdownParts.push(`<tr><td colspan="2" style="font-size: 10px; color: #b45309; padding-top: 6px; font-weight: 600;">📝 หมายเหตุ: \${saleRecord.paymentNote}</td></tr>`);
+                breakdownParts.push(`<tr><td colspan="2" style="font-size: 10px; color: #b45309; padding-top: 6px; font-weight: 600;">📝 หมายเหตุ: ${saleRecord.paymentNote}</td></tr>`);
             }
             
             const paymentBreakdownHtml = breakdownParts.join('');
 
-            // --- BUILD THE PRINTED HTML ---
-            const printTableRowsHtml = items.map(item => `
+            const printTableRowsHtml = items.map(item => {
+                const qtyDisplay = item.multiplier > 1 
+                    ? `${item.qty} เซ็ต<br><span style="font-size: 10px; color: #3b82f6;">(${item.qty * item.multiplier} กล่อง)</span>`
+                    : `${item.qty}`;
+                
+                return `
                 <tr>
-                  <td><div class="bold" style="color: #0f172a;">${item.name}</div></td>
+                  <td>
+                    <div class="bold" style="color: #0f172a;">${item.name}</div>
+                  </td>
                   ${isMarketing ? '' : `<td style="text-align: right; font-family: monospace;">${item.unitPrice > 0 ? '฿' + item.unitPrice.toLocaleString() : '-'}</td>`}
-                  <td style="text-align: center; font-weight: 700;">${item.qty}</td>
+                  <td style="text-align: center; font-weight: 700;">${qtyDisplay}</td>
                   ${isMarketing ? '' : `<td style="text-align: right; font-weight: 700; font-family: monospace; color: #0f172a;">${item.total > 0 ? '฿' + item.total.toLocaleString() : '฿0'}</td>`}
                 </tr>
-            `).join('');
+            `;
+            }).join('');
 
             let printMetaSectionHtml = '';
             if (!isMarketing) {
-                const pMode = String(saleRecord.payMode || saleRecord.pay_mode || saleRecord.saleType || '').toLowerCase();
                 const exRate = Number(systemSettings?.exchange_rate || rate || 700);
-                const rAmt = Number(saleRecord.totalAmount || saleRecord.total_amount || 0);
-
-                let isLak = pMode.includes('กีบ') || pMode.includes('lak') || pMode.includes('โอนลาว') || pMode.includes('สดกีบ');
-                let isThb = pMode.includes('บาท') || pMode.includes('thb') || pMode.includes('โอนไทย') || pMode.includes('โอนลาวบาท');
-
-                let lakAmt = 0;
-                let thbAmt = 0;
-
-                if (pMode.includes(':')) {
-                    const parts = pMode.split('|');
-                    let hasParsedLAK = false;
-                    let hasParsedTHB = false;
-                    
-                    parts.forEach(part => {
-                        const trimmed = part.trim();
-                        if (trimmed.includes(':')) {
-                            const subParts = trimmed.split(':');
-                            const key = subParts[0].trim();
-                            const val = parseFloat(subParts[1]) || 0;
-                            
-                            if (key.includes('กีบ') || key.includes('lak')) {
-                                lakAmt += val;
-                                hasParsedLAK = true;
-                            } else if (key.includes('สด') || key.includes('โอนไทย') || key.includes('โอนลาวบาท') || key.includes('thb') || key.includes('บาท')) {
-                                thbAmt += val;
-                                hasParsedTHB = true;
-                            }
-                        }
-                    });
-                    
-                    if (hasParsedLAK || hasParsedTHB) {
-                        isLak = lakAmt > 0;
-                        isThb = thbAmt > 0;
-                    }
-                }
-
-                if (lakAmt === 0 && thbAmt === 0) {
-                    if (!isLak && !isThb) {
-                        if (rAmt >= 10000) isLak = true;
-                        else isThb = true;
-                    }
-                    
-                    if (isLak) {
-                        lakAmt = rAmt;
-                        thbAmt = rAmt / exRate;
-                    } else {
-                        thbAmt = rAmt;
-                        lakAmt = rAmt * exRate;
-                    }
-                } else {
-                    if (lakAmt > 0 && thbAmt === 0) {
-                        thbAmt = lakAmt / exRate;
-                    } else if (thbAmt > 0 && lakAmt === 0) {
-                        lakAmt = thbAmt * exRate;
-                    }
-                }
+                const { lakAmt, thbAmt } = parseSaleCurrencyAmounts(saleRecord, exRate);
 
                 let rateHtml = '';
-                if (isLak) {
+                if (lakAmt > 0 && thbAmt > 0) {
                     rateHtml = `
                         <tr class="total-row bold"><td style="padding-top: 4px; font-size: 13px;">ยอดรวมสุทธิ (LAK):</td><td class="text-right" style="padding-top: 4px; font-size: 15px; color: #047857; font-family: monospace;">${Math.round(lakAmt).toLocaleString()} ₭</td></tr>
-                        <tr class="total-row"><td>คิดเป็นเงินบาท (THB):</td><td class="text-right" style="font-weight: 700;">฿${(Math.round(thbAmt * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
+                        <tr class="total-row bold"><td style="padding-top: 4px; font-size: 13px;">ยอดรวมสุทธิ (THB):</td><td class="text-right" style="padding-top: 4px; font-size: 15px; color: #1e3a8a; font-family: monospace;">฿${(Math.round(thbAmt * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
+                    `;
+                } else if (lakAmt > 0) {
+                    const equivalentThb = lakAmt / exRate;
+                    rateHtml = `
+                        <tr><td style="padding-top: 4px; font-size: 11px; color: #64748b;">(ยอดเงินบาท: ฿${(Math.round(equivalentThb * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})})</td><td class="text-right"></td></tr>
+                        <tr class="total-row bold"><td style="font-size: 13px;">ยอดรวมสุทธิ (LAK):</td><td class="text-right" style="font-size: 15px; color: #047857; font-family: monospace;">${Math.round(lakAmt).toLocaleString()} ₭</td></tr>
                     `;
                 } else {
                     rateHtml = `
                         <tr class="total-row bold"><td style="padding-top: 4px; font-size: 13px;">ยอดรวมสุทธิ (THB):</td><td class="text-right" style="padding-top: 4px; font-size: 15px; color: #1e3a8a; font-family: monospace;">฿${(Math.round(thbAmt * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
-                        <tr class="total-row"><td>คิดเป็นเงินกีบ (LAK):</td><td class="text-right" style="font-weight: 700;">${Math.round(lakAmt).toLocaleString()} ₭</td></tr>
                     `;
                 }
 
@@ -695,7 +641,7 @@
             <html>
             <head>
               <meta charset="utf-8">
-              <title>ใบเสร็จรับเงิน Receipt - \${saleRecord.id}</title>
+              <title>ใบเสร็จรับเงิน Receipt - ${saleRecord.id}</title>
               <style>
                 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Sarabun:wght@400;500;600;700;800&display=swap');
                 body { font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', sans-serif; background-color: #f1f5f9; margin: 0; padding: 0; color: #1e293b; }
@@ -745,7 +691,6 @@
                   @page { margin: 0; }
                 }
                 
-                /* Force global font-family styling to override Tailwind default sans stack */
                 body, button, input, select, textarea, .font-sans, [class*="font-"] {
                     font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif !important;
                 }
@@ -771,44 +716,41 @@
                   </div>
                   <div class="divider"></div>
                   <table class="meta-table">
-                    <tr><td class="bold" style="width: 38%;">เลขที่บิล:</td><td style="width: 62%; font-weight: 700; color: #0f172a;">\${saleRecord.id}</td></tr>
-                    <tr><td class="bold">วันที่:</td><td>\${formatDbDateForFilter(saleRecord.date)}</td></tr>
-                    <tr><td class="bold">ลูกค้า:</td><td>\${cleanCustName ? \`\${cleanCustName} (\${saleRecord.customerId || '-'})\` : (saleRecord.customerId || '-')}</td></tr>
-                    <tr><td class="bold">ผู้ขาย (เคส):</td><td>\${mName}</td></tr>
-                    <tr><td class="bold">ผู้ปิดการขาย:</td><td>\${cleanCloserName}</td></tr>
-                    <tr><td class="bold">พนักงานบันทึก:</td><td>\${saleRecord.recordedBy || '-'}</td></tr>
+                    <tr><td class="bold" style="width: 38%;">เลขที่บิล:</td><td style="width: 62%; font-weight: 700; color: #0f172a;">${saleRecord.id}</td></tr>
+                    <tr><td class="bold">วันที่:</td><td>${formatDbDateForFilter(saleRecord.date)}</td></tr>
+                    <tr><td class="bold">ลูกค้า:</td><td>${cleanCustName ? `${cleanCustName} (${saleRecord.customerId || '-'})` : (saleRecord.customerId || '-')}</td></tr>
+                    <tr><td class="bold">ผู้ขาย (เคส):</td><td>${mName}</td></tr>
+                    <tr><td class="bold">ผู้ปิดการขาย:</td><td>${cleanCloserName}</td></tr>
+                    <tr><td class="bold">พนักงานบันทึก:</td><td>${saleRecord.recordedBy || '-'}</td></tr>
                   </table>
                   <div class="divider"></div>
                   <table class="items-table">
                     <thead>
                       <tr>
-                        <th style="width: \${isMarketing ? '80%' : '45%'};">รายการสินค้า</th>
-                        \${isMarketing ? '' : '<th style="width: 20%; text-align: right;">ราคา/หน่วย</th>'}
+                        <th style="width: ${isMarketing ? '80%' : '45%'};">รายการสินค้า</th>
+                        ${isMarketing ? '' : '<th style="width: 20%; text-align: right;">ราคา/หน่วย</th>'}
                         <th style="width: 20%; text-align: center;">จำนวน</th>
-                        \${isMarketing ? '' : '<th style="width: 20%; text-align: right;">รวมเงิน</th>'}
+                        ${isMarketing ? '' : '<th style="width: 20%; text-align: right;">รวมเงิน</th>'}
                       </tr>
                     </thead>
                     <tbody>
-                      \${printTableRowsHtml}
+                      ${printTableRowsHtml}
                     </tbody>
                     <tfoot>
                       <tr>
-                        <td colspan="\${isMarketing ? 1 : 2}" style="text-align: right; font-weight: 700; padding-top: 8px; border-top: 2px solid #0f172a;">รวมจำนวนทั้งหมด:</td>
-                        <td style="text-align: center; font-weight: 800; padding-top: 8px; border-top: 2px solid #0f172a; color: #1e3a8a;">\${totalItemQuantity}</td>
-                        \${isMarketing ? '' : '<td style="border-top: 2px solid #0f172a;"></td>'}
+                        <td colspan="${isMarketing ? 1 : 2}" style="text-align: right; font-weight: 700; padding-top: 8px; border-top: 2px solid #0f172a;">รวมจำนวนทั้งหมด:</td>
+                        <td style="text-align: center; font-weight: 800; padding-top: 8px; border-top: 2px solid #0f172a; color: #1e3a8a;">${totalItemQuantity}</td>
+                        ${isMarketing ? '' : '<td style="border-top: 2px solid #0f172a;"></td>'}
                       </tr>
                     </tfoot>
                   </table>
-                  \${printMetaSectionHtml}
+                  ${printMetaSectionHtml}
                   
                   <div class="signatures">
                       <div class="sig-box"><div class="sig-line"></div>ลายเซ็นลูกค้า</div>
                       <div class="sig-box"><div class="sig-line"></div>ผู้จ่ายสินค้า/ยา</div>
                       <div class="sig-box"><div class="sig-line"></div>พนักงานแคชเชียร์</div>
                   </div>
-                  \${saleRecord.paymentNote && String(saleRecord.paymentNote).trim() !== '' ? \`
-                    <div style="font-size: 10px; color: #b45309; margin-top: 10px; font-weight: 600; text-align: left; border-top: 1px dashed #cbd5e1; padding-top: 6px;">📝 หมายเหตุ: \${saleRecord.paymentNote}</div>
-                  \` : ''}
                   <div class="text-center" style="font-size: 11px; margin-top: 20px; color: #475569;"><p class="bold" style="color: #0f172a; margin:0;">ขอบพระคุณที่อุดหนุน LOVE STK GROUPE</p></div>
                 </div>
               </div>
@@ -841,79 +783,124 @@
         const executeDeleteSale = async () => {
             if (!confirmDelete.id) return;
             try {
-                // Find the sale record to return stock
                 const saleToCancel = dbSalesHistory.find(s => s.id === confirmDelete.id) || sales.find(s => s.id === confirmDelete.id);
                 if (saleToCancel) {
+                    
+                    // 1. รวบรวมรายการสินค้าทั้งหมด (รองรับทั้งบิลใหม่ items_json และบิลเก่า)
                     let itemsList = [];
                     if (saleToCancel.items_json) {
                         try {
                             itemsList = typeof saleToCancel.items_json === 'string' ? JSON.parse(saleToCancel.items_json) : saleToCancel.items_json;
                         } catch(e) {}
                     }
-                    if (Array.isArray(itemsList)) {
-                        // Fetch current products list to calculate new stocks
+                    
+                    if (!Array.isArray(itemsList) || itemsList.length === 0) {
+                        Object.keys(saleToCancel).forEach(key => {
+                            const qty = parseInt(saleToCancel[key]) || 0;
+                            if (qty > 0) {
+                                // ⚡ ตัดวงเล็บทิ้งให้เหมือนตอนบันทึกบิล จะได้ค้นหาสินค้าเจอ
+                                const cleanProdName = (raw) => raw.replace(/\(.*?\)/g, '').trim();
+                                if (key.endsWith('_ราคาเต็ม') && key !== 'รวมชิ้นราคาเต็ม') itemsList.push({prod: cleanProdName(key.replace('_ราคาเต็ม', '')), qty});
+                                else if (key.endsWith('_ราคาสมาชิก') && key !== 'รวมชิ้นราคาสมาชิก') itemsList.push({prod: cleanProdName(key.replace('_ราคาสมาชิก', '')), qty});
+                                else if (key.endsWith('_ราคาโปร') && key !== 'รวมชิ้นราคาโปร') itemsList.push({prod: cleanProdName(key.replace('_ราคาโปร', '')), qty});
+                                else if (key.endsWith('_ราคาศูนย์') && key !== 'รวมชิ้นราคาศูนย์') itemsList.push({prod: cleanProdName(key.replace('_ราคาศูนย์', ''), qty)});
+                            }
+                        });
+                    }
+
+                    if (itemsList.length > 0) {
+                        // 2. ยุบรวมสินค้าชื่อเดียวกันเข้าด้วยกันก่อน เพื่อป้องกันการอัปเดตทับซ้อน (Race Condition)
+                        const aggregatedItems = {};
+                        itemsList.forEach(it => {
+                            const qty = parseInt(it.qty) || parseInt(it.quantity) || 0;
+                            if (qty > 0) {
+                                const pName = String(it.prod || it.productName || it.name || '').trim();
+                                if (pName) {
+                                    aggregatedItems[pName] = (aggregatedItems[pName] || 0) + qty;
+                                }
+                            }
+                        });
+
+                        // 3. เริ่มกระบวนการคืนสต็อก
                         let currentProducts = [];
                         if (typeof supabaseSelect === 'function') {
                             currentProducts = await supabaseSelect('stk_products').catch(() => []) || [];
                         }
                         
-                        for (const it of itemsList) {
-                            const qty = parseInt(it.qty) || 0;
-                            if (qty > 0) {
-                                const pName = String(it.prod || it.productName || it.name || '').trim();
-                                // Find product to get current stock
-                                const pInfo = currentProducts.find(p => {
-                                    const pNameFromDB = String(p.name || p.product_name || '').trim();
-                                    const pIdFromDB = String(p.id || p.product_id || '').trim();
-                                    return pNameFromDB === pName || pIdFromDB === pName || (it.id && p.id === it.id) || (it.product_id && p.product_id === it.product_id);
-                                });
-                                if (pInfo) {
-                                    const realProductId = pInfo.product_id || pInfo.id;
-                                    const currentStock = parseInt(pInfo.current_stock || pInfo.stock) || 0;
-                                    const newStock = currentStock + qty;
-                                    
-                                    // 1. Return stock to stk_products
-                                    if (typeof supabaseUpdate === 'function' && realProductId) {
-                                        await supabaseUpdate('stk_products', realProductId, { current_stock: newStock }, 'product_id').catch(() => {});
-                                        await supabaseUpdate('products', realProductId, { stock: newStock }).catch(() => {});
+                        // 4. ⚡ แปลงจาก "เซ็ตโปรโมชั่น" กลับเป็น "สินค้าหลัก"
+                        const inQtyMap = {};
+                        for (const pName of Object.keys(aggregatedItems)) {
+                            const qty = aggregatedItems[pName];
+                            
+                            const pInfo = currentProducts.find(p => {
+                                const pNameFromDB = String(p.name || p.product_name || '').trim();
+                                const pIdFromDB = String(p.id || p.product_id || '').trim();
+                                return pNameFromDB === pName || pIdFromDB === pName;
+                            });
+
+                            if (pInfo) {
+                                if (pInfo.is_bundle || pInfo.isBundle) {
+                                    // ถ้าเป็นเซ็ต ให้ไปเพิ่มสต๊อกสินค้าหลักแทน
+                                    const basePName = String(pInfo.base_product || pInfo.baseProduct || '').trim();
+                                    const baseP = currentProducts.find(bp => {
+                                        const bpName = String(bp.name || bp.product_name || '').trim();
+                                        return bpName === basePName;
+                                    });
+                                    if (baseP) {
+                                        const multiplier = parseInt(pInfo.bundle_qty || pInfo.bundleQty) || 1;
+                                        const baseId = baseP.product_id || baseP.id;
+                                        inQtyMap[baseId] = (inQtyMap[baseId] || 0) + (qty * multiplier);
                                     }
-                                    
-                                    // 2. Insert into stk_stock_movements
-                                    if (typeof supabaseInsert === 'function' && realProductId) {
-                                        await supabaseInsert('stk_stock_movements', {
-                                            movement_id: 'MOV-' + Date.now() + '-' + Math.floor(Math.random()*1000),
-                                            product_id: realProductId,
-                                            type: 'IN',
-                                            sub_type: 'ยกเลิกบิล',
-                                            quantity: qty,
-                                            lot_id: confirmDelete.id || '',
-                                            notes: 'Cancel order ' + (confirmDelete.id || ''),
-                                            created_by: currentUser ? (currentUser.name || currentUser.username || 'Admin') : 'Admin',
-                                            date: getLocalISODate()
-                                        }).catch(() => {});
-                                    }
+                                } else {
+                                    // ถ้าเป็นสินค้าปกติ
+                                    const pId = pInfo.product_id || pInfo.id;
+                                    inQtyMap[pId] = (inQtyMap[pId] || 0) + qty;
+                                }
+                            }
+                        }
+
+                        // 5. ดำเนินการอัปเดตสต๊อกคืนเข้าฐานข้อมูล
+                        for (const pid of Object.keys(inQtyMap)) {
+                            const totalQtyToReturn = inQtyMap[pid];
+                            const pInfo = currentProducts.find(p => (p.product_id || p.id) === pid);
+
+                            if (pInfo && totalQtyToReturn > 0) {
+                                const realProductId = pInfo.product_id || pInfo.id;
+                                const currentStock = parseInt(pInfo.current_stock || pInfo.stock) || 0;
+                                const newStock = currentStock + totalQtyToReturn;
+                                
+                                if (typeof supabaseUpdate === 'function' && realProductId) {
+                                    await supabaseUpdate('stk_products', realProductId, { current_stock: newStock }, 'product_id').catch(() => {});
+                                    await supabaseUpdate('products', realProductId, { stock: newStock }).catch(() => {});
+                                }
+                                
+                                if (typeof supabaseInsert === 'function' && realProductId) {
+                                    await supabaseInsert('stk_stock_movements', {
+                                        movement_id: 'MOV-IN-' + Date.now() + '-' + Math.floor(Math.random()*1000),
+                                        product_id: realProductId,
+                                        type: 'IN',
+                                        sub_type: 'คืนสต๊อกจากการลบบิล',
+                                        quantity: totalQtyToReturn,
+                                        lot_id: confirmDelete.id || '',
+                                        notes: 'Cancel order ' + (confirmDelete.id || ''),
+                                        created_by: currentUser ? (currentUser.name || currentUser.username || 'Admin') : 'Admin',
+                                        date: typeof getLocalISODate === 'function' ? getLocalISODate() : new Date().toISOString().split('T')[0]
+                                    }).catch(() => {});
                                 }
                             }
                         }
                     }
                 }
 
-                // Delete sale records
-                await supabaseDelete('stk_sales', confirmDelete.id, 'order_id');
+                await supabaseDelete('stk_sales', confirmDelete.id, 'order_id').catch(()=>{});
                 await supabaseDelete('sales', confirmDelete.id, 'order_id').catch(() => {});
                 
-                // Also delete customer associated with this sale only if they have no other bills in the system and they were created as a 'ลูกค้าใหม่' (New Customer)
                 if (saleToCancel && (saleToCancel.customerId || saleToCancel.customer_id || saleToCancel.customer)) {
                     const custId = saleToCancel.customerId || saleToCancel.customer_id || saleToCancel.customer;
                     const custType = String(saleToCancel.customerType || saleToCancel.customer_type || '').trim();
-                    
-                    // Determine if this is an "Old Customer" type
-                    // In Sales.html, old customer types typically contain "เก่า" or "เดิม".
-                    // If the type does NOT contain "เก่า", "เดิม", "ต่อยา", or "เคสเดิม" then it is considered a New Customer type.
                     const isOldCustType = custType.includes('เก่า') || custType.includes('เดิม') || custType.includes('ต่อยา') || custType.includes('เคสเดิม');
                     
                     if (!isOldCustType) {
-                        // Check if this customer has any other sales records in Supabase
                         let otherSales = [];
                         try {
                             otherSales = await supabaseSelect('stk_sales', `customer_id=eq.${custId}&select=order_id`);
@@ -929,7 +916,7 @@
 
                 triggerGlobalRefresh();
                 setSales(prev => prev.filter(s => s.id !== confirmDelete.id));
-                showToast('ลบบิลเรียบร้อยแล้ว และคืนสต็อกสินค้าเรียบร้อย', 'success');
+                showToast('ลบบิลเรียบร้อยแล้ว และคืนสต๊อกสินค้าเรียบร้อย', 'success');
             } catch(e) {
                 showToast('เกิดข้อผิดพลาดในการลบ: ' + e.message, 'error');
             } finally {
@@ -940,7 +927,6 @@
         const renderRecordCells = (record) => {
             let fullItems = []; let memberItems = []; let proItems = []; let zeroItems = [];
             
-            // 1. Try parsing items_json first
             let itemsList = [];
             if (record.items_json) {
                 try {
@@ -962,7 +948,6 @@
                     }
                 });
             } else {
-                // 2. Fallback to legacy column properties
                 Object.keys(record).forEach(key => {
                     const qty = parseInt(record[key]) || 0;
                     if (qty > 0) {
@@ -975,17 +960,20 @@
                 });
             }
 
+            const calculatedQty = [...fullItems, ...memberItems, ...proItems, ...zeroItems].reduce((sum, item) => {
+                const pObj = prodMap[item.name] || {};
+                const multiplier = (pObj && (pObj.isBundle || pObj.is_bundle)) ? (parseInt(pObj.bundleQty || pObj.bundle_qty) || 1) : 1;
+                return sum + (item.qty * multiplier);
+            }, 0);
+            
             const recordedBottles = parseInt(record.total_bottles || record.totalBottles) || 0;
-            const calculatedQty = [...fullItems, ...memberItems, ...proItems, ...zeroItems].reduce((sum, item) => sum + item.qty, 0);
             const totalQtyInRow = calculatedQty > 0 ? calculatedQty : recordedBottles;
 
             const exchangeRate = Number(systemSettings?.exchange_rate || 700);
-            const { lakAmt: rLakAmt, thbAmt: rThbAmt, isLakBill } = parseSaleCurrencyAmounts(record, exchangeRate);
+            const { lakAmt: rLakAmt, thbAmt: rThbAmt } = parseSaleCurrencyAmounts(record, exchangeRate);
 
-            // แสดงยอดถูกสกุลเงิน: กีบ หรือ บาท หรือทั้งคู่
             let formattedVal;
             if (rLakAmt > 0 && rThbAmt > 0) {
-                // จ่ายทั้ง 2 สกุล
                 formattedVal = `${Math.round(rLakAmt).toLocaleString()} ₭ + ฿${rThbAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
             } else if (rLakAmt > 0) {
                 formattedVal = `${Math.round(rLakAmt).toLocaleString()} ₭`;
@@ -993,17 +981,25 @@
                 formattedVal = `฿${(rThbAmt % 1 === 0 ? rThbAmt.toLocaleString() : rThbAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}))}`;
             }
 
-
             const renderList = (items, textClass) => {
                 if(items.length === 0) return <span className="text-slate-300 text-xs text-center block">-</span>;
                 return (
                     <div className="flex flex-col gap-1 w-full">
-                        {items.map((it, i) => (
-                            <div key={i} className="flex justify-between items-center text-[11px] bg-white px-2.5 py-1 rounded-xl shadow-xs border border-slate-100">
-                                <span className="font-bold text-slate-700 truncate mr-2" title={it.name}>{it.name}</span>
-                                <span className={`font-black ${textClass}`}>x{it.qty}</span>
-                            </div>
-                        ))}
+                        {items.map((it, i) => {
+                            const pObj = prodMap[it.name] || {};
+                            const isBundle = pObj && (pObj.isBundle || pObj.is_bundle);
+                            const multiplier = isBundle ? (parseInt(pObj.bundleQty || pObj.bundle_qty) || 1) : 1;
+                            const unitLabel = isBundle ? 'เซ็ต' : 'กล่อง';
+                            
+                            return (
+                                <div key={i} className="flex justify-between items-center text-[11px] bg-white px-2.5 py-1 rounded-xl shadow-xs border border-slate-100">
+                                    <span className="font-bold text-slate-700 truncate mr-2" title={it.name}>
+                                        {it.name} {isBundle && multiplier > 1 ? <span className="text-[10px] text-blue-500 font-bold ml-1">({multiplier * it.qty} กล่อง)</span> : ''}
+                                    </span>
+                                    <span className={`font-black ${textClass}`}>x{it.qty} {unitLabel}</span>
+                                </div>
+                            );
+                        })}
                     </div>
                 );
             };
@@ -1017,7 +1013,7 @@
                   <td className="p-4 align-middle text-center border-l border-blue-200 bg-blue-50/40 min-w-[200px]">
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">รวมทั้งหมด</div>
                     <div className="font-black text-3xl text-blue-700 drop-shadow-xs leading-none">
-                        {totalQtyInRow.toLocaleString()} <span className="text-[13px] font-bold text-blue-500">ชิ้น</span>
+                        {totalQtyInRow.toLocaleString()} <span className="text-[13px] font-bold text-blue-500">กล่อง</span>
                     </div>
                     {!isMarketing && (
                         <div className="text-[11px] font-black text-emerald-700 mt-2 bg-white py-1.5 px-2.5 rounded-xl border border-emerald-200 shadow-xs whitespace-nowrap inline-block">
@@ -1032,7 +1028,6 @@
           <div className="w-full flex flex-col gap-6 animation-fade-in">
              <ConfirmModal isOpen={confirmDelete.show} onClose={() => setConfirmDelete({show: false, id: null, title: ''})} onConfirm={executeDeleteSale} title="ยืนยันการลบประวัติการขาย" message={'คุณต้องการลบข้อมูลบิล "' + confirmDelete.title + '" ใช่หรือไม่? (ไม่สามารถกู้คืนได้)'} />
 
-             {/* Modal รายละเอียดบิล */}
              <EditModal isOpen={viewBillDetail !== null} onClose={() => setViewBillDetail(null)} title={'รายละเอียดบิล ' + (viewBillDetail?.id || '')} icon={FileText} maxWidthClass="max-w-2xl">
                 {viewBillDetail && (
                     <div className="flex flex-col gap-5 p-2">
@@ -1057,40 +1052,64 @@
                                                const st = viewBillDetail.saleType || '';
                                                if (st.includes('|') || st.includes(':')) {
                                                    return st.split('|').map((part, pIdx) => {
-                                                       let pTrim = part.trim();
-                                                       if (pTrim.startsWith('สด:')) pTrim = `เงินสด (THB): ฿${Number(pTrim.replace('สด:', '')).toLocaleString()}`;
-                                                       else if (pTrim.startsWith('สดกีบ:')) pTrim = `เงินสด (LAK): ${Number(pTrim.replace('สดกีบ:', '')).toLocaleString()} ₭`;
-                                                       else if (pTrim.startsWith('โอนลาวบาท')) pTrim = pTrim.replace('โอนลาวบาท', 'โอนลาว (บาท)');
-                                                       else if (pTrim.startsWith('โอนลาวกีบ')) pTrim = pTrim.replace('โอนลาวกีบ', 'โอนลาว (กีบ)');
-                                                       else if (pTrim.startsWith('โอนไทย')) pTrim = pTrim.replace('โอนไทย', 'โอนไทย (บาท)');
+                                                       const pTrim = part.trim();
+                                                       if (pTrim.includes(':')) {
+                                                           const colonIdx = pTrim.lastIndexOf(':');
+                                                           let label = pTrim.substring(0, colonIdx).trim();
+                                                           const valStr = pTrim.substring(colonIdx + 1).trim();
+                                                           const val = Number(valStr.replace(/,/g, '')) || 0;
+                                                           
+                                                           if (label.startsWith('เรท')) {
+                                                               return <div key={pIdx} className="text-slate-400 font-normal text-[10px] mt-0.5">{label}: {val.toLocaleString()}</div>;
+                                                           }
+                                                           
+                                                           if (label === 'สด') label = 'เงินสด (THB)';
+                                                           else if (label === 'สดกีบ') label = 'เงินสด (LAK)';
+                                                           else if (label.startsWith('โอนลาวบาท')) label = label.replace('โอนลาวบาท', 'โอนลาว (บาท)');
+                                                           else if (label.startsWith('โอนลาวกีบ')) label = label.replace('โอนลาวกีบ', 'โอนลาว (กีบ)');
+                                                           else if (label.startsWith('โอนไทย')) label = label.replace('โอนไทย', 'โอนไทย (บาท)');
+                                                           
+                                                           const isLak = label.includes('กีบ') || label.includes('LAK') || label.includes('lak') || (label.includes('ลาว') && !label.includes('บาท'));
+                                                           const formattedVal = val.toLocaleString();
+                                                           return <div key={pIdx}>{label}: {isLak ? `${formattedVal} ₭` : `฿${formattedVal}`}</div>;
+                                                       }
                                                        return <div key={pIdx}>{pTrim}</div>;
-                                                   });
+                                                   }).filter(Boolean);
                                                }
                                                return viewBillDetail.saleType || 'ไม่ระบุ';
                                            })()}
                                        </div>
                                    </div>
-                                   <div className="flex justify-between border-t border-slate-200/60 pt-2">
+                                   <div className="flex justify-between border-t border-slate-200/60 pt-2 mt-2">
                                        <span className="text-slate-500">ยอดรวมสุทธิ:</span>
-                                       <span className="font-black text-blue-700 text-sm">
+                                       <div className="font-black text-blue-700 text-sm flex flex-col items-end">
                                             {(() => {
-                                                    let vAmt = Number(viewBillDetail.total_amount || viewBillDetail.totalAmount || viewBillDetail.amount || 0);
-                                                    let vMode = String(viewBillDetail.payment_mode || viewBillDetail.paymentMode || '').toLowerCase();
-                                                    let vIsLak = vMode.includes('กีบ') || vMode.includes('lak') || vMode.includes('laos') || vMode.includes('ลาว');
-                                                    let vIsThb = vMode.includes('บาท') || vMode.includes('thb') || vMode.includes('thai') || vMode.includes('ไทย');
-                                                    if (!vIsLak && !vIsThb) vIsLak = vAmt >= 10000;
-                                                    
-                                                    if (vIsLak) return `${Math.round(vAmt).toLocaleString()} ₭`;
-                                                    return `฿${(vAmt % 1 === 0 ? vAmt.toLocaleString() : vAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}))}`;
-                                                })()}
-                                       </span>
+                                                const exRate = Number(systemSettings?.exchange_rate || 700);
+                                                const { lakAmt, thbAmt } = parseSaleCurrencyAmounts(viewBillDetail, exRate);
+                                                
+                                                if (lakAmt > 0 && thbAmt > 0) {
+                                                    return <span>{Math.round(lakAmt).toLocaleString()} ₭ + ฿{thbAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>;
+                                                } else if (lakAmt > 0) {
+                                                    const equivalentThb = lakAmt / exRate;
+                                                    return (
+                                                        <React.Fragment>
+                                                            <span className="text-[10px] text-slate-400 font-bold mb-0.5 tracking-wide">
+                                                                (ยอดเงินบาท: ฿{equivalentThb.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})})
+                                                            </span>
+                                                            <span className="text-base text-emerald-600">{Math.round(lakAmt).toLocaleString()} ₭</span>
+                                                        </React.Fragment>
+                                                    );
+                                                } else {
+                                                    return <span>฿{(thbAmt % 1 === 0 ? thbAmt.toLocaleString() : thbAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}))}</span>;
+                                                }
+                                            })()}
+                                       </div>
                                    </div>
                                </React.Fragment>
                            )}
                            {viewBillDetail.paymentNote && viewBillDetail.paymentNote !== viewBillDetail.saleType && <div className="text-amber-700 bg-amber-50 p-2 rounded-xl border border-amber-200 mt-2 whitespace-pre-line">📝 {viewBillDetail.paymentNote}</div>}
                         </div>
 
-                        {/* รายการสินค้าในบิล */}
                         <div className="bg-white rounded-2xl border border-slate-200 p-3 space-y-2">
                            <span className="text-xs font-black text-slate-700 block mb-1">🛒 รายการสินค้าในบิล:</span>
                            {(() => {
@@ -1112,13 +1131,24 @@
                               if (isMarketing) {
                                   items = items.filter(it => it.type === 'ราคาเต็ม' || it.type === 'ราคาสมาชิก');
                               }
-                              if (items.length === 0) return <div className="text-xs text-slate-400 font-bold p-2 text-center">ไม่มีข้อมูลรายการสินค้าช่อย่อย (บันทึก {viewBillDetail.total_bottles || 0} ชิ้น)</div>;
-                              return items.map((it, idx) => (
-                                 <div key={idx} className="flex justify-between items-center bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100 text-xs font-bold">
-                                    <span className="text-slate-800">{it.prod || it.productName} <span className="text-[10px] text-blue-600 font-normal">({it.type || it.priceType})</span></span>
-                                    <span className="text-blue-700 font-black">x{it.qty}</span>
-                                 </div>
-                              ));
+                              if (items.length === 0) return <div className="text-xs text-slate-400 font-bold p-2 text-center">ไม่มีข้อมูลรายการสินค้าช่อย่อย</div>;
+                              return items.map((it, idx) => {
+                                 const pName = it.prod || it.productName;
+                                 const pObj = prodMap[pName] || {};
+                                 const isBundle = pObj && (pObj.isBundle || pObj.is_bundle);
+                                 const multiplier = isBundle ? (parseInt(pObj.bundleQty || pObj.bundle_qty) || 1) : 1;
+                                 const unitLabel = isBundle ? 'เซ็ต' : 'กล่อง';
+                                 
+                                 return (
+                                     <div key={idx} className="flex justify-between items-center bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100 text-xs font-bold">
+                                        <span className="text-slate-800">
+                                            {pName} <span className="text-[10px] text-blue-600 font-normal">({it.type || it.priceType})</span>
+                                            {isBundle && multiplier > 1 && <span className="text-[10px] text-blue-500 font-bold ml-1">({multiplier * it.qty} กล่อง)</span>}
+                                        </span>
+                                        <span className="text-blue-700 font-black">x{it.qty} {unitLabel}</span>
+                                     </div>
+                                 );
+                              });
                            })()}
                         </div>
 
@@ -1130,7 +1160,6 @@
                 )}
              </EditModal>
 
-             {/* Header */}
              <div className="bg-white p-6 rounded-3xl shadow-xs border border-slate-200/80 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                    <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
@@ -1145,7 +1174,6 @@
                  )}
              </div>
 
-             {/* Main Card */}
              <div className="bg-white p-6 sm:p-7 rounded-3xl shadow-xs border border-slate-200/80 w-full">
                 <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-6 border-b border-slate-100 pb-4">
                    <div className="flex items-center gap-2">
@@ -1174,10 +1202,10 @@
                      <thead className="bg-slate-50/90 border-b border-slate-200">
                        <tr>
                          <th className="p-3.5 text-xs font-black text-slate-700 uppercase tracking-wider">ข้อมูลบิล / ลูกค้า</th>
-                         <th className="p-3 text-xs font-black text-center text-green-700 uppercase tracking-wider border-l border-slate-200 w-[12%]">ชิ้น (ราคาเต็ม)</th>
-                         <th className="p-3 text-xs font-black text-center text-purple-700 uppercase tracking-wider border-l border-slate-200 w-[12%]">ชิ้น (ราคาสมาชิก)</th>
-                         {!isMarketing && <th className="p-3 text-xs font-black text-center text-orange-700 uppercase tracking-wider border-l border-slate-200 w-[12%]">ชิ้น (ราคาโปร)</th>}
-                          {!isMarketing && <th className="p-3 text-xs font-black text-center text-slate-500 uppercase tracking-wider border-l border-slate-200 w-[12%]">ชิ้น (ราคาศูนย์)</th>}
+                         <th className="p-3 text-xs font-black text-center text-green-700 uppercase tracking-wider border-l border-slate-200 w-[12%]">กล่อง (ราคาเต็ม)</th>
+                         <th className="p-3 text-xs font-black text-center text-purple-700 uppercase tracking-wider border-l border-slate-200 w-[12%]">กล่อง (ราคาสมาชิก)</th>
+                         {!isMarketing && <th className="p-3 text-xs font-black text-center text-orange-700 uppercase tracking-wider border-l border-slate-200 w-[12%]">กล่อง (ราคาโปร)</th>}
+                          {!isMarketing && <th className="p-3 text-xs font-black text-center text-slate-500 uppercase tracking-wider border-l border-slate-200 w-[12%]">กล่อง (ราคาศูนย์)</th>}
                          <th className="p-3 text-xs font-black text-center text-blue-900 uppercase tracking-wider border-l border-slate-200 bg-blue-50/80 w-[180px]">ยอดรวม</th>
                          
                        </tr>
@@ -1261,38 +1289,25 @@
                        })}
                      </tbody>
                      {!loading && (
-                     <tfoot className="bg-slate-50 border-t-2 border-slate-200">
-                        <tr>
-                           <td className="py-3 px-3.5 align-middle text-right border-r border-slate-200">
-                              <div className="font-black text-slate-800 text-xs">รวมทั้งหมด ({tableTotals.count} บิล)</div>
-                           </td>
-                           <td className="p-2 align-middle text-center border-l border-slate-200 bg-green-50/50">
-                           <div className="font-black text-base text-green-700">{tableTotals.totalFull.toLocaleString()}</div>
-                              <div className="text-[9px] font-bold text-green-600 uppercase">ชิ้นราคาเต็ม</div>
-                           </td>
-                           <td className="p-2 align-middle text-center border-l border-slate-200 bg-purple-50/50">
-                              <div className="font-black text-base text-purple-700">{tableTotals.totalMember.toLocaleString()}</div>
-                              <div className="text-[9px] font-bold text-purple-600 uppercase">ชิ้นราคาสมาชิก</div>
-                           </td>
-                           {!isMarketing && (
-                              <td className="p-2 align-middle text-center border-l border-slate-200 bg-orange-50/50">
-                                 <div className="font-black text-base text-orange-700">{tableTotals.totalPro.toLocaleString()}</div>
-                                 <div className="text-[9px] font-bold text-orange-600 uppercase">ชิ้นราคาโปร</div>
-                              </td>
-                            )}
-                            {!isMarketing && (
-                              <td className="p-2 align-middle text-center border-l border-slate-200 bg-slate-100/50">
-                                 <div className="font-black text-base text-slate-600">{tableTotals.totalZero.toLocaleString()}</div>
-                                 <div className="text-[9px] font-bold text-slate-500 uppercase">ชิ้นราคาศูนย์</div>
-                              </td>
-                            )}
-                           <td className="p-2.5 align-middle text-center border-l border-slate-200 bg-blue-50/60">
-                              <div className="font-black text-xl text-blue-900 leading-none">{tableTotals.grandTotal.toLocaleString()} ชิ้น</div>
-                              {!isMarketing && <div className="text-[11px] font-black text-emerald-700 bg-white py-1 px-2 rounded-lg border border-emerald-200 mt-1 shadow-xs inline-block">฿{tableTotals.totalAmountTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>}
-                           </td>
-                           
-                        </tr>
-                     </tfoot>
+                     <tfoot className="bg-blue-50/50 border-t-2 border-blue-100">
+                                    <tr>
+                                        <td colSpan="2" className="p-4 text-right font-black text-slate-600 uppercase">รวมจำนวนชิ้นทั้งหมด:</td>
+                                        <td className="p-4 text-center font-black text-2xl text-blue-700 bg-blue-100/50 rounded-b-xl border-x border-blue-100/50">
+                                            {(() => {
+                                                let tQty = 0;
+                                                Object.keys(viewBillDetail || {}).filter(k => k.includes('_ราคา') && !k.includes('รวมชิ้น') && viewBillDetail[k] > 0).forEach(key => {
+                                                    const qty = parseInt(viewBillDetail[key]);
+                                                    const pName = key.replace(/_ราคาเต็ม$|_ราคาโปร$|_ราคาสมาชิก$|_ราคาศูนย์$/, '').trim();
+                                                    const pObj = prodMap[pName] || {};
+                                                    const multiplier = (pObj && (pObj.isBundle || pObj.is_bundle)) ? (parseInt(pObj.bundleQty || pObj.bundle_qty) || 1) : 1;
+                                                    tQty += (qty * multiplier);
+                                                });
+                                                return tQty;
+                                            })()}
+                                        </td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
                      )}
                    </table>
                  </div>
@@ -1407,49 +1422,81 @@
             }
         } catch (e) { console.warn("Cache error", e); }
 
-        // ⚡ REAL-TIME SYNC & QUICK MOUNT:
-        // ดึง sales ใหม่และข้อมูลอื่นๆ ล่าสุดจาก Supabase เสมอเมื่อเปิดหน้า เพื่อแก้ปัญหาหมุนค้างและให้ข้อมูลเรียลไทม์
-        const doSalesRefresh = () => {
-            supabaseSelect('stk_sales', 'order=order_id.desc&limit=300').then(saleRes => {
-                if (!Array.isArray(saleRes)) return;
-                let combinedSales = saleRes.filter(s => s && s.status !== 'รอดำเนินการ' && s.status !== 'ร่างใบสั่งซื้อ (จากคลินิก)');
-                setSales(combinedSales.map(s => ({
-                    ...s,
-                    id: s.id || s.sale_id || s.receipt_id || s.order_id,
-                    customerId: s.customerId || s.customer_id,
-                    memberId: s.memberId || s.sellerId || s.seller_id,
-                    totalAmount: s.totalAmount || s.total_amount,
-                    saleType: s.saleType || s.sale_type,
-                    date: s.date || s.created_at,
-                    recordedBy: s.recordedBy || s.recorded_by,
-                    paymentNote: s.paymentNote || s.payment_note
-                })));
-            }).catch(() => {});
+       // ⚡ REAL-TIME SYNC & QUICK MOUNT:
+        const doSalesRefresh = async () => {
+            setIsAppLoading(true);
+            try {
+                // สมมติโหลดข้อมูล 30 วันย้อนหลังถ้ายังไม่มีการเลือกวันที่
+                const end = new Date().toISOString().split('T')[0];
+                const d = new Date(); d.setDate(d.getDate() - 30);
+                const start = d.toISOString().split('T')[0];
+
+                // ยิง Query แบบกรองจาก Database ตรงๆ เพื่อความไว
+                let query = `date=gte.${start}&date=lte.${end}&order=order_id.desc&limit=500`;
+                
+                // ถ้า currentUser เป็นการตลาด ให้ดึงเฉพาะของตัวเอง
+                if (currentUser && (String(currentUser.role).trim() === 'พนักงานการตลาด' || String(currentUser.role).trim().toLowerCase() === 'marketing')) {
+                    query += `&seller_id=eq.${String(currentUser.id || '').toUpperCase()}`;
+                }
+
+                const saleRes = await supabaseSelect('stk_sales', query);
+                
+                if (Array.isArray(saleRes)) {
+                    let combinedSales = saleRes.filter(s => s && s.status !== 'รอดำเนินการ' && s.status !== 'ร่างใบสั่งซื้อ (จากคลินิก)');
+                    setSales(combinedSales.map(s => ({
+                        ...s,
+                        id: s.id || s.sale_id || s.receipt_id || s.order_id,
+                        customerId: s.customerId || s.customer_id,
+                        memberId: s.memberId || s.sellerId || s.seller_id,
+                        totalAmount: s.totalAmount || s.total_amount,
+                        saleType: s.saleType || s.sale_type,
+                        date: s.date || s.created_at,
+                        recordedBy: s.recordedBy || s.recorded_by,
+                        paymentNote: s.paymentNote || s.payment_note
+                    })));
+                }
+            } catch (err) {
+                console.error('Fetch sales error:', err);
+            } finally {
+                setIsAppLoading(false);
+            }
         };
+        
 
         // ตั้ง EVENT LISTENERS ดึงข้อมูลเมื่อผู้ใช้สลับกลับมาที่แท็บนี้ (Focus) หรือเปิดกลับมาหน้าบิล เพื่อความเรียลไทม์สูงสุด
         window.addEventListener('focus', doSalesRefresh);
         window.addEventListener('pageshow', doSalesRefresh);
 
+        // ⚡ SPEED FIX: ดึงข้อมูลเริ่มต้น รวมถึงบิลของ 30 วันย้อนหลังทันทีตอนโหลดแอป
+        const end = new Date().toISOString().split('T')[0];
+        const d = new Date(); d.setDate(d.getDate() - 30);
+        const start = d.toISOString().split('T')[0];
+        
+        let salesQuery = `date=gte.${start}&date=lte.${end}&order=order_id.desc&limit=500`;
+        if (currentUser && (String(currentUser.role).trim() === 'พนักงานการตลาด' || String(currentUser.role).trim().toLowerCase() === 'marketing')) {
+            salesQuery += `&seller_id=eq.${String(currentUser.id || '').toUpperCase()}`;
+        }
+
         Promise.all([
-          supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
-          supabaseSelect('stk_customers', 'order=customer_id.desc&limit=2000').catch(() => supabaseSelect('customers')),
-          // ⚡ SPEED FIX 2: ดึงรายการบิลล่าสุดแค่ 300 รายการ ไม่โหลดทั้งหมดของระบบเพื่อความเร็ว
-          supabaseSelect('stk_sales', 'order=order_id.desc&limit=300').catch(() => supabaseSelect('sales')),
-          supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
-          supabaseSelect('stk_system_settings').catch(() => supabaseSelect('system_settings')).catch(() => []),
-          supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')).catch(() => [])
-        ]).then(([memRes, custRes, saleRes, prodRes, setRes, closerRes]) => {
+          supabaseSelect('stk_members').catch(() => []),
+          // ลดจำนวนโหลดลูกค้าเหลือ 1000 เพื่อความเร็ว
+          supabaseSelect('stk_customers', 'order=customer_id.desc&limit=1000').catch(() => []), 
+          supabaseSelect('stk_products').catch(() => []),
+          supabaseSelect('stk_system_settings').catch(() => []),
+          supabaseSelect('stk_closers').catch(() => []),
+          // ⚡ ดึงบิล 30 วันล่าสุดมาด้วยเลยตรงนี้ เพื่อไม่ให้ตารางว่างเปล่าตอนเปิดแอป
+          supabaseSelect('stk_sales', salesQuery).catch(() => [])
+        ]).then(([memRes, custRes, prodRes, setRes, closerRes, saleRes]) => {
            const settingsObj = { exchange_rate: 700 };
            if (Array.isArray(setRes)) setRes.forEach(s => settingsObj[s.key || s.setting_key] = s.value || s.setting_value);
 
            const resObj = {
              members: memRes,
              customers: custRes,
-             sales: saleRes,
              products: prodRes,
              systemSettings: settingsObj,
-             closers: closerRes
+             closers: closerRes,
+             sales: saleRes // นำข้อมูลบิลใส่กลับเข้าไปให้ระบบ
            };
 
            applyDataToStates(resObj);
