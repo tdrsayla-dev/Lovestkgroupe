@@ -144,7 +144,52 @@
         
         const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null, customerId: null, title: '' });
         const [successModal, setSuccessModal] = useState({ show: false, saleRecord: null });
-        
+        // ฟังก์ชันดึงรหัสลูกค้าที่ว่างอยู่แบบ Real-time จาก Database (ป้องกันรหัสชนและอุดช่องโหว่)
+        const fetchNextAvailableCustId = async () => {
+            setCustData(prev => ({ ...prev, id: 'กำลังคำนวณรหัส...' }));
+            try {
+                const usedIds = new Set();
+                
+                // 1. ดึงข้อมูลจากฐานข้อมูลแบบ Real-time เพื่อความชัวร์ 100% ว่าไม่มีใครใช้รหัสนี้ไปแล้ว
+                if (typeof supabaseSelect === 'function') {
+                    const [dbCusts, dbSales] = await Promise.all([
+                        supabaseSelect('stk_customers', 'customer_id=like.C*&select=customer_id&limit=10000').catch(() => []),
+                        supabaseSelect('stk_sales', 'customer_id=like.C*&select=customer_id&limit=10000').catch(() => [])
+                    ]);
+                    
+                    (dbCusts || []).forEach(c => {
+                        const match = c && c.customer_id && c.customer_id.match(/^C(\d+)$/i);
+                        if (match) usedIds.add(parseInt(match[1], 10));
+                    });
+                    (dbSales || []).forEach(s => {
+                        const match = s && s.customer_id && s.customer_id.match(/^C(\d+)$/i);
+                        if (match) usedIds.add(parseInt(match[1], 10));
+                    });
+                } else {
+                    // Fallback กรณีเชื่อมต่อ DB ไม่ได้ ให้เช็คจากข้อมูลในหน้าจอแทน
+                    (customers || []).forEach(c => {
+                        const match = c && c.id && c.id.match(/^C(\d+)$/i);
+                        if (match) usedIds.add(parseInt(match[1], 10));
+                    });
+                    (sales || []).forEach(s => {
+                        const match = s && s.customerId && s.customerId.match(/^C(\d+)$/i);
+                        if (match) usedIds.add(parseInt(match[1], 10));
+                    });
+                }
+
+                // 2. หาช่องว่าง (Gap Filling) เริ่มจากเลข 1 (C001)
+                let nextIdNum = 1;
+                while (usedIds.has(nextIdNum)) {
+                    nextIdNum++;
+                }
+                
+                const finalId = "C" + nextIdNum.toString().padStart(3, '0');
+                setCustData(prev => ({ ...prev, id: finalId }));
+            } catch (error) {
+                console.error('Error fetching next customer ID:', error);
+                setCustData(prev => ({ ...prev, id: '' }));
+            }
+        };
         const calculateBillPV = (cartItems, prods) => {
             let totalPV = 0;
             cartItems.forEach(item => {
@@ -450,8 +495,9 @@
                             const parts = saleTypeStr.split('|').map(p => p.trim());
                             let hasCash = false; let hasTransfer = false;
                             parts.forEach(p => {
-                                if (p.startsWith('สด:')) { lCashTHB = p.replace('สด:', '').trim(); hasCash = true; }
-                                else if (p.startsWith('สดกีบ:')) { lCashLAK = p.replace('สดกีบ:', '').trim(); hasCash = true; }
+                                if (p.startsWith('สดบาท:')) { lCashTHB = p.replace('สดบาท:', '').trim(); hasCash = true; }
+                            else if (p.startsWith('สด:')) { lCashTHB = p.replace('สด:', '').trim(); hasCash = true; }
+                            else if (p.startsWith('สดกีบ:')) { lCashLAK = p.replace('สดกีบ:', '').trim(); hasCash = true; }
                                 else if (p.match(/^โอนไทย\(([^)]+)\):(.*)$/)) {
                                     const m = p.match(/^โอนไทย\(([^)]+)\):(.*)$/);
                                     bThaiTHB = m[1].trim(); lThaiTHB = m[2].trim(); hasTransfer = true;
@@ -787,8 +833,9 @@
             if (saleTypeStr.includes(':') || saleTypeStr.includes('โอน') || saleTypeStr.includes('|')) {
                 const parts = saleTypeStr.split('|').map(p => p.trim());
                 parts.forEach(p => {
-                    if (p.startsWith('สด:')) cTHB = parseFloat(p.replace('สด:', '').trim()) || 0;
-                    else if (p.startsWith('สดกีบ:')) cLAK = parseFloat(p.replace('สดกีบ:', '').trim()) || 0;
+                    if (p.startsWith('สดบาท:')) cTHB = parseFloat(p.replace('สดบาท:', '').trim()) || 0;
+                else if (p.startsWith('สด:')) cTHB = parseFloat(p.replace('สด:', '').trim()) || 0;
+                else if (p.startsWith('สดกีบ:')) cLAK = parseFloat(p.replace('สดกีบ:', '').trim()) || 0;
                     else if (p.match(/^โอนไทย\(([^)]+)\):(.*)$/)) {
                         const m = p.match(/^โอนไทย\(([^)]+)\):(.*)$/);
                         bThaiTHB = m[1].trim(); tThaiTHB = parseFloat(m[2].trim()) || 0;
@@ -1122,9 +1169,6 @@
                             <div class="sig-box"><div class="sig-line"></div>ผู้จ่ายสินค้า/ยา</div>
                             <div class="sig-box"><div class="sig-line"></div>พนักงานแคชเชียร์</div>
                         </div>
-                        ${rs.paymentNote && String(rs.paymentNote).trim() !== '' ? `
-                          <div style="font-size: 10px; color: #b45309; margin-top: 10px; font-weight: 600; text-align: left; border-top: 1px dashed #cbd5e1; padding-top: 6px;">📝 หมายเหตุ: ${rs.paymentNote}</div>
-                        ` : ''}
                         <div class="text-center" style="font-size: 11px; margin-top: 20px; color: #475569;"><p class="bold" style="color: #0f172a; margin:0;">ขอบพระคุณที่อุดหนุน LOVE STK GROUPE</p></div>
                       </div>
                     </div>
@@ -1174,8 +1218,9 @@
                 const parts = saleTypeStr.split('|').map(p => p.trim());
                 let hasCash = false; let hasTransfer = false;
                 parts.forEach(p => {
-                    if (p.startsWith('สด:')) { lCashTHB = p.replace('สด:', '').trim(); hasCash = true; }
-                    else if (p.startsWith('สดกีบ:')) { lCashLAK = p.replace('สดกีบ:', '').trim(); hasCash = true; }
+                     if (p.startsWith('สดบาท:')) { lCashTHB = p.replace('สดบาท:', '').trim(); hasCash = true; }
+                else if (p.startsWith('สด:')) { lCashTHB = p.replace('สด:', '').trim(); hasCash = true; }
+                else if (p.startsWith('สดกีบ:')) { lCashLAK = p.replace('สดกีบ:', '').trim(); hasCash = true; }
                     else if (p.match(/^โอนไทย\(([^)]+)\):(.*)$/)) {
                         const m = p.match(/^โอนไทย\(([^)]+)\):(.*)$/);
                         bThaiTHB = m[1].trim(); lThaiTHB = m[2].trim(); hasTransfer = true;
@@ -1266,11 +1311,9 @@
         const executeDeleteSale = async () => {
             if (!confirmDelete.id) return;
             try {
-                // 1. หา record บิลที่ต้องการลบ
                 const saleToCancel = dbSalesHistory.find(s => s.id === confirmDelete.id) || sales.find(s => s.id === confirmDelete.id);
                 if (saleToCancel) {
                     
-                    // 2. ดึงรายการสินค้าทั้งหมดในบิล
                     let itemsList = [];
                     if (saleToCancel.items_json) {
                         try {
@@ -1278,11 +1321,11 @@
                         } catch(e) {}
                     }
                     
-                    // รองรับบิลเก่าที่ไม่ได้เก็บแบบ JSON
                     if (!Array.isArray(itemsList) || itemsList.length === 0) {
                         Object.keys(saleToCancel).forEach(key => {
                             const qty = parseInt(saleToCancel[key]) || 0;
                             if (qty > 0) {
+                                // ⚡ FIX: ไม่ตัดวงเล็บทิ้ง ป้องกันปัญหาสินค้าเช่น ZINC(สิว) คืนสต็อกไม่ได้
                                 if (key.endsWith('_ราคาเต็ม') && key !== 'รวมชิ้นราคาเต็ม') itemsList.push({prod: key.replace('_ราคาเต็ม', ''), qty});
                                 else if (key.endsWith('_ราคาสมาชิก') && key !== 'รวมชิ้นราคาสมาชิก') itemsList.push({prod: key.replace('_ราคาสมาชิก', ''), qty});
                                 else if (key.endsWith('_ราคาโปร') && key !== 'รวมชิ้นราคาโปร') itemsList.push({prod: key.replace('_ราคาโปร', ''), qty});
@@ -1292,31 +1335,36 @@
                     }
 
                     if (itemsList.length > 0) {
-                        // 3. ดึงข้อมูลสินค้าล่าสุดจากฐานข้อมูล เพื่อเช็คว่ามีเซ็ตโปรโมชั่นไหม
                         let currentProducts = [];
                         if (typeof supabaseSelect === 'function') {
                             currentProducts = await supabaseSelect('stk_products').catch(() => []) || [];
                         }
 
-                        // 4. ยุบรวมจำนวนและแปลง "เซ็ตโปรโมชั่น" ให้กลายเป็น "สินค้าหลัก"
                         const inQtyMap = {};
                         itemsList.forEach(it => {
                             const qty = parseInt(it.qty) || parseInt(it.quantity) || 0;
                             if (qty > 0) {
                                 const pName = String(it.prod || it.productName || it.name || '').trim();
-                                const p = currentProducts.find(prod => prod.name?.trim() === pName || prod.product_id === pName);
+                                const p = currentProducts.find(prod => {
+                                    const pDbName = String(prod.name || prod.product_name || '').trim();
+                                    const pDbId = String(prod.product_id || prod.id || '').trim();
+                                    // ⚡ FIX: ค้นหาสินค้าทั้งแบบตรงๆ และแบบละเว้นวงเล็บ เพื่อความชัวร์
+                                    return pDbName === pName || pDbId === pName || pDbName.replace(/\(.*?\)/g, '').trim() === pName.replace(/\(.*?\)/g, '').trim();
+                                });
                                 
                                 if (p) {
                                     if (p.is_bundle || p.isBundle) {
-                                        // ถ้าเป็นเซ็ต ให้ไปคืนสต๊อกสินค้าหลักแทน
-                                        const baseP = currentProducts.find(bp => bp.name === (p.base_product || p.baseProduct));
+                                        const baseP = currentProducts.find(bp => {
+                                            const bpName = String(bp.name || bp.product_name || '').trim();
+                                            const targetBase = String(p.base_product || p.baseProduct || '').trim();
+                                            return bpName === targetBase;
+                                        });
                                         if (baseP) {
                                             const totalToReturn = qty * (parseInt(p.bundle_qty || p.bundleQty) || 1);
                                             const baseId = baseP.product_id || baseP.id;
                                             inQtyMap[baseId] = (inQtyMap[baseId] || 0) + totalToReturn;
                                         }
                                     } else {
-                                        // ถ้าเป็นสินค้าปกติ คืนสต๊อกตัวเอง
                                         const pId = p.product_id || p.id;
                                         inQtyMap[pId] = (inQtyMap[pId] || 0) + qty;
                                     }
@@ -1324,7 +1372,6 @@
                             }
                         });
 
-                        // 5. ดำเนินการอัปเดตสต๊อกคืนเข้าฐานข้อมูล
                         for (const pid of Object.keys(inQtyMap)) {
                             const totalQtyToReturn = inQtyMap[pid];
                             const pInfo = currentProducts.find(p => (p.product_id || p.id) === pid);
@@ -1339,7 +1386,6 @@
                                     await supabaseUpdate('products', realProductId, { stock: newStock }).catch(() => {});
                                 }
                                 
-                                // บันทึกประวัติการคืนสต๊อก
                                 if (typeof supabaseInsert === 'function' && realProductId) {
                                     await supabaseInsert('stk_stock_movements', {
                                         movement_id: 'MOV-IN-' + Date.now() + '-' + Math.floor(Math.random()*1000),
@@ -1358,11 +1404,9 @@
                     }
                 }
 
-                // 6. ลบข้อมูลบิลออกจากระบบ
                 await supabaseDelete('stk_sales', confirmDelete.id, 'order_id').catch(()=>{});
                 await supabaseDelete('sales', confirmDelete.id, 'order_id').catch(() => {});
                 
-                // 7. ลบข้อมูลลูกค้า (เฉพาะลูกค้าใหม่ที่ไม่มีบิลอื่นค้างอยู่)
                 if (saleToCancel && (saleToCancel.customerId || saleToCancel.customer_id || saleToCancel.customer)) {
                     const custId = saleToCancel.customerId || saleToCancel.customer_id || saleToCancel.customer;
                     const custType = String(saleToCancel.customerType || saleToCancel.customer_type || '').trim();
@@ -1384,7 +1428,7 @@
 
                 triggerGlobalRefresh();
                 setSales(prev => prev.filter(s => s.id !== confirmDelete.id));
-                showToast('ลบบิลและคืนสต๊อก (รวมถึงเซ็ตโปรโมชั่น) สำเร็จ!', 'success');
+                showToast('ลบบิลและคืนสต๊อกสำเร็จ!', 'success');
             } catch(e) {
                 showToast('เกิดข้อผิดพลาดในการลบ: ' + e.message, 'error');
             } finally {
@@ -1658,25 +1702,36 @@
              nextSaleIdStr = editingSaleId; 
           }
 
-          const paymentSummaryParts = [];
-          const cTHB = parseFloat(payCashTHB) || 0;
-          const cLAK = parseFloat(payCashLAK) || 0;
-          const tThaiTHB = parseFloat(payTransferThaiTHB) || 0;
-          const tLaosTHB = parseFloat(payTransferLaosTHB) || 0;
-          const tLaosLAK = parseFloat(payTransferLaosLAK) || 0;
+         const paymentSummaryParts = [];
+      const cTHB = parseFloat(payCashTHB) || 0;
+      const cLAK = parseFloat(payCashLAK) || 0;
+      const tThaiTHB = parseFloat(payTransferThaiTHB) || 0;
+      const tLaosTHB = parseFloat(payTransferLaosTHB) || 0;
+      const tLaosLAK = parseFloat(payTransferLaosLAK) || 0;
 
-          if (payMode === 'สด' || payMode === 'สด+โอน') {
-              if (cTHB > 0) paymentSummaryParts.push(`สด:${cTHB}`);
-              if (cLAK > 0) paymentSummaryParts.push(`สดกีบ:${cLAK}`);
+      // 🚨 เพิ่มเงื่อนไขบังคับให้ต้องกรอกตัวเลข
+      if (!isHistoryBypass) {
+          if (payMode === 'สด' && cTHB === 0 && cLAK === 0) {
+              showToast('กรุณาระบุจำนวนเงินในช่อง "รับเงินสด" (บาท หรือ กีบ)', 'error');
+              setIsSubmitting(false);
+              return;
           }
-          if (payMode === 'โอน' || payMode === 'สด+โอน') {
-              if (tThaiTHB > 0) paymentSummaryParts.push(`โอนไทย(${payTransferThaiBank}):${tThaiTHB}`);
-              if (tLaosTHB > 0) paymentSummaryParts.push(`โอนลาวบาท(${payTransferLaosBankTHB}):${tLaosTHB}`);
-              if (tLaosLAK > 0) paymentSummaryParts.push(`โอนลาวกีบ(${payTransferLaosBankLAK}):${tLaosLAK}`);
+          if (payMode === 'โอน' && tThaiTHB === 0 && tLaosTHB === 0 && tLaosLAK === 0) {
+              showToast('กรุณาระบุจำนวนเงินในช่อง "รับเงินโอน"', 'error');
+              setIsSubmitting(false);
+              return;
           }
-          if (paymentSummaryParts.length > 0 && (cLAK > 0 || tLaosLAK > 0)) {
-              paymentSummaryParts.push(`เรท:${exchangeRate}`);
+          if (payMode === 'สด+โอน' && (cTHB === 0 && cLAK === 0) && (tThaiTHB === 0 && tLaosTHB === 0 && tLaosLAK === 0)) {
+              showToast('กรุณาระบุจำนวนเงินที่รับชำระให้ครบถ้วน', 'error');
+              setIsSubmitting(false);
+              return;
           }
+      }
+
+      if (payMode === 'สด' || payMode === 'สด+โอน') {
+          if (cTHB > 0) paymentSummaryParts.push(`สดบาท:${cTHB}`); // เปลี่ยนให้เป็น "สดบาท" ชัดเจน
+          if (cLAK > 0) paymentSummaryParts.push(`สดกีบ:${cLAK}`);
+      }
           const paymentSummaryStr = paymentSummaryParts.length > 0 ? paymentSummaryParts.join(' | ') : `${payMode}`;
 
           const newRecord = { 
@@ -1838,8 +1893,7 @@
                     await supabaseUpsert('stk_sales', fallbackData).catch(e2 => console.error('stk_sales fallback upsert failed:', e2));
                 }
             }
-
-             const oldQtyMap = {};
+            const oldQtyMap = {};
              const oldRecord = (sales || []).find(s => s.id === editingSaleId);
              if (oldRecord) {
                  Object.keys(oldRecord).forEach(k => {
@@ -1862,16 +1916,30 @@
                  });
              }
 
+             // ⚡ FIX: ดึงค่าสต็อกล่าสุดแบบ Real-time เพื่อป้องกันสต็อกกลายเป็น 0 รวดเดียวเวลาเปิดบิลติดกัน
              if (!isHistoryBypass && typeof supabaseUpdate === 'function') {
                  for (const pid of [...new Set([...Object.keys(oldQtyMap), ...Object.keys(qtyMap)])]) {
                      const diff = (qtyMap[pid] || 0) - (oldQtyMap[pid] || 0);
-                     const pInfo = (products || []).find(p => p.id === pid);
-                     if (pInfo && diff !== 0) {
-                         const newStock = Math.max(0, (pInfo.current_stock || pInfo.stock || 0) - diff);
+                     if (diff !== 0) {
+                         let currentStockNum = 0;
+                         try {
+                             // Query DB สดๆ ก่อนหักสต็อก เพื่อความชัวร์ 100%
+                             const latestP = await supabaseSelect('stk_products', `product_id=eq.${pid}&select=current_stock`);
+                             if (latestP && latestP.length > 0) {
+                                 currentStockNum = parseInt(latestP[0].current_stock || 0) || 0;
+                             } else {
+                                 const localP = (products || []).find(p => p.id === pid);
+                                 currentStockNum = localP ? parseInt(localP.stock || 0) : 0;
+                             }
+                         } catch(err) {
+                             const localP = (products || []).find(p => p.id === pid);
+                             currentStockNum = localP ? parseInt(localP.stock || 0) : 0;
+                         }
+                         
+                         const newStock = Math.max(0, currentStockNum - diff);
                          await supabaseUpdate('stk_products', pid, { current_stock: newStock }, 'product_id').catch(() => {});
                          await supabaseUpdate('products', pid, { stock: newStock }).catch(() => {});
                          
-                         // บันทึกประวัติการเปลี่ยนแปลงสต๊อกจากการแก้ไข
                          if (typeof supabaseInsert === 'function') {
                              await supabaseInsert('stk_stock_movements', {
                                  movement_id: 'MOV-EDIT-' + Date.now() + '-' + Math.floor(Math.random()*1000),
@@ -1948,12 +2016,27 @@
                  await supabaseUpsert('stk_customers', custPayload).catch(e => console.warn('stk_customers upsert error:', e));
              }
 
+             // ⚡ FIX: ตัดสต็อกเปิดบิลใหม่ ดึงค่าสดจากฐานข้อมูลเช่นกัน
               if (!isHistoryBypass) {
                  for (const pid of Object.keys(qtyMap)) {
                      const deductQty = qtyMap[pid];
-                     const pInfo = (products || []).find(p => p.id === pid);
-                     if (pInfo && deductQty > 0) {
-                         const newStock = Math.max(0, (pInfo.current_stock || pInfo.stock || 0) - deductQty);
+                     if (deductQty > 0) {
+                         let currentStockNum = 0;
+                         try {
+                             const latestP = await supabaseSelect('stk_products', `product_id=eq.${pid}&select=current_stock`);
+                             if (latestP && latestP.length > 0) {
+                                 currentStockNum = parseInt(latestP[0].current_stock || 0) || 0;
+                             } else {
+                                 const localP = (products || []).find(p => p.id === pid);
+                                 currentStockNum = localP ? parseInt(localP.stock || 0) : 0;
+                             }
+                         } catch(err) {
+                             const localP = (products || []).find(p => p.id === pid);
+                             currentStockNum = localP ? parseInt(localP.stock || 0) : 0;
+                         }
+
+                         const newStock = Math.max(0, currentStockNum - deductQty);
+
                          if (typeof supabaseUpdate === 'function') {
                              await supabaseUpdate('stk_products', pid, { current_stock: newStock }, 'product_id').catch(() => {});
                              await supabaseUpdate('products', pid, { stock: newStock }).catch(() => {});
@@ -1981,6 +2064,7 @@
                      return deduct > 0 ? {...p, stock: Math.max(0, p.stock - deduct)} : p;
                  }));
              }
+             
              setSales(prev => [newRecord, ...(prev || [])]); 
              if(newCustomerObj) setCustomers(prev => [newCustomerObj, ...(prev || [])]); 
              clearAppCache();
@@ -2146,11 +2230,36 @@
                          <div className="flex gap-2">
                             <div className="flex-[1.5] bg-slate-50 p-1.5 rounded-lg border border-slate-100">
                                <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">ประเภทลูกค้า</label>
-                               <select className="w-full bg-white border border-slate-200 rounded-md text-[11px] py-1.5 px-2 outline-none focus:border-blue-500 shadow-sm" value={custMode} onChange={(e) => { setCustMode(e.target.value); setCustData(prev => ({ ...prev, id: '', name: '', phone: '', symptom: '', closer: '', closerTeam: '' })); }}><option value="" disabled>ระบุประเภท</option>{activeCustomerTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}</select>
+                               <select className="w-full bg-white border border-slate-200 rounded-md text-[11px] py-1.5 px-2 outline-none focus:border-blue-500 shadow-sm" value={custMode} onChange={(e) => { 
+                                   const newMode = e.target.value;
+                                   setCustMode(newMode); 
+                                   const isOld = newMode.includes('เก่า');
+                                   if (isOld) {
+                                       setCustData(prev => ({ ...prev, id: '', name: '', phone: '', lineId: '', symptom: '', closer: '', closerTeam: '' }));
+                                   } else {
+                                       // สั่งดึงรหัสลูกค้าที่ว่างอยู่แบบ Real-time ทันทีที่เลือกเป็นลูกค้าใหม่
+                                       fetchNextAvailableCustId();
+                                       setCustData(prev => ({ ...prev, name: '', phone: '', lineId: '', symptom: '', closer: '', closerTeam: '' }));
+                                   }
+                               }}>
+                                  <option value="" disabled>ระบุประเภท</option>
+                                  {activeCustomerTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                               </select>
                             </div>
                             <div className="flex-[1.5] bg-slate-50 p-1.5 rounded-lg border border-slate-100">
                                <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">{isOldCustomerMode ? 'ลูกค้าเก่า *' : 'รหัสลูกค้า'}</label>
-                               {isOldCustomerMode ? (<AutoSuggestInput value={custData.id} onChange={handleOldCustomerChange} onSelect={handleOldCustomerChange} data={customersSuggestList} placeholder="รหัส/เบอร์โทร..." required={true} />) : custData.id ? (<input type="text" className="w-full bg-white border border-slate-200 rounded-md text-[11px] py-1.5 px-2 font-bold text-blue-700 outline-none focus:border-blue-500 shadow-sm" value={custData.id} onChange={e => setCustData({...custData, id: e.target.value})} placeholder="รหัสลูกค้า / HN" />) : (<div className="w-full border border-dashed border-slate-300 px-1 py-1 rounded-md bg-slate-100 text-slate-400 text-[11px] font-bold text-center">สร้างอัตโนมัติ</div>)}
+                               {isOldCustomerMode ? (
+                                   <AutoSuggestInput value={custData.id} onChange={handleOldCustomerChange} onSelect={handleOldCustomerChange} data={customersSuggestList} placeholder="รหัส/เบอร์โทร..." required={true} />
+                               ) : (
+                                   <input 
+                                     type="text" 
+                                     className="w-full bg-slate-50 border border-slate-200 rounded-md text-[11px] py-1.5 px-2 font-bold text-blue-700 outline-none focus:border-blue-500 shadow-sm" 
+                                     value={custData.id} 
+                                     onChange={e => setCustData({...custData, id: e.target.value})} 
+                                     placeholder="เลือกระบุประเภทลูกค้า..." 
+                                     disabled={custData.id === 'กำลังคำนวณรหัส...'} 
+                                   />
+                               )}
                             </div>
                          </div>
 

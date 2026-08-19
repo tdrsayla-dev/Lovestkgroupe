@@ -120,8 +120,8 @@
             );
             if (found) {
                 const cat = String(found.category || '').trim();
-                const selfFee = Number(found.self_fee ?? found.selfFee ?? 250000);
-                const l1Fee = Number(found.level_1_fee ?? found.level1Fee ?? 200000);
+                const selfFee = Number(found.self_fee || 0); 
+                const l1Fee = Number(found.level_1_fee || 0);
                 const margin = Number(found.full_margin_amount ?? found.fullMarginAmount ?? 0);
                 return { categoryKey: cat, categoryName: `หมวด ${cat}`, rate: selfFee, l1Rate: l1Fee, full_margin_amount: margin };
             }
@@ -141,7 +141,7 @@
     };
 
     // 🟢 Detailed Modal Component (Match User Requirements)
-    const MemberPerformanceDetailModal = ({ isOpen, onClose, member, sales, members, products, customerTypes, systemSettings, teamMap, startDate, endDate }) => {
+    const MemberPerformanceDetailModal = ({ isOpen, onClose, member, sales, members, products, customerTypes, systemSettings, teamMap, startDate, endDate, isAdmin }) => {
         if (!isOpen || !member) return null;
 
         // Payout Records Tracking
@@ -288,6 +288,10 @@
                             catMap[targetKey].totalQty += q;
                             const applicableRate = isDownline ? catInfo.l1Rate : catInfo.rate;
                             catMap[targetKey].totalLAK += q * applicableRate;
+                            
+                            // อัปเดตตัวเลข "ราคาปันผล/กล่อง" บนหน้าจอให้ตรงกับ DB อัตโนมัติ
+                            if (!isDownline && applicableRate > 0) catMap[targetKey].rate = applicableRate;
+                            if (isDownline && applicableRate > 0) catMap[targetKey].l1Rate = applicableRate;
                         }
                     });
                 } else {
@@ -408,28 +412,51 @@
             return isScopeEligible;
         }, [totalFullBoxesPersonal, marginMinBoxes, marginConfig, mId, member]);
 
-        // Product Summary List for entire downline team
+         // Product Summary List for entire downline team (เฉพาะสินค้าที่ได้ปันผล)
         const productSummaryMap = useMemo(() => {
             const map = {};
-            const allTeamSales = isLeaderWithTeam ? [...personalSalesList, ...downlineSalesList] : personalSalesList;
-            allTeamSales.forEach(s => {
-                let itemsList = [];
-                if (s.items_json) {
-                    try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
-                }
-                if (Array.isArray(itemsList) && itemsList.length > 0) {
-                    itemsList.forEach(it => {
-                        const pName = String(it.prod || it.productName || it.name || 'สินค้าอื่นๆ').trim();
-                        const q = Number(it.qty || it.quantity || 1);
-                        const catInfo = getProductCategoryAndRate(pName, products);
-                        if (!map[pName]) map[pName] = { name: pName, qty: 0, totalLAK: 0, category: catInfo.categoryName };
-                        map[pName].qty += q;
-                        map[pName].totalLAK += q * catInfo.rate;
-                    });
-                }
-            });
+            
+            // สร้างฟังก์ชันแยกประมวลผล เพื่อให้คูณเรทปันผล (LAK) ของตัวเอง กับ ลูกทีม ได้ถูกต้อง
+            const processSales = (salesList, isDownline) => {
+                salesList.forEach(s => {
+                    let itemsList = [];
+                    if (s.items_json) {
+                        try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
+                    }
+                    if (Array.isArray(itemsList) && itemsList.length > 0) {
+                        itemsList.forEach(it => {
+                            const pName = String(it.prod || it.productName || it.name || 'สินค้าอื่นๆ').trim();
+                            const q = Number(it.qty || it.quantity || 1);
+                            const typeStr = String(it.type || '').trim();
+
+                            // 🛡️ กรองเอาเฉพาะ "ราคาเต็ม" และ "ราคาสมาชิก" เท่านั้น สำหรับทุกคน
+                            // ตัด "ราคาโปร" และ "ราคาศูนย์" ทิ้งไปเลย เพราะไม่ได้นำมาคำนวณเงิน
+                            if (typeStr !== 'ราคาเต็ม' && typeStr !== 'ราคาสมาชิก') {
+                                return; 
+                            }
+
+                            const catInfo = getProductCategoryAndRate(pName, products);
+                            // 💡 ถ้าเป็นยอดจากลูกทีม ให้ใช้เรทค่าธรรมเนียมชั้น (l1Rate) 
+                            const applicableRate = isDownline ? catInfo.l1Rate : catInfo.rate; 
+
+                            if (!map[pName]) map[pName] = { name: pName, qty: 0, totalLAK: 0, category: catInfo.categoryName };
+                            map[pName].qty += q;
+                            map[pName].totalLAK += q * applicableRate;
+                        });
+                    }
+                });
+            };
+
+            // ดึงข้อมูลยอดตัวเอง
+            processSales(personalSalesList, false);
+            // ดึงข้อมูลยอดลูกทีม (ถ้ามี)
+            if (isLeaderWithTeam) {
+                processSales(downlineSalesList, true);
+            }
+
             return Object.values(map).sort((a,b) => b.qty - a.qty);
         }, [personalSalesList, downlineSalesList, products, isLeaderWithTeam]);
+        
 
         return (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm animation-fade-in overflow-y-auto">
@@ -461,8 +488,8 @@
                                     <span className="bg-white/20 text-white font-mono font-bold text-xs px-2.5 py-0.5 rounded-full border border-white/30">
                                         {member.id}
                                     </span>
-                                    <span className={`text-xs font-black px-2.5 py-0.5 rounded-full ${isLeaderWithTeam ? 'bg-amber-400 text-slate-900' : 'bg-blue-400 text-slate-900'}`}>
-                                        {isLeaderWithTeam ? '👑 หัวหน้าสายงาน (แม่ทีม)' : '👤 พนักงานทั่วไป'}
+                                    <span className={`text-xs font-black px-2.5 py-0.5 rounded-full ${isLeaderWithTeam || member.role === 'หัวหน้าสายงาน' ? 'bg-amber-400 text-slate-900' : 'bg-blue-400 text-slate-900'}`}>
+                                   {isLeaderWithTeam || member.role === 'หัวหน้าสายงาน' ? '👑 หัวหน้าสายงาน (แม่ทีม)' : `👤 ${member.role || 'พนักงาน'}`}
                                     </span>
                                 </div>
                                 <p className="text-xs font-bold text-blue-100/90 mt-1">
@@ -712,54 +739,57 @@
                         </div>
 
                         {/* 🏷️ Section 2: 4 Price Types Breakdown Grid (Full, Member, Promo, Zero) */}
-                        <div className="space-y-3">
-                            <h3 className="text-xs font-black text-slate-800 flex items-center gap-2">
-                                <span>🏷️ สรุปจำนวนกล่องตาม 4 โหมดราคาจริงในระบบ:</span>
-                            </h3>
+<div className="space-y-3">
+    <h3 className="text-xs font-black text-slate-800 flex items-center gap-2">
+        <span>🏷️ สรุปจำนวนกล่องตาม {isAdmin ? '4' : '2'} โหมดราคาจริงในระบบ:</span>
+    </h3>
 
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                                <div className="bg-emerald-50/80 border border-emerald-200/80 p-3.5 rounded-2xl flex items-center justify-between">
-                                    <div>
-                                        <span className="text-xs font-bold text-emerald-800 block">1. ราคาเต็ม</span>
-                                        <span className="text-[9px] font-bold text-emerald-600">สินค้าราคาปกติ</span>
-                                    </div>
-                                    <span className="text-lg font-black text-emerald-700 bg-white px-3 py-1 rounded-xl border border-emerald-200 shadow-xs font-mono">
-                                        {totalFullBoxes} กล่อง
-                                    </span>
-                                </div>
+    <div className={`grid grid-cols-2 ${isAdmin ? 'lg:grid-cols-4' : 'lg:grid-cols-2'} gap-3`}>
+        <div className="bg-emerald-50/80 border border-emerald-200/80 p-3.5 rounded-2xl flex items-center justify-between">
+            <div>
+                <span className="text-xs font-bold text-emerald-800 block">1. ราคาเต็ม</span>
+                <span className="text-[9px] font-bold text-emerald-600">สินค้าราคาปกติ</span>
+            </div>
+            <span className="text-lg font-black text-emerald-700 bg-white px-3 py-1 rounded-xl border border-emerald-200 shadow-xs font-mono">
+                {totalFullBoxes} กล่อง
+            </span>
+        </div>
 
-                                <div className="bg-blue-50/80 border border-blue-200/80 p-3.5 rounded-2xl flex items-center justify-between">
-                                    <div>
-                                        <span className="text-xs font-bold text-blue-800 block">2. ราคาสมาชิก</span>
-                                        <span className="text-[9px] font-bold text-blue-600">ราคาสมาชิกพิเศษ</span>
-                                    </div>
-                                    <span className="text-lg font-black text-blue-700 bg-white px-3 py-1 rounded-xl border border-blue-200 shadow-xs font-mono">
-                                        {totalMemberBoxes} กล่อง
-                                    </span>
-                                </div>
+        <div className="bg-blue-50/80 border border-blue-200/80 p-3.5 rounded-2xl flex items-center justify-between">
+            <div>
+                <span className="text-xs font-bold text-blue-800 block">2. ราคาสมาชิก</span>
+                <span className="text-[9px] font-bold text-blue-600">ราคาสมาชิกพิเศษ</span>
+            </div>
+            <span className="text-lg font-black text-blue-700 bg-white px-3 py-1 rounded-xl border border-blue-200 shadow-xs font-mono">
+                {totalMemberBoxes} กล่อง
+            </span>
+        </div>
 
-                                <div className="bg-purple-50/80 border border-purple-200/80 p-3.5 rounded-2xl flex items-center justify-between">
-                                    <div>
-                                        <span className="text-xs font-bold text-purple-800 block">3. ราคาโปร</span>
-                                        <span className="text-[9px] font-bold text-purple-600">สินค้าโปรโมชั่น</span>
-                                    </div>
-                                    <span className="text-lg font-black text-purple-700 bg-white px-3 py-1 rounded-xl border border-purple-200 shadow-xs font-mono">
-                                        {totalPromoBoxes} กล่อง
-                                    </span>
-                                </div>
+        {isAdmin && (
+            <div className="bg-purple-50/80 border border-purple-200/80 p-3.5 rounded-2xl flex items-center justify-between">
+                <div>
+                    <span className="text-xs font-bold text-purple-800 block">3. ราคาโปร</span>
+                    <span className="text-[9px] font-bold text-purple-600">สินค้าโปรโมชั่น</span>
+                </div>
+                <span className="text-lg font-black text-purple-700 bg-white px-3 py-1 rounded-xl border border-purple-200 shadow-xs font-mono">
+                    {totalPromoBoxes} กล่อง
+                </span>
+            </div>
+        )}
 
-                                <div className="bg-amber-50/80 border border-amber-200/80 p-3.5 rounded-2xl flex items-center justify-between">
-                                    <div>
-                                        <span className="text-xs font-bold text-amber-800 block">4. ราคาศูนย์ (ฟรี)</span>
-                                        <span className="text-[9px] font-bold text-amber-600">แถม/ทดลองใช้</span>
-                                    </div>
-                                    <span className="text-lg font-black text-amber-700 bg-white px-3 py-1 rounded-xl border border-amber-200 shadow-xs font-mono">
-                                        {totalZeroBoxes} กล่อง
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
+        {isAdmin && (
+            <div className="bg-amber-50/80 border border-amber-200/80 p-3.5 rounded-2xl flex items-center justify-between">
+                <div>
+                    <span className="text-xs font-bold text-amber-800 block">4. ราคาศูนย์ (ฟรี)</span>
+                    <span className="text-[9px] font-bold text-amber-600">แถม/ทดลองใช้</span>
+                </div>
+                <span className="text-lg font-black text-amber-700 bg-white px-3 py-1 rounded-xl border border-amber-200 shadow-xs font-mono">
+                    {totalZeroBoxes} กล่อง
+                </span>
+            </div>
+        )}
+    </div>
+</div>
                         {/* 💎 Section 3: Dark Theme 4 Rate Breakdown Cards */}
                         <div className="bg-slate-900 text-white p-5 rounded-2xl space-y-4 shadow-xl">
                             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -780,10 +810,12 @@
                                             <span className={`text-[11px] font-bold ${colors[idx]} block truncate`}>{idx+1}. {cat.name}</span>
                                             <div className="flex justify-between items-center">
                                                 <div className="flex flex-wrap items-center gap-1 text-[9px] font-bold">
-                                                    <span className="bg-emerald-900/60 text-emerald-300 px-1.5 py-0.5 rounded">เต็ม:{cat.fullQty}</span>
-                                                    <span className="bg-blue-900/60 text-blue-300 px-1.5 py-0.5 rounded">สมาชิก:{cat.memberQty}</span>
-                                                    <span className="bg-purple-900/60 text-purple-300 px-1.5 py-0.5 rounded">โปร:{cat.promoQty}</span>
-                                                </div>
+    <span className="bg-emerald-900/60 text-emerald-300 px-1.5 py-0.5 rounded">เต็ม:{cat.fullQty}</span>
+    <span className="bg-blue-900/60 text-blue-300 px-1.5 py-0.5 rounded">สมาชิก:{cat.memberQty}</span>
+    {isAdmin && (
+        <span className="bg-purple-900/60 text-purple-300 px-1.5 py-0.5 rounded">โปร:{cat.promoQty}</span>
+    )}
+</div>
                                                 <span className="text-sm font-black text-amber-300 bg-slate-900 px-2 py-1 rounded-lg border border-slate-700 font-mono">
                                                     {isLeaderWithTeam ? cat.totalQty : cat.personalQty}
                                                 </span>
@@ -911,11 +943,11 @@
                     {/* Top Role Badge */}
                     <div className="mb-2">
                         <span className={`text-[10px] font-black px-3 py-0.5 rounded-full shadow-xs ${
-                            isLeader 
-                            ? 'bg-amber-100 text-amber-700 border border-amber-200' 
-                            : 'bg-slate-100 text-slate-600 border border-slate-200'
-                        }`}>
-                            {isLeader ? '👑 หัวหน้าสายงาน' : '👤 พนักงาน'}
+                          isLeader 
+                        ? 'bg-amber-100 text-amber-700 border border-amber-200' 
+                         : 'bg-slate-100 text-slate-600 border border-slate-200'
+                         }`}>
+                         {isLeader ? '👑 หัวหน้าสายงาน' : `👤 ${node.role || 'พนักงาน'}`}
                         </span>
                     </div>
 
@@ -1300,6 +1332,7 @@
                     teamMap={teamMap}
                     startDate={startDate}
                     endDate={endDate}
+                    isAdmin={isAdmin}
                 />
             </div>
         );
@@ -1398,8 +1431,8 @@
                        id: pId,
                        name: String(p.name || '').trim(),
                        category: String(p.category || '').trim(),
-                       self_fee: Number(p.self_fee ?? p.selfFee ?? 0),
-                       level_1_fee: Number(p.level_1_fee ?? p.level1Fee ?? 0),
+                       self_fee: Number(p.self_fee || p.selfFee || p.Self_Fee || p.SelfFee || 0),
+                       level_1_fee: Number(p.level_1_fee || p.level1Fee || p.Level_1_Fee || p.Level1Fee || 0),
                        price_full: Number(p.price_full ?? p.priceFull ?? 0),
                        price_member: Number(p.price_member ?? p.priceMember ?? 0),
                        full_margin_amount: Number(margin.amount ?? 0),
@@ -1421,7 +1454,7 @@
                    name: String(m.name || m.Name || '').trim(),
                    referrer: String(m.referrer || m.sponsor_id || m.Sponsor_ID || '').trim(),
                    team: String(m.team || m.business_team || m.Business_Team || 'Marketing').trim(),
-                   role: String(m.role || m.permission_role || m.Permission_Role || 'Staff').trim(),
+                   role: String(m.role || m.permission_role || m.Permission_Role || 'พนักงานทั่วไป').trim(),
                    status: String(m.status || m.Status || 'ทำงานอยู่').trim(),
                    profileUrl: m.profile_url || m.id_card_url || m.ID_Card_URL || '',
                    phone: m.phone || m.phone_number || m.Phone_Number || '',

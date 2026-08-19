@@ -183,6 +183,7 @@
         const todayStr = typeof getLocalISODate === 'function' ? getLocalISODate() : new Date().toISOString().split('T')[0];
         const [historyStartDate, setHistoryStartDate] = useState(todayStr);
         const [historyEndDate, setHistoryEndDate] = useState(todayStr);
+        const [filterRecordedBy, setFilterRecordedBy] = useState('ALL');
 
         const dbSalesHistory = useMemo(() => {
             return (sales || []).map(s => {
@@ -242,6 +243,16 @@
             });
         }, [sales]);
 
+        // ⚡ FIX: ย้ายการดึงรายชื่อผู้คีย์บิลมาไว้ใต้ dbSalesHistory เพื่อให้มองเห็นข้อมูลบิล (และเพิ่มให้ถ้าข้อมูลว่างให้แสดงเป็น Admin แทน)
+        const uniqueRecorders = useMemo(() => {
+            const recorders = new Set();
+            (dbSalesHistory || []).forEach(s => {
+                const name = s.recordedBy && s.recordedBy.trim() !== '' ? s.recordedBy.trim() : 'Admin';
+                recorders.add(name);
+            });
+            return Array.from(recorders).sort();
+        }, [dbSalesHistory]);
+
         const [salesSearchTerm, setSalesSearchTerm] = useState('');
         const thirtyDaysAgoStr = (() => { const d = new Date(); d.setDate(d.getDate() - 30); const year = d.getFullYear(); const month = String(d.getMonth() + 1).padStart(2, "0"); const day = String(d.getDate()).padStart(2, "0"); return `${year}-${month}-${day}`; })();
         const [salesPage, setSalesPage] = useState(1);
@@ -267,6 +278,14 @@
            if (historyStartDate) result = result.filter(s => formatDbDateForFilter(s.date) >= historyStartDate);
            if (historyEndDate) result = result.filter(s => formatDbDateForFilter(s.date) <= historyEndDate);
 
+           // ⚡ FIX: กรองตามชื่อผู้คีย์บิลแบบเป๊ะๆ
+           if (filterRecordedBy !== 'ALL') {
+               result = result.filter(s => {
+                   const name = s.recordedBy && s.recordedBy.trim() !== '' ? s.recordedBy.trim() : 'Admin';
+                   return name === filterRecordedBy;
+               });
+           }
+
            if (salesSearchTerm.trim() !== '') {
                 const st = salesSearchTerm.toLowerCase();
                 result = result.filter(s => {
@@ -278,8 +297,12 @@
                 });
            }
            return result;
-        }, [dbSalesHistory, salesSearchTerm, isMarketing, currentUser, historyStartDate, historyEndDate]);
+        }, [dbSalesHistory, salesSearchTerm, isMarketing, currentUser, historyStartDate, historyEndDate, filterRecordedBy]);
 
+        // อัปเดตให้รีเซ็ตหน้าจอเวลาเปลี่ยนฟิลเตอร์
+        useEffect(() => { setSalesPage(1); }, [historyStartDate, historyEndDate, salesSearchTerm, filterRecordedBy]);
+
+        
         const tableTotals = useMemo(() => {
             let totalFull = 0, totalMember = 0, totalPro = 0, totalZero = 0, grandTotal = 0, totalAmountTHB = 0;
             filteredSalesHistory.forEach(s => {
@@ -392,7 +415,7 @@
                 cleanCloserName = cleanCloserName.split('-')[1].trim();
             }
 
-            const saleTypeStr = saleRecord.saleType || 'เงินสด';
+            const saleTypeStr = saleRecord.saleType || saleRecord.payMode || 'เงินสด';
             let cTHB = 0; let cLAK = 0;
             let tThaiTHB = 0; let bThaiTHB = '';
             let tLaosTHB = 0; let bLaosTHB = '';
@@ -413,7 +436,7 @@
 
                     if (key === 'เรท' || key === 'rate') {
                         rate = val || 700;
-                    } else if (key === 'สด') {
+                    } else if (key === 'สด' || key.includes('สด (บาท)') || key.includes('สด(บาท)')) {
                         cTHB = val;
                     } else if (key === 'สดกีบ' || key === 'สด (กีบ)' || key === 'สด(กีบ)') {
                         cLAK = val;
@@ -455,7 +478,11 @@
                     if (qty > 0) {
                         const productName = it.prod || it.productName || it.name || 'สินค้า';
                         const priceType = it.type || it.priceType || 'ราคาเต็ม';
-                        const prodObj = prodMap[productName] || {};
+                        
+                        // ⚡ FIX: ตัดวงเล็บออกแบบ ZINC(สิว) จะได้เจอราคาในระบบ
+                        const cleanProdNameForMatch = productName.replace(/\(.*?\)/g, '').trim();
+                        const prodObj = prodMap[cleanProdNameForMatch] || prodMap[productName] || {};
+                        
                         const multiplier = (prodObj && (prodObj.isBundle || prodObj.is_bundle)) ? (parseInt(prodObj.bundleQty || prodObj.bundle_qty) || 1) : 1;
                         
                         let fullPrice = parseFloat(prodObj.priceFull || 0);
@@ -499,7 +526,7 @@
                         
                         if (productName) {
                             const cleanProdName = productName.replace(/\(.*?\)/g, '').trim();
-                            const prodObj = prodMap[cleanProdName] || {};
+                            const prodObj = prodMap[cleanProdName] || prodMap[productName] || {};
                             const multiplier = (prodObj && (prodObj.isBundle || prodObj.is_bundle)) ? (parseInt(prodObj.bundleQty || prodObj.bundle_qty) || 1) : 1;
                             
                             let fullPrice = parseFloat(prodObj.priceFull || 0);
@@ -532,7 +559,6 @@
             items.sort((a, b) => (typeOrder[a.priceType] || 99) - (typeOrder[b.priceType] || 99));
 
             const breakdownParts = [];
-            const totalPaidTHB = cTHB + (cLAK/rate) + tThaiTHB + tLaosTHB + (tLaosLAK/rate);
             
             let payMethodLabel = 'เงินสด';
             if ((cTHB > 0 || cLAK > 0) && (tThaiTHB > 0 || tLaosTHB > 0 || tLaosLAK > 0)) {
@@ -552,8 +578,9 @@
             const totalRecordAmt = parseFloat(saleRecord.totalAmount || saleRecord.total_amount || 0);
             if (totalBaseAmount === 0) totalBaseAmount = totalRecordAmt;
             
+            // ⚡ FIX: ดักจับความเป็น "เงินกีบ" ให้แม่นยำขึ้น โดยจะถือว่าเป็นกีบก็ต่อเมื่อมีคำว่า lak, กีบ หรือ (ลาว+ไม่มีบาท)
             const pMode = String(saleRecord.payMode || saleRecord.pay_mode || saleRecord.saleType || '').toLowerCase();
-            const isLakMain = pMode.includes('กีบ') || pMode.includes('lak') || pMode.includes('โอนลาว') || pMode.includes('สดกีบ');
+            const isLakMain = pMode.includes('กีบ') || pMode.includes('lak') || (pMode.includes('ลาว') && !pMode.includes('บาท')) || pMode.includes('สดกีบ');
 
             if (isLakMain) {
                 const totalLakBill = Number(saleRecord.total_amount_lak || saleRecord.totalAmountLak || (totalRecordAmt >= 100000 ? totalRecordAmt : totalRecordAmt * rate));
@@ -604,20 +631,24 @@
                 const { lakAmt, thbAmt } = parseSaleCurrencyAmounts(saleRecord, exRate);
 
                 let rateHtml = '';
+                
+                // ⚡ FIX: แสดงยอดเงินสุทธิตามชนิดเงินจริงๆ ไม่บังคับโชว์ LAK พร่ำเพรื่อ
                 if (lakAmt > 0 && thbAmt > 0) {
                     rateHtml = `
                         <tr class="total-row bold"><td style="padding-top: 4px; font-size: 13px;">ยอดรวมสุทธิ (LAK):</td><td class="text-right" style="padding-top: 4px; font-size: 15px; color: #047857; font-family: monospace;">${Math.round(lakAmt).toLocaleString()} ₭</td></tr>
                         <tr class="total-row bold"><td style="padding-top: 4px; font-size: 13px;">ยอดรวมสุทธิ (THB):</td><td class="text-right" style="padding-top: 4px; font-size: 15px; color: #1e3a8a; font-family: monospace;">฿${(Math.round(thbAmt * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
                     `;
-                } else if (lakAmt > 0) {
-                    const equivalentThb = lakAmt / exRate;
+                } else if (lakAmt > 0 || isLakMain) {
+                    const finalLakAmt = lakAmt > 0 ? lakAmt : (totalBaseAmount * exRate);
+                    const equivalentThb = finalLakAmt / exRate;
                     rateHtml = `
                         <tr><td style="padding-top: 4px; font-size: 11px; color: #64748b;">(ยอดเงินบาท: ฿${(Math.round(equivalentThb * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})})</td><td class="text-right"></td></tr>
-                        <tr class="total-row bold"><td style="font-size: 13px;">ยอดรวมสุทธิ (LAK):</td><td class="text-right" style="font-size: 15px; color: #047857; font-family: monospace;">${Math.round(lakAmt).toLocaleString()} ₭</td></tr>
+                        <tr class="total-row bold"><td style="font-size: 13px;">ยอดรวมสุทธิ (LAK):</td><td class="text-right" style="font-size: 15px; color: #047857; font-family: monospace;">${Math.round(finalLakAmt).toLocaleString()} ₭</td></tr>
                     `;
                 } else {
+                    const finalThbAmt = thbAmt > 0 ? thbAmt : totalBaseAmount;
                     rateHtml = `
-                        <tr class="total-row bold"><td style="padding-top: 4px; font-size: 13px;">ยอดรวมสุทธิ (THB):</td><td class="text-right" style="padding-top: 4px; font-size: 15px; color: #1e3a8a; font-family: monospace;">฿${(Math.round(thbAmt * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
+                        <tr class="total-row bold"><td style="padding-top: 4px; font-size: 13px;">ยอดรวมสุทธิ (THB):</td><td class="text-right" style="padding-top: 4px; font-size: 15px; color: #1e3a8a; font-family: monospace;">฿${(Math.round(finalThbAmt * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
                     `;
                 }
 
@@ -1039,8 +1070,22 @@
                             </div>
                         </div>
 
-                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2 text-xs font-semibold">
+                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2 text-xs font-semibold">
                            <div className="flex justify-between"><span className="text-slate-500">ลูกค้า:</span> <span className="font-bold text-slate-800">{viewBillDetail.customerName || viewBillDetail.customerId}</span></div>
+                           
+                           {/* เพิ่มเบอร์โทร และอาการโรค ตรงนี้ */}
+                           {(() => {
+                               const cObj = (customers || []).find(c => c && c.id === viewBillDetail.customerId);
+                               if (!cObj) return null;
+                               return (
+                                   <React.Fragment>
+                                       <div className="flex justify-between"><span className="text-slate-500">เบอร์โทรศัพท์:</span> <span className="font-bold text-slate-800">{cObj.phone || '-'}</span></div>
+                                       {cObj.lineId && <div className="flex justify-between"><span className="text-slate-500">LINE ID:</span> <span className="font-bold text-slate-800">{cObj.lineId}</span></div>}
+                                       {cObj.symptom && <div className="flex justify-between"><span className="text-slate-500">อาการ/โรค:</span> <span className="font-bold text-rose-600">{cObj.symptom}</span></div>}
+                                   </React.Fragment>
+                               );
+                           })()}
+
                            <div className="flex justify-between"><span className="text-slate-500">ผู้คีย์รายการ:</span> <span className="font-bold text-indigo-600">{viewBillDetail.recordedBy || 'Admin'}</span></div>
                            
                            {!isMarketing && (
@@ -1183,12 +1228,27 @@
                    </div>
 
                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full xl:w-auto">
+                      {/* ⚡ NEW: กล่องฟิลเตอร์ผู้คีย์บิล */}
+                      <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200/80 shadow-xs w-full sm:w-auto">
+                          <span className="text-[12px] font-bold text-slate-500 pl-1 shrink-0">ผู้คีย์บิล:</span>
+                          <select 
+                              className="bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 py-1.5 text-[12px] font-bold text-indigo-700 outline-none shadow-xs cursor-pointer"
+                              value={filterRecordedBy}
+                              onChange={e => setFilterRecordedBy(e.target.value)}
+                          >
+                              <option value="ALL">-- ทุกคน --</option>
+                              {uniqueRecorders.map(name => (
+                                  <option key={name} value={name}>{name}</option>
+                              ))}
+                          </select>
+                      </div>
+
                       <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200/80 shadow-xs w-full sm:w-auto overflow-x-auto">
                           <span className="text-[12px] font-bold text-slate-500 pl-1 shrink-0">ช่วงวันที่:</span>
                           <input type="date" className="bg-white border border-slate-200 focus:border-blue-500 rounded-xl px-3 py-1.5 text-[12px] font-bold text-blue-600 outline-none shadow-xs" value={historyStartDate} onChange={e => setHistoryStartDate(e.target.value)} />
                          <span className="text-[12px] font-bold text-slate-400">-</span>
                          <input type="date" className="bg-white border border-slate-200 focus:border-blue-500 rounded-xl px-3 py-1.5 text-[12px] font-bold text-blue-600 outline-none shadow-xs" value={historyEndDate} onChange={e => setHistoryEndDate(e.target.value)} />
-                          {isFetchingHistory && <span className="text-xs text-blue-600 animate-pulse font-bold ml-2">กำลังโหลดข้อมูล...</span>}
+                          {isFetchingHistory && <span className="text-xs text-blue-600 animate-pulse font-bold ml-2">กำลังโหลด...</span>}
                       </div>
                       <div className="flex items-center bg-slate-50 border border-slate-200/80 rounded-2xl px-3 shadow-xs focus-within:border-blue-500 focus-within:bg-white transition-all flex-1 sm:w-64 h-[40px]">
                          <SearchIcon size={18} className="text-slate-400 shrink-0" />
@@ -1239,14 +1299,6 @@
                                  </div>
                                  <div className="text-[10px] font-bold text-slate-400 mb-0.5 truncate">ผู้ขาย: <span className="text-slate-700 font-semibold">{mName} ({rs.memberId})</span></div>
 
-                                  {custObj && (
-                                     <div className="text-[10px] text-slate-500 bg-slate-50 border border-slate-100 rounded-lg p-2 mt-1.5 font-medium space-y-0.5">
-                                         <div>📞 เบอร์โทร: <span className="text-slate-800 font-bold">{custObj.phone || '-'}</span></div>
-                                         {custObj.lineId && <div>💬 Line ID: <span className="text-slate-800 font-bold">{custObj.lineId}</span></div>}
-                                         {custObj.symptom && <div>🩺 อาการ/โรค: <span className="text-slate-800 font-bold">{custObj.symptom}</span></div>}
-                                     </div>
-                                  )}
-                                 
                                   <div className="flex flex-col gap-1 mt-2.5">
                                     <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 w-fit">🩺 ผู้ปิดการขาย (หมอ): <span className="font-black">{closerName}</span></div>
                                     <div className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 w-fit">ผู้คีย์บิล: {rs.recordedBy || 'Admin'}</div>
@@ -1258,28 +1310,30 @@
                                      </div>
                                  )}
 
-                                                                  <div className="mt-2.5 border-t border-slate-100 pt-2 flex flex-col gap-2">
-                                   <div className="flex gap-2">
+                                <div className="mt-3 border-t border-slate-100 pt-2.5 flex flex-wrap gap-1.5">
                                      <button 
                                         type="button"
                                         onClick={() => setViewBillDetail(rs)} 
-                                        className="flex-1 flex items-center justify-center bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-2 py-1.5 rounded-xl transition-colors shadow-xs gap-1 text-[11px] font-bold whitespace-nowrap" 
+                                        className="flex items-center justify-center bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-2.5 py-1.5 rounded-lg transition-all shadow-sm gap-1.5 text-[10px] font-bold" 
                                      >
-                                        <Eye size={13} className="text-blue-600"/> ดูรายละเอียด
+                                        <Eye className="text-blue-500" size={12}/> รายละเอียด
                                      </button>
                                      <button 
                                         type="button"
                                         onClick={() => handlePrintReceiptPopup(rs)} 
-                                        className="flex-1 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-1.5 rounded-xl transition-colors shadow-xs gap-1 text-[11px] font-bold whitespace-nowrap" 
+                                        className="flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 px-2.5 py-1.5 rounded-lg transition-all shadow-sm gap-1.5 text-[10px] font-bold" 
                                      >
-                                        <PrinterIcon size={13} /> พิมพ์บิล
+                                        <PrinterIcon size={12}/> พิมพ์บิล
                                      </button>
-                                   </div>
                                    {isAdmin && (
-                                     <div className="flex gap-2 border-t border-slate-100 pt-2">
-                                        <button onClick={() => window.location.href = 'Sales.html?editId=' + rs.id} className="flex items-center justify-center gap-1.5 flex-1 text-[11px] font-bold  bg-blue-50 hover:bg-blue-100 text-blue-600 py-1.5 px-3 rounded-xl border border-slate-200 shadow-xs whitespace-nowrap" title="แก้ไข"><Edit size={13}/> แก้ไขบิล</button>
-                                        <button onClick={() => setConfirmDelete({show: true, id: rs.id, customerId: rs.customerId, title: 'บิล ' + rs.id + ' ลูกค้า ' + rs.customerId})} className="flex items-center justify-center gap-1.5 flex-1 text-[11px] font-bold  bg-red-50 hover:bg-red-100 text-red-500 py-1.5 px-3 rounded-xl border border-slate-200 shadow-xs whitespace-nowrap" title="ลบ"><Trash2 size={13}/> ลบบิล</button>
-                                     </div>
+                                     <React.Fragment>
+                                        <button onClick={() => window.location.href = 'Sales.html?editId=' + rs.id} className="flex items-center justify-center bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 px-2.5 py-1.5 rounded-lg transition-all shadow-sm gap-1.5 text-[10px] font-bold" title="แก้ไขบิล">
+                                            <Edit size={12}/> แก้ไข
+                                        </button>
+                                        <button onClick={() => setConfirmDelete({show: true, id: rs.id, customerId: rs.customerId, title: 'บิล ' + rs.id + ' ลูกค้า ' + rs.customerId})} className="flex items-center justify-center bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 px-2.5 py-1.5 rounded-lg transition-all shadow-sm gap-1.5 text-[10px] font-bold" title="ลบบิล">
+                                            <Trash2 size={12}/> ลบ
+                                        </button>
+                                     </React.Fragment>
                                    )}
                                  </div>
                               </td>
@@ -1289,26 +1343,41 @@
                        })}
                      </tbody>
                      {!loading && (
-                     <tfoot className="bg-blue-50/50 border-t-2 border-blue-100">
-                                    <tr>
-                                        <td colSpan="2" className="p-4 text-right font-black text-slate-600 uppercase">รวมจำนวนชิ้นทั้งหมด:</td>
-                                        <td className="p-4 text-center font-black text-2xl text-blue-700 bg-blue-100/50 rounded-b-xl border-x border-blue-100/50">
-                                            {(() => {
-                                                let tQty = 0;
-                                                Object.keys(viewBillDetail || {}).filter(k => k.includes('_ราคา') && !k.includes('รวมชิ้น') && viewBillDetail[k] > 0).forEach(key => {
-                                                    const qty = parseInt(viewBillDetail[key]);
-                                                    const pName = key.replace(/_ราคาเต็ม$|_ราคาโปร$|_ราคาสมาชิก$|_ราคาศูนย์$/, '').trim();
-                                                    const pObj = prodMap[pName] || {};
-                                                    const multiplier = (pObj && (pObj.isBundle || pObj.is_bundle)) ? (parseInt(pObj.bundleQty || pObj.bundle_qty) || 1) : 1;
-                                                    tQty += (qty * multiplier);
-                                                });
-                                                return tQty;
-                                            })()}
-                                        </td>
-                                        <td></td>
-                                    </tr>
-                                </tfoot>
-                     )}
+  <tfoot className="bg-blue-50/50 border-t-2 border-blue-100">
+    <tr>
+      <td className="p-4 text-right font-black text-slate-600 uppercase">รวมจำนวนชิ้นทั้งหมด:</td>
+      
+      {/* ยอดรวม ราคาเต็ม */}
+      <td className="p-4 text-center font-black text-xl text-green-700">
+        {tableTotals.totalFull.toLocaleString()}
+      </td>
+      
+      {/* ยอดรวม ราคาสมาชิก */}
+      <td className="p-4 text-center font-black text-xl text-purple-700">
+        {tableTotals.totalMember.toLocaleString()}
+      </td>
+      
+      {/* ยอดรวม ราคาโปร (ซ่อนถ้าเป็น Marketing) */}
+      {!isMarketing && (
+        <td className="p-4 text-center font-black text-xl text-orange-700">
+          {tableTotals.totalPro.toLocaleString()}
+        </td>
+      )}
+      
+      {/* ยอดรวม ราคาศูนย์ (ซ่อนถ้าเป็น Marketing) */}
+      {!isMarketing && (
+        <td className="p-4 text-center font-black text-xl text-slate-600">
+          {tableTotals.totalZero.toLocaleString()}
+        </td>
+      )}
+      
+      {/* ยอดรวมสุทธิทั้งหมด */}
+      <td className="p-4 text-center font-black text-2xl text-blue-700 bg-blue-100/50 rounded-br-xl border-x border-blue-100/50">
+        {tableTotals.grandTotal.toLocaleString()}
+      </td>
+    </tr>
+  </tfoot>
+)}
                    </table>
                  </div>
 
@@ -1365,7 +1434,7 @@
       const isAdmin = currentUser && (String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || String(currentUser.role).trim().toLowerCase() === 'admin');
       const currentUserProfileUrl = currentUser?.profileUrl || '';
 
-      useEffect(() => {
+           useEffect(() => {
         const savedUserStr = localStorage.getItem('stk_current_user');
         if (savedUserStr) {
           setCurrentUser(JSON.parse(savedUserStr));
@@ -1377,13 +1446,23 @@
         const initialLoader = document.getElementById('initial-loader');
         if (initialLoader) initialLoader.style.display = 'none';
 
-        // 💡 SMART CACHING & PAGE TRANSITION SPEED FIX:
-        // ตรวจสอบ cache ใน localStorage ถ้าข้อมูลยังใหม่ (ไม่เกิน 20 วินาที)
-        // จะใช้งานข้อมูลเดิมทันทีโดยไม่ต้องดึงฐานข้อมูลใหม่เพื่อความเร็วในการเปลี่ยนหน้า
-        let isCacheFresh = false;
+        // 💡 SMART CACHING & PAGE TRANSITION SPEED FIX
         const applyDataToStates = (data) => {
           if (Array.isArray(data.members)) setMembers(data.members.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name })));
-          if (Array.isArray(data.customers)) setCustomers(data.customers.map(x => ({ ...x, id: x.id || x.customer_id, closer: x.closer || x.closer_id || '' })));
+          
+          // ⚡ FIX: แมปปิ้งฟิลด์ข้อมูลลูกค้าให้ครบถ้วน ป้องกันชื่อและอาการลูกค้าหาย
+          if (Array.isArray(data.customers)) {
+              setCustomers(data.customers.map(x => ({ 
+                  ...x, 
+                  id: x.customer_id || x.id, 
+                  name: x.name || x.customer_name || '',
+                  phone: x.phone || x.phone_number || '',
+                  symptom: x.symptom_disease || x.symptom || '',
+                  type: String(x.type || x.customer_type || x.customerType || '').trim(),
+                  closer: x.closer_id || x.closer || '' 
+              })));
+          }
+
           if (Array.isArray(data.closers)) setClosers(data.closers.map(x => ({ ...x, id: x.id || x.closer_id })));
           if (Array.isArray(data.products)) setProducts(data.products.map(p => ({
              ...p,
@@ -1416,30 +1495,28 @@
             if (cachedData && cacheTime) {
                 const parsedData = JSON.parse(cachedData);
                 applyDataToStates(parsedData);
-                // ✨ แสดงหน้าจอทันที ไม่รอ API
                 setIsAppLoading(false);
-                window.__ordersCacheAge = Date.now() - Number(cacheTime);
             }
         } catch (e) { console.warn("Cache error", e); }
 
        // ⚡ REAL-TIME SYNC & QUICK MOUNT:
         const doSalesRefresh = async () => {
-            setIsAppLoading(true);
             try {
-                // สมมติโหลดข้อมูล 30 วันย้อนหลังถ้ายังไม่มีการเลือกวันที่
-                const end = new Date().toISOString().split('T')[0];
-                const d = new Date(); d.setDate(d.getDate() - 30);
-                const start = d.toISOString().split('T')[0];
+                // ⚡ FIX: สั่งเคลียร์แคชและบังคับดึงข้อมูลสด (nocache=true) เพื่อให้ได้บิลล่าสุดเสมอ
+                if (typeof window.clearDbCache === 'function') window.clearDbCache();
 
-                // ยิง Query แบบกรองจาก Database ตรงๆ เพื่อความไว
-                let query = `date=gte.${start}&date=lte.${end}&order=order_id.desc&limit=500`;
+                let query = `order=order_id.desc&limit=800&nocache=true`;
+                const usr = JSON.parse(localStorage.getItem('stk_current_user') || '{}');
                 
-                // ถ้า currentUser เป็นการตลาด ให้ดึงเฉพาะของตัวเอง
-                if (currentUser && (String(currentUser.role).trim() === 'พนักงานการตลาด' || String(currentUser.role).trim().toLowerCase() === 'marketing')) {
-                    query += `&seller_id=eq.${String(currentUser.id || '').toUpperCase()}`;
+                if (usr && (String(usr.role).trim() === 'พนักงานการตลาด' || String(usr.role).trim().toLowerCase() === 'marketing')) {
+                    query += `&seller_id=eq.${String(usr.id || '').toUpperCase()}`;
                 }
 
-                const saleRes = await supabaseSelect('stk_sales', query);
+                // ⚡ FIX: เรียงลำดับลูกค้าตามวันที่สร้าง (created_at.desc) แทนรหัส เพื่อรับประกันว่าลูกค้าที่เพิ่งสร้างใหม่จะติดมาด้วยเสมอ
+                const [saleRes, custRes] = await Promise.all([
+                    supabaseSelect('stk_sales', query).catch(() => []),
+                    supabaseSelect('stk_customers', 'order=created_at.desc&limit=1500&nocache=true').catch(() => [])
+                ]);
                 
                 if (Array.isArray(saleRes)) {
                     let combinedSales = saleRes.filter(s => s && s.status !== 'รอดำเนินการ' && s.status !== 'ร่างใบสั่งซื้อ (จากคลินิก)');
@@ -1455,36 +1532,91 @@
                         paymentNote: s.paymentNote || s.payment_note
                     })));
                 }
+
+                // ⚡ FIX: นำข้อมูลลูกค้าใหม่มาผนวก (Merge) กับข้อมูลเดิม เพื่อไม่ให้ข้อมูลเก่าหาย
+                if (Array.isArray(custRes) && custRes.length > 0) {
+                    const formattedCusts = custRes.map(x => ({
+                        ...x, 
+                        id: x.customer_id || x.id, 
+                        name: x.name || x.customer_name || '',
+                        phone: x.phone || x.phone_number || '',
+                        symptom: x.symptom_disease || x.symptom || '',
+                        type: String(x.type || x.customer_type || x.customerType || '').trim(), 
+                        lineId: x.lineId || x.line_id, 
+                        closer: x.closer_id || x.closer || "", 
+                        closerTeam: x.closerTeam || x.closer_team || x.extra_details_json?.closerTeam || "", 
+                        memberId: x.owner_member_id || x.member_id || x.memberId, 
+                        memberName: x.member_name || x.memberName || x.extra_details_json?.memberName || ""
+                    }));
+                    
+                    setCustomers(prev => {
+                        const merged = [...formattedCusts];
+                        const newIds = new Set(formattedCusts.map(c => c.id));
+                        (prev || []).forEach(oldC => {
+                            if (!newIds.has(oldC.id)) merged.push(oldC);
+                        });
+                        return merged;
+                    });
+                }
             } catch (err) {
                 console.error('Fetch sales error:', err);
-            } finally {
-                setIsAppLoading(false);
             }
         };
-        
 
-        // ตั้ง EVENT LISTENERS ดึงข้อมูลเมื่อผู้ใช้สลับกลับมาที่แท็บนี้ (Focus) หรือเปิดกลับมาหน้าบิล เพื่อความเรียลไทม์สูงสุด
+        // 🟢 ฝังตัวรับสัญญาณแบบ Real-time ให้หน้าจอดึงข้อมูลใหม่ทันที
         window.addEventListener('focus', doSalesRefresh);
         window.addEventListener('pageshow', doSalesRefresh);
 
-        // ⚡ SPEED FIX: ดึงข้อมูลเริ่มต้น รวมถึงบิลของ 30 วันย้อนหลังทันทีตอนโหลดแอป
-        const end = new Date().toISOString().split('T')[0];
-        const d = new Date(); d.setDate(d.getDate() - 30);
-        const start = d.toISOString().split('T')[0];
+        const handleMessageEvent = (e) => {
+            if (e.data === 'refresh_data' || (e.data && e.data.type === 'new_sale_toast')) {
+                doSalesRefresh();
+            }
+        };
+        window.addEventListener('message', handleMessageEvent);
         
-        let salesQuery = `date=gte.${start}&date=lte.${end}&order=order_id.desc&limit=500`;
-        if (currentUser && (String(currentUser.role).trim() === 'พนักงานการตลาด' || String(currentUser.role).trim().toLowerCase() === 'marketing')) {
-            salesQuery += `&seller_id=eq.${String(currentUser.id || '').toUpperCase()}`;
+        let bc;
+        if (typeof BroadcastChannel !== 'undefined') {
+            bc = new BroadcastChannel('stk_mlm_channel');
+            bc.onmessage = (e) => {
+                if (e.data === 'refresh_data' || (e.data && e.data.type === 'new_sale_toast')) {
+                    doSalesRefresh();
+                }
+            };
+        }
+
+        let lastPollTime = Date.now();
+        const fastPollInterval = setInterval(() => {
+            try {
+                const trigger1 = localStorage.getItem('stk_refresh_trigger');
+                if (trigger1 && Number(trigger1) > lastPollTime) {
+                    lastPollTime = Number(trigger1);
+                    doSalesRefresh();
+                }
+                const trigger2 = localStorage.getItem('stk_new_sale_trigger');
+                if (trigger2) {
+                    const parsed = JSON.parse(trigger2);
+                    if (parsed && parsed.timestamp && parsed.timestamp > lastPollTime) {
+                        lastPollTime = parsed.timestamp;
+                        doSalesRefresh();
+                    }
+                }
+            } catch(e) {}
+        }, 1000);
+
+        // ดึงข้อมูลโหลดแรกสุด
+        let salesQuery = `order=order_id.desc&limit=800`;
+        const usr = JSON.parse(localStorage.getItem('stk_current_user') || '{}');
+        if (usr && (String(usr.role).trim() === 'พนักงานการตลาด' || String(usr.role).trim().toLowerCase() === 'marketing')) {
+            salesQuery += `&seller_id=eq.${String(usr.id || '').toUpperCase()}`;
         }
 
         Promise.all([
           supabaseSelect('stk_members').catch(() => []),
-          // ลดจำนวนโหลดลูกค้าเหลือ 1000 เพื่อความเร็ว
-          supabaseSelect('stk_customers', 'order=customer_id.desc&limit=1000').catch(() => []), 
+          // ⚡ เรียงลำดับ created_at.desc เพื่อดึงลูกค้าใหม่ล่าสุดก่อนเสมอ
+          supabaseSelect('stk_customers', 'order=created_at.desc&limit=1500').catch(() => []), 
           supabaseSelect('stk_products').catch(() => []),
           supabaseSelect('stk_system_settings').catch(() => []),
           supabaseSelect('stk_closers').catch(() => []),
-          // ⚡ ดึงบิล 30 วันล่าสุดมาด้วยเลยตรงนี้ เพื่อไม่ให้ตารางว่างเปล่าตอนเปิดแอป
           supabaseSelect('stk_sales', salesQuery).catch(() => [])
         ]).then(([memRes, custRes, prodRes, setRes, closerRes, saleRes]) => {
            const settingsObj = { exchange_rate: 700 };
@@ -1496,7 +1628,7 @@
              products: prodRes,
              systemSettings: settingsObj,
              closers: closerRes,
-             sales: saleRes // นำข้อมูลบิลใส่กลับเข้าไปให้ระบบ
+             sales: saleRes 
            };
 
            applyDataToStates(resObj);
@@ -1508,29 +1640,17 @@
         }).catch(err => console.error(err))
           .finally(() => setIsAppLoading(false));
 
-        // ⚡ AUTO-REFRESH: รีเฟรชรายการบิลทุก 60 วินาที เพื่อดึงบิลใหม่ที่พนักงานคนอื่นบันทึกโดยไม่ต้อง reload
         const refreshInterval = setInterval(() => {
-            supabaseSelect('stk_sales', 'order=order_id.desc&limit=300').then(saleRes => {
-                if (!Array.isArray(saleRes)) return;
-                let combinedSales = saleRes.filter(s => s && s.status !== 'รอดำเนินการ' && s.status !== 'ร่างใบสั่งซื้อ (จากคลินิก)');
-                setSales(combinedSales.map(s => ({
-                    ...s,
-                    id: s.id || s.sale_id || s.receipt_id || s.order_id,
-                    customerId: s.customerId || s.customer_id,
-                    memberId: s.memberId || s.sellerId || s.seller_id,
-                    totalAmount: s.totalAmount || s.total_amount,
-                    saleType: s.saleType || s.sale_type,
-                    date: s.date || s.created_at,
-                    recordedBy: s.recordedBy || s.recorded_by,
-                    paymentNote: s.paymentNote || s.payment_note
-                })));
-            }).catch(() => {});
+            doSalesRefresh();
         }, 60000);
 
         return () => {
             clearInterval(refreshInterval);
+            clearInterval(fastPollInterval);
             window.removeEventListener('focus', doSalesRefresh);
             window.removeEventListener('pageshow', doSalesRefresh);
+            window.removeEventListener('message', handleMessageEvent);
+            if (bc) bc.close();
         };
       }, []);
 

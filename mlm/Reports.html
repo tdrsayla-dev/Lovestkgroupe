@@ -139,6 +139,7 @@
         const [selectedTeamFilter, setSelectedTeamFilter] = useState('');
 
         const [stockModalItem, setStockModalItem] = useState(null);
+        const [viewBillDetail, setViewBillDetail] = useState(null);
 
         const [selectedPayouts, setSelectedPayouts] = useState([]);
         const [showPayoutModal, setShowPayoutModal] = useState(false);
@@ -271,76 +272,100 @@
         }, [convertVal, currencyMode]);
 
         const parseSaleCurrencyAmounts = useCallback((s, exRate) => {
-            // ดึงยอดรวมจากฟิลด์ต่างๆ (total_amount เก็บเป็น THB เป็น default)
-            const rawAmt = Number(s['ยอดขายรวม'] || s.total_amount || s.totalAmount || 0);
-            const pModeStr = String(s.payMode || s.pay_mode || s.saleType || s.payment_method || '').trim();
+            let rawAmt = Number(s['ยอดขายรวม'] || s.total_amount || s.totalAmount || s.amount || s.grand_total || s.grandTotal || 0);
+            const safeExRate = Number(exRate) || 700;
+            
+            // 1. ค้นหาข้อความช่องทางชำระเงินจากทุกฟิลด์ใน Database
+            let realPayMode = '';
+            for (const key in s) {
+                if (!s.hasOwnProperty(key)) continue;
+                const val = s[key];
+                if (typeof val === 'string') {
+                    const vStr = val.trim();
+                    const vUpper = vStr.toUpperCase();
+                    if (vUpper.includes('กีบ') || vUpper.includes('บาท') || vUpper.includes('LAK') || vUpper.includes('THB') || vUpper.includes('โอนลาว') || vUpper.includes('เงินสด') || vUpper.includes('BCEL')) {
+                        if (vStr.length >= 2 && vStr.length < 150 && !realPayMode) {
+                            realPayMode = vStr;
+                        }
+                    }
+                }
+            }
+            if (!realPayMode) {
+                realPayMode = String(s.pay_type || s.payment_type || s.saleType || s.sale_type || s.payMode || s.pay_mode || s.payment_method || 'เงินโอน').trim();
+            }
 
-            let lakAmt = 0;
-            let thbAmt = 0;
+            let lakAmt = 0; let thbAmt = 0;
 
-            // === กรณีที่ 1: saleType มีรูปแบบ key:value|key:value (ใหม่ เช่น "สด:500 | สดกีบ:13760 | เรท:700") ===
-            if (pModeStr.includes(':')) {
-                const parts = pModeStr.split('|');
-                let hasParsedLAK = false;
-                let hasParsedTHB = false;
+            // 🎯 ฟังก์ชันชี้ขาดสกุลเงิน (กฎเหล็กตามที่คุณต้องการเป๊ะๆ)
+            const determineCurrency = (text) => {
+                const t = text.toUpperCase();
+                // ถ้ามีคำว่า "บาท", "THB", "ไทย" ชนะทุกเงื่อนไข -> เป็นเงินบาท
+                if (t.includes('บาท') || t.includes('THB') || t.includes('ไทย')) return 'THB';
+                // ถ้ามีคำว่า "กีบ", "LAK", "KIP" หรือชื่อธนาคารฝั่งลาว (และไม่มีคำว่าบาท) -> เป็นเงินกีบ
+                if (t.includes('กีบ') || t.includes('LAK') || t.includes('KIP') || t.includes('BCEL') || t.includes('JDB') || t.includes('โอนลาว')) return 'LAK';
+                // นอกนั้น Default ให้เป็นเงินบาท
+                return 'THB'; 
+            };
 
+            // 2. 🚀 การคำนวณบิลที่มีการแบ่งจ่ายหลายช่องทาง (มีเครื่องหมาย : หรือ |)
+            if (realPayMode.includes(':')) {
+                const parts = realPayMode.split('|');
+                let hasParsed = false;
                 parts.forEach(part => {
                     const trimmed = part.trim();
                     if (!trimmed.includes(':')) return;
                     const colonIdx = trimmed.indexOf(':');
-                    const key = trimmed.substring(0, colonIdx).trim().toLowerCase();
-                    const val = parseFloat(trimmed.substring(colonIdx + 1)) || 0;
-
-                    // ข้าม metadata (เรท, rate)
-                    if (key === 'เรท' || key === 'rate' || key === 'อัตรา') return;
-
-                    // กีบ/LAK ก่อน — สดกีบ, โอนลาวกีบ, lak
-                    if (key.includes('กีบ') || key.includes('lak') || key === 'สดกีบ' || key.includes('โอนลาวกีบ')) {
-                        lakAmt += val;
-                        hasParsedLAK = true;
-                    }
-                    // บาท/THB — สด (ไม่ใช่สดกีบ), โอนไทย, โอนลาวบาท, thb, บาท, โอน
-                    else if (key === 'สด' || key.includes('โอนไทย') || key.includes('โอนลาวบาท') || key.includes('thb') || key.includes('บาท') || key.includes('โอน')) {
-                        thbAmt += val;
-                        hasParsedTHB = true;
+                    const keyName = trimmed.substring(0, colonIdx).trim();
+                    if (keyName.toUpperCase() === 'เรท' || keyName.toUpperCase() === 'RATE' || keyName.toUpperCase() === 'อัตรา') return;
+                    
+                    // ⚡ ลบสัญลักษณ์สกุลเงิน (฿, ₭, K) ขีด และลูกน้ำออกทั้งหมด ให้เหลือแค่ตัวเลขเพียวๆ!
+                    const valStr = trimmed.substring(colonIdx + 1).replace(/[^\d.]/g, '');
+                    const val = parseFloat(valStr) || 0;
+                    
+                    if (val > 0) {
+                        const cur = determineCurrency(keyName);
+                        if (cur === 'LAK') lakAmt += val;
+                        else thbAmt += val;
+                        hasParsed = true;
                     }
                 });
-
-                if (hasParsedLAK || hasParsedTHB) {
-                    return { lakAmt, thbAmt, isLakBill: lakAmt > 0, isThbBill: thbAmt > 0 };
+                
+                if (hasParsed) {
+                    return { lakAmt, thbAmt, isLakBill: lakAmt > 0, isThbBill: thbAmt > 0, realPayMode };
                 }
             }
 
-            // === กรณีที่ 2: saleType เป็น keyword ธรรมดา (ไม่มี :) ===
-            const lowerPMode = pModeStr.toLowerCase();
+            // 3. หายอดชัดเจนจากคอลัมน์เงินกีบ/บาท ที่แยกไว้ใน Database
+            let explicitLak = Number(s.total_amount_lak || s.totalAmountLak || s.lak || 0);
+            let explicitThb = Number(s.total_amount_thb || s.totalAmountThb || s.thb || 0);
             
-            // ตรวจสอบ keyword กีบ (LAK) — ต้องมี keyword ชัดเจน ไม่ใช้ขนาดตัวเลขตัดสิน
-            const isLakBill = lowerPMode.includes('กีบ') 
-                || lowerPMode.includes('lak') 
-                || lowerPMode.includes('โอนลาวกีบ') 
-                || lowerPMode.includes('สดกีบ') 
-                || lowerPMode.includes('โอนลาว');
-
-            if (isLakBill) {
-                // ถ้ามี field แยก total_amount_lak ให้ใช้ก่อน
-                let amt = Number(s.total_amount_lak || s.totalAmountLak || 0);
-                if (!amt || amt <= 0) {
-                    // rawAmt (total_amount) เก็บเป็น THB → แปลงเป็นกีบ
-                    amt = rawAmt * exRate;
+            if (explicitLak === 0 && explicitThb === 0) {
+                for (const key in s) {
+                    if (!s.hasOwnProperty(key)) continue;
+                    const k = key.toLowerCase();
+                    const numV = Number(s[key]);
+                    if (!isNaN(numV) && numV > 0) {
+                        if (k === 'lak' || k === 'kip' || k === 'กีบ' || k.includes('amount_lak') || k.includes('lak_amount') || k.includes('total_lak') || k === 'ยอดเงินกีบ') explicitLak = numV;
+                        if (k === 'thb' || k === 'บาท' || k.includes('amount_thb') || k.includes('thb_amount') || k.includes('total_thb') || k === 'ยอดเงินบาท') explicitThb = numV;
+                    }
                 }
-                lakAmt = amt;
-                return { lakAmt, thbAmt: 0, isLakBill: true, isThbBill: false };
             }
 
-            // === Default: ถ้าไม่มี keyword กีบเลย → ถือเป็นเงินบาท (THB) เสมอ ===
-            // (เงินบาทอาจมีหลายแสน เช่น ฿300,000 ก็ได้ ห้ามใช้ขนาดตัวเลขตัดสิน)
-            let amt = Number(s.total_amount_thb || s.totalAmountThb || 0);
-            if (!amt || amt <= 0) amt = rawAmt; // rawAmt เก็บเป็น THB อยู่แล้ว
-            thbAmt = amt;
+            if (explicitLak > 0 || explicitThb > 0) {
+                return { lakAmt: explicitLak, thbAmt: explicitThb, isLakBill: explicitLak > 0, isThbBill: explicitThb > 0, realPayMode };
+            }
 
-            return { lakAmt: 0, thbAmt, isLakBill: false, isThbBill: true };
+            // 4. กรณีจ่ายช่องทางเดียว วิเคราะห์จากข้อความรวมๆ
+            const finalCur = determineCurrency(realPayMode);
+            
+            if (finalCur === 'LAK') {
+                let finalLak = rawAmt;
+                if (rawAmt > 0 && rawAmt < 50000) finalLak = rawAmt * safeExRate;
+                return { lakAmt: finalLak, thbAmt: 0, isLakBill: true, isThbBill: false, realPayMode };
+            } else {
+                return { lakAmt: 0, thbAmt: rawAmt, isLakBill: false, isThbBill: true, realPayMode };
+            }
         }, []);
-
         const debouncedSearchQuery = useDebounce(searchQuery, 300);
         const [detailModalEarner, setDetailModalEarner] = useState(null);
 
@@ -1217,22 +1242,25 @@
                     });
 
                     // สรุปยอดการเงินรวม Cards
+                    // สรุปยอดการเงินรวม Cards
                     const financeKpi = (() => {
                         let sumLak = 0;
                         let sumThb = 0;
-                        let fullBoxes = 0, memberBoxes = 0, proBoxes = 0, zeroBoxes = 0, totalBills = financeBills.length;
+                        let lakBillsCount = 0;
+                        let thbBillsCount = 0;
+                        
                         financeBills.forEach(s => {
-                            const { lakAmt, thbAmt } = parseSaleCurrencyAmounts(s, exchangeRate);
+                            const { lakAmt, thbAmt, isLakBill, isThbBill } = parseSaleCurrencyAmounts(s, exchangeRate);
                             sumLak += lakAmt;
                             sumThb += thbAmt;
-                            fullBoxes += Number(s['รวมชิ้นราคาเต็ม'] || 0);
-                            memberBoxes += Number(s['รวมชิ้นราคาสมาชิก'] || 0);
-                            proBoxes += Number(s['รวมชิ้นราคาโปร'] || 0);
-                            zeroBoxes += Number(s['รวมชิ้นราคาศูนย์'] || 0);
+                            
+                            // แยกนับจำนวนบิลชัดเจน
+                            if (isLakBill) lakBillsCount++;
+                            if (isThbBill) thbBillsCount++;
                         });
-                        const grandCombinedLAK = sumLak + (sumThb * exchangeRate);
                         const grandCombinedTHB = sumThb + (sumLak / exchangeRate);
-                        return { sumLak, sumThb, grandCombinedLAK, grandCombinedTHB, fullBoxes, memberBoxes, proBoxes, zeroBoxes, totalBills };
+                        
+                        return { sumLak, sumThb, grandCombinedTHB, lakBillsCount, thbBillsCount };
                     })();
 
                     // สรุปรายเดือน/รายวัน (Summary View)
@@ -1257,45 +1285,134 @@
 
                     return (
                         <div className="space-y-6 animation-fade-in">
-                            {/* Summary KPI Cards */}
-                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                                <div className="col-span-2 sm:col-span-1 bg-gradient-to-br from-amber-500 to-orange-600 p-4 rounded-2xl shadow-md text-white">
+                           {/* Summary KPI Cards */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-4 rounded-2xl shadow-md text-white">
                                     <div className="text-xs font-bold text-amber-100 mb-1">💰 รวมสุทธิ (คิดเป็นบาท)</div>
-                                    <div className="text-xl font-black">฿{(Math.round(financeKpi.grandCombinedTHB * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
-                                    <div className="text-[10px] text-amber-100 mt-1">อัตรา {exchangeRate.toLocaleString()} ₭/฿</div>
+                                    <div className="text-2xl font-black">฿{(Math.round(financeKpi.grandCombinedTHB * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
                                 </div>
                                 <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl shadow-sm">
                                     <div className="text-xs font-bold text-emerald-700 mb-1">🇱🇦 ยอดรับ (กีบ)</div>
-                                    <div className="text-lg font-black text-emerald-700">{Math.round(financeKpi.sumLak).toLocaleString()} ₭</div>
-                                    <div className="text-[10px] text-emerald-500 font-bold mt-1">{financeKpi.totalBills} บิล</div>
+                                    <div className="text-xl font-black text-emerald-700">{Math.round(financeKpi.sumLak).toLocaleString()} ₭</div>
+                                    <div className="text-[11px] text-emerald-600 font-bold mt-1">{financeKpi.lakBillsCount} บิล</div>
                                 </div>
                                 <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl shadow-sm">
                                     <div className="text-xs font-bold text-blue-700 mb-1">🇹🇭 ยอดรับ (บาท)</div>
-                                    <div className="text-lg font-black text-blue-700">฿{financeKpi.sumThb.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
-                                    <div className="text-[10px] text-blue-500 font-bold mt-1">{financeKpi.totalBills} บิล</div>
-                                </div>
-                                <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
-                                    <div className="text-xs font-bold text-slate-500 mb-1">กล่องราคาเต็ม</div>
-                                    <div className="text-2xl font-black text-slate-800">{financeKpi.fullBoxes.toLocaleString()}</div>
-                                    <div className="text-[10px] text-slate-400 font-bold mt-1">กล่อง</div>
-                                </div>
-                                <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl shadow-sm">
-                                    <div className="text-xs font-bold text-blue-600 mb-1">กล่องราคาสมาชิก</div>
-                                    <div className="text-2xl font-black text-blue-700">{financeKpi.memberBoxes.toLocaleString()}</div>
-                                    <div className="text-[10px] text-blue-500 font-bold mt-1">กล่อง</div>
-                                </div>
-                                <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl shadow-sm">
-                                    <div className="text-xs font-bold text-amber-600 mb-1">กล่องราคาโปร</div>
-                                    <div className="text-2xl font-black text-amber-700">{financeKpi.proBoxes.toLocaleString()}</div>
-                                    <div className="text-[10px] text-amber-500 font-bold mt-1">กล่อง</div>
+                                    <div className="text-xl font-black text-blue-700">฿{financeKpi.sumThb.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                                    <div className="text-[11px] text-blue-600 font-bold mt-1">{financeKpi.thbBillsCount} บิล</div>
                                 </div>
                             </div>
 
-                            {/* Main Table */}
+                           {/* Main Table */}
                             {isDetailView ? (
                                 <div className={`${boxWrapper} p-0 overflow-hidden`}>
+                                    
+                                    {/* ⚡ NEW: ป๊อปอัปดูรายละเอียดบิล */}
+                                    <EditModal isOpen={viewBillDetail !== null} onClose={() => setViewBillDetail(null)} title={'รายละเอียดบิล ' + (viewBillDetail?.id || '')} icon={FileText} maxWidthClass="max-w-2xl">
+                                        {viewBillDetail && (
+                                            <div className="flex flex-col gap-5 p-2">
+                                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2 text-xs font-semibold">
+                                                    <div className="flex justify-between"><span className="text-slate-500">เลขที่บิล:</span> <span className="font-black text-blue-600 text-sm">{viewBillDetail.id}</span></div>
+                                                    <div className="flex justify-between"><span className="text-slate-500">วันที่คีย์บิล:</span> <span className="font-bold text-slate-800">{viewBillDetail.date}</span></div>
+                                                    <div className="flex justify-between border-t border-slate-200/60 pt-2 mt-1"><span className="text-slate-500">ลูกค้า:</span> <span className="font-bold text-slate-800">{viewBillDetail.customerName || viewBillDetail.customerId}</span></div>
+                                                    <div className="flex justify-between"><span className="text-slate-500">ผู้ขาย (เจ้าของเคส):</span> <span className="font-bold text-indigo-600">{viewBillDetail.sellerName || viewBillDetail.memberId}</span></div>
+                                                </div>
+
+                                                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                                                    <table className="w-full text-left text-sm">
+                                                        <thead className="bg-slate-100 border-b border-slate-200 text-slate-600 text-[11px] uppercase tracking-wider">
+                                                            <tr>
+                                                                <th className="p-3 font-black pl-4">รายการสินค้า</th>
+                                                                <th className="p-3 text-center font-black w-24">จำนวน</th>
+                                                            </tr>
+                                                        </thead>
+                                                <tbody className="divide-y divide-slate-100">
+    {(() => {
+        let billItems = [];
+        if (viewBillDetail._items && viewBillDetail._items.length > 0) {
+            viewBillDetail._items.forEach(it => {
+                billItems.push({
+                    name: it.prod || it.productName || it.name,
+                    qty: Number(it.qty || it.quantity),
+                    type: it.type || 'ราคาเต็ม'
+                });
+            });
+        } else {
+            Object.keys(viewBillDetail).forEach(k => {
+                if (k.endsWith('_ราคาเต็ม') || k.endsWith('_ราคาสมาชิก') || k.endsWith('_ราคาโปร') || k.endsWith('_ราคาศูนย์')) {
+                    const qty = Number(viewBillDetail[k]);
+                    if (qty > 0) {
+                        const pName = k.substring(0, k.lastIndexOf('_'));
+                        const type = k.substring(k.lastIndexOf('_') + 1);
+                        billItems.push({ name: pName, qty, type });
+                    }
+                }
+            });
+        }
+
+        if (billItems.length === 0) {
+            return <tr><td colSpan="2" className="p-8 text-center text-slate-400 font-bold">ไม่พบรายการสินค้าในบิลนี้</td></tr>;
+        }
+
+        return billItems.map((item, idx) => (
+            <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                <td className="p-4 font-bold text-slate-800">
+                    {item.name} 
+                    <span className="text-[10px] text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md ml-2">{item.type}</span>
+                </td>
+                <td className="p-4 text-center font-black text-blue-600 text-lg">{item.qty}</td>
+            </tr>
+        ));
+    })()}
+</tbody>
+                                                        <tfoot className="bg-blue-50/50 border-t-2 border-blue-100">
+                                                            <tr>
+                                                                <td className="p-4 text-right font-black text-slate-600 uppercase">รวมจำนวนชิ้นทั้งหมด:</td>
+                                                                <td className="p-4 text-center font-black text-2xl text-blue-700 bg-blue-100/50 rounded-br-xl border-x border-blue-100/50">
+                                                                    {viewBillDetail['ยอดรวมชิ้นทั้งหมด'] || Object.keys(viewBillDetail).filter(k => k.includes('_ราคา') && !k.includes('รวมชิ้น') && viewBillDetail[k] > 0).reduce((sum, key) => sum + parseInt(viewBillDetail[key]), 0)}
+                                                                </td>
+                                                            </tr>
+                                                        </tfoot>
+                                                    </table>
+                                                    
+                                                    <div className="p-4 bg-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-t border-slate-200">
+                                                        <div className="flex flex-col gap-1 w-full md:w-auto">
+                                                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">ช่องทางชำระเงิน</span>
+                                                            <div className="text-[12px] font-black text-slate-800 bg-white px-3 py-2 rounded-lg border border-blue-100 shadow-sm leading-relaxed">
+                                                                {(() => {
+                                                                    const st = String(viewBillDetail.saleType || viewBillDetail.payMode || 'เงินโอน').trim();
+                                                                    if (st.includes('|') || st.includes(':')) {
+                                                                        return st.split('|').map(p => p.trim()).join(' | ');
+                                                                    }
+                                                                    return st;
+                                                                })()}
+                                                            </div>
+                                                            {viewBillDetail.paymentNote && <span className="text-[11px] text-amber-600 font-bold mt-2 flex items-center gap-1"><Info size={12}/> หมายเหตุ: {viewBillDetail.paymentNote}</span>}
+                                                        </div>
+                                                        <div className="flex flex-col items-end text-right w-full md:w-auto border-t md:border-t-0 md:border-l border-blue-200/50 pt-4 md:pt-0 md:pl-6">
+                                                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">ยอดรับรวม</span>
+                                                            {(() => {
+                                                                const exRate = Number(systemSettings?.exchange_rate || 700);
+                                                                const { lakAmt, thbAmt } = parseSaleCurrencyAmounts(viewBillDetail, exRate);
+                                                                return (
+                                                                    <div className="flex flex-col items-end gap-1">
+                                                                        {lakAmt > 0 && <span className="text-2xl font-black text-emerald-600 leading-none drop-shadow-sm">{Math.round(lakAmt).toLocaleString()} ₭</span>}
+                                                                        {thbAmt > 0 && <span className="text-2xl font-black text-blue-700 leading-none drop-shadow-sm">฿{(thbAmt % 1 === 0 ? thbAmt.toLocaleString() : thbAmt.toLocaleString(undefined, {minimumFractionDigits:2}))}</span>}
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-end pt-2 border-t border-slate-100">
+                                                    <button onClick={() => setViewBillDetail(null)} className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl border border-slate-200 transition-colors shadow-sm">ปิดหน้าต่าง</button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </EditModal>
+
                                     <div className="overflow-x-auto">
-                                        <table className="w-full text-left border-collapse min-w-[1100px]">
+                                        <table className="w-full text-left border-collapse min-w-[1000px]">
                                             <thead>
                                                 <tr className="bg-slate-100 border-b border-slate-200">
                                                     <th className={thBase}>เลขที่บิล</th>
@@ -1303,22 +1420,20 @@
                                                     <th className={thBase}>ผู้ขาย (พนักงาน)</th>
                                                     <th className={thBase}>ชื่อลูกค้า</th>
                                                     <th className={thBase}>ช่องทางชำระ</th>
-                                                    <th className={`${thBase} text-center`}>เต็ม (กล่อง)</th>
-                                                    <th className={`${thBase} text-center text-blue-700`}>สมาชิก (กล่อง)</th>
-                                                    <th className={`${thBase} text-center text-amber-700`}>โปร (กล่อง)</th>
-                                                    <th className={`${thBase} text-center text-slate-500`}>ศูนย์ (กล่อง)</th>
                                                     <th className={`${thBase} text-right text-emerald-700 font-bold bg-emerald-50/60`}>ยอดรับ (เงินกีบ)</th>
                                                     <th className={`${thBase} text-right text-blue-700 font-bold bg-blue-50/60`}>ยอดรับ (เงินบาท)</th>
+                                                    <th className={`${thBase} text-center`}>รายละเอียด</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {financeBills.map((s, idx) => {
-                                
                                                     const displayCust = (s.customerName && s.customerName !== 'ไม่ระบุชื่อ') 
                                                         ? s.customerName 
                                                         : (s.customerId ? `ลูกค้า (${s.customerId})` : 'ลูกค้าทั่วไป');
                                                     
-                                                    const { lakAmt, thbAmt } = parseSaleCurrencyAmounts(s, exchangeRate);
+                                                    // ⚡ ดึงทั้งยอดเงิน และชื่อช่องทางชำระเงินของจริง (realPayMode) มาใช้งาน
+                                                    const { lakAmt, thbAmt, realPayMode } = parseSaleCurrencyAmounts(s, exchangeRate);
+                                                    
                                                     let displayLakStr = lakAmt > 0 ? `${Math.round(lakAmt).toLocaleString()} ₭` : '-';
                                                     let displayThbStr = thbAmt > 0 ? `฿${(thbAmt % 1 === 0 ? thbAmt.toLocaleString() : thbAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}` : '-';
 
@@ -1331,48 +1446,55 @@
                                                             <td className="p-4 text-xs font-bold">
                                                                 <div className="space-y-1">
                                                                     {(() => {
-                                                                        const st = String(s.saleType || s.payMode || s.pay_mode || 'เงินโอน').trim();
-                                                                        if (st.includes('|') || st.includes(':')) {
-                                                                            return st.split('|').map((part, pIdx) => {
-                                                                                let pTrim = part.trim();
-                                                                                if (!pTrim.includes(':')) return null;
-                                                                                const colonIdx = pTrim.indexOf(':');
-                                                                                const k = pTrim.substring(0, colonIdx).trim();
-                                                                                const v = pTrim.substring(colonIdx + 1).trim();
-                                                                                const kLow = k.toLowerCase();
-                                                                                // Skip metadata (เรท)
-                                                                                if (k === 'เรท' || k === 'rate') return null;
-                                                                                let label = k;
-                                                                                let valDisplay = v;
-                                                                                let colorClass = 'bg-slate-100 text-slate-700 border-slate-200';
-                                                                                if (k === 'สด') { label = '💵 เงินสด'; valDisplay = `฿${Number(v).toLocaleString()}`; colorClass = 'bg-blue-50 text-blue-700 border-blue-200'; }
-                                                                                else if (kLow.includes('สดกีบ') || k === 'สดกีบ') { label = '💴 เงินสด (₭)'; valDisplay = `${Number(v).toLocaleString()} ₭`; colorClass = 'bg-emerald-50 text-emerald-700 border-emerald-200'; }
-                                                                                else if (kLow.includes('โอนไทย')) { label = `🏦 ${k}`; valDisplay = `฿${Number(v).toLocaleString()}`; colorClass = 'bg-blue-50 text-blue-700 border-blue-200'; }
-                                                                                else if (kLow.includes('โอนลาวบาท')) { label = `🏦 ${k}`; valDisplay = `฿${Number(v).toLocaleString()}`; colorClass = 'bg-indigo-50 text-indigo-700 border-indigo-200'; }
-                                                                                else if (kLow.includes('โอนลาวกีบ') || kLow.includes('กีบ')) { label = `🏦 ${k}`; valDisplay = `${Number(v).toLocaleString()} ₭`; colorClass = 'bg-emerald-50 text-emerald-700 border-emerald-200'; }
-                                                                                return <span key={pIdx} className={`block px-2.5 py-0.5 border rounded-md text-[11px] font-semibold whitespace-nowrap ${colorClass}`}>{label}: <span className="font-black">{valDisplay}</span></span>;
-                                                                            }).filter(Boolean);
-                                                                        }
-                                                                        const isLak = st.toLowerCase().includes('กีบ') || st.toLowerCase().includes('lak');
-                                                                        return <span className={`px-2.5 py-1 border rounded-lg text-xs whitespace-nowrap ${isLak ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>{st}</span>;
+                                                                        const st = String(realPayMode || 'เงินโอน').trim();
+                                                                        
+                                                                        // ฟังก์ชันแยกสีพื้นหลัง Tag ตามสกุลเงิน
+                                                                        const getTagColor = (text) => {
+                                                                            const t = text.toUpperCase();
+                                                                            if (t.includes('บาท') || t.includes('THB') || t.includes('ไทย')) return 'bg-blue-50 text-blue-700 border-blue-200';
+                                                                            if (t.includes('กีบ') || t.includes('LAK') || t.includes('KIP') || t.includes('BCEL') || t.includes('JDB') || t.includes('โอนลาว')) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                                                                            return 'bg-slate-100 text-slate-700 border-slate-200';
+                                                                        };
+
+                                                                        // หากมีหลายช่องทางให้โชว์แยกกันเป็นบรรทัดๆ
+                                                                    if (st.includes('|') || st.includes(':')) {
+                                                                        return st.split('|').map((part, pIdx) => {
+                                                                            let pTrim = part.trim();
+                                                                            if (!pTrim.includes(':')) {
+                                                                                return <span key={pIdx} className={`inline-block px-2.5 py-1 border rounded-lg text-xs whitespace-nowrap mb-1 mr-1 ${getTagColor(pTrim)}`}>{pTrim}</span>;
+                                                                            }
+                                                                            const colonIdx = pTrim.indexOf(':');
+                                                                            const k = pTrim.substring(0, colonIdx).trim();
+                                                                            
+                                                                            // ซ่อนคำว่าเรท ไม่ต้องนำมาแสดงให้รกตาราง
+                                                                            if (k.toUpperCase() === 'เรท' || k.toUpperCase() === 'RATE') return null;
+                                                                            
+                                                                            // 💡 ตัดส่วนตัวเลขทิ้ง แสดงเฉพาะชื่อช่องทางชำระเงิน (k)
+                                                                            return <span key={pIdx} className={`inline-block px-2.5 py-1 border rounded-lg text-[11px] font-bold whitespace-nowrap mb-1 mr-1 ${getTagColor(k)}`}>{k}</span>;
+                                                                        }).filter(Boolean);
+                                                                    }
+                                                                        
+                                                                        
+                                                                        return <span className={`px-2.5 py-1 border rounded-lg text-xs whitespace-nowrap inline-block ${getTagColor(st)}`}>{st}</span>;
                                                                     })()}
                                                                 </div>
                                                             </td>
-                                                            <td className="p-4 text-center text-xs font-bold text-slate-700">{s['รวมชิ้นราคาเต็ม'] || 0}</td>
-                                                            <td className="p-4 text-center text-xs font-black text-blue-600 bg-blue-50/20">{s['รวมชิ้นราคาสมาชิก'] || 0}</td>
-                                                            <td className="p-4 text-center text-xs font-bold text-amber-600">{s['รวมชิ้นราคาโปร'] || 0}</td>
-                                                            <td className="p-4 text-center text-xs font-bold text-slate-400">{s['รวมชิ้นราคาศูนย์'] || 0}</td>
                                                             <td className="p-4 text-right text-sm font-black text-emerald-700 bg-emerald-50/30 whitespace-nowrap">
                                                                 {displayLakStr}
                                                             </td>
                                                             <td className="p-4 text-right text-sm font-black text-blue-700 bg-blue-50/30 whitespace-nowrap">
                                                                 {displayThbStr}
                                                             </td>
+                                                            <td className="p-4 text-center">
+                                                                <button onClick={() => setViewBillDetail(s)} className="flex items-center gap-1 mx-auto bg-white border border-slate-200 shadow-sm px-3 py-1.5 rounded-lg text-[11px] font-bold text-blue-600 hover:bg-blue-50 transition-colors">
+                                                                    <Eye size={14}/> ดูรายละเอียด
+                                                                </button>
+                                                            </td>
                                                         </tr>
                                                     );
                                                 })}
                                                 {financeBills.length === 0 && (
-                                                    <tr><td colSpan={11} className="p-12 text-center text-slate-400 font-bold">ไม่พบข้อมูลการเงินตามเงื่อนไขที่ระบุ</td></tr>
+                                                    <tr><td colSpan={8} className="p-12 text-center text-slate-400 font-bold">ไม่พบข้อมูลการเงินตามเงื่อนไขที่ระบุ</td></tr>
                                                 )}
                                             </tbody>
                                             {financeBills.length > 0 && (() => {
@@ -1391,30 +1513,19 @@
                                                             <td colSpan={5} className="p-4 text-right font-black text-sm text-slate-300">
                                                                 ยอดรวมสุทธิแยกตามสกุลเงิน ({financeBills.length} รายการ):
                                                             </td>
-                                                            <td className="p-4 text-center font-bold text-slate-300">
-                                                                {financeBills.reduce((acc, curr) => acc + Number(curr['รวมชิ้นราคาเต็ม'] || 0), 0)}
-                                                            </td>
-                                                            <td className="p-4 text-center font-black text-blue-400 bg-blue-950/40">
-                                                                {financeBills.reduce((acc, curr) => acc + Number(curr['รวมชิ้นราคาสมาชิก'] || 0), 0)}
-                                                            </td>
-                                                            <td className="p-4 text-center font-bold text-amber-400">
-                                                                {financeBills.reduce((acc, curr) => acc + Number(curr['รวมชิ้นราคาโปร'] || 0), 0)}
-                                                            </td>
-                                                            <td className="p-4 text-center font-bold text-slate-400">
-                                                                {financeBills.reduce((acc, curr) => acc + Number(curr['รวมชิ้นราคาศูนย์'] || 0), 0)}
-                                                            </td>
                                                             <td className="p-4 text-right text-sm font-black text-emerald-400 bg-emerald-950/60 whitespace-nowrap">
                                                                 {sumLak > 0 ? `${Math.round(sumLak).toLocaleString()} ₭` : <span className="text-slate-600">-</span>}
                                                             </td>
                                                             <td className="p-4 text-right text-sm font-black text-blue-400 bg-blue-950/60 whitespace-nowrap">
                                                                 {sumThb > 0 ? `฿${sumThb.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : <span className="text-slate-600">-</span>}
                                                             </td>
+                                                            <td className="p-4 bg-slate-900"></td>
                                                         </tr>
                                                         <tr className="bg-slate-950 text-slate-200 border-t border-slate-800">
-                                                            <td colSpan={9} className="p-3 text-right font-black text-xs text-amber-400 tracking-wide">
+                                                            <td colSpan={5} className="p-3 text-right font-black text-xs text-amber-400 tracking-wide">
                                                                 💡 รวมคำนวณรวบยอดคิดเป็นเงินบาททั้งหมด (Combined Total in THB):
                                                             </td>
-                                                            <td colSpan={2} className="p-3 text-right font-black text-base text-amber-300">
+                                                            <td colSpan={3} className="p-3 text-left font-black text-base text-amber-300">
                                                                 ฿{grandCombinedTHB.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-[10px] font-bold text-slate-400">(อัตราแลกเปลี่ยน {exchangeRate.toLocaleString()} ₭/฿)</span>
                                                             </td>
                                                         </tr>
@@ -1424,77 +1535,212 @@
                                         </table>
                                     </div>
                                 </div>
-                            ) : (
-                                <div className={`${boxWrapper} p-0 overflow-hidden`}>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left border-collapse min-w-[800px]">
-                                            <thead>
-                                                <tr className="bg-slate-100 border-b border-slate-200">
-                                                    <th className={thBase}>ช่วงเวลา (เดือน/วัน)</th>
-                                                    <th className={`${thBase} text-center`}>จำนวนบิลทั้งหมด</th>
-                                                    <th className={`${thBase} text-center text-emerald-700`}>กล่องราคาเต็ม</th>
-                                                    <th className={`${thBase} text-center text-blue-700`}>กล่องราคาสมาชิก</th>
-                                                    <th className={`${thBase} text-center text-amber-700`}>กล่องราคาโปร</th>
-                                                    <th className={`${thBase} text-center text-slate-500`}>กล่องราคาศูนย์</th>
-                                                    <th className={`${thBase} text-right text-emerald-700 font-bold`}>รายรับ (เงินกีบ ₭)</th>
-                                                    <th className={`${thBase} text-right text-blue-700 font-bold`}>รายรับ (เงินบาท ฿)</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {financeSummaryData.map((row, idx) => (
-                                                    <tr key={row.period || idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                                                        <td className="p-4 text-sm font-bold text-slate-800 whitespace-nowrap">{row.period}</td>
-                                                        <td className="p-4 text-center text-xs font-bold text-slate-700">{row.billsCount} บิล</td>
-                                                        <td className="p-4 text-center text-xs font-bold text-emerald-700 bg-emerald-50/20">{row.fullBoxes} กล่อง</td>
-                                                        <td className="p-4 text-center text-xs font-black text-blue-700 bg-blue-50/20">{row.memberBoxes} กล่อง</td>
-                                                        <td className="p-4 text-center text-xs font-bold text-amber-700 bg-amber-50/20">{row.proBoxes} กล่อง</td>
-                                                        <td className="p-4 text-center text-xs font-bold text-slate-500">{row.zeroBoxes} กล่อง</td>
-                                                        <td className="p-4 text-right text-sm font-black text-emerald-700 whitespace-nowrap">
-                                                            {row.sumLak > 0 ? `${Math.round(row.sumLak).toLocaleString()} ₭` : <span className="text-slate-300">-</span>}
-                                                        </td>
-                                                        <td className="p-4 text-right text-sm font-black text-blue-700 whitespace-nowrap">
-                                                            {row.sumThb > 0 ? `฿${row.sumThb.toLocaleString(undefined, {minimumFractionDigits: 2})}` : <span className="text-slate-300">-</span>}
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                                {financeSummaryData.length === 0 && (
-                                                    <tr><td colSpan={8} className="p-12 text-center text-slate-400 font-bold">ไม่พบสรุปข้อมูลการเงินตามเงื่อนไขที่ระบุ</td></tr>
-                                                )}
-                                            </tbody>
-                                            {financeSummaryData.length > 0 && (() => {
-                                                const totLak = financeSummaryData.reduce((a, r) => a + r.sumLak, 0);
-                                                const totThb = financeSummaryData.reduce((a, r) => a + r.sumThb, 0);
-                                                const totBills = financeSummaryData.reduce((a, r) => a + r.billsCount, 0);
-                                                const grandThb = totThb + (totLak / exchangeRate);
+                             ) : (
+                                <div className="space-y-6">
+                                    {/* 📈 กราฟแสดงสถิติยอดขาย (SVG Area Chart) */}
+                                    {financeSummaryData.length > 0 && (
+                                        <div className="bg-slate-900 rounded-2xl p-4 sm:p-5 shadow-xl border border-slate-800 overflow-hidden relative mb-4">
+                                            {/* Glow Background Effects (ปรับให้เล็กลงตามกล่อง) */}
+                                            <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none opacity-30">
+                                                <div className="absolute -top-20 -left-20 w-72 h-72 bg-blue-600 rounded-full blur-[80px]"></div>
+                                                <div className="absolute top-1/2 right-0 w-72 h-72 bg-pink-600 rounded-full blur-[90px]"></div>
+                                                <div className="absolute -bottom-20 left-1/2 w-72 h-72 bg-orange-500 rounded-full blur-[80px]"></div>
+                                            </div>
+
+                                            <h3 className="text-base sm:text-lg font-black text-white mb-4 flex items-center gap-2 relative z-10">
+                                                <Activity size={20} className="text-pink-500" /> สถิติยอดขายรวมรายเดือน (THB)
+                                            </h3>
+                                            
+                                            {(() => {
+                                                const startD = new Date(startDate);
+                                                const endD = new Date(endDate);
+                                                const allMonths = [];
+                                                
+                                                if (!isNaN(startD) && !isNaN(endD)) {
+                                                    let curr = new Date(startD.getFullYear(), startD.getMonth(), 1);
+                                                    const endM = new Date(endD.getFullYear(), endD.getMonth(), 1);
+                                                    while (curr <= endM) {
+                                                        const yyyy = curr.getFullYear();
+                                                        const mm = String(curr.getMonth() + 1).padStart(2, '0');
+                                                        allMonths.push(`${yyyy}-${mm}`);
+                                                        curr.setMonth(curr.getMonth() + 1);
+                                                    }
+                                                }
+                                                
+                                                if (allMonths.length === 1) {
+                                                    const yyyy = startD.getFullYear();
+                                                    const m = startD.getMonth();
+                                                    const prev = new Date(yyyy, m - 1, 1);
+                                                    const next = new Date(yyyy, m + 1, 1);
+                                                    allMonths.unshift(`${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`);
+                                                    allMonths.push(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`);
+                                                }
+
+                                                const dataMap = {};
+                                                financeSummaryData.forEach(d => {
+                                                    dataMap[d.period] = d.sumThb + (d.sumLak / exchangeRate);
+                                                });
+
+                                                const sortedData = allMonths.map(period => ({
+                                                    period: period,
+                                                    totalTHB: dataMap[period] || 0
+                                                }));
+                                                
+                                                if (sortedData.length === 0) return null;
+
+                                                const maxAmt = Math.max(...sortedData.map(d => d.totalTHB), 100);
+                                                const yMaxScale = maxAmt * 1.25; 
+                                                
+                                                // 💡 ปรับความสูงกราฟให้แบนลง (200px) และลด Padding
+                                                const width = Math.max(900, sortedData.length * 80); 
+                                                const height = 200; 
+                                                const paddingX = 50;
+                                                const paddingY = 25;
+                                                
+                                                const getX = (index) => paddingX + (index * ((width - paddingX * 2) / Math.max(sortedData.length - 1, 1)));
+                                                const getY = (val) => height - paddingY - ((val / yMaxScale) * (height - paddingY * 2));
+                                                
+                                                const createSmoothPath = (data) => {
+                                                    let path = `M ${getX(0)} ${getY(data[0].totalTHB)}`;
+                                                    for (let i = 0; i < data.length - 1; i++) {
+                                                        const currX = getX(i);
+                                                        const currY = getY(data[i].totalTHB);
+                                                        const nextX = getX(i + 1);
+                                                        const nextY = getY(data[i + 1].totalTHB);
+                                                        const cp1X = currX + (nextX - currX) / 2.5;
+                                                        const cp1Y = currY;
+                                                        const cp2X = currX + (nextX - currX) / 2.5;
+                                                        const cp2Y = nextY;
+                                                        path += ` C ${cp1X} ${cp1Y}, ${cp2X} ${cp2Y}, ${nextX} ${nextY}`;
+                                                    }
+                                                    return path;
+                                                };
+
+                                                const linePath = createSmoothPath(sortedData);
+                                                const areaPath = `${linePath} L ${getX(sortedData.length - 1)} ${height - paddingY} L ${getX(0)} ${height - paddingY} Z`;
+
                                                 return (
-                                                    <tfoot className="bg-slate-900 text-white border-t-4 border-slate-950 sticky bottom-0">
-                                                        <tr>
-                                                            <td className="p-4 text-right font-black text-sm text-slate-300" colSpan={2}>
-                                                                ยอดรวมทั้งหมด ({totBills} บิล):
-                                                            </td>
-                                                            <td className="p-4 text-center font-bold text-slate-300">{financeSummaryData.reduce((a,r)=>a+r.fullBoxes,0)} กล่อง</td>
-                                                            <td className="p-4 text-center font-black text-blue-400">{financeSummaryData.reduce((a,r)=>a+r.memberBoxes,0)} กล่อง</td>
-                                                            <td className="p-4 text-center font-bold text-amber-400">{financeSummaryData.reduce((a,r)=>a+r.proBoxes,0)} กล่อง</td>
-                                                            <td className="p-4 text-center font-bold text-slate-400">{financeSummaryData.reduce((a,r)=>a+r.zeroBoxes,0)} กล่อง</td>
-                                                            <td className="p-4 text-right font-black text-emerald-400 bg-emerald-950/60 whitespace-nowrap">
-                                                                {totLak > 0 ? `${Math.round(totLak).toLocaleString()} ₭` : <span className="text-slate-600">-</span>}
-                                                            </td>
-                                                            <td className="p-4 text-right font-black text-blue-400 bg-blue-950/60 whitespace-nowrap">
-                                                                {totThb > 0 ? `฿${totThb.toLocaleString(undefined, {minimumFractionDigits: 2})}` : <span className="text-slate-600">-</span>}
-                                                            </td>
-                                                        </tr>
-                                                        <tr className="bg-slate-950 text-slate-200 border-t border-slate-800">
-                                                            <td colSpan={6} className="p-3 text-right font-black text-xs text-amber-400 tracking-wide">
-                                                                💡 รวมคำนวณรวบยอดคิดเป็นเงินบาททั้งหมด:
-                                                            </td>
-                                                            <td colSpan={2} className="p-3 text-right font-black text-base text-amber-300">
-                                                                ฿{grandThb.toLocaleString(undefined, {minimumFractionDigits: 2})} <span className="text-[10px] font-bold text-slate-400">(อัตรา {exchangeRate.toLocaleString()} ₭/฿)</span>
-                                                            </td>
-                                                        </tr>
-                                                    </tfoot>
+                                                    <div className="w-full overflow-x-auto hide-scroll pb-2 relative z-10">
+                                                        <svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-[700px] h-[200px] drop-shadow-xl">
+                                                            <defs>
+                                                                <linearGradient id="lineGradientNeon" x1="0" y1="0" x2="1" y2="0">
+                                                                    <stop offset="0%" stopColor="#38bdf8" />
+                                                                    <stop offset="30%" stopColor="#818cf8" />
+                                                                    <stop offset="60%" stopColor="#ec4899" />
+                                                                    <stop offset="100%" stopColor="#f59e0b" />
+                                                                </linearGradient>
+                                                                <linearGradient id="areaGradientNeon" x1="0" y1="0" x2="0" y2="1">
+                                                                    <stop offset="0%" stopColor="#ec4899" stopOpacity={0.5}/>
+                                                                    <stop offset="50%" stopColor="#8b5cf6" stopOpacity={0.15}/>
+                                                                    <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.0}/>
+                                                                </linearGradient>
+                                                            </defs>
+                                                            
+                                                            {/* Grid lines & Y-Axis */}
+                                                            {[0, 0.5, 1].map(ratio => {
+                                                                const y = height - paddingY - (ratio * (height - paddingY * 2));
+                                                                const val = yMaxScale * ratio;
+                                                                return (
+                                                                    <g key={ratio}>
+                                                                        <line x1={paddingX} y1={y} x2={width - paddingX} y2={y} stroke="#334155" strokeWidth="1" strokeDasharray="3 5" opacity="0.5" />
+                                                                        <text x={paddingX - 12} y={y + 3} textAnchor="end" fontSize="10" fill="#64748b" fontWeight="600">
+                                                                            {val >= 1000 ? (val/1000).toFixed(0) + 'K' : val.toLocaleString(undefined, {maximumFractionDigits:0})}
+                                                                        </text>
+                                                                    </g>
+                                                                );
+                                                            })}
+
+                                                            {/* Area & Line */}
+                                                            <path d={areaPath} fill="url(#areaGradientNeon)" />
+                                                            <path d={linePath} fill="none" stroke="url(#lineGradientNeon)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0px 6px 4px rgba(236, 72, 153, 0.3))' }} />
+                                                            
+                                                            {/* Data Points & Tooltips */}
+                                                            {sortedData.map((d, i) => {
+                                                                const x = getX(i);
+                                                                const y = getY(d.totalTHB);
+                                                                return (
+                                                                    <g key={i} className="group cursor-pointer">
+                                                                        <circle cx={x} cy={y} r="5" fill="#0f172a" stroke="#f472b6" strokeWidth="2.5" className="transition-all duration-300 group-hover:r-[7px] group-hover:stroke-[#fcd34d] group-hover:fill-white shadow-lg" />
+                                                                        
+                                                                        <rect x={x - 50} y={y - 40} width="100" height="26" rx="6" fill="#ffffff" className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none drop-shadow-lg" />
+                                                                        <polygon points={`${x-5},${y-14} ${x+5},${y-14} ${x},${y-8}`} fill="#ffffff" className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" />
+                                                                        <text x={x} y={y - 23} textAnchor="middle" fontSize="11" fill="#0f172a" fontWeight="900" className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                                                                            ฿{d.totalTHB.toLocaleString(undefined, {maximumFractionDigits:0})}
+                                                                        </text>
+                                                                        
+                                                                        <text x={x} y={height - paddingY + 18} textAnchor="middle" fontSize="10" fill="#94a3b8" fontWeight="700" className="group-hover:fill-white transition-colors">
+                                                                            {d.period}
+                                                                        </text>
+                                                                    </g>
+                                                                );
+                                                            })}
+                                                        </svg>
+                                                    </div>
                                                 );
                                             })()}
-                                        </table>
+                                        </div>
+                                    )}
+                                
+                                    {/* 🗂️ ตารางสถิติรายเดือน (ซ่อนเรท + ใส่ลูกน้ำ) */}
+                                    <div className={`${boxWrapper} p-0 overflow-hidden`}>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left border-collapse min-w-[800px]">
+                                                <thead>
+                                                    <tr className="bg-slate-100 border-b border-slate-200">
+                                                        <th className={thBase}>ช่วงเวลา (เดือน/วัน)</th>
+                                                        <th className={`${thBase} text-center`}>จำนวนบิลทั้งหมด</th>
+                                                        <th className={`${thBase} text-center text-emerald-700`}>กล่องราคาเต็ม</th>
+                                                        <th className={`${thBase} text-center text-blue-700`}>กล่องราคาสมาชิก</th>
+                                                        <th className={`${thBase} text-center text-amber-700`}>กล่องราคาโปร</th>
+                                                        <th className={`${thBase} text-center text-slate-500`}>กล่องราคาศูนย์</th>
+                                                        <th className={`${thBase} text-right text-emerald-700 font-bold`}>รายรับ (เงินกีบ ₭)</th>
+                                                        <th className={`${thBase} text-right text-blue-700 font-bold`}>รายรับ (เงินบาท ฿)</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {financeSummaryData.map((row, idx) => (
+                                                        <tr key={row.period || idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                                            <td className="p-4 text-sm font-bold text-slate-800 whitespace-nowrap">{row.period}</td>
+                                                            <td className="p-4 text-center text-xs font-bold text-slate-700">{row.billsCount.toLocaleString()} บิล</td>
+                                                            <td className="p-4 text-center text-xs font-bold text-emerald-700 bg-emerald-50/20">{row.fullBoxes.toLocaleString()} กล่อง</td>
+                                                            <td className="p-4 text-center text-xs font-black text-blue-700 bg-blue-50/20">{row.memberBoxes.toLocaleString()} กล่อง</td>
+                                                            <td className="p-4 text-center text-xs font-bold text-amber-700 bg-amber-50/20">{row.proBoxes.toLocaleString()} กล่อง</td>
+                                                            <td className="p-4 text-center text-xs font-bold text-slate-500">{row.zeroBoxes.toLocaleString()} กล่อง</td>
+                                                            <td className="p-4 text-right text-sm font-black text-emerald-700 whitespace-nowrap">
+                                                                {row.sumLak > 0 ? `${Math.round(row.sumLak).toLocaleString()} ₭` : <span className="text-slate-300">-</span>}
+                                                            </td>
+                                                            <td className="p-4 text-right text-sm font-black text-blue-700 whitespace-nowrap">
+                                                                {row.sumThb > 0 ? `฿${row.sumThb.toLocaleString(undefined, {minimumFractionDigits: 2})}` : <span className="text-slate-300">-</span>}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                    {financeSummaryData.length === 0 && (
+                                                        <tr><td colSpan={8} className="p-12 text-center text-slate-400 font-bold">ไม่พบสรุปข้อมูลการเงินตามเงื่อนไขที่ระบุ</td></tr>
+                                                    )}
+                                                </tbody>
+                                                {financeSummaryData.length > 0 && (() => {
+                                                    const totLak = financeSummaryData.reduce((a, r) => a + r.sumLak, 0);
+                                                    const totThb = financeSummaryData.reduce((a, r) => a + r.sumThb, 0);
+                                                    const totBills = financeSummaryData.reduce((a, r) => a + r.billsCount, 0);
+                                                    const grandThb = totThb + (totLak / exchangeRate);
+                                                    return (
+                                                        <tfoot className="bg-white sticky bottom-0 shadow-[0_-8px_20px_rgba(0,0,0,0.06)] border-t border-slate-200">
+                                                            <tr className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-inner">
+                                                                <td colSpan={6} className="p-4 text-right font-bold text-sm tracking-wide border-r border-white/10">
+                                                                    <span className="flex items-center justify-end gap-2">
+                                                                        <Activity size={18} className="text-blue-200" />
+                                                                        ยอดรวมสุทธิคิดเป็นเงินบาท (Net Total THB) จากทั้งหมด {totBills.toLocaleString()} บิล
+                                                                    </span>
+                                                                </td>
+                                                                <td colSpan={2} className="p-4 text-right font-black text-xl text-yellow-300 drop-shadow-md">
+                                                                    ฿{grandThb.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                                                                </td>
+                                                            </tr>
+                                                        </tfoot>
+                                                    );
+                                                })()}
+                                            </table>
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -1502,116 +1748,109 @@
                     );
                 })()}
 
+
                 {/* 📌 ส่วนแสดงผลสำหรับกลุ่ม "สต๊อก & สินค้าตัดศูนย์" (activeGroup === 'stock') */}
                 {activeGroup === 'stock' && (() => {
                     const isZeroPromoView = subTab === 'stock_zero_promo';
                     const isBalanceView = subTab === 'stock_balance';
 
-                    // 1. คำนวณสรุปยอดขายและยอดเบิกออกจำแนกตามสินค้าจากรายการขาย
-                    const stockSalesReport = (() => {
+                    
+                       // 1. คำนวณความเคลื่อนไหวและสต๊อกคงเหลือ (Forward Calculation แบบแม่นยำ)
+                    const stockSalesReport = useMemo(() => {
                         let map = {};
                         
-                        // กรองบิลขายตั้งแต่วันที่เริ่มต้นโลกจนถึง endDate (สำหรับคำนวณเบิกออกสะสมถึงวันที่เลือก)
-                        let salesUpToEndDate = [];
+                        // ก. ตั้งต้นสินค้าทั้งหมดด้วย 0
+                        (products || []).forEach(p => {
+                            if (!p) return;
+                            const pName = String(p.name || p.id || '').trim();
+                            const pId = String(p.id || pName).trim();
+                            
+                            map[pName] = {
+                                id: pId, name: pName, category: p.category || '-',
+                                openingBalance: 0,   // ยอดยกมา
+                                receivedInPeriod: 0, // รับเข้าช่วงเวลา
+                                periodOut: 0,        // ขาย/เบิกออกช่วงเวลา
+                                fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0
+                            };
+                        });
+
+                        const validStockMovements = (stockMovements || []).filter(m => m && (m.created_at || m.date));
+
+                        // ข. คำนวณประวัติรับเข้า / ปรับลดสต๊อก
+                        validStockMovements.forEach(m => {
+                            const targetName = String(m.product_name || m.product || m.name || '').trim();
+                            let foundKey = Object.keys(map).find(k => k.toUpperCase() === targetName.toUpperCase() || map[k].id.toUpperCase() === targetName.toUpperCase());
+                            
+                            if (!foundKey) {
+                                map[targetName] = { id: targetName, name: targetName, category: '-', openingBalance: 0, receivedInPeriod: 0, periodOut: 0, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0 };
+                                foundKey = targetName;
+                            }
+
+                            const recDate = (m.created_at || m.date || '').substring(0, 10);
+                            const qty = Number(m.quantity || m.qty || 0);
+                            const isOutbound = (m.type === 'out' || m.type === 'reduce' || m.type === 'deduct');
+
+                            if (recDate < startDate) {
+                                // ก่อนวันเริ่ม: รับเข้าบวกยอดยกมา, เบิกออกหักยอดยกมา
+                                if (isOutbound) map[foundKey].openingBalance -= qty;
+                                else map[foundKey].openingBalance += qty;
+                            } else if (recDate >= startDate && recDate <= endDate) {
+                                // ในช่วงเวลา: แยกว่าเป็นยอดรับเข้า หรือ ยอดเบิกออก
+                                if (isOutbound) map[foundKey].periodOut += qty;
+                                else map[foundKey].receivedInPeriod += qty;
+                            }
+                        });
+
+                        // ค. คำนวณยอดขายออก (จากบิลขาย)
                         (sales || []).forEach(record => {
-                            if (!record || (record.date || '') > endDate) return;
+                            if (!record) return;
                             if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(record.memberId))) return;
                             
+                            const saleDate = (record.date || record.created_at || '').substring(0, 10);
+
                             Object.entries(record || {}).forEach(([key, value]) => {
                                 if (key.endsWith('_ราคาเต็ม') || key.endsWith('_ราคาสมาชิก') || key.endsWith('_ราคาโปร') || key.endsWith('_ราคาศูนย์')) {
                                     const qty = parseInt(value, 10);
                                     if (!isNaN(qty) && qty > 0) {
-                                        const lastUnderscore = key.lastIndexOf('_');
-                                        salesUpToEndDate.push({
-                                            date: record.date || '',
-                                            product: key.substring(0, lastUnderscore).replace(/\(.*?\)/g, '').trim(),
-                                            priceType: key.substring(lastUnderscore + 1),
-                                            qty: qty
-                                        });
+                                        const pName = key.substring(0, key.lastIndexOf('_')).replace(/\(.*?\)/g, '').trim();
+                                        const priceType = key.substring(key.lastIndexOf('_') + 1);
+
+                                        let foundKey = Object.keys(map).find(k => k.toUpperCase() === pName.toUpperCase() || map[k].id.toUpperCase() === pName.toUpperCase());
+                                        if (!foundKey) {
+                                            map[pName] = { id: pName, name: pName, category: '-', openingBalance: 0, receivedInPeriod: 0, periodOut: 0, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0 };
+                                            foundKey = pName;
+                                        }
+
+                                        if (saleDate < startDate) {
+                                            // ขายก่อนวันเริ่ม -> หักออกจากยอดยกมา
+                                            map[foundKey].openingBalance -= qty;
+                                        } else if (saleDate >= startDate && saleDate <= endDate) {
+                                            // ขายในช่วงเวลา -> นับเป็นยอดขายออกสะสม
+                                            map[foundKey].periodOut += qty;
+                                            
+                                            if (priceType === 'ราคาเต็ม') map[foundKey].fullQty += qty;
+                                            else if (priceType === 'ราคาสมาชิก') map[foundKey].memberQty += qty;
+                                            else if (priceType === 'ราคาโปร' || priceType === 'โปรโมชั่น') map[foundKey].promoQty += qty;
+                                            else if (priceType === 'ราคาศูนย์') map[foundKey].zeroQty += qty;
+                                        }
                                     }
                                 }
                             });
                         });
 
-                        (products || []).forEach(p => {
-                            if (!p) return;
-                            const pName = String(p.name || p.id || '').trim();
-                            const pId = String(p.id || pName).trim();
-                            const liveStock = Number(p.stock !== undefined ? p.stock : (p.quantity !== undefined ? p.quantity : (p.qty !== undefined ? p.qty : (p.Stock !== undefined ? p.Stock : 0))));
-                            
-                            map[pName] = {
-                                id: pId,
-                                name: pName,
-                                category: p.category || '-',
-                                fullQty: 0,
-                                memberQty: 0,
-                                promoQty: 0,
-                                zeroQty: 0,
-                                periodOut: 0,
-                                outUpToEnd: 0,
-                                liveStock: liveStock
-                            };
-                        });
-
-                        // 1.1 คำนวณยอดขายออกสะสมตั้งแต่อดีตจนถึง endDate (outUpToEnd)
-                        salesUpToEndDate.forEach(s => {
-                            const targetName = String(s.product || '').trim();
-                            let foundKey = Object.keys(map).find(k => k.toUpperCase() === targetName.toUpperCase() || map[k].id.toUpperCase() === targetName.toUpperCase());
-                            if (!foundKey) {
-                                map[targetName] = { id: targetName, name: targetName, category: '-', fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, periodOut: 0, outUpToEnd: 0, liveStock: 0 };
-                                foundKey = targetName;
-                            }
-                            map[foundKey].outUpToEnd += s.qty;
-                        });
-
-                        // 1.2 คำนวณยอดขายออกเฉพาะในช่วงวันที่เลือก (periodOut, fullQty, memberQty, etc.)
-                        unfoldedSales.forEach(s => {
-                            const targetName = String(s.product || '').trim();
-                            let foundKey = Object.keys(map).find(k => k.toUpperCase() === targetName.toUpperCase() || map[k].id.toUpperCase() === targetName.toUpperCase());
-                            if (!foundKey) {
-                                map[targetName] = { id: targetName, name: targetName, category: '-', fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, periodOut: 0, outUpToEnd: 0, liveStock: 0 };
-                                foundKey = targetName;
-                            }
-                            
-                            const item = map[foundKey];
-                            if (s.priceType === 'ราคาเต็ม') item.fullQty += s.qty;
-                            else if (s.priceType === 'ราคาสมาชิก') item.memberQty += s.qty;
-                            else if (s.priceType === 'ราคาโปร' || s.priceType === 'โปรโมชั่น') item.promoQty += s.qty;
-                            else if (s.priceType === 'ราคาศูนย์') item.zeroQty += s.qty;
-                            
-                            item.periodOut += s.qty;
-                        });
-
                         const query = (debouncedSearchQuery || searchQuery || '').trim().toUpperCase();
+                        
+                        // ง. สรุปผล
                         return Object.values(map)
                             .map(item => {
-                                // คำนวณยอดขายหลังวันที่เลือก (Out After EndDate) เพื่อย้อนเวลาคำนวณยอดคงเหลือ ณ วันที่เลือก
-                                let outAfterEnd = 0;
-                                (sales || []).forEach(record => {
-                                    if (!record || (record.date || '') <= endDate) return;
-                                    Object.entries(record || {}).forEach(([key, value]) => {
-                                        if (key.endsWith('_ราคาเต็ม') || key.endsWith('_ราคาสมาชิก') || key.endsWith('_ราคาโปร') || key.endsWith('_ราคาศูนย์')) {
-                                            const qty = parseInt(value, 10);
-                                            if (!isNaN(qty) && qty > 0) {
-                                                const pName = key.substring(0, key.lastIndexOf('_')).replace(/\(.*?\)/g, '').trim();
-                                                if (pName.toUpperCase() === item.name.toUpperCase() || pName.toUpperCase() === item.id.toUpperCase()) {
-                                                    outAfterEnd += qty;
-                                                }
-                                            }
-                                        }
-                                    });
-                                });
-
-                                // 📌 ยอดสต๊อกคงเหลือ ณ วันที่เลือก = สต๊อกปัจจุบัน + ยอดที่ถูกขายออกหลังวันที่เลือก
-                                const stockAtEndDate = item.liveStock + outAfterEnd;
-                                // 📌 ยอดรับเข้าสะสม = สต๊อกคงเหลือ ณ วันที่เลือก + ยอดที่ขายออกสะสมจนถึงวันที่เลือก
-                                const totalInUpToEnd = stockAtEndDate + item.outUpToEnd;
-
+                                // สต๊อกคงเหลือปัจุบัน = ยอดยกมา + รับเข้า(ช่วงนี้) - ขายออก(ช่วงนี้)
+                                const closingBalance = item.openingBalance + item.receivedInPeriod - item.periodOut;
+                                
                                 return {
                                     ...item,
-                                    currentIn: totalInUpToEnd,
+                                    currentIn: item.receivedInPeriod,
                                     totalOut: item.periodOut,
-                                    currentStock: stockAtEndDate
+                                    currentStock: closingBalance
                                 };
                             })
                             .filter(item => {
@@ -1620,8 +1859,8 @@
                                 return true;
                             })
                             .sort((a, b) => b.totalOut - a.totalOut || a.name.localeCompare(b.name));
-                    })();
 
+                    }, [products, stockMovements, sales, startDate, endDate, isZeroPromoView, debouncedSearchQuery, searchQuery, permittedMemberSet]);
                     // 2. รายงานบิลสินค้าแถมและสินค้าตัดศูนย์แบบเจาะลึกตามบิล (Zero & Promo Items Bills Log)
                     const zeroPromoBills = (() => {
                         if (!isZeroPromoView) return [];
@@ -1701,7 +1940,8 @@
                                                     <th className={thBase}>รหัส/ชื่อสินค้า</th>
                                                     {isBalanceView ? (
                                                         <React.Fragment>
-                                                            <th className={`${thBase} text-center text-blue-700`}>ยอดรับเข้าสะสม</th>
+                                                            <th className={`${thBase} text-center text-slate-500`}>ยอดยกมา</th>
+                                                            <th className={`${thBase} text-center text-blue-700`}>รับเข้าสะสม</th>
                                                             <th className={`${thBase} text-center text-amber-700`}>เบิก/ขายออกในช่วงเวลา</th>
                                                             <th className={`${thBase} text-center text-emerald-700 font-bold bg-emerald-50/50`}>ยอดสต๊อกคงเหลือ ณ วันที่เลือก</th>
                                                         </React.Fragment>
@@ -1734,6 +1974,7 @@
 
                                                         {isBalanceView ? (
                                                             <React.Fragment>
+                                                                <td className="p-4 text-center text-sm font-black text-slate-600 bg-slate-50/10">{item.openingBalance.toLocaleString()}</td>
                                                                 <td className="p-4 text-center text-sm font-black text-blue-600 bg-blue-50/10">{item.currentIn.toLocaleString()}</td>
                                                                 <td className="p-4 text-center text-sm font-black text-amber-600 bg-amber-50/10">{item.totalOut.toLocaleString()}</td>
                                                                 <td className="p-4 text-center text-base font-black text-emerald-700 bg-emerald-50/30">
@@ -1760,10 +2001,11 @@
                                                     </tr>
                                                 ))}
                                                 {stockSalesReport.length === 0 && (
-                                                    <tr><td colSpan={isBalanceView ? 5 : 7} className="p-12 text-center text-slate-400 font-bold">ไม่พบข้อมูลรายงานสต๊อกตามเงื่อนไขที่ระบุ</td></tr>
+                                                    <tr><td colSpan={isBalanceView ? 6 : 7} className="p-12 text-center text-slate-400 font-bold">ไม่พบข้อมูลรายงานสต๊อกตามเงื่อนไขที่ระบุ</td></tr>
                                                 )}
                                             </tbody>
                                         </table>
+                                        
                                     )}
                                 </div>
                             </div>
@@ -2126,11 +2368,12 @@
                     supabaseSelect('stk_customer_types').catch(() => fallbackCustomerTypes),
                     supabaseSelect('stk_closers').catch(() => []),
                     supabaseSelect('stk_members').catch(() => []),
-                    supabaseSelect('stk_customers', 'order=customer_id.desc&limit=2000').catch(() => []),
-                    supabaseSelect('stk_sales', 'order=order_id.desc&limit=1500').catch(() => []),
+                    supabaseSelect('stk_customers', 'order=created_at.desc&limit=1500&nocache=true').catch(() => []),
+                    supabaseSelect('stk_sales', 'order=order_id.desc&limit=10000').catch(() => []),
+                    supabaseSelect('stk_stock_movements', 'order=created_at.desc&limit=10000').catch(() => []),
                     supabaseSelect('stk_business_teams').catch(() => []),
                     supabaseSelect('stk_system_settings').catch(() => []),
-                    supabaseSelect('stk_stock_movements', 'order=created_at.desc&limit=1500').catch(() => []),
+                    
                     supabaseSelect('stk_payout_logs', 'order=payout_id.desc&limit=1500').catch(() => [])
                 ]);
 
@@ -2250,6 +2493,8 @@
                         s['customerId'] = rawCustId;
                         s['customerName'] = resolvedCustName || (rawCustId ? `ลูกค้า (${rawCustId})` : 'ไม่ระบุชื่อ');
                         s['payMode'] = s.payMode || s.pay_mode || s.payment_method || s.payment || 'เงินโอน';
+                        // ⚡ เพิ่มบรรทัดนี้ เพื่อดึงสกุลเงินจากฐานข้อมูลมาใช้งาน
+                        s['currency'] = s.currency || s.สกุลเงิน || s.Currency || '';
                         
                         const dbTotalBottles = Number(s.total_bottles || s.totalQty || 0);
                         if (sumF + sumM + sumP + sumZ === 0 && dbTotalBottles > 0) {
