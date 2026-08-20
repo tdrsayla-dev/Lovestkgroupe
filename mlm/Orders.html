@@ -555,6 +555,13 @@
                 });
             }
 
+            // 💡 NEW LOGIC: ถ้าบิลนี้ส่วนลดเท่ากับราคาเต็มเป๊ะๆ (แสดงว่าเป็นบิลตัดศูนย์ล้วน 100%)
+            // ให้ปรับยอดตั้งต้นและส่วนลดเป็น 0 ไปเลย จะได้ไม่โชว์ส่วนลดแปลกๆ
+            if (totalBaseAmount > 0 && totalBaseAmount === totalDiscountAmount) {
+                totalBaseAmount = 0;
+                totalDiscountAmount = 0;
+            }
+
             const typeOrder = { 'ราคาเต็ม': 1, 'ราคาสมาชิก': 2, 'ราคาโปร': 3, 'ราคาศูนย์': 4 };
             items.sort((a, b) => (typeOrder[a.priceType] || 99) - (typeOrder[b.priceType] || 99));
 

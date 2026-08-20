@@ -948,9 +948,17 @@
                     }
                 });
             }
+        
+            // 💡 NEW LOGIC: ถ้าบิลนี้ส่วนลดเท่ากับราคาเต็มเป๊ะๆ (แสดงว่าเป็นบิลตัดศูนย์ล้วน 100%)
+            // ให้ปรับยอดตั้งต้นและส่วนลดเป็น 0 ไปเลย จะได้ไม่โชว์ส่วนลดแปลกๆ
+            if (totalBaseAmount > 0 && totalBaseAmount === totalDiscountAmount) {
+                totalBaseAmount = 0;
+                totalDiscountAmount = 0;
+            }
 
             const typeOrder = { 'ราคาเต็ม': 1, 'ราคาสมาชิก': 2, 'ราคาโปร': 3, 'ราคาศูนย์': 4 };
             items.sort((a, b) => (typeOrder[a.priceType] || 99) - (typeOrder[b.priceType] || 99));
+            
 
             const itemsHtml = items.map(item => `
               <tr>
@@ -1113,7 +1121,6 @@
                               <tr>
                                 <td>
                                   <div class="bold" style="color: #0f172a;">${item.name}</div>
-                                  <div style="font-size: 9px; color: #64748b;">[${item.priceType}]</div>
                                 </td>
                                 <td style="text-align: right; font-family: monospace;">฿${item.unitPrice.toLocaleString()}</td>
                                 <td style="text-align: center; font-weight: 700;">${item.qty}</td>
@@ -1443,62 +1450,42 @@
                 showToast('บันทึกการขายสำเร็จ!', 'success');
             }
             
-            // 🔔 Post message to parent dashboard, broadcast channel, and localStorage (for file:// protocol) for custom pop-up notification
+            // --- 🟢 โค้ดส่งแจ้งเตือน LINE OA (ยิงผ่าน Supabase) ---
             try {
-                let targetBottles = 0;
-                (cart || []).forEach(item => {
-                    if (item.priceType === 'ราคาเต็ม' || item.priceType === 'ราคาสมาชิก') {
-                        targetBottles += (parseInt(item.qty) || 0);
-                    }
-                });
-                const earnedPV = typeof calculateBillPV === 'function' ? calculateBillPV(cart, products) : 0;
+                // ดึง UID ของเจ้าของเคส
+                const targetLineUid = foundMember ? (foundMember.lineUid || foundMember.line_uid) : null;
                 
-                const toastData = {
-                    type: 'new_sale_toast',
-                    sellerName: foundMember ? foundMember.name : (recordToShow ? recordToShow.memberName : 'สมาชิก'),
-                    profileUrl: foundMember ? foundMember.profileUrl : '',
-                    bottles: targetBottles,
-                    points: earnedPV
-                };
+                if (targetLineUid && targetLineUid.startsWith('U')) {
+                    const totalBoxes = cart.reduce((sum, item) => sum + (parseInt(item.qty)||0), 0);
+                    const netTotal = cartTotals.amount;
+                    
+                    const msg = `🎉 มีออเดอร์ใหม่ถูกคีย์เข้าสู่ระบบ!\n\n` +
+                                `🧾 เลขที่บิล: ${recordToShow ? recordToShow.id : '-'}\n` +
+                                `👤 ลูกค้า: ${custData.name || 'ไม่ระบุ'}\n` +
+                                `📦 จำนวน: ${totalBoxes} กล่อง\n` +
+                                `💰 ยอดรวม: ฿${netTotal.toLocaleString()}\n\n` +
+                                `ตรวจสอบรายละเอียดเพิ่มเติมในระบบได้เลยครับ`;
 
-                window.parent.postMessage(toastData, '*');
-
-                // Broadcast to other tabs/windows
-                if (typeof BroadcastChannel !== 'undefined') {
-                    const bc = new BroadcastChannel('stk_mlm_channel');
-                    bc.postMessage(toastData);
-                    bc.close();
+                    // สั่งให้ฟังก์ชัน send_line_message ใน Supabase ทำงาน
+                    fetch(window.SUPABASE_REST_URL + '/rpc/send_line_message', {
+                        method: 'POST',
+                        headers: window.SUPABASE_HEADERS,
+                        body: JSON.stringify({ 
+                            line_uid: targetLineUid, 
+                            msg_text: msg 
+                        })
+                    }).then(res => {
+                        if (!res.ok) console.warn('ส่ง LINE ไม่สำเร็จ รหัส Error:', res.status);
+                        else console.log('✅ ส่งแจ้งเตือน LINE สำเร็จ!');
+                    }).catch(e => console.warn('Supabase RPC Error:', e));
                 }
-
-                // 🔒 localStorage sync for file:// protocol support across separate windows
-                try {
-                    localStorage.setItem('stk_new_sale_trigger', JSON.stringify({
-                        sellerName: toastData.sellerName,
-                        profileUrl: toastData.profileUrl,
-                        bottles: toastData.bottles,
-                        points: toastData.points,
-                        timestamp: Date.now() // Force update to trigger storage event
-                    }));
-                } catch (e) {}
-            } catch (err) {
-                console.warn('Failed to send sale toast message:', err);
+            } catch (e) {
+                console.warn('LINE Notify Error:', e);
             }
-
-            setIsSubmitting(false);
-            setCart([]);
-            setCustData({ id: '', name: '', phone: '', lineId: '', symptom: '', closerTeam: '', closer: '' });
-            setCustMode('');
-            setMemberIdInput('');
-            setPayMode('สด');
-            setPayCashTHB('');
-            setPayCashLAK('');
-            setPayTransferThaiTHB('');
-            setPayTransferThaiBank('กสิกรไทย');
-            setPayTransferLaosTHB('');
-            setPayTransferLaosBankTHB('BCEL');
-            setPayTransferLaosLAK('');
-            setPayTransferLaosBankLAK('BCEL');
-        };
+            // ---------------------------------------------------
+         }; // <--- 🟢 เพิ่มปีกกาปิด และเซมิโคลอนตรงนี้ เพื่อปิดฟังก์ชัน handleSuccessFinish
+            // 🔔 Post message to parent dashboard, broadcast channel, and localStorage...
+            // (โค้ดเดิมปล่อยไว้เหมือนเดิมครับ)
 
         const handleAdd = async (e) => {
           e.preventDefault();
@@ -1709,8 +1696,8 @@
       const tLaosTHB = parseFloat(payTransferLaosTHB) || 0;
       const tLaosLAK = parseFloat(payTransferLaosLAK) || 0;
 
-      // 🚨 เพิ่มเงื่อนไขบังคับให้ต้องกรอกตัวเลข
-      if (!isHistoryBypass) {
+      // 🚨 เพิ่มเงื่อนไขบังคับให้ต้องกรอกตัวเลข (ข้ามการเช็คถ้ายอดบิลเป็น 0)
+      if (!isHistoryBypass && cartTotals.amount > 0) {
           if (payMode === 'สด' && cTHB === 0 && cLAK === 0) {
               showToast('กรุณาระบุจำนวนเงินในช่อง "รับเงินสด" (บาท หรือ กีบ)', 'error');
               setIsSubmitting(false);
@@ -2910,7 +2897,7 @@
            if (Array.isArray(response.customerTypes)) setCustomerTypes(response.customerTypes.map(x => ({...x, id: x.id || x.type_id})));
            if (Array.isArray(response.closers)) setClosers(response.closers.map(x => ({...x, id: x.id || x.closer_id})));
            if (Array.isArray(response.businessTeams)) setBusinessTeams(response.businessTeams.map(t => ({ id: t.id || t.team_id, name: t.name || t.team_name || t.Team_Name || t.TeamName, status: t.status || 'ใช้งาน' })));
-           if (Array.isArray(response.members)) { setMembers(response.members.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name, profileUrl: m.id_card_url || m.profileImageUrl || m.profileUrl, idCardDocUrl: m.id_card_url || m.idCardDocUrl, businessTeam: m.business_team || m.businessTeam, team: m.business_team || m.team || m.businessTeam || 'T01', role: m.permission_role || m.role || m.permissionRole, status: m.status, sponsorId: m.sponsor_id || m.sponsorId, accumulatedPv: m.accumulated_pv || m.Accumulated_PV || m.accumulatedPv || m.pv || 0, phone: m.phone_number || m.phone || m.phoneNumber }))); }
+           if (Array.isArray(response.members)) { setMembers(response.members.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name, lineUid: m.line_uid || '', profileUrl: m.id_card_url || m.profileImageUrl || m.profileUrl, idCardDocUrl: m.id_card_url || m.idCardDocUrl, businessTeam: m.business_team || m.businessTeam, team: m.business_team || m.team || m.businessTeam || 'T01', role: m.permission_role || m.role || m.permissionRole, status: m.status, sponsorId: m.sponsor_id || m.sponsorId, accumulatedPv: m.accumulated_pv || m.Accumulated_PV || m.accumulatedPv || m.pv || 0, phone: m.phone_number || m.phone || m.phoneNumber }))); }
            if (Array.isArray(response.customers)) setCustomers(response.customers.map(x => ({...x, id: x.id || x.customer_id, type: String(x.type || x.customer_type || x.customerType || '').trim(), lineId: x.lineId || x.line_id, closer: x.closer || x.closer_id || "", closerTeam: x.closerTeam || x.closer_team || x.extra_details_json?.closerTeam || "", memberId: x.memberId || x.member_id, memberName: x.memberName || x.member_name || x.extra_details_json?.memberName || ""})));
            if (Array.isArray(response.systemUsers)) setSystemUsers(response.systemUsers.map(x => ({...x, id: x.id || x.user_id || x.system_user_id})));
            

@@ -219,7 +219,7 @@
         const initialFormState = {
           id: '', username: '', password: '1234', name: '', team: 'T01', role: 'Staff',
           startDate: getLocalISODate(), status: 'ทำงานอยู่', profileUrl: '', referrer: '',
-          phone: '', email: '', address: '', lineId: '',
+          phone: '', email: '', address: '', lineId: '',lineUid: '',
           bankName: '', bankAccountNo: '', bankAccountName: '',
           idCardNumber: '', idCardDocUrl: '' 
         };
@@ -287,6 +287,7 @@
               email: member.email || '',
               address: member.address || '',
               lineId: member.lineId || '',
+              lineUid: member.lineUid || member.line_uid || '',
               bankName: member.bankName || '',
               bankAccountNo: member.bankAccountNo || '',
               bankAccountName: member.bankAccountName || '',
@@ -376,6 +377,7 @@
                     phone_number: finalData.phone || finalData.phoneNumber || '',
                     email: finalData.email || '',
                     line_id: finalData.lineId || '',
+                    line_uid: finalData.lineUid || '',
                     bank_name: finalData.bankName || '',
                     bank_account_no: finalData.bankAccountNo || '',
                     bank_account_name: finalData.bankAccountName || '',
@@ -485,7 +487,7 @@
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className={labelClassHud}>รหัสสมาชิก *</label>
-                        <input type="text" required disabled={isEditing} placeholder="เช่น L02987" className={inputClassHud + " uppercase"} value={formData.id} onChange={e => setFormData({...formData, id: e.target.value})} />
+                        <input type="text" required disabled={isEditing} placeholder="เช่น L02987" className={inputClassHud + " uppercase"} value={formData.id} onChange={e => setFormData({...formData, id: e.target.value, username: e.target.value})} />
                       </div>
                       <div>
                         <label className={labelClassHud}>ชื่อผู้ใช้งาน (Username) *</label>
@@ -573,7 +575,9 @@
                   {/* ส่วนที่ 3: ข้อมูลการติดต่อ */}
                   <div>
                     <h3 className="text-sm font-extrabold text-blue-600 mb-3 flex items-center gap-2 bg-blue-50 py-1.5 px-3 rounded-lg"><PhoneIcon size={16}/> ข้อมูลการติดต่อ</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    
+                    {/* ปรับ grid ให้เป็น 2 คอลัมน์สำหรับ Tablet และ 4 คอลัมน์สำหรับ Desktop */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                       <div>
                         <label className={labelClassHud}>เบอร์โทรศัพท์</label>
                         <input type="tel" placeholder="เช่น 0987654321" className={inputClassHud} value={formData.phone || ''} onChange={e => setFormData({...formData, phone: e.target.value})} />
@@ -586,7 +590,15 @@
                         <label className={labelClassHud}>LINE ID</label>
                         <input type="text" placeholder="ไลน์ไอดีพนักงาน" className={inputClassHud} value={formData.lineId || ''} onChange={e => setFormData({...formData, lineId: e.target.value})} />
                       </div>
-                      <div className="md:col-span-3">
+                      
+                      {/* ส่วนที่เพิ่มเข้ามาใหม่สำหรับ LINE UID */}
+                      <div>
+                        <label className={labelClassHud}>LINE UID</label>
+                        <input type="text" placeholder="UID แจ้งเตือน (ขึ้นต้นด้วย U...)" className={inputClassHud} value={formData.lineUid || ''} onChange={e => setFormData({...formData, lineUid: e.target.value})} />
+                      </div>
+                      
+                      {/* ปรับให้ textarea กินพื้นที่เต็มความกว้าง */}
+                      <div className="md:col-span-2 lg:col-span-4">
                         <label className={labelClassHud}>ที่อยู่ปัจจุบัน</label>
                         <textarea rows="2" placeholder="ที่อยู่สำหรับจัดส่งเอกสาร" className={inputClassHud + " py-2 h-auto resize-none"} value={formData.address || ''} onChange={e => setFormData({...formData, address: e.target.value})}></textarea>
                       </div>
@@ -1352,6 +1364,7 @@
                email: m.email || '',
                address: m.address || '',
                lineId: m.line_id || m.lineId || '',
+               lineUid: m.line_uid || '',
                bankName: m.bank_name || m.bankName || '',
                bankAccountNo: m.bank_account_no || m.bankAccountNo || '',
                bankAccountName: m.bank_account_name || m.bankAccountName || '',
