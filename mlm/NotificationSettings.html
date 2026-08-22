@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ตั้งค่าการแจ้งเตือน (Notifications) - LOVE STK GROUPE</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
+    body { font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f1f5f9; color: #0f172a; margin: 0; padding: 0; overflow-x: hidden; }
+    @media (min-width: 1024px) {
+      aside.lg\:flex { display: flex !important; position: fixed !important; top: 0; left: 0; height: 100vh; z-index: 30; }
+      main.lg\:ml-64 { margin-left: 16rem !important; }
+      main.lg\:ml-20 { margin-left: 5rem !important; }
+    }
+    textarea.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    textarea.custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    textarea.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    window.SUPABASE_URL = 'https://mfpkeyrykqnrywyksyqp.supabase.co';
+    window.SUPABASE_ANON_KEY = 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
+    window.SUPABASE_REST_URL = window.SUPABASE_URL + '/rest/v1';
+    window.SUPABASE_HEADERS = { 'Content-Type': 'application/json', 'apikey': window.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + window.SUPABASE_ANON_KEY, 'Prefer': 'return=representation' };
+    if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);}
+    async function supabaseSelect(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:window.SUPABASE_HEADERS});if(!r.ok)throw new Error('SELECT error');return r.json();}
+    async function supabaseUpsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'resolution=merge-duplicates,return=representation'}),body:JSON.stringify(d)});if(!r.ok)throw new Error('UPSERT error');return r.json();}
+    async function supabaseDelete(t,id,pk='template_id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'DELETE',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'})});if(!r.ok)throw new Error('DELETE error');return true;}
+  </script>
+  <script src="CommonComponents.js"></script>
+</head>
+<body class="antialiased selection:bg-blue-600 selection:text-white bg-slate-50">
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    const { Sidebar, LoginModal, Toast, EditModal, ConfirmModal, SettingsIcon, Save, MessageSquare, Bell, UserCheck, Plus, Trash2, X, Tags } = window;
+
+    const NotificationSettingsView = ({ templates, setTemplates, showToast }) => {
+        const [activeTab, setActiveTab] = useState('BILLING');
+        const [editingData, setEditingData] = useState({});
+        const [isSaving, setIsSaving] = useState(false);
+        const [showAddModal, setShowAddModal] = useState(false);
+        const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null, name: '' });
+        
+        const [newTemplate, setNewTemplate] = useState({ event_name: '', message_text: '', trigger_days: 0, frequency_type: 'ONCE', is_active: true });
+
+        useEffect(() => {
+            const dataMap = {};
+            (templates || []).forEach(t => { 
+                dataMap[t.template_id] = { 
+                    message: t.message_text, 
+                    isActive: t.is_active,
+                    triggerDays: t.trigger_days || 0,
+                    frequency: t.frequency_type || 'ONCE'
+                }; 
+            });
+            setEditingData(dataMap);
+        }, [templates]);
+
+        const handleSave = async (templateId) => {
+            setIsSaving(true);
+            try {
+                const target = templates.find(t => t.template_id === templateId);
+                const edited = editingData[templateId];
+                
+                const payload = {
+                    template_id: templateId,
+                    category: target.category,
+                    event_name: target.event_name,
+                    message_text: edited.message,
+                    trigger_days: parseInt(edited.triggerDays) || 0,
+                    frequency_type: edited.frequency,
+                    is_active: edited.isActive
+                };
+
+                await supabaseUpsert('stk_notification_templates', payload);
+                setTemplates(prev => prev.map(t => t.template_id === templateId ? payload : t));
+                showToast('บันทึกการตั้งค่าสำเร็จ!', 'success');
+            } catch (error) {
+                showToast('เกิดข้อผิดพลาดในการบันทึก', 'error');
+            } finally {
+                setIsSaving(false);
+            }
+        };
+
+        const handleAddNewTemplate = async (e) => {
+            e.preventDefault();
+            if(!newTemplate.event_name || !newTemplate.message_text) return;
+            setIsSaving(true);
+            try {
+                const newId = `TPL_${Date.now()}`;
+                const payload = {
+                    template_id: newId,
+                    category: activeTab,
+                    event_name: newTemplate.event_name,
+                    message_text: newTemplate.message_text,
+                    trigger_days: parseInt(newTemplate.trigger_days) || 0,
+                    frequency_type: newTemplate.frequency_type,
+                    is_active: true
+                };
+
+                await supabaseUpsert('stk_notification_templates', payload);
+                setTemplates(prev => [payload, ...prev]);
+                setShowAddModal(false);
+                setNewTemplate({ event_name: '', message_text: '', trigger_days: 0, frequency_type: 'ONCE', is_active: true });
+                showToast('เพิ่มการแจ้งเตือนใหม่สำเร็จ!', 'success');
+            } catch (error) {
+                showToast('เกิดข้อผิดพลาดในการเพิ่มข้อมูล', 'error');
+            } finally {
+                setIsSaving(false);
+            }
+        };
+
+        const handleDelete = async () => {
+            try {
+                await supabaseDelete('stk_notification_templates', deleteConfirm.id);
+                setTemplates(prev => prev.filter(t => t.template_id !== deleteConfirm.id));
+                setDeleteConfirm({ show: false, id: null, name: '' });
+                showToast('ลบเทมเพลตสำเร็จ', 'success');
+            } catch (err) {
+                showToast('เกิดข้อผิดพลาดในการลบ', 'error');
+            }
+        };
+
+        const renderTabButton = (id, label, icon) => {
+            const isActive = activeTab === id;
+            return (
+                <button 
+                    onClick={() => setActiveTab(id)}
+                    className={`flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-[13px] md:text-sm transition-all flex-1 md:flex-none ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-blue-600 shadow-sm'}`}
+                >
+                    {icon} <span>{label}</span>
+                </button>
+            );
+        };
+
+        const displayTemplates = templates.filter(t => t.category === activeTab);
+
+        // หมวดหมู่และคำอธิบายสีของแต่ละแท็บ
+        const tabInfo = {
+            'BILLING': { title: 'ระบบส่งเข้ากลุ่ม', desc: 'ส่งแจ้งเตือนทันทีเมื่อมีการบันทึกยอดขายเข้าระบบ', color: 'emerald', icon: <Bell size={24} /> },
+            'STAFF_FOLLOWUP': { title: 'แจ้งเตือนพนักงาน', desc: 'เตือนแอดมินให้ทักไปติดตามอาการ หรือนำเสนอโปรโมชั่นลูกค้า', color: 'purple', icon: <UserCheck size={24} /> },
+            'CUSTOMER_DIRECT': { title: 'ส่งตรงถึงลูกค้า', desc: 'ระบบยิงข้อความหาลูกค้าโดยตรงผ่าน LINE OA แบบอัตโนมัติ', color: 'rose', icon: <MessageSquare size={24} /> },
+            'PROMOTION': { title: 'แคมเปญโปรโมชั่น', desc: 'แจ้งโปรโมชั่นและนับถอยหลังวันหมดเขตกระตุ้นยอดขาย', color: 'amber', icon: <Tags size={24} /> }
+        };
+
+        const currentTab = tabInfo[activeTab];
+
+        return (
+            <div className="w-full animation-fade-in pb-16">
+                <ConfirmModal isOpen={deleteConfirm.show} onClose={() => setDeleteConfirm({show: false, id: null, name: ''})} onConfirm={handleDelete} title="ยืนยันการลบ" message={`คุณต้องการลบเทมเพลต "${deleteConfirm.name}" ใช่หรือไม่? (ไม่สามารถกู้คืนได้)`} />
+                
+                {/* Add Modal */}
+                <EditModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="➕ สร้างการแจ้งเตือนใหม่" maxWidthClass="max-w-xl">
+                    <form onSubmit={handleAddNewTemplate} className="space-y-5 text-sm font-bold text-slate-700">
+                        <div>
+                            <label className="block mb-1.5 text-slate-600 uppercase text-[11px] tracking-wider">ชื่อหัวข้อ / เหตุการณ์ *</label>
+                            <input type="text" required value={newTemplate.event_name} onChange={e => setNewTemplate({...newTemplate, event_name: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-blue-500 focus:bg-white transition-colors" placeholder="เช่น แจ้งเตือนครบ 5 วัน, แจ้งโปรโมชั่น..." />
+                        </div>
+                        {activeTab !== 'BILLING' && (
+                            <div className="flex flex-col sm:flex-row gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <div className="flex-1">
+                                    <label className="block mb-1.5 text-slate-600 uppercase text-[11px] tracking-wider">แจ้งเตือนเมื่อผ่านไป (วัน)</label>
+                                    <div className="flex items-center gap-3">
+                                        <input type="number" min="0" value={newTemplate.trigger_days} onChange={e => setNewTemplate({...newTemplate, trigger_days: e.target.value})} className="w-24 text-center bg-white border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 text-blue-600 font-black shadow-sm" />
+                                        <span className="text-slate-500">วัน</span>
+                                    </div>
+                                </div>
+                                <div className="flex-1">
+                                    <label className="block mb-1.5 text-slate-600 uppercase text-[11px] tracking-wider">ความถี่ในการแจ้งเตือน</label>
+                                    <select value={newTemplate.frequency_type} onChange={e => setNewTemplate({...newTemplate, frequency_type: e.target.value})} className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 shadow-sm text-slate-700">
+                                        <option value="ONCE">แจ้งเตือนครั้งเดียว</option>
+                                        <option value="DAILY">แจ้งเตือนซ้ำทุกวัน</option>
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+                        <div>
+                            <label className="block mb-1.5 text-slate-600 uppercase text-[11px] tracking-wider">ข้อความแจ้งเตือน *</label>
+                            <textarea rows="6" required value={newTemplate.message_text} onChange={e => setNewTemplate({...newTemplate, message_text: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 outline-none focus:border-blue-500 focus:bg-white custom-scrollbar resize-none leading-relaxed transition-colors shadow-inner" placeholder="พิมพ์ข้อความที่นี่... รองรับตัวแปร เช่น [ชื่อลูกค้า]"></textarea>
+                        </div>
+                        <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                            <button type="button" onClick={() => setShowAddModal(false)} className="px-6 py-2.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-xl font-bold transition-colors">ยกเลิก</button>
+                            <button type="submit" disabled={isSaving} className="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md transition-colors disabled:opacity-50">{isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</button>
+                        </div>
+                    </form>
+                </EditModal>
+
+                {/* Header Title */}
+                <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
+                    <div>
+                        <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                            <div className="bg-blue-50 p-2.5 rounded-2xl text-blue-600"><SettingsIcon size={28} /></div>
+                            ตั้งค่าระบบแจ้งเตือนอัตโนมัติ
+                        </h2>
+                        <p className="text-slate-500 text-sm mt-2 font-medium">จัดการข้อความ จำนวนวัน และความถี่ในการทำงานของระบบ LINE Notify อัตโนมัติ</p>
+                    </div>
+                    <button onClick={() => setShowAddModal(true)} className="w-full md:w-auto px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-sm font-black shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 transition-all active:scale-95">
+                        <Plus size={18} /> สร้างการแจ้งเตือนใหม่
+                    </button>
+                </div>
+
+                {/* Navigation Tabs */}
+                <div className="flex flex-wrap gap-3 mb-8">
+                    {renderTabButton('BILLING', 'คีย์บิล (ภายใน)', <Bell size={20} />)}
+                    {renderTabButton('STAFF_FOLLOWUP', 'ติดตามลูกค้า (แอดมิน)', <UserCheck size={20} />)}
+                    {renderTabButton('CUSTOMER_DIRECT', 'ส่งตรงถึงลูกค้า', <MessageSquare size={20} />)}
+                    {renderTabButton('PROMOTION', 'โปรโมชั่น', <Tags size={20} />)}
+                </div>
+
+                {/* Content Area */}
+                <div className="space-y-6">
+                    
+                    {/* Variables Guide Banner */}
+                    <div className="bg-gradient-to-r from-slate-800 to-slate-900 p-5 sm:p-6 rounded-3xl shadow-lg border border-slate-700 flex flex-col xl:flex-row gap-5 items-start xl:items-center justify-between">
+                        <div className="flex items-center gap-4 shrink-0">
+                            <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-blue-400 border border-white/10 shadow-inner">
+                                <Info size={24} />
+                            </div>
+                            <div>
+                                <h4 className="font-black text-white text-base">ตัวแปรที่รองรับ (Variables)</h4>
+                                <p className="text-slate-400 text-xs font-bold mt-1">คัดลอกคำในวงเล็บไปวางในข้อความ ระบบจะดึงข้อมูลจริงมาใส่ให้</p>
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2.5">
+                            {['[ชื่อลูกค้า]', '[เลขที่บิล]', '[ผู้ขาย]', '[จำนวนกล่อง]', '[ยอดเงิน]', '[วันที่ซื้อ]', '[ชื่อโปรโมชั่น]', '[จำนวนวันเหลือ]'].map(v => (
+                                <span key={v} className="bg-slate-800 border border-slate-600 text-blue-300 hover:text-white hover:border-blue-400 hover:bg-slate-700 px-3 py-1.5 rounded-lg text-xs font-mono font-bold shadow-sm transition-all cursor-copy" title="คลิกเพื่อคัดลอก (สำหรับใช้อนาคต)">{v}</span>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Notification List */}
+                    <div className="flex flex-col gap-6">
+                        {displayTemplates.map(template => {
+                            const isEditing = editingData[template.template_id] || { message: '', isActive: false, triggerDays: 0, frequency: 'ONCE' };
+                            
+                            return (
+                                <div key={template.template_id} className="bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/80 overflow-hidden flex flex-col lg:flex-row transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:border-slate-300 group">
+                                    
+                                    {/* Left Side: Info & Settings */}
+                                    <div className="bg-slate-50 border-b lg:border-b-0 lg:border-r border-slate-200 p-6 lg:w-[400px] xl:w-[450px] shrink-0 flex flex-col">
+                                        <div className="flex justify-between items-start mb-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm border border-white bg-${currentTab.color}-100 text-${currentTab.color}-600`}>
+                                                    {currentTab.icon}
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-black text-slate-800 text-base leading-tight">{template.event_name}</h3>
+                                                    <p className={`text-[11px] font-bold text-${currentTab.color}-600 mt-1`}>{currentTab.title}</p>
+                                                </div>
+                                            </div>
+                                            <button onClick={() => setDeleteConfirm({show: true, id: template.template_id, name: template.event_name})} className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 hover:border-red-200 transition-colors shadow-sm shrink-0" title="ลบการแจ้งเตือน">
+                                                <Trash2 size={14}/>
+                                            </button>
+                                        </div>
+
+                                        <p className="text-xs font-bold text-slate-500 mb-6">{currentTab.desc}</p>
+
+                                        {/* Trigger Settings (Only if not BILLING) */}
+                                        {activeTab !== 'BILLING' && (
+                                            <div className="flex flex-col gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mt-auto">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">⏱️ เงื่อนไขเวลาทำงาน</span>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <span className="text-sm font-bold text-slate-700">ส่งแจ้งเตือนเมื่อผ่านไป:</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <input type="number" min="0" className="w-16 bg-slate-50 border border-slate-300 rounded-lg px-2 py-1.5 text-sm font-black text-blue-600 outline-none text-center focus:border-blue-500 shadow-inner" value={isEditing.triggerDays} onChange={e => setEditingData(prev => ({...prev, [template.template_id]: {...prev[template.template_id], triggerDays: e.target.value}}))}/>
+                                                        <span className="text-sm font-bold text-slate-600">วัน</span>
+                                                    </div>
+                                                </div>
+                                                <div className="h-px w-full bg-slate-100"></div>
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <span className="text-sm font-bold text-slate-700">ความถี่ (Frequency):</span>
+                                                    <select className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-[13px] font-bold text-slate-700 outline-none focus:border-blue-500 shadow-sm" value={isEditing.frequency} onChange={e => setEditingData(prev => ({...prev, [template.template_id]: {...prev[template.template_id], frequency: e.target.value}}))}>
+                                                        <option value="ONCE">ครั้งเดียว</option>
+                                                        <option value="DAILY">ซ้ำทุกวัน</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Right Side: Message Editor */}
+                                    <div className="p-6 flex-1 flex flex-col bg-white">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <label className="text-sm font-black text-slate-800 flex items-center gap-2">
+                                                📝 กล่องข้อความ (Message Template)
+                                            </label>
+                                            
+                                            {/* Beautiful Toggle Switch */}
+                                            <div className="flex items-center gap-3">
+                                                <span className={`text-[11px] font-black uppercase tracking-wide ${isEditing.isActive ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                                    {isEditing.isActive ? 'กำลังเปิดใช้งาน' : 'ปิดใช้งานอยู่'}
+                                                </span>
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                    <input type="checkbox" className="sr-only peer" checked={isEditing.isActive} onChange={e => setEditingData(prev => ({...prev, [template.template_id]: {...prev[template.template_id], isActive: e.target.checked}}))} />
+                                                    <div className="w-12 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        <textarea 
+                                            rows={activeTab === 'BILLING' ? "8" : "6"}
+                                            className="w-full flex-1 border border-slate-300 bg-slate-50 focus:bg-white rounded-2xl p-4 text-[14px] font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100/50 resize-none custom-scrollbar transition-all leading-relaxed shadow-inner" 
+                                            value={isEditing.message} 
+                                            onChange={e => setEditingData(prev => ({...prev, [template.template_id]: {...prev[template.template_id], message: e.target.value}}))}
+                                            placeholder="พิมพ์ข้อความที่ต้องการให้ระบบส่งอัตโนมัติ..."
+                                        />
+
+                                        <div className="flex justify-end mt-4">
+                                            <button 
+                                                onClick={() => handleSave(template.template_id)} 
+                                                disabled={isSaving} 
+                                                className="px-8 py-3.5 bg-slate-900 hover:bg-black text-white rounded-xl text-sm font-black transition-all shadow-md hover:shadow-lg disabled:opacity-50 active:scale-95 flex items-center gap-2"
+                                            >
+                                                <Save size={18} /> {isSaving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่านี้'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {displayTemplates.length === 0 && (
+                            <div className="col-span-full py-20 flex flex-col items-center justify-center text-slate-400 bg-white rounded-3xl border border-dashed border-slate-300 shadow-sm">
+                                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-200">
+                                    <MessageSquare size={28} className="text-slate-300" />
+                                </div>
+                                <h3 className="text-lg font-black text-slate-600 mb-1">ยังไม่มีการตั้งค่าสำหรับหมวดหมู่นี้</h3>
+                                <p className="text-sm font-bold">กดปุ่ม "สร้างการแจ้งเตือนใหม่" ด้านบนเพื่อเริ่มต้นได้เลยครับ</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const App = () => {
+      const [isLoggedIn, setIsLoggedIn] = useState(false);
+      const [currentUser, setCurrentUser] = useState(null);
+      const [showLoginModal, setShowLoginModal] = useState(false);
+      const [templates, setTemplates] = useState([]);
+      const [isAppLoading, setIsAppLoading] = useState(true);
+      const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+      const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+      
+      const showToast = (message, type = 'success') => setToast({ show: true, message, type });
+
+      useEffect(() => {
+        const savedUserStr = localStorage.getItem('stk_current_user');
+        if (savedUserStr) {
+          setCurrentUser(JSON.parse(savedUserStr));
+          setIsLoggedIn(true);
+        } else {
+          setShowLoginModal(true);
+        }
+
+        const initialLoader = document.getElementById('initial-loader');
+        if (initialLoader) initialLoader.style.display = 'none';
+
+        supabaseSelect('stk_notification_templates', 'order=updated_at.desc')
+            .then(res => { if (Array.isArray(res)) setTemplates(res); })
+            .catch(err => console.warn("Supabase load error:", err))
+            .finally(() => setIsAppLoading(false));
+      }, []);
+
+      const isAdmin = currentUser && (String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || String(currentUser.role).trim().toLowerCase() === 'admin');
+
+      return (
+        <div className="min-h-screen flex flex-col lg:flex-row font-sans bg-slate-50">
+          <Sidebar 
+            activePage="notification_settings" 
+            isLoggedIn={isLoggedIn} 
+            currentUser={currentUser} 
+            isAdmin={isAdmin} 
+            onLogout={() => { localStorage.removeItem('stk_current_user'); window.location.href = 'Mlm.html'; }} 
+            showLoginModal={showLoginModal} 
+            setShowLoginModal={setShowLoginModal} 
+            SCRIPT_URL=""
+            setIsAppLoading={setIsAppLoading}
+            isSidebarCollapsed={isSidebarCollapsed}
+            setIsSidebarCollapsed={setIsSidebarCollapsed}
+          />
+          
+          <main className={`flex-1 flex flex-col min-h-screen transition-all duration-300 relative ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'}`}>
+            <Toast toast={toast} setToast={setToast} />
+            <div className="p-4 sm:p-6 lg:p-8 flex-1 w-full max-w-[1400px] mx-auto">
+              {isAppLoading ? (
+                  <div className="flex flex-col items-center justify-center py-32 gap-4 animation-fade-in">
+                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-sm font-bold text-slate-500">กำลังโหลดระบบตั้งค่า...</span>
+                  </div>
+              ) : isLoggedIn ? (
+                  <NotificationSettingsView templates={templates} setTemplates={setTemplates} showToast={showToast} />
+              ) : (
+                  <div className="text-center py-32 text-red-500 font-bold">กรุณาเข้าสู่ระบบก่อนใช้งาน</div>
+              )}
+            </div>
+          </main>
+          <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} onLoginSuccess={(u) => { setCurrentUser(u); setIsLoggedIn(true); setShowLoginModal(false); }} systemUsers={[]} />
+        </div>
+      );
+    }
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

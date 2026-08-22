@@ -208,6 +208,18 @@
     React.createElement('path', { d: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" }),
     React.createElement('path', { d: "m9 12 2 2 4-4" })
   );
+  const MessageSquare = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('path', { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" })
+  );
+  const Bell = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('path', { d: "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" }),
+    React.createElement('path', { d: "M10.3 21a1.94 1.94 0 0 0 3.4 0" })
+  );
+  const UserCheck = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+    React.createElement('path', { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" }),
+    React.createElement('circle', { cx: "9", cy: "7", r: "4" }),
+    React.createElement('polyline', { points: "16 11 18 13 22 9" })
+  );
 
   const fallbackProductsList = ['SESAMIN', 'APPLE', 'KING_GOLD'];
   const fallbackCustomerTypes = [
@@ -446,7 +458,8 @@
         'stock': 'Stock.html',
         'customer_types': 'CustomerTypes.html',
         'closers': 'Closers.html',
-        'exchange_rate': 'ExchangeRate.html'
+        'exchange_rate': 'ExchangeRate.html',
+        'notification_settings': 'NotificationSettings.html'
       };
       for (const [p, file] of Object.entries(pageFileMap)) {
         if (href.includes(`page=${p}`)) {
@@ -482,7 +495,8 @@
       'stock': hasHtmlExt ? 'Stock.html' : 'Stock',
       'customer_types': hasHtmlExt ? 'CustomerTypes.html' : 'CustomerTypes',
       'closers': hasHtmlExt ? 'Closers.html' : 'Closers',
-      'exchange_rate': hasHtmlExt ? 'ExchangeRate.html' : 'ExchangeRate'
+      'exchange_rate': hasHtmlExt ? 'ExchangeRate.html' : 'ExchangeRate',
+      'notification_settings': hasHtmlExt ? 'NotificationSettings.html' : 'NotificationSettings'
     };
 
     for (const [p, file] of Object.entries(pageFileMap)) {
@@ -580,7 +594,7 @@
     );
   };
 
-  const SidebarSettingsGroup = ({ activeTab, isSidebarCollapsed, isAdmin, handleTabClick, SCRIPT_URL, onSubTabChange, currentUser }) => {
+   const SidebarSettingsGroup = ({ activeTab, isSidebarCollapsed, isAdmin, handleTabClick, SCRIPT_URL, onSubTabChange, currentUser }) => {
     const canSysUsers = getUserPagePermission(currentUser, 'system_users') !== 'none';
     const canTeam = getUserPagePermission(currentUser, 'team') !== 'none';
     const canBusTeams = getUserPagePermission(currentUser, 'business_teams') !== 'none';
@@ -588,11 +602,12 @@
     const canCustTypes = getUserPagePermission(currentUser, 'customer_types') !== 'none';
     const canClosers = getUserPagePermission(currentUser, 'closers') !== 'none';
     const canExRate = getUserPagePermission(currentUser, 'exchange_rate') !== 'none';
+    const canNotif = getUserPagePermission(currentUser, 'notification_settings') !== 'none';
 
-    const hasAnySettings = canSysUsers || canTeam || canBusTeams || canStock || canCustTypes || canClosers || canExRate;
+    const hasAnySettings = canSysUsers || canTeam || canBusTeams || canStock || canCustTypes || canClosers || canExRate || canNotif;
     if (!hasAnySettings) return null;
 
-    const settingsPages = ['system_users', 'team', 'business_teams', 'stock', 'customer_types', 'closers', 'exchange_rate'];
+    const settingsPages = ['system_users', 'team', 'business_teams', 'stock', 'customer_types', 'closers', 'exchange_rate', 'notification_settings'];
     const isPageInSettings = settingsPages.includes(activeTab);
     const [isOpen, setIsOpen] = React.useState(isPageInSettings);
 
@@ -609,7 +624,8 @@
         canStock ? React.createElement(SidebarItem, { icon: Archive, label: "คลังสินค้า & สต๊อก", id: "stock", activeTab: activeTab, href: SCRIPT_URL + '?page=stock', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
         canCustTypes ? React.createElement(SidebarItem, { icon: Tags, label: "จัดการประเภทลูกค้า", id: "customer_types", activeTab: activeTab, href: SCRIPT_URL + '?page=customer_types', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
         canClosers ? React.createElement(SidebarItem, { icon: Headset, label: "จัดการผู้ปิดการขาย", id: "closers", activeTab: activeTab, href: SCRIPT_URL + '?page=closers', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
-        canExRate ? React.createElement(SidebarItem, { icon: Coins, label: "ตั้งค่าอัตราแลกเปลี่ยน", id: "exchange_rate", activeTab: activeTab, href: SCRIPT_URL + '?page=exchange_rate', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null
+        canExRate ? React.createElement(SidebarItem, { icon: Coins, label: "ตั้งค่าอัตราแลกเปลี่ยน", id: "exchange_rate", activeTab: activeTab, href: SCRIPT_URL + '?page=exchange_rate', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
+        canNotif ? React.createElement(SidebarItem, { icon: Bell, label: "ตั้งค่าการแจ้งเตือน", id: "notification_settings", activeTab: activeTab, href: SCRIPT_URL + '?page=notification_settings', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null
       );
     }
 
@@ -656,8 +672,10 @@
         canStock ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=stock'), onClick: handleTabClick, className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'stock' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}` }, "คลังสินค้า & สต๊อก") : null,
         canCustTypes ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=customer_types'), onClick: handleTabClick, className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'customer_types' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}` }, "จัดการประเภทลูกค้า") : null,
         canClosers ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=closers'), onClick: handleTabClick, className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'closers' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}` }, "จัดการผู้ปิดการขาย") : null,
-        canExRate ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=exchange_rate'), onClick: handleTabClick, className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'exchange_rate' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}` }, "ตั้งค่าอัตราแลกเปลี่ยน") : null
+        canExRate ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=exchange_rate'), onClick: handleTabClick, className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'exchange_rate' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}` }, "ตั้งค่าอัตราแลกเปลี่ยน") : null,
+        canNotif ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=notification_settings'), onClick: handleTabClick, className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'notification_settings' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}` }, "ตั้งค่าการแจ้งเตือน") : null
       ) : null
+      
     );
   };
 
@@ -727,7 +745,8 @@
     const canCustTypes = getUserPagePermission(currentUser, 'customer_types') !== 'none';
     const canClosers = getUserPagePermission(currentUser, 'closers') !== 'none';
     const canExRate = getUserPagePermission(currentUser, 'exchange_rate') !== 'none';
-    const canSettings = canSysUsers || canTeam || canBusTeams || canStock || canCustTypes || canClosers || canExRate;
+    const canNotif = getUserPagePermission(currentUser, 'notification_settings') !== 'none';
+    const canSettings = canSysUsers || canTeam || canBusTeams || canStock || canCustTypes || canClosers || canExRate || canNotif;
 
     return React.createElement(React.Fragment, null,
       React.createElement('aside', { className: `hidden lg:flex flex-col bg-slate-900 border-r border-slate-800 fixed h-full z-30 transition-all duration-300 shadow-xl ${isSidebarCollapsed ? 'w-20' : 'w-64'}` },
@@ -809,7 +828,7 @@
             React.createElement('button', {
               onClick: () => { setIsMobileSettingsOpen(!isMobileSettingsOpen); setIsMobileReportsOpen(false); },
               title: "ตั้งค่าระบบ",
-              className: `w-full flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all ${['system_users', 'team', 'stock', 'customer_types', 'closers', 'exchange_rate', 'business_teams'].includes(activePage) ? 'text-blue-400' : 'text-slate-500 hover:text-white'}`
+              className: `w-full flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all ${['system_users', 'team', 'stock', 'customer_types', 'closers', 'exchange_rate', 'business_teams', 'notification_settings'].includes(activePage) ? 'text-blue-400' : 'text-slate-500 hover:text-white'}`
             }, React.createElement(SettingsIcon, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, 'ตั้งค่า')),
             isMobileSettingsOpen ? React.createElement('div', { className: "absolute right-0 bottom-14 w-56 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-2 z-50 flex flex-col gap-1 animation-slide-up" },
               React.createElement('div', { className: "px-3 py-1.5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800/80 mb-1 text-left" }, "เลือกหน้าตั้งค่า"),
@@ -819,7 +838,8 @@
               canStock ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=stock'), onClick: handleTabClick, className: `flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${activePage === 'stock' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}` }, React.createElement(Archive, { size: 16 }), "คลังสินค้า & สต๊อก") : null,
               canCustTypes ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=customer_types'), onClick: handleTabClick, className: `flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${activePage === 'customer_types' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}` }, React.createElement(Tags, { size: 16 }), "จัดการประเภทลูกค้า") : null,
               canClosers ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=closers'), onClick: handleTabClick, className: `flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${activePage === 'closers' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}` }, React.createElement(Headset, { size: 16 }), "จัดการผู้ปิดการขาย") : null,
-              canExRate ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=exchange_rate'), onClick: handleTabClick, className: `flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${activePage === 'exchange_rate' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}` }, React.createElement(Coins, { size: 16 }), "ตั้งค่าอัตราแลกเปลี่ยน") : null
+              canExRate ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=exchange_rate'), onClick: handleTabClick, className: `flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${activePage === 'exchange_rate' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}` }, React.createElement(Coins, { size: 16 }), "ตั้งค่าอัตราแลกเปลี่ยน") : null,
+              canNotif ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=notification_settings'), onClick: handleTabClick, className: `flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${activePage === 'notification_settings' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}` }, React.createElement(Bell, { size: 16 }), "ตั้งค่าการแจ้งเตือน") : null
             ) : null
           ) : null
         )
@@ -1036,6 +1056,9 @@
   window.thBase = thBase;
   window.useDebounce = useDebounce;
   window.exportToCSV = exportToCSV;
+  window.MessageSquare = MessageSquare;
+  window.Bell = Bell;
+  window.UserCheck = UserCheck;
   const Toast = ({ toast, setToast }) => {
     if (!toast || !toast.show) return null;
     React.useEffect(() => {

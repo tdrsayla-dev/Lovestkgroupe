@@ -1715,9 +1715,10 @@
           }
       }
 
-      if (payMode === 'สด' || payMode === 'สด+โอน') {
-          if (cTHB > 0) paymentSummaryParts.push(`สดบาท:${cTHB}`); // เปลี่ยนให้เป็น "สดบาท" ชัดเจน
-          if (cLAK > 0) paymentSummaryParts.push(`สดกีบ:${cLAK}`);
+      if (payMode === 'โอน' || payMode === 'สด+โอน') {
+          if (tThaiTHB > 0) paymentSummaryParts.push(`โอนไทย(${payTransferThaiBank}):${tThaiTHB}`);
+          if (tLaosTHB > 0) paymentSummaryParts.push(`โอนลาวบาท(${payTransferLaosBankTHB}):${tLaosTHB}`);
+          if (tLaosLAK > 0) paymentSummaryParts.push(`โอนลาวกีบ(${payTransferLaosBankLAK}):${tLaosLAK}`);
       }
           const paymentSummaryStr = paymentSummaryParts.length > 0 ? paymentSummaryParts.join(' | ') : `${payMode}`;
 
@@ -1966,7 +1967,7 @@
              setIsSubmitting(false);
              return;
           }
-           const supaSalesData = {
+            const supaSalesData = {
                  order_id: newRecord.id,
                  date: newRecord.date,
                  seller_id: newRecord.memberId,
@@ -1987,20 +1988,102 @@
                  }),
                  payment_note: newRecord.paymentNote || newRecord.payment_note || ''
              };
-             if (typeof supabaseUpsert === 'function') {
+
+             let saleInsertSuccess = false;
+             let saleRetryCount = 0;
+             let currentSaleId = newRecord.id;
+
+             while (!saleInsertSuccess && saleRetryCount < 5) {
+                 supaSalesData.order_id = currentSaleId;
                  try {
-                     await supabaseUpsert('stk_sales', supaSalesData);
+                     await supabaseInsert('stk_sales', supaSalesData);
+                     saleInsertSuccess = true;
+                     newRecord.id = currentSaleId; 
                  } catch (e1) {
-                     console.warn('stk_sales upsert with payment_note failed, trying without payment_note:', e1);
-                     const fallbackData = { ...supaSalesData };
-                     delete fallbackData.payment_note;
-                     await supabaseUpsert('stk_sales', fallbackData).catch(e2 => console.error('stk_sales fallback upsert failed:', e2));
+                     const errMsg = String(e1.message || '').toLowerCase();
+                     if (errMsg.includes('duplicate') || errMsg.includes('409') || errMsg.includes('already exists')) {
+                         const parts = currentSaleId.split('-');
+                         if (parts.length === 2) {
+                             currentSaleId = `${parts[0]}-${String(parseInt(parts[1], 10) + 1).padStart(3, '0')}`;
+                         } else { break; }
+                         saleRetryCount++;
+                     } else {
+                         const fallbackData = { ...supaSalesData };
+                         delete fallbackData.payment_note;
+                         try {
+                             await supabaseInsert('stk_sales', fallbackData);
+                             saleInsertSuccess = true;
+                             newRecord.id = currentSaleId;
+                         } catch (e2) {
+                             const e2Msg = String(e2.message || '').toLowerCase();
+                             if (e2Msg.includes('duplicate') || e2Msg.includes('409') || e2Msg.includes('already exists')) {
+                                 const parts = currentSaleId.split('-');
+                                 if (parts.length === 2) {
+                                     currentSaleId = `${parts[0]}-${String(parseInt(parts[1], 10) + 1).padStart(3, '0')}`;
+                                 } else { break; }
+                                 saleRetryCount++;
+                             } else {
+                                 throw e2; 
+                             }
+                         }
+                     }
                  }
              }
 
-             if (newCustomerObj && typeof supabaseUpsert === 'function') {
-                 const custPayload = { customer_id: newCustomerObj.id, name: newCustomerObj.name, phone: newCustomerObj.phone, line_id: newCustomerObj.lineId || '', customer_type: newCustomerObj.type, symptom_disease: newCustomerObj.symptom, owner_member_id: newCustomerObj.memberId, closer_id: newCustomerObj.closer, extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName }, status: 'Active' };
-                 await supabaseUpsert('stk_customers', custPayload).catch(e => console.warn('stk_customers upsert error:', e));
+             if (!saleInsertSuccess) throw new Error("รหัสบิลชนกันหลายครั้ง ระบบไม่สามารถบันทึกได้ กรุณากดบันทึกใหม่อีกครั้ง");
+
+             if (newCustomerObj) {
+                 let custInsertSuccess = false;
+                 let custRetryCount = 0;
+                 let currentCustId = newCustomerObj.id;
+                 let custNum = parseInt(currentCustId.replace('C', ''), 10);
+                 
+                 while (!custInsertSuccess && custRetryCount < 10) {
+                     const custPayload = { 
+                         customer_id: currentCustId, 
+                         name: newCustomerObj.name, 
+                         phone: newCustomerObj.phone, 
+                         line_id: newCustomerObj.lineId || '', 
+                         customer_type: newCustomerObj.type, 
+                         symptom_disease: newCustomerObj.symptom, 
+                         owner_member_id: newCustomerObj.memberId, 
+                         closer_id: newCustomerObj.closer, 
+                         extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName }, 
+                         status: 'Active' 
+                     };
+                     try {
+                         await supabaseInsert('stk_customers', custPayload);
+                         custInsertSuccess = true;
+                         newCustomerObj.id = currentCustId;
+                         newRecord.customerId = currentCustId;
+                     } catch (err) {
+                         const errMsg = String(err.message || '').toLowerCase();
+                         if (errMsg.includes('duplicate') || errMsg.includes('409') || errMsg.includes('already exists')) {
+                             custNum++;
+                             currentCustId = "C" + custNum.toString().padStart(3, '0');
+                             custRetryCount++;
+                         } else {
+                             const fallbackCust = { ...custPayload };
+                             delete fallbackCust.extra_details_json;
+                             try {
+                                 await supabaseInsert('stk_customers', fallbackCust);
+                                 custInsertSuccess = true;
+                                 newCustomerObj.id = currentCustId;
+                                 newRecord.customerId = currentCustId;
+                             } catch (e2) {
+                                 const e2Msg = String(e2.message || '').toLowerCase();
+                                 if (e2Msg.includes('duplicate') || e2Msg.includes('409') || e2Msg.includes('already exists')) {
+                                     custNum++;
+                                     currentCustId = "C" + custNum.toString().padStart(3, '0');
+                                     custRetryCount++;
+                                 } else {
+                                     throw e2;
+                                 }
+                             }
+                         }
+                     }
+                 }
+                 if (!custInsertSuccess) throw new Error("รหัสลูกค้าชนกันหลายครั้ง ระบบไม่สามารถบันทึกได้ กรุณากดบันทึกใหม่อีกครั้ง");
              }
 
              // ⚡ FIX: ตัดสต็อกเปิดบิลใหม่ ดึงค่าสดจากฐานข้อมูลเช่นกัน
@@ -2052,9 +2135,10 @@
                  }));
              }
              
-             setSales(prev => [newRecord, ...(prev || [])]); 
+            setSales(prev => [newRecord, ...(prev || [])]); 
              if(newCustomerObj) setCustomers(prev => [newCustomerObj, ...(prev || [])]); 
              clearAppCache();
+             setIsSubmitting(false);  // <---- แทรกบรรทัดนี้ลงไป
              handleSuccessFinish(newRecord);
           } catch (err) {
               console.error("Save Error:", err);

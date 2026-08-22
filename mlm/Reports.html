@@ -296,18 +296,30 @@
 
             let lakAmt = 0; let thbAmt = 0;
 
-            // 🎯 ฟังก์ชันชี้ขาดสกุลเงิน (กฎเหล็กตามที่คุณต้องการเป๊ะๆ)
+            // 🎯 ฟังก์ชันชี้ขาดสกุลเงิน
             const determineCurrency = (text) => {
                 const t = text.toUpperCase();
-                // ถ้ามีคำว่า "บาท", "THB", "ไทย" ชนะทุกเงื่อนไข -> เป็นเงินบาท
                 if (t.includes('บาท') || t.includes('THB') || t.includes('ไทย')) return 'THB';
-                // ถ้ามีคำว่า "กีบ", "LAK", "KIP" หรือชื่อธนาคารฝั่งลาว (และไม่มีคำว่าบาท) -> เป็นเงินกีบ
                 if (t.includes('กีบ') || t.includes('LAK') || t.includes('KIP') || t.includes('BCEL') || t.includes('JDB') || t.includes('โอนลาว')) return 'LAK';
-                // นอกนั้น Default ให้เป็นเงินบาท
                 return 'THB'; 
             };
 
-            // 2. 🚀 การคำนวณบิลที่มีการแบ่งจ่ายหลายช่องทาง (มีเครื่องหมาย : หรือ |)
+            // 🌟 ตัวช่วยปรับคำให้เป็นแบบดั้งเดิม (สำหรับซ่อมบิลเก่าที่เซฟมาแค่คำว่า "โอน")
+            const formatDisplayMode = (mode, isLak, isThb) => {
+                if (mode.includes(':') || mode.includes('|') || mode.includes('(')) return mode;
+                let d = mode;
+                if (d === 'โอน' || d === 'เงินโอน') {
+                    if (isLak && !isThb) return 'โอนลาวกีบ';
+                    if (isThb && !isLak) return 'โอนไทยบาท';
+                }
+                if (d === 'สด' || d === 'เงินสด') {
+                    if (isLak && !isThb) return 'จ่ายสดกีบ';
+                    if (isThb && !isLak) return 'จ่ายสดบาท';
+                }
+                return d;
+            };
+
+            // 2. การคำนวณบิลที่มีการแบ่งจ่ายหลายช่องทาง
             if (realPayMode.includes(':')) {
                 const parts = realPayMode.split('|');
                 let hasParsed = false;
@@ -318,7 +330,6 @@
                     const keyName = trimmed.substring(0, colonIdx).trim();
                     if (keyName.toUpperCase() === 'เรท' || keyName.toUpperCase() === 'RATE' || keyName.toUpperCase() === 'อัตรา') return;
                     
-                    // ⚡ ลบสัญลักษณ์สกุลเงิน (฿, ₭, K) ขีด และลูกน้ำออกทั้งหมด ให้เหลือแค่ตัวเลขเพียวๆ!
                     const valStr = trimmed.substring(colonIdx + 1).replace(/[^\d.]/g, '');
                     const val = parseFloat(valStr) || 0;
                     
@@ -352,6 +363,7 @@
             }
 
             if (explicitLak > 0 || explicitThb > 0) {
+                realPayMode = formatDisplayMode(realPayMode, explicitLak > 0, explicitThb > 0);
                 return { lakAmt: explicitLak, thbAmt: explicitThb, isLakBill: explicitLak > 0, isThbBill: explicitThb > 0, realPayMode };
             }
 
@@ -361,8 +373,10 @@
             if (finalCur === 'LAK') {
                 let finalLak = rawAmt;
                 if (rawAmt > 0 && rawAmt < 50000) finalLak = rawAmt * safeExRate;
+                realPayMode = formatDisplayMode(realPayMode, true, false);
                 return { lakAmt: finalLak, thbAmt: 0, isLakBill: true, isThbBill: false, realPayMode };
             } else {
+                realPayMode = formatDisplayMode(realPayMode, false, true);
                 return { lakAmt: 0, thbAmt: rawAmt, isLakBill: false, isThbBill: true, realPayMode };
             }
         }, []);
