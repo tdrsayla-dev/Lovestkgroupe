@@ -217,9 +217,134 @@ function populatePayrollEmpSelect(selectedEmpId) {
     }
 }
 
+function getAttendanceStatsForEmployee(empId, monthYear) {
+    let result = {
+        sundayOt: 0,
+        weekdayOt: 0,
+        totalOt: 0,
+        lateMins: 0,
+        earlyMins: 0,
+        absentDays: 0,
+        presentDays: 0
+    };
+
+    if (!empId) return result;
+    const cleanEmpId = String(empId).toUpperCase().trim();
+
+    // Gather all attendance data sources
+    const sources = [
+        window.tableCache?.Fingerprint_Logs?.data,
+        window.tableCache?.fingerprint_logs?.data,
+        window.tableCache?.Attendance_Logs?.data,
+        window.tableCache?.attendance_logs?.data,
+        window.tableQueryCache?.Fingerprint_Logs?.data,
+        window.tableQueryCache?.fingerprint_logs?.data,
+        window.allAttendanceData,
+        window.allAttendanceLogs
+    ];
+
+    let logs = [];
+    for (const src of sources) {
+        if (Array.isArray(src) && src.length > 0) {
+            logs = src;
+            break;
+        }
+    }
+
+    const otSettings = typeof getOtSettings === 'function' ? getOtSettings() : null;
+    const empMap = getAllPayrollEmployees();
+    const empEntry = empMap.get(cleanEmpId);
+    const staffObj = empEntry ? empEntry.record : null;
+
+    let targetMonth = monthYear;
+    if (!targetMonth) {
+        const calMonth = document.getElementById('calendarMonth')?.value;
+        const now = new Date();
+        targetMonth = calMonth || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    let foundRows = 0;
+    logs.forEach(row => {
+        const rEmp = String(row.Employee_ID || row.employee_id || row.Emp_ID || row.emp_id || '').toUpperCase().trim();
+        if (rEmp !== cleanEmpId) return;
+
+        const rawDate = row.Date || row.date || (typeof getFuzzyValue === 'function' ? getFuzzyValue(row, ['Date', 'date', 'วันที่']) : '');
+        if (!rawDate) return;
+
+        const dateObj = (typeof parseDateStr === 'function') ? parseDateStr(rawDate) : new Date(rawDate);
+        if (!dateObj || isNaN(dateObj.getTime())) return;
+
+        const rowMonth = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+        if (targetMonth && rowMonth !== targetMonth) return;
+
+        foundRows++;
+        const isSunday = dateObj.getDay() === 0;
+
+        // Calculate OT for this row
+        const rowOt = typeof calculateRowOt === 'function' ? calculateRowOt(row, staffObj, otSettings) : (parseFloat(row.OT_Amount || row.ot_amount || 0) || 0);
+
+        if (isSunday) {
+            result.sundayOt += rowOt;
+        } else {
+            result.weekdayOt += rowOt;
+        }
+        result.totalOt += rowOt;
+
+        // Calculate Late & Early in minutes
+        let checkIn = row.Check_In || row.check_in || (typeof getFuzzyValue === 'function' ? getFuzzyValue(row, ['Check_In', 'check_in', 'in']) : '');
+        let checkOut = row.Check_Out || row.check_out || (typeof getFuzzyValue === 'function' ? getFuzzyValue(row, ['Check_Out', 'check_out', 'out']) : '');
+        let shiftStart = row.Shift_Start || row.shift_start || (typeof getFuzzyValue === 'function' ? getFuzzyValue(row, ['Shift_Start', 'shift_start', 'start']) : '');
+        let shiftEnd = row.Shift_End || row.shift_end || (typeof getFuzzyValue === 'function' ? getFuzzyValue(row, ['Shift_End', 'shift_end', 'end']) : '');
+
+        let late = 0;
+        if (checkIn && checkIn !== '-' && shiftStart && shiftStart !== '-') {
+            let inMins = parseInt(String(checkIn).split(':')[0] || 0) * 60 + parseInt(String(checkIn).split(':')[1] || 0);
+            let startMins = parseInt(String(shiftStart).split(':')[0] || 0) * 60 + parseInt(String(shiftStart).split(':')[1] || 0);
+            if (inMins > startMins) late = inMins - startMins;
+        } else if (row.Late_Hours || row.late_hours) {
+            late = Math.round((parseFloat(row.Late_Hours || row.late_hours) || 0) * 60);
+        }
+
+        let early = 0;
+        if (checkOut && checkOut !== '-' && shiftEnd && shiftEnd !== '-') {
+            let outMins = parseInt(String(checkOut).split(':')[0] || 0) * 60 + parseInt(String(checkOut).split(':')[1] || 0);
+            let endMins = parseInt(String(shiftEnd).split(':')[0] || 0) * 60 + parseInt(String(shiftEnd).split(':')[1] || 0);
+            if (outMins < endMins && outMins > 0) early = endMins - outMins;
+        } else if (row.Early_Leave_Hours || row.early_leave_hours) {
+            early = Math.round((parseFloat(row.Early_Leave_Hours || row.early_leave_hours) || 0) * 60);
+        }
+
+        result.lateMins += late;
+        result.earlyMins += early;
+
+        let rowStatus = String(getFuzzyValue(row, ['attendance_status', 'status', 'Attendance_Status']) || '').toLowerCase();
+        if (rowStatus.includes('absent') || rowStatus.includes('missing') || rowStatus.includes('ขาด')) {
+            result.absentDays++;
+        } else if (checkIn && checkIn !== '-') {
+            result.presentDays++;
+        }
+    });
+
+    // Fallback: If no rows found in logs array but the employee matches the one currently viewed on screen, use DOM filter values
+    if (foundRows === 0) {
+        const calEmp = String(document.getElementById('calendarEmpId')?.value || '').toUpperCase().trim();
+        if (calEmp === cleanEmpId || !calEmp) {
+            const domOt = parseFloat(String(document.getElementById('filter-ot')?.innerText || '0').replace(/,/g, '')) || 0;
+            result.totalOt = domOt;
+            result.sundayOt = domOt;
+            result.lateMins = parseFloat(String(document.getElementById('filter-late')?.innerText || '0').replace(/,/g, '')) || 0;
+            result.earlyMins = parseFloat(String(document.getElementById('filter-early')?.innerText || '0').replace(/,/g, '')) || 0;
+            result.absentDays = parseFloat(String(document.getElementById('filter-absent')?.innerText || '0').replace(/,/g, '')) || 0;
+        }
+    }
+
+    return result;
+}
+
 function calculatePayroll(isInitialLoad = false) {
     const selectedEmpId = empSelectValue();
-    const monthYear = document.getElementById('payroll-month')?.value || '';
+    const payDateStr = document.getElementById('payroll-date')?.value || '';
+    const monthYear = document.getElementById('payroll-month')?.value || (payDateStr ? payDateStr.slice(0, 7) : (document.getElementById('calendarMonth')?.value || ''));
 
     const empMap = getAllPayrollEmployees();
     const empEntry = selectedEmpId ? empMap.get(selectedEmpId.toUpperCase().trim()) : null;
@@ -231,6 +356,14 @@ function calculatePayroll(isInitialLoad = false) {
         window._currentPayrollEmpId = selectedEmpId;
         const baseSalaryInput = document.getElementById('payroll-base-salary');
         if (baseSalaryInput) delete baseSalaryInput.dataset.userModified;
+        const ot15Input = document.getElementById('payroll-ot-15');
+        if (ot15Input) delete ot15Input.dataset.userModified;
+        const ot25Input = document.getElementById('payroll-ot-25');
+        if (ot25Input) delete ot25Input.dataset.userModified;
+        const absentInput = document.getElementById('payroll-absent-deduction');
+        if (absentInput) delete absentInput.dataset.userModified;
+        const ruleViolationInput = document.getElementById('payroll-rule-violation');
+        if (ruleViolationInput) delete ruleViolationInput.dataset.userModified;
     }
 
     // Fallback search in staffList if record matched from attendance log didn't have full staff fields
@@ -290,26 +423,41 @@ function calculatePayroll(isInitialLoad = false) {
         }
     }
 
-    // Auto-calculate deductions from Calendar if this is the initial load from the calendar page
-    if (isInitialLoad) {
-        const lateHrs = parseFloat(document.getElementById('filter-late')?.innerText || 0);
-        const earlyHrs = parseFloat(document.getElementById('filter-early')?.innerText || 0);
-        const absentDays = parseFloat(document.getElementById('filter-absent')?.innerText || 0);
+    // 📌 Auto-calculate Attendance & OT Stats from Fingerprint_Logs
+    const stats = getAttendanceStatsForEmployee(selectedEmpId, monthYear);
 
-        let dailyRate = 0;
-        if (staffObj) {
-            dailyRate = parseFloat(staffObj.Daily_Rate || staffObj.daily_rate || staffObj.DAILY_RATE_FORMULA || (baseSalaryVal / 30) || 0);
-        }
-        
-        const hourlyRate = dailyRate / 8;
-        const absentDeductAmount = Math.round(absentDays * dailyRate);
-        const lateEarlyDeductAmount = Math.round((lateHrs + earlyHrs) * hourlyRate);
+    let dailyRate = 0;
+    if (staffObj) {
+        dailyRate = parseFloat(staffObj.Daily_Rate || staffObj.daily_rate || staffObj.DAILY_RATE_FORMULA || (baseSalaryVal / 30) || 0);
+    }
+    const hourlyRate = dailyRate > 0 ? (dailyRate / 8) : 15000;
 
-        const absentInput = document.getElementById('payroll-absent-deduction');
-        const ruleViolationInput = document.getElementById('payroll-rule-violation');
+    // Auto-populate OT 2.5 (Sunday & Holiday OT) & OT 1.5 (Weekday OT)
+    const ot25Input = document.getElementById('payroll-ot-25');
+    const ot15Input = document.getElementById('payroll-ot-15');
 
-        if (absentInput) absentInput.value = absentDeductAmount || 0;
-        if (ruleViolationInput) ruleViolationInput.value = lateEarlyDeductAmount || 0;
+    if (ot25Input && (!ot25Input.dataset.userModified || isEmpChanged || isInitialLoad)) {
+        // If there is Sunday OT, put into OT 2.5; or if totalOt > 0 and weekday is 0, put totalOt into OT 2.5
+        const sundayOtVal = stats.sundayOt || (stats.totalOt > 0 && stats.weekdayOt === 0 ? stats.totalOt : 0);
+        ot25Input.value = sundayOtVal;
+    }
+
+    if (ot15Input && (!ot15Input.dataset.userModified || isEmpChanged || isInitialLoad)) {
+        ot15Input.value = stats.weekdayOt || 0;
+    }
+
+    // Auto-populate Deductions
+    const absentInput = document.getElementById('payroll-absent-deduction');
+    const ruleViolationInput = document.getElementById('payroll-rule-violation');
+
+    if (absentInput && (!absentInput.dataset.userModified || isEmpChanged || isInitialLoad)) {
+        const absentDeductAmount = Math.round(stats.absentDays * dailyRate);
+        absentInput.value = absentDeductAmount || 0;
+    }
+
+    if (ruleViolationInput && (!ruleViolationInput.dataset.userModified || isEmpChanged || isInitialLoad)) {
+        const lateEarlyDeductAmount = Math.round(((stats.lateMins + stats.earlyMins) / 60) * hourlyRate);
+        ruleViolationInput.value = lateEarlyDeductAmount || 0;
     }
 
     // Read Income Values (รายได้)

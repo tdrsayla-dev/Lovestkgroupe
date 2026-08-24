@@ -189,6 +189,11 @@ function executeRenderExtras() {
         const annEl = document.getElementById('dashboard-announcements');
         if (annEl) annEl.innerHTML = '<p class="text-sm text-indigo-200 text-center py-4 font-medium">No announcements</p>';
     }
+    if (tableCache['Leave application'] && tableCache['Leave application'].data) {
+        if (typeof checkAndNotifyPendingLeaves === 'function') checkAndNotifyPendingLeaves(tableCache['Leave application'].data);
+        if (typeof updateSidebarPendingBadges === 'function') updateSidebarPendingBadges(tableCache['Leave application'].data);
+    }
+    if (typeof renderDashMiniCalendar === 'function') renderDashMiniCalendar();
     if (typeof renderDashboardTopRatings === 'function') renderDashboardTopRatings();
     if (typeof renderEmployeeMonthChart === 'function') renderEmployeeMonthChart();
 }
@@ -341,42 +346,92 @@ function checkAndRenderCharts() {
         displayDateStr = `${String(tStartObj.getDate()).padStart(2, '0')}/${String(tStartObj.getMonth() + 1).padStart(2, '0')}/${tStartObj.getFullYear()} - ${String(tEndObj.getDate()).padStart(2, '0')}/${String(tEndObj.getMonth() + 1).padStart(2, '0')}/${tEndObj.getFullYear()}`;
     }
 
-    allLeavesForDay.forEach(lv => {
+    // 📌 ดึงคำขอลาที่ "รออนุมัติ (Pending)" ทั้งหมดจากทุกช่วงเวลา (ไม่จำกัดเฉพาะวันนี้/อนาคต/อดีต) เพื่อแสดงให้แอดมินเห็นและอนุมัติได้ทันที
+    let pendingLeaves = [];
+    leaveData.forEach(r => {
+        let rawStatus = String(getFuzzyValue(r, ['signature', 'status', 'อนุมัติ', 'approval_status']) || '').toLowerCase().trim();
+        let isApproved = rawStatus.includes('approve') || rawStatus.includes('hr') || rawStatus.includes('อนุมัติ') || rawStatus.includes('อนุญาต') || rawStatus.includes('dept head') || rawStatus.includes('ceo');
+        let isRejected = rawStatus.includes('reject') || rawStatus.includes('ปฏิเสธ') || rawStatus.includes('ไม่อนุมัติ') || rawStatus.includes('denied');
+        let isPending = !isApproved && !isRejected;
+
+        if (isPending) {
+            let empId = String(getFuzzyValue(r, ['employee_id', 'emp_id'])).toUpperCase().trim();
+            pendingLeaves.push({ ...r, _empId: empId });
+        }
+    });
+
+    // เรียงลำดับคำขอลาที่รออนุมัติ: วันที่เริ่มลาจากใกล้ไปไกล (ASC)
+    pendingLeaves.sort((a, b) => {
+        let dA = parseDateStr(getFuzzyValue(a, ['start_date', 'เริ่ม'])) || new Date(0);
+        let dB = parseDateStr(getFuzzyValue(b, ['start_date', 'เริ่ม'])) || new Date(0);
+        return dA.getTime() - dB.getTime();
+    });
+
+    pendingLeaves.forEach(lv => {
         let empId = lv._empId;
         let empName = empNamesMapFull[empId] || empId;
-        let leaveType = getFuzzyValue(lv, ['type', 'ประเภท', 'ประเภทการลา']) || 'Leave';
-        let rawStatus = String(getFuzzyValue(lv, ['signature', 'status', 'อนุมัติ', 'approval_status']) || '').toLowerCase();
-        let leaveStart = getFuzzyValue(lv, ['start_date', 'เริ่ม']);
-        let leaveEnd = getFuzzyValue(lv, ['end_date', 'สิ้นสุด']);
+        let leaveType = getFuzzyValue(lv, ['type', 'ประเภท', 'ประเภทการลา', 'Type ']) || 'Leave';
+        let leaveStart = getFuzzyValue(lv, ['start_date', 'เริ่ม', 'วันที่เริ่ม']) || '-';
+        let leaveEnd = getFuzzyValue(lv, ['end_date', 'สิ้นสุด', 'วันที่สิ้นสุด']) || '-';
+        let totalDays = getFuzzyValue(lv, ['total_days', 'total days', 'days', 'จำนวนวัน', 'ມື້']);
+        let leaveReason = getFuzzyValue(lv, ['object', 'reason', 'object ', 'วัตถุประสงค์', 'สาเหตุ', 'ເຫດຜົນ']);
+        let leaveTime = getFuzzyValue(lv, ['time', 'created_at', 'timestamp', 'เวลา', 'ວັນທີຂໍ']);
+        let rowId = lv.Id_Leave || lv.id_leave || lv.ID_LEAVE || lv.leave_id || lv.Id || lv.id || lv._id || lv.__db_id;
+        if (!rowId && typeof getRecordId === 'function') rowId = getRecordId(lv);
 
-        let statusBadge = '';
-        let dotColor = 'bg-gray-400';
-        if (rawStatus.includes('approve') || rawStatus.includes('hr') || rawStatus.includes('อนุมัติ') || rawStatus.includes('อนุญาต')) {
-            statusBadge = `<span class="text-[9px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-md font-bold border border-emerald-200 tracking-widest uppercase flex items-center gap-1"><i class="fa-solid fa-check"></i> ${t('status_approved')}</span>`;
-            dotColor = 'bg-emerald-400';
-        } else if (rawStatus.includes('reject') || rawStatus.includes('ปฏิเสธ') || rawStatus.includes('ไม่อนุมัติ') || rawStatus.includes('denied')) {
-            statusBadge = `<span class="text-[9px] bg-red-50 text-red-500 px-2 py-1 rounded-md font-bold border border-red-100 tracking-widest uppercase flex items-center gap-1"><i class="fa-solid fa-times"></i> ${t('status_rejected')}</span>`;
-            dotColor = 'bg-red-400';
-        } else {
-            statusBadge = `<span class="text-[9px] bg-amber-50 text-amber-500 px-2 py-1 rounded-md font-bold border border-amber-200 tracking-widest uppercase flex items-center gap-1"><i class="fa-solid fa-clock"></i> ${t('status_pending')}</span>`;
-            dotColor = 'bg-amber-400';
-        }
+        let statusBadge = `<span class="text-[9px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full font-bold border border-amber-200 tracking-wider uppercase flex items-center gap-1"><i class="fa-solid fa-clock"></i> ${t('status_pending')}</span>`;
+        let dotColor = 'bg-amber-400';
 
-        leaveListHTML += `<li class="flex items-start justify-between py-2.5 px-3 rounded-xl border border-gray-100 bg-white hover:shadow-sm transition-all mb-1.5">
-                    <div class="flex flex-col gap-1 min-w-0 flex-1">
-                        <div class="flex items-center justify-between gap-2">
-                            <div class="flex items-center gap-2 min-w-0">
-                                <span class="w-2 h-2 rounded-full ${dotColor} flex-shrink-0"></span>
-                                <span class="text-sm font-black text-gray-900 truncate">${empName}</span>
-                            </div>
-                            ${statusBadge}
-                        </div>
-                        <div class="flex items-center gap-2 pl-4 text-[10px] text-gray-400 font-medium flex-wrap">
-                            <span class="bg-gray-50 px-1.5 py-0.5 rounded text-[9px] font-bold text-gray-600 border border-gray-200">${leaveType}</span>
-                            <span>${leaveStart} – ${leaveEnd}</span>
+        leaveListHTML += `
+            <li class="p-3 rounded-2xl border border-gray-100 bg-white hover:border-amber-200 hover:shadow-md transition-all mb-2 flex flex-col gap-2">
+                <!-- Header: Name + Badge -->
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="w-2.5 h-2.5 rounded-full ${dotColor} flex-shrink-0"></span>
+                        <div class="flex flex-col min-w-0">
+                            <span class="text-xs font-black text-gray-900 truncate">${empName}</span>
+                            <span class="text-[9px] text-gray-400 font-bold">${empId}</span>
                         </div>
                     </div>
-                </li>`;
+                    ${statusBadge}
+                </div>
+
+                <!-- Details: Type + Date & Time + Days + Reason -->
+                <div class="bg-amber-50/60 rounded-xl p-2.5 border border-amber-100/80 flex flex-col gap-1 text-[11px]">
+                    <div class="flex items-center justify-between gap-1 flex-wrap">
+                        <span class="bg-amber-100/80 text-amber-900 px-2 py-0.5 rounded-md text-[10px] font-bold border border-amber-200/60 flex items-center gap-1">
+                            <i class="fa-solid fa-tag text-[9px] text-amber-600"></i> ${leaveType}
+                        </span>
+                        ${totalDays ? `<span class="text-amber-800 font-black text-[10px] bg-white/70 px-1.5 py-0.5 rounded border border-amber-200/50">${totalDays} ${t('days_unit') || 'ວັນ'}</span>` : ''}
+                    </div>
+                    <div class="flex items-center gap-1.5 text-gray-700 font-medium mt-1">
+                        <i class="fa-regular fa-calendar-days text-amber-500 flex-shrink-0"></i>
+                        <span class="font-bold text-gray-800">${leaveStart} – ${leaveEnd}</span>
+                    </div>
+                    ${leaveReason && leaveReason !== '-' ? `
+                    <div class="flex items-start gap-1.5 text-gray-600 text-[10px] mt-0.5">
+                        <i class="fa-regular fa-comment-dots text-amber-400 mt-0.5 flex-shrink-0"></i>
+                        <span class="italic truncate">${leaveReason}</span>
+                    </div>` : ''}
+                    ${leaveTime && leaveTime !== '-' ? `
+                    <div class="text-[9px] text-gray-400 flex items-center gap-1 mt-0.5">
+                        <i class="fa-regular fa-clock text-gray-300"></i>
+                        <span>${leaveTime}</span>
+                    </div>` : ''}
+                </div>
+
+                <!-- Quick Inline Approval Actions (อนุมัติตรงนี้เลย) -->
+                ${rowId ? `
+                <div class="flex items-center justify-between gap-1.5 pt-1.5 border-t border-gray-100">
+                    <button onclick="directApproveLeave('${rowId}', 'HR Admin', event)" class="flex-1 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-[10px] font-bold py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 shadow-sm transition-all">
+                        <i class="fa-solid fa-check"></i> <span>${t('btn_approve') || 'ອະນຸມັດ'}</span>
+                    </button>
+                    <button onclick="directApproveLeave('${rowId}', 'Rejected', event)" class="flex-1 bg-red-50 hover:bg-red-100 text-red-600 active:scale-95 border border-red-200 text-[10px] font-bold py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 shadow-sm transition-all">
+                        <i class="fa-solid fa-xmark"></i> <span>${t('btn_reject') || 'ປະຕິເສດ'}</span>
+                    </button>
+                </div>
+                ` : ''}
+            </li>`;
         leaveDetailsCount++;
     });
 
@@ -458,7 +513,7 @@ function checkAndRenderCharts() {
 
     if (leaveUl) {
         if (leaveDetailsCount > 0) leaveUl.innerHTML = leaveListHTML;
-        else leaveUl.innerHTML = `<li class="py-8 text-center text-gray-400 text-xs font-medium border border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center"><i class="fa-solid fa-clipboard-check text-2xl mb-2 text-gray-300"></i> ${t('no_leave_records')}</li>`;
+        else leaveUl.innerHTML = `<li class="py-8 text-center text-gray-400 text-xs font-medium border border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center"><i class="fa-solid fa-clipboard-check text-2xl mb-2 text-gray-300"></i> ${t('no_pending_leaves') || t('no_leave_records')}</li>`;
     }
     const leaveBadge = document.getElementById('dash-leave-count-badge');
     if (leaveBadge) leaveBadge.innerText = `${leaveDetailsCount} ${t('people_unit')}`;
@@ -1141,5 +1196,279 @@ function selectDashDate(dateStr) {
     loadDashboard();
 }
 
-// สั่งให้ปฏิทินวาดตัวเองทันทีเมื่อโหลดโค้ดเสร็จ
+/* =====================================================================
+ * ⚡ Direct In-line Leave Approval (อนุมัติ/ปฏิเสธคำขอลาทันทีจากหน้าแดชบอร์ด)
+ * ===================================================================== */
+function directApproveLeave(rowId, newStatus, event) {
+    if (event) {
+        try {
+            event.stopPropagation();
+            event.preventDefault();
+        } catch (e) {}
+    }
+    if (!rowId || !newStatus) return;
+
+    let isReject = (newStatus === 'Rejected');
+    let title = isReject ? 'ຢືນຢັນປະຕິເສດ (Confirm Reject)' : 'ຢືນຢັນອະນຸມັດ (Confirm Approve)';
+    let msg = isReject
+        ? `ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການ <b class="text-red-500 font-bold">ປະຕິເສດ (Reject)</b> ຄຳຮ້ອງຂໍລາພັກນີ້?`
+        : `ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການ <b class="text-emerald-600 font-bold">ອະນຸມັດ (Approve as ${newStatus})</b> ຄຳຮ້ອງຂໍລາພັກນີ້?`;
+
+    showConfirmModal(
+        title,
+        msg,
+        () => {
+            toggleLoading(true, 'SAVING STATUS...');
+
+            let headers = (tableCache['Leave application'] && tableCache['Leave application'].headers) ? tableCache['Leave application'].headers : [];
+            let statusCol = headers.find(h => ['signature', 'status', 'approval_status', 'อนุมัติ', 'ลายเซ็น'].includes(String(h).toLowerCase().trim())) || 'SIGNATURE';
+
+            let leaveTable = (tableCache['Leave application'] && Array.isArray(tableCache['Leave application'].data)) ? tableCache['Leave application'].data : [];
+            let targetRow = leaveTable.find(r => {
+                let rId = r.Id_Leave || r.id_leave || r.ID_LEAVE || r.leave_id || r.Id || r.id || r.__db_id;
+                return String(rId) === String(rowId);
+            }) || {};
+
+            let updatePayload = {
+                ...targetRow,
+                [statusCol]: newStatus,
+                SIGNATURE: newStatus,
+                Signature: newStatus,
+                status: newStatus,
+                Status: newStatus
+            };
+
+            const onSuccess = (res) => {
+                toggleLoading(false);
+                if (res && res.success !== false) {
+                    showSuccessModal("ອະນຸມັດສຳເລັດ", `ອັບເດດສະຖານະເປັນ <b>${newStatus}</b> ຮຽບຮ້ອຍແລ້ວ`);
+
+                    // Update in-memory cache
+                    if (tableCache['Leave application'] && Array.isArray(tableCache['Leave application'].data)) {
+                        let item = tableCache['Leave application'].data.find(r => {
+                            let rId = r.Id_Leave || r.id_leave || r.ID_LEAVE || r.leave_id || r.Id || r.id || r.__db_id;
+                            return String(rId) === String(rowId);
+                        });
+                        if (item) {
+                            item[statusCol] = newStatus;
+                            item['SIGNATURE'] = newStatus;
+                            item['Signature'] = newStatus;
+                            item['status'] = newStatus;
+                            item['Status'] = newStatus;
+                        }
+                    }
+
+                    // Reload dashboard and re-render mini calendar & staff calendar
+                    loadDashboard();
+                    renderDashMiniCalendar();
+                    if (typeof renderStaffAttendanceCalendar === 'function') {
+                        let curMonth = document.getElementById('staffCalendarMonth')?.value;
+                        if (curMonth) {
+                            let p = curMonth.split('-');
+                            renderStaffAttendanceCalendar(parseInt(p[0]), parseInt(p[1]), window.staffCalCachedLogs, tableCache['Leave application']?.data, window.staffCalTargetEmpId);
+                        }
+                    }
+                    if (typeof updateSidebarPendingBadges === 'function') {
+                        updateSidebarPendingBadges(tableCache['Leave application']?.data);
+                    }
+                } else {
+                    showToast(res ? res.message : 'Error updating leave status', 'error');
+                }
+            };
+
+            const onFail = (err) => {
+                toggleLoading(false);
+                showToast('Connection failed: ' + (err.message || err), 'error');
+            };
+
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                google.script.run
+                    .withSuccessHandler(onSuccess)
+                    .withFailureHandler(onFail)
+                    .updateRecordData('Leave application', rowId, statusCol, newStatus, updatePayload);
+            } else {
+                setTimeout(() => onSuccess({ success: true }), 400);
+            }
+        },
+        () => {},
+        isReject
+    );
+}
+
+/* =====================================================================
+ * 🔔 Browser Notification, Audio Chime Alert & Sidebar Badge System
+ * ===================================================================== */
+function updateSidebarPendingBadges(leaveRows) {
+    let list = Array.isArray(leaveRows) ? leaveRows : ((typeof tableCache !== 'undefined' && tableCache['Leave application']?.data) ? tableCache['Leave application'].data : []);
+    if (!Array.isArray(list)) return;
+
+    let pendingCount = 0;
+    list.forEach(r => {
+        let rawStatus = String(getFuzzyValue(r, ['signature', 'status', 'อนุมัติ', 'approval_status']) || 'Pending').toLowerCase().trim();
+        let isApproved = rawStatus.includes('approve') || rawStatus.includes('hr') || rawStatus.includes('อนุมัติ') || rawStatus.includes('อนุญาต') || rawStatus.includes('dept head') || rawStatus.includes('ceo') || rawStatus.includes('coo') || rawStatus.includes('cfo');
+        let isRejected = rawStatus.includes('reject') || rawStatus.includes('ไม่อนุมัติ') || rawStatus.includes('ปฏิเสธ') || rawStatus.includes('denied');
+        let isPending = !isApproved && !isRejected;
+        if (isPending) pendingCount++;
+    });
+
+    const badgeDash = document.getElementById('sidebar-badge-dashboard');
+    const badgeLeaves = document.getElementById('sidebar-badge-leaves');
+
+    [badgeDash, badgeLeaves].forEach(badge => {
+        if (!badge) return;
+        if (pendingCount > 0) {
+            badge.innerText = pendingCount;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    });
+}
+
+function initBrowserNotifications() {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+        Notification.requestPermission().then(p => {
+            console.log('Browser notification permission:', p);
+        }).catch(() => {});
+    }
+}
+
+function playNotificationSound() {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.12); // A5
+
+        gain.gain.setValueAtTime(0.25, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start();
+        osc.stop(ctx.currentTime + 0.5);
+    } catch (e) {}
+}
+
+function sendBrowserNotification(title, body, tag = '') {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+        try {
+            const notif = new Notification(title, {
+                body: body,
+                icon: 'https://cdn-icons-png.flaticon.com/512/2693/2693507.png',
+                tag: tag || ('leave-' + Date.now()),
+                requireInteraction: false
+            });
+
+            notif.onclick = function () {
+                window.focus();
+                if (typeof navigate === 'function') navigate('dashboard', 'Dashboard');
+                this.close();
+            };
+        } catch (e) {}
+    }
+}
+
+function checkAndNotifyPendingLeaves(leaveRows) {
+    if (!Array.isArray(leaveRows) || leaveRows.length === 0) return;
+
+    updateSidebarPendingBadges(leaveRows);
+
+    let notifiedStr = sessionStorage.getItem('hr_notified_leave_ids') || '';
+    let notifiedIds = new Set(notifiedStr ? notifiedStr.split(',') : []);
+
+    let newPending = [];
+    leaveRows.forEach(r => {
+        let rId = String(r.Id_Leave || r.id_leave || r.ID_LEAVE || r.leave_id || r.Id || r.id || r.__db_id || '');
+        if (!rId) return;
+
+        let rawStatus = String(getFuzzyValue(r, ['signature', 'status', 'อนุมัติ', 'approval_status']) || '').toLowerCase();
+        let isPending = rawStatus.includes('pending') || rawStatus.includes('รอ') || (!rawStatus.includes('approve') && !rawStatus.includes('reject') && !rawStatus.includes('ไม่อนุมัติ') && !rawStatus.includes('ปฏิเสธ'));
+
+        if (isPending && !notifiedIds.has(rId)) {
+            newPending.push(r);
+            notifiedIds.add(rId);
+        }
+    });
+
+    if (newPending.length > 0) {
+        sessionStorage.setItem('hr_notified_leave_ids', Array.from(notifiedIds).join(','));
+
+        // Play chime sound
+        playNotificationSound();
+
+        // Dispatch desktop notification
+        if (newPending.length === 1) {
+            let lv = newPending[0];
+            let empName = getFuzzyValue(lv, ['name', 'full_name', 'first_name', 'employee_id', 'emp_id']) || 'พนักงาน';
+            let leaveType = getFuzzyValue(lv, ['type', 'ประเภท', 'ประเภทการลา', 'Type ']) || 'ลาพัก';
+            let leaveStart = getFuzzyValue(lv, ['start_date', 'เริ่ม', 'วันที่เริ่ม']) || '';
+            let leaveEnd = getFuzzyValue(lv, ['end_date', 'สิ้นสุด', 'วันที่สิ้นสุด']) || '';
+
+            sendBrowserNotification(
+                '🔔 คำขอลาพักงานใหม่ (ໃບຮ້ອງຂໍລາພັກໃໝ່)',
+                `คุณ ${empName} ขอลา ${leaveType} (${leaveStart} – ${leaveEnd}) รอการอนุมัติ`,
+                `leave-${lv.Id_Leave || lv.id_leave || Date.now()}`
+            );
+            if (typeof showToast === 'function') {
+                showToast(`🔔 มีคำขอลาพักใหม่จากคุณ ${empName} รอการอนุมัติ`, 'info');
+            }
+        } else {
+            sendBrowserNotification(
+                '🔔 มีคำขอลาพักงานใหม่ (ໃບຮ້ອງຂໍລາພັກໃໝ່)',
+                `มีคำขอลาพักงานใหม่ ${newPending.length} รายการ รอการอนุมัติ`,
+                `leaves-batch-${Date.now()}`
+            );
+            if (typeof showToast === 'function') {
+                showToast(`🔔 มีคำขอลาพักงานใหม่ ${newPending.length} รายการ รอการอนุมัติ`, 'info');
+            }
+        }
+    }
+}
+
+// Global exports
+window.directApproveLeave = directApproveLeave;
+window.updateSidebarPendingBadges = updateSidebarPendingBadges;
+window.initBrowserNotifications = initBrowserNotifications;
+window.playNotificationSound = playNotificationSound;
+window.sendBrowserNotification = sendBrowserNotification;
+window.checkAndNotifyPendingLeaves = checkAndNotifyPendingLeaves;
+
+// Request notification permission on page load
+if (typeof window !== 'undefined') {
+    window.addEventListener('DOMContentLoaded', () => {
+        initBrowserNotifications();
+    });
+    // Auto-check for notification permission on first user click
+    window.addEventListener('click', function initNotifOnClick() {
+        initBrowserNotifications();
+        window.removeEventListener('click', initNotifOnClick);
+    }, { once: true });
+
+    // Periodic check for new leaves in background every 60s
+    setInterval(() => {
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+            google.script.run.withSuccessHandler(res => {
+                if (res && res.success && Array.isArray(res.data)) {
+                    tableCache['Leave application'] = {
+                        headers: (res.headers || []).map(String),
+                        data: res.data
+                    };
+                    checkAndNotifyPendingLeaves(res.data);
+                    renderDashMiniCalendar();
+                }
+            }).getSheetData('Leave application');
+        }
+    }, 60000);
+}
+
+// Initialize mini calendar
 renderDashMiniCalendar();

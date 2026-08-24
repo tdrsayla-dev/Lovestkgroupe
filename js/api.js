@@ -196,7 +196,64 @@ function filterData() {
         filtered = matched.map(m => m.row);
     }
 
-    if (startDateStr || endDateStr) {
+    if (currentSheet === 'Leave application' || currentSheet === 'Leave Requests' || String(currentSheet).toLowerCase().includes('leave')) {
+        const leaveMode = window.activeLeavePeriodMode || 'all';
+        if (leaveMode === 'month') {
+            const mVal = document.getElementById('leaveMonthInput') ? document.getElementById('leaveMonthInput').value : '';
+            if (mVal) {
+                const [y, m] = mVal.split('-').map(Number);
+                const targetStart = new Date(y, m - 1, 1, 0, 0, 0);
+                const targetEnd = new Date(y, m, 0, 23, 59, 59);
+
+                filtered = filtered.filter(row => {
+                    let sStr = getFuzzyValue(row, ['start_date', 'เริ่ม', 'วันที่เริ่ม', 'date']);
+                    let eStr = getFuzzyValue(row, ['end_date', 'สิ้นสุด', 'วันที่สิ้นสุด']) || sStr;
+                    let dStart = typeof parseDateStr === 'function' ? parseDateStr(sStr) : new Date(sStr);
+                    let dEnd = typeof parseDateStr === 'function' ? parseDateStr(eStr) : new Date(eStr);
+                    if (!dStart || isNaN(dStart.getTime())) return true;
+                    if (!dEnd || isNaN(dEnd.getTime())) dEnd = dStart;
+                    dStart.setHours(0, 0, 0, 0);
+                    dEnd.setHours(23, 59, 59, 999);
+                    return dStart <= targetEnd && dEnd >= targetStart;
+                });
+            }
+        } else if (leaveMode === 'range') {
+            const sVal = document.getElementById('leaveStartDateInput') ? document.getElementById('leaveStartDateInput').value : '';
+            const eVal = document.getElementById('leaveEndDateInput') ? document.getElementById('leaveEndDateInput').value : '';
+            if (sVal || eVal) {
+                const targetStart = sVal ? new Date(sVal + 'T00:00:00') : null;
+                const targetEnd = eVal ? new Date(eVal + 'T23:59:59') : null;
+
+                filtered = filtered.filter(row => {
+                    let sStr = getFuzzyValue(row, ['start_date', 'เริ่ม', 'วันที่เริ่ม', 'date']);
+                    let eStr = getFuzzyValue(row, ['end_date', 'สิ้นสุด', 'วันที่สิ้นสุด']) || sStr;
+                    let dStart = typeof parseDateStr === 'function' ? parseDateStr(sStr) : new Date(sStr);
+                    let dEnd = typeof parseDateStr === 'function' ? parseDateStr(eStr) : new Date(eStr);
+                    if (!dStart || isNaN(dStart.getTime())) return true;
+                    if (!dEnd || isNaN(dEnd.getTime())) dEnd = dStart;
+                    dStart.setHours(0, 0, 0, 0);
+                    dEnd.setHours(23, 59, 59, 999);
+                    if (targetStart && dEnd < targetStart) return false;
+                    if (targetEnd && dStart > targetEnd) return false;
+                    return true;
+                });
+            }
+        } else if (leaveMode === 'year') {
+            const yVal = document.getElementById('leaveYearInput') ? document.getElementById('leaveYearInput').value : '';
+            if (yVal) {
+                const targetYear = parseInt(yVal, 10);
+                filtered = filtered.filter(row => {
+                    let sStr = getFuzzyValue(row, ['start_date', 'เริ่ม', 'วันที่เริ่ม', 'date']);
+                    let eStr = getFuzzyValue(row, ['end_date', 'สิ้นสุด', 'วันที่สิ้นสุด']) || sStr;
+                    let dStart = typeof parseDateStr === 'function' ? parseDateStr(sStr) : new Date(sStr);
+                    let dEnd = typeof parseDateStr === 'function' ? parseDateStr(eStr) : new Date(eStr);
+                    if (!dStart || isNaN(dStart.getTime())) return true;
+                    if (!dEnd || isNaN(dEnd.getTime())) dEnd = dStart;
+                    return dStart.getFullYear() === targetYear || dEnd.getFullYear() === targetYear;
+                });
+            }
+        }
+    } else if (startDateStr || endDateStr) {
         let startObj = startDateStr ? new Date(startDateStr) : null;
         let endObj = endDateStr ? new Date(endDateStr) : null;
         if (startObj) startObj.setHours(0, 0, 0, 0);

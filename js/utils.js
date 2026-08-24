@@ -246,8 +246,8 @@ function fillMissingDays(rawData, startDateStr, endDateStr, targetEmpId) {
     let leaveData = tableCache['Leave application'] ? tableCache['Leave application'].data : [];
     let empLeaves = leaveData.filter(r => {
         let eId = String(getFuzzyValue(r, ['employee_id', 'emp_id'])).toUpperCase().trim();
-        let status = String(getFuzzyValue(r, ['signature', 'status'])).toLowerCase();
-        return eId === targetEmpId.toUpperCase().trim() && (status.includes('approve') || status.includes('hr'));
+        let status = String(getFuzzyValue(r, ['signature', 'status', 'approval_status']) || '').toLowerCase();
+        return eId === targetEmpId.toUpperCase().trim() && (!status.includes('reject') && !status.includes('ไม่อนุมัติ') && !status.includes('ปฏิเสธ') && !status.includes('denied'));
     });
 
     let empName = targetEmpId;
@@ -300,9 +300,18 @@ function fillMissingDays(rawData, startDateStr, endDateStr, targetEmpId) {
                 let lStart = parseDateStr(lStartStr);
                 let lEnd = parseDateStr(lEndStr);
 
-                if (lStart && lEnd && d >= lStart && d <= lEnd) {
-                    isOnLeave = true;
-                    break;
+                if (lStart && lEnd && !isNaN(lStart.getTime()) && !isNaN(lEnd.getTime())) {
+                    let s = new Date(lStart);
+                    s.setHours(0, 0, 0, 0);
+                    let e = new Date(lEnd);
+                    e.setHours(23, 59, 59, 999);
+                    let cur = new Date(d);
+                    cur.setHours(12, 0, 0, 0);
+
+                    if (cur >= s && cur <= e) {
+                        isOnLeave = true;
+                        break;
+                    }
                 }
             }
 
@@ -367,12 +376,12 @@ function renderAttendanceCalendar(year, month, logs, targetEmpId) {
     let today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // ดึงข้อมูลการลาของพนักงานคนนี้
+    // ดึงข้อมูลการลาของพนักงานคนนี้ (ทั้งที่อนุมัติแล้วและรออนุมัติ - ยกเว้นที่ถูกปฏิเสธ)
     let leaveData = tableCache['Leave application'] ? tableCache['Leave application'].data : [];
     let empLeaves = leaveData.filter(r => {
         let eId = String(getFuzzyValue(r, ['employee_id', 'emp_id'])).toUpperCase().trim();
-        let status = String(getFuzzyValue(r, ['signature', 'status'])).toLowerCase();
-        return eId === targetEmpId.toUpperCase().trim() && (status.includes('approve') || status.includes('hr'));
+        let status = String(getFuzzyValue(r, ['signature', 'status', 'อนุมัติ', 'approval_status']) || '').toLowerCase();
+        return eId === targetEmpId.toUpperCase().trim() && (!status.includes('reject') && !status.includes('ไม่อนุมัติ') && !status.includes('ปฏิเสธ') && !status.includes('denied'));
     });
 
     for (let i = 0; i < firstDayOfWeek; i++) {
@@ -404,9 +413,18 @@ function renderAttendanceCalendar(year, month, logs, targetEmpId) {
             let lStart = parseDateStr(lStartStr);
             let lEnd = parseDateStr(lEndStr);
 
-            if (lStart && lEnd && currentDate >= lStart && currentDate <= lEnd) {
-                isOnLeave = true;
-                break;
+            if (lStart && lEnd && !isNaN(lStart.getTime()) && !isNaN(lEnd.getTime())) {
+                let s = new Date(lStart);
+                s.setHours(0, 0, 0, 0);
+                let e = new Date(lEnd);
+                e.setHours(23, 59, 59, 999);
+                let cur = new Date(currentDate);
+                cur.setHours(12, 0, 0, 0);
+
+                if (cur >= s && cur <= e) {
+                    isOnLeave = true;
+                    break;
+                }
             }
         }
 

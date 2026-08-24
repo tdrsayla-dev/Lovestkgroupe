@@ -69,6 +69,7 @@ function navigate(pageId, title, sheetName = '') {
         const targetSec = document.getElementById(`section-${pageId}`);
         if (targetSec) {
             targetSec.classList.remove('hidden');
+            if (typeof updateDOMTranslations === 'function') updateDOMTranslations();
         } else {
             throw new Error(`Section element #section-${pageId} not found in DOM`);
         }
@@ -163,12 +164,10 @@ async function loadStaffDashboard() {
         if (!sessionStr) return;
         const session = JSON.parse(sessionStr);
         const sessionUserEmail = String(session.username || session.email || '').trim().toLowerCase();
-        let empId = String(session.empId || session.employeeId || sessionUserEmail || '').trim().toUpperCase();
+        let rawEmpId = String(session.empId || session.employeeId || '').trim().toUpperCase();
+        let empId = (!rawEmpId || rawEmpId.includes('@')) ? '' : rawEmpId;
 
         if (!empId && !sessionUserEmail) return;
-
-        window.staffCalTargetEmpId = empId;
-        window.staffCalCurrentDate = window.staffCalCurrentDate || new Date();
 
         const getSheetDataSafe = (sheetName, cb) => {
             if (typeof google !== 'undefined' && google.script && google.script.run) {
@@ -182,20 +181,55 @@ async function loadStaffDashboard() {
             }
         };
 
+        // Try to resolve true employee_id from users table if not already known
+        if (!empId && typeof tableCache !== 'undefined' && tableCache['users'] && tableCache['users'].data) {
+            const uMatch = tableCache['users'].data.find(u => {
+                const uName = String(u.username || u.Username || '').trim().toLowerCase();
+                const uEmail = String(u.email || u.Email || '').trim().toLowerCase();
+                return uName === sessionUserEmail || uEmail === sessionUserEmail;
+            });
+            if (uMatch) {
+                empId = String(uMatch.employee_id || uMatch.Employee_ID || '').trim().toUpperCase();
+            }
+        }
+
         // 1. ดึงข้อมูลพนักงาน (Staff Details)
         getSheetDataSafe('staff', res => {
             if (res && res.success) {
                 const staffList = res.data || [];
-                const staffMember = staffList.find(r => {
-                    const sEmp = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').trim().toUpperCase();
-                    const sEmail = String(r.Email || r.email || '').trim().toLowerCase();
-                    return (empId && sEmp === empId) || (sessionUserEmail && sEmail === sessionUserEmail);
-                });
+                
+                // Priority 1: Match by exact Employee_ID
+                let staffMember = null;
+                if (empId) {
+                    staffMember = staffList.find(r => String(r.Employee_ID || r.employee_id || r.Emp_ID || '').trim().toUpperCase() === empId);
+                }
+
+                // Priority 2: Match by exact Email
+                if (!staffMember && sessionUserEmail) {
+                    const matchesByEmail = staffList.filter(r => String(r.Email || r.email || '').trim().toLowerCase() === sessionUserEmail);
+                    if (matchesByEmail.length === 1) {
+                        staffMember = matchesByEmail[0];
+                    } else if (matchesByEmail.length > 1) {
+                        const emailPrefix = sessionUserEmail.split('@')[0].toLowerCase();
+                        const token = emailPrefix.split(/[._-]/).pop();
+                        staffMember = matchesByEmail.find(r => {
+                            const fullName = (String(r.First_Name || '') + ' ' + String(r.Last_Name || '')).toLowerCase();
+                            return token && token.length > 2 && fullName.includes(token);
+                        }) || matchesByEmail[0];
+                    }
+                }
 
                 if (staffMember) {
                     const resolvedEmpId = String(staffMember.Employee_ID || staffMember.employee_id || staffMember.Emp_ID || empId).trim().toUpperCase();
                     empId = resolvedEmpId;
                     window.staffCalTargetEmpId = resolvedEmpId;
+
+                    // Update session in storage
+                    if (session.empId !== resolvedEmpId) {
+                        session.empId = resolvedEmpId;
+                        localStorage.setItem('hr_user_session', JSON.stringify(session));
+                        if (sessionStorage.getItem('hr_user_session')) sessionStorage.setItem('hr_user_session', JSON.stringify(session));
+                    }
 
                     const rawFirst = staffMember.First_Name || staffMember.first_name || '';
                     const rawLast = staffMember.Last_Name || staffMember.last_name || '';
@@ -214,6 +248,13 @@ async function loadStaffDashboard() {
                     if (rankEl) rankEl.innerText = staffMember.Position_ID || staffMember.position_id || '-';
                     if (rewardEl) rewardEl.innerText = staffMember['Reward Level'] || staffMember.reward_level || '-';
                     if (calInfoEl) calInfoEl.innerText = `ประวัติการลงเวลาของ ${fullName} (${resolvedEmpId})`;
+
+                    // If logs were already loaded before staff resolved, re-render calendar
+                    if (window.staffCalCachedLogs && window.staffCalCachedLogs.length > 0) {
+                        const targetYear = window.staffCalCurrentDate.getFullYear();
+                        const targetMonth = window.staffCalCurrentDate.getMonth() + 1;
+                        renderStaffAttendanceCalendar(targetYear, targetMonth, window.staffCalCachedLogs, window.staffCalCachedLeaves || [], resolvedEmpId);
+                    }
                 }
             }
         });
@@ -226,10 +267,11 @@ async function loadStaffDashboard() {
         getSheetDataSafe('Fingerprint_Logs', res => {
             if (res && res.success) {
                 const allLogs = res.data || [];
+                const currentTargetId = window.staffCalTargetEmpId || empId;
                 const myLogs = allLogs.filter(r => {
                     const rEmp = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').trim().toUpperCase();
                     const rEmail = String(r.Email || r.email || '').trim().toLowerCase();
-                    return (empId && rEmp === empId) || (sessionUserEmail && rEmail === sessionUserEmail);
+                    return (currentTargetId && rEmp === currentTargetId) || (empId && rEmp === empId) || (sessionUserEmail && rEmail === sessionUserEmail && !rEmp.startsWith('VIP'));
                 });
 
                 window.staffCalCachedLogs = myLogs;
@@ -495,10 +537,10 @@ window.renderStaffAttendanceCalendar = function (year, month, logs, leaves, targ
     let leaveCount = 0;
     let totalLateMins = 0;
 
-    // Filter approved leaves for this staff
+    // Filter leaves for this staff (approved or pending, non-rejected)
     const empLeaves = (leaves || []).filter(r => {
-        let status = String(r.Signature || r.signature || r.Status || r.status || '').toLowerCase();
-        return status.includes('approve') || status.includes('hr') || status.includes('อนุมัติ');
+        let status = String(r.Signature || r.signature || r.Status || r.status || (typeof getFuzzyValue === 'function' ? getFuzzyValue(r, ['signature', 'status', 'อนุมัติ', 'approval_status']) : '') || '').toLowerCase();
+        return !status.includes('reject') && !status.includes('ไม่อนุมัติ') && !status.includes('ปฏิเสธ') && !status.includes('denied');
     });
 
     // Padding for days before start of month
@@ -533,10 +575,19 @@ window.renderStaffAttendanceCalendar = function (year, month, logs, leaves, targ
             let lStart = typeof parseDateStr === 'function' ? parseDateStr(lStartStr) : new Date(lStartStr);
             let lEnd = typeof parseDateStr === 'function' ? parseDateStr(lEndStr) : new Date(lEndStr);
 
-            if (lStart && lEnd && currentDate >= lStart && currentDate <= lEnd) {
-                isOnLeave = true;
-                leaveTypeName = lv['Type '] || lv.Type || lv.leave_type || 'ลาพัก';
-                break;
+            if (lStart && lEnd && !isNaN(lStart.getTime()) && !isNaN(lEnd.getTime())) {
+                let s = new Date(lStart);
+                s.setHours(0, 0, 0, 0);
+                let e = new Date(lEnd);
+                e.setHours(23, 59, 59, 999);
+                let cur = new Date(currentDate);
+                cur.setHours(12, 0, 0, 0);
+
+                if (cur >= s && cur <= e) {
+                    isOnLeave = true;
+                    leaveTypeName = lv['Type '] || lv.Type || lv.leave_type || 'ลาพัก';
+                    break;
+                }
             }
         }
 

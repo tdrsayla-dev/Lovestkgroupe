@@ -237,7 +237,16 @@ function renderTable(data) {
             }
         }
 
-        // 📌 คำนวณยอดสรุปสำหรับ Stat Cards 7 กล่องจาก data ของพนักงานหรือมุมมองที่เลือก
+        // 📌 คำนวณยอดสรุปสำหรับ Stat Cards 7 กล่องจาก data ของพนักงานหรือมุมมองที่เลือก (หน่วยเป็น นาที)
+        const currentOtSettings = typeof getOtSettings === 'function' ? getOtSettings() : null;
+        let staffMapForOt = {};
+        if (typeof tableCache !== 'undefined' && tableCache['staff'] && tableCache['staff'].data) {
+            tableCache['staff'].data.forEach(s => {
+                let sId = String(s.Employee_ID || s.employee_id || '').trim().toUpperCase();
+                if (sId) staffMapForOt[sId] = s;
+            });
+        }
+
         data.forEach(row => {
             let checkIn = row.Check_In || row.check_in || (typeof getFuzzyValue === 'function' ? getFuzzyValue(row, ['Check_In', 'check_in', 'in']) : '');
             let checkOut = row.Check_Out || row.check_out || (typeof getFuzzyValue === 'function' ? getFuzzyValue(row, ['Check_Out', 'check_out', 'out']) : '');
@@ -250,12 +259,12 @@ function renderTable(data) {
                 let inMins = parseInt(String(checkIn).split(':')[0] || 0) * 60 + parseInt(String(checkIn).split(':')[1] || 0);
                 let startMins = parseInt(String(shiftStart).split(':')[0] || 0) * 60 + parseInt(String(shiftStart).split(':')[1] || 0);
                 if (inMins > startMins) {
-                    late = (inMins - startMins) / 60;
+                    late = inMins - startMins; // นาที
                 } else if (inMins < startMins) {
-                    earlyIn = (startMins - inMins) / 60;
+                    earlyIn = startMins - inMins; // นาที
                 }
-            } else {
-                late = parseFloat(row.Late_Hours || row.late_hours || 0) || 0;
+            } else if (row.Late_Hours || row.late_hours) {
+                late = Math.round((parseFloat(row.Late_Hours || row.late_hours) || 0) * 60);
             }
 
             let early = 0;
@@ -264,15 +273,17 @@ function renderTable(data) {
                 let outMins = parseInt(String(checkOut).split(':')[0] || 0) * 60 + parseInt(String(checkOut).split(':')[1] || 0);
                 let endMins = parseInt(String(shiftEnd).split(':')[0] || 0) * 60 + parseInt(String(shiftEnd).split(':')[1] || 0);
                 if (outMins < endMins && outMins > 0) {
-                    early = (endMins - outMins) / 60;
+                    early = endMins - outMins; // นาที
                 } else if (outMins > endMins) {
-                    lateOut = (outMins - endMins) / 60;
+                    lateOut = outMins - endMins; // นาที
                 }
-            } else {
-                early = parseFloat(row.Early_Leave_Hours || row.early_leave_hours || 0) || 0;
+            } else if (row.Early_Leave_Hours || row.early_leave_hours) {
+                early = Math.round((parseFloat(row.Early_Leave_Hours || row.early_leave_hours) || 0) * 60);
             }
 
-            let ot = parseFloat(row.OT_Amount || row.ot_amount || 0) || 0;
+            let rEmpId = String(row.Employee_ID || row.employee_id || '').trim().toUpperCase();
+            let rowStaff = staffMapForOt[rEmpId] || null;
+            let ot = typeof calculateRowOt === 'function' ? calculateRowOt(row, rowStaff, currentOtSettings) : (parseFloat(row.OT_Amount || row.ot_amount || 0) || 0);
             let rowStatus = String(getFuzzyValue(row, ['attendance_status', 'status'])).toLowerCase();
 
             sumLate += late;
@@ -283,19 +294,19 @@ function renderTable(data) {
             if (rowStatus.includes('missing') || rowStatus.includes('absent') || rowStatus.includes('ขาด')) sumAbsent++;
         });
 
-        const roundVal = v => Math.round(v * 100) / 100;
+        const formatMins = v => new Intl.NumberFormat('th-TH').format(Math.round(v));
         const netOffset = (sumEarlyIn + sumLateOut) - (sumLate + sumEarly);
 
-        if (document.getElementById('filter-late')) document.getElementById('filter-late').innerText = roundVal(sumLate);
-        if (document.getElementById('filter-early')) document.getElementById('filter-early').innerText = roundVal(sumEarly);
-        if (document.getElementById('filter-early-in')) document.getElementById('filter-early-in').innerText = roundVal(sumEarlyIn);
-        if (document.getElementById('filter-late-out')) document.getElementById('filter-late-out').innerText = roundVal(sumLateOut);
+        if (document.getElementById('filter-late')) document.getElementById('filter-late').innerText = formatMins(sumLate);
+        if (document.getElementById('filter-early')) document.getElementById('filter-early').innerText = formatMins(sumEarly);
+        if (document.getElementById('filter-early-in')) document.getElementById('filter-early-in').innerText = formatMins(sumEarlyIn);
+        if (document.getElementById('filter-late-out')) document.getElementById('filter-late-out').innerText = formatMins(sumLateOut);
         if (document.getElementById('filter-absent')) document.getElementById('filter-absent').innerText = sumAbsent;
         if (document.getElementById('filter-ot')) document.getElementById('filter-ot').innerText = new Intl.NumberFormat('th-TH').format(sumOT);
 
         const netEl = document.getElementById('filter-net-balance');
         if (netEl) {
-            const formattedNet = (netOffset >= 0 ? '+' : '') + roundVal(netOffset);
+            const formattedNet = (netOffset >= 0 ? '+' : '') + formatMins(netOffset);
             netEl.innerText = formattedNet;
             if (netOffset >= 0) {
                 netEl.className = 'text-xl font-black text-purple-600';
@@ -390,7 +401,7 @@ function renderTable(data) {
         if (totalAmountSpan) totalAmountSpan.classList.add('hidden');
     }
 
-    if (currentSheet === 'Training' || currentSheet === 'Asset_Tracking' || currentSheet === 'Announcements' || currentSheet === 'News' || currentSheet.includes('Ranting') || currentSheet.includes('Rating') || currentSheet.trim() === 'Policy' || currentSheet.trim() === 'Documents') {
+    if (currentSheet === 'Training' || currentSheet === 'Asset_Tracking' || currentSheet === 'Announcements' || currentSheet === 'News' || currentSheet.includes('Ranting') || currentSheet.includes('Rating') || currentSheet.trim() === 'Policy' || currentSheet.trim() === 'Documents' || currentSheet === 'Leave application' || currentSheet === 'Leave Requests' || String(currentSheet).toLowerCase().includes('leave')) {
         tableWrapper.classList.add('hidden');
         cardWrapper.classList.remove('hidden');
         cardWrapper.innerHTML = '';
@@ -902,8 +913,6 @@ function renderTable(data) {
                 let cardArr = [];
                 cardArr.push(`<div onclick="showDocumentDetail('${encodedRow}')" class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col relative transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer group">`);
 
-                cardArr.push('<div class="flex justify-between items-start px-4 py-3 bg-white z-10 border-b border-gray-50 shrink-0 gap-2">');
-
                 cardArr.push('<div class="flex flex-col min-w-0">');
                 cardArr.push(`<span class="text-[10px] font-bold text-brandindigo uppercase tracking-widest mb-0.5" title="${escapeHtml(docType)}">${escapeHtml(docType)}</span>`);
                 cardArr.push(`<h3 class="text-sm font-bold text-gray-800 line-clamp-2 leading-snug" title="${escapeHtml(topic)}">${escapeHtml(topic)}</h3>`);
@@ -932,11 +941,339 @@ function renderTable(data) {
                 cardsHtml += cardArr.join('');
             });
         }
+        else if (currentSheet === 'Leave application' || currentSheet === 'Leave Requests' || String(currentSheet).toLowerCase().includes('leave')) {
+            const leaveTabsContainer = document.getElementById('leave-status-tabs-container');
+            if (leaveTabsContainer) leaveTabsContainer.classList.remove('hidden');
+
+            const leaveDateFilterWrapper = document.getElementById('leave-date-filter-wrapper');
+            if (leaveDateFilterWrapper) leaveDateFilterWrapper.classList.remove('hidden');
+
+            // Populate year dropdown for leave filter if empty
+            const ySelect = document.getElementById('leaveYearInput');
+            if (ySelect && ySelect.options.length === 0) {
+                let yearsSet = new Set();
+                yearsSet.add(new Date().getFullYear());
+                (rawData || data || []).forEach(r => {
+                    let sStr = getFuzzyValue(r, ['start_date', 'เริ่ม', 'วันที่เริ่ม', 'date']);
+                    let d = typeof parseDateStr === 'function' ? parseDateStr(sStr) : new Date(sStr);
+                    if (d && !isNaN(d.getFullYear())) yearsSet.add(d.getFullYear());
+                });
+                let sortedYears = Array.from(yearsSet).sort((a, b) => b - a);
+                ySelect.innerHTML = sortedYears.map(y => `<option value="${y}">${y}</option>`).join('');
+            }
+
+            const staffCache = tableCache['staff'] || tableCache['Staff'];
+            const staffRows = (staffCache && Array.isArray(staffCache.data)) ? staffCache.data : [];
+
+            // Background fetch staff data if not loaded yet so names and avatars render properly
+            if (!staffRows.length && typeof google !== 'undefined' && google.script && google.script.run && !window._fetchingStaffForLeaves) {
+                window._fetchingStaffForLeaves = true;
+                google.script.run.withSuccessHandler(res => {
+                    window._fetchingStaffForLeaves = false;
+                    if (res && res.success && Array.isArray(res.data)) {
+                        tableCache['staff'] = { headers: res.headers || [], data: res.data };
+                        if (typeof renderTable === 'function' && currentSheet === 'Leave application' && rawData) {
+                            renderTable(rawData);
+                        }
+                    }
+                }).getSheetData('staff');
+            }
+
+            // Compute counts for all tabs from filtered data
+            let allCount = 0, pendingCount = 0, approvedCount = 0, rejectedCount = 0;
+            const countSource = Array.isArray(data) ? data : (rawData || []);
+            countSource.forEach(r => {
+                let rawStatus = String(getFuzzyValue(r, ['signature', 'status', 'อนุมัติ', 'approval_status']) || 'Pending').toLowerCase().trim();
+                let isApproved = rawStatus.includes('approve') || rawStatus.includes('hr') || rawStatus.includes('อนุมัติ') || rawStatus.includes('อนุญาต') || rawStatus.includes('dept head') || rawStatus.includes('ceo') || rawStatus.includes('coo') || rawStatus.includes('cfo');
+                let isRejected = rawStatus.includes('reject') || rawStatus.includes('ไม่อนุมัติ') || rawStatus.includes('ปฏิเสธ') || rawStatus.includes('denied');
+                allCount++;
+                if (isApproved) approvedCount++;
+                else if (isRejected) rejectedCount++;
+                else pendingCount++;
+            });
+
+            const bAll = document.getElementById('leave-badge-all');
+            const bPending = document.getElementById('leave-badge-pending');
+            const bApproved = document.getElementById('leave-badge-approved');
+            const bRejected = document.getElementById('leave-badge-rejected');
+            if (bAll) bAll.innerText = allCount;
+            if (bPending) bPending.innerText = pendingCount;
+            if (bApproved) bApproved.innerText = approvedCount;
+            if (bRejected) bRejected.innerText = rejectedCount;
+
+            if (typeof updateSidebarPendingBadges === 'function') {
+                updateSidebarPendingBadges(tableCache['Leave application']?.data || rawData || data);
+            }
+
+            // Update tab visual active state
+            const currentTab = window.activeLeaveStatusFilter || 'all';
+            ['all', 'pending', 'approved', 'rejected'].forEach(tabKey => {
+                const btn = document.getElementById(`leave-tab-${tabKey}`);
+                if (!btn) return;
+                if (tabKey === currentTab) {
+                    if (tabKey === 'pending') {
+                        btn.className = 'leave-status-tab px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-amber-500 text-white shadow-md border border-amber-500';
+                        btn.querySelector('i')?.classList.remove('text-amber-500');
+                        btn.querySelector('i')?.classList.add('text-white');
+                    } else if (tabKey === 'approved') {
+                        btn.className = 'leave-status-tab px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-emerald-600 text-white shadow-md border border-emerald-600';
+                        btn.querySelector('i')?.classList.remove('text-emerald-500');
+                        btn.querySelector('i')?.classList.add('text-white');
+                    } else if (tabKey === 'rejected') {
+                        btn.className = 'leave-status-tab px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-red-500 text-white shadow-md border border-red-500';
+                        btn.querySelector('i')?.classList.remove('text-red-500');
+                        btn.querySelector('i')?.classList.add('text-white');
+                    } else {
+                        btn.className = 'leave-status-tab px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-brandindigo text-white shadow-md border border-brandindigo';
+                    }
+                } else {
+                    if (tabKey === 'pending') {
+                        btn.className = 'leave-status-tab px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-white text-gray-600 hover:bg-amber-50 hover:text-amber-600 border border-gray-200 shadow-2xs';
+                        btn.querySelector('i')?.classList.remove('text-white');
+                        btn.querySelector('i')?.classList.add('text-amber-500');
+                    } else if (tabKey === 'approved') {
+                        btn.className = 'leave-status-tab px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-white text-gray-600 hover:bg-emerald-50 hover:text-emerald-600 border border-gray-200 shadow-2xs';
+                        btn.querySelector('i')?.classList.remove('text-white');
+                        btn.querySelector('i')?.classList.add('text-emerald-500');
+                    } else if (tabKey === 'rejected') {
+                        btn.className = 'leave-status-tab px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-white text-gray-600 hover:bg-red-50 hover:text-red-600 border border-gray-200 shadow-2xs';
+                        btn.querySelector('i')?.classList.remove('text-white');
+                        btn.querySelector('i')?.classList.add('text-red-500');
+                    } else {
+                        btn.className = 'leave-status-tab px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-white text-gray-600 hover:bg-indigo-50 hover:text-brandindigo border border-gray-200 shadow-2xs';
+                    }
+                }
+            });
+
+            // Filter displayData by active tab
+            let displayData = data;
+            if (currentTab === 'pending') {
+                displayData = data.filter(row => {
+                    let rawStatus = String(getFuzzyValue(row, ['signature', 'status', 'อนุมัติ', 'approval_status']) || 'Pending').toLowerCase().trim();
+                    let isApproved = rawStatus.includes('approve') || rawStatus.includes('hr') || rawStatus.includes('อนุมัติ') || rawStatus.includes('อนุญาต') || rawStatus.includes('dept head') || rawStatus.includes('ceo') || rawStatus.includes('coo') || rawStatus.includes('cfo');
+                    let isRejected = rawStatus.includes('reject') || rawStatus.includes('ไม่อนุมัติ') || rawStatus.includes('ปฏิเสธ') || rawStatus.includes('denied');
+                    return !isApproved && !isRejected;
+                });
+            } else if (currentTab === 'approved') {
+                displayData = data.filter(row => {
+                    let rawStatus = String(getFuzzyValue(row, ['signature', 'status', 'อนุมัติ', 'approval_status']) || 'Pending').toLowerCase().trim();
+                    return rawStatus.includes('approve') || rawStatus.includes('hr') || rawStatus.includes('อนุมัติ') || rawStatus.includes('อนุญาต') || rawStatus.includes('dept head') || rawStatus.includes('ceo') || rawStatus.includes('coo') || rawStatus.includes('cfo');
+                });
+            } else if (currentTab === 'rejected') {
+                displayData = data.filter(row => {
+                    let rawStatus = String(getFuzzyValue(row, ['signature', 'status', 'อนุมัติ', 'approval_status']) || 'Pending').toLowerCase().trim();
+                    return rawStatus.includes('reject') || rawStatus.includes('ไม่อนุมัติ') || rawStatus.includes('ปฏิเสธ') || rawStatus.includes('denied');
+                });
+            }
+
+            const totalCountDiv = document.getElementById('table-total-count');
+            if (totalCountDiv) totalCountDiv.classList.remove('hidden');
+
+            const rowsCountEl = document.getElementById('display-total-rows');
+            if (rowsCountEl) rowsCountEl.innerText = displayData.length;
+
+            const totalDaysSpan = document.getElementById('display-total-days');
+            const sumDaysEl = document.getElementById('sum-leave-days');
+            if (totalDaysSpan && sumDaysEl) {
+                totalDaysSpan.classList.remove('hidden');
+                let sumLeaveDays = 0;
+                displayData.forEach(r => {
+                    let d = parseFloat(getFuzzyValue(r, ['total_days', 'total days', 'days', 'จำนวนวัน', 'ມື້'])) || 0;
+                    sumLeaveDays += d;
+                });
+                sumDaysEl.innerText = sumLeaveDays;
+            }
+
+            if (displayData.length === 0) {
+                let noRecordsTxt = window.t ? window.t('no_records') : 'No records found';
+                cardWrapper.innerHTML = '<div class="col-span-full flex flex-col items-center justify-center py-20 text-gray-400 bg-gray-50 rounded-3xl border border-dashed border-gray-200"><i class="fa-regular fa-folder-open text-6xl mb-4 text-gray-300"></i><p class="font-bold tracking-widest uppercase text-sm">' + noRecordsTxt + '</p></div>';
+                return;
+            }
+
+            displayData.forEach(row => {
+                const isEmpty = currentHeaders.every(h => !row[h] || String(row[h]).trim() === '');
+                if (isEmpty) return;
+
+                const rowId = getRecordId(row);
+                const encodedRow = encodeURIComponent(JSON.stringify(row)).replace(/'/g, "%27");
+
+                let empId = String(getFuzzyValue(row, ['employee_id', 'emp_id', 'id_leave', 'id'])).toUpperCase().trim();
+                let staffMatch = staffRows.find(s => String(s.employee_id || s.emp_id).toUpperCase().trim() === empId);
+
+                let firstName = getFuzzyValue(row, ['first_name', 'ชื่อ', 'name']) || '';
+                let lastName = getFuzzyValue(row, ['last_name', 'นามสกุล']) || '';
+                let rawName = `${firstName} ${lastName}`.trim();
+                let fullName = (staffMatch ? (staffMatch.name || staffMatch.full_name || `${staffMatch.first_name || ''} ${staffMatch.last_name || ''}`.trim()) : '') || rawName || getFuzzyValue(row, ['full_name', 'name', 'first_name', 'ชื่อ-นามสกุล', 'ชื่อ']) || empId;
+
+                let profilePic = (staffMatch ? (staffMatch.profile || staffMatch.pic || staffMatch.image) : '') || getFuzzyValue(row, ['photo', 'profile', 'pic', 'image']);
+                if (!profilePic || profilePic === '-' || profilePic.trim() === '') {
+                    profilePic = `https://ui-avatars.com/api/?background=fef3c7&color=d97706&name=${encodeURIComponent(fullName)}`;
+                }
+
+                let deptName = getFuzzyValue(row, ['department_id', 'department', 'แผนก', 'ພະແນກ']) || (staffMatch ? (staffMatch.department || staffMatch.department_id) : '') || '';
+                let posName = getFuzzyValue(row, ['position_id', 'position', 'ตำแหน่ง', 'ຕຳແໜ່ງ']) || (staffMatch ? (staffMatch.position || staffMatch.position_id) : '') || '';
+                let contact = getFuzzyValue(row, ['contact', 'phone', 'เบอร์โทร', 'ເບີໂທ']) || (staffMatch ? staffMatch.contact : '') || '';
+                let leaveType = getFuzzyValue(row, ['type', 'Type ', 'TYPE', 'ประเภท', 'ประเภทการลา', 'ປະເພດ']) || 'Leave';
+                let startDate = getFuzzyValue(row, ['start_date', 'เริ่ม', 'วันที่เริ่ม', 'ວັນທີເລີ່ມ']) || '-';
+                let endDate = getFuzzyValue(row, ['end_date', 'สิ้นสุด', 'วันที่สิ้นสุด', 'ວັນທີສິ້ນສຸດ']) || '-';
+                let totalDays = getFuzzyValue(row, ['total_days', 'total days', 'days', 'จำนวนวัน', 'ມື້']) || '1';
+                let reason = getFuzzyValue(row, ['object', 'Object ', 'OBJECT', 'reason', 'วัตถุประสงค์', 'สาเหตุ', 'ເຫດຜົນ']) || '';
+                let handover = getFuzzyValue(row, ['work handover', 'work_handover', 'WORK HANDOVER', 'ส่งมอบงาน', 'ມອບວຽກ']) || '';
+                let photoUrl = getFuzzyValue(row, ['photo', 'รูป', 'pic', 'image', 'รูปภาพ', 'attachment']) || '';
+
+                if (photoUrl && photoUrl.includes('drive.google.com')) {
+                    let fileId = '';
+                    if (photoUrl.includes('id=')) fileId = photoUrl.split('id=')[1].split('&')[0];
+                    else if (photoUrl.includes('/d/')) fileId = photoUrl.split('/d/')[1].split('/')[0];
+                    if (fileId) photoUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w800';
+                }
+
+                let signatureCol = currentHeaders.find(h => ['signature', 'status', 'approval_status', 'อนุมัติ', 'ลายเซ็น'].includes(String(h).toLowerCase().trim())) || 'SIGNATURE';
+                let rawStatus = String(getFuzzyValue(row, ['signature', 'status', 'อนุมัติ', 'approval_status']) || 'Pending').trim();
+
+                let isApproved = rawStatus.toLowerCase().includes('approve') || rawStatus.toLowerCase().includes('hr') || rawStatus.toLowerCase().includes('อนุมัติ') || rawStatus.toLowerCase().includes('อนุญาต') || rawStatus.toLowerCase().includes('dept head') || rawStatus.toLowerCase().includes('ceo') || rawStatus.toLowerCase().includes('coo') || rawStatus.toLowerCase().includes('cfo');
+                let isRejected = rawStatus.toLowerCase().includes('reject') || rawStatus.toLowerCase().includes('ไม่อนุมัติ') || rawStatus.toLowerCase().includes('ปฏิเสธ') || rawStatus.toLowerCase().includes('denied');
+                let isPending = !isApproved && !isRejected;
+
+                let statusBadge = '';
+                let statusAccent = 'bg-amber-400';
+                let cardBorder = 'border-gray-100 hover:border-amber-300';
+
+                if (isApproved) {
+                    statusBadge = `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center gap-1"><i class="fa-solid fa-check"></i> ${escapeHtml(rawStatus)}</span>`;
+                    statusAccent = 'bg-emerald-500';
+                    cardBorder = 'border-emerald-100/80 hover:border-emerald-300';
+                } else if (isRejected) {
+                    statusBadge = `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-red-50 text-red-500 border border-red-100 flex items-center gap-1"><i class="fa-solid fa-xmark"></i> ${escapeHtml(rawStatus)}</span>`;
+                    statusAccent = 'bg-red-500';
+                    cardBorder = 'border-red-100/80 hover:border-red-300';
+                } else {
+                    statusBadge = `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-200 flex items-center gap-1"><i class="fa-solid fa-clock"></i> ${escapeHtml(rawStatus || 'Pending')}</span>`;
+                    statusAccent = 'bg-amber-400';
+                    cardBorder = 'border-amber-100/80 hover:border-amber-300';
+                }
+
+                let cardArr = [];
+                cardArr.push(`<div class="bg-white rounded-3xl p-5 md:p-6 shadow-sm border ${cardBorder} hover:shadow-lg transition-all duration-300 flex flex-col justify-between group relative overflow-hidden">`);
+                cardArr.push(`<div class="absolute top-0 left-0 right-0 h-1.5 ${statusAccent}"></div>`);
+
+                cardArr.push(`<div>`);
+                // Header: Profile Avatar + Name + EmpId + Dept + Status Badge
+                cardArr.push(`<div class="flex items-start justify-between gap-3 mb-4">`);
+                cardArr.push(`  <div class="flex items-center gap-3 min-w-0">`);
+                cardArr.push(`    <img src="${profilePic}" class="w-12 h-12 rounded-2xl object-cover border border-gray-100 shadow-sm flex-shrink-0" onerror="this.src='https://ui-avatars.com/api/?background=fef3c7&color=d97706&name=${encodeURIComponent(fullName)}'">`);
+                cardArr.push(`    <div class="min-w-0">`);
+                cardArr.push(`      <h4 class="text-sm md:text-base font-black text-gray-900 leading-snug truncate" title="${escapeHtml(fullName)}">${escapeHtml(fullName)}</h4>`);
+                cardArr.push(`      <div class="flex items-center gap-2 mt-0.5 flex-wrap">`);
+                cardArr.push(`        <span class="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">${escapeHtml(empId)}</span>`);
+                if (deptName) cardArr.push(`        <span class="text-[10px] font-medium text-gray-400 truncate max-w-[130px]"><i class="fa-regular fa-building text-[9px] mr-1"></i>${escapeHtml(deptName)}</span>`);
+                if (posName) cardArr.push(`        <span class="text-[10px] font-medium text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded">${escapeHtml(posName)}</span>`);
+                cardArr.push(`      </div>`);
+                cardArr.push(`    </div>`);
+                cardArr.push(`  </div>`);
+                cardArr.push(`  <div class="flex-shrink-0">${statusBadge}</div>`);
+                cardArr.push(`</div>`);
+
+                // Main Info Box: Leave Type + Total Days + Period + Reason
+                cardArr.push(`<div class="bg-gradient-to-br from-amber-50/70 via-orange-50/40 to-yellow-50/60 rounded-2xl p-3.5 border border-amber-100/80 mb-3 space-y-2">`);
+                cardArr.push(`  <div class="flex items-center justify-between gap-2 flex-wrap">`);
+                cardArr.push(`    <span class="bg-amber-500 text-white font-black text-[11px] px-2.5 py-0.5 rounded-lg shadow-sm flex items-center gap-1.5">`);
+                cardArr.push(`      <i class="fa-solid fa-tag text-[9px]"></i> ${escapeHtml(leaveType)}`);
+                cardArr.push(`    </span>`);
+                cardArr.push(`    <span class="text-amber-900 font-black text-xs bg-white/90 border border-amber-200 px-2.5 py-0.5 rounded-lg shadow-2xs">`);
+                cardArr.push(`      <i class="fa-solid fa-clock-rotate-left text-[10px] text-amber-500 mr-1"></i>${escapeHtml(totalDays)} ${t('days_unit') || 'ມື້'}`);
+                cardArr.push(`    </span>`);
+                cardArr.push(`  </div>`);
+
+                cardArr.push(`  <div class="flex items-center gap-2 text-gray-800 text-xs font-bold pt-1">`);
+                cardArr.push(`    <i class="fa-regular fa-calendar-days text-amber-500 text-sm flex-shrink-0"></i>`);
+                cardArr.push(`    <span class="tracking-wide">${escapeHtml(startDate)} <span class="text-gray-400 font-normal">➔</span> ${escapeHtml(endDate)}</span>`);
+                cardArr.push(`  </div>`);
+
+                if (reason && reason !== '-') {
+                    cardArr.push(`  <div class="text-[11px] text-gray-600 font-medium bg-white/80 rounded-xl p-2.5 border border-amber-100/70 mt-1.5 flex items-start gap-1.5">`);
+                    cardArr.push(`    <i class="fa-regular fa-comment-dots text-amber-400 mt-0.5 text-xs flex-shrink-0"></i>`);
+                    cardArr.push(`    <span class="italic leading-relaxed">${escapeHtml(reason)}</span>`);
+                    cardArr.push(`  </div>`);
+                }
+                cardArr.push(`</div>`);
+
+                // Additional Info: Contact + Work Handover
+                if ((contact && contact !== '-') || (handover && handover !== '-')) {
+                    cardArr.push(`<div class="grid grid-cols-2 gap-2 text-[10px] text-gray-500 mb-3 px-1">`);
+                    if (contact && contact !== '-') {
+                        cardArr.push(`  <div class="flex items-center gap-1.5 truncate">`);
+                        cardArr.push(`    <i class="fa-solid fa-phone text-gray-400 flex-shrink-0"></i>`);
+                        cardArr.push(`    <span class="truncate font-semibold text-gray-700">${escapeHtml(contact)}</span>`);
+                        cardArr.push(`  </div>`);
+                    } else {
+                        cardArr.push(`  <div></div>`);
+                    }
+                    if (handover && handover !== '-') {
+                        cardArr.push(`  <div class="flex items-center gap-1.5 truncate justify-end" title="${escapeHtml(handover)}">`);
+                        cardArr.push(`    <i class="fa-solid fa-user-gear text-gray-400 flex-shrink-0"></i>`);
+                        cardArr.push(`    <span class="truncate">ມອບວຽກ: ${escapeHtml(handover)}</span>`);
+                        cardArr.push(`  </div>`);
+                    } else {
+                        cardArr.push(`  <div></div>`);
+                    }
+                    cardArr.push(`</div>`);
+                }
+
+                cardArr.push(`</div>`); // End top content
+
+                // Card Footer: Approver Dropdown & Action Buttons (Edit, Delete, Attachment)
+                cardArr.push(`<div class="pt-3 border-t border-gray-100 flex items-center justify-between gap-2 mt-auto">`);
+                cardArr.push(`  <div class="flex-1 min-w-0">`);
+                if (canEdit || role !== 'Staff') {
+                    cardArr.push(`    <select onchange="changeApprovalStatus('${rowId}', '${signatureCol}', this)" class="bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-800 text-[11px] font-bold rounded-xl focus:ring-brandindigo focus:border-brandindigo block py-1.5 px-2.5 cursor-pointer outline-none transition-colors w-full shadow-2xs">`);
+                    cardArr.push(`      <option value="" disabled selected>${t('change_status') || 'ປ່ຽນສະຖານະ...'}</option>`);
+                    cardArr.push(`      <option value="Pending">⏳ Pending (รออนุมัติ)</option>`);
+                    cardArr.push(`      <option value="Dept Head">✓ Approve (Dept Head)</option>`);
+                    cardArr.push(`      <option value="HR Manager">✓ Approve (Manager)</option>`);
+                    cardArr.push(`      <option value="HR Admin">✓ Approve (Admin)</option>`);
+                    cardArr.push(`      <option value="CEO">✓ Approve (CEO)</option>`);
+                    cardArr.push(`      <option value="Rejected">✗ Reject (ไม่อนุมัติ)</option>`);
+                    cardArr.push(`    </select>`);
+                } else {
+                    cardArr.push(`    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">${escapeHtml(rawStatus)}</span>`);
+                }
+                cardArr.push(`  </div>`);
+
+                cardArr.push(`  <div class="flex items-center gap-1 flex-shrink-0">`);
+                if (photoUrl && photoUrl !== '-' && photoUrl.trim() !== '') {
+                    cardArr.push(`    <button onclick="if(typeof showAttachmentPreview==='function'){showAttachmentPreview('${photoUrl}','Attachment')}else{window.open('${photoUrl}','_blank')}" class="w-8 h-8 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors shadow-2xs" title="View Attachment">`);
+                    cardArr.push(`      <i class="fa-regular fa-image text-xs"></i>`);
+                    cardArr.push(`    </button>`);
+                }
+                if (canEdit) {
+                    cardArr.push(`    <button onclick="openFormModal('${encodedRow}')" class="w-8 h-8 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-brandindigo flex items-center justify-center transition-colors shadow-2xs" title="Edit">`);
+                    cardArr.push(`      <i class="fa-solid fa-pen-to-square text-xs"></i>`);
+                    cardArr.push(`    </button>`);
+                }
+                if (canDelete) {
+                    cardArr.push(`    <button onclick="deleteRecord('${rowId}')" class="w-8 h-8 rounded-xl bg-red-50 hover:bg-red-100 text-red-500 flex items-center justify-center transition-colors shadow-2xs" title="Delete">`);
+                    cardArr.push(`      <i class="fa-solid fa-trash-can text-xs"></i>`);
+                    cardArr.push(`    </button>`);
+                }
+                cardArr.push(`  </div>`);
+
+                cardArr.push(`</div>`); // End footer
+                cardArr.push(`</div>`); // End card
+                cardsHtml += cardArr.join('');
+            });
+        }
 
         cardWrapper.innerHTML = cardsHtml;
         return;
 
     } else {
+        const leaveTabsContainer = document.getElementById('leave-status-tabs-container');
+        if (leaveTabsContainer) leaveTabsContainer.classList.add('hidden');
+
+        const leaveDateFilterWrapper = document.getElementById('leave-date-filter-wrapper');
+        if (leaveDateFilterWrapper) leaveDateFilterWrapper.classList.add('hidden');
+
         tableWrapper.classList.remove('hidden');
         cardWrapper.classList.add('hidden');
 
@@ -1046,6 +1383,49 @@ function renderTable(data) {
                 let color = isEval ? 'bg-indigo-50 text-brandindigo border border-indigo-200' : 'bg-gray-50 text-gray-400 border border-gray-200';
                 let displayText = isEval ? 'Yes' : 'No';
                 val = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${color}">${displayText}</span>`;
+            }
+
+            if (currentSheet === 'Fingerprint_Logs') {
+                if (lw === 'ot_amount' || lw === 'ot amount' || lw === 'ot' || lw === 'ot_total') {
+                    const rEmpId = String(row.Employee_ID || row.employee_id || '').trim().toUpperCase();
+                    const staffCacheData = (typeof tableCache !== 'undefined' && tableCache['staff']) ? tableCache['staff'].data : [];
+                    const rowStaff = (staffCacheData || []).find(s => String(s.Employee_ID || s.employee_id || '').trim().toUpperCase() === rEmpId);
+                    const otCalculated = typeof calculateRowOt === 'function' ? calculateRowOt(row, rowStaff) : (parseFloat(val) || 0);
+
+                    let rawDate = row.Date || row.date || (typeof getFuzzyValue === 'function' ? getFuzzyValue(row, ['Date', 'date', 'วันที่']) : '');
+                    let dateObj = (typeof parseDateStr === 'function') ? parseDateStr(rawDate) : new Date(rawDate);
+                    const isSunday = dateObj && !isNaN(dateObj.getTime()) && dateObj.getDay() === 0;
+
+                    if (otCalculated > 0) {
+                        val = `<span class="inline-flex items-center gap-1 font-bold text-emerald-600">${new Intl.NumberFormat('th-TH').format(otCalculated)}${isSunday ? ' <span class="px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 font-bold">OT อา.</span>' : ''}</span>`;
+                    } else {
+                        val = `<span class="text-gray-300">0</span>`;
+                    }
+                } else if (lw === 'late_hours' || lw === 'late hours' || lw === 'late_hrs') {
+                    let lateMins = 0;
+                    let checkIn = row.Check_In || row.check_in || '';
+                    let shiftStart = row.Shift_Start || row.shift_start || '';
+                    if (checkIn && checkIn !== '-' && shiftStart && shiftStart !== '-') {
+                        let inM = parseInt(String(checkIn).split(':')[0] || 0) * 60 + parseInt(String(checkIn).split(':')[1] || 0);
+                        let stM = parseInt(String(shiftStart).split(':')[0] || 0) * 60 + parseInt(String(shiftStart).split(':')[1] || 0);
+                        if (inM > stM) lateMins = inM - stM;
+                    } else if (val && parseFloat(val) > 0) {
+                        lateMins = Math.round(parseFloat(val) * 60);
+                    }
+                    val = lateMins > 0 ? `<span class="font-bold text-red-500">${lateMins} น.</span>` : `<span class="text-gray-300">-</span>`;
+                } else if (lw === 'early_leave_hours' || lw === 'early leave hours' || lw === 'early_hrs') {
+                    let earlyMins = 0;
+                    let checkOut = row.Check_Out || row.check_out || '';
+                    let shiftEnd = row.Shift_End || row.shift_end || '';
+                    if (checkOut && checkOut !== '-' && shiftEnd && shiftEnd !== '-') {
+                        let outM = parseInt(String(checkOut).split(':')[0] || 0) * 60 + parseInt(String(checkOut).split(':')[1] || 0);
+                        let endM = parseInt(String(shiftEnd).split(':')[0] || 0) * 60 + parseInt(String(shiftEnd).split(':')[1] || 0);
+                        if (outM < endM && outM > 0) earlyMins = endM - outM;
+                    } else if (val && parseFloat(val) > 0) {
+                        earlyMins = Math.round(parseFloat(val) * 60);
+                    }
+                    val = earlyMins > 0 ? `<span class="font-bold text-amber-500">${earlyMins} น.</span>` : `<span class="text-gray-300">-</span>`;
+                }
             }
 
             if (lw.includes('status') || lw === 'signature' || lw.includes('role')) {
@@ -1677,10 +2057,22 @@ function calculateAttendanceSummary(data) {
     let today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    const otSettings = typeof getOtSettings === 'function' ? getOtSettings() : null;
+    let staffMap = {};
+    if (typeof tableCache !== 'undefined' && tableCache['staff'] && tableCache['staff'].data) {
+        tableCache['staff'].data.forEach(s => {
+            let sId = String(s.Employee_ID || s.employee_id || '').trim().toUpperCase();
+            if (sId) staffMap[sId] = s;
+        });
+    }
+
     data.forEach(row => {
         let late = parseFloat(getFuzzyValue(row, ['Late_Hours', 'late_hours', 'late_hrs']) || 0) || 0;
         let early = parseFloat(getFuzzyValue(row, ['Early_Leave_Hours', 'early_leave_hours', 'early_hrs']) || 0) || 0;
-        let ot = parseFloat(getFuzzyValue(row, ['OT_Amount', 'ot_amount', 'ot']) || 0) || 0;
+
+        let rEmp = String(row.Employee_ID || row.employee_id || '').trim().toUpperCase();
+        let staffObj = staffMap[rEmp] || null;
+        let ot = typeof calculateRowOt === 'function' ? calculateRowOt(row, staffObj, otSettings) : (parseFloat(getFuzzyValue(row, ['OT_Amount', 'ot_amount', 'ot']) || 0) || 0);
 
         let status = String(getFuzzyValue(row, ['Attendance_Status', 'attendance_status', 'Status', 'status']) || '').toLowerCase();
 
@@ -2982,3 +3374,254 @@ function switchShiftTab(tab) {
         btnConfig && (btnConfig.className = 'flex-1 py-3 text-xs font-bold text-indigo-600 border-b-2 border-indigo-600 transition-all');
     }
 }
+
+// ── ⏰ OT RULES & SETTINGS LOGIC ──────────────────────────────────────────
+window.getOtSettings = function () {
+    try {
+        const saved = localStorage.getItem('hr_ot_settings');
+        if (saved) return JSON.parse(saved);
+    } catch (e) { }
+
+    return {
+        sundayOtEnabled: true,
+        sundayMode: 'hourly_multiplier', // 'hourly_multiplier' | 'flat_per_day' | 'flat_per_hour'
+        sundayMultiplier: 2.0,
+        sundayHoursSource: 'actual_worked', // 'actual_worked' | 'shift_hours'
+        sundayFlatDay: 100000,
+        sundayFlatHour: 20000,
+        sundayMinMins: 60,
+        sundayNoCheckout: 'shift_hours',
+        weekdayOtEnabled: false,
+        weekdayMultiplier: 1.5,
+        weekdayMinMins: 30
+    };
+};
+
+window.openOtSettingsModal = function () {
+    const modal = document.getElementById('ot-settings-modal');
+    if (!modal) return;
+
+    const s = getOtSettings();
+    const sundayEnable = document.getElementById('ot-sunday-enable');
+    const sundayMode = document.getElementById('ot-sunday-mode');
+    const sundayMultiplier = document.getElementById('ot-sunday-multiplier');
+    const sundayHoursSource = document.getElementById('ot-sunday-hours-source');
+    const sundayFlatDay = document.getElementById('ot-sunday-flat-day');
+    const sundayFlatHour = document.getElementById('ot-sunday-flat-hour');
+    const sundayMinMins = document.getElementById('ot-sunday-min-mins');
+    const sundayNoCheckout = document.getElementById('ot-sunday-no-checkout');
+    const weekdayEnable = document.getElementById('ot-weekday-enable');
+    const weekdayMultiplier = document.getElementById('ot-weekday-multiplier');
+    const weekdayMinMins = document.getElementById('ot-weekday-min-mins');
+
+    if (sundayEnable) sundayEnable.checked = s.sundayOtEnabled !== false;
+    if (sundayMode) sundayMode.value = s.sundayMode || 'hourly_multiplier';
+    if (sundayMultiplier) sundayMultiplier.value = s.sundayMultiplier || 2.0;
+    if (sundayHoursSource) sundayHoursSource.value = s.sundayHoursSource || 'actual_worked';
+    if (sundayFlatDay) sundayFlatDay.value = s.sundayFlatDay || 100000;
+    if (sundayFlatHour) sundayFlatHour.value = s.sundayFlatHour || 20000;
+    if (sundayMinMins) sundayMinMins.value = s.sundayMinMins || 60;
+    if (sundayNoCheckout) sundayNoCheckout.value = s.sundayNoCheckout || 'shift_hours';
+    if (weekdayEnable) weekdayEnable.checked = s.weekdayOtEnabled === true;
+    if (weekdayMultiplier) weekdayMultiplier.value = s.weekdayMultiplier || 1.5;
+    if (weekdayMinMins) weekdayMinMins.value = s.weekdayMinMins || 30;
+
+    toggleSundayOtFields();
+    onSundayModeChange();
+    toggleWeekdayOtFields();
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+};
+
+window.closeOtSettingsModal = function () {
+    const modal = document.getElementById('ot-settings-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+};
+
+window.toggleSundayOtFields = function () {
+    const chk = document.getElementById('ot-sunday-enable');
+    const fields = document.getElementById('ot-sunday-fields');
+    if (fields) {
+        if (chk && chk.checked) fields.classList.remove('hidden');
+        else fields.classList.add('hidden');
+    }
+};
+
+window.onSundayModeChange = function () {
+    const mode = document.getElementById('ot-sunday-mode')?.value || 'hourly_multiplier';
+    const fieldMult = document.getElementById('ot-field-multiplier');
+    const fieldFlatDay = document.getElementById('ot-field-flat-day');
+    const fieldFlatHour = document.getElementById('ot-field-flat-hour');
+
+    if (fieldMult) fieldMult.classList.toggle('hidden', mode !== 'hourly_multiplier');
+    if (fieldFlatDay) fieldFlatDay.classList.toggle('hidden', mode !== 'flat_per_day');
+    if (fieldFlatHour) fieldFlatHour.classList.toggle('hidden', mode !== 'flat_per_hour');
+};
+
+window.toggleWeekdayOtFields = function () {
+    const chk = document.getElementById('ot-weekday-enable');
+    const fields = document.getElementById('ot-weekday-fields');
+    if (fields) {
+        if (chk && chk.checked) fields.classList.remove('hidden');
+        else fields.classList.add('hidden');
+    }
+};
+
+window.saveOtSettings = function () {
+    const s = {
+        sundayOtEnabled: document.getElementById('ot-sunday-enable')?.checked ?? true,
+        sundayMode: document.getElementById('ot-sunday-mode')?.value || 'hourly_multiplier',
+        sundayMultiplier: parseFloat(document.getElementById('ot-sunday-multiplier')?.value || 2.0) || 2.0,
+        sundayHoursSource: document.getElementById('ot-sunday-hours-source')?.value || 'actual_worked',
+        sundayFlatDay: parseFloat(document.getElementById('ot-sunday-flat-day')?.value || 100000) || 100000,
+        sundayFlatHour: parseFloat(document.getElementById('ot-sunday-flat-hour')?.value || 20000) || 20000,
+        sundayMinMins: parseInt(document.getElementById('ot-sunday-min-mins')?.value || 60, 10) || 60,
+        sundayNoCheckout: document.getElementById('ot-sunday-no-checkout')?.value || 'shift_hours',
+        weekdayOtEnabled: document.getElementById('ot-weekday-enable')?.checked ?? false,
+        weekdayMultiplier: parseFloat(document.getElementById('ot-weekday-multiplier')?.value || 1.5) || 1.5,
+        weekdayMinMins: parseInt(document.getElementById('ot-weekday-min-mins')?.value || 30, 10) || 30
+    };
+
+    localStorage.setItem('hr_ot_settings', JSON.stringify(s));
+    closeOtSettingsModal();
+
+    if (typeof showToast === 'function') {
+        showToast('บันทึกเงื่อนไข OT เรียบร้อยแล้ว', 'success');
+    }
+
+    // Re-render attendance table and calendar with new OT rules
+    if (typeof renderTable === 'function' && typeof currentSheet !== 'undefined' && currentSheet === 'Fingerprint_Logs' && typeof tableCache !== 'undefined' && tableCache['Fingerprint_Logs']) {
+        renderTable(tableCache['Fingerprint_Logs'].data);
+    }
+};
+
+window.calculateRowOt = function (row, staffObj, otSettings) {
+    if (!otSettings) otSettings = getOtSettings();
+    let rowOt = parseFloat(row.OT_Amount || row.ot_amount || 0) || 0;
+
+    let rawDate = row.Date || row.date || (typeof getFuzzyValue === 'function' ? getFuzzyValue(row, ['Date', 'date', 'วันที่']) : '');
+    let checkIn = row.Check_In || row.check_in || (typeof getFuzzyValue === 'function' ? getFuzzyValue(row, ['Check_In', 'check_in', 'in']) : '');
+    let checkOut = row.Check_Out || row.check_out || (typeof getFuzzyValue === 'function' ? getFuzzyValue(row, ['Check_Out', 'check_out', 'out']) : '');
+    let shiftStart = row.Shift_Start || row.shift_start || '09:00';
+    let shiftEnd = row.Shift_End || row.shift_end || '17:00';
+
+    let dateObj = (typeof parseDateStr === 'function') ? parseDateStr(rawDate) : new Date(rawDate);
+    if (!dateObj || isNaN(dateObj.getTime())) return rowOt;
+
+    const isSunday = dateObj.getDay() === 0;
+
+    // Daily Rate and Hourly Rate
+    let dailyRate = 0;
+    if (staffObj) {
+        dailyRate = parseFloat(staffObj.Daily_Rate || staffObj.daily_rate || staffObj.DAILY_RATE_FORMULA || ((parseFloat(staffObj.Base_Salary || staffObj.base_salary || 0)) / 30) || 0);
+    }
+    const hourlyRate = dailyRate > 0 ? (dailyRate / 8) : 15000; // fallback standard hourly rate if salary not set
+
+    // 1. Sunday OT Rule
+    if (isSunday && otSettings.sundayOtEnabled && checkIn && checkIn !== '-') {
+        let workedMins = 0;
+        if (checkOut && checkOut !== '-') {
+            let inM = parseInt(String(checkIn).split(':')[0] || 0) * 60 + parseInt(String(checkIn).split(':')[1] || 0);
+            let outM = parseInt(String(checkOut).split(':')[0] || 0) * 60 + parseInt(String(checkOut).split(':')[1] || 0);
+            if (outM > inM) workedMins = outM - inM;
+        } else {
+            if (otSettings.sundayNoCheckout === 'shift_hours') workedMins = 8 * 60;
+            else if (otSettings.sundayNoCheckout === 'half_day') workedMins = 4 * 60;
+            else workedMins = 0;
+        }
+
+        if (workedMins >= otSettings.sundayMinMins) {
+            let workedHours = otSettings.sundayHoursSource === 'shift_hours' ? 8 : (workedMins / 60);
+
+            if (otSettings.sundayMode === 'hourly_multiplier') {
+                let sundayOt = Math.round(workedHours * hourlyRate * otSettings.sundayMultiplier);
+                return Math.max(rowOt, sundayOt);
+            } else if (otSettings.sundayMode === 'flat_per_day') {
+                return Math.max(rowOt, otSettings.sundayFlatDay);
+            } else if (otSettings.sundayMode === 'flat_per_hour') {
+                let sundayOt = Math.round(workedHours * otSettings.sundayFlatHour);
+                return Math.max(rowOt, sundayOt);
+            }
+        }
+    }
+
+    // 2. Weekday OT Rule
+    if (!isSunday && otSettings.weekdayOtEnabled && checkOut && checkOut !== '-' && shiftEnd && shiftEnd !== '-') {
+        let outM = parseInt(String(checkOut).split(':')[0] || 0) * 60 + parseInt(String(checkOut).split(':')[1] || 0);
+        let endM = parseInt(String(shiftEnd).split(':')[0] || 0) * 60 + parseInt(String(shiftEnd).split(':')[1] || 0);
+        if (outM > endM) {
+            let lateOutMins = outM - endM;
+            if (lateOutMins >= otSettings.weekdayMinMins) {
+                let otHours = lateOutMins / 60;
+                let weekdayOt = Math.round(otHours * hourlyRate * otSettings.weekdayMultiplier);
+                return rowOt + weekdayOt;
+            }
+        }
+    }
+
+    return rowOt;
+};
+
+/* =====================================================================
+ * 🗂️ Leave Status Tab Filter (แท็บ: ทั้งหมด / รออนุมัติ / อนุมัติแล้ว / ปฏิเสธ)
+ * ===================================================================== */
+window.activeLeaveStatusFilter = 'all';
+
+window.setLeaveStatusFilter = function (status) {
+    window.activeLeaveStatusFilter = status || 'all';
+    if (typeof filterData === 'function') {
+        filterData();
+    } else if (typeof renderTable === 'function' && tableCache[currentSheet]) {
+        renderTable(tableCache[currentSheet].data);
+    }
+};
+
+/* =====================================================================
+ * 📅 Leave Date/Period Filter (เฉพาะหน้า Leave Requests)
+ * ===================================================================== */
+window.activeLeavePeriodMode = 'all';
+
+window.setLeavePeriodMode = function (mode) {
+    window.activeLeavePeriodMode = mode || 'all';
+    const modes = ['all', 'month', 'range', 'year'];
+    modes.forEach(m => {
+        const btn = document.getElementById(`btn-leave-period-${m}`);
+        if (btn) {
+            if (m === window.activeLeavePeriodMode) {
+                btn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-white text-brandindigo shadow-sm';
+            } else {
+                btn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-gray-600 hover:text-gray-900';
+            }
+        }
+        const picker = document.getElementById(`leave-picker-${m}`);
+        if (picker) {
+            if (m === window.activeLeavePeriodMode && m !== 'all') {
+                picker.classList.remove('hidden');
+            } else {
+                picker.classList.add('hidden');
+            }
+        }
+    });
+
+    if (window.activeLeavePeriodMode === 'month') {
+        const mInput = document.getElementById('leaveMonthInput');
+        if (mInput && !mInput.value) {
+            const today = new Date();
+            mInput.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+        }
+    } else if (window.activeLeavePeriodMode === 'year') {
+        const yInput = document.getElementById('leaveYearInput');
+        if (yInput && !yInput.value) {
+            yInput.value = String(new Date().getFullYear());
+        }
+    }
+
+    if (typeof filterData === 'function') {
+        filterData();
+    }
+};
+

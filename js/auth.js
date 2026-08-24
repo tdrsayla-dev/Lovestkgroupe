@@ -150,12 +150,14 @@ function showApp() {
                     if (matchedUser) {
                         const freshPerms = matchedUser.permissions || matchedUser.Permissions || permissions;
                         const freshRole = matchedUser.role || matchedUser.Role || role;
+                        const freshEmpId = String(matchedUser.employee_id || matchedUser.Employee_ID || empId || '').trim().toUpperCase();
                         
                         if (sessionStr) {
                             try {
                                 const sObj = JSON.parse(sessionStr);
                                 sObj.permissions = freshPerms;
                                 sObj.role = freshRole;
+                                if (freshEmpId) sObj.empId = freshEmpId;
                                 localStorage.setItem('hr_user_session', JSON.stringify(sObj));
                                 if (sessionStorage.getItem('hr_user_session')) sessionStorage.setItem('hr_user_session', JSON.stringify(sObj));
                             } catch (e) {}
@@ -543,6 +545,10 @@ function collapseSidebarText() {
         btn.classList.add('justify-center', 'px-2');
         btn.classList.remove('px-4');
     });
+    document.querySelectorAll('.sidebar-badge').forEach(b => {
+        b.classList.add('absolute', 'top-1.5', 'right-1.5', 'text-[8px]', 'px-1.5', 'py-0.2');
+        b.classList.remove('ml-auto');
+    });
     const headerDiv = document.getElementById('sidebar-header-content');
     if (headerDiv) {
         headerDiv.classList.remove('justify-between', 'px-6');
@@ -557,6 +563,10 @@ function expandSidebarText() {
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.classList.add('px-4');
         btn.classList.remove('justify-center', 'px-2');
+    });
+    document.querySelectorAll('.sidebar-badge').forEach(b => {
+        b.classList.remove('absolute', 'top-1.5', 'right-1.5', 'text-[8px]', 'px-1.5', 'py-0.2');
+        b.classList.add('ml-auto');
     });
     const headerDiv = document.getElementById('sidebar-header-content');
     if (headerDiv) {
