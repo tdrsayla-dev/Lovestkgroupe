@@ -110,14 +110,33 @@
                 url,
                 anonKey,
                 async getTableData(table, { select = "*", filter = "" } = {}) {
-                    let url = `/rest/v1/${table}?select=${encodeURIComponent(select)}`;
+                    let baseUrl = `/rest/v1/${table}?select=${encodeURIComponent(select)}`;
                     if (filter) {
-                        url += `&${filter}`;
+                        baseUrl += `&${filter}`;
+                        return request(baseUrl, {
+                            method: "GET",
+                            extraHeaders: { Prefer: "return=representation" },
+                        });
                     }
-                    return request(url, {
-                        method: "GET",
-                        extraHeaders: { Prefer: "return=representation" },
-                    });
+                    let allRows = [];
+                    let from = 0;
+                    const pageSize = 1000;
+                    while (true) {
+                        const to = from + pageSize - 1;
+                        const rows = await request(baseUrl, {
+                            method: "GET",
+                            extraHeaders: {
+                                Prefer: "return=representation",
+                                "Range-Unit": "items",
+                                "Range": `${from}-${to}`
+                            },
+                        });
+                        if (!Array.isArray(rows) || rows.length === 0) break;
+                        allRows = allRows.concat(rows);
+                        if (rows.length < pageSize) break;
+                        from += pageSize;
+                    }
+                    return allRows;
                 }
             };
         }
