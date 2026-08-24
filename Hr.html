@@ -2240,6 +2240,89 @@
                         </div>
                     </div>
 
+                    <!-- 📌 ส่วนของปฏิทินการเข้างานของฉัน (My Attendance Calendar) -->
+                    <div class="bg-white rounded-3xl p-6 lg:p-8 shadow-sm border border-gray-100 space-y-6">
+                        <!-- Header Row: Title, Month Controls, Quick Stats -->
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-gray-100">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-indigo-50 text-brandindigo flex items-center justify-center text-lg shrink-0">
+                                    <i class="fa-regular fa-calendar-days"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-extrabold text-gray-900 text-base flex items-center gap-2">
+                                        <span data-i18n="attendance_calendar">ปฏิทินการเข้างาน</span>
+                                    </h3>
+                                    <p class="text-xs text-gray-400 font-medium" id="staff-cal-emp-info">ประวัติการลงเวลาทำงานของคุณ</p>
+                                </div>
+                            </div>
+
+                            <!-- Month Picker & Navigation -->
+                            <div class="flex flex-wrap items-center gap-2.5">
+                                <div class="flex items-center bg-gray-50 border border-gray-200 rounded-xl p-1 shadow-sm">
+                                    <button type="button" onclick="changeStaffCalMonth(-1)" class="w-8 h-8 rounded-lg hover:bg-white text-gray-600 hover:text-brandindigo flex items-center justify-center transition-all" title="เดือนก่อนหน้า">
+                                        <i class="fa-solid fa-chevron-left text-xs"></i>
+                                    </button>
+                                    <input type="month" id="staffCalendarMonth" onchange="onStaffCalendarMonthChange(this.value)" class="bg-transparent border-0 text-gray-800 text-xs font-bold px-2 py-1 focus:ring-0 cursor-pointer">
+                                    <button type="button" onclick="changeStaffCalMonth(1)" class="w-8 h-8 rounded-lg hover:bg-white text-gray-600 hover:text-brandindigo flex items-center justify-center transition-all" title="เดือนถัดไป">
+                                        <i class="fa-solid fa-chevron-right text-xs"></i>
+                                    </button>
+                                </div>
+
+                                <!-- Quick Monthly Stat Badges -->
+                                <div class="flex items-center gap-1.5 flex-wrap text-[11px] font-bold">
+                                    <span class="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center gap-1">
+                                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span> มาทำงาน: <b id="staff-cal-present-count">0</b> วัน
+                                    </span>
+                                    <span class="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-100 flex items-center gap-1">
+                                        <span class="w-2 h-2 rounded-full bg-rose-500"></span> ขาด: <b id="staff-cal-absent-count">0</b> วัน
+                                    </span>
+                                    <span class="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-100 flex items-center gap-1">
+                                        <span class="w-2 h-2 rounded-full bg-amber-500"></span> ลา: <b id="staff-cal-leave-count">0</b> วัน
+                                    </span>
+                                    <span class="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center gap-1">
+                                        <i class="fa-regular fa-clock text-[10px]"></i> สาย: <b id="staff-cal-late-mins">0</b> นาที
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Days of Week Header -->
+                        <div class="grid grid-cols-7 text-center font-bold text-xs text-gray-500 uppercase tracking-wider py-1">
+                            <div class="text-rose-500" data-i18n="sun">อาทิตย์</div>
+                            <div data-i18n="mon">จันทร์</div>
+                            <div data-i18n="tue">อังคาร</div>
+                            <div data-i18n="wed">พุธ</div>
+                            <div data-i18n="thu">พฤหัส</div>
+                            <div data-i18n="fri">ศุกร์</div>
+                            <div class="text-gray-400" data-i18n="sat">เสาร์</div>
+                        </div>
+
+                        <!-- Monthly Calendar Grid -->
+                        <div id="staff-attendance-calendar-grid" class="grid grid-cols-7 gap-2 md:gap-3">
+                            <div class="col-span-7 py-12 text-center text-gray-400 text-sm font-medium">กำลังโหลดปฏิทิน...</div>
+                        </div>
+
+                        <!-- Calendar Legend -->
+                        <div class="pt-2 border-t border-gray-100 flex flex-wrap items-center justify-center gap-6 text-xs text-gray-600 font-bold">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></span>
+                                <span data-i18n="status_present">มาทำงาน (Present)</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.5)]"></span>
+                                <span data-i18n="status_absent">ขาดงาน (Absent)</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]"></span>
+                                <span data-i18n="status_absent_leave">ลางาน/ลาพัก (On Leave)</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded bg-gray-200 border border-gray-300"></span>
+                                <span data-i18n="weekend">วันหยุดเสาร์-อาทิตย์ (Weekend)</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Bottom Grid -->
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <!-- Column 1: My Recent Leaves (1/3 width) -->
@@ -3442,6 +3525,27 @@
                             if (btnForm) btnForm.className = 'px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all bg-indigo-600 text-white shadow-sm';
                             if (subControlsBar) subControlsBar.classList.add('hidden');
                             if (titleEl) titleEl.innerText = 'เบิกงบประมาณ Facebook';
+
+                            // Auto-fill member ID for staff
+                            const memInput = document.getElementById('fb_member_id');
+                            const isAdminOrMgr = role === 'Admin' || role === 'Manager' || role === 'HR Admin' || role === 'HR Manager' || role === 'CEO' || role === 'COO' || role === 'CFO' || (Array.isArray(userPerms) && userPerms.includes('all'));
+                            let preferredId = window.currentStaffPreferredMemberId || '';
+                            if (!preferredId && sessionStr) {
+                                try {
+                                    const s = JSON.parse(sessionStr);
+                                    preferredId = String(s.empId || s.employeeId || s.username || '').trim().toUpperCase();
+                                } catch (e) { }
+                            }
+                            if (memInput && !editingFbId) {
+                                if (!isAdminOrMgr && preferredId) {
+                                    memInput.value = preferredId;
+                                    memInput.readOnly = true;
+                                    memInput.classList.add('bg-gray-100', 'cursor-not-allowed', 'text-gray-600');
+                                } else {
+                                    memInput.readOnly = false;
+                                    memInput.classList.remove('bg-gray-100', 'cursor-not-allowed', 'text-gray-600');
+                                }
+                            }
                         } else if (tab === 'report') {
                             if (reportSec) reportSec.classList.remove('hidden');
                             if (btnReport) btnReport.className = 'px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all bg-indigo-600 text-white shadow-sm';
@@ -3858,11 +3962,14 @@
                         if (loading) loading.classList.remove('hidden');
 
                         const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
-                        let userRole = 'Staff', userPerms = [];
+                        let userRole = 'Staff', userPerms = [], loggedInEmpId = '', sessionUserEmail = '';
+                        let userAllowedIds = new Set();
                         if (sessionStr) {
                             try {
                                 const s = JSON.parse(sessionStr);
                                 userRole = s.role || 'Staff';
+                                sessionUserEmail = String(s.username || s.email || '').trim();
+                                loggedInEmpId = String(s.empId || s.employeeId || sessionUserEmail || '').trim().toUpperCase();
                                 if (s.permissions) userPerms = typeof parsePermissionsList === 'function' ? parsePermissionsList(s.permissions) : s.permissions;
                             } catch (e) { }
                         }
@@ -3888,6 +3995,38 @@
                             ]);
 
                             if (loadId !== window.currentFbLoadId) return;
+
+                            // 📌 Initialize Allowed IDs Set for logged in user (Email, HR Staff ID)
+                            userAllowedIds = new Set();
+                            const rawEmp = String(loggedInEmpId || '').trim().toUpperCase();
+                            const rawEmail = String(sessionUserEmail || '').trim().toLowerCase();
+
+                            if (rawEmp) userAllowedIds.add(rawEmp);
+                            if (rawEmail) userAllowedIds.add(rawEmail.toUpperCase());
+
+                            const sMatch = (staffRows || []).find(s => {
+                                const sId = String(s.Employee_ID || s.employee_id || s.Emp_ID || '').trim().toUpperCase();
+                                const sEmail = String(s.Email || s.email || '').trim().toLowerCase();
+                                return (rawEmp && sId === rawEmp) || (rawEmail && sEmail === rawEmail);
+                            });
+
+                            let staffFirstName = '', staffLastName = '';
+                            if (sMatch) {
+                                const sId = String(sMatch.Employee_ID || sMatch.employee_id || sMatch.Emp_ID || '').trim().toUpperCase();
+                                if (sId) userAllowedIds.add(sId);
+                                if (sMatch.Email) userAllowedIds.add(String(sMatch.Email).trim().toUpperCase());
+                                staffFirstName = String(sMatch.First_Name || sMatch.first_name || '').trim().toLowerCase();
+                                staffLastName = String(sMatch.Last_Name || sMatch.last_name || '').trim().toLowerCase();
+                            }
+
+                            let emailNameToken = '';
+                            if (rawEmail && rawEmail.includes('@')) {
+                                const prefix = rawEmail.split('@')[0];
+                                const parts = prefix.split(/[._-]/).filter(p => p.length > 2);
+                                if (parts.length > 0) emailNameToken = parts[parts.length - 1].toLowerCase();
+                            }
+
+                            window.currentStaffPreferredMemberId = (sMatch ? String(sMatch.Employee_ID || '') : '') || rawEmp || sessionUserEmail;
 
                             const staffMap = {};
                             (staffRows || []).forEach(s => {
@@ -3936,6 +4075,28 @@
                                         mlmMembersMap[uid] = fullName;
                                     }
                                 });
+
+                                let primaryMlmId = '';
+                                (membersList || []).forEach(m => {
+                                    const mId = String(m.id || m.user_id || m.User_ID || '').trim().toUpperCase();
+                                    const mEmail = String(m.email || '').trim().toLowerCase();
+                                    const mName = String(m.name || (m.First_Name ? (m.First_Name + ' ' + (m.Last_Name || '')) : '')).trim().toLowerCase();
+
+                                    let isMatch = false;
+                                    if (mId && userAllowedIds.has(mId)) isMatch = true;
+                                    if (mEmail && (mEmail === rawEmail || (sMatch && mEmail === String(sMatch.Email).toLowerCase()))) isMatch = true;
+                                    if (staffFirstName && staffFirstName.length > 2 && mName.includes(staffFirstName)) isMatch = true;
+                                    if (emailNameToken && emailNameToken.length > 2 && mName.includes(emailNameToken)) isMatch = true;
+
+                                    if (isMatch && mId) {
+                                        userAllowedIds.add(mId);
+                                        if (!primaryMlmId) primaryMlmId = mId;
+                                    }
+                                });
+
+                                if (primaryMlmId) {
+                                    window.currentStaffPreferredMemberId = primaryMlmId;
+                                }
 
                                 // Build downline team structure (Parent -> Children -> Downlines)
                                 const getDirectChildren = (parentId) => {
@@ -4127,10 +4288,27 @@
                                     b._remainingBalLAK = runningBalLAKMap[mId];
                                 });
 
+                                // 1. กรองเฉพาะของตนเองถ้าเป็น Staff (ไม่ใช่ Admin / ผู้จัดการ)
+                                const isAdminOrManager = userRole === 'Admin' || userRole === 'Manager' || userRole === 'HR Admin' || userRole === 'HR Manager' || userRole === 'CEO' || userRole === 'COO' || userRole === 'CFO' || (Array.isArray(userPerms) && userPerms.includes('all'));
+                                let displayBudgets = [...budgets];
+                                if (!isAdminOrManager && userAllowedIds && userAllowedIds.size > 0) {
+                                    displayBudgets = displayBudgets.filter(b => {
+                                        const mId = String(b.member_id || b.Employee_ID || '').trim().toUpperCase();
+                                        return userAllowedIds.has(mId);
+                                    });
+                                }
+
+                                // 2. 📌 เรียงลำดับจากวันล่าสุดขึ้นข้างบน (DESC)
+                                displayBudgets.sort((a, b) => {
+                                    const tA = new Date(a.request_date || a.created_at || 0).getTime();
+                                    const tB = new Date(b.request_date || b.created_at || 0).getTime();
+                                    return tB - tA; // Newest first!
+                                });
+
                                 let dashHtml = '';
                                 let reportHtml = '';
 
-                                budgets.forEach(b => {
+                                displayBudgets.forEach(b => {
                                     const mId = String(b.member_id || '').trim().toUpperCase();
                                     const mlmName = mlmMembersMap[mId];
                                     const staffName = staffMap[mId] ? staffMap[mId].name : '';
@@ -4311,7 +4489,20 @@
                                     }
                                 });
 
-                                Object.values(reportMap).forEach(item => {
+                                // 1. กรองเฉพาะของตนเองสำหรับแท็บ Report
+                                let reportItems = Object.values(reportMap);
+                                if (!isAdminOrManager && userAllowedIds && userAllowedIds.size > 0) {
+                                    reportItems = reportItems.filter(item => userAllowedIds.has(String(item.member_id || '').trim().toUpperCase()));
+                                }
+
+                                // 2. 📌 เรียงลำดับจากวันล่าสุดขึ้นข้างบน (DESC)
+                                reportItems.sort((a, b) => {
+                                    const tA = new Date(a.latestIsoDateStr || 0).getTime();
+                                    const tB = new Date(b.latestIsoDateStr || 0).getTime();
+                                    return tB - tA;
+                                });
+
+                                reportItems.forEach(item => {
                                     const mId = item.member_id;
                                     const mlmName = mlmMembersMap[mId];
                                     const staffName = staffMap[mId] ? staffMap[mId].name : '';
@@ -4421,7 +4612,8 @@
                         } finally {
                             if (loading) loading.classList.add('hidden');
                         }
-                    }
+                    };
+                    window.loadFacebookBudgetReport = window.loadFacebookBudgetDashboard;
                 </script>
 
                 <!-- 📌 ส่วนหน้าสแกนลงเวลา -->
@@ -6705,19 +6897,19 @@
     <!-- /Shift Settings Modal -->
 
     <!-- 📌 Script หลัก (แบ่งย่อยเพื่อประสิทธิภาพและความปลอดภัย) -->
-    <script src="js/i18n.js?v=20260824_12"></script>
-    <script src="js/utils.js?v=20260824_12"></script>
-    <script src="js/auth.js?v=20260824_12"></script>
-    <script src="js/navigation.js?v=20260824_12"></script>
-    <script src="js/api.js?v=20260824_12"></script>
-    <script src="js/dashboard.js?v=20260824_12"></script>
-    <script src="js/organization.js?v=20260824_12"></script>
-    <script src="js/employees.js?v=20260824_12"></script>
-    <script src="js/tables.js?v=20260824_12"></script>
-    <script src="js/forms.js?v=20260824_12"></script>
-    <script src="js/features.js?v=20260824_12"></script>
-    <script src="js/accounting.js?v=20260824_12"></script>
-    <script src="js/payroll.js?v=20260824_12"></script>
+    <script src="js/i18n.js?v=20260824_16"></script>
+    <script src="js/utils.js?v=20260824_16"></script>
+    <script src="js/auth.js?v=20260824_16"></script>
+    <script src="js/navigation.js?v=20260824_16"></script>
+    <script src="js/api.js?v=20260824_16"></script>
+    <script src="js/dashboard.js?v=20260824_16"></script>
+    <script src="js/organization.js?v=20260824_16"></script>
+    <script src="js/employees.js?v=20260824_16"></script>
+    <script src="js/tables.js?v=20260824_16"></script>
+    <script src="js/forms.js?v=20260824_16"></script>
+    <script src="js/features.js?v=20260824_16"></script>
+    <script src="js/accounting.js?v=20260824_16"></script>
+    <script src="js/payroll.js?v=20260824_16"></script>
 
 </body>
 
