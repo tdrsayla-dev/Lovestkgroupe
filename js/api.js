@@ -6,6 +6,11 @@
  * 📌 ส่วนที่ 13: DATA FETCHING & API (ฟังก์ชันดึงข้อมูลจาก Google Sheets / Supabase)
  * ===================================================================== */
 function fetchData(sheetName, forceRefresh = false) {
+    const isAttendance = (sheetName === 'Fingerprint_Logs' || sheetName === 'fingerprint_logs');
+    if (isAttendance) {
+        forceRefresh = true;
+    }
+
     if (sheetName.trim() === 'Organization Structure') {
         currentSheet = sheetName;
 

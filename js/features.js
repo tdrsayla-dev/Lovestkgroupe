@@ -24,10 +24,19 @@ function loadTodayAttendance() {
     const checkInEl = document.getElementById('display-checkin');
     const checkOutEl = document.getElementById('display-checkout');
     const statusEl = document.getElementById('display-status');
+    const scanBtn = document.getElementById('scan-submit-btn') || document.querySelector('button[onclick*="handleManualScan"]');
+    const radioIn = document.querySelector('input[name="scanType"][value="IN"]');
+    const radioOut = document.querySelector('input[name="scanType"][value="OUT"]');
+    const scanNote = document.getElementById('scan-status-note');
+
     if (!empId) {
         if (checkInEl) checkInEl.innerText = '-';
         if (checkOutEl) checkOutEl.innerText = '-';
         if (statusEl) statusEl.innerText = 'Enter employee ID';
+        if (scanBtn) scanBtn.disabled = false;
+        if (radioIn) { radioIn.checked = true; radioIn.disabled = false; }
+        if (radioOut) radioOut.disabled = false;
+        if (scanNote) { scanNote.textContent = ''; scanNote.className = ''; }
         return;
     }
 
@@ -35,7 +44,7 @@ function loadTodayAttendance() {
         .withSuccessHandler(res => {
             if (!res || !res.success) {
                 if (statusEl) statusEl.innerText = 'Unable to load';
-                showToast((res && res.message) || 'Unable to load attendance', 'error');
+                if (scanBtn) scanBtn.disabled = false;
                 return;
             }
             const data = res.data || {};
@@ -43,39 +52,40 @@ function loadTodayAttendance() {
             if (checkOutEl) checkOutEl.innerText = data.checkOut || '-';
             if (statusEl) statusEl.innerText = data.status || '-';
 
-            // ── อัปเดต Radio Buttons ตามสถานะวันนี้ ──────────────────
-            const radioIn = document.querySelector('input[name="scanType"][value="IN"]');
-            const radioOut = document.querySelector('input[name="scanType"][value="OUT"]');
-            const scanBtn = document.getElementById('scan-submit-btn') || document.querySelector('button[onclick*="handleManualScan"]');
-            const scanNote = document.getElementById('scan-status-note');
-
+            // ── อัปเดต Radio Buttons ตามสถานะวันนี้ (จำกัด Check-In 1 ครั้ง และ Check-Out 1 ครั้งต่อวัน) ──
             const hasIn = data.checkIn && data.checkIn !== '-';
             const hasOut = data.checkOut && data.checkOut !== '-';
 
             if (radioIn && radioOut) {
                 if (!hasIn && !hasOut) {
-                    // ยังไม่ได้ Check-In เลย → บังคับให้เลือก IN เท่านั้น
-                    radioIn.checked = true;
                     radioIn.disabled = false;
+                    radioIn.checked = true;
                     radioOut.disabled = true;
-                    if (scanNote) { scanNote.textContent = ''; scanNote.className = ''; }
-                } else if (hasIn && !hasOut) {
-                    // Check-In แล้ว รอ Check-Out → บังคับ OUT
-                    radioOut.checked = true;
-                    radioIn.disabled = true;
-                    radioOut.disabled = false;
+                    radioOut.checked = false;
+                    if (scanBtn) scanBtn.disabled = false;
                     if (scanNote) {
-                        scanNote.textContent = '✅ Check-In แล้วเวลา ' + data.checkIn + ' น. — กรุณา Check-Out';
+                        scanNote.textContent = 'พร้อมลงเวลา Check-In';
+                        scanNote.className = 'text-xs font-semibold text-gray-500 mt-1 block';
+                    }
+                } else if (hasIn && !hasOut) {
+                    radioIn.disabled = true;
+                    radioIn.checked = false;
+                    radioOut.disabled = false;
+                    radioOut.checked = true;
+                    if (scanBtn) scanBtn.disabled = false;
+                    if (scanNote) {
+                        scanNote.textContent = '✅ Check-In แล้วเวลา ' + data.checkIn + ' น. (พร้อมลงเวลา Check-Out)';
                         scanNote.className = 'text-xs font-semibold text-emerald-600 mt-1 block';
                     }
                 } else if (hasIn && hasOut) {
-                    // Check-In + Check-Out แล้ว → ล็อกทั้งคู่
                     radioIn.disabled = true;
+                    radioIn.checked = false;
                     radioOut.disabled = true;
+                    radioOut.checked = false;
                     if (scanBtn) scanBtn.disabled = true;
                     if (scanNote) {
-                        scanNote.textContent = '🔒 บันทึกครบแล้ววันนี้ (IN: ' + data.checkIn + ' / OUT: ' + data.checkOut + ')';
-                        scanNote.className = 'text-xs font-semibold text-indigo-600 mt-1 block';
+                        scanNote.textContent = '🔒 บันทึกเวลาครบแล้ววันนี้ (IN: ' + data.checkIn + ' / OUT: ' + data.checkOut + ')';
+                        scanNote.className = 'text-xs font-semibold text-gray-500 mt-1 block';
                     }
                 }
             }
@@ -188,7 +198,15 @@ function handleManualScan(e) {
 }
 
 function processAttendance(empId, scannedText = null) {
-    const scanType = document.querySelector('input[name="scanType"]:checked').value;
+    const cleanEmpId = String(empId || '').trim().toUpperCase();
+    if (!cleanEmpId) {
+        showToast("Please specify Employee ID", "error");
+        isProcessingScan = false;
+        return;
+    }
+
+    const scanTypeRadio = document.querySelector('input[name="scanType"]:checked');
+    const scanType = scanTypeRadio ? scanTypeRadio.value : 'IN';
     let locationText = "Unknown Location";
 
     if (scannedText && scannedText !== 'Manual Entry by Admin') {
@@ -202,61 +220,76 @@ function processAttendance(empId, scannedText = null) {
         locationText = scannedText;
     }
 
-    toggleLoading(true, `CHECKING GPS...`);
-
     const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
     let role = 'Staff';
     if (sessionStr) { try { role = JSON.parse(sessionStr).role || 'Staff'; } catch (e) { } }
 
-    navigator.geolocation.getCurrentPosition(pos => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-
-        let currentBranch = null;
-        let minDistance = Infinity;
-
-        BRANCHES.forEach(branch => {
-            let dist = calculateDistance(lat, lng, branch.lat, branch.lng);
-            if (dist <= branch.radius && dist < minDistance) {
-                minDistance = dist;
-                currentBranch = branch.name;
-            }
-        });
-
-        if (!currentBranch && role === 'Staff') {
-            toggleLoading(false);
-            showToast("Out of branch area. Cannot scan.", "error");
-            setTimeout(() => { isProcessingScan = false; }, 2000);
-            return;
-        }
-
-        let finalLocation = role === 'Staff' ? `${locationText} (${currentBranch || 'Offsite'})` : locationText;
-
+    const executeRecord = (lat, lng, locStr) => {
         toggleLoading(true, `SAVING RECORD...`);
-
         google.script.run
             .withSuccessHandler(res => {
                 toggleLoading(false);
-                if (res.success) {
-                    showSuccessModal("Scan Successful!", `Your attendance has been recorded.<br><span class="text-xs text-gray-500 mt-3 block font-medium">Loc: ${finalLocation}</span>`);
+                if (res && res.success) {
+                    if (typeof tableCache !== 'undefined') {
+                        delete tableCache['Fingerprint_Logs'];
+                        delete tableCache['fingerprint_logs'];
+                    }
+                    if (window.tableCache) {
+                        delete window.tableCache['Fingerprint_Logs'];
+                        delete window.tableCache['fingerprint_logs'];
+                    }
+                    if (window.tableQueryCache) {
+                        delete window.tableQueryCache['Fingerprint_Logs'];
+                        delete window.tableQueryCache['fingerprint_logs'];
+                    }
+                    showSuccessModal("Scan Successful!", `Your attendance has been recorded.<br><span class="text-xs text-gray-500 mt-3 block font-medium">Loc: ${locStr}</span>`);
                     loadTodayAttendance();
-                    if (role !== 'Staff') document.getElementById('manualEmpId').value = '';
+                    if (role !== 'Staff') {
+                        const input = document.getElementById('manualEmpId');
+                        if (input) input.value = '';
+                    }
                 } else {
-                    showToast(res.message, 'error');
+                    showToast((res && res.message) || 'Failed to record attendance', 'error');
                 }
-                setTimeout(() => { isProcessingScan = false; }, 3000);
+                setTimeout(() => { isProcessingScan = false; }, 2000);
             })
             .withFailureHandler(err => {
-                showToast('Connection failed: ' + err.message, 'error');
+                showToast('Connection failed: ' + (err.message || err), 'error');
                 toggleLoading(false);
-                setTimeout(() => { isProcessingScan = false; }, 3000);
+                setTimeout(() => { isProcessingScan = false; }, 2000);
             })
-            .recordAttendance(empId.trim().toUpperCase(), scanType, lat, lng, finalLocation);
-    }, err => {
-        toggleLoading(false);
-        showToast("Failed to get GPS location. Please wait.", 'error');
-        setTimeout(() => { isProcessingScan = false; }, 2000);
-    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+            .recordAttendance(cleanEmpId, scanType, lat, lng, locStr);
+    };
+
+    toggleLoading(true, `CHECKING GPS...`);
+
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+
+            let currentBranch = null;
+            let minDistance = Infinity;
+
+            BRANCHES.forEach(branch => {
+                let dist = calculateDistance(lat, lng, branch.lat, branch.lng);
+                if (dist <= branch.radius && dist < minDistance) {
+                    minDistance = dist;
+                    currentBranch = branch.name;
+                }
+            });
+
+            let finalLocation = role === 'Staff' ? `${locationText} (${currentBranch || 'Offsite/GPS'})` : `${locationText} (GPS)`;
+            executeRecord(lat, lng, finalLocation);
+        }, err => {
+            console.warn("GPS lookup failed/unavailable, falling back to manual recording:", err);
+            let finalLocation = role === 'Staff' ? `${locationText} (No GPS/Direct)` : `${locationText} (Manual)`;
+            executeRecord(null, null, finalLocation);
+        }, { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 });
+    } else {
+        let finalLocation = role === 'Staff' ? `${locationText} (No GPS)` : `${locationText} (Manual)`;
+        executeRecord(null, null, finalLocation);
+    }
 }
 
 /* =====================================================================

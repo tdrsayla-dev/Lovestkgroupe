@@ -278,6 +278,12 @@ function fillMissingDays(rawData, startDateStr, endDateStr, targetEmpId) {
         if (recordExists) {
             let copy = Object.assign({}, recordExists);
             copy.Date = dateStr;
+            copy.Check_In = recordExists.Check_In || recordExists.check_in || '-';
+            copy.Check_Out = recordExists.Check_Out || recordExists.check_out || '-';
+            copy.Attendance_Status = recordExists.Attendance_Status || recordExists.attendance_status || 'Present';
+            copy.Late_Hours = recordExists.Late_Hours ?? recordExists.late_hours ?? '0';
+            copy.Early_Leave_Hours = recordExists.Early_Leave_Hours ?? recordExists.early_leave_hours ?? '0';
+            copy.OT_Amount = recordExists.OT_Amount ?? recordExists.ot_amount ?? '0';
             completeList.push(copy);
         } else {
             let dayOfWeek = d.getDay();
@@ -321,20 +327,31 @@ function fillMissingDays(rawData, startDateStr, endDateStr, targetEmpId) {
 // Helper function for parsing dates
 function parseDateStr(dateStr) {
     if (!dateStr || dateStr === '-') return null;
-    let d = new Date(dateStr);
-    if (isNaN(d.getTime())) {
-        let parts = String(dateStr).split(/[\/\-]/);
-        if (parts.length === 3) {
-            if (parts[2].length === 4) d = new Date(`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`);
-            else if (parts[0].length === 4) d = new Date(`${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`);
+    let s = String(dateStr).trim();
+    let parts = s.split(/[\/\-]/);
+    if (parts.length === 3) {
+        if (parts[2].length === 4) {
+            // DD/MM/YYYY or DD-MM-YYYY
+            let day = parseInt(parts[0], 10);
+            let month = parseInt(parts[1], 10) - 1;
+            let year = parseInt(parts[2], 10);
+            return new Date(year, month, day, 12, 0, 0);
+        } else if (parts[0].length === 4) {
+            // YYYY-MM-DD
+            let year = parseInt(parts[0], 10);
+            let month = parseInt(parts[1], 10) - 1;
+            let day = parseInt(parts[2].slice(0, 2), 10);
+            return new Date(year, month, day, 12, 0, 0);
         }
     }
+    let d = new Date(s);
     if (!isNaN(d.getTime())) {
         d.setHours(12, 0, 0, 0);
         return d;
     }
     return null;
 }
+window.parseDateStr = parseDateStr;
 
 /* =====================================================================
  * 📌 ส่วนที่ 2: ATTENDANCE CALENDAR RENDERER (ฟังก์ชันแสดงปฏิทินการเข้างาน)
@@ -370,7 +387,14 @@ function renderAttendanceCalendar(year, month, logs, targetEmpId) {
         let isWeekend = currentDate.getDay() === 0; // วันหยุด (อาทิตย์)
         let isPastOrToday = currentDate <= today;
 
-        let logFound = logs.find(r => r.Date === dateStr || r.Date === dbDateStr);
+        let logFound = logs.find(r => {
+            let rDate = String(r.Date || r.date || (typeof getFuzzyValue === 'function' ? getFuzzyValue(r, ['date', 'วันที่']) : '') || '').trim();
+            if (!rDate) return false;
+            if (rDate === dateStr || rDate === dbDateStr || rDate.slice(0, 10) === dbDateStr || rDate.startsWith(dbDateStr)) return true;
+            let parsed = parseDateStr(rDate);
+            if (parsed && parsed.getFullYear() === year && (parsed.getMonth() + 1) === month && parsed.getDate() === day) return true;
+            return false;
+        });
 
         // 📌 ตรวจสอบว่าตรงกับวันที่ลางานหรือไม่
         let isOnLeave = false;
@@ -388,24 +412,53 @@ function renderAttendanceCalendar(year, month, logs, targetEmpId) {
 
         let boxClass = "h-10 sm:h-12 rounded-xl flex items-center justify-center text-xs font-bold relative transition-all border cursor-pointer hover:scale-105 active:scale-95 shadow-sm ";
         let innerHtml = `<span>${day}</span>`;
+        let itemTitle = `Click to edit ${dateStr}`;
 
-        if (logFound) {
+        if (logFound && (logFound.Check_In || logFound.check_in || logFound.Attendance_Status || logFound.attendance_status)) {
             boxClass += "bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100";
             innerHtml += `<span class="absolute bottom-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-sm"></span>`;
+
+            let isLate = String(logFound.Attendance_Status || logFound.attendance_status || '').toLowerCase().includes('late');
+            const checkInDisplay = logFound.Check_In || logFound.check_in || '';
+            const checkOutDisplay = logFound.Check_Out || logFound.check_out || '';
+            const shiftStart = logFound.Shift_Start || logFound.shift_start || '';
+
+            let lateMins = 0;
+            if (checkInDisplay && checkInDisplay !== '-' && shiftStart && shiftStart !== '-') {
+                let inParts = checkInDisplay.split(':');
+                let startParts = shiftStart.split(':');
+                if (inParts.length >= 2 && startParts.length >= 2) {
+                    let inM = parseInt(inParts[0], 10) * 60 + parseInt(inParts[1], 10);
+                    let stM = parseInt(startParts[0], 10) * 60 + parseInt(startParts[1], 10);
+                    if (inM > stM) lateMins = inM - stM;
+                }
+            } else if (logFound.Late_Hours || logFound.late_hours) {
+                lateMins = Math.round((parseFloat(logFound.Late_Hours || logFound.late_hours) || 0) * 60);
+            }
+
+            if (isLate || lateMins > 0) {
+                itemTitle = `มาทำงาน (สาย ${lateMins} นาที) | เข้างาน: ${checkInDisplay}${checkOutDisplay ? ' | ออกงาน: ' + checkOutDisplay : ''}`;
+            } else {
+                itemTitle = `มาทำงานตรงเวลา | เข้างาน: ${checkInDisplay}${checkOutDisplay ? ' | ออกงาน: ' + checkOutDisplay : ''}`;
+            }
         } else if (isOnLeave) {
             boxClass += "bg-yellow-50 border-yellow-200 text-yellow-600 hover:bg-yellow-100";
             innerHtml = `<div class="w-7 h-7 flex items-center justify-center rounded-full bg-yellow-400 text-white shadow-md">${day}</div>`;
+            itemTitle = `ลางาน (On Leave) - ${dateStr}`;
         } else if (isWeekend) {
             boxClass += "bg-gray-100 border-gray-200 text-gray-400 hover:bg-gray-200";
+            itemTitle = `วันหยุด (Weekend) - ${dateStr}`;
         } else if (isPastOrToday) {
             boxClass += "bg-red-50 border-red-200 text-red-500 hover:bg-red-100";
             innerHtml = `<div class="w-7 h-7 flex items-center justify-center rounded-full bg-red-500 text-white shadow-md">${day}</div>`;
             absentCount++;
+            itemTitle = `ขาดงาน (Absent) - ${dateStr}`;
         } else {
             boxClass += "bg-white border-dashed border-gray-200 text-gray-400 hover:bg-indigo-50";
+            itemTitle = `ยังไม่ถึงกำหนด - ${dateStr}`;
         }
 
-        calDiv.innerHTML += `<div onclick="openAttendanceEditModalByDate('${targetEmpId}', '${dbDateStr}')" class="${boxClass}" title="Click to edit ${dateStr}">${innerHtml}</div>`;
+        calDiv.innerHTML += `<div onclick="openAttendanceEditModalByDate('${targetEmpId}', '${dbDateStr}')" class="${boxClass}" title="${itemTitle}">${innerHtml}</div>`;
     }
     return absentCount;
 }
@@ -429,6 +482,7 @@ let currentSheet = '';
 let currentHeaders = [];
 let rawData = [];
 let tableCache = {};
+window.tableCache = tableCache;
 let dashboardCache = null;
 let lastDashStartDate = null;
 let lastDashEndDate = null;

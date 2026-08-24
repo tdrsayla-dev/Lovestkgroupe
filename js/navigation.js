@@ -113,11 +113,15 @@ function navigate(pageId, title, sheetName = '') {
         else if (pageId === 'invoices') { if (typeof loadInvoices === 'function') loadInvoices(); }
         else if (pageId === 'financial-reports') { if (typeof loadFinancialReports === 'function') loadFinancialReports(); }
         else if (pageId === 'table') {
-            if (sheetName === 'Fingerprint_Logs') {
+            const isAttendance = (sheetName === 'Fingerprint_Logs' || sheetName === 'fingerprint_logs');
+            if (isAttendance) {
                 let calMonthInput = document.getElementById('calendarMonth');
-                if (!calMonthInput.value) { let d = new Date(); calMonthInput.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
+                if (calMonthInput && !calMonthInput.value) {
+                    let d = new Date();
+                    calMonthInput.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                }
             }
-            fetchData(sheetName);
+            fetchData(sheetName, isAttendance);
         }
         else if (pageId === 'scan') {
             initScanner(); loadTodayAttendance(); setTimeout(() => { if (map) map.invalidateSize(); }, 200);

@@ -83,6 +83,9 @@ function renderTable(data) {
         if (typeof applyEmployeeShiftAssignmentsToLogs === 'function') {
             applyEmployeeShiftAssignmentsToLogs(data);
         }
+        if (typeof updateAttendanceSubFeatureButtons === 'function') {
+            updateAttendanceSubFeatureButtons();
+        }
         summaryDiv.classList.remove('hidden');
         if (calSec) calSec.classList.remove('hidden');
         if (addDataBtn) addDataBtn.classList.add('hidden');
@@ -204,7 +207,7 @@ function renderTable(data) {
 
         if (targetEmp && tYear && tMonth) {
             // Monthly mode with employee: show calendar + fill missing days
-            let empLogs = data.filter(r => String(r.Employee_ID || r.Emp_ID).toUpperCase().trim() === targetEmp);
+            let empLogs = data.filter(r => String(r.Employee_ID || r.employee_id || r.Emp_ID || r.emp_id || r['รหัสพนักงาน'] || '').toUpperCase().trim() === targetEmp);
             let absentCount = renderAttendanceCalendar(tYear, tMonth, empLogs, targetEmp);
 
             let sDate = `${tYear}-${String(tMonth).padStart(2, '0')}-01`;
@@ -214,7 +217,7 @@ function renderTable(data) {
             data = fillMissingDays(empLogs, sDate, eDate, targetEmp);
         } else if (targetEmp && tYear && !tMonth) {
             // Yearly mode with employee: fill missing days for all 12 months
-            let empLogs = data.filter(r => String(r.Employee_ID || r.Emp_ID).toUpperCase().trim() === targetEmp);
+            let empLogs = data.filter(r => String(r.Employee_ID || r.employee_id || r.Emp_ID || r.emp_id || r['รหัสพนักงาน'] || '').toUpperCase().trim() === targetEmp);
             let allYearData = [];
             for (let m = 1; m <= 12; m++) {
                 let sDate = `${tYear}-${String(m).padStart(2, '0')}-01`;
@@ -980,11 +983,14 @@ function renderTable(data) {
     if (data && data.length > 0) {
         if (currentSheet === 'Fingerprint_Logs') {
             data.sort((a, b) => {
-                let rA = a.Date; let rB = b.Date;
+                let rA = a.Date || a.date || (typeof getFuzzyValue === 'function' ? getFuzzyValue(a, ['date', 'วันที่']) : '');
+                let rB = b.Date || b.date || (typeof getFuzzyValue === 'function' ? getFuzzyValue(b, ['date', 'วันที่']) : '');
                 if (!rA || !rB) return 0;
-                let pA = String(rA).split('/'); let dA = new Date(pA[2], pA[1] - 1, pA[0]);
-                let pB = String(rB).split('/'); let dB = new Date(pB[2], pB[1] - 1, pB[0]);
-                return dB - dA;
+                let dA = typeof parseDateStr === 'function' ? parseDateStr(rA) : new Date(rA);
+                let dB = typeof parseDateStr === 'function' ? parseDateStr(rB) : new Date(rB);
+                let tA = (dA && !isNaN(dA.getTime())) ? dA.getTime() : 0;
+                let tB = (dB && !isNaN(dB.getTime())) ? dB.getTime() : 0;
+                return tB - tA;
             });
         } else {
             // Sort by Employee_ID (natural alphanumeric: A001, A002... DMC001... MT001...)
@@ -1004,12 +1010,15 @@ function renderTable(data) {
     }
 
     data.forEach(row => {
-        const isEmpty = displayHeaders.every(h => !row[h] || String(row[h]).trim() === '');
+        const isEmpty = displayHeaders.every(h => {
+            const v = (row[h] !== undefined && row[h] !== null) ? row[h] : (typeof getFuzzyValue === 'function' ? getFuzzyValue(row, [h, h.toLowerCase(), h.toLowerCase().replace(/_/g, ' ')]) : '');
+            return v === undefined || v === null || String(v).trim() === '';
+        });
         if (isEmpty) return;
 
         let tr = '<tr class="bg-white hover:bg-gray-50 transition-colors">';
         displayHeaders.forEach(h => {
-            let val = (row[h] !== undefined && row[h] !== null) ? row[h] : '';
+            let val = (row[h] !== undefined && row[h] !== null) ? row[h] : (typeof getFuzzyValue === 'function' ? getFuzzyValue(row, [h, h.toLowerCase(), h.toLowerCase().replace(/_/g, ' ')]) : '');
             const lw = h.toLowerCase().trim();
             const isPhotoCol = /^(photo|photos|profile|pic|image)$/i.test(lw);
 
@@ -2344,8 +2353,59 @@ function populateShiftDropdown() {
     if ([...sel.options].some(o => o.value === prevVal)) sel.value = prevVal;
 }
 
+function updateAttendanceSubFeatureButtons() {
+    let sessionStr = sessionStorage.getItem('hr_user_session') || localStorage.getItem('hr_user_session');
+    let userRole = 'Staff', userPerms = [];
+    if (sessionStr) {
+        try {
+            let s = JSON.parse(sessionStr);
+            userRole = s.role || 'Staff';
+            userPerms = typeof parsePermissionsList === 'function' ? parsePermissionsList(s.permissions) : [];
+        } catch (e) { }
+    }
+
+    const canShift = typeof hasSubFeaturePermission === 'function' ? hasSubFeaturePermission('Fingerprint_Logs', 'shift_settings', 'view', userPerms, userRole) : true;
+    const canCalc = typeof hasSubFeaturePermission === 'function' ? hasSubFeaturePermission('Fingerprint_Logs', 'calc_payroll', 'view', userPerms, userRole) : true;
+    const canHist = typeof hasSubFeaturePermission === 'function' ? hasSubFeaturePermission('Fingerprint_Logs', 'payroll_history', 'view', userPerms, userRole) : true;
+    const canExp = typeof hasSubFeaturePermission === 'function' ? hasSubFeaturePermission('Fingerprint_Logs', 'export', 'view', userPerms, userRole) : true;
+
+    const shiftBtn = document.getElementById('btn-attendance-shift-settings');
+    if (shiftBtn) shiftBtn.style.display = canShift ? 'flex' : 'none';
+
+    const calcBtn = document.getElementById('btn-attendance-calc-payroll');
+    if (calcBtn) calcBtn.style.display = canCalc ? 'flex' : 'none';
+
+    const histBtn = document.getElementById('btn-attendance-payroll-history');
+    if (histBtn) histBtn.style.display = canHist ? 'flex' : 'none';
+
+    ['btn-attendance-excel', 'btn-attendance-pdf', 'btn-attendance-print'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = canExp ? 'flex' : 'none';
+    });
+}
+window.updateAttendanceSubFeatureButtons = updateAttendanceSubFeatureButtons;
+
 /** เปิด Modal */
 function openShiftSettingsModal() {
+    let sessionStr = sessionStorage.getItem('hr_user_session') || localStorage.getItem('hr_user_session');
+    let userRole = 'Staff', userPerms = [];
+    if (sessionStr) {
+        try {
+            let s = JSON.parse(sessionStr);
+            userRole = s.role || 'Staff';
+            userPerms = typeof parsePermissionsList === 'function' ? parsePermissionsList(s.permissions) : [];
+        } catch (e) { }
+    }
+
+    if (typeof hasSubFeaturePermission === 'function' && !hasSubFeaturePermission('Fingerprint_Logs', 'shift_settings', 'view', userPerms, userRole)) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'warning', title: 'ไม่มีสิทธิ์เข้าถึง', text: 'คุณไม่มีสิทธิ์ใช้งานฟังก์ชันตั้งค่ากะเวลาเข้างาน' });
+        } else {
+            alert('คุณไม่มีสิทธิ์ใช้งานฟังก์ชันตั้งค่ากะเวลาเข้างาน');
+        }
+        return;
+    }
+
     if (typeof toggleLoading === 'function') toggleLoading(false);
     try {
         const modal = document.getElementById('shift-settings-modal');

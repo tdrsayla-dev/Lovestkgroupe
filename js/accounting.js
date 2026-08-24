@@ -65,7 +65,7 @@ async function loadChartOfAccounts() {
 
 function filterCoaCategory(cat) {
   currentCategoryFilter = cat;
-  
+
   // Highlight active filter tab
   document.querySelectorAll('.coa-filter-btn').forEach(btn => {
     if (btn.getAttribute('data-cat') === cat) {
@@ -293,11 +293,11 @@ function updateExpenseStats() {
 
 async function openAddExpenseModal() {
   document.getElementById('add-expense-form')?.reset();
-  
+
   // Set default voucher no
   const vNoInput = document.getElementById('new-exp-voucher-no');
   if (vNoInput) {
-    const todayStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
+    const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const randomNum = Math.floor(1000 + Math.random() * 9000);
     vNoInput.value = `EXP-${todayStr}-${randomNum}`;
   }
@@ -322,7 +322,7 @@ async function openAddExpenseModal() {
           .order('created_at', { ascending: false });
 
         if (data && data.length > 0) {
-          budgetSelect.innerHTML += data.map(b => 
+          budgetSelect.innerHTML += data.map(b =>
             `<option value="${b.budget_id}" data-amount="${b.amount}" data-payee="${b.first_name || ''} ${b.last_name || ''}">[${b.budget_id}] ${b.title} (${formatMoney(b.amount)})</option>`
           ).join('');
         }
@@ -353,7 +353,7 @@ function onBudgetSelectChange() {
   if (selectedOpt && selectedOpt.value) {
     const amt = selectedOpt.getAttribute('data-amount');
     const payee = selectedOpt.getAttribute('data-payee');
-    
+
     if (amt) {
       const amtInput = document.getElementById('new-exp-amount');
       if (amtInput) amtInput.value = amt;
@@ -368,7 +368,7 @@ function onBudgetSelectChange() {
 async function saveExpenseVoucher(e) {
   if (e) e.preventDefault();
   const voucherNo = document.getElementById('new-exp-voucher-no')?.value.trim();
-  const expDate = document.getElementById('new-exp-date')?.value || new Date().toISOString().slice(0,10);
+  const expDate = document.getElementById('new-exp-date')?.value || new Date().toISOString().slice(0, 10);
   const accountId = document.getElementById('new-exp-account-id')?.value;
   const budgetId = document.getElementById('new-exp-budget-id')?.value || null;
   const payeeName = document.getElementById('new-exp-payee')?.value.trim();
@@ -487,9 +487,9 @@ function renderGeneralLedger() {
 
   tableBody.innerHTML = filtered.map(entry => {
     const items = entry.journal_items || entry.items || [];
-    const sourceBadge = entry.source === 'PAYROLL' 
+    const sourceBadge = entry.source === 'PAYROLL'
       ? '<span class="px-2 py-0.5 text-xs font-semibold rounded bg-purple-100 text-purple-800">Payroll</span>'
-      : (entry.source === 'EXPENSE' 
+      : (entry.source === 'EXPENSE'
         ? '<span class="px-2 py-0.5 text-xs font-semibold rounded bg-amber-100 text-amber-800">Expense</span>'
         : '<span class="px-2 py-0.5 text-xs font-semibold rounded bg-blue-100 text-blue-800">Manual JV</span>');
 
@@ -528,12 +528,12 @@ function renderGeneralLedger() {
 
 function openAddJournalModal() {
   document.getElementById('add-journal-form')?.reset();
-  const todayStr = new Date().toISOString().slice(0,10);
+  const todayStr = new Date().toISOString().slice(0, 10);
   document.getElementById('new-jv-date').value = todayStr;
-  
+
   const jvNoInput = document.getElementById('new-jv-number');
   if (jvNoInput) {
-    const dateNum = todayStr.replace(/-/g,'');
+    const dateNum = todayStr.replace(/-/g, '');
     const randomNum = Math.floor(1000 + Math.random() * 9000);
     jvNoInput.value = `JV-${dateNum}-${randomNum}`;
   }
@@ -628,7 +628,7 @@ function calculateJvTotals() {
 
   if (elDr) elDr.innerText = formatMoney(totalDr);
   if (elCr) elCr.innerText = formatMoney(totalCr);
-  
+
   const diff = Math.abs(totalDr - totalCr);
   if (elDiff) {
     if (diff < 0.01 && totalDr > 0) {
@@ -724,8 +724,8 @@ async function saveJournalEntry(e) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function createPayrollJournalEntry(payrollMonth, totalSalary, totalTax, totalSocialSecurity, netPaid) {
-  const dateStr = new Date().toISOString().slice(0,10);
-  const entryNo = `JV-PAYROLL-${payrollMonth.replace(/-/g,'')}`;
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const entryNo = `JV-PAYROLL-${payrollMonth.replace(/-/g, '')}`;
 
   const salAcc = chartOfAccountsData.find(a => a.account_code === '5001') || { id: 11, account_code: '5001', account_name_th: 'ค่าใช้จ่ายเงินเดือนและค่าจ้าง' };
   const bankAcc = chartOfAccountsData.find(a => a.account_code === '1002') || { id: 2, account_code: '1002', account_name_th: 'เงินฝากธนาคาร' };
@@ -851,13 +851,13 @@ function renderInvoices() {
 
 function openAddInvoiceModal() {
   document.getElementById('add-invoice-form')?.reset();
-  const dateStr = new Date().toISOString().slice(0,10);
+  const dateStr = new Date().toISOString().slice(0, 10);
   document.getElementById('new-inv-date').value = dateStr;
-  
+
   const invNoInput = document.getElementById('new-inv-number');
   if (invNoInput) {
     const randomNum = Math.floor(1000 + Math.random() * 9000);
-    invNoInput.value = `INV-${dateStr.replace(/-/g,'')}-${randomNum}`;
+    invNoInput.value = `INV-${dateStr.replace(/-/g, '')}-${randomNum}`;
   }
 
   const modal = document.getElementById('modal-add-invoice');
@@ -1072,7 +1072,7 @@ function renderActiveFinancialReport() {
 function renderProfitAndLossReport(container) {
   // Calculate total revenue from Invoices & Chart 4000s
   const invoiceRevenue = invoicesData.filter(i => i.status !== 'Cancelled').reduce((sum, i) => sum + (parseFloat(i.subtotal) || 0), 0);
-  
+
   // Calculate total expenses from Expense Vouchers & Chart 5000s
   const expenseAmount = expenseVouchersData.filter(v => v.status !== 'Cancelled').reduce((sum, v) => sum + (parseFloat(v.amount) || 0), 0);
 
@@ -1141,8 +1141,8 @@ function renderTrialBalanceReport(container) {
     let cr = 0;
 
     if (acc.category_type === 'Asset') dr = 50000;
-    else if (acc.category_type === 'Expense') dr = expenseVouchersData.reduce((s, v) => s + (parseFloat(v.amount)||0), 0);
-    else if (acc.category_type === 'Revenue') cr = invoicesData.reduce((s, i) => s + (parseFloat(i.subtotal)||0), 0);
+    else if (acc.category_type === 'Expense') dr = expenseVouchersData.reduce((s, v) => s + (parseFloat(v.amount) || 0), 0);
+    else if (acc.category_type === 'Revenue') cr = invoicesData.reduce((s, i) => s + (parseFloat(i.subtotal) || 0), 0);
     else if (acc.category_type === 'Liability') cr = 10000;
     else if (acc.category_type === 'Equity') cr = 40000;
 

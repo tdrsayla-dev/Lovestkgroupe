@@ -7,6 +7,76 @@
  * - เปิดฟอร์มเพื่อกรอกข้อมูลหรือแก้ไขข้อมูลพนักงาน/การเข้างาน/ตารางกะ ฯลฯ
  * ===================================================================== */
 /* =====================================================================
+ * 📌 Date Formatting Helper for ISO Dates (YYYY-MM-DD)
+ * ===================================================================== */
+function formatToIsoDate(val) {
+    if (!val || val === '-' || val === 'null' || val === 'undefined') return '';
+    const str = String(val).trim();
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
+    if (str.includes('/')) {
+        const parts = str.split('/');
+        if (parts.length === 3) {
+            let day = parts[0].padStart(2, '0');
+            let month = parts[1].padStart(2, '0');
+            let year = parts[2];
+            if (year.length === 4) return `${year}-${month}-${day}`;
+        }
+    }
+
+    if (str.includes('-')) {
+        const parts = str.split('-');
+        if (parts.length === 3) {
+            if (parts[0].length === 4) {
+                return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+            } else if (parts[2].length === 4) {
+                return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            }
+        }
+    }
+
+    if (str.includes('T')) return str.split('T')[0];
+    return str;
+}
+window.formatToIsoDate = formatToIsoDate;
+
+function openAttendanceEditModalByDate(empId, dateStr) {
+    if (!empId || !dateStr) return;
+
+    currentSheet = 'Fingerprint_Logs';
+    const logs = (tableCache['Fingerprint_Logs'] && Array.isArray(tableCache['Fingerprint_Logs'].data)) 
+        ? tableCache['Fingerprint_Logs'].data 
+        : ((window.tableCache && window.tableCache['Fingerprint_Logs'] && Array.isArray(window.tableCache['Fingerprint_Logs'].data)) ? window.tableCache['Fingerprint_Logs'].data : []);
+    const targetDateIso = formatToIsoDate(dateStr);
+
+    let foundRow = logs.find(r => {
+        let rEmp = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').toUpperCase().trim();
+        let rDateIso = formatToIsoDate(r.Date || r.date || '');
+        return rEmp === String(empId).toUpperCase().trim() && rDateIso === targetDateIso;
+    });
+
+    if (foundRow) {
+        openFormModal(encodeURIComponent(JSON.stringify(foundRow)));
+    } else {
+        openFormModal(null);
+        setTimeout(() => {
+            const form = document.getElementById('record-form') || document.getElementById('dynamic-form');
+            if (form) {
+                const empEl = form.querySelector('[name="Employee_ID"], [name="employee_id"]');
+                const dateEl = form.querySelector('[name="Date"], [name="date"]');
+                if (empEl) empEl.value = empId;
+                if (dateEl) dateEl.value = targetDateIso;
+                if (typeof autoCalculateAttendanceTimes === 'function') {
+                    autoCalculateAttendanceTimes();
+                }
+            }
+        }, 120);
+    }
+}
+window.openAttendanceEditModalByDate = openAttendanceEditModalByDate;
+
+/* =====================================================================
  * 📌 Attendance Auto-Calculation Helper
  * ===================================================================== */
 function autoCalculateAttendanceTimes() {
@@ -953,72 +1023,6 @@ function openFormModal(rowDataStr = null) {
                 if (inputEl) checkDuplicateEmployeeId(inputEl);
             }, 100);
             return;
-        }
-
-        /* =====================================================================
-         * 📌 Date Formatting Helper for ISO Dates (YYYY-MM-DD)
-         * ===================================================================== */
-        function formatToIsoDate(val) {
-            if (!val || val === '-' || val === 'null' || val === 'undefined') return '';
-            const str = String(val).trim();
-
-            if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
-
-            if (str.includes('/')) {
-                const parts = str.split('/');
-                if (parts.length === 3) {
-                    let day = parts[0].padStart(2, '0');
-                    let month = parts[1].padStart(2, '0');
-                    let year = parts[2];
-                    if (year.length === 4) return `${year}-${month}-${day}`;
-                }
-            }
-
-            if (str.includes('-')) {
-                const parts = str.split('-');
-                if (parts.length === 3) {
-                    if (parts[0].length === 4) {
-                        return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-                    } else if (parts[2].length === 4) {
-                        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                    }
-                }
-            }
-
-            if (str.includes('T')) return str.split('T')[0];
-            return str;
-        }
-
-        function openAttendanceEditModalByDate(empId, dateStr) {
-            if (!empId || !dateStr) return;
-
-            currentSheet = 'Fingerprint_Logs';
-            const logs = (tableCache['Fingerprint_Logs'] && Array.isArray(tableCache['Fingerprint_Logs'].data)) ? tableCache['Fingerprint_Logs'].data : [];
-            const targetDateIso = formatToIsoDate(dateStr);
-
-            let rowIndex = logs.findIndex(r => {
-                let rEmp = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').toUpperCase().trim();
-                let rDateIso = formatToIsoDate(r.Date || r.date || '');
-                return rEmp === empId.toUpperCase().trim() && rDateIso === targetDateIso;
-            });
-
-            if (rowIndex >= 0) {
-                openFormModal(rowIndex);
-            } else {
-                openFormModal(null);
-                setTimeout(() => {
-                    const form = document.getElementById('record-form');
-                    if (form) {
-                        const empEl = form.querySelector('[name="Employee_ID"], [name="employee_id"]');
-                        const dateEl = form.querySelector('[name="Date"], [name="date"]');
-                        if (empEl) empEl.value = empId;
-                        if (dateEl) dateEl.value = targetDateIso;
-                        if (typeof autoCalculateAttendanceTimes === 'function') {
-                            autoCalculateAttendanceTimes();
-                        }
-                    }
-                }, 120);
-            }
         }
 
         const isDate = lw.includes('date') || lw.includes('birthday') || lw.includes('วันเกิด');
