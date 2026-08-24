@@ -1840,13 +1840,15 @@
                         Dashboard</span>
                 </button>
                 <button onclick="navigate('dashboard', 'Dashboard')" title="Dashboard"
-                    class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all admin-only hidden overflow-hidden group"
+                    class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all admin-only hidden overflow-hidden group relative"
                     data-page="dashboard">
                     <i
                         class="fa-solid fa-border-all w-5 text-[15px] flex-shrink-0 text-center transition-colors group-hover:text-brandindigo"></i>
                     <span
                         class="sidebar-text ml-3 text-sm whitespace-nowrap transition-opacity duration-200 font-medium"
                         data-i18n="menu_dashboard">Dashboard</span>
+                    <span id="sidebar-badge-dashboard"
+                        class="sidebar-badge hidden ml-auto bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm shadow-rose-300 animate-pulse tracking-tight">0</span>
                 </button>
                 <button onclick="navigate('scan', 'Time Tracking')" title="Time Tracking"
                     class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all font-medium overflow-hidden group"
@@ -1873,7 +1875,7 @@
                     Records</p>
 
                 <button onclick="navigate('table', 'Leave Requests', 'Leave application')" title="Leave Requests"
-                    class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all overflow-hidden group"
+                    class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all overflow-hidden group relative"
                     data-page="Leave application">
                     <i
                         class="fa-solid fa-calendar-day w-5 text-[15px] flex-shrink-0 text-center transition-colors group-hover:text-brandindigo"></i>
@@ -1881,6 +1883,8 @@
                         class="sidebar-text ml-3 text-sm whitespace-nowrap transition-opacity duration-200 font-medium"
                         data-i18n="menu_leave_requests">Leave
                         Requests</span>
+                    <span id="sidebar-badge-leaves"
+                        class="sidebar-badge hidden ml-auto bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm shadow-rose-300 animate-pulse tracking-tight">0</span>
                 </button>
                 <button onclick="navigate('table', 'Budget Requests', 'Budget Request')" title="Budget Requests"
                     class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all overflow-hidden group"
@@ -2436,6 +2440,57 @@
                             </div>
                         </div>
 
+                        <!-- 📌 Top 3 Real-time Attendance Cards (ເຂົ້າວຽກແລ້ວ / ລາຍລະອຽດຂາດວຽກ / ຄຳຮ້ອງຂໍລາພັກ) -->
+                        <div id="dashboard-absent-leave-section"
+                            class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 admin-only">
+
+                            <!-- ✅ การ์ดคนมาทำงาน -->
+                            <div id="dash-present-container"
+                                class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col h-[320px]">
+                                <h3 class="text-sm font-black text-gray-900 mb-4 flex items-center gap-2">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm"></span>
+                                    <i class="fa-solid fa-user-check text-emerald-500"></i>
+                                    <span data-i18n="dash_checkin_title">Check-IN</span>
+                                    <span id="dash-present-count-badge"
+                                        class="ml-auto text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-full font-bold">0
+                                        ຄົນ</span>
+                                </h3>
+                                <ul id="dash-present-list" class="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-1.5">
+                                </ul>
+                            </div>
+
+                            <!-- ❌ การ์ดคนขาด -->
+                            <div id="dash-absent-container"
+                                class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col h-[320px]">
+                                <h3 class="text-sm font-black text-gray-900 mb-4 flex items-center gap-2">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm"></span>
+                                    <i class="fa-solid fa-user-xmark text-red-500"></i>
+                                    <span data-i18n="dash_absent_title">Absent Details</span>
+                                    <span id="dash-absent-count-badge"
+                                        class="ml-auto text-[10px] bg-red-50 text-red-500 border border-red-100 px-2 py-0.5 rounded-full font-bold">0
+                                        ຄົນ</span>
+                                </h3>
+                                <ul id="dash-absent-list" class="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2">
+                                </ul>
+                            </div>
+
+                            <!-- 📋 การ์ดใบลา -->
+                            <div id="dash-leave-container"
+                                class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col h-[320px]">
+                                <h3 class="text-sm font-black text-gray-900 mb-4 flex items-center gap-2">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-yellow-400 shadow-sm"></span>
+                                    <i class="fa-solid fa-calendar-minus text-yellow-500"></i>
+                                    <span data-i18n="dash_leave_title">Leave Requests</span>
+                                    <span id="dash-leave-count-badge"
+                                        class="ml-auto text-[10px] bg-yellow-50 text-yellow-600 border border-yellow-200 px-2 py-0.5 rounded-full font-bold">0
+                                        ຄົນ</span>
+                                </h3>
+                                <ul id="dash-leave-list" class="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2">
+                                </ul>
+                            </div>
+
+                        </div>
+
                         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                             <div
                                 class="bg-[#7c50ff] rounded-3xl p-5 text-white shadow-lg relative overflow-hidden h-[360px] flex flex-col border border-white/10">
@@ -2592,7 +2647,7 @@
                                         <i class="fa-solid fa-laptop"></i>
                                     </div>
                                     <h4 class="text-2xl font-black text-gray-900" id="dash-assets">-</h4>
-                                    <p class="text-[9px] text-gray-500 font-bold uppercase mt-1">Assets</p>
+                                    <p class="text-[9px] text-gray-500 font-bold uppercase mt-1" data-i18n="dash_assets">Assets</p>
                                 </div>
                             </div>
 
@@ -2603,7 +2658,7 @@
                                         <i class="fa-regular fa-clock text-xl"></i>
                                     </div>
                                     <div>
-                                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest">Late
+                                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest" data-i18n="dash_late_hrs">Late
                                             (Hrs)</p>
                                         <h3 class="text-2xl font-black text-gray-900" id="dash-late">0</h3>
                                     </div>
@@ -2614,7 +2669,7 @@
                                         <i class="fa-solid fa-user-xmark text-xl"></i>
                                     </div>
                                     <div>
-                                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest">Absent
+                                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest" data-i18n="dash_absent_stat">Absent
                                         </p>
                                         <h3 class="text-2xl font-black text-gray-900" id="dash-absent">0</h3>
                                     </div>
@@ -2625,7 +2680,7 @@
                                         <i class="fa-solid fa-person-running text-xl"></i>
                                     </div>
                                     <div>
-                                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest">Early
+                                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest" data-i18n="dash_early_leave_hrs">Early
                                             Leave (Hrs)</p>
                                         <h3 class="text-2xl font-black text-gray-900" id="dash-early">0</h3>
                                     </div>
@@ -2636,61 +2691,12 @@
                                         <i class="fa-solid fa-sack-dollar text-xl"></i>
                                     </div>
                                     <div>
-                                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest">OT
+                                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest" data-i18n="dash_ot_amount_stat">OT
                                             Amount</p>
                                         <h3 class="text-2xl font-black text-gray-900" id="dash-ot">0</h3>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-
-                    </div>
-                    <div id="dashboard-absent-leave-section"
-                        class="grid grid-cols-1 lg:grid-cols-3 gap-6 admin-only hidden">
-
-                        <!-- ✅ การ์ดคนมาทำงาน -->
-                        <div id="dash-present-container"
-                            class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col h-[320px]">
-                            <h3 class="text-sm font-black text-gray-900 mb-4 flex items-center gap-2">
-                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm"></span>
-                                <i class="fa-solid fa-user-check text-emerald-500"></i>
-                                Check-IN
-                                <span id="dash-present-count-badge"
-                                    class="ml-auto text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-full font-bold">0
-                                    Persion </span>
-                            </h3>
-                            <ul id="dash-present-list" class="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-1.5">
-                            </ul>
-                        </div>
-
-                        <!-- ❌ การ์ดคนขาด -->
-                        <div id="dash-absent-container"
-                            class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col h-[320px]">
-                            <h3 class="text-sm font-black text-gray-900 mb-4 flex items-center gap-2">
-                                <span class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm"></span>
-                                <i class="fa-solid fa-user-xmark text-red-500"></i>
-                                Absent Details
-                                <span id="dash-absent-count-badge"
-                                    class="ml-auto text-[10px] bg-red-50 text-red-500 border border-red-100 px-2 py-0.5 rounded-full font-bold">0
-                                    missing </span>
-                            </h3>
-                            <ul id="dash-absent-list" class="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2">
-                            </ul>
-                        </div>
-
-                        <!-- 📋 การ์ดใบลา -->
-                        <div id="dash-leave-container"
-                            class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col h-[320px]">
-                            <h3 class="text-sm font-black text-gray-900 mb-4 flex items-center gap-2">
-                                <span class="w-2.5 h-2.5 rounded-full bg-yellow-400 shadow-sm"></span>
-                                <i class="fa-solid fa-calendar-minus text-yellow-500"></i>
-                                Leave Requests
-                                <span id="dash-leave-count-badge"
-                                    class="ml-auto text-[10px] bg-yellow-50 text-yellow-600 border border-yellow-200 px-2 py-0.5 rounded-full font-bold">0
-                                    Persion</span>
-                            </h3>
-                            <ul id="dash-leave-list" class="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2">
-                            </ul>
                         </div>
 
                     </div>
@@ -3037,15 +3043,44 @@
                     <div id="org-chart-wrapper" class="hidden overflow-x-auto w-full pb-10 custom-scrollbar"></div>
 
                     <div id="table-controls-wrapper">
-                        <div class="flex flex-col lg:flex-row justify-start mb-6 gap-4">
+                        <div class="flex flex-col lg:flex-row justify-between mb-6 gap-4 items-start lg:items-center">
 
-                            <div class="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                            <div class="flex flex-col sm:flex-row gap-3 w-full lg:w-auto flex-wrap items-center">
                                 <div id="table-search-wrapper" class="relative w-full sm:w-80">
                                     <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><i
                                             class="fa-solid fa-search text-gray-400"></i></div>
                                     <input type="text" id="searchInput" onkeyup="filterData()"
                                         placeholder="Search records..." data-i18n-placeholder="search_placeholder"
                                         class="bg-white border border-gray-300 text-gray-900 font-medium text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full pl-11 p-3 transition-all placeholder-gray-400 shadow-sm">
+                                </div>
+
+                                <!-- 📌 Date Filter Toolbar เฉพาะหน้า Leave Requests เท่านั้น -->
+                                <div id="leave-date-filter-wrapper" class="hidden flex flex-wrap items-center gap-2">
+                                    <!-- Mode Toggle: All / Month / Range / Year -->
+                                    <div class="flex bg-gray-100/90 rounded-xl p-1 shadow-inner border border-gray-200 gap-1">
+                                        <button type="button" id="btn-leave-period-all" onclick="setLeavePeriodMode('all')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-white text-brandindigo shadow-sm">ທັງໝົດ</button>
+                                        <button type="button" id="btn-leave-period-month" onclick="setLeavePeriodMode('month')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-gray-600 hover:text-gray-900">ລາຍເດືອນ</button>
+                                        <button type="button" id="btn-leave-period-range" onclick="setLeavePeriodMode('range')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-gray-600 hover:text-gray-900">ຊ່ວງວັນທີ</button>
+                                        <button type="button" id="btn-leave-period-year" onclick="setLeavePeriodMode('year')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-gray-600 hover:text-gray-900">ລາຍປີ</button>
+                                    </div>
+
+                                    <!-- Month Picker -->
+                                    <div id="leave-picker-month" class="hidden flex items-center gap-1.5">
+                                        <input type="month" id="leaveMonthInput" onchange="filterData()" class="bg-white border border-gray-300 text-gray-800 font-bold text-xs rounded-xl focus:ring-brandindigo p-2.5 shadow-sm outline-none">
+                                    </div>
+
+                                    <!-- Date Range Picker -->
+                                    <div id="leave-picker-range" class="hidden flex items-center gap-1.5 text-xs text-gray-500 font-bold">
+                                        <input type="date" id="leaveStartDateInput" onchange="filterData()" class="bg-white border border-gray-300 text-gray-800 font-medium text-xs rounded-xl focus:ring-brandindigo p-2.5 shadow-sm outline-none">
+                                        <span>➔</span>
+                                        <input type="date" id="leaveEndDateInput" onchange="filterData()" class="bg-white border border-gray-300 text-gray-800 font-medium text-xs rounded-xl focus:ring-brandindigo p-2.5 shadow-sm outline-none">
+                                    </div>
+
+                                    <!-- Year Picker -->
+                                    <div id="leave-picker-year" class="hidden flex items-center gap-1.5">
+                                        <select id="leaveYearInput" onchange="filterData()" class="bg-white border border-gray-300 text-gray-800 font-bold text-xs rounded-xl focus:ring-brandindigo p-2.5 shadow-sm outline-none cursor-pointer">
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
 
@@ -3084,6 +3119,12 @@
                                     <button id="btn-attendance-print" onclick="printAttendanceReport()" title="Print"
                                         class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm hover:text-brandindigo">
                                         <i class="fa-solid fa-print text-sm"></i> <span>Print</span>
+                                    </button>
+                                    <button id="btn-attendance-ot-settings" onclick="openOtSettingsModal()"
+                                        title="ตั้งค่าเงื่อนไขการให้ OT (Sunday OT Rules)"
+                                        class="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm hover:shadow-md">
+                                        <i class="fa-solid fa-business-time text-sm"></i> <span
+                                            data-i18n="btn_ot_settings">เงื่อนไข OT</span>
                                     </button>
                                     <button id="btn-attendance-calc-payroll" onclick="openPayrollModal()"
                                         title="คำนวณเงินเดือน & สลิป"
@@ -3204,7 +3245,7 @@
                             class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-4 border-l-red-500 shadow-sm hover:shadow transition-all">
                             <div>
                                 <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5"
-                                    data-i18n="stat_late_hrs">Late (Hrs)</p>
+                                    data-i18n="stat_late_hrs">Late (Mins)</p>
                                 <h4 class="text-xl font-black text-red-500" id="filter-late">0</h4>
                             </div>
                             <i class="fa-regular fa-clock text-red-200 text-2xl hidden sm:block"></i>
@@ -3213,7 +3254,7 @@
                             class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-4 border-l-amber-500 shadow-sm hover:shadow transition-all">
                             <div>
                                 <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5"
-                                    data-i18n="stat_early_hrs">Early (Hrs)</p>
+                                    data-i18n="stat_early_hrs">Early (Mins)</p>
                                 <h4 class="text-xl font-black text-amber-500" id="filter-early">0</h4>
                             </div>
                             <i class="fa-solid fa-person-running text-amber-200 text-2xl hidden sm:block"></i>
@@ -3222,7 +3263,7 @@
                             class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-4 border-l-teal-500 shadow-sm hover:shadow transition-all">
                             <div>
                                 <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5"
-                                    data-i18n="stat_early_in_hrs">Early In (Hrs)</p>
+                                    data-i18n="stat_early_in_hrs">Early In (Mins)</p>
                                 <h4 class="text-xl font-black text-teal-600" id="filter-early-in">0</h4>
                             </div>
                             <i class="fa-solid fa-user-clock text-teal-200 text-2xl hidden sm:block"></i>
@@ -3231,7 +3272,7 @@
                             class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-4 border-l-indigo-500 shadow-sm hover:shadow transition-all">
                             <div>
                                 <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5"
-                                    data-i18n="stat_late_out_hrs">Late Out (Hrs)</p>
+                                    data-i18n="stat_late_out_hrs">Late Out (Mins)</p>
                                 <h4 class="text-xl font-black text-indigo-600" id="filter-late-out">0</h4>
                             </div>
                             <i class="fa-solid fa-business-time text-indigo-200 text-2xl hidden sm:block"></i>
@@ -3240,7 +3281,7 @@
                             class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-4 border-l-purple-500 shadow-sm hover:shadow transition-all">
                             <div>
                                 <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5"
-                                    data-i18n="stat_net_offset_hrs">Net Offset (Hrs)</p>
+                                    data-i18n="stat_net_offset_hrs">Net Offset (Mins)</p>
                                 <h4 class="text-xl font-black text-purple-600" id="filter-net-balance">0</h4>
                             </div>
                             <i class="fa-solid fa-scale-balanced text-purple-200 text-2xl hidden sm:block"></i>
@@ -3265,6 +3306,29 @@
                         </div>
                     </div>
 
+                    <!-- 📌 แถบ Filter สถานะการอนุมัติสำหรับหน้า Leave Requests (แท็บ: ทั้งหมด / รออนุมัติ / อนุมัติแล้ว / ปฏิเสธ) -->
+                    <div id="leave-status-tabs-container" class="hidden mb-4 flex flex-wrap items-center gap-2">
+                        <button type="button" onclick="setLeaveStatusFilter('all')" id="leave-tab-all" class="leave-status-tab px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-brandindigo text-white shadow-md">
+                            <span>ທັງໝົດ (All)</span>
+                            <span id="leave-badge-all" class="bg-white/20 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">0</span>
+                        </button>
+                        <button type="button" onclick="setLeaveStatusFilter('pending')" id="leave-tab-pending" class="leave-status-tab px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-white text-gray-600 hover:bg-amber-50 hover:text-amber-600 border border-gray-200 shadow-2xs">
+                            <i class="fa-solid fa-clock text-amber-500"></i>
+                            <span>ລໍຖ້າອະນຸມັດ (Pending)</span>
+                            <span id="leave-badge-pending" class="bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 rounded-full font-bold">0</span>
+                        </button>
+                        <button type="button" onclick="setLeaveStatusFilter('approved')" id="leave-tab-approved" class="leave-status-tab px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-white text-gray-600 hover:bg-emerald-50 hover:text-emerald-600 border border-gray-200 shadow-2xs">
+                            <i class="fa-solid fa-circle-check text-emerald-500"></i>
+                            <span>ອະນຸມັດແລ້ວ (Approved)</span>
+                            <span id="leave-badge-approved" class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold">0</span>
+                        </button>
+                        <button type="button" onclick="setLeaveStatusFilter('rejected')" id="leave-tab-rejected" class="leave-status-tab px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-white text-gray-600 hover:bg-red-50 hover:text-red-600 border border-gray-200 shadow-2xs">
+                            <i class="fa-solid fa-circle-xmark text-red-500"></i>
+                            <span>ປະຕິເສດ (Rejected)</span>
+                            <span id="leave-badge-rejected" class="bg-red-100 text-red-700 text-[10px] px-2 py-0.5 rounded-full font-bold">0</span>
+                        </button>
+                    </div>
+
                     <div id="table-wrapper"
                         class="glass-card rounded-2xl shadow-lg border border-gray-200 overflow-hidden transition-all duration-300">
                         <div class="overflow-x-auto w-full max-h-[65vh] custom-scrollbar">
@@ -3277,19 +3341,19 @@
                         </div>
                     </div>
 
+                    <div id="card-wrapper"
+                        class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-2 transition-all duration-300">
+                    </div>
+
                     <!-- 📌 ส่วนกล่องแสดงผลสรุปรวมของตารางข้อมูลทั่วไป -->
                     <div id="table-total-count"
-                        class="hidden mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs text-gray-500 px-6 py-4 bg-white rounded-2xl border border-gray-200 shadow-sm gap-2 font-bold">
+                        class="hidden mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs text-gray-500 px-6 py-4 bg-white rounded-2xl border border-gray-200 shadow-sm gap-2 font-bold">
                         <div>จำนวนรายการทั้งหมด: <span id="display-total-rows"
                                 class="text-brandindigo text-sm font-black">0</span> รายการ</div>
                         <div id="display-total-days" class="hidden">รวมวันลาพักร้อน: <span id="sum-leave-days"
                                 class="text-brandindigo text-sm font-black">0</span> วัน</div>
                         <div id="display-total-amount" class="hidden">รวมงบประมาณที่ขอ: <span id="sum-budget-amount"
                                 class="text-brandindigo text-sm font-black">0</span></div>
-                    </div>
-
-                    <div id="card-wrapper"
-                        class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-4 transition-all duration-300">
                     </div>
                 </div>
 
@@ -4676,6 +4740,21 @@
                             <div
                                 class="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-gray-100 relative z-10 w-full">
 
+                                <!-- Manual ID input & Record Button (ย้ายมาไว้บนสุด) -->
+                                <form onsubmit="handleManualScan(event)"
+                                    class="flex w-full rounded-2xl overflow-hidden border border-gray-200 focus-within:border-brandindigo focus-within:ring-4 focus-within:ring-indigo-50 transition-all bg-white p-1.5 shadow-sm mb-6">
+                                    <div class="pl-4 pr-3 flex items-center text-gray-400">
+                                        <i class="fa-regular fa-id-card text-lg"></i>
+                                    </div>
+                                    <input type="text" id="manualEmpId" placeholder="EMPLOYEE ID (E.G. EMP001)" required
+                                        oninput="loadTodayAttendance()" onchange="loadTodayAttendance()"
+                                        class="border-0 bg-transparent text-gray-900 focus:ring-0 block w-full p-2 uppercase text-xs md:text-sm font-bold tracking-widest placeholder-gray-400">
+                                    <button type="submit" id="scan-submit-btn"
+                                        class="bg-brandpurple hover:bg-purple-700 text-white px-6 md:px-8 py-2.5 rounded-xl font-bold text-xs md:text-sm whitespace-nowrap transition-all flex items-center gap-2 shadow-md">
+                                        Record <i class="fa-solid fa-check-circle text-white/80"></i>
+                                    </button>
+                                </form>
+
                                 <div class="grid grid-cols-2 gap-4 mb-6">
                                     <label class="cursor-pointer w-full group relative">
                                         <input type="radio" name="scanType" value="IN" class="peer hidden" checked
@@ -4702,7 +4781,7 @@
                                 <span id="scan-status-note" class=""></span>
 
                                 <div id="gps-status"
-                                    class="bg-gray-50 rounded-2xl border border-gray-200 flex flex-col h-[280px] mb-6 relative overflow-hidden">
+                                    class="bg-gray-50 rounded-2xl border border-gray-200 flex flex-col h-[280px] relative overflow-hidden">
                                     <div
                                         class="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100 shrink-0">
                                         <p
@@ -4716,20 +4795,6 @@
                                     </div>
                                     <div id="map" class="w-full flex-1 relative z-10"></div>
                                 </div>
-
-                                <form onsubmit="handleManualScan(event)"
-                                    class="flex w-full rounded-2xl overflow-hidden border border-gray-200 focus-within:border-brandindigo focus-within:ring-4 focus-within:ring-indigo-50 transition-all bg-white p-1.5 shadow-sm mt-2">
-                                    <div class="pl-4 pr-3 flex items-center text-gray-400">
-                                        <i class="fa-regular fa-id-card text-lg"></i>
-                                    </div>
-                                    <input type="text" id="manualEmpId" placeholder="EMPLOYEE ID (E.G. EMP001)" required
-                                        oninput="loadTodayAttendance()" onchange="loadTodayAttendance()"
-                                        class="border-0 bg-transparent text-gray-900 focus:ring-0 block w-full p-2 uppercase text-xs md:text-sm font-bold tracking-widest placeholder-gray-400">
-                                    <button type="submit" id="scan-submit-btn"
-                                        class="bg-brandpurple hover:bg-purple-700 text-white px-6 md:px-8 py-2.5 rounded-xl font-bold text-xs md:text-sm whitespace-nowrap transition-all flex items-center gap-2">
-                                        Record <i class="fa-solid fa-check-circle text-white/80"></i>
-                                    </button>
-                                </form>
 
                             </div>
                         </div>
@@ -6317,7 +6382,7 @@
                                 <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
                                     data-i18n="ot_15_label">ໂອທີ 1.5</label>
                                 <input type="number" id="payroll-ot-15" value="0" step="0.01"
-                                    oninput="calculatePayroll()"
+                                    oninput="markInputUserModified(this); calculatePayroll()"
                                     class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-gray-900 focus:ring-emerald-500">
                             </div>
                         </div>
@@ -6327,14 +6392,14 @@
                                 <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
                                     data-i18n="ot_25_label">ໂອທີ 2.5</label>
                                 <input type="number" id="payroll-ot-25" value="0" step="0.01"
-                                    oninput="calculatePayroll()"
+                                    oninput="markInputUserModified(this); calculatePayroll()"
                                     class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-gray-900 focus:ring-emerald-500">
                             </div>
                             <div>
                                 <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
                                     data-i18n="sales_bonus_label">ໂບນັດຍອດຂາຍ</label>
                                 <input type="number" id="payroll-sales-bonus" value="0" step="0.01"
-                                    oninput="calculatePayroll()"
+                                    oninput="markInputUserModified(this); calculatePayroll()"
                                     class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-emerald-700 focus:ring-emerald-500">
                             </div>
                         </div>
@@ -6344,14 +6409,14 @@
                                 <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
                                     data-i18n="special_bonus_label">ໂບນັດພິເສດ</label>
                                 <input type="number" id="payroll-special-bonus" value="0" step="0.01"
-                                    oninput="calculatePayroll()"
+                                    oninput="markInputUserModified(this); calculatePayroll()"
                                     class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-emerald-700 focus:ring-emerald-500">
                             </div>
                             <div>
                                 <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
                                     data-i18n="fuel_allowance_label">ຄ່ານ້ຳມັນລົດ</label>
                                 <input type="number" id="payroll-fuel-allowance" value="0" step="0.01"
-                                    oninput="calculatePayroll()"
+                                    oninput="markInputUserModified(this); calculatePayroll()"
                                     class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-gray-900 focus:ring-emerald-500">
                             </div>
                         </div>
@@ -6361,14 +6426,14 @@
                                 <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
                                     data-i18n="annual_bonus_label">ໂບນັດປະຈຳປີ</label>
                                 <input type="number" id="payroll-annual-bonus" value="0" step="0.01"
-                                    oninput="calculatePayroll()"
+                                    oninput="markInputUserModified(this); calculatePayroll()"
                                     class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-emerald-700 focus:ring-emerald-500">
                             </div>
                             <div>
                                 <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
                                     data-i18n="other_income_label">ລາຍໄດ້ອື່ນໆ</label>
                                 <input type="number" id="payroll-other-income" value="0" step="0.01"
-                                    oninput="calculatePayroll()"
+                                    oninput="markInputUserModified(this); calculatePayroll()"
                                     class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-gray-900 focus:ring-emerald-500">
                             </div>
                         </div>
@@ -6386,7 +6451,7 @@
                             <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
                                 data-i18n="absent_deduction_label">ຂາດງານບໍ່ມີເຫດຜົນ</label>
                             <input type="number" id="payroll-absent-deduction" value="0" step="0.01"
-                                oninput="calculatePayroll()"
+                                oninput="markInputUserModified(this); calculatePayroll()"
                                 class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-rose-700 focus:ring-rose-500">
                         </div>
 
@@ -6394,7 +6459,7 @@
                             <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
                                 data-i18n="rule_violation_label">ຜິດລະບຽບບໍລິສັດ</label>
                             <input type="number" id="payroll-rule-violation" value="0" step="0.01"
-                                oninput="calculatePayroll()"
+                                oninput="markInputUserModified(this); calculatePayroll()"
                                 class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-rose-700 focus:ring-rose-500">
                         </div>
 
@@ -6402,7 +6467,7 @@
                             <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
                                 data-i18n="welfare_deduction_label">ສວັດດີການຕ່າງໆ</label>
                             <input type="number" id="payroll-welfare-deduction" value="0" step="0.01"
-                                oninput="calculatePayroll()"
+                                oninput="markInputUserModified(this); calculatePayroll()"
                                 class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-rose-700 focus:ring-rose-500">
                         </div>
 
@@ -6410,7 +6475,7 @@
                             <label class="block text-[11px] font-bold text-gray-700 mb-0.5"
                                 data-i18n="other_expense_label">ລາຍຈ່າຍອື່ນໆ</label>
                             <input type="number" id="payroll-other-expense" value="0" step="0.01"
-                                oninput="calculatePayroll()"
+                                oninput="markInputUserModified(this); calculatePayroll()"
                                 class="w-full bg-white border border-gray-300 rounded-xl p-2 text-xs font-bold text-rose-700 focus:ring-rose-500">
                         </div>
                     </div>
@@ -6764,7 +6829,6 @@
     <div id="shift-settings-modal" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4 bg-gray-900/60"
         style="z-index:9999;" onclick="if(event.target === this) closeShiftSettingsModal()">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden animate-fadeInUp">
-
             <!-- Header -->
             <div
                 class="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-indigo-600 to-purple-600">
@@ -6896,20 +6960,182 @@
     </div>
     <!-- /Shift Settings Modal -->
 
+    <!-- ⚙️ OT Settings Modal (ตั้งค่าเงื่อนไขการให้ OT) -->
+    <div id="ot-settings-modal" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm"
+        style="z-index:9999;" onclick="if(event.target === this) closeOtSettingsModal()">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-xl flex flex-col overflow-hidden animate-fadeInUp border border-gray-100">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center text-white text-lg shadow-inner">
+                        <i class="fa-solid fa-business-time"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-extrabold text-white text-base tracking-wide" data-i18n="ot_settings_title">ตั้งค่าเงื่อนไขการให้ OT</h3>
+                        <p class="text-amber-100 text-xs mt-0.5" data-i18n="ot_settings_desc">กำหนดเงื่อนไข OT วันอาทิตย์ และการคำนวณล่วงเวลา</p>
+                    </div>
+                </div>
+                <button onclick="closeOtSettingsModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="overflow-y-auto max-h-[75vh] p-6 space-y-6">
+
+                <!-- 📌 SECTION 1: เงื่อนไข OT วันอาทิตย์ (Sunday OT Rules) -->
+                <div class="bg-amber-50/60 rounded-2xl p-5 border border-amber-200/80 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center text-sm font-black shadow-sm">
+                                <i class="fa-solid fa-sun"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-extrabold text-gray-900 text-sm" data-i18n="sunday_ot_rule">เงื่อนไข OT วันอาทิตย์ (Sunday OT)</h4>
+                                <p class="text-xs text-gray-500">เมื่อพนักงานมีการสแกนเข้างานในวันอาทิตย์</p>
+                            </div>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="ot-sunday-enable" class="sr-only peer" checked onchange="toggleSundayOtFields()">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                    </div>
+
+                    <div id="ot-sunday-fields" class="space-y-4 pt-2 border-t border-amber-200/60">
+                        <!-- เลือกรูปแบบการคำนวณ -->
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1.5">รูปแบบการคำนวณค่า OT วันอาทิตย์</label>
+                            <select id="ot-sunday-mode" onchange="onSundayModeChange()" class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-sm">
+                                <option value="hourly_multiplier">1. คำนวณตามชั่วโมงทำงาน x อัตราค่าจ้าง x ตัวคูณ (แนะนำ)</option>
+                                <option value="flat_per_day">2. เหมาจ่ายอัตราคงที่ต่อวัน (Flat Rate / Day)</option>
+                                <option value="flat_per_hour">3. เหมาจ่ายอัตราคงที่ต่อชั่วโมง (Flat Rate / Hour)</option>
+                            </select>
+                        </div>
+
+                        <!-- Mode 1: Multiplier -->
+                        <div id="ot-field-multiplier" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">ตัวคูณค่าล่วงเวลา (OT Multiplier)</label>
+                                <div class="relative">
+                                    <input type="number" step="0.1" id="ot-sunday-multiplier" value="2.0" class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 pl-3 pr-8 focus:ring-2 focus:ring-amber-500">
+                                    <span class="absolute right-3 top-2.5 text-xs text-gray-400 font-bold">เท่า</span>
+                                </div>
+                                <p class="text-[10px] text-gray-500 mt-1">เช่น 1.5x หรือ 2.0x ของค่าจ้างรายชั่วโมง</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">การนับชั่วโมงทำงาน</label>
+                                <select id="ot-sunday-hours-source" class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+                                    <option value="actual_worked">นับตามเวลาที่สแกนจริง (In-Out)</option>
+                                    <option value="shift_hours">นับเต็มกะเวลา (8 ชั่วโมง)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Mode 2: Flat per Day -->
+                        <div id="ot-field-flat-day" class="hidden">
+                            <label class="block text-xs font-bold text-gray-700 mb-1">จำนวนเงินเหมาจ่ายต่อวันอาทิตย์ (จำนวนเงิน/วัน)</label>
+                            <div class="relative">
+                                <input type="number" id="ot-sunday-flat-day" value="100000" class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 pl-3 pr-14 focus:ring-2 focus:ring-amber-500">
+                                <span class="absolute right-3 top-2.5 text-xs text-gray-400 font-bold">กีบ/บาท</span>
+                            </div>
+                        </div>
+
+                        <!-- Mode 3: Flat per Hour -->
+                        <div id="ot-field-flat-hour" class="hidden">
+                            <label class="block text-xs font-bold text-gray-700 mb-1">จำนวนเงินเหมาจ่ายต่อชั่วโมง (จำนวนเงิน/ชั่วโมง)</label>
+                            <div class="relative">
+                                <input type="number" id="ot-sunday-flat-hour" value="20000" class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 pl-3 pr-14 focus:ring-2 focus:ring-amber-500">
+                                <span class="absolute right-3 top-2.5 text-xs text-gray-400 font-bold">กีบ/บาท</span>
+                            </div>
+                        </div>
+
+                        <!-- เงื่อนไขทำงานขั้นต่ำ -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">เวลาทำงานขั้นต่ำในวันอาทิตย์</label>
+                                <div class="relative">
+                                    <input type="number" id="ot-sunday-min-mins" value="60" class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 pl-3 pr-12 focus:ring-2 focus:ring-amber-500">
+                                    <span class="absolute right-3 top-2.5 text-xs text-gray-400 font-bold">นาที</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">หากไม่มีเวลาสแกนออก (Check-Out)</label>
+                                <select id="ot-sunday-no-checkout" class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+                                    <option value="shift_hours">คิดให้ตามเวลากะ (8 ชั่วโมง)</option>
+                                    <option value="zero">ไม่คิด OT (ต้องสแกนออก)</option>
+                                    <option value="half_day">คิดให้ครึ่งวัน (4 ชั่วโมง)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 📌 SECTION 2: เงื่อนไข OT วันทำงานปกติ / อยู่ต่อหลังเลิกงาน (Weekday OT) -->
+                <div class="bg-gray-50 rounded-2xl p-5 border border-gray-200 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-black shadow-sm">
+                                <i class="fa-solid fa-clock"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-extrabold text-gray-900 text-sm">เงื่อนไข OT วันทำงานปกติ (Weekday Overtime)</h4>
+                                <p class="text-xs text-gray-500">คำนวณจากเวลาทำงานต่อหลังเลิกงานปกติ (Late Out)</p>
+                            </div>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="ot-weekday-enable" class="sr-only peer" onchange="toggleWeekdayOtFields()">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                    </div>
+
+                    <div id="ot-weekday-fields" class="hidden space-y-3 pt-2 border-t border-gray-200">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">ตัวคูณ OT วันปกติ (เช่น 1.5x)</label>
+                                <input type="number" step="0.1" id="ot-weekday-multiplier" value="1.5" class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">เริ่มคิด OT เมื่ออยู่ต่อเกิน</label>
+                                <div class="relative">
+                                    <input type="number" id="ot-weekday-min-mins" value="30" class="w-full bg-white border border-gray-300 text-gray-900 text-xs font-bold rounded-xl p-2.5 pl-3 pr-12 focus:ring-2 focus:ring-indigo-500">
+                                    <span class="absolute right-3 top-2.5 text-xs text-gray-400 font-bold">นาที</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Footer -->
+            <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50">
+                <button type="button" onclick="closeOtSettingsModal()" class="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-100 transition-all">
+                    ยกเลิก
+                </button>
+                <button type="button" onclick="saveOtSettings()" class="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-1.5">
+                    <i class="fa-solid fa-check"></i> บันทึกเงื่อนไข OT
+                </button>
+            </div>
+
+        </div>
+    </div>
+    <!-- /OT Settings Modal -->
+
     <!-- 📌 Script หลัก (แบ่งย่อยเพื่อประสิทธิภาพและความปลอดภัย) -->
-    <script src="js/i18n.js?v=20260824_16"></script>
-    <script src="js/utils.js?v=20260824_16"></script>
-    <script src="js/auth.js?v=20260824_16"></script>
-    <script src="js/navigation.js?v=20260824_16"></script>
-    <script src="js/api.js?v=20260824_16"></script>
-    <script src="js/dashboard.js?v=20260824_16"></script>
-    <script src="js/organization.js?v=20260824_16"></script>
-    <script src="js/employees.js?v=20260824_16"></script>
-    <script src="js/tables.js?v=20260824_16"></script>
-    <script src="js/forms.js?v=20260824_16"></script>
-    <script src="js/features.js?v=20260824_16"></script>
-    <script src="js/accounting.js?v=20260824_16"></script>
-    <script src="js/payroll.js?v=20260824_16"></script>
+    <script src="js/i18n.js?v=20260824_33"></script>
+    <script src="js/utils.js?v=20260824_33"></script>
+    <script src="js/auth.js?v=20260824_33"></script>
+    <script src="js/navigation.js?v=20260824_33"></script>
+    <script src="js/api.js?v=20260824_33"></script>
+    <script src="js/dashboard.js?v=20260824_33"></script>
+    <script src="js/organization.js?v=20260824_33"></script>
+    <script src="js/employees.js?v=20260824_33"></script>
+    <script src="js/tables.js?v=20260824_33"></script>
+    <script src="js/forms.js?v=20260824_33"></script>
+    <script src="js/features.js?v=20260824_33"></script>
+    <script src="js/accounting.js?v=20260824_33"></script>
+    <script src="js/payroll.js?v=20260824_33"></script>
 
 </body>
 
