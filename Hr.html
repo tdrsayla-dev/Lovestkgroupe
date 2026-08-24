@@ -3671,24 +3671,31 @@
 
                         try {
                             const rawAmtStr = String(document.getElementById('fb_amount').value || '').replace(/,/g, '').trim();
-                            const data = {
-                                member_id: document.getElementById('fb_member_id').value,
-                                campaign_name: document.getElementById('fb_campaign_name').value,
-                                amount: Number(rawAmtStr) || 0,
-                                currency: document.getElementById('fb_currency').value,
-                                status: 'Pending'
-                            };
-
+                            const todayISO = typeof getLocalDateISO === 'function' ? getLocalDateISO() : new Date().toISOString().slice(0, 10);
                             const bridge = window.SUPABASE_URL && window.SUPABASE_ANON_KEY ? createSupabaseBridge({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY }) : null;
                             if (!bridge) throw new Error("Supabase is not configured.");
 
                             if (editingFbId) {
-                                await bridge.updateRow('facebook_budget_requests', 'id', editingFbId, data);
+                                const updatePayload = {
+                                    member_id: document.getElementById('fb_member_id').value,
+                                    campaign_name: document.getElementById('fb_campaign_name').value,
+                                    amount: Number(rawAmtStr) || 0,
+                                    currency: document.getElementById('fb_currency').value
+                                };
+                                await bridge.updateRow('facebook_budget_requests', 'id', editingFbId, updatePayload);
                                 editingFbId = null;
                                 if (typeof Swal !== 'undefined') Swal.fire('สำเร็จ', 'อัปเดตข้อมูลเบิกงบสำเร็จ', 'success');
                                 else alert('อัปเดตข้อมูลเบิกงบสำเร็จ');
                             } else {
-                                await bridge.insertRows('facebook_budget_requests', [data]);
+                                const newPayload = {
+                                    member_id: document.getElementById('fb_member_id').value,
+                                    campaign_name: document.getElementById('fb_campaign_name').value,
+                                    amount: Number(rawAmtStr) || 0,
+                                    currency: document.getElementById('fb_currency').value,
+                                    request_date: todayISO,
+                                    status: 'Pending'
+                                };
+                                await bridge.insertRows('facebook_budget_requests', [newPayload]);
                                 if (typeof Swal !== 'undefined') Swal.fire('สำเร็จ', 'บันทึกข้อมูลเบิกงบสำเร็จ', 'success');
                                 else alert('บันทึกข้อมูลเบิกงบสำเร็จ');
                             }
@@ -3969,25 +3976,29 @@
                                     const cleanName = String(prodName || '').trim().toUpperCase();
 
                                     if (Array.isArray(dbProductsList)) {
-                                        const found = dbProductsList.find(p => String(p.name || p.product_name || p.id || '').trim().toUpperCase() === cleanName);
+                                        const found = dbProductsList.find(p => 
+                                            String(p.name || p.product_name || p.id || '').trim().toUpperCase() === cleanName ||
+                                            String(p.category || '').trim().toUpperCase() === cleanName
+                                        );
                                         if (found) {
                                             const cat = String(found.category || '').trim();
-                                            const selfFee = Number(found.self_fee || 200000);
-                                            const l1Fee = Number(found.level_1_fee || 100000);
-                                            return { categoryKey: cat, categoryName: `หมวด ${cat}`, rate: selfFee, l1Rate: l1Fee };
+                                            const selfFee = Number(found.self_fee ?? found.selfFee ?? 250000);
+                                            const l1Fee = Number(found.level_1_fee ?? found.level1Fee ?? 200000);
+                                            const margin = Number(found.full_margin_amount ?? found.fullMarginAmount ?? 0);
+                                            return { categoryKey: cat, categoryName: `หมวด ${cat}`, rate: selfFee, l1Rate: l1Fee, full_margin_amount: margin };
                                         }
                                     }
 
                                     if (cleanName.includes('COFFEE') || cleanName.includes('ARABICA')) {
-                                        return { categoryKey: 'Coffee', categoryName: 'หมวด Coffee', rate: 20000, l1Rate: 10000 };
+                                        return { categoryKey: 'Coffee', categoryName: 'หมวด Coffee', rate: 20000, l1Rate: 10000, full_margin_amount: 0 };
                                     }
                                     if (cleanName.includes('SERUM') || cleanName.includes('SUNCREAM') || cleanName.includes('TONER') || cleanName.includes('CREAM') || cleanName.includes('APPLE') || cleanName.includes('ZINC')) {
-                                        return { categoryKey: 'Cosmetic', categoryName: 'หมวด Cosmetic', rate: 70000, l1Rate: 30000 };
+                                        return { categoryKey: 'Cosmetic', categoryName: 'หมวด Cosmetic', rate: 70000, l1Rate: 30000, full_margin_amount: 0 };
                                     }
                                     if (cleanName.includes('GLUTA') || cleanName.includes('COLLAGEN') || cleanName.includes('BALANCE') || cleanName.includes('KUT-SO') || cleanName.includes('LIPO') || cleanName.includes('LUTEIN') || cleanName.includes('ORYZA')) {
-                                        return { categoryKey: 'Supplement02', categoryName: 'หมวด Supplement 02', rate: 150000, l1Rate: 50000 };
+                                        return { categoryKey: 'Supplement02', categoryName: 'หมวด Supplement 02', rate: 150000, l1Rate: 50000, full_margin_amount: 0 };
                                     }
-                                    return { categoryKey: 'Supplement', categoryName: 'หมวด Supplement', rate: 200000, l1Rate: 100000 };
+                                    return { categoryKey: 'Supplement', categoryName: 'หมวด Supplement', rate: 250000, l1Rate: 200000, full_margin_amount: 0 };
                                 };
 
                                 (sales || []).forEach(s => {
@@ -4003,28 +4014,37 @@
                                     if (Array.isArray(itemsList) && itemsList.length > 0) {
                                         itemsList.forEach(it => {
                                             const q = Number(it.qty || it.quantity || 1);
+                                            const typeStr = String(it.type || '').trim();
                                             const pName = String(it.prod || it.productName || it.name || '').trim();
                                             const catInfo = getProductCategoryAndRate(pName, products);
 
-                                            // 1. Personal Sales LAK
-                                            salesMap[sellerId] += (q * catInfo.rate);
+                                            // Only count 'ราคาเต็ม' and 'ราคาสมาชิก' (exclude 'ราคาโปร', 'โปรโมชั่น', 'ราคาศูนย์', 'ราคาฟรี')
+                                            if (typeStr === 'ราคาเต็ม' || typeStr === 'ราคาสมาชิก' || (!typeStr && !pName.toUpperCase().includes('FREE') && !pName.toUpperCase().includes('PROMO'))) {
+                                                // 1. Personal Sales LAK
+                                                salesMap[sellerId] += (q * catInfo.rate);
 
-                                            // 2. Downline Team Sales Dividend LAK
-                                            Object.keys(downlineMap).forEach(uplineId => {
-                                                if (downlineMap[uplineId] && downlineMap[uplineId].has(sellerId)) {
-                                                    salesMap[uplineId] = (salesMap[uplineId] || 0) + (q * catInfo.l1Rate);
-                                                }
-                                            });
+                                                // 2. Downline Team Sales Dividend LAK
+                                                Object.keys(downlineMap).forEach(uplineId => {
+                                                    if (downlineMap[uplineId] && downlineMap[uplineId].has(sellerId)) {
+                                                        salesMap[uplineId] = (salesMap[uplineId] || 0) + (q * catInfo.l1Rate);
+                                                    }
+                                                });
+                                            }
                                         });
                                     } else {
-                                        const q = Number(s['ยอดรวมชิ้นทั้งหมด'] || 1);
+                                        const f = Number(s['รวมชิ้นราคาเต็ม'] || 0);
+                                        const m = Number(s['รวมชิ้นราคาสมาชิก'] || 0);
+                                        let validQty = f + m;
+                                        if (f === 0 && m === 0 && !s['รวมชิ้นราคาโปร'] && !s['รวมชิ้นราคาศูนย์']) {
+                                            validQty = Number(s['ยอดรวมชิ้นทั้งหมด'] || 1);
+                                        }
 
-                                        // Legacy records logic exactly like OrgChart.html
-                                        salesMap[sellerId] += (q * 200000);
+                                        // Legacy records logic
+                                        salesMap[sellerId] += (validQty * 250000);
 
                                         Object.keys(downlineMap).forEach(uplineId => {
                                             if (downlineMap[uplineId] && downlineMap[uplineId].has(sellerId)) {
-                                                salesMap[uplineId] = (salesMap[uplineId] || 0) + (q * 100000);
+                                                salesMap[uplineId] = (salesMap[uplineId] || 0) + (validQty * 200000);
                                             }
                                         });
                                     }
@@ -6685,19 +6705,19 @@
     <!-- /Shift Settings Modal -->
 
     <!-- 📌 Script หลัก (แบ่งย่อยเพื่อประสิทธิภาพและความปลอดภัย) -->
-    <script src="js/i18n.js?v=20260824_10"></script>
-    <script src="js/utils.js?v=20260824_10"></script>
-    <script src="js/auth.js?v=20260824_10"></script>
-    <script src="js/navigation.js?v=20260824_10"></script>
-    <script src="js/api.js?v=20260824_10"></script>
-    <script src="js/dashboard.js?v=20260824_10"></script>
-    <script src="js/organization.js?v=20260824_10"></script>
-    <script src="js/employees.js?v=20260824_10"></script>
-    <script src="js/tables.js?v=20260824_10"></script>
-    <script src="js/forms.js?v=20260824_10"></script>
-    <script src="js/features.js?v=20260824_10"></script>
-    <script src="js/accounting.js?v=20260824_10"></script>
-    <script src="js/payroll.js?v=20260824_10"></script>
+    <script src="js/i18n.js?v=20260824_12"></script>
+    <script src="js/utils.js?v=20260824_12"></script>
+    <script src="js/auth.js?v=20260824_12"></script>
+    <script src="js/navigation.js?v=20260824_12"></script>
+    <script src="js/api.js?v=20260824_12"></script>
+    <script src="js/dashboard.js?v=20260824_12"></script>
+    <script src="js/organization.js?v=20260824_12"></script>
+    <script src="js/employees.js?v=20260824_12"></script>
+    <script src="js/tables.js?v=20260824_12"></script>
+    <script src="js/forms.js?v=20260824_12"></script>
+    <script src="js/features.js?v=20260824_12"></script>
+    <script src="js/accounting.js?v=20260824_12"></script>
+    <script src="js/payroll.js?v=20260824_12"></script>
 
 </body>
 
