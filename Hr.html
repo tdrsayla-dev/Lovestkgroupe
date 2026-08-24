@@ -73,7 +73,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <!-- Load Configuration -->
-    <script src="config.js"></script>
+    <script src="config.js?v=20260824_06"></script>
     <link rel="stylesheet" href="style.css">
     <script>
         function createSupabaseBridge({ url, anonKey, accessToken = null }) {
@@ -127,14 +127,35 @@
                 url,
                 anonKey,
                 async getTableData(table, { select = "*", filter = "" } = {}) {
-                    let url = `/rest/v1/${table}?select=${encodeURIComponent(select)}`;
+                    let baseUrl = `/rest/v1/${table}?select=${encodeURIComponent(select)}`;
                     if (filter) {
-                        url += `&${filter}`;
+                        baseUrl += `&${filter}`;
+                        return request(baseUrl, {
+                            method: "GET",
+                            extraHeaders: { Prefer: "return=representation" },
+                        });
                     }
-                    return request(url, {
-                        method: "GET",
-                        extraHeaders: { Prefer: "return=representation" },
-                    });
+
+                    // Auto-pagination to bypass PostgREST 1000-row limit
+                    let allRows = [];
+                    let from = 0;
+                    const pageSize = 1000;
+                    while (true) {
+                        const to = from + pageSize - 1;
+                        const rows = await request(baseUrl, {
+                            method: "GET",
+                            extraHeaders: {
+                                Prefer: "return=representation",
+                                "Range-Unit": "items",
+                                "Range": `${from}-${to}`
+                            },
+                        });
+                        if (!Array.isArray(rows) || rows.length === 0) break;
+                        allRows = allRows.concat(rows);
+                        if (rows.length < pageSize) break;
+                        from += pageSize;
+                    }
+                    return allRows;
                 },
                 async insertRows(table, rows, options = {}) {
                     let preferStr = options.upsert ? "resolution=merge-duplicates,return=representation" : "return=representation";
@@ -463,8 +484,9 @@
 
                                 // ตรวจสอบการเรียกข้อมูลตารางจาก Cache เพื่อหลีกเลี่ยงการเชื่อมต่อเน็ตบ่อยครั้ง
                                 if (prop === 'getSheetData') {
-                                    const sheetName = args[0];
-                                    const force = args[1] === true;
+                                    const sheetName = String(args[0] || '');
+                                    const isAttendance = (sheetName === 'Fingerprint_Logs' || sheetName === 'fingerprint_logs');
+                                    const force = args[1] === true || isAttendance;
                                     if (window.tableCache && window.tableCache[sheetName] && !force) {
                                         const cached = window.tableCache[sheetName];
                                         const res = { success: true, headers: cached.headers, data: cached.data };
@@ -612,7 +634,8 @@
             if (method === 'getSheetData') {
                 const sheetName = String(args[0] || '');
                 const table = TABLE_MAP[sheetName] || TABLE_MAP[sheetName.trim()] || sheetName;
-                const forceRefresh = args[1] === true;
+                const isAttendance = (sheetName === 'Fingerprint_Logs' || sheetName === 'fingerprint_logs' || table === 'fingerprint_logs');
+                const forceRefresh = args[1] === true || isAttendance;
 
                 if (window.tableQueryCache && window.tableQueryCache[table] && !forceRefresh) {
                     return window.tableQueryCache[table];
@@ -822,6 +845,9 @@
                                 const targetPk = matched.Log_ID || matched.log_id || matched.id;
                                 cleanPayload.Log_ID = targetPk;
                                 const updated = await bridge.updateRow('fingerprint_logs', getKeyForTable('fingerprint_logs'), targetPk, cleanPayload);
+                                if (window.tableQueryCache) { delete window.tableQueryCache['fingerprint_logs']; delete window.tableQueryCache['Fingerprint_Logs']; }
+                                if (window.tableCache) { delete window.tableCache['fingerprint_logs']; delete window.tableCache['Fingerprint_Logs']; }
+                                if (typeof tableCache !== 'undefined') { delete tableCache['fingerprint_logs']; delete tableCache['Fingerprint_Logs']; }
                                 return { success: true, data: updated };
                             }
                         } catch (upsertErr) {
@@ -830,10 +856,14 @@
                     }
 
                     const inserted = await bridge.insertRows('fingerprint_logs', [cleanPayload]);
+                    if (window.tableQueryCache) { delete window.tableQueryCache['fingerprint_logs']; delete window.tableQueryCache['Fingerprint_Logs']; }
+                    if (window.tableCache) { delete window.tableCache['fingerprint_logs']; delete window.tableCache['Fingerprint_Logs']; }
+                    if (typeof tableCache !== 'undefined') { delete tableCache['fingerprint_logs']; delete tableCache['Fingerprint_Logs']; }
                     return { success: true, data: inserted };
                 }
 
                 const res = await bridge.insertRows(table, [payload]);
+                if (window.tableQueryCache) { delete window.tableQueryCache[table]; delete window.tableQueryCache[sheetName]; }
                 return { success: true, data: res };
             }
 
@@ -971,6 +1001,9 @@
                                 const targetPk = matched.Log_ID || matched.log_id || matched.id;
                                 cleanPayload.Log_ID = targetPk;
                                 const updated = await bridge.updateRow('fingerprint_logs', getKeyForTable('fingerprint_logs'), targetPk, cleanPayload);
+                                if (window.tableQueryCache) { delete window.tableQueryCache['fingerprint_logs']; delete window.tableQueryCache['Fingerprint_Logs']; }
+                                if (window.tableCache) { delete window.tableCache['fingerprint_logs']; delete window.tableCache['Fingerprint_Logs']; }
+                                if (typeof tableCache !== 'undefined') { delete tableCache['fingerprint_logs']; delete tableCache['Fingerprint_Logs']; }
                                 return { success: true, data: updated };
                             }
                         } catch (upsertErr) {
@@ -979,6 +1012,9 @@
                     }
 
                     const inserted = await bridge.insertRows('fingerprint_logs', [cleanPayload]);
+                    if (window.tableQueryCache) { delete window.tableQueryCache['fingerprint_logs']; delete window.tableQueryCache['Fingerprint_Logs']; }
+                    if (window.tableCache) { delete window.tableCache['fingerprint_logs']; delete window.tableCache['Fingerprint_Logs']; }
+                    if (typeof tableCache !== 'undefined') { delete tableCache['fingerprint_logs']; delete tableCache['Fingerprint_Logs']; }
                     return { success: true, data: inserted };
                 }
 
@@ -1190,13 +1226,10 @@
             if (method === 'getTodayAttendance') {
                 const empId = String(args[0] || '').trim().toUpperCase();
                 const now = new Date();
-                const offset = now.getTimezoneOffset() * 60000;
-                const today = (new Date(now.getTime() - offset)).toISOString().slice(0, 10);
-                // 🛠️ กรองที่ server ด้วย employee_id + date แทนการดึงทั้งตารางมากรองเอง
-                // เดิม comment บอกว่า "avoid server-filter 400 errors" — เกิดจากใช้ชื่อคอลัมน์ผิด case
-                // (Employee_ID แทนที่จะเป็น employee_id ตัวเล็กตามชื่อจริงใน DB) ไม่ใช่ตัว filter เสีย
-                // ถ้า filter server-side พลาดด้วยเหตุผลอะไรก็ตาม จะ fallback ไปดึงทั้งตารางแบบเดิมทันที
-                // เพื่อไม่ให้ระบบสแกนเข้า-ออกงานพังไปด้วย
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const today = `${year}-${month}-${day}`;
                 let rows;
                 try {
                     rows = await bridge.getTableData('fingerprint_logs', {
@@ -1210,32 +1243,85 @@
                             filter: `employee_id=eq.${encodeURIComponent(empId)}&date=eq.${today}`
                         });
                     } catch (e) {
-                        rows = await bridge.getTableData('fingerprint_logs', { select: '*' });
+                        try {
+                            rows = await bridge.getTableData('fingerprint_logs', { select: '*' });
+                        } catch (errAll) {
+                            rows = [];
+                        }
                     }
                 }
-                const row = (rows || []).find(r =>
-                    String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === empId &&
-                    String(r.Date || r.log_date || r.date || '').slice(0, 10) === today
-                );
+                const row = (rows || []).find(r => {
+                    const rEmp = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').trim().toUpperCase();
+                    if (rEmp !== empId) return false;
+                    const rDate = String(r.Date || r.log_date || r.date || '').trim();
+                    if (!rDate) return false;
+                    if (rDate.slice(0, 10) === today || rDate.startsWith(today)) return true;
+                    const parts = today.split('-');
+                    const thFormat = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                    if (rDate.includes(thFormat)) return true;
+                    const parsed = typeof parseDateStr === 'function' ? parseDateStr(rDate) : new Date(rDate);
+                    if (parsed && !isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === today) return true;
+                    return false;
+                });
                 if (!row) return { success: true, data: { checkIn: '-', checkOut: '-', status: '-' } };
-                const checkIn = row.Check_In ?? row.check_in ?? '-';
-                const checkOut = row.Check_Out ?? row.check_out ?? '-';
+                const checkIn = row.Check_In ?? row.check_in ?? row['เวลาเข้า'] ?? '-';
+                const checkOut = row.Check_Out ?? row.check_out ?? row['เวลาออก'] ?? '-';
                 const status = row.Attendance_Status ?? row.attendance_status ?? row.status ?? '-';
                 return { success: true, data: { checkIn: checkIn || '-', checkOut: checkOut || '-', status: status || '-' } };
             }
 
             if (method === 'recordAttendance') {
-                const [empId, scanType] = args;
-                const formattedEmpId = String(empId).trim().toUpperCase();
+                const [empId, scanType, lat, lng, finalLocation] = args;
+                const formattedEmpId = String(empId || '').trim().toUpperCase();
 
-                // Date/time (timezone-aware for Thailand UTC+7)
+                if (!formattedEmpId) {
+                    return { success: false, message: 'กรุณาระบุรหัสพนักงาน (Employee ID)' };
+                }
+
+                // Date/time format
                 const now = new Date();
-                const offset = now.getTimezoneOffset() * 60000;
-                const todayStr = (new Date(now.getTime() - offset)).toISOString().slice(0, 10);
-                const timeStr = now.toTimeString().slice(0, 5); // "HH:MM"
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const todayStr = `${year}-${month}-${day}`;
+                const hours = String(now.getHours()).padStart(2, '0');
+                const mins = String(now.getMinutes()).padStart(2, '0');
+                const timeStr = `${hours}:${mins}`;
+
+                // Helper to invalidate all caches for attendance across window, local, and query caches
+                const invalidateAttendanceCaches = () => {
+                    if (window.tableQueryCache) {
+                        delete window.tableQueryCache['fingerprint_logs'];
+                        delete window.tableQueryCache['Fingerprint_Logs'];
+                    }
+                    if (window.tableCache) {
+                        delete window.tableCache['fingerprint_logs'];
+                        delete window.tableCache['Fingerprint_Logs'];
+                    }
+                    if (typeof tableCache !== 'undefined') {
+                        delete tableCache['fingerprint_logs'];
+                        delete tableCache['Fingerprint_Logs'];
+                    }
+                };
+
+                // Determine employee's assigned shift
+                let shiftStart = '09:00';
+                let shiftEnd = '17:00';
+                try {
+                    const assignments = JSON.parse(localStorage.getItem('hr_shift_assignments') || '{}');
+                    const configs = JSON.parse(localStorage.getItem('hr_shift_configs') || '[]');
+                    const shiftId = assignments[formattedEmpId];
+                    if (shiftId && Array.isArray(configs)) {
+                        const cfg = configs.find(c => c.id === shiftId || c.start === shiftId);
+                        if (cfg) {
+                            shiftStart = cfg.start || '09:00';
+                            shiftEnd = cfg.end || '17:00';
+                        }
+                    }
+                } catch (e) { }
 
                 // Fetch today's log for this employee
-                let allLogs;
+                let allLogs = [];
                 try {
                     allLogs = await bridge.getTableData('fingerprint_logs', {
                         select: '*',
@@ -1248,30 +1334,74 @@
                             filter: `employee_id=eq.${encodeURIComponent(formattedEmpId)}&date=eq.${todayStr}`
                         });
                     } catch (e) {
-                        allLogs = await bridge.getTableData('fingerprint_logs', { select: '*' });
+                        try {
+                            allLogs = await bridge.getTableData('fingerprint_logs', { select: '*' });
+                        } catch (errAll) {
+                            allLogs = [];
+                        }
                     }
                 }
-                const existingLog = (allLogs || []).find(r =>
-                    String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === formattedEmpId &&
-                    String(r.Date || r.log_date || r.date || '').slice(0, 10) === todayStr
-                ) || null;
+                const existingLog = (allLogs || []).find(r => {
+                    const rEmp = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').trim().toUpperCase();
+                    if (rEmp !== formattedEmpId) return false;
+                    const rDate = String(r.Date || r.log_date || r.date || '').trim();
+                    if (!rDate) return false;
+                    if (rDate.slice(0, 10) === todayStr || rDate.startsWith(todayStr)) return true;
+                    const parts = todayStr.split('-');
+                    const thFormat = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                    if (rDate.includes(thFormat)) return true;
+                    const parsed = typeof parseDateStr === 'function' ? parseDateStr(rDate) : new Date(rDate);
+                    if (parsed && !isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === todayStr) return true;
+                    return false;
+                }) || null;
 
-                // ── กฎ: CHECK-IN ──────────────────────────────────────────
+                // ── กฎ: CHECK-IN (จำกัด 1 ครั้งต่อวัน) ─────────────────────
                 if (scanType === 'IN') {
-                    // ห้าม Check-IN ซ้ำในวันเดียวกัน
-                    if (existingLog && (existingLog['Check_In'] || existingLog['check_in'])) {
-                        const existingTime = existingLog['Check_In'] || existingLog['check_in'];
-                        return { success: false, message: `⚠️ คุณได้ Check-In แล้วในวันนี้ เวลา ${existingTime} น. (1 ครั้ง/วัน เท่านั้น)` };
+                    if (existingLog && (existingLog['Check_In'] || existingLog['check_in']) && (existingLog['Check_In'] !== '-' && existingLog['check_in'] !== '-')) {
+                        const prevIn = existingLog['Check_In'] || existingLog['check_in'];
+                        return { success: false, message: `คุณได้ทำการ Check-In ของวันนี้ไปแล้วเมื่อเวลา ${prevIn} น. (จำกัด 1 ครั้งต่อวัน)` };
                     }
 
+                    // Calculate late hours
+                    let lateHours = 0;
+                    try {
+                        const [inH, inM] = timeStr.split(':').map(Number);
+                        const [sH, sM] = shiftStart.split(':').map(Number);
+                        const inMins = inH * 60 + inM;
+                        const sMins = sH * 60 + sM;
+                        if (inMins > sMins) {
+                            lateHours = parseFloat(((inMins - sMins) / 60).toFixed(2));
+                        }
+                    } catch (e) { }
+                    const attendanceStatus = lateHours > 0 ? 'Late' : 'Present';
+
                     if (existingLog) {
-                        // มี record แต่ยังไม่ได้ check-in (กรณีพิเศษ) — update
                         const pkVal = existingLog['Log_ID'] || existingLog['log_id'] || existingLog['id'];
-                        const res = await bridge.updateRow('fingerprint_logs', 'Log_ID', pkVal, {
+                        let res;
+                        const updatePayload = {
                             'Check_In': timeStr,
-                            'Attendance_Status': 'Present'
-                        });
-                        return { success: true, data: res };
+                            'Attendance_Status': attendanceStatus,
+                            'Late_Hours': lateHours
+                        };
+                        try {
+                            res = await bridge.updateRow('fingerprint_logs', 'Log_ID', pkVal, updatePayload);
+                        } catch (upErr) {
+                            try {
+                                res = await bridge.updateRow('fingerprint_logs', 'log_id', pkVal, {
+                                    'check_in': timeStr,
+                                    'attendance_status': attendanceStatus,
+                                    'late_hours': lateHours
+                                });
+                            } catch (upErr2) {
+                                res = await bridge.updateRow('fingerprint_logs', 'id', existingLog.id || pkVal, {
+                                    'check_in': timeStr,
+                                    'attendance_status': attendanceStatus,
+                                    'late_hours': lateHours
+                                });
+                            }
+                        }
+                        invalidateAttendanceCaches();
+                        return { success: true, data: res, message: `Check-In สำเร็จ (${timeStr} น.)` };
                     } else {
                         // INSERT new row
                         const logId = 'LOG-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
@@ -1280,54 +1410,186 @@
                             let staffList;
                             try {
                                 staffList = await bridge.getTableData('staff', {
-                                    select: 'employee_id,first_name,last_name',
-                                    filter: `employee_id=eq.${encodeURIComponent(formattedEmpId)}`
+                                    select: 'Employee_ID,First_Name,Last_Name',
+                                    filter: `Employee_ID=eq.${encodeURIComponent(formattedEmpId)}`
                                 });
                             } catch (filterErr) {
-                                console.warn('[recordAttendance name lookup] staff filter failed, falling back:', filterErr);
                                 staffList = await bridge.getTableData('staff', { select: '*' });
                             }
-                            const s = (staffList || []).find(r => String(r.employee_id || '').trim().toUpperCase() === formattedEmpId);
-                            if (s) fullName = `${s.first_name || ''} ${s.last_name || ''}`.trim() || formattedEmpId;
+                            const s = (staffList || []).find(r => String(r.employee_id || r.Employee_ID || '').trim().toUpperCase() === formattedEmpId);
+                            if (s) {
+                                const fName = s.First_Name || s.first_name || '';
+                                const lName = s.Last_Name || s.last_name || '';
+                                fullName = `${fName} ${lName}`.trim() || formattedEmpId;
+                            }
                         } catch (e) { /* ignore */ }
 
-                        const newRow = {
+                        const newRowPascal = {
                             'Log_ID': logId,
                             'Employee_ID': formattedEmpId,
                             'Full_Name': fullName,
                             'Date': todayStr,
-                            'Shift_Start': '09:00',
-                            'Shift_End': '17:00',
+                            'Shift_Start': shiftStart,
+                            'Shift_End': shiftEnd,
                             'Check_In': timeStr,
                             'Check_Out': '',
-                            'Attendance_Status': 'Present',
-                            'Late_Hours': '0',
-                            'Early_Leave_Hours': '0',
-                            'OT_Amount': '0'
+                            'Attendance_Status': attendanceStatus,
+                            'Late_Hours': lateHours,
+                            'Early_Leave_Hours': 0,
+                            'OT_Amount': 0
                         };
-                        const res = await bridge.insertRows('fingerprint_logs', [newRow]);
-                        return { success: true, data: res };
+
+                        let res;
+                        try {
+                            res = await bridge.insertRows('fingerprint_logs', [newRowPascal]);
+                        } catch (insErr) {
+                            const newRowLower = {
+                                'log_id': logId,
+                                'employee_id': formattedEmpId,
+                                'full_name': fullName,
+                                'date': todayStr,
+                                'shift_start': shiftStart,
+                                'shift_end': shiftEnd,
+                                'check_in': timeStr,
+                                'check_out': '',
+                                'attendance_status': attendanceStatus,
+                                'late_hours': lateHours,
+                                'early_leave_hours': 0,
+                                'ot_amount': 0
+                            };
+                            res = await bridge.insertRows('fingerprint_logs', [newRowLower]);
+                        }
+                        invalidateAttendanceCaches();
+                        return { success: true, data: res, message: `Check-In สำเร็จ (${timeStr} น.)` };
                     }
                 }
 
-                // ── กฎ: CHECK-OUT ─────────────────────────────────────────
+                // ── กฎ: CHECK-OUT (จำกัด 1 ครั้งต่อวัน) ────────────────────
                 if (scanType === 'OUT') {
-                    // ต้องมี Check-In ก่อน
-                    if (!existingLog || !(existingLog['Check_In'] || existingLog['check_in'])) {
-                        return { success: false, message: `⚠️ ยังไม่ได้ Check-In ในวันนี้ กรุณา Check-In ก่อน` };
+                    if (existingLog && (existingLog['Check_Out'] || existingLog['check_out']) && (existingLog['Check_Out'] !== '-' && existingLog['check_out'] !== '-')) {
+                        const prevOut = existingLog['Check_Out'] || existingLog['check_out'];
+                        return { success: false, message: `คุณได้ทำการ Check-Out ของวันนี้ไปแล้วเมื่อเวลา ${prevOut} น. (จำกัด 1 ครั้งต่อวัน)` };
                     }
-                    // ห้าม Check-Out ซ้ำ
-                    if (existingLog['Check_Out'] || existingLog['check_out']) {
-                        const existingTime = existingLog['Check_Out'] || existingLog['check_out'];
-                        return { success: false, message: `⚠️ คุณได้ Check-Out แล้วในวันนี้ เวลา ${existingTime} น.` };
+                    // Calculate early leave / OT
+                    const sEnd = (existingLog && (existingLog['Shift_End'] || existingLog['shift_end'])) || shiftEnd;
+                    const sStart = (existingLog && (existingLog['Shift_Start'] || existingLog['shift_start'])) || shiftStart;
+                    const checkInTime = (existingLog && (existingLog['Check_In'] || existingLog['check_in'])) || '';
+                    let earlyLeaveHours = 0;
+                    let lateHours = (existingLog && parseFloat(existingLog['Late_Hours'] || existingLog['late_hours'] || 0)) || 0;
+
+                    try {
+                        const [outH, outM] = timeStr.split(':').map(Number);
+                        const [eH, eM] = sEnd.split(':').map(Number);
+                        const outMins = outH * 60 + outM;
+                        const eMins = eH * 60 + eM;
+                        if (outMins < eMins) {
+                            earlyLeaveHours = parseFloat(((eMins - outMins) / 60).toFixed(2));
+                        }
+                    } catch (e) { }
+
+                    if (!lateHours && checkInTime && checkInTime !== '-') {
+                        try {
+                            const [ciH, ciM] = checkInTime.split(':').map(Number);
+                            const [stH, stM] = sStart.split(':').map(Number);
+                            const ciMins = ciH * 60 + ciM;
+                            const stMins = stH * 60 + stM;
+                            if (ciMins > stMins) {
+                                lateHours = parseFloat(((ciMins - stMins) / 60).toFixed(2));
+                            }
+                        } catch (e) { }
                     }
 
-                    // UPDATE — บันทึก Check-Out
-                    const pkVal = existingLog['Log_ID'] || existingLog['log_id'] || existingLog['id'];
-                    const res = await bridge.updateRow('fingerprint_logs', 'Log_ID', pkVal, {
-                        'Check_Out': timeStr
-                    });
-                    return { success: true, data: res };
+                    if (existingLog) {
+                        // UPDATE — บันทึก Check-Out
+                        const pkVal = existingLog['Log_ID'] || existingLog['log_id'] || existingLog['id'];
+                        let res;
+                        const checkOutPayload = {
+                            'Check_Out': timeStr,
+                            'Early_Leave_Hours': earlyLeaveHours,
+                            'Late_Hours': lateHours,
+                            'Attendance_Status': lateHours > 0 ? 'Late' : 'Present'
+                        };
+                        try {
+                            res = await bridge.updateRow('fingerprint_logs', 'Log_ID', pkVal, checkOutPayload);
+                        } catch (upErr) {
+                            try {
+                                res = await bridge.updateRow('fingerprint_logs', 'log_id', pkVal, {
+                                    'check_out': timeStr,
+                                    'early_leave_hours': earlyLeaveHours,
+                                    'late_hours': lateHours,
+                                    'attendance_status': lateHours > 0 ? 'Late' : 'Present'
+                                });
+                            } catch (upErr2) {
+                                res = await bridge.updateRow('fingerprint_logs', 'id', existingLog.id || pkVal, {
+                                    'check_out': timeStr,
+                                    'early_leave_hours': earlyLeaveHours,
+                                    'late_hours': lateHours,
+                                    'attendance_status': lateHours > 0 ? 'Late' : 'Present'
+                                });
+                            }
+                        }
+                        invalidateAttendanceCaches();
+                        return { success: true, data: res, message: `Check-Out สำเร็จ (${timeStr} น.)` };
+                    } else {
+                        // ไม่เคย Check-In แต่กด Check-Out เลย -> Insert แถวใหม่
+                        const logId = 'LOG-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
+                        let fullName = formattedEmpId;
+                        try {
+                            let staffList;
+                            try {
+                                staffList = await bridge.getTableData('staff', {
+                                    select: 'Employee_ID,First_Name,Last_Name',
+                                    filter: `Employee_ID=eq.${encodeURIComponent(formattedEmpId)}`
+                                });
+                            } catch (filterErr) {
+                                staffList = await bridge.getTableData('staff', { select: '*' });
+                            }
+                            const s = (staffList || []).find(r => String(r.employee_id || r.Employee_ID || '').trim().toUpperCase() === formattedEmpId);
+                            if (s) {
+                                const fName = s.First_Name || s.first_name || '';
+                                const lName = s.Last_Name || s.last_name || '';
+                                fullName = `${fName} ${lName}`.trim() || formattedEmpId;
+                            }
+                        } catch (e) { /* ignore */ }
+
+                        const newRowPascal = {
+                            'Log_ID': logId,
+                            'Employee_ID': formattedEmpId,
+                            'Full_Name': fullName,
+                            'Date': todayStr,
+                            'Shift_Start': shiftStart,
+                            'Shift_End': shiftEnd,
+                            'Check_In': '-',
+                            'Check_Out': timeStr,
+                            'Attendance_Status': 'Present',
+                            'Late_Hours': 0,
+                            'Early_Leave_Hours': earlyLeaveHours,
+                            'OT_Amount': 0
+                        };
+
+                        let res;
+                        try {
+                            res = await bridge.insertRows('fingerprint_logs', [newRowPascal]);
+                        } catch (insErr) {
+                            const newRowLower = {
+                                'log_id': logId,
+                                'employee_id': formattedEmpId,
+                                'full_name': fullName,
+                                'date': todayStr,
+                                'shift_start': shiftStart,
+                                'shift_end': shiftEnd,
+                                'check_in': '-',
+                                'check_out': timeStr,
+                                'attendance_status': 'Present',
+                                'late_hours': 0,
+                                'early_leave_hours': earlyLeaveHours,
+                                'ot_amount': 0
+                            };
+                            res = await bridge.insertRows('fingerprint_logs', [newRowLower]);
+                        }
+                        invalidateAttendanceCaches();
+                        return { success: true, data: res, message: `Check-Out สำเร็จ (${timeStr} น.)` };
+                    }
                 }
 
                 return { success: false, message: 'Invalid scan type.' };
@@ -4249,6 +4511,7 @@
                                         <i class="fa-regular fa-id-card text-lg"></i>
                                     </div>
                                     <input type="text" id="manualEmpId" placeholder="EMPLOYEE ID (E.G. EMP001)" required
+                                        oninput="loadTodayAttendance()" onchange="loadTodayAttendance()"
                                         class="border-0 bg-transparent text-gray-900 focus:ring-0 block w-full p-2 uppercase text-xs md:text-sm font-bold tracking-widest placeholder-gray-400">
                                     <button type="submit" id="scan-submit-btn"
                                         class="bg-brandpurple hover:bg-purple-700 text-white px-6 md:px-8 py-2.5 rounded-xl font-bold text-xs md:text-sm whitespace-nowrap transition-all flex items-center gap-2">
@@ -6422,19 +6685,19 @@
     <!-- /Shift Settings Modal -->
 
     <!-- 📌 Script หลัก (แบ่งย่อยเพื่อประสิทธิภาพและความปลอดภัย) -->
-    <script src="js/i18n.js"></script>
-    <script src="js/utils.js"></script>
-    <script src="js/auth.js"></script>
-    <script src="js/navigation.js"></script>
-    <script src="js/api.js"></script>
-    <script src="js/dashboard.js"></script>
-    <script src="js/organization.js"></script>
-    <script src="js/employees.js?v=2"></script>
-    <script src="js/tables.js?v=2"></script>
-    <script src="js/forms.js?v=2"></script>
-    <script src="js/features.js"></script>
-    <script src="js/accounting.js"></script>
-    <script src="js/payroll.js"></script>
+    <script src="js/i18n.js?v=20260824_10"></script>
+    <script src="js/utils.js?v=20260824_10"></script>
+    <script src="js/auth.js?v=20260824_10"></script>
+    <script src="js/navigation.js?v=20260824_10"></script>
+    <script src="js/api.js?v=20260824_10"></script>
+    <script src="js/dashboard.js?v=20260824_10"></script>
+    <script src="js/organization.js?v=20260824_10"></script>
+    <script src="js/employees.js?v=20260824_10"></script>
+    <script src="js/tables.js?v=20260824_10"></script>
+    <script src="js/forms.js?v=20260824_10"></script>
+    <script src="js/features.js?v=20260824_10"></script>
+    <script src="js/accounting.js?v=20260824_10"></script>
+    <script src="js/payroll.js?v=20260824_10"></script>
 
 </body>
 
