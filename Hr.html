@@ -3095,16 +3095,37 @@
                         </div>
                     </div>
 
+                    <!-- 🏢 Attendance Department Navigation Bar (Top Hero Bar) -->
+                    <div id="attendance-dept-banner" class="hidden mb-5 bg-white/90 backdrop-blur-md border border-indigo-100/90 rounded-2xl p-3.5 shadow-sm shadow-indigo-100/50">
+                        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                            <div class="flex items-center gap-2.5 px-1 text-gray-800 font-black text-xs shrink-0">
+                                <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-brandindigo to-brandpurple text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
+                                    <i class="fa-solid fa-building-user text-sm"></i>
+                                </div>
+                                <div>
+                                    <div class="text-[13px] font-black text-gray-900 tracking-tight" data-i18n="dept_tab_title">แผนก (Department)</div>
+                                    <div class="text-[10px] font-semibold text-gray-400">เลือกแผนกเพื่อกรองข้อมูลและพิมพ์รายงาน</div>
+                                </div>
+                            </div>
+                            <div id="attendance-dept-tabs-container"
+                                class="flex items-center gap-2 overflow-x-auto custom-scrollbar py-1 w-full lg:w-auto flex-1 justify-start lg:justify-end">
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- 📌 ส่วนของปฏิทิน -->
                     <div id="calendar-section" class="hidden mb-6 glass-card rounded-2xl p-5 lg:p-8">
                         <div class="space-y-4 mb-6">
                             <!-- Header Row 1: Section Title + Primary Action Buttons -->
                             <div
-                                class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-gray-100">
-                                <h3 class="text-base font-bold text-gray-900 flex items-center gap-3 tracking-wide"><i
-                                        class="fa-regular fa-calendar-days text-brandindigo text-lg"></i> <span
-                                        data-i18n="attendance_calendar">Attendance Calendar</span></h3>
-                                <div class="flex items-center gap-2 flex-wrap">
+                                class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3.5 pb-3 border-b border-gray-100">
+                                <div class="flex items-center gap-3 shrink-0">
+                                    <h3 class="text-base font-bold text-gray-900 flex items-center gap-3 tracking-wide"><i
+                                            class="fa-regular fa-calendar-days text-brandindigo text-lg"></i> <span
+                                            data-i18n="attendance_calendar">Attendance Calendar</span></h3>
+                                </div>
+
+                                <div class="flex items-center gap-2 flex-wrap shrink-0">
                                     <button id="btn-attendance-excel" onclick="exportToExcel('Fingerprint_Logs')"
                                         title="Export Excel"
                                         class="bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm">
@@ -7123,19 +7144,19 @@
     <!-- /OT Settings Modal -->
 
     <!-- 📌 Script หลัก (แบ่งย่อยเพื่อประสิทธิภาพและความปลอดภัย) -->
-    <script src="js/i18n.js?v=20260824_33"></script>
-    <script src="js/utils.js?v=20260824_33"></script>
-    <script src="js/auth.js?v=20260824_33"></script>
-    <script src="js/navigation.js?v=20260824_33"></script>
-    <script src="js/api.js?v=20260824_33"></script>
-    <script src="js/dashboard.js?v=20260824_33"></script>
-    <script src="js/organization.js?v=20260824_33"></script>
-    <script src="js/employees.js?v=20260824_33"></script>
-    <script src="js/tables.js?v=20260824_33"></script>
-    <script src="js/forms.js?v=20260824_33"></script>
-    <script src="js/features.js?v=20260824_33"></script>
-    <script src="js/accounting.js?v=20260824_33"></script>
-    <script src="js/payroll.js?v=20260824_33"></script>
+    <script src="js/i18n.js?v=20260825_06"></script>
+    <script src="js/utils.js?v=20260825_06"></script>
+    <script src="js/auth.js?v=20260825_06"></script>
+    <script src="js/navigation.js?v=20260825_06"></script>
+    <script src="js/api.js?v=20260825_06"></script>
+    <script src="js/dashboard.js?v=20260825_06"></script>
+    <script src="js/organization.js?v=20260825_06"></script>
+    <script src="js/employees.js?v=20260825_06"></script>
+    <script src="js/tables.js?v=20260825_06"></script>
+    <script src="js/forms.js?v=20260825_06"></script>
+    <script src="js/features.js?v=20260825_06"></script>
+    <script src="js/accounting.js?v=20260825_06"></script>
+    <script src="js/payroll.js?v=20260825_06"></script>
 
 </body>
 
