@@ -538,131 +538,131 @@ function generatePayslipHTML(d) {
     const currUnit = tr('currency_unit', 'ກີບ');
 
     return `
-        <div class="payslip-container bg-white p-6 md:p-8 rounded-2xl border border-gray-400 shadow-md text-gray-900 font-sans max-w-3xl mx-auto space-y-4">
+        <div class="payslip-container bg-white p-6 md:p-8 rounded-2xl border-0 shadow-none text-gray-900 font-sans max-w-3xl mx-auto space-y-4">
             <!-- Official Header -->
-            <div class="text-center space-y-1">
-                <div class="text-xs font-serif font-bold tracking-wide text-gray-800">${tr('lao_header_country', 'ສາທາລະນະລັດ ປະຊາທິປະໄຕ ປະຊາຊົນລາວ')}</div>
-                <div class="text-[11px] font-serif text-gray-700">${tr('lao_header_motto', 'ສັນຕິພາບ ເອກະລາດ ປະຊາທິປະໄຕ ເອກະພາບ ວັດທະນະຖາວອນ')}</div>
-                <h2 class="text-xl font-black text-gray-900 tracking-wider pt-2 uppercase">${tr('payslip_title', 'ໃບຈ່າຍເງິນເດືອນ')}</h2>
+            <div class="text-center space-y-1 pb-1">
+                <div class="text-sm font-serif font-bold tracking-wide text-gray-900 leading-snug">${tr('lao_header_country', 'ສາທາລະນະລັດ ປະຊາທິປະໄຕ ປະຊາຊົນລາວ')}</div>
+                <div class="text-xs font-serif text-gray-700 font-medium">${tr('lao_header_motto', 'ສັນຕິພາບ ເອກະລາດ ປະຊາທິປະໄຕ ເອກະພາບ ວັດທະນະຖາວອນ')}</div>
+                <h2 class="text-2xl font-black text-gray-900 tracking-wider pt-2 uppercase">${tr('payslip_title', 'ໃບຈ່າຍເງິນເດືອນ')}</h2>
             </div>
 
             <!-- Employee & Account Info Bar -->
-            <div class="flex flex-wrap justify-between items-center text-xs font-semibold pt-2 border-t border-gray-100">
+            <div class="flex flex-wrap justify-between items-center text-sm font-semibold py-2.5 px-1 border-t border-b border-gray-300">
                 <div>
                     <span class="text-gray-600">${tr('full_name_label', 'ຊື່ ແລະ ນາມສະກຸນ')}:</span> 
-                    <strong class="text-gray-900 text-sm font-bold ml-1 uppercase">${d.empName}</strong>
+                    <strong class="text-gray-900 text-base font-black ml-1 uppercase">${d.empName}</strong>
                 </div>
                 <div>
                     <span class="text-gray-600">${tr('bank_account_label', 'ເລກບັນຊີທະນາຄານ')}:</span> 
-                    <strong class="text-gray-900 font-bold ml-1">${d.bankAcc}</strong>
+                    <strong class="text-gray-900 text-sm font-bold ml-1">${d.bankAcc}</strong>
                 </div>
             </div>
 
             <!-- Main Payslip Table -->
-            <div class="border border-gray-900 rounded-lg overflow-hidden shadow-sm">
+            <div class="border-2 border-gray-900 rounded-xl overflow-hidden shadow-xs">
                 <table class="w-full text-xs border-collapse payslip-table">
                     <thead>
-                        <tr class="bg-gray-100 border-b border-gray-900 font-bold text-gray-900 text-center">
-                            <th class="p-2 border-r border-gray-900 text-left w-[28%]">${tr('payslip_earnings', 'ລາຍລະອຽດ')}</th>
-                            <th class="p-2 border-r border-gray-900 w-[12%]">${tr('payslip_qty', 'ຈຳນວນ')}</th>
-                            <th class="p-2 border-r border-gray-900 text-right w-[20%]">${tr('payslip_amount', 'ຈຳນວນເງິນ')}</th>
-                            <th class="p-2 border-r border-gray-900 text-left w-[25%]">${tr('payslip_deductions', 'ລາຍການຫັກ')}</th>
-                            <th class="p-2 text-right w-[15%]">${tr('payslip_amount', 'ຈຳນວນເງິນ')}</th>
+                        <tr class="bg-gray-100 border-b-2 border-gray-900 font-extrabold text-gray-900 text-center">
+                            <th class="py-2.5 px-3 border-r border-gray-900 text-left w-[28%] text-xs font-black uppercase">${tr('payslip_earnings', 'ລາຍລະອຽດ')}</th>
+                            <th class="py-2.5 px-2 border-r border-gray-900 w-[12%] text-xs font-black uppercase">${tr('payslip_qty', 'ຈຳນວນ')}</th>
+                            <th class="py-2.5 px-3 border-r border-gray-900 text-right w-[20%] text-xs font-black uppercase">${tr('payslip_amount', 'ຈຳນວນເງິນ')}</th>
+                            <th class="py-2.5 px-3 border-r border-gray-900 text-left w-[25%] text-xs font-black uppercase">${tr('payslip_deductions', 'ລາຍການຫັກ')}</th>
+                            <th class="py-2.5 px-3 text-right w-[15%] text-xs font-black uppercase">${tr('payslip_amount', 'ຈຳນວນເງິນ')}</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-400">
+                    <tbody class="divide-y divide-gray-300 text-[13px]">
                         <tr>
-                            <td class="p-2 border-r border-gray-900 font-bold text-gray-900">${tr('base_salary_label', 'ເງິນເດືອນພື້ນຖານ')}</td>
-                            <td class="p-2 border-r border-gray-900 text-center text-gray-400">-</td>
-                            <td class="p-2 border-r border-gray-900 text-right font-bold">${d.baseSalary ? formatCurrency(d.baseSalary) : '-'}</td>
-                            <td class="p-2 border-r border-gray-900 font-semibold text-rose-700">${tr('absent_deduction_label', 'ຂາດງານບໍ່ມີເຫດຜົນ')}</td>
-                            <td class="p-2 text-right font-semibold text-rose-700">${d.absentDeduction ? formatCurrency(d.absentDeduction) : '-'}</td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 font-bold text-gray-900">${tr('base_salary_label', 'ເງິນເດືອນພື້ນຖານ')}</td>
+                            <td class="py-2.5 px-2 border-r border-gray-900 text-center text-gray-400">-</td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 text-right font-bold">${d.baseSalary ? formatCurrency(d.baseSalary) : '-'}</td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 font-semibold text-rose-700">${tr('absent_deduction_label', 'ຂາດງານບໍ່ມີເຫດຜົນ')}</td>
+                            <td class="py-2.5 px-3 text-right font-semibold text-rose-700">${d.absentDeduction ? formatCurrency(d.absentDeduction) : '-'}</td>
                         </tr>
                         <tr>
-                            <td class="p-2 border-r border-gray-900 font-medium">${tr('ot_15_label', 'ໂອທີ 1.5')}</td>
-                            <td class="p-2 border-r border-gray-900 text-center text-gray-400">-</td>
-                            <td class="p-2 border-r border-gray-900 text-right font-semibold">${d.ot15 ? formatCurrency(d.ot15) : '-'}</td>
-                            <td class="p-2 border-r border-gray-900 font-semibold text-rose-700">${tr('rule_violation_label', 'ຜິດລະບຽບບໍລິສັດ')}</td>
-                            <td class="p-2 text-right font-semibold text-rose-700">${d.ruleViolation ? formatCurrency(d.ruleViolation) : '-'}</td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 font-medium">${tr('ot_15_label', 'ໂອທີ 1.5')}</td>
+                            <td class="py-2.5 px-2 border-r border-gray-900 text-center text-gray-400">-</td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 text-right font-semibold">${d.ot15 ? formatCurrency(d.ot15) : '-'}</td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 font-semibold text-rose-700">${tr('rule_violation_label', 'ຜິດລະບຽບບໍລິສັດ')}</td>
+                            <td class="py-2.5 px-3 text-right font-semibold text-rose-700">${d.ruleViolation ? formatCurrency(d.ruleViolation) : '-'}</td>
                         </tr>
                         <tr>
-                            <td class="p-2 border-r border-gray-900 font-medium">${tr('ot_25_label', 'ໂອທີ 2.5')}</td>
-                            <td class="p-2 border-r border-gray-900 text-center text-gray-400">-</td>
-                            <td class="p-2 border-r border-gray-900 text-right font-semibold">${d.ot25 ? formatCurrency(d.ot25) : '-'}</td>
-                            <td class="p-2 border-r border-gray-900 font-semibold text-rose-700">${tr('welfare_deduction_label', 'ສວັດດີການຕ່າງໆ')}</td>
-                            <td class="p-2 text-right font-semibold text-rose-700">${d.welfareDeduction ? formatCurrency(d.welfareDeduction) : '-'}</td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 font-medium">${tr('ot_25_label', 'ໂອທີ 2.5')}</td>
+                            <td class="py-2.5 px-2 border-r border-gray-900 text-center text-gray-400">-</td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 text-right font-semibold">${d.ot25 ? formatCurrency(d.ot25) : '-'}</td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 font-semibold text-rose-700">${tr('welfare_deduction_label', 'ສວັດດີການຕ່າງໆ')}</td>
+                            <td class="py-2.5 px-3 text-right font-semibold text-rose-700">${d.welfareDeduction ? formatCurrency(d.welfareDeduction) : '-'}</td>
                         </tr>
                         <tr>
-                            <td class="p-2 border-r border-gray-900 font-medium">${tr('sales_bonus_label', 'ໂບນັດຍອດຂາຍ')}</td>
-                            <td class="p-2 border-r border-gray-900 text-center text-gray-400">-</td>
-                            <td class="p-2 border-r border-gray-900 text-right font-semibold">${d.salesBonus ? formatCurrency(d.salesBonus) : '-'}</td>
-                            <td class="p-2 border-r border-gray-900 font-semibold text-rose-700">${tr('other_expense_label', 'ລາຍຈ່າຍອື່ນໆ')}</td>
-                            <td class="p-2 text-right font-semibold text-rose-700">${d.otherExpense ? formatCurrency(d.otherExpense) : '-'}</td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 font-medium">${tr('sales_bonus_label', 'ໂບນັດຍອດຂາຍ')}</td>
+                            <td class="py-2.5 px-2 border-r border-gray-900 text-center text-gray-400">-</td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 text-right font-semibold">${d.salesBonus ? formatCurrency(d.salesBonus) : '-'}</td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 font-semibold text-rose-700">${tr('other_expense_label', 'ລາຍຈ່າຍອື່ນໆ')}</td>
+                            <td class="py-2.5 px-3 text-right font-semibold text-rose-700">${d.otherExpense ? formatCurrency(d.otherExpense) : '-'}</td>
                         </tr>
                         <tr>
-                            <td class="p-2 border-r border-gray-900 font-medium">${tr('special_bonus_label', 'ໂບນັດພິເສດ')}</td>
-                            <td class="p-2 border-r border-gray-900 text-center text-gray-400">-</td>
-                            <td class="p-2 border-r border-gray-900 text-right font-semibold">${d.specialBonus ? formatCurrency(d.specialBonus) : '-'}</td>
-                            <td class="p-2 border-r border-gray-900 bg-gray-50"></td>
-                            <td class="p-2 bg-gray-50"></td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 font-medium">${tr('special_bonus_label', 'ໂບນັດພິເສດ')}</td>
+                            <td class="py-2.5 px-2 border-r border-gray-900 text-center text-gray-400">-</td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 text-right font-semibold">${d.specialBonus ? formatCurrency(d.specialBonus) : '-'}</td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 bg-gray-50/50"></td>
+                            <td class="py-2.5 px-3 bg-gray-50/50"></td>
                         </tr>
                         <tr>
-                            <td class="p-2 border-r border-gray-900 font-medium">${tr('fuel_allowance_label', 'ຄ່ານ້ຳມັນລົດ')}</td>
-                            <td class="p-2 border-r border-gray-900 text-center text-gray-400">-</td>
-                            <td class="p-2 border-r border-gray-900 text-right font-semibold">${d.fuelAllowance ? formatCurrency(d.fuelAllowance) : '-'}</td>
-                            <td class="p-2 border-r border-gray-900 bg-gray-50"></td>
-                            <td class="p-2 bg-gray-50"></td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 font-medium">${tr('fuel_allowance_label', 'ຄ່ານ້ຳມັນລົດ')}</td>
+                            <td class="py-2.5 px-2 border-r border-gray-900 text-center text-gray-400">-</td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 text-right font-semibold">${d.fuelAllowance ? formatCurrency(d.fuelAllowance) : '-'}</td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 bg-gray-50/50"></td>
+                            <td class="py-2.5 px-3 bg-gray-50/50"></td>
                         </tr>
                         <tr>
-                            <td class="p-2 border-r border-gray-900 font-medium">${tr('annual_bonus_label', 'ໂບນັດປະຈຳປີ')}</td>
-                            <td class="p-2 border-r border-gray-900 text-center text-gray-400">-</td>
-                            <td class="p-2 border-r border-gray-900 text-right font-semibold">${d.annualBonus ? formatCurrency(d.annualBonus) : '-'}</td>
-                            <td class="p-2 border-r border-gray-900 bg-gray-50"></td>
-                            <td class="p-2 bg-gray-50"></td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 font-medium">${tr('annual_bonus_label', 'ໂບນັດປະຈຳປີ')}</td>
+                            <td class="py-2.5 px-2 border-r border-gray-900 text-center text-gray-400">-</td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 text-right font-semibold">${d.annualBonus ? formatCurrency(d.annualBonus) : '-'}</td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 bg-gray-50/50"></td>
+                            <td class="py-2.5 px-3 bg-gray-50/50"></td>
                         </tr>
                         <tr>
-                            <td class="p-2 border-r border-gray-900 font-medium">${tr('other_income_label', 'ລາຍໄດ້ອື່ນໆ')}</td>
-                            <td class="p-2 border-r border-gray-900 text-center text-gray-400">-</td>
-                            <td class="p-2 border-r border-gray-900 text-right font-semibold">${d.otherIncome ? formatCurrency(d.otherIncome) : '-'}</td>
-                            <td class="p-2 border-r border-gray-900 bg-gray-50"></td>
-                            <td class="p-2 bg-gray-50"></td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 font-medium">${tr('other_income_label', 'ລາຍໄດ້ອື່ນໆ')}</td>
+                            <td class="py-2.5 px-2 border-r border-gray-900 text-center text-gray-400">-</td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 text-right font-semibold">${d.otherIncome ? formatCurrency(d.otherIncome) : '-'}</td>
+                            <td class="py-2.5 px-3 border-r border-gray-900 bg-gray-50/50"></td>
+                            <td class="py-2.5 px-3 bg-gray-50/50"></td>
                         </tr>
                         <tr class="bg-gray-100 font-bold border-t-2 border-gray-900">
-                            <td class="p-2 border-r border-gray-900 font-bold">${tr('payslip_total', 'ລວມ')}</td>
-                            <td class="p-2 border-r border-gray-900"></td>
-                            <td class="p-2 border-r border-gray-900 text-right text-emerald-800 font-black">${formatCurrency(d.totalEarnings)}</td>
-                            <td class="p-2 border-r border-gray-900 text-rose-800 font-bold">${tr('total_deductions_badge', 'ລວມລາຍການຫັກ')}</td>
-                            <td class="p-2 text-right text-rose-800 font-black">${formatCurrency(d.totalDeductions)}</td>
+                            <td class="py-3 px-3 border-r border-gray-900 font-black text-sm">${tr('payslip_total', 'ລວມ')}</td>
+                            <td class="py-3 px-2 border-r border-gray-900"></td>
+                            <td class="py-3 px-3 border-r border-gray-900 text-right text-emerald-800 font-black text-sm">${formatCurrency(d.totalEarnings)}</td>
+                            <td class="py-3 px-3 border-r border-gray-900 text-rose-800 font-black text-sm">${tr('total_deductions_badge', 'ລວມລາຍການຫັກ')}</td>
+                            <td class="py-3 px-3 text-right text-rose-800 font-black text-sm">${formatCurrency(d.totalDeductions)}</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
             <!-- Summary & Net Salary Layout -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 items-center">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5 pt-3 items-center">
                 <!-- Left: Rate & Date -->
-                <div class="space-y-1 text-xs font-medium">
-                    <div><span class="text-gray-600">${tr('payroll_date', 'ວັນທີຈ່າຍ')}:</span> <strong class="text-gray-900 font-bold">${d.payDate}</strong></div>
-                    <div><span class="text-gray-600">${tr('total_earnings_badge', 'ລວມລາຍໄດ້ທັງໝົດ')}:</span> <strong class="text-gray-900 font-bold">${formatCurrency(d.totalEarnings)} ${currUnit}</strong></div>
-                    <div><span class="text-gray-600">${tr('total_deductions_badge', 'ລວມລາຍການຫັກ')}:</span> <strong class="text-rose-700 font-bold">${formatCurrency(d.totalDeductions)} ${currUnit}</strong></div>
+                <div class="space-y-1.5 text-xs font-medium">
+                    <div><span class="text-gray-600">${tr('payroll_date', 'ວັນທີຈ່າຍ')}:</span> <strong class="text-gray-900 font-bold ml-1">${d.payDate}</strong></div>
+                    <div><span class="text-gray-600">${tr('total_earnings_badge', 'ລວມລາຍໄດ້ທັງໝົດ')}:</span> <strong class="text-emerald-700 font-bold ml-1">${formatCurrency(d.totalEarnings)} ${currUnit}</strong></div>
+                    <div><span class="text-gray-600">${tr('total_deductions_badge', 'ລວມລາຍການຫັກ')}:</span> <strong class="text-rose-700 font-bold ml-1">${formatCurrency(d.totalDeductions)} ${currUnit}</strong></div>
                 </div>
 
                 <!-- Right: Net Pay Box -->
-                <div class="border-2 border-gray-900 p-4 rounded-xl text-center bg-gray-50 space-y-0.5 shadow-sm">
+                <div class="border-2 border-gray-900 p-4 rounded-xl text-center bg-gray-50/80 space-y-1 shadow-xs">
                     <span class="text-xs font-bold uppercase tracking-wider text-gray-700 block">${tr('payslip_net_to_pay', 'ເງິນສຸດທິ')}</span>
-                    <div class="text-2xl font-black text-gray-900 tracking-tight">${formatCurrency(d.netSalary)} <span class="text-sm font-semibold">${currUnit}</span></div>
+                    <div class="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">${formatCurrency(d.netSalary)} <span class="text-sm font-bold">${currUnit}</span></div>
                 </div>
             </div>
 
             <!-- Signatures Section -->
-            <div class="grid grid-cols-2 gap-8 pt-10 text-center text-xs font-bold text-gray-900 border-t border-dashed border-gray-300 mt-4">
+            <div class="grid grid-cols-2 gap-10 pt-12 text-center text-xs font-bold text-gray-900 border-t border-dashed border-gray-300 mt-6">
                 <div class="flex flex-col items-center">
-                    <div class="w-56 border-b border-gray-800 mb-2 h-8"></div>
-                    <span>${tr('payslip_president', 'ປະທານ')} ${tr('company_name_label', 'ບໍລິສັດ LOVE STK')}</span>
+                    <div class="w-60 border-b-2 border-gray-900 mb-2.5 h-10"></div>
+                    <span class="text-[13px]">${tr('payslip_president', 'ປະທານ')} ${tr('company_name_label', 'ບໍລິສັດ LOVE STK')}</span>
                 </div>
                 <div class="flex flex-col items-center">
-                    <div class="w-56 border-b border-gray-800 mb-2 h-8"></div>
-                    <span>${tr('payslip_employee', 'ພະນັກງານ')} ${tr('company_name_label', 'ບໍລິສັດ LOVE STK')}</span>
+                    <div class="w-60 border-b-2 border-gray-900 mb-2.5 h-10"></div>
+                    <span class="text-[13px]">${tr('payslip_employee', 'ພະນັກງານ')} ${tr('company_name_label', 'ບໍລິສັດ LOVE STK')}</span>
                 </div>
             </div>
         </div>
@@ -780,11 +780,13 @@ function printPayslip() {
             <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;700;900&family=Kanit:wght@400;500;700;900&display=swap" rel="stylesheet">
             <style>
                 @page {
-                    size: auto;
-                    margin: 8mm;
+                    size: A4 portrait;
+                    margin: 10mm 15mm;
                 }
                 @media print {
-                    body {
+                    html, body {
+                        width: 100% !important;
+                        height: 100% !important;
                         padding: 0 !important;
                         margin: 0 !important;
                         background: white !important;
@@ -797,23 +799,35 @@ function printPayslip() {
                     #print-wrapper {
                         max-width: 100% !important;
                         width: 100% !important;
-                        margin: 0 !important;
+                        margin: 0 auto !important;
                         padding: 0 !important;
+                        border: none !important;
+                        box-shadow: none !important;
                     }
                     .payslip-container {
                         box-shadow: none !important;
-                        border: 1px solid #111827 !important;
-                        padding: 20px !important;
+                        border: none !important;
+                        outline: none !important;
+                        padding: 4mm 0 !important;
                         width: 100% !important;
                         max-width: 100% !important;
                         margin: 0 auto !important;
-                        page-break-inside: avoid;
+                        page-break-inside: avoid !important;
+                        page-break-after: avoid !important;
+                    }
+                    .payslip-table th, .payslip-table td {
+                        border-color: #111827 !important;
                     }
                 }
                 
                 body {
                     font-family: 'Noto Sans Lao', 'Kanit', sans-serif;
                     background-color: #ffffff;
+                }
+                #print-wrapper, .payslip-container {
+                    border: none !important;
+                    box-shadow: none !important;
+                    outline: none !important;
                 }
             </style>
         </head>
