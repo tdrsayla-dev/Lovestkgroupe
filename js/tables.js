@@ -88,21 +88,43 @@ function renderTable(data) {
         }
         summaryDiv.classList.remove('hidden');
         if (calSec) calSec.classList.remove('hidden');
+        const deptBanner = document.getElementById('attendance-dept-banner');
+        if (deptBanner) deptBanner.classList.remove('hidden');
         if (addDataBtn) addDataBtn.classList.add('hidden');
         if (searchWrapper) searchWrapper.classList.add('hidden');
 
-        let deptFilter = document.getElementById('attendance-dept-filter') ? document.getElementById('attendance-dept-filter').value : '';
-        if (deptFilter) {
+        // 🏢 Render Department Filter Tabs (แท็บแผนกอิงตามพะแนกตัวจริง Department)
+        if (typeof renderAttendanceDepartmentTabs === 'function') {
+            renderAttendanceDepartmentTabs();
+        }
+
+        // 🏢 Department Filter (อิงตามรหัสพนักงาน Employee ID Prefix และ Department ตัวจริง)
+        let deptFilter = window.activeAttendanceDept || (document.getElementById('attendance-dept-filter') ? document.getElementById('attendance-dept-filter').value : '') || 'all';
+        if (deptFilter && deptFilter !== 'all') {
             const staffCache = tableCache['staff'] || tableCache['Staff'];
-            const staffData = staffCache ? staffCache.data : [];
+            const staffData = (staffCache && Array.isArray(staffCache.data)) ? staffCache.data : [];
+            const staffMap = {};
+            staffData.forEach(s => {
+                let eId = String(s.employee_id || s.emp_id || s.Employee_ID || '').toUpperCase().trim();
+                if (eId) staffMap[eId] = s;
+            });
+
             data = data.filter(r => {
-                let eId = String(r.Employee_ID || r.Emp_ID).toUpperCase().trim();
-                let staffRow = staffData.find(s => String(s.employee_id || s.emp_id).toUpperCase().trim() === eId);
-                if (staffRow) {
-                    let staffDept = String(staffRow['department'] || staffRow['department_id'] || staffRow['แผนก'] || '').toLowerCase();
-                    return staffDept.includes(deptFilter.toLowerCase());
-                }
-                return false;
+                let eId = String(r.Employee_ID || r.employee_id || r.Emp_ID || r.emp_id || r['รหัสพนักงาน'] || '').toUpperCase().trim();
+                if (!eId) return false;
+                let deptInfo = (typeof getDepartmentByEmployeeId === 'function')
+                    ? getDepartmentByEmployeeId(eId, staffMap[eId])
+                    : null;
+                if (!deptInfo) return false;
+
+                let target = deptFilter.toLowerCase().trim();
+                return (
+                    deptInfo.id.toLowerCase() === target ||
+                    deptInfo.name.toLowerCase() === target ||
+                    deptInfo.code.toLowerCase() === target ||
+                    (Array.isArray(deptInfo.prefix) && deptInfo.prefix.some(p => p.toLowerCase() === target)) ||
+                    (target.length > 2 && (deptInfo.name.toLowerCase().includes(target) || target.includes(deptInfo.name.toLowerCase())))
+                );
             });
         }
 
@@ -320,6 +342,10 @@ function renderTable(data) {
     } else {
         summaryDiv.classList.add('hidden');
         if (calSec) calSec.classList.add('hidden');
+        const deptBanner = document.getElementById('attendance-dept-banner');
+        if (deptBanner) deptBanner.classList.add('hidden');
+        const deptTabs = document.getElementById('attendance-dept-tabs-container');
+        if (deptTabs) deptTabs.classList.add('hidden');
         if (addDataBtn) {
             if (!canAdd) {
                 addDataBtn.classList.add('hidden');
@@ -1937,17 +1963,68 @@ function getActiveTableExportData() {
                 dataToExport = empLogs;
             }
         } else {
-            // ALL EMPLOYEES: Run fillMissingDays for every employee to ensure complete datasets
+            // ALL EMPLOYEES or DEPARTMENT FILTERED EMPLOYEES
+            const staffCache = tableCache['staff'] || tableCache['Staff'];
+            const staffData = (staffCache && Array.isArray(staffCache.data)) ? staffCache.data : [];
+            const staffMap = {};
+            staffData.forEach(s => {
+                let eId = String(s.employee_id || s.emp_id || s.Employee_ID || '').toUpperCase().trim();
+                if (eId) staffMap[eId] = s;
+            });
+
+            let deptFilter = window.activeAttendanceDept || (document.getElementById('attendance-dept-filter') ? document.getElementById('attendance-dept-filter').value : '') || 'all';
+
+            // Filter dataToExport by department first if active
+            if (deptFilter && deptFilter !== 'all') {
+                dataToExport = dataToExport.filter(r => {
+                    let eId = String(r.Employee_ID || r.employee_id || r.Emp_ID || r.emp_id || r['รหัสพนักงาน'] || '').toUpperCase().trim();
+                    if (!eId) return false;
+                    let deptInfo = (typeof getDepartmentByEmployeeId === 'function')
+                        ? getDepartmentByEmployeeId(eId, staffMap[eId])
+                        : null;
+                    if (!deptInfo) return false;
+
+                    let target = deptFilter.toLowerCase().trim();
+                    return (
+                        deptInfo.id.toLowerCase() === target ||
+                        deptInfo.name.toLowerCase() === target ||
+                        deptInfo.code.toLowerCase() === target ||
+                        (Array.isArray(deptInfo.prefix) && deptInfo.prefix.some(p => p.toLowerCase() === target)) ||
+                        (target.length > 2 && (deptInfo.name.toLowerCase().includes(target) || target.includes(deptInfo.name.toLowerCase())))
+                    );
+                });
+            }
+
             let empIdSet = new Set();
             dataToExport.forEach(r => {
                 const rEmp = String(r.Employee_ID || r.employee_id || r.Emp_ID || '').trim().toUpperCase();
                 if (rEmp) empIdSet.add(rEmp);
             });
 
-            if (tableCache['staff'] && Array.isArray(tableCache['staff'].data)) {
-                tableCache['staff'].data.forEach(s => {
+            if (staffData.length > 0) {
+                staffData.forEach(s => {
+                    let status = String(s.status || s.Status || s['สถานะ'] || 'Active').toLowerCase();
+                    if (status.includes('resign') || status.includes('inactive') || status.includes('ออก')) return;
+
                     const sEmp = String(s.employee_id || s.emp_id || s.Employee_ID || '').trim().toUpperCase();
-                    if (sEmp) empIdSet.add(sEmp);
+                    if (!sEmp) return;
+
+                    if (deptFilter && deptFilter !== 'all') {
+                        let deptInfo = (typeof getDepartmentByEmployeeId === 'function')
+                            ? getDepartmentByEmployeeId(sEmp, s)
+                            : null;
+                        if (!deptInfo) return;
+                        let target = deptFilter.toLowerCase().trim();
+                        let isMatch = (
+                            deptInfo.id.toLowerCase() === target ||
+                            deptInfo.name.toLowerCase() === target ||
+                            deptInfo.code.toLowerCase() === target ||
+                            (Array.isArray(deptInfo.prefix) && deptInfo.prefix.some(p => p.toLowerCase() === target)) ||
+                            (target.length > 2 && (deptInfo.name.toLowerCase().includes(target) || target.includes(deptInfo.name.toLowerCase())))
+                        );
+                        if (!isMatch) return;
+                    }
+                    empIdSet.add(sEmp);
                 });
             }
 
@@ -2172,6 +2249,19 @@ function openExportPreviewModal(type, targetSheetName = null) {
         empFilterStr = `พนักงานเฉพาะราย: ${calEmpInput.value.trim().toUpperCase()}`;
     } else if (searchInput && searchInput.value.trim() && currentSheet === 'Fingerprint_Logs') {
         empFilterStr = `พนักงานเฉพาะราย: ${searchInput.value.trim().toUpperCase()}`;
+    } else if (window.activeAttendanceDept && window.activeAttendanceDept !== 'all' && currentSheet === 'Fingerprint_Logs') {
+        const coreDepts = [
+            { id: 'DEPT-ULK0S', name: 'Housekeeper', code: 'HKP' },
+            { id: 'DEPT-9HQYN', name: 'Doctor', code: 'DMC' },
+            { id: 'DEPT-DQMTT', name: 'SOWROM', code: 'SR' },
+            { id: 'DEPT-VNIE2', name: 'Marketing', code: 'MT' },
+            { id: 'DEPT-CAX5G', name: 'MANAGER', code: 'M' },
+            { id: 'DEPT-Y646E', name: 'Project Manager', code: 'PM' },
+            { id: 'DEPT-MRIH7', name: 'CFO', code: 'CFO' }
+        ];
+        let found = coreDepts.find(d => d.id === window.activeAttendanceDept || d.name === window.activeAttendanceDept || d.code === window.activeAttendanceDept);
+        let deptDisplayName = found ? `${found.name} (${found.code})` : window.activeAttendanceDept;
+        empFilterStr = `แผนก (Department): ${deptDisplayName}`;
     }
 
     scopeText.innerText = empFilterStr;
@@ -2413,14 +2503,31 @@ function buildPDFReportHtml(data, sheetName) {
         </table>`;
     }
 
-    let globalScopeStr = empKeys.length === 1 ? `พนักงาน: ${empKeys[0]}` : `พนักงานทั้งหมด (${empKeys.length} คน)`;
+    let deptNameStr = '';
+    if (window.activeAttendanceDept && window.activeAttendanceDept !== 'all' && isAttendance) {
+        const coreDepts = [
+            { id: 'DEPT-ULK0S', name: 'Housekeeper', code: 'HKP' },
+            { id: 'DEPT-9HQYN', name: 'Doctor', code: 'DMC' },
+            { id: 'DEPT-DQMTT', name: 'SOWROM', code: 'SR' },
+            { id: 'DEPT-VNIE2', name: 'Marketing', code: 'MT' },
+            { id: 'DEPT-CAX5G', name: 'MANAGER', code: 'M' },
+            { id: 'DEPT-Y646E', name: 'Project Manager', code: 'PM' },
+            { id: 'DEPT-MRIH7', name: 'CFO', code: 'CFO' }
+        ];
+        let found = coreDepts.find(d => d.id === window.activeAttendanceDept || d.name === window.activeAttendanceDept || d.code === window.activeAttendanceDept);
+        deptNameStr = found ? `${found.name} (${found.code})` : window.activeAttendanceDept;
+    }
+
+    let globalScopeStr = empKeys.length === 1 
+        ? `พนักงาน: ${empKeys[0]}` 
+        : (deptNameStr ? `แผนก: ${deptNameStr} (${empKeys.length} คน)` : `พนักงานทุกแผนกทั้งหมด (${empKeys.length} คน)`);
 
     return `
     <div style="padding: 16px 20px; font-family: 'Prompt', 'Inter', sans-serif; color: #1e293b; background: #ffffff;">
         <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #4f46e5; padding-bottom: 10px; margin-bottom: 14px;">
             <div>
                 <h1 style="font-size: 18px; font-weight: 800; color: #3730a3; margin: 0; letter-spacing: -0.5px;">LOVE STK GROUPE</h1>
-                <p style="font-size: 11px; font-weight: 600; color: #64748b; margin: 2px 0 0 0;">รายงานสรุปประวัติการลงเวลาทำงานรายบุคคล (Individual Attendance & Performance Report)</p>
+                <p style="font-size: 11px; font-weight: 600; color: #64748b; margin: 2px 0 0 0;">รายงานสรุปประวัติการลงเวลาทำงานรายบุคคล (Individual Attendance & Performance Report)${deptNameStr ? ' - แผนก ' + deptNameStr : ''}</p>
             </div>
             <div style="text-align: right; font-size: 10px; color: #475569; line-height: 1.4;">
                 <div><strong>วันที่พิมพ์:</strong> ${todayStr}</div>
@@ -2455,6 +2562,23 @@ function performExcelExport(targetSheetName = null, data = null) {
 
     const isAttendance = (sheetName === 'Fingerprint_Logs' || currentSheet === 'Fingerprint_Logs');
 
+    let deptNameSuffix = '';
+    let deptTitleStr = '';
+    if (window.activeAttendanceDept && window.activeAttendanceDept !== 'all' && isAttendance) {
+        const coreDepts = [
+            { id: 'DEPT-ULK0S', name: 'Housekeeper', code: 'HKP' },
+            { id: 'DEPT-9HQYN', name: 'Doctor', code: 'DMC' },
+            { id: 'DEPT-DQMTT', name: 'SOWROM', code: 'SR' },
+            { id: 'DEPT-VNIE2', name: 'Marketing', code: 'MT' },
+            { id: 'DEPT-CAX5G', name: 'MANAGER', code: 'M' },
+            { id: 'DEPT-Y646E', name: 'Project Manager', code: 'PM' },
+            { id: 'DEPT-MRIH7', name: 'CFO', code: 'CFO' }
+        ];
+        let found = coreDepts.find(d => d.id === window.activeAttendanceDept || d.name === window.activeAttendanceDept || d.code === window.activeAttendanceDept);
+        deptNameSuffix = found ? `_${found.name}` : `_${window.activeAttendanceDept}`;
+        deptTitleStr = found ? ` แผนก ${found.name} (${found.code})` : ` แผนก ${window.activeAttendanceDept}`;
+    }
+
     const headers = currentHeaders || (exportData.length > 0 ? Object.keys(exportData[0]) : []);
     const cleanHeaders = headers.filter(h => {
         const lw = String(h).toLowerCase().trim();
@@ -2462,7 +2586,7 @@ function performExcelExport(targetSheetName = null, data = null) {
     });
 
     const dateStr = new Date().toISOString().slice(0, 10);
-    const filename = `${sheetName}_Report_${dateStr}.xlsx`;
+    const filename = `${sheetName}${deptNameSuffix}_Report_${dateStr}.xlsx`;
 
     if (typeof XLSX !== 'undefined') {
         try {
@@ -2470,7 +2594,7 @@ function performExcelExport(targetSheetName = null, data = null) {
 
             if (isAttendance) {
                 let aoaData = [
-                    [`LOVE STK GROUPE - รายงานสรุปประวัติการลงเวลาทำงานรายบุคคล`],
+                    [`LOVE STK GROUPE - รายงานสรุปประวัติการลงเวลาทำงานรายบุคคล${deptTitleStr}`],
                     [`วันที่พิมพ์: ${new Date().toLocaleDateString('th-TH')}`],
                     []
                 ];
@@ -3624,4 +3748,218 @@ window.setLeavePeriodMode = function (mode) {
         filterData();
     }
 };
+
+/* =====================================================================
+ * 🏢 Attendance Department Tabs Renderer & Filter System (Mapped by ID Prefix)
+ * ===================================================================== */
+window.activeAttendanceDept = window.activeAttendanceDept || 'all';
+
+function getDepartmentByEmployeeId(empId, staffRow = null) {
+    let cleanId = String(empId || '').toUpperCase().trim();
+    if (!cleanId) return null;
+
+    // 1. Direct Employee ID Prefix mapping (อิงตามรหัสพนักงานตามที่กำหนด)
+    if (cleanId.startsWith('DMC') || cleanId.startsWith('DM')) {
+        return { id: 'DEPT-9HQYN', name: 'Doctor', code: 'DMC', prefix: ['DMC', 'DM'], icon: 'fa-user-doctor' };
+    }
+    if (cleanId.startsWith('SR')) {
+        return { id: 'DEPT-DQMTT', name: 'SOWROM', code: 'SR', prefix: ['SR'], icon: 'fa-warehouse' };
+    }
+    if (cleanId.startsWith('PM')) {
+        return { id: 'DEPT-Y646E', name: 'Project Manager', code: 'PM', prefix: ['PM'], icon: 'fa-list-check' };
+    }
+    if (cleanId.startsWith('MT') || cleanId.startsWith('MKT')) {
+        return { id: 'DEPT-VNIE2', name: 'Marketing', code: 'MT', prefix: ['MT', 'MKT'], icon: 'fa-bullhorn' };
+    }
+    if (cleanId.startsWith('HKP') || cleanId.startsWith('HK')) {
+        return { id: 'DEPT-ULK0S', name: 'Housekeeper', code: 'HKP', prefix: ['HKP', 'HK'], icon: 'fa-broom' };
+    }
+    if (cleanId.startsWith('CFO') || cleanId.startsWith('CF')) {
+        return { id: 'DEPT-MRIH7', name: 'CFO', code: 'CFO', prefix: ['CFO', 'CF'], icon: 'fa-coins' };
+    }
+    if (/^M\d+/i.test(cleanId) || cleanId.startsWith('MGR') || cleanId.startsWith('MAN')) {
+        return { id: 'DEPT-CAX5G', name: 'MANAGER', code: 'M', prefix: ['M'], icon: 'fa-user-tie' };
+    }
+
+    // 2. Fallback to staffRow metadata
+    if (staffRow) {
+        let sDeptId = String(staffRow.Department_ID || staffRow.department_id || staffRow.department || staffRow['แผนก'] || staffRow['ພະແນກ'] || '').trim().toUpperCase();
+        let sDeptName = String(staffRow.department_name || staffRow.Department_Name || staffRow.department || '').trim().toLowerCase();
+
+        if (sDeptId.includes('9HQYN') || sDeptName.includes('doc') || sDeptId.includes('DOC') || sDeptName.includes('หมอ') || sDeptName.includes('ແພດ')) {
+            return { id: 'DEPT-9HQYN', name: 'Doctor', code: 'DMC', prefix: ['DMC', 'DM'], icon: 'fa-user-doctor' };
+        }
+        if (sDeptId.includes('DQMTT') || sDeptName.includes('sowrom') || sDeptId.includes('SR')) {
+            return { id: 'DEPT-DQMTT', name: 'SOWROM', code: 'SR', prefix: ['SR'], icon: 'fa-warehouse' };
+        }
+        if (sDeptId.includes('Y646E') || sDeptName.includes('project') || sDeptId.includes('PM')) {
+            return { id: 'DEPT-Y646E', name: 'Project Manager', code: 'PM', prefix: ['PM'], icon: 'fa-list-check' };
+        }
+        if (sDeptId.includes('VNIE2') || sDeptName.includes('market') || sDeptId.includes('MT') || sDeptName.includes('maket') || sDeptName.includes('การตลาด')) {
+            return { id: 'DEPT-VNIE2', name: 'Marketing', code: 'MT', prefix: ['MT', 'MKT'], icon: 'fa-bullhorn' };
+        }
+        if (sDeptId.includes('ULK0S') || sDeptName.includes('house') || sDeptId.includes('HK') || sDeptName.includes('แม่บ้าน') || sDeptName.includes('ແມ່ບ້ານ')) {
+            return { id: 'DEPT-ULK0S', name: 'Housekeeper', code: 'HKP', prefix: ['HKP', 'HK'], icon: 'fa-broom' };
+        }
+        if (sDeptId.includes('MRIH7') || sDeptName.includes('cfo') || sDeptId.includes('CF') || sDeptName.includes('การเงิน')) {
+            return { id: 'DEPT-MRIH7', name: 'CFO', code: 'CFO', prefix: ['CFO', 'CF'], icon: 'fa-coins' };
+        }
+        if (sDeptId.includes('CAX5G') || sDeptName.includes('manager') || sDeptId.includes('MGR') || sDeptName.includes('ผู้จัดการ')) {
+            return { id: 'DEPT-CAX5G', name: 'MANAGER', code: 'M', prefix: ['M'], icon: 'fa-user-tie' };
+        }
+    }
+
+    return null;
+}
+
+function renderAttendanceDepartmentTabs() {
+    const container = document.getElementById('attendance-dept-tabs-container');
+    const banner = document.getElementById('attendance-dept-banner');
+    if (!container) return;
+
+    if (typeof currentSheet === 'undefined' || currentSheet !== 'Fingerprint_Logs') {
+        container.innerHTML = '';
+        if (banner) banner.classList.add('hidden');
+        container.classList.add('hidden');
+        return;
+    }
+    if (banner) banner.classList.remove('hidden');
+    container.classList.remove('hidden');
+
+    // 1. Staff and Logs data
+    const staffCache = (typeof tableCache !== 'undefined') ? (tableCache['staff'] || tableCache['Staff']) : null;
+    const staffList = (staffCache && Array.isArray(staffCache.data)) ? staffCache.data : [];
+    const logList = (tableCache['Fingerprint_Logs'] && Array.isArray(tableCache['Fingerprint_Logs'].data)) ? tableCache['Fingerprint_Logs'].data : [];
+
+    // 2. Base Department configurations with exact prefixes
+    const coreDepts = [
+        { id: 'DEPT-ULK0S', name: 'Housekeeper', code: 'HKP', prefix: ['HKP', 'HK'], icon: 'fa-broom', staffCount: 0 },
+        { id: 'DEPT-9HQYN', name: 'Doctor', code: 'DMC', prefix: ['DMC', 'DM'], icon: 'fa-user-doctor', staffCount: 0 },
+        { id: 'DEPT-DQMTT', name: 'SOWROM', code: 'SR', prefix: ['SR'], icon: 'fa-warehouse', staffCount: 0 },
+        { id: 'DEPT-VNIE2', name: 'Marketing', code: 'MT', prefix: ['MT', 'MKT'], icon: 'fa-bullhorn', staffCount: 0 },
+        { id: 'DEPT-CAX5G', name: 'MANAGER', code: 'M', prefix: ['M'], icon: 'fa-user-tie', staffCount: 0 },
+        { id: 'DEPT-Y646E', name: 'Project Manager', code: 'PM', prefix: ['PM'], icon: 'fa-list-check', staffCount: 0 },
+        { id: 'DEPT-MRIH7', name: 'CFO', code: 'CFO', prefix: ['CFO', 'CF'], icon: 'fa-coins', staffCount: 0 }
+    ];
+
+    // Count employees in staffList
+    let totalActiveStaff = 0;
+    if (staffList.length > 0) {
+        staffList.forEach(s => {
+            let status = String(s.status || s.Status || s['สถานะ'] || 'Active').toLowerCase();
+            if (status.includes('resign') || status.includes('inactive') || status.includes('ออก')) return;
+            totalActiveStaff++;
+
+            let eId = String(s.employee_id || s.emp_id || s.Employee_ID || '').toUpperCase().trim();
+            let dept = getDepartmentByEmployeeId(eId, s);
+            if (dept) {
+                let match = coreDepts.find(d => d.id === dept.id || d.code === dept.code);
+                if (match) match.staffCount++;
+            }
+        });
+    } else {
+        // Count from logs unique employee IDs if staff table not loaded
+        const seenEmpIds = new Set();
+        logList.forEach(l => {
+            let eId = String(l.Employee_ID || l.employee_id || l.Emp_ID || '').toUpperCase().trim();
+            if (!eId || seenEmpIds.has(eId)) return;
+            seenEmpIds.add(eId);
+            totalActiveStaff++;
+            let dept = getDepartmentByEmployeeId(eId);
+            if (dept) {
+                let match = coreDepts.find(d => d.id === dept.id || d.code === dept.code);
+                if (match) match.staffCount++;
+            }
+        });
+    }
+
+    // 3. Generate Tabs HTML
+    const currentActive = window.activeAttendanceDept || 'all';
+    const isAllActive = (currentActive === 'all' || !currentActive);
+    let allLabel = (typeof t === 'function') ? (t('dept_all') || 'ທັງໝົດ') : 'ທັງໝົດ';
+
+    let html = `
+        <button type="button" onclick="setAttendanceDeptFilter('all')"
+            class="attendance-dept-tab group px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer transform hover:-translate-y-0.5 ${
+                isAllActive
+                    ? 'bg-gradient-to-r from-brandindigo via-indigo-600 to-brandpurple text-white shadow-md shadow-indigo-500/25 border border-indigo-400 ring-2 ring-indigo-300/40'
+                    : 'bg-slate-50/90 hover:bg-indigo-50/80 text-gray-700 hover:text-brandindigo border border-gray-200/90 hover:border-indigo-300 font-bold shadow-2xs'
+            }">
+            <i class="fa-solid fa-layer-group text-[12px] ${isAllActive ? 'text-indigo-200' : 'text-gray-400 group-hover:text-brandindigo'} transition-colors"></i>
+            <span>${allLabel} (All)</span>
+            <span class="${isAllActive ? 'bg-white/25 text-white' : 'bg-gray-200/80 group-hover:bg-indigo-100 text-gray-700 group-hover:text-indigo-800'} text-[10px] font-black px-2 py-0.5 rounded-full transition-colors">${totalActiveStaff}</span>
+        </button>
+    `;
+
+    coreDepts.forEach(dept => {
+        const isActive = (
+            currentActive === dept.id ||
+            currentActive === dept.name ||
+            currentActive === dept.code ||
+            currentActive.toLowerCase() === dept.id.toLowerCase() ||
+            currentActive.toLowerCase() === dept.name.toLowerCase() ||
+            currentActive.toLowerCase() === dept.code.toLowerCase()
+        );
+
+        const badgeStyle = isActive
+            ? 'bg-white/25 text-white'
+            : 'bg-indigo-50 group-hover:bg-indigo-100 text-indigo-700 group-hover:text-indigo-900';
+
+        const iconStyle = isActive
+            ? 'text-indigo-200'
+            : 'text-gray-400 group-hover:text-brandindigo';
+
+        html += `
+            <button type="button" onclick="setAttendanceDeptFilter('${dept.id}')"
+                title="${dept.name} (${dept.code} - ${dept.prefix.join('/')})"
+                class="attendance-dept-tab group px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer transform hover:-translate-y-0.5 ${
+                    isActive
+                        ? 'bg-gradient-to-r from-brandindigo via-indigo-600 to-brandpurple text-white shadow-md shadow-indigo-500/25 border border-indigo-400 ring-2 ring-indigo-300/40'
+                        : 'bg-slate-50/90 hover:bg-indigo-50/80 text-gray-700 hover:text-brandindigo border border-gray-200/90 hover:border-indigo-300 font-bold shadow-2xs'
+                }">
+                <i class="fa-solid ${dept.icon || 'fa-users'} text-[12px] ${iconStyle} transition-colors"></i>
+                <span>${dept.name}</span>
+                <span class="${badgeStyle} text-[10px] font-black px-2 py-0.5 rounded-full transition-colors">${dept.staffCount}</span>
+            </button>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+window.setAttendanceDeptFilter = function (deptId) {
+    window.activeAttendanceDept = deptId || 'all';
+
+    // Clear single-employee input for Admin/Manager to show full department records
+    const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+    let userRole = 'Staff';
+    if (sessionStr) {
+        try { userRole = JSON.parse(sessionStr).role || 'Staff'; } catch (e) {}
+    }
+    if (userRole !== 'Staff') {
+        const calEmpInput = document.getElementById('calendarEmpId');
+        if (calEmpInput) calEmpInput.value = '';
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) searchInput.value = '';
+    }
+
+    // Sync with hidden select if present
+    const sel = document.getElementById('attendance-dept-filter');
+    if (sel) sel.value = (deptId === 'all' ? '' : deptId);
+
+    // Update active tab buttons visual state
+    renderAttendanceDepartmentTabs();
+
+    // Re-render table data and summary stats
+    if (typeof renderTable === 'function' && typeof currentSheet !== 'undefined' && currentSheet === 'Fingerprint_Logs') {
+        const rawLogs = (tableCache['Fingerprint_Logs'] && Array.isArray(tableCache['Fingerprint_Logs'].data))
+            ? tableCache['Fingerprint_Logs'].data
+            : (window.rawData || []);
+        renderTable(rawLogs);
+    }
+};
+
+window.getDepartmentByEmployeeId = getDepartmentByEmployeeId;
+window.renderAttendanceDepartmentTabs = renderAttendanceDepartmentTabs;
+
 
