@@ -115,6 +115,12 @@
         
         const [searchAllData, setSearchAllData] = useState(''); 
         const [teamFilter, setTeamFilter] = useState('All');
+        const [currentPage, setCurrentPage] = useState(1);
+        const itemsPerPage = 50;
+        
+        useEffect(() => {
+           setCurrentPage(1);
+        }, [searchAllData, teamFilter]);
         
         const [editCustData, setEditCustData] = useState(null);
         const [isSubmitting, setIsSubmitting] = useState(false);
@@ -414,8 +420,21 @@
                 return (c.id && String(c.id).toLowerCase().includes(search)) || 
                        (c.name && String(c.name).toLowerCase().includes(search)) || 
                        (c.phone && String(c.phone).includes(search));
+            }).sort((a, b) => {
+              const idA = String(a.id || '').toUpperCase();
+              const idB = String(b.id || '').toUpperCase();
+              const numA = parseInt(idA.replace(/\D/g, ''), 10);
+              const numB = parseInt(idB.replace(/\D/g, ''), 10);
+              
+              if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
+                  return numA - numB;
+              }
+              return idA.localeCompare(idB);
             });
         }, [customers, teamFilter, members, searchAllData]);
+
+        const totalPages = Math.ceil(displayAllCustomers.length / itemsPerPage) || 1;
+        const currentCustomers = displayAllCustomers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
         const allDatabaseStats = useMemo(() => {
             const now = new Date(); const curMonthPrefix = getLocalISODate(now).substring(0, 7);
@@ -679,6 +698,7 @@
                                             <th className="p-4">ชื่อลูกค้า</th>
                                             <th className="p-4">เบอร์โทร</th>
                                             <th className="p-4">LINE ID</th>
+                                            {isAdmin && <th className="p-4">LINE UID</th>}
                                             <th className="p-4">ประเภท (เริ่มแรก)</th>
                                             <th className="p-4">อาการ</th>
                                             <th className="p-4">ผู้ปิดการขาย</th>
@@ -688,14 +708,19 @@
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 font-bold">
                                         {displayAllCustomers.length === 0 ? (
-                                            <tr><td colSpan="9" className="p-10 text-center text-slate-400 font-bold">ไม่พบข้อมูลลูกค้า</td></tr>
+                                            <tr><td colSpan={isAdmin ? "10" : "9"} className="p-10 text-center text-slate-400 font-bold">ไม่พบข้อมูลลูกค้า</td></tr>
                                         ) : (
-                                            displayAllCustomers.map(c => (
+                                            currentCustomers.map(c => (
                                                 <tr key={c.id} className="hover:bg-blue-50/50 transition-colors">
                                                     <td className="p-4 font-mono font-bold text-blue-600">{c.id}</td>
                                                     <td className="p-4 text-slate-800 font-black">{c.name}</td>
                                                     <td className="p-4 text-slate-600 font-mono">{c.phone || '-'}</td>
                                                     <td className="p-4 text-slate-600 font-mono">{c.lineId || '-'}</td>
+                                                    {isAdmin && (
+                                                        <td className="p-4 text-emerald-600 font-mono text-[10px] truncate max-w-[150px]">
+                                                            {c.lineUid || '-'}
+                                                        </td>
+                                                    )}
                                                     <td className="p-4">
                                                         {c.type ? (
                                                             <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md text-[11px] font-bold border border-blue-200/60">
@@ -718,6 +743,48 @@
                                     </tbody>
                                 </table>
                             </div>
+
+                            {/* Pagination Controls */}
+                            {totalPages > 1 && (
+                              <div className="flex items-center justify-center gap-2 p-6 bg-slate-50 border-t border-slate-100">
+                                <button 
+                                  disabled={currentPage === 1}
+                                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                  className="px-4 py-2 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  ก่อนหน้า
+                                </button>
+                                
+                                <div className="flex items-center gap-1 overflow-x-auto">
+                                  {[...Array(totalPages)].map((_, i) => {
+                                     const page = i + 1;
+                                     if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
+                                         return (
+                                           <button 
+                                             key={page}
+                                             onClick={() => setCurrentPage(page)}
+                                             className={`min-w-[36px] h-9 flex items-center justify-center rounded-xl text-sm font-bold transition-colors px-2 ${currentPage === page ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+                                           >
+                                             {page}
+                                           </button>
+                                         );
+                                     }
+                                     if (page === currentPage - 2 || page === currentPage + 2) {
+                                         return <span key={page} className="text-slate-400 px-1">...</span>;
+                                     }
+                                     return null;
+                                  })}
+                                </div>
+
+                                <button 
+                                  disabled={currentPage === totalPages}
+                                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                  className="px-4 py-2 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  ถัดไป
+                                </button>
+                              </div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -900,9 +967,11 @@
       const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
       const showToast = (message, type = 'success') => { setToast({ show: true, message, type }); };
 
+      const pagePerm = window.getUserPagePermission ? window.getUserPagePermission(currentUser, 'customers') : 'none';
       const isAdmin = currentUser && (
           String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
-          String(currentUser.role).trim().toLowerCase() === 'admin'
+          String(currentUser.role).trim().toLowerCase() === 'admin' ||
+          pagePerm === 'full'
       );
       const currentUserProfileUrl = currentUser?.profileUrl || '';
 
@@ -954,7 +1023,7 @@
           supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
           supabaseSelect('stk_customers', 'limit=10000').catch(() => supabaseSelect('customers')),
           // ⚡ SPEED FIX: ดึงประวัติการขายล่าสุดแค่ 200 รายการ เพื่อความรวดเร็วในการวิเคราะห์ข้อมูลลูกค้าล่าสุด
-          supabaseSelect('stk_sales', 'order=order_id.desc&limit=200').catch(() => supabaseSelect('sales'))
+          supabaseSelect('stk_sales', 'order=order_id.desc&limit=10000').catch(() => supabaseSelect('sales'))
         ]).then(([pRes, typeRes, cloRes, memRes, custRes, saleRes]) => {
           const resObj = {
             products: pRes,
@@ -998,6 +1067,7 @@
                    const cName = String(x.name || x.customer_name || x.Customer_Name || '').trim();
                    const cPhone = String(x.phone || x.phone_number || x.Phone || extra.phone || '').trim();
                    const cLineId = String(x.lineId || x.line_id || x.LINE_ID || extra.lineId || '').trim();
+                   const cLineUid = String(x.lineUid || x.line_uid || x.LINE_UID || extra.lineUid || '').trim();
                    const cType = String(x.type || x.customer_type || x.Customer_Type || extra.type || '').trim();
 
                    const cSymptom = String(
@@ -1025,6 +1095,7 @@
                        name: cName,
                        phone: cPhone,
                        lineId: cLineId,
+                       lineUid: cLineUid,
                        type: cType,
                        symptom: cSymptom,
                        closer: cCloser,

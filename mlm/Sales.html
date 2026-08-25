@@ -2871,9 +2871,11 @@
 
       const SCRIPT_URL = '';
 
+      const pagePerm = window.getUserPagePermission ? window.getUserPagePermission(currentUser, 'sales') : 'none';
       const isAdmin = currentUser && (
           String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
-          String(currentUser.role).trim().toLowerCase() === 'admin'
+          String(currentUser.role).trim().toLowerCase() === 'admin' ||
+          pagePerm === 'full'
       );
       const currentUserProfileUrl = currentUser?.profileUrl || '';
 
@@ -2932,7 +2934,7 @@
               supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
               supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
               supabaseSelect('stk_customers', 'order=customer_id.desc&limit=10000').catch(() => supabaseSelect('customers')),
-              supabaseSelect('stk_sales', 'order=order_id.desc&limit=200').catch(() => supabaseSelect('sales')),
+              supabaseSelect('stk_sales', 'order=order_id.desc&limit=10000').catch(() => supabaseSelect('sales')),
               supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams'))
             ]).then(([pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes]) => {
               const resObj = {

@@ -1363,9 +1363,11 @@
       
       const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
+      const pagePerm = window.getUserPagePermission ? window.getUserPagePermission(currentUser, 'orgchart') : 'none';
       const isAdmin = currentUser && (
           String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
-          String(currentUser.role).trim().toLowerCase() === 'admin'
+          String(currentUser.role).trim().toLowerCase() === 'admin' ||
+          pagePerm === 'full'
       );
       const currentUserProfileUrl = currentUser?.profileUrl || '';
 
@@ -1387,7 +1389,7 @@
           supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
           supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
           supabaseSelect('stk_customers', 'order=customer_id.desc&limit=2000').catch(() => supabaseSelect('customers')),
-          supabaseSelect('stk_sales', 'order=order_id.desc&limit=1500').catch(() => supabaseSelect('sales')),
+          supabaseSelect('stk_sales', 'order=order_id.desc&limit=10000').catch(() => supabaseSelect('sales')),
           supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams')),
           supabaseSelect('stk_system_settings').catch(() => supabaseSelect('system_settings'))
         ]).then(([pRes, typeRes, memRes, custRes, saleRes, teamRes, setRes]) => {

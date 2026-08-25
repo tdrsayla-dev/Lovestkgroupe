@@ -109,7 +109,7 @@
         // ─── 0. ดึงประวัติการขายล่าสุดจาก stk_sales เพื่อวิเคราะห์สถานะการจ่ายยา ───
         try {
           if (typeof window.supabaseSelect === 'function') {
-            const data = await window.supabaseSelect('stk_sales', 'order=order_id.desc&limit=300');
+            const data = await window.supabaseSelect('stk_sales', 'order=order_id.desc&limit=10000');
             if (Array.isArray(data)) {
               dbSalesList = data;
             }

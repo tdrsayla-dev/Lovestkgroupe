@@ -426,17 +426,17 @@
         'พนักงานการตลาด': {
             dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'none', nutrients: 'none', orders: 'view', customers: 'none',
             team: 'edit', business_teams: 'none', stock: 'none', customer_types: 'none', closers: 'none',
-            exchange_rate: 'none', system_users: 'none'
+            exchange_rate: 'none', system_users: 'none', notification_settings: 'none'
         },
         'พนักงานทั่วไป': {
             dashboard: 'view', reports: 'none', orgchart: 'view', sales: 'edit', nutrients: 'edit', orders: 'edit', customers: 'view',
             team: 'none', business_teams: 'none', stock: 'none', customer_types: 'none', closers: 'none',
-            exchange_rate: 'none', system_users: 'none'
+            exchange_rate: 'none', system_users: 'none', notification_settings: 'none'
         }
     };
     
     const defaults = defaultRolePermissions[role] || defaultRolePermissions['พนักงานทั่วไป'];
-    return defaults[pageId] !== undefined ? defaults[pageId] : 'view';
+    return defaults[pageId] !== undefined ? defaults[pageId] : 'none';
   };
 
   const resolvePageUrl = (href) => {
@@ -693,6 +693,13 @@
     isSidebarCollapsed: propCollapsed,
     setIsSidebarCollapsed: propSetCollapsed
   }) => {
+    const [permUpdateTick, setPermUpdateTick] = React.useState(0);
+    React.useEffect(() => {
+      const handleStorage = () => setPermUpdateTick(t => t + 1);
+      window.addEventListener('storage', handleStorage);
+      return () => window.removeEventListener('storage', handleStorage);
+    }, []);
+
     const [localCollapsed, setLocalCollapsed] = React.useState(() => {
       try {
         return localStorage.getItem('stk_sidebar_collapsed') === 'true';

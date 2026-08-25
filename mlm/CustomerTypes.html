@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -203,9 +203,11 @@
         setToast({ show: true, message, type });
       };
 
+      const pagePerm = window.getUserPagePermission ? window.getUserPagePermission(currentUser, 'customer_types') : 'none';
       const isAdmin = currentUser && (
           String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
-          String(currentUser.role).trim().toLowerCase() === 'admin'
+          String(currentUser.role).trim().toLowerCase() === 'admin' ||
+          pagePerm === 'full'
       );
       const currentUserProfileUrl = currentUser?.profileUrl || '';
 

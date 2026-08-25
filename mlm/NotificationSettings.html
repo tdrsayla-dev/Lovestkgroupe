@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -372,7 +372,12 @@
             .finally(() => setIsAppLoading(false));
       }, []);
 
-      const isAdmin = currentUser && (String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || String(currentUser.role).trim().toLowerCase() === 'admin');
+      const pagePerm = window.getUserPagePermission ? window.getUserPagePermission(currentUser, 'notification_settings') : 'none';
+      const isAdmin = currentUser && (
+          String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
+          String(currentUser.role).trim().toLowerCase() === 'admin' ||
+          pagePerm === 'full'
+      );
 
       return (
         <div className="min-h-screen flex flex-col lg:flex-row font-sans bg-slate-50">

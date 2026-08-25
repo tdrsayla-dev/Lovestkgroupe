@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -2886,9 +2886,11 @@
       const showToast = (message, type = 'success') => { setToast({ show: true, message, type }); };
 
       const SCRIPT_URL = "";
+      const pagePerm = window.getUserPagePermission ? window.getUserPagePermission(currentUser, 'stock') : 'none';
       const isAdmin = currentUser && (
-        String(currentUser.role).trim() === 'ผู้ดูแลระบบ' ||
-        String(currentUser.role).trim().toLowerCase() === 'admin'
+          String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
+          String(currentUser.role).trim().toLowerCase() === 'admin' ||
+          pagePerm === 'full'
       );
       const currentUserProfileUrl = currentUser?.profileUrl || '';
 

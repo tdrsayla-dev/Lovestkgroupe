@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -115,6 +115,17 @@
             } catch (e) {}
             return defaultRolePermissions;
         });
+
+        useEffect(() => {
+            const handleStorage = () => {
+                try {
+                    const saved = localStorage.getItem('stk_role_permissions');
+                    if (saved) setRolePermissions(JSON.parse(saved));
+                } catch (e) {}
+            };
+            window.addEventListener('storage', handleStorage);
+            return () => window.removeEventListener('storage', handleStorage);
+        }, []);
 
         // 🔄 AUTO-DETECT ROLE SYNC: Auto-detect custom roles from user list and register them
         useEffect(() => {
@@ -661,9 +672,11 @@
 
       const SCRIPT_URL = "<?= getScriptUrl() ?>";
 
+      const pagePerm = window.getUserPagePermission ? window.getUserPagePermission(currentUser, 'system_users') : 'none';
       const isAdmin = currentUser && (
           String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
-          String(currentUser.role).trim().toLowerCase() === 'admin'
+          String(currentUser.role).trim().toLowerCase() === 'admin' ||
+          pagePerm === 'full'
       );
       const currentUserProfileUrl = currentUser?.profileUrl || '';
 

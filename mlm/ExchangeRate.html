@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -277,9 +277,11 @@
       }, []);
 
       const currentUserProfileUrl = currentUser?.profileUrl || '';
+      const pagePerm = window.getUserPagePermission ? window.getUserPagePermission(currentUser, 'exchange_rate') : 'none';
       const isAdmin = currentUser && (
-        String(currentUser.role).trim() === 'ผู้ดูแลระบบ' ||
-        String(currentUser.role).trim().toLowerCase() === 'admin'
+          String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
+          String(currentUser.role).trim().toLowerCase() === 'admin' ||
+          pagePerm === 'full'
       );
 
       useEffect(() => {

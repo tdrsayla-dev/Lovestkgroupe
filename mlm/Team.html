@@ -55,12 +55,7 @@
       window.supabaseClient = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
       console.log('%c Supabase Connected!', 'color:green;font-weight:bold', window.SUPABASE_URL);
     }
-    async function supabaseSelect(table, query) {
-      var url = window.SUPABASE_REST_URL + '/' + table + (query ? '?' + query : '');
-      var res = await fetch(url, { method: 'GET', headers: window.SUPABASE_HEADERS });
-      if (!res.ok) { var t = await res.text(); throw new Error('SELECT ' + table + ': ' + res.status + ' ' + t); }
-      return res.json();
-    }
+    async function supabaseSelect(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:Object.assign({},window.SUPABASE_HEADERS,{'Cache-Control':'no-cache, no-store, must-revalidate'})});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();}
     async function supabaseInsert(table, data) {
       var res = await fetch(window.SUPABASE_REST_URL + '/' + table, { method: 'POST', headers: window.SUPABASE_HEADERS, body: JSON.stringify(data) });
       if (!res.ok) { var t = await res.text(); throw new Error('INSERT ' + table + ': ' + res.status + ' ' + t); }
@@ -220,7 +215,7 @@
           id: '', username: '', password: '1234', name: '', team: 'T01', role: 'Staff',
           startDate: getLocalISODate(), status: 'ทำงานอยู่', profileUrl: '', referrer: '',
           phone: '', email: '', address: '', lineId: '',lineUid: '',
-          bankName: '', bankAccountNo: '', bankAccountName: '',
+          bankName: '', bankAccountNo: '', bankAccountName: '', bankAccountStatus: 'รอตรวจสอบ',
           idCardNumber: '', idCardDocUrl: '' 
         };
         const [formData, setFormData] = useState(initialFormState);
@@ -291,6 +286,7 @@
               bankName: member.bankName || '',
               bankAccountNo: member.bankAccountNo || '',
               bankAccountName: member.bankAccountName || '',
+              bankAccountStatus: member.bankAccountStatus || member.bank_account_status || 'รอตรวจสอบ',
               idCardNumber: member.idCardNumber || '',
               idCardDocUrl: member.idCardDocUrl || ''
            });
@@ -381,6 +377,7 @@
                     bank_name: finalData.bankName || '',
                     bank_account_no: finalData.bankAccountNo || '',
                     bank_account_name: finalData.bankAccountName || '',
+                    bank_account_status: finalData.bankAccountStatus || 'รอตรวจสอบ',
                     accumulated_pv: finalData.accumulatedPv || finalData.accumulatedPV || 0
                 };
 
@@ -607,19 +604,36 @@
 
                   {/* ส่วนที่ 4: ข้อมูลบัญชีธนาคาร */}
                   <div>
-                    <h3 className="text-sm font-extrabold text-blue-600 mb-3 flex items-center gap-2 bg-blue-50 py-1.5 px-3 rounded-lg"><CreditCardIcon size={16}/> ข้อมูลบัญชีธนาคาร (รับเงินคอมมิชชั่น)</h3>
+                    <div className="flex flex-wrap items-center justify-between mb-3 gap-2">
+                        <h3 className="text-sm font-extrabold text-blue-600 flex items-center gap-2 bg-blue-50 py-1.5 px-3 rounded-lg"><CreditCardIcon size={16}/> ข้อมูลบัญชีธนาคาร (รับเงินคอมมิชชั่น)</h3>
+                        <div className="flex items-center gap-3">
+                            <span className={`text-xs font-bold px-2 py-1 rounded-md ${formData.bankAccountStatus === 'อนุมัติแล้ว' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                สถานะ: {formData.bankAccountStatus || 'รอตรวจสอบ'}
+                            </span>
+                            {isAdmin && (
+                                <select 
+                                    className="text-xs border border-slate-200 rounded-md py-1 px-2 font-bold focus:outline-none focus:border-blue-400 bg-white"
+                                    value={formData.bankAccountStatus || 'รอตรวจสอบ'}
+                                    onChange={(e) => setFormData({...formData, bankAccountStatus: e.target.value})}
+                                >
+                                    <option value="รอตรวจสอบ">รอตรวจสอบ</option>
+                                    <option value="อนุมัติแล้ว">อนุมัติแล้ว</option>
+                                </select>
+                            )}
+                        </div>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className={labelClassHud}>ชื่อธนาคาร</label>
-                        <input type="text" placeholder="เช่น กสิกรไทย, ไทยพาณิชย์" className={inputClassHud} value={formData.bankName || ''} onChange={e => setFormData({...formData, bankName: e.target.value})} />
+                        <input type="text" placeholder="เช่น กสิกรไทย, ไทยพาณิชย์" className={inputClassHud + (!isAdmin && isEditing ? " bg-slate-100 cursor-not-allowed opacity-70" : "")} value={formData.bankName || ''} onChange={e => setFormData({...formData, bankName: e.target.value})} disabled={!isAdmin && isEditing} />
                       </div>
                       <div>
                         <label className={labelClassHud}>เลขบัญชีธนาคาร</label>
-                        <input type="text" placeholder="เลขที่บัญชี" className={inputClassHud} value={formData.bankAccountNo || ''} onChange={e => setFormData({...formData, bankAccountNo: e.target.value})} />
+                        <input type="text" placeholder="เลขที่บัญชี" className={inputClassHud + (!isAdmin && isEditing ? " bg-slate-100 cursor-not-allowed opacity-70" : "")} value={formData.bankAccountNo || ''} onChange={e => setFormData({...formData, bankAccountNo: e.target.value})} disabled={!isAdmin && isEditing} />
                       </div>
                       <div>
                         <label className={labelClassHud}>ชื่อบัญชีธนาคาร</label>
-                        <input type="text" placeholder="ชื่อเจ้าของบัญชีภาษาไทย/อังกฤษ" className={inputClassHud} value={formData.bankAccountName || ''} onChange={e => setFormData({...formData, bankAccountName: e.target.value})} />
+                        <input type="text" placeholder="ชื่อเจ้าของบัญชีภาษาไทย/อังกฤษ" className={inputClassHud + (!isAdmin && isEditing ? " bg-slate-100 cursor-not-allowed opacity-70" : "")} value={formData.bankAccountName || ''} onChange={e => setFormData({...formData, bankAccountName: e.target.value})} disabled={!isAdmin && isEditing} />
                       </div>
                     </div>
                   </div>
@@ -770,51 +784,20 @@
                       </div>
                    </div>
 
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-2">
-                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">ข้อมูลบัญชีธนาคาร</span>
-                         <div className="bg-white p-3.5 rounded-xl border border-slate-200/60 shadow-sm flex flex-wrap items-center gap-x-4 gap-y-2 text-xs min-h-[50px] w-full">
-                            <div className="flex items-center gap-1.5">
-                               <span className="text-slate-400 font-bold">ธนาคาร:</span>
-                               <span className="text-slate-800 font-extrabold">{selectedMember.bankName || '-'}</span>
-                            </div>
-                            <span className="text-slate-300 hidden sm:inline">|</span>
-                            <div className="flex items-center gap-1.5">
-                               <span className="text-slate-400 font-bold">เลขบัญชี:</span>
-                               <span className="text-slate-800 font-extrabold tracking-wider">{selectedMember.bankAccountNo || '-'}</span>
-                            </div>
-                            <span className="text-slate-300 hidden sm:inline">|</span>
-                            <div className="flex items-center gap-1.5">
-                               <span className="text-slate-400 font-bold">ชื่อบัญชี:</span>
-                               <span className="text-slate-800 font-extrabold">{selectedMember.bankAccountName || '-'}</span>
-                            </div>
+                   <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">ข้อมูลบัญชีธนาคาร</span>
+                      <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-sm grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm w-full">
+                         <div className="space-y-1">
+                            <span className="text-slate-400 font-bold text-xs text-slate-500">ธนาคาร</span>
+                            <div className="text-slate-800 font-extrabold">{selectedMember.bankName || '-'}</div>
                          </div>
-                      </div>
-
-                      <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-2 col-span-full md:col-span-1">
-                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">รายได้ & คะแนนสะสม PV</span>
-                         <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                            <div className="bg-gradient-to-br from-emerald-500/10 to-teal-500/10 p-2.5 rounded-xl border border-emerald-100 shadow-sm text-center">
-                               <span className="text-[9px] font-bold text-emerald-700 block uppercase leading-none">รายได้ขายเอง</span>
-                               <div className="text-sm sm:text-base font-black text-emerald-800 mt-1 leading-tight whitespace-nowrap">
-                                  {Number(selectedMemberStats.personalComm || 0).toLocaleString()}
-                               </div>
-                               <span className="text-[10px] font-bold text-emerald-600 block mt-0.5">LAK (กีบ)</span>
-                            </div>
-                            <div className="bg-gradient-to-br from-purple-500/10 to-indigo-500/10 p-2.5 rounded-xl border border-purple-100 shadow-sm text-center">
-                               <span className="text-[9px] font-bold text-purple-700 block uppercase leading-none">รายได้จากทีม</span>
-                               <div className="text-sm sm:text-base font-black text-purple-800 mt-1 leading-tight whitespace-nowrap">
-                                  {Number(selectedMemberStats.teamComm || 0).toLocaleString()}
-                               </div>
-                               <span className="text-[10px] font-bold text-purple-600 block mt-0.5">LAK (กีบ)</span>
-                            </div>
-                            <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 p-2.5 rounded-xl border border-blue-100 shadow-sm text-center" title="คิดเฉพาะยอดขายราคาเต็ม หรือ ราคาสมาชิก เท่านั้น">
-                               <span className="text-[9px] font-bold text-blue-700 block uppercase leading-none">PV สะสม</span>
-                               <div className="text-sm sm:text-base font-black text-blue-800 mt-1 leading-tight whitespace-nowrap">
-                                  {Number(selectedMemberStats.accumulatedPv || 0).toLocaleString()}
-                               </div>
-                               <span className="text-[10px] font-bold text-blue-600 block mt-0.5">PV</span>
-                            </div>
+                         <div className="space-y-1">
+                            <span className="text-slate-400 font-bold text-xs text-slate-500">เลขบัญชี</span>
+                            <div className="text-slate-800 font-extrabold tracking-wider">{selectedMember.bankAccountNo || '-'}</div>
+                         </div>
+                         <div className="space-y-1">
+                            <span className="text-slate-400 font-bold text-xs text-slate-500">ชื่อบัญชี</span>
+                            <div className="text-slate-800 font-extrabold">{selectedMember.bankAccountName || '-'}</div>
                          </div>
                       </div>
                    </div>
@@ -1291,9 +1274,11 @@
 
       const SCRIPT_URL = "";
 
+      const pagePerm = window.getUserPagePermission ? window.getUserPagePermission(currentUser, 'team') : 'none';
       const isAdmin = currentUser && (
-          String(currentUser.role).trim() === 'ผู้ดูแลระบบ' ||
-          String(currentUser.role).trim().toLowerCase() === 'admin'
+          String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
+          String(currentUser.role).trim().toLowerCase() === 'admin' ||
+          pagePerm === 'full'
       );
       const currentUserProfileUrl = currentUser?.profileUrl || '';
 
