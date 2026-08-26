@@ -325,6 +325,20 @@ const supabaseUrl = 'https://fpmstumpobbjozflkola.supabase.co';
 const supabaseKey = 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7';
 const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
+// =====================================
+// MLM MANAGEMENT Database Connection (Real-time stk_products)
+// =====================================
+const mlmSupabaseUrl = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_URL) || window.MLM_SUPABASE_URL || 'https://mfpkeyrykqnrywyksyqp.supabase.co';
+const mlmSupabaseKey = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_ANON_KEY) || window.MLM_SUPABASE_ANON_KEY || 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
+let _mlmSupabase = null;
+try {
+    if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+        _mlmSupabase = supabase.createClient(mlmSupabaseUrl, mlmSupabaseKey);
+    }
+} catch (err) {
+    console.warn('MLM Supabase client init error:', err);
+}
+
 function generateId(prefix) {
     return prefix + '-' + Math.floor(100000 + Math.random() * 900000);
 }
@@ -387,6 +401,8 @@ document.addEventListener("DOMContentLoaded", function () {
     loadQueueList();
     loadPrescriptionList();
     loadMedicines();
+    loadMlmProducts();
+    initMlmRealtimeSubscription();
     loadPharmacyQueue();
     loadPatientHistory();
     loadSupplyItems();
@@ -1397,8 +1413,8 @@ function onMedSelectChange() {
     const tierSelect = document.getElementById('rxPriceTierSelect');
     if (!medSelect || !tierSelect) return;
 
-    const medId = medSelect.value;
-    if (!medId) {
+    const val = medSelect.value;
+    if (!val) {
         tierSelect.innerHTML = `
             <option value="normal">ราคาปกติ</option>
             <option value="promo">ราคาโปร</option>
@@ -1408,24 +1424,37 @@ function onMedSelectChange() {
         return;
     }
 
-    const med = (window.allMedicines || []).find(m => m.id === medId);
+    const parts = val.split(':');
+    const itemSource = parts.length > 1 ? parts[0] : (val.startsWith('P') || val.startsWith('PRO') ? 'mlm' : 'clinic');
+    const medId = parts.length > 1 ? parts[1] : parts[0];
+
+    let med = null;
+    if (itemSource === 'mlm') {
+        med = (window.allMlmProducts || []).find(m => m.id === medId || m.product_id === medId);
+    } else {
+        med = (window.allMedicines || []).find(m => m.id === medId);
+    }
+
     if (!med) return;
 
-    const priceNormal = med.price_normal || med.price || 0;
-    const pricePromo = med.price_promo || 0;
-    const priceHigh = med.price_high || 0;
+    const priceNormal = parseFloat(med.price_normal || med.price_full || med.price || 0);
+    const pricePromo = parseFloat(med.price_promo || 0);
+    const priceHigh = parseFloat(med.price_high || med.price_member || 0);
 
     let optionsHtml = `
-        <option value="normal">ราคาปกติ (${priceNormal}฿)</option>
-        <option value="promo">ราคาโปร (${pricePromo}฿)</option>
-        <option value="high">ราคาส่ง/สมาชิก (${priceHigh}฿)</option>
+        <option value="normal">ราคาปกติ (${priceNormal.toLocaleString()}฿)</option>
     `;
-
-    if (med.is_free_gift) {
-        optionsHtml += `<option value="free">แถมฟรี (0฿)</option>`;
+    if (pricePromo > 0) {
+        optionsHtml += `<option value="promo">ราคาโปร (${pricePromo.toLocaleString()}฿)</option>`;
     } else {
-        optionsHtml += `<option value="free" disabled class="text-muted">แถมฟรี (ไม่อนุญาต)</option>`;
+        optionsHtml += `<option value="promo">ราคาโปร (${priceNormal.toLocaleString()}฿)</option>`;
     }
+    if (priceHigh > 0) {
+        optionsHtml += `<option value="high">ราคาส่ง/สมาชิก (${priceHigh.toLocaleString()}฿)</option>`;
+    } else {
+        optionsHtml += `<option value="high">ราคาส่ง/สมาชิก (${priceNormal.toLocaleString()}฿)</option>`;
+    }
+    optionsHtml += `<option value="free">แถมฟรี (0฿)</option>`;
 
     tierSelect.innerHTML = optionsHtml;
 }
@@ -5294,12 +5323,10 @@ function base64ToBlob(base64, type = 'application/octet-stream') {
 
 // --- อ่านผล & จัดยา ---
 window.currentRxMeds = [];
-// --- อ่านผล & จัดยา ---
-window.currentRxMeds = [];
 window.currentRxSource = 'clinic'; // 'clinic', 'mlm', 'all'
 window.allMlmProducts = [];
 
-// รายการสินค้าสำรองเริ่มต้นของระบบ MLM (STK GROUPE) กรณีออฟไลน์หรือยังไม่มี DB
+// รายการสินค้าสำรองเริ่มต้นของระบบ MLM (STK GROUPE) กรณีออฟไลน์
 window.DEFAULT_MLM_PRODUCTS = [
     { product_id: 'P001', name: 'SESAMIN', category: 'Supplement', current_stock: 87, price_full: 1800, price_member: 1300, price_promo: 800 },
     { product_id: 'P002', name: 'APPLE', category: 'Supplement', current_stock: 93, price_full: 1800, price_member: 1300, price_promo: 800 },
@@ -5311,30 +5338,70 @@ window.DEFAULT_MLM_PRODUCTS = [
     { product_id: 'P008', name: 'COLLAGEN', category: 'Supplement', current_stock: 91, price_full: 1800, price_member: 1300, price_promo: 800 },
     { product_id: 'P009', name: 'Coffee_Arabica', category: 'Coffee', current_stock: 390, price_full: 390, price_member: 390, price_promo: 200 },
     { product_id: 'P010', name: 'STK COFFEE', category: 'Coffee', current_stock: 94, price_full: 590, price_member: 590, price_promo: 280 },
-    { product_id: 'P012', name: 'BALANCE (ບາລານ)', category: 'Supplement02', current_stock: 93, price_full: 890, price_member: 850, price_promo: 800 },
-    { product_id: 'P013', name: 'KUT-SO (ຄັດໂຊ)', category: 'Supplement02', current_stock: 94, price_full: 890, price_member: 850, price_promo: 800 },
-    { product_id: 'P014', name: 'ZINC (ຊີ້ງ)', category: 'Supplement02', current_stock: 94, price_full: 890, price_member: 850, price_promo: 800 },
-    { product_id: 'P015', name: 'LUTEIN (ລູທີນ)', category: 'Supplement02', current_stock: 94, price_full: 890, price_member: 850, price_promo: 800 },
-    { product_id: 'P016', name: 'L-GLUTA (ກູຕ້າ)', category: 'Supplement02', current_stock: 94, price_full: 890, price_member: 850, price_promo: 800 },
-    { product_id: 'P017', name: 'LIPO C (ໄລໂປ້ ຊີ)', category: 'Supplement02', current_stock: 94, price_full: 890, price_member: 850, price_promo: 800 },
-    { product_id: 'P018', name: 'ANTI DARK SPOT SERUM (ເຊລໍ່າຝ້າ)', category: 'Cosmetic', current_stock: 94, price_full: 590, price_member: 300, price_promo: 300 },
-    { product_id: 'P019', name: 'ACNE SERUM (ເຊລໍ່າສິວ)', category: 'Cosmetic', current_stock: 94, price_full: 590, price_member: 300, price_promo: 300 },
-    { product_id: 'P020', name: 'MILK SUNCREAM (ກັນແດດ)', category: 'Cosmetic', current_stock: 194, price_full: 590, price_member: 300, price_promo: 300 },
-    { product_id: 'P021', name: 'TONER (ໂທນເນີ)', category: 'Cosmetic', current_stock: 94, price_full: 590, price_member: 300, price_promo: 300 },
-    { product_id: 'P022', name: 'UNDERARM CREAM (ຄີມຂີ້ແຮ້)', category: 'Cosmetic', current_stock: 93, price_full: 590, price_member: 300, price_promo: 300 }
+    { product_id: 'P011', name: 'LOVE DA', category: 'Supplement', current_stock: 0, price_full: 1800, price_member: 1300, price_promo: 800 },
+    { product_id: 'P012', name: 'BALANCE (บาลาน)', category: 'Supplement02', current_stock: 489, price_full: 890, price_member: 850, price_promo: 800 },
+    { product_id: 'P013', name: 'KUT-SO (ตัดไข)', category: 'Supplement02', current_stock: 824, price_full: 890, price_member: 850, price_promo: 800 },
+    { product_id: 'P014', name: 'ZINC (ซิ้ง)', category: 'Supplement02', current_stock: 757, price_full: 890, price_member: 850, price_promo: 800 },
+    { product_id: 'P015', name: 'LUTEIN (ลูทีน)', category: 'Supplement02', current_stock: 904, price_full: 890, price_member: 850, price_promo: 800 },
+    { product_id: 'P016', name: 'L-GLUTA (กลูต้า)', category: 'Supplement02', current_stock: 659, price_full: 890, price_member: 850, price_promo: 800 },
+    { product_id: 'P017', name: 'LIPO C (ไลโป ซี)', category: 'Supplement02', current_stock: 643, price_full: 890, price_member: 850, price_promo: 800 },
+    { product_id: 'P018', name: 'DARK SPOT SERUM (เซรั่มฝ้า)', category: 'Cosmetic', current_stock: 0, price_full: 590, price_member: 300, price_promo: 300 },
+    { product_id: 'P019', name: 'ACNE SERUM (เซรั่มสิว)', category: 'Cosmetic', current_stock: 0, price_full: 590, price_member: 300, price_promo: 300 },
+    { product_id: 'P020', name: 'MILK SUNCREAM (กันแดด)', category: 'Cosmetic', current_stock: 0, price_full: 590, price_member: 300, price_promo: 300 },
+    { product_id: 'P021', name: 'TONER (โทนเนอร์)', category: 'Cosmetic', current_stock: 990, price_full: 250, price_member: 200, price_promo: 200 },
+    { product_id: 'P022', name: 'UNDERARM CREAM (ครีมรักแร้)', category: 'Cosmetic', current_stock: 982, price_full: 250, price_member: 200, price_promo: 200 },
+    { product_id: 'P023', name: 'KUT-L', category: 'Supplement02', current_stock: 299, price_full: 790, price_member: 700, price_promo: 500 },
+    { product_id: 'P024', name: 'SESAMEEN ACTIVE', category: 'Supplement', current_stock: 821, price_full: 2500, price_member: 2000, price_promo: 1500 }
 ];
 
-// ฟังก์ชันดึงข้อมูลสินค้าจากระบบ MLM (stk_products / products)
-async function loadMlmProducts() {
+// ฟังก์ชันเชื่อมต่อ Real-time Subscription ตาราง stk_products
+function initMlmRealtimeSubscription() {
+    if (!_mlmSupabase) return;
+    try {
+        _mlmSupabase.channel('realtime_stk_products')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'stk_products' }, (payload) => {
+                console.log('⚡ [Real-time] ตาราง stk_products มีการเปลี่ยนแปลง:', payload.eventType, payload.new || payload.old);
+                loadMlmProducts(true);
+            })
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    console.log('✅ Realtime Subscribed: เชื่อมต่อตาราง stk_products สำเร็จ');
+                }
+            });
+    } catch (err) {
+        console.warn('Realtime subscription error on stk_products:', err);
+    }
+}
+window.initMlmRealtimeSubscription = initMlmRealtimeSubscription;
+
+// ฟังก์ชันดึงข้อมูลสินค้าแบบ Real-time จากระบบ MLM MANAGEMENT (ตาราง stk_products)
+async function loadMlmProducts(isRealtimeUpdate = false) {
     let data = null;
     try {
-        if (typeof _supabase !== 'undefined') {
-            let res = await _supabase.from('stk_products').select('*');
-            if (res.data && res.data.length > 0) {
-                data = res.data;
-            } else {
-                let res2 = await _supabase.from('products').select('*');
-                if (res2.data && res2.data.length > 0) data = res2.data;
+        if (_mlmSupabase) {
+            const { data: resData, error } = await _mlmSupabase
+                .from('stk_products')
+                .select('*')
+                .order('product_id', { ascending: true });
+            if (!error && resData && resData.length > 0) {
+                data = resData;
+            }
+        }
+
+        // Direct REST fallback
+        if (!data || data.length === 0) {
+            const restUrl = `${mlmSupabaseUrl}/rest/v1/stk_products?select=*&order=product_id.asc`;
+            const resp = await fetch(restUrl, {
+                headers: {
+                    'apikey': mlmSupabaseKey,
+                    'Authorization': `Bearer ${mlmSupabaseKey}`
+                }
+            });
+            if (resp.ok) {
+                const restData = await resp.json();
+                if (Array.isArray(restData) && restData.length > 0) {
+                    data = restData;
+                }
             }
         }
     } catch (e) {
@@ -5342,21 +5409,40 @@ async function loadMlmProducts() {
     }
 
     if (!data || data.length === 0) {
-        data = window.DEFAULT_MLM_PRODUCTS;
+        const cached = localStorage.getItem('mlm_stk_products_cache');
+        if (cached) {
+            try { data = JSON.parse(cached); } catch (e) {}
+        }
+        if (!data || data.length === 0) {
+            data = window.DEFAULT_MLM_PRODUCTS;
+        }
+    } else {
+        try { localStorage.setItem('mlm_stk_products_cache', JSON.stringify(data)); } catch (e) {}
     }
 
     window.allMlmProducts = data.map(item => ({
         id: item.product_id || item.id,
         name: item.name,
         type: item.category || 'อาหารเสริม',
+        category: item.category || 'อาหารเสริม',
         stock: item.current_stock ?? item.stock ?? 0,
         price_normal: parseFloat(item.price_full || item.price || 0),
         price_promo: parseFloat(item.price_promo || 0),
         price_high: parseFloat(item.price_member || 0),
+        status: item.status || 'ใช้งาน',
+        image_url: item.image_url || '',
         source: 'mlm',
         raw: item
     }));
+
+    console.log(`✅ [Real-time] โหลดข้อมูลสินค้า MLM stk_products สำเร็จ: ${window.allMlmProducts.length} รายการ`);
+
+    // อัปเดต Dropdown เลือกยา/สินค้าทันที
+    if (document.getElementById('rxMedSelect')) {
+        populateRxMedDropdown();
+    }
 }
+window.loadMlmProducts = loadMlmProducts;
 
 // ฟังก์ชันสลับการดึงข้อมูลตามคลังที่เลือก (คลังยา Clinic vs คลังสินค้า MLM vs ทั้งหมด)
 function setRxStockSource(source, btnEl) {
@@ -5413,9 +5499,8 @@ function populateRxMedDropdown() {
         items = items.concat(clinicItems);
     }
 
-    // 2. ดึงข้อมูลจากคลังสินค้า MLM / STK Groupe
+    // 2. ดึงข้อมูลจากคลังสินค้า MLM / STK Groupe (stk_products)
     if (source === 'mlm' || source === 'all') {
-        // หากไม่มีข้อมูลจาก DB ให้โหลดข้อมูลเริ่มต้น
         if (!window.allMlmProducts || window.allMlmProducts.length === 0) {
             loadMlmProducts();
         }
@@ -5428,6 +5513,7 @@ function populateRxMedDropdown() {
             price_normal: p.price_normal || 0,
             price_promo: p.price_promo || 0,
             price_high: p.price_high || 0,
+            status: p.status || 'ใช้งาน',
             source: 'mlm',
             sourceLabel: 'STK MLM'
         }));
@@ -5453,12 +5539,32 @@ function populateRxMedDropdown() {
         }
     }
 
-    select.innerHTML = '<option value="">-- เลือกรายการยา/สินค้า --</option>';
+    let html = '<option value="">-- เลือกรายการยา/สินค้า --</option>';
 
-    filteredItems.forEach(item => {
-        const label = `${item.id} - ${item.name}`;
-        select.innerHTML += `<option value="${item.source}:${item.id}">${label}</option>`;
-    });
+    if (source === 'all') {
+        const clinicGroup = filteredItems.filter(i => i.source === 'clinic');
+        const mlmGroup = filteredItems.filter(i => i.source === 'mlm');
+        if (clinicGroup.length > 0) {
+            html += '<optgroup label="💊 ยาในคลัง (คลังยาคลินิก)">';
+            clinicGroup.forEach(i => {
+                html += `<option value="${i.source}:${i.id}">${i.id} - ${i.name}</option>`;
+            });
+            html += '</optgroup>';
+        }
+        if (mlmGroup.length > 0) {
+            html += '<optgroup label="📦 คลังสินค้า (STK Groupe / MLM)">';
+            mlmGroup.forEach(i => {
+                html += `<option value="${i.source}:${i.id}">${i.id} - ${i.name}</option>`;
+            });
+            html += '</optgroup>';
+        }
+    } else {
+        filteredItems.forEach(item => {
+            html += `<option value="${item.source}:${item.id}">${item.id} - ${item.name}</option>`;
+        });
+    }
+
+    select.innerHTML = html;
 }
 
 async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds = null, refillBatchTag = null) {
@@ -6013,13 +6119,14 @@ window.rejectPrescriptionMedicine = rejectPrescriptionMedicine;
 async function saveNutrientOrderToDatabase(salePayload) {
     if (!salePayload || !salePayload.order_id) return;
 
-    // 1. บันทึกลง Supabase Table `stk_nutrient_orders`
-    if (typeof _supabase !== 'undefined') {
+    // 1. บันทึกลง Supabase Table `stk_nutrient_orders` (ในฐานข้อมูล MLM)
+    const targetSupabase = _mlmSupabase || _supabase;
+    if (typeof targetSupabase !== 'undefined' && targetSupabase) {
         try {
-            console.log('Syncing to stk_nutrient_orders in Supabase:', salePayload);
+            console.log('Syncing to stk_nutrient_orders in MLM Supabase:', salePayload);
 
             // ตรวจสอบว่ามีรายการเดิมอยู่แล้วหรือไม่
-            let query = _supabase.from('stk_nutrient_orders').select('id, order_id, visit_id');
+            let query = targetSupabase.from('stk_nutrient_orders').select('id, order_id, visit_id');
             if (salePayload.order_id && salePayload.visit_id) {
                 query = query.or(`order_id.eq.${salePayload.order_id},visit_id.eq.${salePayload.visit_id}`);
             } else {
@@ -6041,25 +6148,25 @@ async function saveNutrientOrderToDatabase(salePayload) {
 
             if (existingRec && existingRec.length > 0) {
                 const rowId = existingRec[0].id;
-                const { error: updErr } = await _supabase
+                const { error: updErr } = await targetSupabase
                     .from('stk_nutrient_orders')
                     .update(cleanPayload)
                     .eq('id', rowId);
 
                 if (updErr) {
                     console.warn('Update by id error, trying update by order_id:', updErr);
-                    await _supabase.from('stk_nutrient_orders').update(cleanPayload).eq('order_id', cleanPayload.order_id);
+                    await targetSupabase.from('stk_nutrient_orders').update(cleanPayload).eq('order_id', cleanPayload.order_id);
                 } else {
                     console.log('Successfully updated existing record in stk_nutrient_orders');
                 }
             } else {
-                const { error: insErr } = await _supabase
+                const { error: insErr } = await targetSupabase
                     .from('stk_nutrient_orders')
                     .insert([cleanPayload]);
 
                 if (insErr) {
                     console.warn('Direct insert error, trying upsert:', insErr);
-                    await _supabase.from('stk_nutrient_orders').upsert([cleanPayload]);
+                    await targetSupabase.from('stk_nutrient_orders').upsert([cleanPayload]);
                 } else {
                     console.log('Successfully inserted new record into stk_nutrient_orders');
                 }
@@ -8542,44 +8649,45 @@ function filterIntakeTable() {
 // =====================================
 
 const SYSTEM_FUNCTIONS = [
-    { key: 'dashboard', label: 'ภาพรวมระบบ (Dashboard)', category: 'หน้าหลัก', icon: 'bi-grid-1x2-fill' },
-    { key: 'appointments', label: 'นัดหมายล่วงหน้า', category: 'งานบริการผู้ป่วย', icon: 'bi-calendar-event-fill' },
-    { key: 'registration', label: 'ทะเบียนผู้ป่วย', category: 'งานบริการผู้ป่วย', icon: 'bi-person-vcard-fill' },
-    { key: 'triage', label: 'จุดคัดกรอง', category: 'งานบริการผู้ป่วย', icon: 'bi-heart-pulse-fill' },
-    { key: 'doctor', label: 'ห้องตรวจแพทย์', category: 'งานบริการผู้ป่วย', icon: 'bi-stethoscope' },
-    { key: 'payment', label: 'จ่ายค่ารักษา', category: 'งานการเงิน & ยา', icon: 'bi-cash-coin' },
-    { key: 'lab', label: 'ห้อง Lab', category: 'งานบริการผู้ป่วย', icon: 'bi-virus' },
-    { key: 'queue', label: 'จัดคิว', category: 'งานบริการผู้ป่วย', icon: 'bi-list-ol' },
-    { key: 'prescription', label: 'อ่านผล/จัดยา', category: 'งานการเงิน & ยา', icon: 'bi-file-medical' },
-    { key: 'pharmacy', label: 'ห้องจ่ายยา', category: 'งานการเงิน & ยา', icon: 'bi-capsule' },
-    { key: 'history', label: 'ประวัติผู้ป่วย', category: 'งานบริการผู้ป่วย', icon: 'bi-clock-history' },
-    { key: 'billing', label: 'ระบบ Bill / ใบเสร็จรับเงิน', category: 'งานการเงิน & ยา', icon: 'bi-receipt' },
+    { key: 'dashboard', label: 'ພາບລວມລະບົບ / ภาพรวมระบบ (Dashboard)', category: 'หน้าหลัก', icon: 'bi-grid-1x2-fill' },
+    { key: 'appointments', label: 'ນັດໝາຍລ່ວງໜ້າ / นัดหมายล่วงหน้า (Appointments)', category: 'งานบริการผู้ป่วย', icon: 'bi-calendar-event-fill' },
+    { key: 'registration', label: 'ທະບຽນຜູ້ປ່ວຍ / ทะเบียนผู้ป่วย (Registration)', category: 'งานบริการผู้ป่วย', icon: 'bi-person-vcard-fill' },
+    { key: 'triage', label: 'ຈຸດຄັດກອງ / จุดคัดกรอง (Triage)', category: 'งานบริการผู้ป่วย', icon: 'bi-heart-pulse-fill' },
+    { key: 'doctor', label: 'ຫ້ອງກວດແພດ / ห้องตรวจแพทย์ (Doctor Room)', category: 'งานบริการผู้ป่วย', icon: 'bi-stethoscope' },
+    { key: 'payment', label: 'ຊຳລະຄ່າປິ່ນປົວ / จ่ายค่ารักษา (Payment)', category: 'งานการเงิน & ยา', icon: 'bi-cash-coin' },
+    { key: 'lab', label: 'ຫ້ອງ Lab / ห้องตรวจ Lab (Laboratory)', category: 'งานบริการผู้ป่วย', icon: 'bi-virus' },
+    { key: 'queue', label: 'ຈັດຄິວ / จัดคิวผู้ป่วย (Queue)', category: 'งานบริการผู้ป่วย', icon: 'bi-list-ol' },
+    { key: 'prescription', label: 'ອ່ານຜົນ/ຈັດຢາ / อ่านผล/จัดยา (Prescription)', category: 'งานการเงิน & ยา', icon: 'bi-file-medical' },
+    { key: 'pharmacy', label: 'ຫ້ອງຈ່າຍຢາ / ห้องจ่ายยา (Pharmacy)', category: 'งานการเงิน & ยา', icon: 'bi-capsule' },
+    { key: 'history', label: 'ປະຫວັດຜູ້ປ່ວຍ / ประวัติผู้ป่วย (History)', category: 'งานบริการผู้ป่วย', icon: 'bi-clock-history' },
+    { key: 'billing', label: 'ລະບົບ ໃບບິນ / ໃບເສັດ (Billing)', category: 'งานการเงิน & ยา', icon: 'bi-receipt' },
+    { key: 'expenses', label: 'ລະບົບລາຍຈ່າຍປະຈຳວັນ / ระบบรายจ่ายประจำวัน (Daily Expenses)', category: 'งานการเงิน & ยา', icon: 'bi-wallet2' },
 
     // ระบบปันผล/ผู้แนะนำ และฟังก์ชันย่อย
-    { key: 'referrals', label: 'ระบบปันผล/ผู้แนะนำ (หลัก)', category: 'ระบบหลังบ้าน', icon: 'bi-hand-thumbs-up-fill' },
-    { key: 'referrals-logs', label: 'ค่าคอมมิชชั่น / ปันผล', category: 'ย่อยปันผล', icon: 'bi-receipt-cutoff', parentKey: 'referrals', isSub: true },
-    { key: 'referrals-members', label: 'รายงานปันผลผู้แนะนำ', category: 'ย่อยปันผล', icon: 'bi-chart-line-up', parentKey: 'referrals', isSub: true },
-    { key: 'referrals-daily', label: 'รายงานสรุปค่าตรวจประจำวัน', category: 'ย่อยปันผล', icon: 'bi-calendar-check', parentKey: 'referrals', isSub: true },
-    { key: 'referrals-settings', label: 'ตั้งค่าเงื่อนไขปันผล', category: 'ย่อยปันผล', icon: 'bi-sliders', parentKey: 'referrals', isSub: true },
+    { key: 'referrals', label: 'ລະບົບປັນຜົນ/ຜູ້ແນະນຳ (หลัก) / ระบบปันผล', category: 'ระบบหลังบ้าน', icon: 'bi-hand-thumbs-up-fill' },
+    { key: 'referrals-logs', label: 'ຄ່າຄອມມິດຊັ່ນ / ປັນຜົນ', category: 'ย่อยปันผล', icon: 'bi-receipt-cutoff', parentKey: 'referrals', isSub: true },
+    { key: 'referrals-members', label: 'ລາຍງານປັນຜົນຜູ້ແນະນຳ', category: 'ย่อยปันผล', icon: 'bi-chart-line-up', parentKey: 'referrals', isSub: true },
+    { key: 'referrals-daily', label: 'ລາຍງານສະຫຼຸບຄ່າກວດປະຈຳວັນ', category: 'ย่อยปันผล', icon: 'bi-calendar-check', parentKey: 'referrals', isSub: true },
+    { key: 'referrals-settings', label: 'ຕັ້ງຄ່າເງື່ອນໄຂປັນຜົນ', category: 'ย่อยปันผล', icon: 'bi-sliders', parentKey: 'referrals', isSub: true },
 
-    { key: 'services', label: 'ตั้งค่ารายการตรวจ', category: 'ระบบหลังบ้าน', icon: 'bi-sliders' },
+    { key: 'services', label: 'ຕັ້ງຄ່າລາຍການກວດ / ตั้งค่ารายการตรวจ (Services)', category: 'ระบบหลังบ้าน', icon: 'bi-sliders' },
 
     // คลังยา และฟังก์ชันย่อย
-    { key: 'stock-drugs', label: 'คลังยา (หลัก)', category: 'ระบบหลังบ้าน', icon: 'bi-box2-heart' },
-    { key: 'stock-drugs-list', label: 'รายการยาในคลัง', category: 'ย่อยคลังยา', icon: 'bi-capsule', parentKey: 'stock-drugs', isSub: true },
-    { key: 'stock-drugs-intake', label: 'เบิก/รับยาเข้าคลัง', category: 'ย่อยคลังยา', icon: 'bi-box-arrow-in-down', parentKey: 'stock-drugs', isSub: true },
+    { key: 'stock-drugs', label: 'ຄັງຢາ (หลัก) / คลังยา', category: 'ระบบหลังบ้าน', icon: 'bi-box2-heart' },
+    { key: 'stock-drugs-list', label: 'ລາຍການຢາໃນຄັງ (รายการยา)', category: 'ย่อยคลังยา', icon: 'bi-capsule', parentKey: 'stock-drugs', isSub: true },
+    { key: 'stock-drugs-intake', label: 'ເບີກ/ຮັບຢາເຂົ້າຄັງ (เบิก/รับยา)', category: 'ย่อยคลังยา', icon: 'bi-box-arrow-in-down', parentKey: 'stock-drugs', isSub: true },
 
     // คลังพัสดุ และฟังก์ชันย่อย
-    { key: 'stock-equip', label: 'คลังพัสดุ (หลัก)', category: 'ระบบหลังบ้าน', icon: 'bi-boxes' },
-    { key: 'stock-equip-list', label: 'รายการพัสดุในคลัง', category: 'ย่อยพัสดุ', icon: 'bi-archive', parentKey: 'stock-equip', isSub: true },
-    { key: 'stock-equip-intake', label: 'เบิก/รับพัสดุเข้าคลัง', category: 'ย่อยพัสดุ', icon: 'bi-box-arrow-in-down', parentKey: 'stock-equip', isSub: true },
+    { key: 'stock-equip', label: 'ຄັງພັສດຸ (หลัก) / คลังพัสดุ', category: 'ระบบหลังบ้าน', icon: 'bi-boxes' },
+    { key: 'stock-equip-list', label: 'ລາຍການພັສດຸໃນຄັງ (รายการพัสดุ)', category: 'ย่อยพัสดุ', icon: 'bi-archive', parentKey: 'stock-equip', isSub: true },
+    { key: 'stock-equip-intake', label: 'ເບີກ/ຮັບພັສດຸເຂົ້າຄັງ (เบิก/รับพัสดุ)', category: 'ย่อยพัสดุ', icon: 'bi-box-arrow-in-down', parentKey: 'stock-equip', isSub: true },
 
-    { key: 'staff', label: 'จัดการพนักงาน / ผู้ใช้ระบบ', category: 'ระบบหลังบ้าน', icon: 'bi-people-fill' },
+    { key: 'staff', label: 'ຈັດການພະນັກງານ / จัดการพนักงาน (Staff Management)', category: 'ระบบหลังบ้าน', icon: 'bi-people-fill' },
 
     // รายงานสรุป และฟังก์ชันย่อย
-    { key: 'daily-reports', label: 'รายงานสรุปประจำวัน/เดือน (หลัก)', category: 'ระบบหลังบ้าน', icon: 'bi-bar-chart-line-fill' },
-    { key: 'daily-reports-exam', label: 'สรุปการตรวจรายวัน', category: 'ย่อยรายงาน', icon: 'bi-file-earmark-bar-graph', parentKey: 'daily-reports', isSub: true },
-    { key: 'daily-reports-monthly', label: 'รายงานสรุปประจำเดือน', category: 'ย่อยรายงาน', icon: 'bi-graph-up-arrow', parentKey: 'daily-reports', isSub: true }
+    { key: 'daily-reports', label: 'ລາຍງານສະຫຼຸບປະຈຳວັນ/ເດືອນ (หลัก) / รายงานสรุป', category: 'ระบบหลังบ้าน', icon: 'bi-bar-chart-line-fill' },
+    { key: 'daily-reports-exam', label: 'ສະຫຼຸບການກວດລາຍວັນ (สรุปตรวจรายวัน)', category: 'ย่อยรายงาน', icon: 'bi-file-earmark-bar-graph', parentKey: 'daily-reports', isSub: true },
+    { key: 'daily-reports-monthly', label: 'ລາຍງານສະຫຼຸບປະຈຳເດືອນ (สรุปรายเดือน)', category: 'ย่อยรายงาน', icon: 'bi-graph-up-arrow', parentKey: 'daily-reports', isSub: true }
 ];
 
 let allStaffUsers = [];
@@ -8718,6 +8826,25 @@ function getSelectedPermissions() {
 }
 window.getSelectedPermissions = getSelectedPermissions;
 
+function onUserRoleChange(role) {
+    if (!role) return;
+    const roleDefaults = {
+        admin: ['all'],
+        doctor: ['doctor', 'triage', 'prescription', 'history', 'lab'],
+        nurse: ['registration', 'triage', 'queue', 'appointments', 'history'],
+        pharmacist: ['prescription', 'pharmacy', 'stock-drugs', 'stock-drugs-list', 'stock-drugs-intake', 'history'],
+        lab: ['lab', 'doctor', 'history'],
+        marketing: ['referrals', 'referrals-logs', 'referrals-members', 'referrals-daily', 'appointments', 'registration'],
+        staff: ['appointments', 'registration', 'triage', 'queue', 'payment', 'billing', 'expenses']
+    };
+    if (role === 'admin') {
+        selectPermissionPreset('full');
+    } else if (roleDefaults[role]) {
+        renderPermissionCheckboxes(roleDefaults[role]);
+    }
+}
+window.onUserRoleChange = onUserRoleChange;
+
 window.commissionLogs = JSON.parse(localStorage.getItem('clinic_commission_logs') || 'null') || [
     { id: 'COM-50001', referrer_id: '961220', referrer_name: '961220 - LAVLAVA', patient_name: 'น้อยใจ', visit_id: 'VIS-345173', total_invoice: 1525000, amount: 200000, base_amount: 200000, item_amount: 0, status: 'paid', paid_at: '2026-08-07T10:00:00Z', payout_method: 'โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)', created_at: '2026-08-07T10:00:00Z' },
     { id: 'COM-50002', referrer_id: '961220', referrer_name: '961220 - LAVLAVA', patient_name: 'LL', visit_id: 'VIS-345174', total_invoice: 850000, amount: 300000, base_amount: 200000, item_amount: 100000, status: 'paid', paid_at: '2026-08-07T09:30:00Z', payout_method: 'โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)', created_at: '2026-08-07T09:30:00Z' },
@@ -8815,7 +8942,9 @@ function renderStaffTable(list) {
         doctor: { label: 'Doctor', color: '#ffffff', bg: '#0d6efd', icon: 'bi-stethoscope' },
         nurse: { label: 'Nurse', color: '#ffffff', bg: '#198754', icon: 'bi-heart-pulse-fill' },
         pharmacist: { label: 'Pharmacist', color: '#ffffff', bg: '#0dcaf0', icon: 'bi-capsule-pill' },
+        lab: { label: 'Lab (ວິເຄາະ)', color: '#ffffff', bg: '#059669', icon: 'bi-virus' },
         staff: { label: 'Staff', color: '#ffffff', bg: '#6f42c1', icon: 'bi-person-fill' },
+        marketing: { label: 'Marketing', color: '#ffffff', bg: '#ec4899', icon: 'bi-megaphone-fill' },
     };
 
     tbody.innerHTML = list.map(u => {
@@ -9159,7 +9288,7 @@ function applyUserPermissions(currentUser) {
     const allMenuKeys = [
         'dashboard', 'appointments', 'registration', 'triage', 'doctor',
         'payment', 'lab', 'queue', 'prescription', 'pharmacy', 'history',
-        'billing', 'services', 'stock-drugs', 'stock-equip', 'staff', 'referrals', 'daily-reports'
+        'billing', 'expenses', 'services', 'stock-drugs', 'stock-equip', 'staff', 'referrals', 'daily-reports'
     ];
 
     let firstAllowedPage = null;
@@ -9286,6 +9415,9 @@ function hideUnauthorizedButtons(permissions) {
         { key: 'stock-equip:create', selectors: ['button[onclick*="openAddSupplyModal"]'] },
         { key: 'stock-equip:edit', selectors: ['button[onclick*="editSupplyItem"]'] },
         { key: 'stock-equip:delete', selectors: ['button[onclick*="deleteSupplyItem"]'] },
+
+        { key: 'expenses:create', selectors: ['button[onclick*="openExpenseModal"]', 'button[onclick*="openAddExpenseModal"]'] },
+        { key: 'expenses:delete', selectors: ['button[onclick*="deleteExpenseItem"]'] },
 
         { key: 'history:delete', selectors: ['button[onclick*="deleteHistoryVisit"]', 'button[onclick*="deleteAllHistoryVisits"]'] },
 
