@@ -1,3 +1,6 @@
+// Initialize Current User Session Immediately
+try { window.currentUser = JSON.parse(localStorage.getItem('clinicUser') || 'null'); } catch(e) {}
+
 // Global variables for Dashboard Calendar
 window.dbStartDate = new Date();
 window.dbEndDate = new Date();
@@ -300,6 +303,10 @@ function showPage(pageId, element) {
             if (typeof loadTriage === 'function') loadTriage();
         } else if (pageId === 'doctor') {
             if (typeof loadDoctorQueue === 'function') loadDoctorQueue();
+        } else if (pageId === 'prescription') {
+            if (typeof loadPrescriptionList === 'function') loadPrescriptionList();
+        } else if (pageId === 'queue') {
+            if (typeof loadQueueList === 'function') loadQueueList();
         } else if (pageId === 'payment') {
             if (typeof loadPaymentQueue === 'function') loadPaymentQueue();
         } else if (pageId === 'lab') {
@@ -1081,9 +1088,65 @@ async function loadTriage() {
     });
 }
 
+// ตรวจสอบว่าผู้ใช้ที่กำลังล็อกอินเป็นแพทย์หรือไม่
+function isDoctorUser(currentUser) {
+    if (!currentUser) return false;
+    const role = (currentUser.role || '').trim().toLowerCase();
+    if (role === 'doctor' || role === 'แพทย์' || role === 'หมอ' || role === 'ທ່ານໝໍ' || role.includes('doctor') || role.includes('แพทย์')) {
+        return true;
+    }
+    const curName = (currentUser.full_name || currentUser.name || '').toLowerCase();
+    const curEmail = (currentUser.email || '').toLowerCase();
+    const knownDoctorKeywords = [
+        'khanittha', 'phoutthaamat', 'lava', 'chiatong', 'nuna', 'sytathep',
+        'phengphan', 'souvannaphoume', 'souksakhone', 'doungviengxay', 'dr noy', 'dr bee', 'dr.'
+    ];
+    return knownDoctorKeywords.some(k => curName.includes(k) || curEmail.includes(k));
+}
+window.isDoctorUser = isDoctorUser;
+
+// ตรวจสอบว่าคิวตรวจนี้ถูกส่งให้กับแพทย์คนที่กำลังล็อกอินอยู่หรือไม่
+function isVisitAssignedToCurrentDoctor(visitDoctorName, currentUser) {
+    if (!currentUser) return true;
+
+    // สิทธิ์ที่ไม่ใช่แพทย์ (เช่น Admin, Staff, พยาบาล) จะเห็นได้ตามปกติ
+    if (!isDoctorUser(currentUser)) {
+        return true;
+    }
+
+    // ถ้าเป็นแพทย์ แต่คิวนี้ยังไม่ระบุแพทย์ หรือระบุเป็นคนอื่น -> ไม่แสดงให้เห็น
+    if (!visitDoctorName || visitDoctorName.trim() === '-' || visitDoctorName.trim() === '') {
+        return false;
+    }
+
+    const docStr = visitDoctorName.trim().toLowerCase();
+    const curName = (currentUser.name || '').trim().toLowerCase();
+    const curFullName = (currentUser.full_name || '').trim().toLowerCase();
+    const curEmp = (currentUser.emp_code || '').trim().toLowerCase();
+    const curEmail = (currentUser.email || '').trim().toLowerCase();
+    const curEmailUser = curEmail.split('@')[0];
+
+    // แตกคำสำคัญเพื่อจับคู่ชื่อแพทย์ (เช่น "khanittha", "phoutthaamat")
+    const tokens = [
+        ...curFullName.split(/\s+/),
+        ...curName.split(/\s+/),
+        curEmp,
+        curEmailUser
+    ].filter(t => t && t.length >= 3 && !['dr.', 'dr', 'doctor', 'แพทย์', 'ທ່ານໝໍ'].includes(t));
+
+    return tokens.some(token => docStr.includes(token));
+}
+window.isVisitAssignedToCurrentDoctor = isVisitAssignedToCurrentDoctor;
+
 async function loadDoctorQueue() {
     const tbody = document.querySelector('#doctorTable tbody');
     if (!tbody) return;
+
+    let currentUser = window.currentUser;
+    if (!currentUser) {
+        try { currentUser = JSON.parse(localStorage.getItem('clinicUser') || 'null'); } catch (e) {}
+    }
+    const isDoc = isDoctorUser(currentUser);
 
     const { data, error } = await _supabase
         .from('visits')
@@ -1096,7 +1159,14 @@ async function loadDoctorQueue() {
         tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
         return;
     }
-    if (!data || data.length === 0) {
+
+    let filtered = data || [];
+    if (isDoc) {
+        // หากเป็นแพทย์ จะแสดงเฉพาะคิวที่ระบุชื่อแพทย์คนนี้ หรือยังไม่ได้ระบุแพทย์เจาะจง
+        filtered = filtered.filter(row => !row.doctor_name || isVisitAssignedToCurrentDoctor(row.doctor_name, currentUser));
+    }
+
+    if (!filtered || filtered.length === 0) {
         const emptyText = typeof t === 'function' ? t('doctor_empty', 'ไม่มีผู้ป่วยรอตรวจ') : 'ไม่มีผู้ป่วยรอตรวจ';
         tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">${emptyText}</td></tr>`;
         return;
@@ -1104,9 +1174,10 @@ async function loadDoctorQueue() {
 
     const labBtnText = typeof t === 'function' ? t('doctor_btn_order_lab', 'สั่ง Lab') : 'สั่ง Lab';
     const finishBtnText = typeof t === 'function' ? t('doctor_btn_finish', 'ตรวจเสร็จ') : 'ตรวจเสร็จ';
-    data.forEach(row => {
+    filtered.forEach(row => {
         let vitals = `ความดัน: ${row.bp || '-'}, นน.: ${row.weight || '-'} กก., อุณหภูมิ: ${row.temp || '-'}°C`;
-        tbody.innerHTML += `<tr><td class="ps-4 fw-bold">${row.visit_id}</td><td><div class="fw-bold text-dark">${row.patient_name}</div><div class="text-muted small">อาการ: <span class="text-danger">${row.symptom || '-'}</span></div></td><td class="text-muted small">${vitals}</td><td class="text-end pe-4"><button class="btn btn-sm btn-outline-primary me-2" onclick="openLabOrder('${row.visit_id}', '${row.patient_name}', '${row.hn}')"><i class="bi bi-virus"></i> ${labBtnText}</button><button class="btn btn-sm btn-success px-3" onclick="completeDoctorCheck('${row.visit_id}')"><i class="bi bi-check-circle me-1"></i>${finishBtnText}</button></td></tr>`;
+        let docBadge = row.doctor_name ? `<span class="badge bg-info-subtle text-info border border-info-subtle ms-2"><i class="bi bi-person me-1"></i>${row.doctor_name}</span>` : '';
+        tbody.innerHTML += `<tr><td class="ps-4 fw-bold">${row.visit_id}</td><td><div class="fw-bold text-dark">${row.patient_name}${docBadge}</div><div class="text-muted small">อาการ: <span class="text-danger">${row.symptom || '-'}</span></div></td><td class="text-muted small">${vitals}</td><td class="text-end pe-4"><button class="btn btn-sm btn-outline-primary me-2" onclick="openLabOrder('${row.visit_id}', '${row.patient_name}', '${row.hn}')"><i class="bi bi-virus"></i> ${labBtnText}</button><button class="btn btn-sm btn-success px-3" onclick="completeDoctorCheck('${row.visit_id}')"><i class="bi bi-check-circle me-1"></i>${finishBtnText}</button></td></tr>`;
     });
 }
 
@@ -1285,6 +1356,30 @@ async function loadPrescriptionList() {
     const tbody = document.querySelector('#prescriptionTable tbody');
     if (!tbody) return;
 
+    let currentUser = window.currentUser;
+    if (!currentUser) {
+        try { currentUser = JSON.parse(localStorage.getItem('clinicUser') || 'null'); } catch (e) {}
+    }
+    const isDoc = isDoctorUser(currentUser);
+
+    // จัดการ UI Header ป้ายสถานะแพทย์ หรือตัวกรองแพทย์ (สำหรับ Admin)
+    const filterBox = document.getElementById('rxDoctorFilterBox');
+    const filterSelect = document.getElementById('rxDoctorFilterSelect');
+    const badgeBox = document.getElementById('rxDoctorPersonalBadge');
+    const badgeLabel = document.getElementById('rxDoctorPersonalLabel');
+
+    if (isDoc) {
+        if (filterBox) filterBox.style.display = 'none';
+        if (badgeBox) badgeBox.style.display = 'inline-block';
+        if (badgeLabel) {
+            const docDisplayName = currentUser.full_name || currentUser.name || currentUser.email;
+            badgeLabel.innerHTML = `<i class="bi bi-person-check-fill me-1"></i>เฉพาะคิวตรวจของ: <strong>${docDisplayName}</strong>`;
+        }
+    } else {
+        if (badgeBox) badgeBox.style.display = 'none';
+        if (filterBox) filterBox.style.display = 'flex';
+    }
+
     const { data, error } = await _supabase
         .from('visits')
         .select('*')
@@ -1296,12 +1391,39 @@ async function loadPrescriptionList() {
         tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-5">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
         return;
     }
-    if (!data || data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">ไม่มีรายการรออ่านผล</td></tr>';
+
+    // เติมตัวเลือกรายชื่อแพทย์ใน Dropdown ของ Admin/Staff
+    if (!isDoc && filterSelect && filterSelect.options.length <= 1) {
+        try {
+            const { data: docList } = await _supabase.from('staff_users').select('full_name, emp_code, email').in('role', ['doctor', 'แพทย์']);
+            if (docList && docList.length > 0) {
+                docList.forEach(d => {
+                    const dName = d.full_name || d.emp_code || d.email;
+                    filterSelect.innerHTML += `<option value="${dName}">👨‍⚕️ ${dName}</option>`;
+                });
+            }
+        } catch (e) {}
+    }
+
+    let filtered = data || [];
+
+    // 🔒 หากเป็นแพทย์: ล็อกการมองเห็นให้เห็นเฉพาะคิวที่ระบุแพทย์คนนี้เท่านั้น (หมอคนอื่นจะไม่เห็น)
+    if (isDoc) {
+        filtered = filtered.filter(row => isVisitAssignedToCurrentDoctor(row.doctor_name, currentUser));
+    } else if (filterSelect && filterSelect.value && filterSelect.value !== 'all') {
+        const selectedFilterDoc = filterSelect.value.trim().toLowerCase();
+        filtered = filtered.filter(row => (row.doctor_name || '').toLowerCase().includes(selectedFilterDoc));
+    }
+
+    if (!filtered || filtered.length === 0) {
+        const emptyMsg = isDoc 
+            ? `ไม่มีรายการรออ่านผลสำหรับคุณหมอ (${currentUser.full_name || currentUser.name || 'ท่านนี้'})`
+            : 'ไม่มีรายการรออ่านผล';
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-5"><i class="bi bi-person-check me-2"></i>${emptyMsg}</td></tr>`;
         return;
     }
 
-    data.forEach(row => {
+    filtered.forEach(row => {
         let statusBadge = '';
         let actionBtn = '';
 
@@ -9447,13 +9569,14 @@ document.addEventListener("DOMContentLoaded", function () {
     if (currentUserStr) {
         try {
             const currentUser = JSON.parse(currentUserStr);
+            window.currentUser = currentUser;
 
             // อัปเดตข้อมูลใน Sidebar ให้ตรงกับคนที่ล็อกอิน
             const nameEl = document.getElementById('sidebar-name');
             const roleEl = document.getElementById('sidebar-role');
             const avatarEl = document.getElementById('sidebar-avatar');
 
-            if (nameEl) nameEl.textContent = currentUser.name || currentUser.email;
+            if (nameEl) nameEl.textContent = currentUser.full_name || currentUser.name || currentUser.email;
 
             if (roleEl) {
                 const roleMap = {
@@ -9461,6 +9584,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     doctor: 'แพทย์',
                     nurse: 'พยาบาล',
                     pharmacist: 'เภสัชกร',
+                    lab: 'Lab (วิเคราะห์)',
+                    marketing: 'การตลาด/ผู้แนะนำ',
                     staff: 'พนักงาน'
                 };
                 let roleDisplay = roleMap[currentUser.role] || currentUser.role || 'ผู้ใช้งาน';
@@ -9468,7 +9593,7 @@ document.addEventListener("DOMContentLoaded", function () {
             }
 
             if (avatarEl) {
-                const displayName = currentUser.name || currentUser.email || 'U';
+                const displayName = currentUser.full_name || currentUser.name || currentUser.email || 'U';
                 avatarEl.textContent = displayName.charAt(0).toUpperCase();
             }
 
