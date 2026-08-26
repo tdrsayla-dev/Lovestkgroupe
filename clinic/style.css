@@ -763,250 +763,642 @@ th {
     border-radius: 8px !important;
 }
 
-/* --- Dashboard Redesign Styles --- */
-.db-container {
+/* --- Dashboard Redesign Styles (Modern Clinic Analytics) --- */
+.db-container-v2 {
     display: flex;
     flex-direction: column;
-    gap: 24px;
-}
-
-.db-grid-4 {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
     gap: 20px;
+    padding-bottom: 24px;
 }
 
-.db-stat-card {
-    background-color: #EBF0F6 !important;
-    /* Soft light blue/gray matching screenshot */
-    border-radius: 14px;
-    padding: 22px 24px;
-    border: none !important;
-    box-shadow: none !important;
+/* Header */
+.db-header-v2 {
     display: flex;
-    flex-direction: column;
     justify-content: space-between;
-    min-height: 120px;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 4px;
 }
 
-.db-stat-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 10px 20px rgba(11, 60, 115, 0.08) !important;
-}
-
-.db-stat-title {
-    color: #475569;
-    font-size: 0.95rem;
-    font-weight: 600;
-    margin-bottom: 8px;
-}
-
-.db-stat-number-wrapper {
-    display: flex;
-    align-items: baseline;
-}
-
-.db-stat-number {
-    font-size: 3.2rem;
+.db-header-left h2 {
+    font-size: 1.55rem;
     font-weight: 700;
-    color: #0b3c73 !important;
-    /* Deep dark blue */
-    line-height: 1;
+    color: #1e293b;
+    margin-bottom: 2px;
+    letter-spacing: -0.2px;
 }
 
-.db-stat-unit {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: #475569;
-    margin-left: 8px;
+.db-header-left p {
+    font-size: 0.88rem;
+    color: #64748b;
+    margin-bottom: 0;
 }
 
-/* Middle Row layout */
-.db-grid-3 {
-    display: grid;
-    grid-template-columns: 4.2fr 3.3fr 3.5fr;
-    gap: 20px;
-}
-
-.db-card {
-    background-color: #e6edf8 !important;
-    border-radius: 14px;
-    padding: 22px;
-    border: none !important;
-    box-shadow: none !important;
+.db-header-right {
     display: flex;
-    flex-direction: column;
-    height: 100%;
-    /* เปลี่ยนเป็น 100% เพื่อให้สูงเท่ากับฝั่งปฏิทินอัตโนมัติ */
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
 }
 
-.db-card-title {
+.db-search-box {
+    position: relative;
+    width: 220px;
+}
+
+.db-search-box input {
+    width: 100%;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 50px;
+    padding: 7px 14px 7px 34px;
+    font-size: 0.84rem;
+    color: #1e293b;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.db-search-box input:focus {
+    border-color: #0d9488;
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+}
+
+.db-search-box i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    font-size: 0.95rem;
+}
+
+.db-notif-btn {
+    position: relative;
+    width: 38px;
+    height: 38px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #475569;
     font-size: 1.15rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.db-notif-btn:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+.db-notif-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    background: #0d9488;
+    color: #ffffff;
+    font-size: 0.65rem;
     font-weight: 700;
-    color: #0b3c73;
-    margin-bottom: 16px;
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #ffffff;
+}
+
+.db-date-pill {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 50px;
+    padding: 6px 14px;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: #334155;
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
-/* Appointments List style */
-.db-appt-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    max-height: 310px;
-    overflow-y: auto;
-    padding-right: 6px;
+.db-date-pill i {
+    color: #475569;
+    font-size: 1rem;
 }
 
-.db-appt-row {
+.db-user-pill {
     display: flex;
     align-items: center;
-    gap: 12px;
-}
-
-.db-appt-time {
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: #0b3c73;
-    width: 45px;
-    flex-shrink: 0;
-}
-
-.db-appt-badge {
-    background-color: #0b3c73;
-    color: #ffffff;
-    border-radius: 6px;
-    padding: 8px 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-    font-size: 0.85rem;
-    font-weight: 500;
+    gap: 6px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 50px;
     transition: background-color 0.2s ease;
 }
 
-.db-appt-badge:hover {
-    background-color: #082d56;
+.db-user-avatar-circle {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, #0d9488 0%, #059669 100%);
+    color: #ffffff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
 }
 
-.db-appt-name {
-    text-transform: uppercase;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 170px;
+/* 4 Top Stat Cards */
+.db-grid-4-v2 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
 }
 
-.db-appt-status {
-    font-weight: 600;
-    opacity: 0.95;
+.db-stat-card-v2 {
+    background: #ffffff;
+    border: 1px solid #f1f5f9;
+    border-radius: 18px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.db-stat-card-v2:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.db-stat-icon-wrapper {
+    width: 54px;
+    height: 54px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
     flex-shrink: 0;
 }
 
-/* Patient Types style */
-.db-patient-types-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    max-height: 310px;
-    overflow-y: auto;
-    padding-right: 6px;
+.db-stat-icon-wrapper.icon-teal {
+    background: #f0fdf4;
+    color: #0d9488;
+    border: 1px solid #ccfbf1;
 }
 
-.db-type-row {
+.db-stat-icon-wrapper.icon-amber {
+    background: #fffbeb;
+    color: #d97706;
+    border: 1px solid #fef3c7;
+}
+
+.db-stat-icon-wrapper.icon-mint {
+    background: #f0fdfa;
+    color: #059669;
+    border: 1px solid #d1fae5;
+}
+
+.db-stat-icon-wrapper.icon-blue {
+    background: #eff6ff;
+    color: #2563eb;
+    border: 1px solid #dbeafe;
+}
+
+.db-stat-content-v2 {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+.db-stat-title-v2 {
+    font-size: 0.84rem;
+    font-weight: 500;
+    color: #64748b;
+    margin-bottom: 2px;
+}
+
+.db-stat-value-box-v2 {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.db-stat-num-v2 {
+    font-size: 1.95rem;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.1;
+    letter-spacing: -0.5px;
+}
+
+.db-stat-unit-v2 {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #64748b;
+}
+
+.db-stat-trend-v2 {
+    font-size: 0.74rem;
+    font-weight: 600;
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.db-stat-trend-v2.trend-up {
+    color: #16a34a;
+}
+
+.db-stat-trend-v2.trend-down-amber {
+    color: #d97706;
+}
+
+.db-stat-trend-v2.trend-down-green {
+    color: #059669;
+}
+
+.db-stat-trend-v2.trend-blue {
+    color: #2563eb;
+}
+
+/* Middle Row: 3 Columns */
+.db-grid-3-v2 {
+    display: grid;
+    grid-template-columns: 4.4fr 3.3fr 3.1fr;
+    gap: 18px;
+}
+
+.db-card-white {
+    background: #ffffff;
+    border: 1px solid #f1f5f9;
+    border-radius: 18px;
+    padding: 22px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.db-card-head {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 0.9rem;
-    color: #1e293b;
-    padding: 2px 4px;
+    margin-bottom: 16px;
 }
 
-.db-type-left {
+.db-card-title-v2 {
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: #1e293b;
     display: flex;
     align-items: center;
     gap: 8px;
+    margin-bottom: 0;
 }
 
-.db-type-dot {
-    width: 8px;
-    height: 8px;
-    background-color: #eab308;
-    /* Yellow dot */
-    border-radius: 50%;
+.db-card-title-v2 i {
+    color: #0d9488;
+    font-size: 1.15rem;
 }
 
-.db-type-name {
+.db-card-link-v2 {
+    font-size: 0.78rem;
+    color: #64748b;
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.db-card-link-v2:hover {
+    color: #0d9488;
+}
+
+/* Left Card: Appointments Table */
+.db-appt-table-container {
+    flex-grow: 1;
+    overflow-x: auto;
+}
+
+.db-appt-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.db-appt-table th {
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: #64748b;
+    padding: 6px 8px 10px 8px;
+    border-bottom: 1px solid #f1f5f9;
+    text-align: left;
+}
+
+.db-appt-table td {
+    font-size: 0.82rem;
+    padding: 10px 8px;
+    border-bottom: 1px solid #f8fafc;
+    color: #334155;
+    vertical-align: middle;
+}
+
+.db-appt-table tr:last-child td {
+    border-bottom: none;
+}
+
+.db-appt-time-col {
+    font-weight: 700;
+    color: #1e293b;
+    white-space: nowrap;
+}
+
+.db-appt-name-col {
+    font-weight: 500;
+    color: #1e293b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
+}
+
+.db-appt-service-col {
+    color: #64748b;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+}
+
+.db-status-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 50px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+    text-align: center;
+}
+
+.db-status-badge.badge-confirmed {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.db-status-badge.badge-in-service {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.db-status-badge.badge-waiting {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+.db-status-badge.badge-booked {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.db-appt-footer-v2 {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid #f8fafc;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #0d9488;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.db-appt-footer-v2 i {
+    font-size: 1rem;
+}
+
+/* Middle Card: Donut Chart & Queue Status */
+.db-donut-layout {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.db-donut-svg-wrapper {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    flex-shrink: 0;
+}
+
+.db-donut-center-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    line-height: 1.1;
+}
+
+.db-donut-center-num {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #0f172a;
+    display: block;
+}
+
+.db-donut-center-unit {
+    font-size: 0.72rem;
+    color: #64748b;
     font-weight: 500;
 }
 
-.db-type-pct {
-    font-weight: 600;
-    color: #0b3c73;
-}
-
-/* Purple Calendar style */
-.db-calendar-card {
-    background: linear-gradient(135deg, #14024a 0%, #0f248e 100%) !important;
-    border-radius: 14px;
-    padding: 14px 16px;
-    color: #ffffff;
-    border: none !important;
+.db-donut-legend-list {
     display: flex;
     flex-direction: column;
-    height: auto;
-    /* เปลี่ยนเป็น auto เพื่อให้ปฏิทินขยายจนแสดงครบทุกสัปดาห์ */
-    margin-bottom: 20px;
-    /* เพิ่มระยะห่างระหว่างปฏิทินกับรายการจัดคิวด้านล่าง */
+    gap: 6px;
+    flex-grow: 1;
 }
 
-.db-calendar-header {
+.db-donut-legend-item {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
+    font-size: 0.76rem;
+    gap: 6px;
+}
+
+.db-donut-legend-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.db-donut-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.db-donut-dot.dot-teal { background: #0d9488; }
+.db-donut-dot.dot-blue { background: #0284c7; }
+.db-donut-dot.dot-amber { background: #f59e0b; }
+.db-donut-dot.dot-gray { background: #94a3b8; }
+
+.db-donut-label {
+    color: #334155;
+    font-weight: 500;
+}
+
+.db-donut-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.1;
+}
+
+.db-donut-pct {
     font-weight: 700;
-    font-size: 0.95rem;
+    color: #1e293b;
+    font-size: 0.78rem;
+}
+
+.db-donut-subcount {
+    font-size: 0.68rem;
+    color: #94a3b8;
+}
+
+.db-queue-section-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #1e293b;
     margin-bottom: 10px;
 }
 
-.db-calendar-nav {
-    display: flex;
-    gap: 12px;
-}
-
-.db-calendar-arrow {
-    cursor: pointer;
-    font-size: 0.85rem;
-    font-weight: 700;
-    user-select: none;
-    opacity: 0.85;
-    transition: opacity 0.2s ease;
-}
-
-.db-calendar-arrow:hover {
-    opacity: 1;
-}
-
-.db-calendar-weekdays {
+.db-queue-grid-2x2 {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    text-align: center;
-    font-size: 0.65rem;
-    opacity: 0.8;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
     margin-bottom: 6px;
-    font-weight: 600;
 }
 
-.db-calendar-days {
+.db-queue-pill-item {
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: 10px;
+    padding: 7px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.78rem;
+    color: #334155;
+    font-weight: 500;
+}
+
+.db-queue-pill-count {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 700;
+    color: #0d9488;
+    font-size: 0.84rem;
+}
+
+.db-queue-pill-count i {
+    font-size: 0.85rem;
+}
+
+/* Right Card: Modern Minimalist Calendar */
+.db-cal-card-v2 {
+    background: #ffffff;
+    border: 1px solid #f1f5f9;
+    border-radius: 18px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.db-cal-header-v2 {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.db-cal-title-v2 {
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.db-cal-nav-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.db-cal-arrow-btn {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    font-size: 0.95rem;
+    cursor: pointer;
+    padding: 3px 6px;
+    border-radius: 6px;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.db-cal-arrow-btn:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+.db-cal-today-pill {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 50px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #475569;
+    padding: 3px 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.db-cal-today-pill:hover {
+    background: #0d9488;
+    color: #ffffff;
+    border-color: #0d9488;
+}
+
+.db-cal-weekdays-v2 {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     text-align: center;
-    font-size: 0.75rem;
-    row-gap: 4px;
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: #64748b;
+    margin-bottom: 8px;
+}
+
+.db-cal-days-grid-v2 {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    text-align: center;
+    row-gap: 6px;
 }
 
 .db-calendar-day {
@@ -1014,199 +1406,262 @@ th {
     display: flex;
     align-items: center;
     justify-content: center;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: #334155;
     border-radius: 50%;
     cursor: pointer;
+    position: relative;
+    margin: 0 auto;
+    width: 28px;
+    height: 28px;
     transition: all 0.2s ease;
 }
 
 .db-calendar-day:hover {
-    background: rgba(255, 255, 255, 0.2);
-}
-
-.db-calendar-day.active {
-    background-color: #ffffff;
-    color: #6d28d9;
-    font-weight: 700;
+    background: #f1f5f9;
+    color: #0f172a;
 }
 
 .db-calendar-day.other-month {
-    opacity: 0.35;
+    color: #cbd5e1;
 }
 
-/* Queue Status style */
-.db-queue-list {
+.db-calendar-day.active,
+.db-calendar-day.selected-start,
+.db-calendar-day.selected-end {
+    background: #0d9488 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+}
+
+.db-calendar-day.has-event::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #0d9488;
+}
+
+.db-calendar-day.active.has-event::after {
+    background: #ffffff;
+}
+
+/* Bottom Row: 2 Sections */
+.db-bottom-grid-v2 {
+    display: grid;
+    grid-template-columns: 8.5fr 3.8fr;
+    gap: 18px;
+}
+
+.db-chart-card-v2 {
+    background: #ffffff;
+    border: 1px solid #f1f5f9;
+    border-radius: 18px;
+    padding: 22px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    height: 205px;
-    /* Height for queue list */
-    overflow-y: auto;
-    padding-right: 4px;
 }
 
-.db-queue-item {
-    background-color: #dbe6f5;
-    /* Light blue pill */
-    border-radius: 8px;
-    padding: 6px 14px;
+.db-chart-header-v2 {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    color: #0b3c73;
-    font-weight: 600;
-    font-size: 0.85rem;
+    margin-bottom: 14px;
 }
 
-.db-queue-name {
-    flex-grow: 1;
-}
-
-.db-queue-status-text {
-    margin-right: 18px;
-    font-weight: 500;
-    opacity: 0.85;
-}
-
-.db-queue-count {
-    font-weight: 700;
-    font-size: 0.95rem;
-}
-
-/* Bottom Chart layout - Redesigned completely */
-.db-chart-card {
-    background-color: #e6edf8 !important;
-    border-radius: 14px;
-    padding: 24px;
-    border: none !important;
-    box-shadow: none !important;
-}
-
-.db-chart-layout {
-    display: grid;
-    grid-template-columns: 3.5fr 8.5fr;
-    gap: 24px;
-}
-
-.db-chart-panel {
+.db-chart-legend-row {
     display: flex;
-    flex-direction: column;
+    align-items: center;
     gap: 16px;
-    border-right: 1px solid rgba(11, 60, 115, 0.1);
-    padding-right: 24px;
-}
-
-.db-panel-section {
-    background-color: rgba(255, 255, 255, 0.5);
-    border-radius: 10px;
-    padding: 14px 18px;
-    display: flex;
-    flex-direction: column;
-}
-
-.db-panel-lbl {
-    font-size: 0.82rem;
+    font-size: 0.78rem;
     font-weight: 600;
-    color: #475569;
-    margin-bottom: 4px;
+}
+
+.db-chart-legend-item-v2 {
     display: flex;
     align-items: center;
     gap: 6px;
+    color: #475569;
 }
 
-.db-panel-val {
-    font-size: 1.8rem;
-    font-weight: 700;
-    color: #0b3c73;
-    line-height: 1.1;
-}
-
-.db-panel-trend {
-    font-size: 0.75rem;
-    font-weight: 600;
-    margin-top: 4px;
-}
-
-.db-trend-up {
-    color: #16a34a;
-}
-
-.db-trend-down {
-    color: #dc2626;
-}
-
-.db-chart-container {
-    width: 100%;
-    height: 220px;
+.legend-line-teal {
+    width: 18px;
+    height: 3px;
+    background: #0d9488;
+    border-radius: 4px;
+    display: inline-block;
     position: relative;
 }
 
-.db-chart-legend {
-    display: flex;
-    justify-content: flex-end;
-    gap: 16px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    margin-bottom: 12px;
-}
-
-.db-legend-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: #475569;
-}
-
-.db-legend-dot {
-    width: 10px;
-    height: 10px;
+.legend-line-teal::after {
+    content: '';
+    position: absolute;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
+    background: #0d9488;
+    top: -2px;
+    left: 5px;
 }
 
-.db-chart-months {
+.legend-line-blue {
+    width: 18px;
+    height: 3px;
+    background: #0284c7;
+    border-radius: 4px;
+    display: inline-block;
+    position: relative;
+}
+
+.legend-line-blue::after {
+    content: '';
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #0284c7;
+    top: -2px;
+    left: 5px;
+}
+
+.db-area-chart-wrapper {
+    position: relative;
+    width: 100%;
+    height: 185px;
+}
+
+.db-area-chart-months {
     display: flex;
     justify-content: space-between;
-    padding: 0 45px;
-    margin-top: 8px;
-    color: #475569;
-    font-weight: 600;
-    font-size: 0.8rem;
+    padding: 0 20px 0 35px;
+    margin-top: 4px;
+    font-size: 0.72rem;
+    color: #64748b;
+    font-weight: 500;
 }
 
-/* --- Donut Chart Custom Styles --- */
-.circular-chart {
-    display: block;
-    margin: 0 auto;
-    max-width: 100%;
-    max-height: 250px;
+/* Right Stacked KPI Cards */
+.db-kpi-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
 }
 
-.circle-bg {
-    fill: none;
-    stroke: #e2e8f0;
-    stroke-width: 4;
+.db-kpi-card-v2 {
+    background: #ffffff;
+    border: 1px solid #f1f5f9;
+    border-radius: 18px;
+    padding: 18px 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    height: 100%;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.circle,
-.circle-alt {
-    fill: none;
-    stroke-width: 4;
-    stroke-linecap: round;
-    transition: stroke-dasharray 0.5s ease-out, stroke-dashoffset 0.5s ease-out;
+.db-kpi-card-v2:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
 }
 
-/* สไตล์สำหรับช่วงวันที่ที่ถูกเลือกในปฏิทิน */
-.db-calendar-day.selected-range {
-    background-color: rgba(255, 255, 255, 0.2);
-    /* สีพื้นหลังโปร่งแสงสำหรับช่วงวันที่ */
-    border-radius: 6px;
+.db-kpi-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
 
-.db-calendar-day.selected-start,
-.db-calendar-day.selected-end {
-    background-color: #ffd500;
-    color: #000000;
-    font-weight: 700;
+.db-kpi-icon-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 2px;
+}
+
+.db-kpi-icon-circle {
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+}
+
+.db-kpi-icon-circle.teal {
+    background: #f0fdf4;
+    color: #0d9488;
+}
+
+.db-kpi-icon-circle.blue {
+    background: #eff6ff;
+    color: #2563eb;
+}
+
+.db-kpi-title {
+    font-size: 0.8rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.db-kpi-val-row {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.db-kpi-number {
+    font-size: 1.55rem;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.1;
+}
+
+.db-kpi-unit {
+    font-size: 0.78rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.db-kpi-sparkline {
+    width: 105px;
+    height: 50px;
+    flex-shrink: 0;
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 1200px) {
+    .db-grid-4-v2 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .db-grid-3-v2 {
+        grid-template-columns: 1fr;
+    }
+    .db-bottom-grid-v2 {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .db-grid-4-v2 {
+        grid-template-columns: 1fr;
+    }
+    .db-header-v2 {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .db-header-right {
+        width: 100%;
+        justify-content: space-between;
+    }
+    .db-search-box {
+        width: 100%;
+    }
 }
 
 /* =========================================

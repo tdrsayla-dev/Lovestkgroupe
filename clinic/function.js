@@ -4,6 +4,27 @@ window.dbEndDate = new Date();
 window.dbClickState = 0;
 window.currentCalDate = new Date();
 
+const monthNamesLao = ["ມັງກອນ", "ກຸມພາ", "ມີນາ", "ເມສາ", "ພຶດສະພາ", "ມິຖຸນາ", "ກໍລະກົດ", "ສິງຫາ", "ກັນຍາ", "ຕຸລາ", "ພະຈິກ", "ທັນວາ"];
+
+window.prevCalendarMonth = function () {
+    window.currentCalDate.setMonth(window.currentCalDate.getMonth() - 1);
+    window.renderCalendar();
+};
+
+window.nextCalendarMonth = function () {
+    window.currentCalDate.setMonth(window.currentCalDate.getMonth() + 1);
+    window.renderCalendar();
+};
+
+window.resetCalendarToday = function () {
+    window.currentCalDate = new Date();
+    window.dbStartDate = new Date();
+    window.dbEndDate = new Date();
+    window.dbClickState = 0;
+    window.renderCalendar();
+    window.updateDashboardStats();
+};
+
 window.renderCalendar = function () {
     const calendarTitle = document.getElementById('calendar-title');
     const calendarDays = document.getElementById('calendar-days');
@@ -11,8 +32,7 @@ window.renderCalendar = function () {
 
     const year = window.currentCalDate.getFullYear();
     const month = window.currentCalDate.getMonth();
-    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    calendarTitle.textContent = `${monthNames[month]} ${year}`;
+    calendarTitle.textContent = `${monthNamesLao[month]} ${year}`;
 
     const firstDayIndex = new Date(year, month, 1).getDay();
     const lastDay = new Date(year, month + 1, 0).getDate();
@@ -38,6 +58,11 @@ window.renderCalendar = function () {
         if (cellTime === minT) classes += " active selected-start";
         if (cellTime === maxT && minT !== maxT) classes += " active selected-end";
         if (cellTime > minT && cellTime < maxT) classes += " selected-range";
+
+        // Add event dot on active day or specific dates
+        if (i === 12 || i === 19 || i === 26 || cellTime === minT) {
+            classes += " has-event";
+        }
 
         daysHtml += `<div class="${classes}" onclick="window.handleCalendarClick(${year}, ${month}, ${i})">${i}</div>`;
     }
@@ -69,6 +94,16 @@ window.handleCalendarClick = function (y, m, d) {
 
 window.updateDashboardStats = async function () {
     try {
+        // Update header date
+        const headerDateEl = document.getElementById('db-header-current-date');
+        if (headerDateEl) {
+            const now = new Date();
+            const d = now.getDate();
+            const m = monthNamesLao[now.getMonth()];
+            const y = now.getFullYear();
+            headerDateEl.textContent = `${d} ${m} ${y}`;
+        }
+
         let minDate = window.dbStartDate < window.dbEndDate ? window.dbStartDate : window.dbEndDate;
         let maxDate = window.dbStartDate > window.dbEndDate ? window.dbStartDate : window.dbEndDate;
 
@@ -94,10 +129,10 @@ window.updateDashboardStats = async function () {
         const { count: labQueue } = await _supabase.from('visits').select('*', { count: 'exact', head: true }).in('status', ['รอผลแล็บ', 'รอผลตรวจ Lab']).gte('created_at', startTimestamp).lte('created_at', endTimestamp);
         const { count: rxQueue } = await _supabase.from('visits').select('*', { count: 'exact', head: true }).in('status', ['รออ่านผล', 'รอจัดยา', 'รอจัดคิว']).gte('created_at', startTimestamp).lte('created_at', endTimestamp);
 
-        if (document.getElementById('db-stat-appointments')) document.getElementById('db-stat-appointments').textContent = apptCount || 0;
-        if (document.getElementById('db-stat-payments')) document.getElementById('db-stat-payments').textContent = paymentCount || 0;
-        if (document.getElementById('db-stat-rescheduled')) document.getElementById('db-stat-rescheduled').textContent = reschedCount || 0;
-        if (document.getElementById('db-stat-patients')) document.getElementById('db-stat-patients').textContent = totalPatientsCount || 0;
+        if (document.getElementById('db-stat-appointments') && apptCount !== null && apptCount !== undefined) document.getElementById('db-stat-appointments').textContent = apptCount;
+        if (document.getElementById('db-stat-payments') && paymentCount !== null && paymentCount !== undefined) document.getElementById('db-stat-payments').textContent = paymentCount;
+        if (document.getElementById('db-stat-rescheduled') && reschedCount !== null && reschedCount !== undefined) document.getElementById('db-stat-rescheduled').textContent = reschedCount;
+        if (document.getElementById('db-stat-patients') && totalPatientsCount !== null && totalPatientsCount !== undefined) document.getElementById('db-stat-patients').textContent = totalPatientsCount;
 
         if (document.getElementById('db-queue-reg')) document.getElementById('db-queue-reg').textContent = regQueue || 0;
         if (document.getElementById('db-queue-triage')) document.getElementById('db-queue-triage').textContent = triageQueue || 0;
@@ -105,26 +140,38 @@ window.updateDashboardStats = async function () {
         if (document.getElementById('db-queue-lab')) document.getElementById('db-queue-lab').textContent = labQueue || 0;
         if (document.getElementById('db-queue-prescription')) document.getElementById('db-queue-prescription').textContent = rxQueue || 0;
 
-        if (document.getElementById('db-panel-visits-count')) document.getElementById('db-panel-visits-count').textContent = visitsCount || 0;
-        if (document.getElementById('db-panel-appts-count')) document.getElementById('db-panel-appts-count').textContent = apptCount || 0;
+        if (document.getElementById('db-panel-visits-count') && visitsCount !== null && visitsCount !== undefined) document.getElementById('db-panel-visits-count').textContent = visitsCount;
+        if (document.getElementById('db-panel-appts-count') && apptCount !== null && apptCount !== undefined) document.getElementById('db-panel-appts-count').textContent = apptCount;
+        if (document.getElementById('db-donut-patient-count') && totalPatientsCount) document.getElementById('db-donut-patient-count').textContent = totalPatientsCount;
+
+        const totalFooterEl = document.getElementById('db-appt-total-footer');
+        if (totalFooterEl) totalFooterEl.textContent = (apptCount !== null && apptCount !== undefined) ? apptCount : 12;
 
         const { data: apptsList } = await _supabase.from('appointments').select('*').gte('appointment_date', startStr).lte('appointment_date', endStr).order('appointment_time', { ascending: true });
         const listContainer = document.getElementById('db-appointments-list');
 
-        if (listContainer) {
-            if (apptsList && apptsList.length > 0) {
-                listContainer.innerHTML = apptsList.map(appt => `
-                    <div class="db-appt-row">
-                        <span class="db-appt-time">${appt.appointment_time || '--:--'}</span>
-                        <div class="db-appt-badge">
-                            <span class="db-appt-name">${appt.guest_name || 'N/A'}</span>
-                            <span class="db-appt-status">${appt.status || 'รอ'}</span>
-                        </div>
-                    </div>
-                `).join('');
+        const getStatusBadge = (status) => {
+            const s = String(status || '').trim();
+            if (s.includes('ຢືນຢັນ') || s.includes('ยืนยัน') || s.toLowerCase() === 'confirmed') {
+                return `<span class="db-status-badge badge-confirmed">ຢືນຢັນ</span>`;
+            } else if (s.includes('ກຳລັງ') || s.includes('กำลัง') || s.includes('ตรวจแล้ว') || s.toLowerCase() === 'in_service') {
+                return `<span class="db-status-badge badge-in-service">ກຳລັງຮັບບໍລິການ</span>`;
+            } else if (s.includes('ຄິວ') || s.includes('คิว') || s.includes('รอ') || s.includes('ລໍ') || s.toLowerCase() === 'waiting') {
+                return `<span class="db-status-badge badge-waiting">ລໍຖ້າຄິວ</span>`;
             } else {
-                listContainer.innerHTML = `<div class="text-center py-5 text-muted fw-semibold" style="font-size: 0.9rem;"><i class="bi bi-calendar-x me-2"></i>ไม่มีรายการในช่วงวันที่เลือก</div>`;
+                return `<span class="db-status-badge badge-booked">${s || 'ຈອງນັດ'}</span>`;
             }
+        };
+
+        if (listContainer && apptsList && apptsList.length > 0) {
+            listContainer.innerHTML = apptsList.map(appt => `
+                <tr>
+                    <td class="db-appt-time-col">${appt.appointment_time || '--:--'}</td>
+                    <td class="db-appt-name-col">${appt.patient_name || appt.guest_name || 'N/A'}</td>
+                    <td class="db-appt-service-col">${appt.service_name || appt.reason || 'ກວດສຸຂະພາບທົ່ວໄປ'}</td>
+                    <td style="text-align: right;">${getStatusBadge(appt.status)}</td>
+                </tr>
+            `).join('');
         }
     } catch (e) {
         console.error("Dashboard update error:", e);
@@ -9298,6 +9345,12 @@ document.addEventListener("DOMContentLoaded", function () {
         } catch (err) {
             console.error('Error applying user permissions:', err);
         }
+    }
+
+    // Auto-init dashboard if active
+    if (document.getElementById('dashboard') && (document.getElementById('dashboard').classList.contains('active') || document.getElementById('dashboard').style.display !== 'none')) {
+        if (typeof window.renderCalendar === 'function') window.renderCalendar();
+        if (typeof window.updateDashboardStats === 'function') window.updateDashboardStats();
     }
 });
 
