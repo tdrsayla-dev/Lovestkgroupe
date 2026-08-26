@@ -557,54 +557,129 @@ th {
 }
 
 /* Collapsible Sidebar States */
+.sidebar {
+    width: 260px;
+    transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), padding 0.25s ease;
+}
+
+.content-area {
+    margin-left: 260px;
+    transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 .sidebar.collapsed {
-    width: 78px;
+    width: 72px !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
 }
 
 .content-area.collapsed {
-    margin-left: 78px;
+    margin-left: 72px !important;
 }
 
-.sidebar.collapsed .sidebar-label {
+/* 🚀 ซ่อนข้อความ, Label, Dropdown, ภาษา, ปุ่ม ทั้งหมดในโหมดหด Sidebar */
+.sidebar.collapsed .sidebar-label,
+.sidebar.collapsed .nav-link span,
+.sidebar.collapsed .nav-link [data-i18n],
+.sidebar.collapsed h4 span,
+.sidebar.collapsed h4 [data-i18n],
+.sidebar.collapsed h4 br,
+.sidebar.collapsed .sidebar-profile .text-start,
+.sidebar.collapsed .sidebar-profile .clinic-lang-select,
+.sidebar.collapsed .sidebar-profile .mt-2\.5,
+.sidebar.collapsed .sidebar-profile > div > div.text-start,
+.sidebar.collapsed .sidebar-profile .px-1,
+.sidebar.collapsed .sidebar-profile button,
+.sidebar.collapsed .bi-chevron-down,
+.sidebar.collapsed .dropdown-toggle::after {
     display: none !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    height: 0 !important;
+    opacity: 0 !important;
+    overflow: hidden !important;
 }
 
-.sidebar.collapsed .sidebar-profile-box {
-    padding: 8px !important;
-    margin: 10px 8px !important;
+/* จัดกึ่งกลาง Profile Avatar ในโหมดหด */
+.sidebar.collapsed .sidebar-profile {
+    padding: 6px 0 !important;
+    margin: 4px auto 10px auto !important;
+    border: none !important;
+    background: transparent !important;
 }
 
-.sidebar.collapsed .sidebar-profile-box .avatar {
-    margin: 0 auto;
+.sidebar.collapsed .sidebar-profile > div {
+    justify-content: center !important;
 }
 
-.sidebar.collapsed .nav-link {
-    justify-content: center;
-    padding: 12px !important;
-    margin: 5px 10px !important;
+.sidebar.collapsed .sidebar-profile .avatar,
+.sidebar.collapsed #sidebar-avatar {
+    margin: 0 auto !important;
+    width: 40px !important;
+    height: 40px !important;
 }
 
-.sidebar.collapsed .nav-link i {
-    margin-right: 0 !important;
-    font-size: 1.25rem;
-}
-
+/* จัดกึ่งกลางหัวโลโก้คลินิกในโหมดหด */
 .sidebar.collapsed h4 {
-    font-size: 1.1rem;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    margin-bottom: 12px !important;
+    padding: 0 !important;
 }
 
-.sidebar.collapsed .sidebar-dropdown-toggle i.bi-chevron-down {
-    display: none !important;
+.sidebar.collapsed h4 i,
+.sidebar.collapsed h4 .ph {
+    font-size: 1.8rem !important;
+    margin: 0 auto !important;
+    display: block !important;
 }
 
+/* 🚀 จัดแต่งปุ่มเมนู (Nav Links) ในโหมดหด ให้เป็นไอคอนสวยงามกึ่งกลาง */
+.sidebar.collapsed .nav-link {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 46px !important;
+    height: 46px !important;
+    padding: 0 !important;
+    margin: 6px auto !important;
+    border-radius: 12px !important;
+    text-align: center !important;
+    transform: none !important;
+}
+
+.sidebar.collapsed .nav-link:hover {
+    transform: scale(1.08) !important;
+}
+
+.sidebar.collapsed .nav-link i,
+.sidebar.collapsed .nav-link .ph {
+    margin: 0 !important;
+    font-size: 1.45rem !important;
+    line-height: 1 !important;
+}
+
+/* จัดกึ่งกลางปุ่ม Toggle ในโหมดหด */
+.sidebar.collapsed .sidebar-toggle-container {
+    justify-content: center !important;
+    padding: 0 !important;
+    margin-bottom: 8px !important;
+}
+
+/* เมนูย่อย Backend ในโหมดหด */
 .sidebar.collapsed #backendMenu {
-    background: rgba(0, 0, 0, 0.15) !important;
-    border-radius: 8px;
-    margin: 0 10px;
+    background: rgba(0, 0, 0, 0.25) !important;
+    border-radius: 12px;
+    margin: 4px auto !important;
+    padding: 4px 0 !important;
+    width: 54px !important;
 }
 
 .sidebar.collapsed #backendMenu .nav-link {
-    padding: 8px !important;
+    width: 40px !important;
+    height: 40px !important;
+    margin: 4px auto !important;
 }
 
 /* Toggle Trigger elements */
@@ -633,6 +708,28 @@ th {
     background: rgba(255, 255, 255, 0.2);
     border-color: rgba(255, 255, 255, 0.3);
     transform: scale(1.05);
+}
+
+/* Pharmacy Room Modern Card Styles */
+#pharmacyTable tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+#pharmacyTable tbody tr:hover {
+    background-color: #fafbfc;
+}
+
+#pharmacyTable .shadow-2xs {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+#pharmacyTable .btn {
+    transition: all 0.18s ease;
+}
+
+#pharmacyTable .btn:not([disabled]):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
 }
 
 /* SweetAlert Light Mode integration */
@@ -2070,4 +2167,423 @@ body.login-page {
     background: #fef2f2;
     border-color: #f87171;
     color: #dc2626;
+}
+
+/* ============================================================
+   Lab File Upload & Attachments Component Styles
+   ============================================================ */
+.lab-upload-dropzone {
+    border: 2px dashed #cbd5e1;
+    border-radius: 12px;
+    background-color: #f8fafc;
+    padding: 16px;
+    text-align: center;
+    transition: all 0.2s ease-in-out;
+    cursor: pointer;
+}
+.lab-upload-dropzone:hover, .lab-upload-dropzone.dragover {
+    border-color: #0b3c73;
+    background-color: #f0f7ff;
+}
+.lab-file-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    transition: box-shadow 0.15s ease;
+}
+.lab-file-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+.lab-file-badge-vascular {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+}
+.lab-file-badge-echo {
+    background-color: #e0e7ff;
+    color: #3730a3;
+    border: 1px solid #a5b4fc;
+}
+.lab-file-badge-general {
+    background-color: #e0f2fe;
+    color: #075985;
+    border: 1px solid #7dd3fc;
+}
+.lab-file-badge-other {
+    background-color: #f1f5f9;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+}
+.lab-file-thumb {
+    width: 42px;
+    height: 42px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 1px solid #e2e8f0;
+}
+
+/* Vascular Check Level Selector Styles */
+.vasc-level-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background-color: #ffffff;
+}
+
+.vasc-level-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+
+.vasc-level-item input[type="checkbox"] {
+    display: none;
+}
+
+.vasc-level-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 52px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 26px;
+    background-color: #f8fafc;
+    color: #475569;
+    transition: all 0.2s ease-in-out;
+}
+
+.vasc-level-box i {
+    font-size: 15px;
+    margin-bottom: 1px;
+    color: #64748b;
+}
+
+.vasc-level-box .vasc-num {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.vasc-level-item:hover .vasc-level-box {
+    border-color: #0b3c73;
+    background-color: #f0f7ff;
+    color: #0b3c73;
+}
+
+.vasc-level-item input[type="checkbox"]:checked + .vasc-level-box {
+    background-color: #0b3c73;
+    border: 1px solid #0b3c73;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(11, 60, 115, 0.35);
+    transform: translateY(-2px);
+}
+
+.vasc-level-item input[type="checkbox"]:checked + .vasc-level-box i {
+    color: #ffffff;
+}
+
+/* ============================================================ */
+/* Clinic Payment Modal & Payment Channels (ช่องทางการชำระเงิน) */
+/* ============================================================ */
+.pay-mode-btn-group {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.pay-mode-btn {
+    padding: 10px 6px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    border: 1.5px solid #cbd5e1;
+    background: #ffffff;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+.pay-mode-btn:hover {
+    background: #f1f5f9;
+    color: #1e293b;
+    border-color: #94a3b8;
+}
+
+.pay-mode-btn.active {
+    background: #2563eb !important;
+    border-color: #2563eb !important;
+    color: #ffffff !important;
+    box-shadow: 0 3px 10px rgba(37, 99, 235, 0.3);
+}
+
+.pay-cash-box {
+    background: #f0fdf4;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1.5px solid #86efac;
+    margin-bottom: 10px;
+    transition: all 0.2s ease;
+}
+
+.pay-cash-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #15803d;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.pay-transfer-box {
+    background: #eff6ff;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1.5px solid #bfdbfe;
+    margin-bottom: 10px;
+    transition: all 0.2s ease;
+}
+
+.pay-transfer-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1d4ed8;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.pay-input-wrapper {
+    position: relative;
+    flex: 1;
+}
+
+.pay-currency-symbol {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 13px;
+    font-weight: 700;
+    color: #94a3b8;
+    pointer-events: none;
+}
+
+.pay-input-control {
+    width: 100%;
+    padding: 7px 12px 7px 28px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #1e293b;
+    background: #ffffff;
+    outline: none;
+    transition: all 0.15s ease;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
+}
+
+.pay-cash-input {
+    border: 1.5px solid #86efac;
+}
+
+.pay-cash-input:focus {
+    border-color: #16a34a;
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
+}
+
+.pay-transfer-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.pay-transfer-row:last-child {
+    margin-bottom: 0;
+}
+
+.pay-badge-laos-yellow {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 7px 0;
+    width: 44px;
+    text-align: center;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+
+.pay-badge-laos-purple {
+    background: #e0e7ff;
+    color: #3730a3;
+    border: 1px solid #c7d2fe;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 7px 0;
+    width: 44px;
+    text-align: center;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+
+.pay-badge-thai-blue {
+    background: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #bfdbfe;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 7px 0;
+    width: 44px;
+    text-align: center;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+
+.pay-select-laos-yellow {
+    width: 90px;
+    border-radius: 6px;
+    border: 1.5px solid #fcd34d;
+    background: #ffffff;
+    color: #334155;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 7px 8px;
+    outline: none;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.pay-select-laos-purple {
+    width: 90px;
+    border-radius: 6px;
+    border: 1.5px solid #a5b4fc;
+    background: #ffffff;
+    color: #334155;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 7px 8px;
+    outline: none;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.pay-select-thai-blue {
+    width: 90px;
+    border-radius: 6px;
+    border: 1.5px solid #93c5fd;
+    background: #ffffff;
+    color: #334155;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 7px 8px;
+    outline: none;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.pay-input-laos-yellow {
+    border: 1.5px solid #fcd34d;
+}
+.pay-input-laos-yellow:focus {
+    border-color: #d97706;
+    box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.15);
+}
+
+.pay-input-laos-purple {
+    border: 1.5px solid #a5b4fc;
+}
+.pay-input-laos-purple:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.pay-input-thai-blue {
+    border: 1.5px solid #93c5fd;
+}
+.pay-input-thai-blue:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.pay-status-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #ffffff;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px 16px;
+    margin-bottom: 10px;
+    min-height: 52px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+
+.pay-note-textarea {
+    width: 100%;
+    border: 1.5px solid #e2e8f0;
+    background: #f8fafc;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #334155;
+    outline: none;
+    resize: vertical;
+    min-height: 48px;
+    transition: all 0.2s ease;
+}
+
+.pay-note-textarea:focus {
+    background: #ffffff;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.clinic-pay-grid {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 20px;
+    align-items: stretch;
+}
+
+.clinic-pay-left-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.clinic-pay-right-col {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+@media (max-width: 991px) {
+    .clinic-pay-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
 }

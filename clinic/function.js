@@ -91,7 +91,7 @@ window.updateDashboardStats = async function () {
         const { count: regQueue } = await _supabase.from('appointments').select('*', { count: 'exact', head: true }).in('status', ['รอ', 'รอยืนยัน']).gte('appointment_date', startStr).lte('appointment_date', endStr);
         const { count: triageQueue } = await _supabase.from('visits').select('*', { count: 'exact', head: true }).eq('status', 'รอคัดกรอง').gte('created_at', startTimestamp).lte('created_at', endTimestamp);
         const { count: doctorQueue } = await _supabase.from('visits').select('*', { count: 'exact', head: true }).eq('status', 'รอตรวจ').gte('created_at', startTimestamp).lte('created_at', endTimestamp);
-        const { count: labQueue } = await _supabase.from('visits').select('*', { count: 'exact', head: true }).eq('status', 'รอผลแล็บ').gte('created_at', startTimestamp).lte('created_at', endTimestamp);
+        const { count: labQueue } = await _supabase.from('visits').select('*', { count: 'exact', head: true }).in('status', ['รอผลแล็บ', 'รอผลตรวจ Lab']).gte('created_at', startTimestamp).lte('created_at', endTimestamp);
         const { count: rxQueue } = await _supabase.from('visits').select('*', { count: 'exact', head: true }).in('status', ['รออ่านผล', 'รอจัดยา', 'รอจัดคิว']).gte('created_at', startTimestamp).lte('created_at', endTimestamp);
 
         if (document.getElementById('db-stat-appointments')) document.getElementById('db-stat-appointments').textContent = apptCount || 0;
@@ -163,7 +163,7 @@ function showPage(pageId, element) {
                     const allMenuKeys = [
                         'dashboard', 'appointments', 'registration', 'triage', 'doctor',
                         'payment', 'lab', 'queue', 'prescription', 'pharmacy', 'history',
-                        'billing', 'services', 'stock-drugs', 'stock-equip', 'staff', 'referrals', 'daily-reports'
+                        'billing', 'expenses', 'services', 'stock-drugs', 'stock-equip', 'staff', 'referrals', 'daily-reports'
                     ];
                     const firstAllowed = allMenuKeys.find(key => permissions.some(p => p.startsWith(key)));
 
@@ -259,6 +259,8 @@ function showPage(pageId, element) {
             if (typeof loadLabQueue === 'function') loadLabQueue();
         } else if (pageId === 'billing') {
             if (typeof loadBills === 'function') loadBills();
+        } else if (pageId === 'expenses') {
+            if (typeof loadExpenses === 'function') loadExpenses();
         }
 
         if (typeof applyClinicLanguage === 'function') {
@@ -346,6 +348,7 @@ document.addEventListener("DOMContentLoaded", function () {
     loadReferralData();
     loadStaffUsers();
     loadBills();
+    loadExpenses();
 });
 
 function calculateAge() {
@@ -770,7 +773,7 @@ function renderPatientsTable(data) {
         } else if (vStatus === 'รอชำระเงิน') {
             const pendingPayText = typeof t === 'function' ? t('payment_status_pending', 'รอชำระเงิน') : 'รอชำระเงิน';
             paymentBadge = `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1 text-nowrap"><i class="bi bi-hourglass-split me-1"></i>${pendingPayText}</span>`;
-        } else if (vStatus === 'รอคัดกรอง' || vStatus === 'รอตรวจ' || vStatus === 'รอผลแล็บ' || vStatus === 'รอจัดคิว' || vStatus === 'รออ่านผล' || vStatus === 'กำลังคุยกับแพทย์' || vStatus === 'กำลังตรวจ' || vStatus === 'กำลังตรวจอยู่') {
+        } else if (vStatus === 'รอคัดกรอง' || vStatus === 'รอตรวจ' || vStatus === 'รอผลแล็บ' || vStatus === 'รอผลตรวจ Lab' || vStatus === 'รอจัดคิว' || vStatus === 'รออ่านผล' || vStatus === 'กำลังคุยกับแพทย์' || vStatus === 'กำลังตรวจ' || vStatus === 'กำลังตรวจอยู่') {
             const treatingText = typeof t === 'function' ? t('reg_status_in_treatment', 'กำลังรักษา') : 'กำลังรักษา';
             paymentBadge = `<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 text-nowrap"><i class="bi bi-activity me-1"></i>${treatingText}</span>`;
         } else if (vStatus) {
@@ -1380,37 +1383,340 @@ function onMedSelectChange() {
     tierSelect.innerHTML = optionsHtml;
 }
 
-function updateLabDiscountCalc(totalPrice) {
-    const input = document.getElementById('labDiscountInput');
-    const display = document.getElementById('modalLabNetPriceDisplay');
-    if (!input || !display) return;
+window.clinicExchangeRate = 700;
+window.clinicCurrentPayMode = 'สด';
 
-    let discount = parseFloat(input.value) || 0;
+async function getClinicExchangeRate() {
+    try {
+        const localSaved = localStorage.getItem('clinic_exchange_rate');
+        if (localSaved && parseFloat(localSaved) > 0) {
+            window.clinicExchangeRate = parseFloat(localSaved);
+            return window.clinicExchangeRate;
+        }
+        if (window.stkExchangeRate && window.stkExchangeRate > 0) {
+            window.clinicExchangeRate = parseFloat(window.stkExchangeRate);
+            return window.clinicExchangeRate;
+        }
+        if (typeof _supabase !== 'undefined') {
+            try {
+                const { data } = await _supabase.from('stk_system_settings').select('value').eq('key', 'exchange_rate').maybeSingle();
+                if (data && data.value) {
+                    window.clinicExchangeRate = parseFloat(data.value) || 700;
+                    return window.clinicExchangeRate;
+                }
+            } catch (e) {}
+            try {
+                const { data: sysData } = await _supabase.from('system_settings').select('value').eq('key', 'exchange_rate').maybeSingle();
+                if (sysData && sysData.value) {
+                    window.clinicExchangeRate = parseFloat(sysData.value) || 700;
+                    return window.clinicExchangeRate;
+                }
+            } catch (e) {}
+        }
+    } catch (e) { }
+    return window.clinicExchangeRate || 700;
+}
+
+function handleClinicExchangeRateChange(newRateVal) {
+    const rate = parseFloat(newRateVal) || 700;
+    if (rate > 0) {
+        window.clinicExchangeRate = rate;
+        window.stkExchangeRate = rate;
+        localStorage.setItem('clinic_exchange_rate', rate.toString());
+        recalcClinicPayment();
+    }
+}
+
+async function openSetExchangeRateModal() {
+    const currentRate = window.clinicExchangeRate || 700;
+    const { value: newRate } = await Swal.fire({
+        title: '<h5 class="fw-bold mb-0 text-primary"><i class="bi bi-currency-exchange me-2"></i>ตั้งค่าเรทเงินประจำวัน</h5>',
+        html: `
+            <div class="text-start p-2">
+                <label class="form-label small text-muted mb-2">กำหนดอัตราแลกเปลี่ยนปัจจุบัน (1 บาท = ? กีบ)</label>
+                <div class="input-group input-group-lg mb-2">
+                    <span class="input-group-text bg-light fw-bold text-dark fs-6">1 ฿ =</span>
+                    <input type="number" id="swalExRateInput" class="form-control form-control-lg fw-bold text-primary text-end fs-4" value="${currentRate}" min="1" step="1">
+                    <span class="input-group-text bg-light fw-bold text-muted fs-6">₭</span>
+                </div>
+                <div class="text-muted extra-small" style="font-size: 0.8rem; line-height: 1.4;">
+                    <i class="bi bi-info-circle text-primary me-1"></i>เรทเงินนี้จะถูกนำมาคำนวณและแปลงค่าบริการตรวจ (LAK ⇄ THB) ของระบบทั้งหมด
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '<i class="bi bi-check-lg me-1"></i> บันทึกเรทเงิน',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#2563eb',
+        cancelButtonColor: '#64748b',
+        customClass: { popup: 'rounded-4 p-4' },
+        preConfirm: () => {
+            const val = parseFloat(document.getElementById('swalExRateInput')?.value);
+            if (!val || val <= 0) {
+                Swal.showValidationMessage('กรุณากรอกเรทเงินที่ถูกต้องมากกว่า 0');
+                return false;
+            }
+            return val;
+        }
+    });
+
+    if (newRate) {
+        await saveClinicGlobalExchangeRate(newRate);
+    }
+}
+
+async function saveClinicGlobalExchangeRate(newRate) {
+    const rate = parseFloat(newRate) || 700;
+    window.clinicExchangeRate = rate;
+    window.stkExchangeRate = rate;
+    localStorage.setItem('clinic_exchange_rate', rate.toString());
+
+    // อัปเดต input บนหน้าต่างป๊อปอัปหากเปิดอยู่
+    const rateInput = document.getElementById('clinicExchangeRateInput');
+    if (rateInput) rateInput.value = rate;
+
+    // บันทึกลง Supabase
+    try {
+        if (typeof _supabase !== 'undefined') {
+            await _supabase.from('stk_system_settings').upsert([{ key: 'exchange_rate', value: rate.toString() }], { onConflict: 'key' });
+            await _supabase.from('system_settings').upsert([{ key: 'exchange_rate', value: rate.toString() }], { onConflict: 'key' });
+        }
+    } catch (e) {
+        console.warn('saveClinicGlobalExchangeRate db update error:', e);
+    }
+
+    recalcClinicPayment();
+    Swal.fire({
+        icon: 'success',
+        title: 'บันทึกเรทเงินสำเร็จ',
+        text: `อัตราแลกเปลี่ยนปัจจุบัน: 1 ฿ = ${rate.toLocaleString()} ₭`,
+        timer: 1400,
+        showConfirmButton: false
+    });
+}
+
+function setClinicPayMode(mode) {
+    window.clinicCurrentPayMode = mode;
+    const btnCash = document.getElementById('payBtnModeCash');
+    const btnTransfer = document.getElementById('payBtnModeTransfer');
+    const btnBoth = document.getElementById('payBtnModeBoth');
+
+    if (btnCash) btnCash.className = 'pay-mode-btn ' + (mode === 'สด' ? 'active' : '');
+    if (btnTransfer) btnTransfer.className = 'pay-mode-btn ' + (mode === 'โอน' ? 'active' : '');
+    if (btnBoth) btnBoth.className = 'pay-mode-btn ' + (mode === 'สด+โอน' ? 'active' : '');
+
+    const cashBox = document.getElementById('clinicPayCashBox');
+    const transferBox = document.getElementById('clinicPayTransferBox');
+
+    if (cashBox) {
+        cashBox.style.display = (mode === 'สด' || mode === 'สด+โอน') ? 'block' : 'none';
+    }
+    if (transferBox) {
+        transferBox.style.display = (mode === 'โอน' || mode === 'สด+โอน') ? 'block' : 'none';
+    }
+
+    recalcClinicPayment();
+}
+
+function formatMoneyInput(el, allowDecimal = false, effectiveTotal = null) {
+    if (!el) return;
+    const oldVal = el.value;
+    const cursorPos = el.selectionStart;
+
+    // นับจำนวนตัวเลข/จุดที่อยู่ก่อนเคอร์เซอร์เดิม
+    const digitsBeforeCursor = oldVal.slice(0, cursorPos).replace(/,/g, '').length;
+
+    let clean = oldVal.replace(/,/g, '');
+    if (allowDecimal) {
+        clean = clean.replace(/[^0-9.]/g, '');
+        const parts = clean.split('.');
+        let integerPart = parts[0] || '';
+        let decimalPart = parts.length > 1 ? '.' + parts.slice(1).join('') : '';
+        
+        let formatted = integerPart ? Number(integerPart).toLocaleString('en-US') : '';
+        if (clean.startsWith('.') && !formatted) formatted = '0';
+        el.value = (formatted || clean === '0' || clean.startsWith('0')) ? formatted + decimalPart : '';
+    } else {
+        clean = clean.replace(/[^0-9]/g, '');
+        el.value = clean ? Number(clean).toLocaleString('en-US') : '';
+    }
+
+    // คืนตำแหน่ง Cursor ให้พิมพ์ต่อเนื่องได้ไม่กระตุก
+    if (cursorPos !== null) {
+        let newPos = 0;
+        let count = 0;
+        for (let i = 0; i < el.value.length; i++) {
+            if (el.value[i] !== ',') {
+                count++;
+            }
+            if (count >= digitsBeforeCursor) {
+                newPos = i + 1;
+                break;
+            }
+        }
+        if (digitsBeforeCursor === 0) newPos = 0;
+        try {
+            el.setSelectionRange(newPos, newPos);
+        } catch (e) {}
+    }
+
+    if (typeof recalcClinicPayment === 'function') {
+        recalcClinicPayment(effectiveTotal);
+    }
+}
+window.formatMoneyInput = formatMoneyInput;
+
+function recalcClinicPayment(fixedTotal) {
+    const totalEl = document.getElementById('modalLabEffectiveTotalVal');
+    const totalPrice = fixedTotal !== undefined && fixedTotal !== null ? fixedTotal : (parseFloat(totalEl ? totalEl.value : 0) || 0);
+
+    const discountInput = document.getElementById('labDiscountInput');
+    let discount = discountInput ? (parseFloat((discountInput.value || '').replace(/,/g, '')) || 0) : 0;
     if (discount < 0) discount = 0;
 
-    const netPrice = Math.max(0, totalPrice - discount);
-    display.textContent = netPrice.toLocaleString() + ' LAK';
+    const exRateInput = document.getElementById('clinicExchangeRateInput');
+    const exRate = (exRateInput && parseFloat((exRateInput.value || '').replace(/,/g, '')) > 0) ? parseFloat((exRateInput.value || '').replace(/,/g, '')) : (window.clinicExchangeRate || 700);
+
+    const netPriceLAK = Math.max(0, totalPrice - discount);
+    const netPriceTHB = Math.round((netPriceLAK / exRate) * 100) / 100;
+
+    const displayLAK = document.getElementById('modalLabNetPriceDisplay');
+    const displayTHB = document.getElementById('modalLabNetPriceTHBDisplay');
+    if (displayLAK) displayLAK.textContent = netPriceLAK.toLocaleString() + ' LAK';
+    if (displayTHB) displayTHB.textContent = `(≈ ฿${Math.round(netPriceTHB).toLocaleString()})`;
+
+    const cTHB = parseFloat((document.getElementById('payCashTHB')?.value || '').replace(/,/g, '')) || 0;
+    const cLAK = parseFloat((document.getElementById('payCashLAK')?.value || '').replace(/,/g, '')) || 0;
+    const tLaosLAK = parseFloat((document.getElementById('payTransferLaosLAK')?.value || '').replace(/,/g, '')) || 0;
+    const tLaosTHB = parseFloat((document.getElementById('payTransferLaosTHB')?.value || '').replace(/,/g, '')) || 0;
+    const tThaiTHB = parseFloat((document.getElementById('payTransferThaiTHB')?.value || '').replace(/,/g, '')) || 0;
+
+    const mode = window.clinicCurrentPayMode || 'สด';
+    const showCash = (mode === 'สด' || mode === 'สด+โอน');
+    const showTransfer = (mode === 'โอน' || mode === 'สด+โอน');
+
+    const paidCashTHB = showCash ? (cTHB + (cLAK / exRate)) : 0;
+    const paidCashLAK = showCash ? ((cTHB * exRate) + cLAK) : 0;
+    const paidTransferTHB = showTransfer ? (tThaiTHB + tLaosTHB + (tLaosLAK / exRate)) : 0;
+    const paidTransferLAK = showTransfer ? (((tThaiTHB + tLaosTHB) * exRate) + tLaosLAK) : 0;
+
+    const totalPaidTHB = paidCashTHB + paidTransferTHB;
+    const totalPaidLAK = paidCashLAK + paidTransferLAK;
+
+    const remainingLAK = Math.round(netPriceLAK - totalPaidLAK);
+    const remainingTHB = Math.round((remainingLAK / exRate) * 100) / 100;
+
+    const statusContainer = document.getElementById('clinicPayStatusContainer');
+    if (statusContainer) {
+        if (Math.abs(remainingLAK) <= 50 || Math.abs(remainingTHB) <= 0.05) {
+            statusContainer.innerHTML = `
+                <div class="d-flex align-items-center gap-2 text-success fw-bold" style="font-size: 0.95rem;">
+                    <span style="font-size: 1.1rem;">🟢</span> <span>สถานะชำระ :</span>
+                </div>
+                <div class="text-success fw-bold d-flex align-items-center gap-1" style="font-size: 1rem;">
+                    <span>ครบพอดี</span> <i class="bi bi-check2-circle fs-5"></i>
+                </div>
+            `;
+        } else if (remainingLAK > 50) {
+            statusContainer.innerHTML = `
+                <div class="d-flex align-items-center gap-2 text-danger fw-bold" style="font-size: 0.9rem; line-height: 1.25;">
+                    <span style="font-size: 1.1rem;">🔴</span>
+                    <div>
+                        <div>ค้างชำระ</div>
+                        <div class="text-muted fw-normal" style="font-size: 0.75rem;">(ต้องเก็บเพิ่ม)</div>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <div class="text-danger fw-bold" style="font-size: 1.05rem; line-height: 1.2;">฿${remainingTHB.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div class="text-danger fw-semibold" style="font-size: 0.8rem; opacity: 0.85;">≈ ${Math.round(remainingLAK).toLocaleString()} ₭</div>
+                </div>
+            `;
+        } else {
+            statusContainer.innerHTML = `
+                <div class="d-flex align-items-center gap-2 text-primary fw-bold" style="font-size: 0.9rem; line-height: 1.25;">
+                    <span style="font-size: 1.1rem;">🔵</span>
+                    <div>
+                        <div>เงินทอน</div>
+                        <div class="text-muted fw-normal" style="font-size: 0.75rem;">(ต้องทอนลูกค้า)</div>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <div class="text-primary fw-bold" style="font-size: 1.05rem; line-height: 1.2;">฿${Math.abs(remainingTHB).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div class="text-primary fw-semibold" style="font-size: 0.8rem; opacity: 0.85;">≈ ${Math.round(Math.abs(remainingLAK)).toLocaleString()} ₭</div>
+                </div>
+            `;
+        }
+    }
 }
+
+function updateLabDiscountCalc(totalPrice) {
+    recalcClinicPayment(totalPrice);
+}
+
+// ฟังก์ชันช่วยเติมจำนวนเงินเต็มตามยอดที่ต้องชำระอัตโนมัติ (1-Click Fill)
+function autoFillExactClinicPayment(currency, type, fixedTotal) {
+    const totalEl = document.getElementById('modalLabEffectiveTotalVal');
+    const totalPrice = fixedTotal !== undefined ? fixedTotal : (parseFloat(totalEl ? totalEl.value : 0) || 0);
+
+    const discountInput = document.getElementById('labDiscountInput');
+    let discount = discountInput ? (parseFloat((discountInput.value || '').replace(/,/g, '')) || 0) : 0;
+    if (discount < 0) discount = 0;
+
+    const exRateInput = document.getElementById('clinicExchangeRateInput');
+    const exRate = (exRateInput && parseFloat((exRateInput.value || '').replace(/,/g, '')) > 0) ? parseFloat((exRateInput.value || '').replace(/,/g, '')) : (window.clinicExchangeRate || 700);
+
+    const netPriceLAK = Math.max(0, totalPrice - discount);
+    const netPriceTHB = Math.round((netPriceLAK / exRate) * 100) / 100;
+
+    if (type === 'cash') {
+        const cTHB = document.getElementById('payCashTHB');
+        const cLAK = document.getElementById('payCashLAK');
+        if (cTHB) cTHB.value = '';
+        if (cLAK) cLAK.value = '';
+
+        if (currency === 'LAK' && cLAK) {
+            cLAK.value = netPriceLAK ? netPriceLAK.toLocaleString('en-US') : '';
+        } else if (currency === 'THB' && cTHB) {
+            cTHB.value = netPriceTHB ? Math.round(netPriceTHB).toLocaleString('en-US') : '';
+        }
+    } else if (type === 'transfer') {
+        const tLaosLAK = document.getElementById('payTransferLaosLAK');
+        const tLaosTHB = document.getElementById('payTransferLaosTHB');
+        const tThaiTHB = document.getElementById('payTransferThaiTHB');
+        if (tLaosLAK) tLaosLAK.value = '';
+        if (tLaosTHB) tLaosTHB.value = '';
+        if (tThaiTHB) tThaiTHB.value = '';
+
+        if (currency === 'LAK' && tLaosLAK) {
+            tLaosLAK.value = netPriceLAK ? netPriceLAK.toLocaleString('en-US') : '';
+        } else if (currency === 'THB' && tThaiTHB) {
+            tThaiTHB.value = netPriceTHB ? Math.round(netPriceTHB).toLocaleString('en-US') : '';
+        }
+    }
+
+    recalcClinicPayment(totalPrice);
+}
+window.autoFillExactClinicPayment = autoFillExactClinicPayment;
 
 async function saveLabDiscountAndClose(visitId) {
     const input = document.getElementById('labDiscountInput');
-    const discountVal = input ? (parseFloat(input.value) || 0) : 0;
+    const discountVal = input ? (parseFloat((input.value || '').replace(/,/g, '')) || 0) : 0;
 
     if (visitId && visitId !== '-' && visitId !== '') {
-        const { error } = await _supabase
-            .from('visits')
-            .update({ discount: discountVal, lab_discount: discountVal })
-            .eq('visit_id', visitId);
-
-        if (error) {
-            console.warn('Update discount error:', error.message);
-        } else {
-            if (typeof loadPaymentQueue === 'function') loadPaymentQueue();
-            if (typeof loadLabQueue === 'function') loadLabQueue();
+        try {
+            const discountsMap = JSON.parse(localStorage.getItem('clinic_visit_discounts') || '{}');
+            discountsMap[visitId] = discountVal;
+            localStorage.setItem('clinic_visit_discounts', JSON.stringify(discountsMap));
+        } catch (e) {
+            console.warn('saveLabDiscount error:', e);
         }
+        if (typeof loadPaymentQueue === 'function') loadPaymentQueue();
+        if (typeof loadLabQueue === 'function') loadLabQueue();
     }
     Swal.close();
 }
+
+
 
 // ฟังก์ชั่นช่วยดึงรายละเอียดรายการตรวจ และรายการย่อยในแพ็กเกจ (Package Sub-Items)
 function getTestItemDetails(testStr) {
@@ -1686,14 +1992,46 @@ async function showLabDetails(visitId, hn, patientName, testsString, labNote = '
     });
 }
 
-// ฟังก์ชั่นดูรายละเอียดค่ารักษาสำหรับ "จ่ายค่ารักษา" (แสดงรายการ รายการย่อยแพ็กเกจ ราคา รับส่วนลด พร้อมปุ่มพิมพ์ใบเสร็จ)
+// ฟังก์ชั่นดูรายละเอียดค่ารักษาสำหรับ "จ่ายค่ารักษา" (แสดงรายการ รายการย่อยแพ็กเกจ ราคา รับส่วนลด ช่องทางชำระเงิน พร้อมปุ่มพิมพ์ใบเสร็จ)
 async function showPaymentDetails(visitId, hn, patientName, testsString, discountVal) {
-    if (!hn && (!testsString || testsString === '')) {
-        testsString = visitId;
-        visitId = '-';
-        hn = '-';
-        patientName = 'ผู้ป่วย';
+    if (!visitId || visitId === '-') {
+        console.warn('showPaymentDetails called without visitId');
+        return;
     }
+
+    // ดึงอัตราแลกเปลี่ยนล่าสุด
+    await getClinicExchangeRate();
+    const exRate = window.clinicExchangeRate || 700;
+
+    // ดึง visit record จาก Supabase เพื่อใช้ราคาและข้อมูลที่บันทึกจริง
+    let visitRecord = null;
+    try {
+        if (visitId && visitId !== '-') {
+            const { data: vData } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
+            if (vData) visitRecord = vData;
+        }
+    } catch (e) {
+        console.warn('showPaymentDetails fetch visit error:', e);
+    }
+
+    if (visitRecord) {
+        if (!hn || hn === '-' || hn === 'null' || hn === 'undefined' || hn.trim() === '') {
+            hn = visitRecord.hn;
+        }
+        if (!patientName || patientName === 'ผู้ป่วย' || patientName === '-') {
+            patientName = visitRecord.patient_name;
+        }
+        if (!testsString || testsString.trim() === '') {
+            testsString = visitRecord.lab_tests;
+        }
+        if (discountVal === undefined || discountVal === null) {
+            discountVal = visitRecord.discount || visitRecord.lab_discount || 0;
+        }
+    }
+
+    if (!hn || hn === 'null' || hn === 'undefined') hn = '-';
+    if (!patientName) patientName = 'ผู้ป่วย';
+    if (!testsString) testsString = '';
 
     // โหลด servicesData จาก Supabase ใหม่ทุกครั้ง เพื่อให้ราคาล่าสุดเสมอ
     try {
@@ -1713,22 +2051,36 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
         }
     }
 
-    // ดึง visit record จาก Supabase เพื่อใช้ราคาที่บันทึกจริง
-    let visitRecord = null;
-    try {
-        if (visitId && visitId !== '-') {
-            const { data: vData } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
-            if (vData) visitRecord = vData;
+    // ตรวจสอบและดึงรหัส HN ที่แท้จริง (กรณี hn เป็น null, 'null', '-' หรือว่าง)
+    if ((!hn || hn === '-' || hn === 'null' || hn === 'undefined' || hn.trim() === '') && patientName && patientName !== '-' && patientName !== 'ผู้ป่วย') {
+        try {
+            const { data: pData } = await _supabase.from('patients').select('hn, patient_name').eq('patient_name', patientName.trim()).limit(1).maybeSingle();
+            if (pData && pData.hn) {
+                hn = pData.hn;
+                if (visitId && visitId !== '-') {
+                    _supabase.from('visits').update({ hn: pData.hn }).eq('visit_id', visitId).then(() => {});
+                }
+            }
+        } catch (e) {
+            console.warn('showPaymentDetails lookup patient hn error:', e);
         }
-    } catch (e) { }
+    }
 
-    const testsList = (testsString || '').split(',').map(t => t.trim()).filter(Boolean);
-    let totalPrice = 0;
-    const discount = parseFloat(discountVal) || (visitRecord ? parseFloat(visitRecord.discount || visitRecord.lab_discount || 0) : 0);
+    const effectiveTestsString = testsString || (visitRecord && visitRecord.lab_tests) || '';
+    const testsList = effectiveTestsString.split(',').map(t => t.trim()).filter(Boolean);
+
+    let savedDiscount = 0;
+    try {
+        const discountsMap = JSON.parse(localStorage.getItem('clinic_visit_discounts') || '{}');
+        if (discountsMap[visitId] !== undefined) savedDiscount = parseFloat(discountsMap[visitId]) || 0;
+    } catch (e) {}
+
+    const discount = parseFloat(discountVal) || savedDiscount || (visitRecord ? parseFloat(visitRecord.discount || visitRecord.lab_discount || 0) : 0);
 
     // ถ้า visit มี payable_amount หรือ total_price ที่บันทึกไว้แล้ว ให้ใช้เป็น totalPrice รวม
     const savedTotal = visitRecord ? parseFloat(visitRecord.payable_amount || visitRecord.total_price || visitRecord.price || 0) : 0;
 
+    let totalPrice = 0;
     let rowsHtml = '';
     testsList.forEach((test, idx) => {
         const itemDetails = getTestItemDetails(test);
@@ -1747,7 +2099,7 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
 
             rowsHtml += `
                 <tr class="bg-white border-bottom">
-                    <td class="ps-3 py-3 text-muted fw-semibold align-top" style="width: 70px; min-width: 70px;">${idx + 1}</td>
+                    <td class="ps-3 py-3 text-center text-muted fw-semibold align-top" style="width: 60px; min-width: 60px;">${idx + 1}</td>
                     <td class="py-3 text-dark align-top">
                         <div class="d-flex align-items-center mb-2">
                             <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill me-2 fw-semibold" style="font-size: 0.75rem;">
@@ -1770,7 +2122,7 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
         } else {
             rowsHtml += `
                 <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-light'} border-bottom">
-                    <td class="ps-3 py-2.5 text-muted fw-semibold align-middle" style="width: 70px; min-width: 70px;">${idx + 1}</td>
+                    <td class="ps-3 py-2.5 text-center text-muted fw-semibold align-middle" style="width: 60px; min-width: 60px;">${idx + 1}</td>
                     <td class="py-2.5 text-dark fw-semibold align-middle">${itemDetails.name}</td>
                     <td class="pe-3 py-2.5 text-end text-primary fw-bold align-middle" style="white-space: nowrap !important;">${priceDisplay}</td>
                 </tr>
@@ -1785,17 +2137,20 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
     // ถ้าค้นหาราคาจาก services ไม่ได้ ให้ใช้ราคารวมจาก visit record แทน
     const effectiveTotal = totalPrice > 0 ? totalPrice : savedTotal;
     const finalPayable = Math.max(0, effectiveTotal - discount);
+    const finalPayableTHB = Math.round((finalPayable / exRate) * 100) / 100;
+
     const safeName = (patientName || '').replace(/'/g, "\\'");
     const safeTests = (testsString || '').replace(/'/g, "\\'");
+
     // แสดง note ถ้าราคาต่อรายการหาไม่เจอแต่ visit มีราคารวม
     const priceNote = (totalPrice === 0 && savedTotal > 0)
-        ? `<div class="alert alert-info py-2 px-3 small mb-3"><i class="bi bi-info-circle me-1"></i>ราคารวมจากระบบ: <strong>${savedTotal.toLocaleString()} LAK</strong> (ราคาต่อรายการตรวจจะแสดงเมื่อตั้งค่าราคาในหน้า "ตั้งค่ารายการตรวจ")</div>`
+        ? `<div class="alert alert-info py-2 px-3 small mb-3"><i class="bi bi-info-circle me-1"></i>ราคารวมจากระบบ: <strong>${savedTotal.toLocaleString()} LAK</strong></div>`
         : '';
-    // 🌟 ดึงข้อมูล lab_note จาก visitRecord ของหน้านี้
+
+    // ดึงข้อมูล lab_note จาก visitRecord ของหน้านี้
     let labNote = visitRecord ? (visitRecord.lab_note || '') : '';
     labNote = labNote.replace(/\[เอกสารผลตรวจ[^\]]*\]/gi, '').replace(/\[เอกสารแนบ[^\]]*\]/gi, '').replace(/\[ไฟล์แนบ[^\]]*\]/gi, '').trim();
 
-    // 🌟 สร้าง HTML สำหรับกล่องแสดงหมายเหตุ (ถ้ามีข้อความจะแสดงขึ้นมา)
     let noteHtml = '';
     if (labNote && labNote.trim() !== '') {
         noteHtml = `
@@ -1809,82 +2164,256 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
         `;
     }
 
+    window.clinicCurrentPayMode = 'สด';
+
     const modalContentHtml = `
-        <div class="text-start mt-2">
-            <div class="p-3 mb-3 rounded-3 bg-light border d-flex justify-content-between align-items-center">
-                <div>
-                    <div class="small text-muted mb-1" style="font-size: 0.85rem;">ชื่อ-นามสกุล : <strong class="text-dark ms-1">${patientName || '-'}</strong></div>
-                    <div class="small text-muted" style="font-size: 0.8rem;">HN: <strong class="text-secondary ms-1">${hn || '-'}</strong></div>
-                </div>
-                <div class="text-end">
-                    <div class="small text-muted mb-1" style="font-size: 0.85rem;">รหัส VISIT : <strong class="text-primary ms-1">${visitId || '-'}</strong></div>
-                </div>
-            </div>
-            ${priceNote}
-            ${noteHtml} <!-- 🌟 แทรกตัวแปรตรงนี้ -->
-            <div class="table-responsive rounded-3 border mb-3" style="max-height: 400px; overflow-y: auto;">
+        <div class="text-start mt-1">
+            <input type="hidden" id="modalLabEffectiveTotalVal" value="${effectiveTotal}">
 
-            ${priceNote}
-            <div class="table-responsive rounded-3 border mb-3" style="max-height: 400px; overflow-y: auto;">
-                <table class="table table-borderless table-sm mb-0 align-middle">
-                    <thead class="bg-light border-bottom sticky-top">
-                        <tr class="text-secondary small fw-bold">
-                            <th class="ps-3 py-2" style="width: 70px; min-width: 70px; white-space: nowrap !important;">ลำดับ</th>
-                            <th class="py-2" style="white-space: nowrap !important;">รายการตรวจ</th>
-                            <th class="pe-3 py-2 text-end" style="white-space: nowrap !important;">ราคา</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${rowsHtml}
-                    </tbody>
-                </table>
-            </div>
+            <div class="clinic-pay-grid">
+                <!-- ฝั่งซ้าย: ข้อมูลผู้ป่วย + รายการตรวจ + สรุปยอดเงิน -->
+                <div class="clinic-pay-left-col">
+                    <!-- ข้อมูลผู้ป่วย -->
+                    <div class="p-3 mb-2 rounded-3 bg-light border d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="small text-muted mb-1" style="font-size: 0.85rem;">ชื่อ-นามสกุล : <strong class="text-dark ms-1">${patientName || '-'}</strong></div>
+                            <div class="small text-muted" style="font-size: 0.8rem;">HN: <strong class="text-secondary ms-1">${hn || '-'}</strong></div>
+                        </div>
+                        <div class="text-end">
+                            <div class="small text-muted mb-1" style="font-size: 0.85rem;">รหัส VISIT : <strong class="text-primary ms-1">${visitId || '-'}</strong></div>
+                            <div class="d-flex align-items-center justify-content-end gap-1 mt-1">
+                                <span class="text-muted extra-small" style="font-size: 0.78rem;">1 ฿ =</span>
+                                <div class="input-group input-group-sm" style="width: 100px;">
+                                    <input type="number" id="clinicExchangeRateInput" class="form-control form-control-sm text-end fw-bold text-primary px-1.5 py-0" 
+                                        value="${exRate}" min="1" step="1" 
+                                        oninput="handleClinicExchangeRateChange(this.value)"
+                                        title="พิมพ์เปลี่ยนเรทเงินได้ทันที (ระบบคำนวณเรียลไทม์)" 
+                                        style="font-size: 0.82rem; height: 26px; border-radius: 6px 0 0 6px; border-color: #cbd5e1;">
+                                    <span class="input-group-text px-1 text-muted small fw-semibold" style="font-size: 0.75rem; height: 26px; border-radius: 0 6px 6px 0;">₭</span>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-white border px-1.5 py-0 text-secondary shadow-none d-flex align-items-center justify-content-center" 
+                                    title="ตั้งค่าเรทเงินและบันทึกเป็นค่าเริ่มต้นของระบบ" 
+                                    onclick="openSetExchangeRateModal()" 
+                                    style="height: 26px; width: 28px; border-radius: 6px; background: #ffffff;">
+                                    <i class="bi bi-gear text-primary" style="font-size: 0.85rem;"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
 
-            <div class="p-3 rounded-3 bg-light border">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="fw-semibold text-secondary small">รวมค่าตรวจทั้งหมด</span>
-                    <span class="fw-bold text-dark fs-6" id="modalLabTotalPriceDisplay">${effectiveTotal.toLocaleString()} LAK</span>
-                </div>
-                <div class="d-flex justify-content-between align-items-center mb-2 text-danger">
-                    <label for="labDiscountInput" class="fw-semibold small mb-0">รับส่วนลด (LAK)</label>
-                    <div class="input-group input-group-sm" style="max-width: 190px;">
-                        <span class="input-group-text bg-white border-end-0 text-danger fw-bold">-</span>
-                        <input type="number" id="labDiscountInput" class="form-control text-end text-danger fw-bold border-start-0" 
-                            value="${discount || 0}" min="0" placeholder="0" 
-                            oninput="updateLabDiscountCalc(${effectiveTotal})">
-                        <span class="input-group-text bg-white text-muted small">LAK</span>
+                    ${priceNote}
+                    ${noteHtml}
+
+                    <!-- ตารางรายการส่งตรวจ -->
+                    <div class="table-responsive rounded-3 border mb-2.5" style="max-height: 250px; overflow-y: auto;">
+                        <table class="table table-borderless table-sm mb-0 align-middle">
+                            <thead class="bg-light border-bottom sticky-top">
+                                <tr class="text-secondary small fw-bold">
+                                    <th class="ps-3 py-2 text-center" style="width: 60px; min-width: 60px; white-space: nowrap;">ลำดับ</th>
+                                    <th class="py-2" style="white-space: nowrap;">รายการตรวจ</th>
+                                    <th class="pe-3 py-2 text-end" style="width: 130px; min-width: 120px; white-space: nowrap;">ราคา</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rowsHtml}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- สรุปยอดเงิน -->
+                    <div class="p-3 rounded-3 bg-light border">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-semibold text-secondary small">รวมค่าตรวจทั้งหมด</span>
+                            <span class="fw-bold text-dark fs-6" id="modalLabTotalPriceDisplay">${effectiveTotal.toLocaleString()} LAK</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2 text-danger">
+                            <label for="labDiscountInput" class="fw-semibold small mb-0">รับส่วนลด (LAK)</label>
+                            <div class="input-group input-group-sm" style="max-width: 170px;">
+                                <span class="input-group-text bg-white border-end-0 text-danger fw-bold">-</span>
+                                <input type="text" inputmode="numeric" id="labDiscountInput" class="form-control text-end text-danger fw-bold border-start-0" 
+                                    value="${discount ? Number(discount).toLocaleString('en-US') : ''}" placeholder="0" 
+                                    oninput="formatMoneyInput(this, false, ${effectiveTotal})">
+                                <span class="input-group-text bg-white text-muted small">LAK</span>
+                            </div>
+                        </div>
+                        <hr class="my-2 border-secondary opacity-25">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="fw-bold text-dark fs-6">ส่วนที่ต้องจ่ายทั้งหมด</span>
+                            </div>
+                            <div class="text-end">
+                                <span class="fw-bold text-primary fs-5" id="modalLabNetPriceDisplay">${finalPayable.toLocaleString()} LAK</span>
+                                <div class="text-muted small fw-semibold" id="modalLabNetPriceTHBDisplay">(≈ ฿${Math.round(finalPayableTHB).toLocaleString()})</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <hr class="my-2 border-secondary opacity-25">
-                <div class="d-flex justify-content-between align-items-center">
-                    <span class="fw-bold text-dark fs-6">ส่วนที่ต้องจ่ายทั้งหมด</span>
-                    <span class="fw-bold text-primary fs-5" id="modalLabNetPriceDisplay">${finalPayable.toLocaleString()} LAK</span>
-                </div>
-            </div>
 
-            <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
-                <button type="button" class="btn btn-outline-secondary rounded-pill px-3 py-2 fw-semibold" onclick="printPaymentInvoice('${visitId}', '${hn}', '${safeName}', '${safeTests}', document.getElementById('labDiscountInput')?.value || ${discount})">
-                    <i class="bi bi-printer me-1"></i> พิมพ์ใบเสร็จ/ใบแจ้งชำระ
-                </button>
-                <button type="button" class="btn btn-primary rounded-pill px-4 py-2 fw-semibold" onclick="saveLabDiscountAndClose('${visitId}')">
-                    <i class="bi bi-check-lg me-1"></i> บันทึก & ปิดหน้าต่าง
-                </button>
+                <!-- ฝั่งขวา: ช่องทางการชำระเงิน + สถานะ + หมายเหตุ + ปุ่มดำเนินการ -->
+                <div class="clinic-pay-right-col">
+                    <div>
+                        <!-- แท็บเลือกโหมดการชำระเงิน (ไม่มีไอคอน ใช้ข้อความล้วน) -->
+                        <div class="pay-mode-btn-group">
+                            <button type="button" id="payBtnModeCash" class="pay-mode-btn active" onclick="setClinicPayMode('สด')">
+                                เงินสด
+                            </button>
+                            <button type="button" id="payBtnModeTransfer" class="pay-mode-btn" onclick="setClinicPayMode('โอน')">
+                                เงินโอน
+                            </button>
+                            <button type="button" id="payBtnModeBoth" class="pay-mode-btn" onclick="setClinicPayMode('สด+โอน')">
+                                เงินสด + เงินโอน
+                            </button>
+                        </div>
+
+                        <!-- กล่องรับเงินสด (สีเขียว) -->
+                        <div id="clinicPayCashBox" class="pay-cash-box">
+                            <div class="d-flex justify-content-between align-items-center mb-1.5">
+                                <label class="pay-cash-label mb-0">
+                                    <i class="bi bi-cash-stack"></i> รับเงินสด (บาท / กีบ)
+                                </label>
+                                <div class="d-flex gap-1">
+                                    <button type="button" class="btn btn-sm btn-outline-success py-0 px-2 fw-semibold" style="font-size: 0.72rem; border-radius: 6px;" onclick="autoFillExactClinicPayment('LAK', 'cash', ${effectiveTotal})">
+                                        <i class="bi bi-magic me-1"></i>ครบพอดี (₭)
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 fw-semibold" style="font-size: 0.72rem; border-radius: 6px;" onclick="autoFillExactClinicPayment('THB', 'cash', ${effectiveTotal})">
+                                        <i class="bi bi-magic me-1"></i>ครบพอดี (฿)
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <div class="pay-input-wrapper">
+                                    <span class="pay-currency-symbol">฿</span>
+                                    <input type="text" inputmode="decimal" id="payCashTHB" class="pay-input-control pay-cash-input" placeholder="บาท" oninput="formatMoneyInput(this, true, ${effectiveTotal})" />
+                                </div>
+                                <div class="pay-input-wrapper">
+                                    <span class="pay-currency-symbol">₭</span>
+                                    <input type="text" inputmode="numeric" id="payCashLAK" class="pay-input-control pay-cash-input" placeholder="กีบ" oninput="formatMoneyInput(this, false, ${effectiveTotal})" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- กล่องรับเงินโอน (สีฟ้า) -->
+                        <div id="clinicPayTransferBox" class="pay-transfer-box" style="display: none;">
+                            <div class="d-flex justify-content-between align-items-center mb-1.5">
+                                <label class="pay-transfer-label mb-0">
+                                    <i class="bi bi-activity"></i> รับเงินโอน
+                                </label>
+                                <div class="d-flex gap-1">
+                                    <button type="button" class="btn btn-sm btn-outline-success py-0 px-2 fw-semibold" style="font-size: 0.72rem; border-radius: 6px;" onclick="autoFillExactClinicPayment('LAK', 'transfer', ${effectiveTotal})">
+                                        <i class="bi bi-magic me-1"></i>โอนพอดี (₭)
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 fw-semibold" style="font-size: 0.72rem; border-radius: 6px;" onclick="autoFillExactClinicPayment('THB', 'transfer', ${effectiveTotal})">
+                                        <i class="bi bi-magic me-1"></i>โอนพอดี (฿)
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- แถว 1: ลาว (กีบ) -->
+                            <div class="pay-transfer-row">
+                                <span class="pay-badge-laos-yellow">ลาว</span>
+                                <select id="payTransferLaosBankLAK" class="pay-select-laos-yellow">
+                                    <option value="BCEL">BCEL</option>
+                                    <option value="JDB">JDB</option>
+                                    <option value="LDB">LDB</option>
+                                    <option value="APB">APB</option>
+                                    <option value="LVB">LVB</option>
+                                </select>
+                                <div class="pay-input-wrapper">
+                                    <span class="pay-currency-symbol">₭</span>
+                                    <input type="text" inputmode="numeric" id="payTransferLaosLAK" class="pay-input-control pay-input-laos-yellow" placeholder="กีบ" oninput="formatMoneyInput(this, false, ${effectiveTotal})" />
+                                </div>
+                            </div>
+
+                            <!-- แถว 2: ลาว (บาท) -->
+                            <div class="pay-transfer-row">
+                                <span class="pay-badge-laos-purple">ลาว</span>
+                                <select id="payTransferLaosBankTHB" class="pay-select-laos-purple">
+                                    <option value="BCEL">BCEL</option>
+                                    <option value="JDB">JDB</option>
+                                    <option value="LDB">LDB</option>
+                                    <option value="APB">APB</option>
+                                    <option value="LVB">LVB</option>
+                                </select>
+                                <div class="pay-input-wrapper">
+                                    <span class="pay-currency-symbol">฿</span>
+                                    <input type="text" inputmode="decimal" id="payTransferLaosTHB" class="pay-input-control pay-input-laos-purple" placeholder="บาท" oninput="formatMoneyInput(this, true, ${effectiveTotal})" />
+                                </div>
+                            </div>
+
+                            <!-- แถว 3: ไทย (บาท) -->
+                            <div class="pay-transfer-row">
+                                <span class="pay-badge-thai-blue">ไทย</span>
+                                <select id="payTransferThaiBank" class="pay-select-thai-blue">
+                                    <option value="KBANK">KBANK</option>
+                                    <option value="SCB">SCB</option>
+                                    <option value="BBL">BBL</option>
+                                    <option value="KTB">KTB</option>
+                                    <option value="BAY">BAY</option>
+                                    <option value="PromptPay">Prompt</option>
+                                    <option value="TTB">TTB</option>
+                                </select>
+                                <div class="pay-input-wrapper">
+                                    <span class="pay-currency-symbol">฿</span>
+                                    <input type="text" inputmode="decimal" id="payTransferThaiTHB" class="pay-input-control pay-input-thai-blue" placeholder="บาท" oninput="formatMoneyInput(this, true, ${effectiveTotal})" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- กล่องสถานะชำระเงินแบบเรียลไทม์ -->
+                        <div id="clinicPayStatusContainer" class="pay-status-card">
+                            <div class="d-flex align-items-center gap-2 text-danger fw-bold" style="font-size: 0.9rem; line-height: 1.25;">
+                                <span style="font-size: 1.1rem;">🔴</span>
+                                <div>
+                                    <div>ค้างชำระ</div>
+                                    <div class="text-muted fw-normal" style="font-size: 0.75rem;">(ต้องเก็บเพิ่ม)</div>
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                <div class="text-danger fw-bold" style="font-size: 1.05rem; line-height: 1.2;">฿${finalPayableTHB.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                <div class="text-danger fw-semibold" style="font-size: 0.8rem; opacity: 0.85;">≈ ${finalPayable.toLocaleString()} ₭</div>
+                            </div>
+                        </div>
+
+                        <!-- กล่องหมายเหตุการชำระเงิน -->
+                        <textarea id="clinicPaymentNote" rows="2" class="pay-note-textarea" placeholder="หมายเหตุ / รายละเอียดจ่ายเงิน..."></textarea>
+                    </div>
+
+                    <!-- ปุ่มดำเนินการด้านล่าง -->
+                    <div class="mt-3 pt-2.5 border-top d-flex flex-column gap-2">
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-secondary w-50 py-2 fw-semibold rounded-3 d-flex align-items-center justify-content-center gap-1.5" onclick="printPaymentInvoice('${visitId}', '${hn}', '${safeName}', '${safeTests}', (document.getElementById('labDiscountInput')?.value || '').replace(/,/g, '') || ${discount})">
+                                <i class="bi bi-printer"></i> พิมพ์ใบเสร็จ
+                            </button>
+                            <button type="button" class="btn btn-light border w-50 py-2 fw-semibold text-secondary rounded-3" onclick="saveLabDiscountAndClose('${visitId}')">
+                                บันทึกส่วนลด & ปิด
+                            </button>
+                        </div>
+                        <button type="button" class="btn btn-success w-100 py-2.5 fw-bold rounded-3 shadow-sm d-flex align-items-center justify-content-center gap-2 fs-6" onclick="confirmAndSubmitClinicPayment('${visitId}', '${hn}', '${safeName}', '${safeTests}', ${effectiveTotal})">
+                            <i class="bi bi-check2-circle fs-5"></i> ยืนยันรับเงิน & ส่ง Lab
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     `;
 
-
     Swal.fire({
         title: '<h5 class="fw-bold mb-0 text-primary"><i class="bi bi-card-text me-2"></i>รายละเอียดการชำระเงิน</h5>',
         html: modalContentHtml,
-        width: '640px',
+        width: '1080px',
         showCloseButton: true,
         showConfirmButton: false,
         customClass: {
             popup: 'rounded-4 p-4'
         }
     });
+
+    // เรียก recalculate ทันทีเพื่อให้แสดงสถานะเริ่มต้นถูกต้อง
+    setTimeout(() => {
+        recalcClinicPayment(effectiveTotal);
+    }, 50);
 }
+window.showPaymentDetails = showPaymentDetails;
 
 // ฟังก์ชั่นพิมพ์ใบเสร็จ/ใบแจ้งชำระเงิน (รองรับการพิมพ์รายการย่อยในแพ็กเกจ 100% ตรงตามแบบ)
 function printPaymentInvoice(visitId, hn, patientName, testsString, discountVal) {
@@ -2130,6 +2659,995 @@ function printPaymentInvoice(visitId, hn, patientName, testsString, discountVal)
         printWin.document.close();
     }
 }
+
+// ============================================================
+// 1. ฟังก์ชันยืนยันการรับเงิน บันทึกบิล (Bills) และส่งต่อห้อง Lab
+// ============================================================
+async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsString, subtotalPrice) {
+    const discountVal = parseFloat((document.getElementById('labDiscountInput')?.value || '0').replace(/,/g, '')) || 0;
+    const effectiveSubtotal = parseFloat(subtotalPrice) || 0;
+    const netPayable = Math.max(0, effectiveSubtotal - discountVal);
+
+    // ตรวจสอบช่องทางการชำระเงิน
+    const payMode = window.clinicCurrentPayMode || window.currentClinicPayMode || 'สด';
+    const cashTHB = parseFloat((document.getElementById('payCashTHB')?.value || '0').replace(/,/g, '')) || 0;
+    const cashLAK = parseFloat((document.getElementById('payCashLAK')?.value || '0').replace(/,/g, '')) || 0;
+    const transferLaosLAK = parseFloat((document.getElementById('payTransferLaosLAK')?.value || '0').replace(/,/g, '')) || 0;
+    const transferLaosBankLAK = document.getElementById('payTransferLaosBankLAK')?.value || 'BCEL';
+    const transferLaosTHB = parseFloat((document.getElementById('payTransferLaosTHB')?.value || '0').replace(/,/g, '')) || 0;
+    const transferLaosBankTHB = document.getElementById('payTransferLaosBankTHB')?.value || 'BCEL';
+    const transferThaiTHB = parseFloat((document.getElementById('payTransferThaiTHB')?.value || '0').replace(/,/g, '')) || 0;
+    const transferThaiBank = document.getElementById('payTransferThaiBank')?.value || 'KBANK';
+    const paymentNote = document.getElementById('clinicPaymentNote')?.value?.trim() || '';
+
+    // สรุปชื่อช่องทางการชำระเงิน
+    let paymentMethodSummary = 'เงินสด';
+    if (payMode === 'โอน') {
+        let banks = [];
+        if (transferLaosLAK > 0) banks.push(`โอนลาว (${transferLaosBankLAK} ${transferLaosLAK.toLocaleString()} ₭)`);
+        if (transferLaosTHB > 0) banks.push(`โอนลาว (${transferLaosBankTHB} ฿${transferLaosTHB.toLocaleString()})`);
+        if (transferThaiTHB > 0) banks.push(`โอนไทย (${transferThaiBank} ฿${transferThaiTHB.toLocaleString()})`);
+        paymentMethodSummary = banks.length > 0 ? banks.join(', ') : 'เงินโอนธนาคาร';
+    } else if (payMode === 'สด+โอน') {
+        let parts = [];
+        let cashDetail = [];
+        if (cashLAK > 0) cashDetail.push(`${cashLAK.toLocaleString()} ₭`);
+        if (cashTHB > 0) cashDetail.push(`฿${cashTHB.toLocaleString()}`);
+        if (cashDetail.length > 0) parts.push(`สด: ${cashDetail.join(' + ')}`);
+        
+        let transferDetail = [];
+        if (transferLaosLAK > 0) transferDetail.push(`${transferLaosBankLAK} ${transferLaosLAK.toLocaleString()} ₭`);
+        if (transferLaosTHB > 0) transferDetail.push(`${transferLaosBankTHB} ฿${transferLaosTHB.toLocaleString()}`);
+        if (transferThaiTHB > 0) transferDetail.push(`${transferThaiBank} ฿${transferThaiTHB.toLocaleString()}`);
+        if (transferDetail.length > 0) parts.push(`โอน: ${transferDetail.join(' + ')}`);
+        
+        paymentMethodSummary = parts.join(' | ') || 'เงินสด + เงินโอน';
+    }
+
+    // สร้างรายการย่อย items
+    const testsList = (testsString || '').split(',').map(t => t.trim()).filter(Boolean);
+    const billItems = testsList.map(t => {
+        const item = typeof getTestItemDetails === 'function' ? getTestItemDetails(t) : { name: t, price: 0 };
+        return {
+            name: item.name || t,
+            price: item.price || 0,
+            isPackage: !!item.isPackage
+        };
+    });
+
+    const now = new Date();
+    const dateCode = now.getFullYear().toString().slice(-2) + 
+                     String(now.getMonth() + 1).padStart(2, '0') + 
+                     String(now.getDate()).padStart(2, '0');
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const billId = `BILL-${dateCode}-${randomSuffix}`;
+
+    // ข้อมูลผู้บันทึก
+    let staffName = 'Staff';
+    try {
+        const user = JSON.parse(localStorage.getItem('clinicUser') || '{}');
+        staffName = user.name || user.full_name || 'Staff';
+    } catch(e) {}
+
+    // ตรวจสอบอัตราแลกเปลี่ยน
+    const exRateInput = document.getElementById('clinicExchangeRateInput');
+    const exRate = (exRateInput && parseFloat((exRateInput.value || '').replace(/,/g, '')) > 0) ? parseFloat((exRateInput.value || '').replace(/,/g, '')) : (window.clinicExchangeRate || 700);
+    const netPriceTHB = Math.round((netPayable / exRate) * 100) / 100;
+
+    // คำนวณยอดเงินที่ป้อนเข้ามาทั้งหมด
+    const showCash = (payMode === 'สด' || payMode === 'สด+โอน');
+    const showTransfer = (payMode === 'โอน' || payMode === 'สด+โอน');
+    const paidCashTHB = showCash ? (cashTHB + (cashLAK / exRate)) : 0;
+    const paidCashLAK = showCash ? ((cashTHB * exRate) + cashLAK) : 0;
+    const paidTransferTHB = showTransfer ? (transferThaiTHB + transferLaosTHB + (transferLaosLAK / exRate)) : 0;
+    const paidTransferLAK = showTransfer ? (((transferThaiTHB + transferLaosTHB) * exRate) + transferLaosLAK) : 0;
+
+    const totalPaidTHB = paidCashTHB + paidTransferTHB;
+    const totalPaidLAK = paidCashLAK + paidTransferLAK;
+
+    const remainingLAK = Math.round(netPayable - totalPaidLAK);
+    const remainingTHB = Math.round((remainingLAK / exRate) * 100) / 100;
+
+    // 🛑 ตรวจสอบเงื่อนไข: ต้องป้อนจำนวนเงิน และยอดเงินต้องครบตามจำนวนที่ต้องชำระ
+    if (netPayable > 0 && totalPaidTHB <= 0 && totalPaidLAK <= 0) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'กรุณาป้อนจำนวนเงินที่รับชำระ',
+            html: `
+                <div class="p-3 bg-light rounded-3 text-start mb-2" style="font-size: 0.95rem;">
+                    <div>• ยอดที่ต้องชำระ: <strong class="text-primary">${netPayable.toLocaleString()} LAK</strong> (≈ ฿${Math.round(netPriceTHB).toLocaleString()})</div>
+                </div>
+                <p class="text-muted small mb-0">กรุณากรอกจำนวนเงิน (บาท หรือ กีบ) ในช่องรับเงิน หรือกดปุ่ม <strong>"ครบพอดี"</strong> ก่อนกดยืนยัน</p>
+            `,
+            confirmButtonText: 'รับทราบ',
+            confirmButtonColor: '#0b3c73'
+        });
+        return;
+    }
+
+    if (remainingLAK > 50 && remainingTHB > 0.05) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'ยอดเงินยังไม่ครบตามจำนวน',
+            html: `
+                <div class="text-start p-3 bg-light rounded-3 my-2" style="font-size: 0.95rem;">
+                    <div>• ยอดที่ต้องชำระ: <strong>${netPayable.toLocaleString()} LAK</strong> (≈ ฿${netPriceTHB.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
+                    <div>• ยอดที่ป้อนรับเงินแล้ว: <strong class="text-success">${Math.round(totalPaidLAK).toLocaleString()} LAK</strong> (≈ ฿${totalPaidTHB.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
+                    <div class="mt-2 text-danger fw-bold">• ยอดค้างชำระ: ฿${remainingTHB.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (≈ ${Math.round(remainingLAK).toLocaleString()} ₭)</div>
+                </div>
+                <p class="text-muted small mb-0">กรุณาป้อนจำนวนเงินให้ตรงหรือครบตามยอดที่ต้องชำระก่อนยืนยันรับเงิน</p>
+            `,
+            confirmButtonText: 'รับทราบ',
+            confirmButtonColor: '#0b3c73'
+        });
+        return;
+    }
+
+    const billPayload = {
+        bill_id: billId,
+        visit_id: visitId,
+        hn: hn,
+        patient_name: patientName,
+        items: billItems,
+        subtotal: effectiveSubtotal,
+        discount: discountVal,
+        payable_amount: netPayable,
+        currency: 'LAK',
+        payment_method: paymentMethodSummary,
+        pay_mode: payMode,
+        cash_lak: paidCashLAK,
+        transfer_lak: paidTransferLAK,
+        cash_thb: paidCashTHB,
+        transfer_thb: paidTransferTHB,
+        status: 'ชำระแล้ว',
+        created_by: staffName,
+        created_at: now.toISOString(),
+        note: (paymentNote ? paymentNote + ' | ' : '') + `[PAY_SPLIT: CASH=${paidCashLAK}, TRANSFER=${paidTransferLAK}, MODE=${payMode}]`
+    };
+
+    Swal.fire({
+        title: 'กำลังบันทึกการชำระเงิน...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        // 1. บันทึกลงตาราง bills ใน Supabase
+        const dbBillPayload = {
+            bill_id: billId,
+            visit_id: visitId,
+            hn: hn,
+            patient_name: patientName,
+            items: billItems,
+            subtotal: effectiveSubtotal,
+            discount: discountVal,
+            payable_amount: netPayable,
+            currency: 'LAK',
+            payment_method: paymentMethodSummary,
+            status: 'ชำระแล้ว',
+            created_by: staffName,
+            created_at: now.toISOString(),
+            note: (paymentNote ? paymentNote + ' | ' : '') + `[PAY_SPLIT: CASH=${paidCashLAK}, TRANSFER=${paidTransferLAK}, MODE=${payMode}] [ช่องทาง: ${paymentMethodSummary}]`
+        };
+
+        try {
+            let res = await _supabase.from('bills').insert([dbBillPayload]);
+            if (res && res.error) {
+                console.warn('Supabase bills insert warning, retrying without payment_method:', res.error.message);
+                const billFallback = { ...dbBillPayload };
+                delete billFallback.payment_method;
+                const res2 = await _supabase.from('bills').insert([billFallback]);
+                if (res2 && res2.error) console.warn('Bills DB insert fallback warning:', res2.error.message);
+            }
+        } catch(bErr) {
+            console.warn('Bills DB insert exception:', bErr);
+        }
+
+        // บันทึกลงหน่วยความจำแคชและ LocalStorage อย่างปลอดภัย (ป้องกัน QuotaExceededError)
+        window.clinicBills = window.clinicBills || [];
+        window.clinicBills.unshift(billPayload);
+        window.allBillsData = window.allBillsData || [];
+        window.allBillsData.unshift(billPayload);
+        try {
+            const safeBillsCache = (window.clinicBills || []).slice(0, 50);
+            localStorage.setItem('clinic_bills_cache', JSON.stringify(safeBillsCache));
+        } catch (storageErr) {
+            console.warn('LocalStorage clinic_bills_cache quota exceeded, clearing cache:', storageErr);
+            try { localStorage.removeItem('clinic_bills_cache'); } catch(e) {}
+        }
+
+        // ⚡ นำแถวออกจากตารางห้องจ่ายค่ารักษาทันที (Realtime UI removal)
+        const paymentTbody = document.querySelector('#paymentTable tbody');
+        if (paymentTbody) {
+            const rows = paymentTbody.querySelectorAll('tr');
+            rows.forEach(r => {
+                if (r.textContent.includes(visitId)) {
+                    r.remove();
+                }
+            });
+            if (paymentTbody.children.length === 0) {
+                const emptyText = typeof t === 'function' ? t('payment_empty', 'ไม่มีรายการรอชำระเงิน') : 'ไม่มีรายการรอชำระเงิน';
+                paymentTbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">${emptyText}</td></tr>`;
+            }
+        }
+
+        // 2. อัปเดตสถานะในตาราง visits ให้เป็น "รอผลแล็บ" เพื่อให้แสดงในห้อง Lab ทันที
+        const visitUpdatePayload = {
+            status: 'รอผลแล็บ',
+            payment_status: 'paid',
+            payable_amount: netPayable,
+            discount: discountVal,
+            payment_method: paymentMethodSummary,
+            pay_mode: payMode,
+            cash_lak: paidCashLAK,
+            transfer_lak: paidTransferLAK
+        };
+
+        try {
+            const { error: vErr } = await _supabase.from('visits').update(visitUpdatePayload).eq('visit_id', visitId);
+            if (vErr) {
+                console.warn('Visits update with extra fields failed, fallback to status only:', vErr.message);
+                const { error: vErr2 } = await _supabase.from('visits').update({ 
+                    status: 'รอผลแล็บ',
+                    payment_status: 'paid',
+                    payable_amount: netPayable,
+                    discount: discountVal
+                }).eq('visit_id', visitId);
+                if (vErr2) {
+                    await _supabase.from('visits').update({ status: 'รอผลแล็บ' }).eq('visit_id', visitId);
+                }
+            }
+        } catch(vErr) {
+            console.warn('Visits update fallback:', vErr);
+            try {
+                await _supabase.from('visits').update({ status: 'รอผลแล็บ' }).eq('visit_id', visitId);
+            } catch(e) {}
+        }
+
+        if (Array.isArray(window.clinicVisits)) {
+            const v = window.clinicVisits.find(x => x.visit_id === visitId);
+            if (v) {
+                v.status = 'รอผลแล็บ';
+                v.payment_status = 'paid';
+                v.payable_amount = netPayable;
+                v.discount = discountVal;
+                v.payment_method = paymentMethodSummary;
+                v.pay_mode = payMode;
+                v.cash_lak = paidCashLAK;
+                v.transfer_lak = paidTransferLAK;
+            }
+        }
+
+        // 3. ตรวจสอบคำนวณและบันทึกค่าปันผลการตลาดอัตโนมัติ
+        try {
+            let visitRecord = null;
+            if (Array.isArray(window.clinicVisits)) {
+                visitRecord = window.clinicVisits.find(x => x.visit_id === visitId);
+            }
+            if (!visitRecord) {
+                const { data } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
+                visitRecord = data;
+            }
+            if (visitRecord && typeof calculateAndRecordCommission === 'function') {
+                await calculateAndRecordCommission(visitRecord, testsString);
+            }
+        } catch (commErr) {
+            console.warn('Commission calculation warning:', commErr);
+        }
+
+        // 4. แจ้งเตือนสำเร็จ พร้อมตัวเลือกพิมพ์ใบเสร็จ
+        Swal.fire({
+            icon: 'success',
+            title: 'ชำระเงินสำเร็จ & ส่งห้อง Lab แล้ว!',
+            html: `
+                <div class="text-start p-3 bg-light rounded-3 my-2" style="font-size: 0.95rem;">
+                    <div><strong>รหัสใบเสร็จ (Bill ID):</strong> <span class="text-primary fw-bold">${billId}</span></div>
+                    <div><strong>ผู้ป่วย:</strong> ${patientName} (${hn})</div>
+                    <div><strong>ยอดชำระสุทธิ:</strong> <span class="text-success fw-bold">${netPayable.toLocaleString()} LAK</span></div>
+                    <div><strong>ช่องทาง:</strong> ${paymentMethodSummary}</div>
+                    <div class="mt-2.5 pt-2 border-top text-success fw-semibold" style="font-size: 0.9rem;">
+                        <i class="bi bi-arrow-right-circle-fill me-1"></i>ส่งรายการไปยัง <strong>ห้อง Lab</strong> เรียบร้อยแล้ว
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: '<i class="bi bi-printer me-1"></i> พิมพ์ใบเสร็จ',
+            cancelButtonText: 'ปิดหน้าต่าง',
+            confirmButtonColor: '#0b3c73',
+            cancelButtonColor: '#64748b'
+        }).then((res) => {
+            if (res.isConfirmed) {
+                printPaymentInvoice(visitId, hn, patientName, testsString, discountVal);
+            }
+        });
+
+        if (typeof loadVisits === 'function') loadVisits();
+        if (typeof loadPaymentQueue === 'function') loadPaymentQueue();
+        if (typeof loadLabQueue === 'function') loadLabQueue();
+        if (typeof loadBills === 'function') loadBills(true);
+        if (typeof updateDashboardStats === 'function') updateDashboardStats();
+
+    } catch (err) {
+        console.error('Payment Error:', err);
+        Swal.fire({
+            icon: 'error',
+            title: 'เกิดข้อผิดพลาด',
+            text: err.message || 'ไม่สามารถบันทึกการชำระเงินได้'
+        });
+    }
+}
+window.confirmAndSubmitClinicPayment = confirmAndSubmitClinicPayment;
+
+// ============================================================
+// 2. ระบบจัดการใบเสร็จ (Billing & Invoices System)
+// ============================================================
+window.clinicBills = [];
+window.currentSelectedBillId = null;
+
+// ฟังก์ชันแยกยอดเงินสดและเงินโอนของบิลอย่างแม่นยำ
+function parseBillPaymentSplit(b) {
+    if (!b) return { subtotal: 0, discount: 0, payable: 0, cashAmount: 0, transferAmount: 0 };
+    const subtotal = parseFloat(b.subtotal || 0);
+    const discount = parseFloat(b.discount || 0);
+    const payable = parseFloat(b.payable_amount !== undefined ? b.payable_amount : Math.max(0, subtotal - discount)) || 0;
+
+    const pMethod = (b.payment_method || '').toString().trim();
+    const pMode = (b.pay_mode || '').toString().trim();
+    const pNote = (b.note || b.payment_note || '').toString().trim();
+
+    let vMatch = null;
+    if (Array.isArray(window.clinicVisits)) {
+        vMatch = window.clinicVisits.find(x => x.visit_id === b.visit_id || (b.hn && x.hn === b.hn));
+    }
+    const vMethod = vMatch ? (vMatch.payment_method || vMatch.pay_mode || '') : '';
+    const vNote = vMatch ? (vMatch.note || vMatch.doctor_note || '') : '';
+
+    let cachedMatch = null;
+    try {
+        const cachedBills = JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]');
+        cachedMatch = cachedBills.find(x => x.bill_id === b.bill_id || x.visit_id === b.visit_id);
+    } catch(e) {}
+
+    const allNotesText = `${pNote} ${vNote} ${b.note || ''} ${pMethod} ${vMethod}`.trim();
+
+    let expCash = (b.cash_lak !== undefined && b.cash_lak !== null) ? parseFloat(b.cash_lak) :
+                  (cachedMatch && cachedMatch.cash_lak !== undefined && cachedMatch.cash_lak !== null ? parseFloat(cachedMatch.cash_lak) :
+                  (vMatch && vMatch.cash_lak !== undefined && vMatch.cash_lak !== null ? parseFloat(vMatch.cash_lak) : null));
+    
+    let expTransfer = (b.transfer_lak !== undefined && b.transfer_lak !== null) ? parseFloat(b.transfer_lak) :
+                      (cachedMatch && cachedMatch.transfer_lak !== undefined && cachedMatch.transfer_lak !== null ? parseFloat(cachedMatch.transfer_lak) :
+                      (vMatch && vMatch.transfer_lak !== undefined && vMatch.transfer_lak !== null ? parseFloat(vMatch.transfer_lak) : null));
+
+    const splitMatch = allNotesText.match(/\[PAY_SPLIT:\s*CASH=([\d.]+),\s*TRANSFER=([\d.]+)/i);
+    if (splitMatch) {
+        expCash = parseFloat(splitMatch[1]) || 0;
+        expTransfer = parseFloat(splitMatch[2]) || 0;
+    }
+
+    if ((expCash === null && expTransfer === null) || (expCash === 0 && expTransfer === 0 && payable > 0)) {
+        const cashNumMatch = allNotesText.match(/สด[^\d]*([\d,]+)/i);
+        const transferNumMatch = allNotesText.match(/โอน[^\d]*([\d,]+)/i);
+
+        if (cashNumMatch && transferNumMatch) {
+            const parsedCash = parseFloat(cashNumMatch[1].replace(/,/g, '')) || 0;
+            const parsedTransfer = parseFloat(transferNumMatch[1].replace(/,/g, '')) || 0;
+            if (parsedCash > 0 || parsedTransfer > 0) {
+                expCash = parsedCash;
+                expTransfer = parsedTransfer;
+            }
+        } else if (transferNumMatch && !cashNumMatch) {
+            const parsedTransfer = parseFloat(transferNumMatch[1].replace(/,/g, '')) || 0;
+            if (parsedTransfer > 0) {
+                expTransfer = parsedTransfer;
+                expCash = Math.max(0, payable - expTransfer);
+            }
+        } else if (cashNumMatch && !transferNumMatch) {
+            const parsedCash = parseFloat(cashNumMatch[1].replace(/,/g, '')) || 0;
+            if (parsedCash > 0) {
+                expCash = parsedCash;
+                expTransfer = Math.max(0, payable - expCash);
+            }
+        }
+    }
+
+    let cashAmount = 0;
+    let transferAmount = 0;
+
+    if (expCash !== null || expTransfer !== null) {
+        cashAmount = expCash || 0;
+        transferAmount = expTransfer || 0;
+        if (cashAmount + transferAmount === 0 && payable > 0) {
+            cashAmount = payable;
+        }
+    } else {
+        const fullHint = `${pMethod} ${pMode} ${pNote} ${vMethod} ${vNote}`.toLowerCase();
+        const hasTransferWord = fullHint.includes('โอน') || fullHint.includes('ໂອນ') || fullHint.includes('transfer') || 
+                                fullHint.includes('bcel') || fullHint.includes('kbank') || fullHint.includes('scb') || 
+                                fullHint.includes('ldb') || fullHint.includes('jdb') || fullHint.includes('apb') || 
+                                fullHint.includes('lvb') || fullHint.includes('promptpay') || fullHint.includes('bank') || fullHint.includes('ธนาคาร');
+        const hasCashWord = fullHint.includes('สด') || fullHint.includes('ສົດ') || fullHint.includes('cash');
+        const isBothMode = (pMode === 'สด+โอน' || pMode === 'ສົດ+ໂອນ' || fullHint.includes('สด+โอน') || fullHint.includes('ສົດ+ໂອນ') || (hasTransferWord && hasCashWord && (fullHint.includes('+') || fullHint.includes('|') || fullHint.includes('และ'))));
+
+        if (isBothMode) {
+            cashAmount = Math.round(payable / 2);
+            transferAmount = payable - cashAmount;
+        } else if (hasTransferWord) {
+            transferAmount = payable;
+            cashAmount = 0;
+        } else {
+            cashAmount = payable;
+            transferAmount = 0;
+        }
+    }
+
+    return {
+        subtotal: subtotal,
+        discount: discount,
+        payable: payable,
+        cashAmount: cashAmount,
+        transferAmount: transferAmount
+    };
+}
+window.parseBillPaymentSplit = parseBillPaymentSplit;
+
+// โหลดรายการใบเสร็จทั้งหมด
+async function loadBills(forceReload = false) {
+    const tbody = document.getElementById('billsTableBody');
+    if (!tbody) return;
+
+    if (!window.clinicBills.length || forceReload) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="11" class="text-center text-muted py-5">
+                    <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                    กำลังโหลดข้อมูลใบเสร็จ...
+                </td>
+            </tr>
+        `;
+    }
+
+    try {
+        let billsData = [];
+
+        // 1. ดึงข้อมูลจากตาราง bills ใน Supabase
+        try {
+            const { data, error } = await _supabase
+                .from('bills')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (data && !error && data.length > 0) {
+                billsData = data;
+            }
+        } catch(dbErr) {
+            console.warn('Supabase bills query warning:', dbErr);
+        }
+
+        // 2. Fallback: ถ้ายังไม่มีตาราง bills หรือไม่มีข้อมูล ให้ดึงจาก visits ที่ชำระแล้ว
+        if (billsData.length === 0) {
+            const cachedBills = JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]');
+            if (cachedBills.length > 0) {
+                billsData = cachedBills;
+            } else if (Array.isArray(window.clinicVisits) && window.clinicVisits.length > 0) {
+                const paidVisits = window.clinicVisits.filter(v => v.status === 'ชำระเงินแล้ว' || v.status === 'รอผลแล็บ' || v.status === 'รอผลตรวจ Lab' || v.status === 'เสร็จสิ้น' || v.payment_status === 'paid');
+                billsData = paidVisits.map((v, idx) => {
+                    const subtotal = parseFloat(v.total_price || v.price || v.payable_amount || 0);
+                    const discount = parseFloat(v.discount || 0);
+                    const payable = Math.max(0, subtotal - discount);
+                    return {
+                        bill_id: `BILL-GEN-${String(idx + 1001)}`,
+                        visit_id: v.visit_id || '-',
+                        hn: v.hn || '-',
+                        patient_name: v.patient_name || v.name || 'ผู้ป่วย',
+                        items: (v.tests || '').split(',').map(t => ({ name: t.trim(), price: 0 })),
+                        subtotal: subtotal || payable,
+                        discount: discount,
+                        payable_amount: payable,
+                        currency: 'LAK',
+                        payment_method: v.payment_method || 'เงินสด',
+                        status: 'ชำระแล้ว',
+                        created_by: v.doctor_name || 'Staff',
+                        created_at: v.created_at || new Date().toISOString(),
+                        note: v.notes || ''
+                    };
+                });
+            }
+        }
+
+        window.clinicBills = billsData;
+        try {
+            localStorage.setItem('clinic_bills_cache', JSON.stringify((billsData || []).slice(0, 50)));
+        } catch(e) {
+            console.warn('LocalStorage clinic_bills_cache quota exceeded in loadBills:', e);
+        }
+        renderBillsTable();
+
+    } catch (err) {
+        console.error('Error loading bills:', err);
+        if (tbody) {
+            tbody.innerHTML = `<tr><td colspan="11" class="text-center text-danger py-4">เกิดข้อผิดพลาดในการโหลดข้อมูล: ${err.message}</td></tr>`;
+        }
+    }
+}
+window.loadBills = loadBills;
+
+// กรองและแสดงผลตารางใบเสร็จ
+function renderBillsTable() {
+    const tbody = document.getElementById('billsTableBody');
+    if (!tbody) return;
+
+    const searchInput = document.getElementById('billSearchInput')?.value?.toLowerCase().trim() || '';
+    const startDate = document.getElementById('billStartDate')?.value || '';
+    const endDate = document.getElementById('billEndDate')?.value || '';
+
+    let filtered = [...window.clinicBills];
+
+    // ค้นหาข้อความ
+    if (searchInput) {
+        filtered = filtered.filter(b => 
+            (b.bill_id && b.bill_id.toLowerCase().includes(searchInput)) ||
+            (b.visit_id && b.visit_id.toLowerCase().includes(searchInput)) ||
+            (b.hn && b.hn.toLowerCase().includes(searchInput)) ||
+            (b.patient_name && b.patient_name.toLowerCase().includes(searchInput)) ||
+            (b.payment_method && b.payment_method.toLowerCase().includes(searchInput))
+        );
+    }
+
+    // กรองตามช่วงวันที่
+    if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0,0,0,0);
+        filtered = filtered.filter(b => new Date(b.created_at) >= start);
+    }
+    if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23,59,59,999);
+        filtered = filtered.filter(b => new Date(b.created_at) <= end);
+    }
+
+    // คำนวณยอดรวมสถิติ
+    let totalSubtotal = 0;
+    let totalDiscount = 0;
+    let totalPayable = 0;
+
+    filtered.forEach(b => {
+        totalSubtotal += parseFloat(b.subtotal || 0);
+        totalDiscount += parseFloat(b.discount || 0);
+        totalPayable += parseFloat(b.payable_amount || 0);
+    });
+
+    if (document.getElementById('billStatCount')) document.getElementById('billStatCount').textContent = filtered.length.toLocaleString();
+    if (document.getElementById('billStatSubtotal')) document.getElementById('billStatSubtotal').textContent = totalSubtotal.toLocaleString() + ' ₭';
+    if (document.getElementById('billStatDiscount')) document.getElementById('billStatDiscount').textContent = totalDiscount.toLocaleString() + ' ₭';
+    if (document.getElementById('billStatPayable')) document.getElementById('billStatPayable').textContent = totalPayable.toLocaleString() + ' ₭';
+
+    if (document.getElementById('billFooterCount')) document.getElementById('billFooterCount').textContent = filtered.length.toLocaleString();
+    if (document.getElementById('billFooterTotal')) document.getElementById('billFooterTotal').textContent = totalPayable.toLocaleString() + ' ₭';
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="11" class="text-center text-muted py-5">
+                    <i class="ph ph-receipt fs-1 text-secondary opacity-50 mb-2"></i>
+                    <div>ไม่พบรายการใบเสร็จรับเงิน</div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    let rowsHtml = '';
+    filtered.forEach((b, idx) => {
+        const dateObj = new Date(b.created_at);
+        const dateStr = !isNaN(dateObj) ? 
+            dateObj.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' }) + ' ' + 
+            dateObj.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
+
+        const itemCount = Array.isArray(b.items) ? b.items.length : (b.items_count || 1);
+        const safeBillId = (b.bill_id || '-').replace(/'/g, "\\'");
+
+        rowsHtml += `
+            <tr>
+                <td class="ps-4 text-secondary text-center">${idx + 1}</td>
+                <td>
+                    <span class="fw-bold text-primary">${b.bill_id}</span>
+                </td>
+                <td>
+                    <span class="badge bg-light text-dark border px-2 py-1">${b.visit_id || '-'}</span>
+                </td>
+                <td>
+                    <div class="fw-semibold text-dark">${b.patient_name || '-'}</div>
+                    <div class="text-muted small">HN: ${b.hn || '-'}</div>
+                </td>
+                <td class="text-center">
+                    <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 rounded-pill px-2.5 py-1">
+                        ${itemCount} รายการ
+                    </span>
+                </td>
+                <td class="text-end fw-semibold text-secondary">
+                    ${(parseFloat(b.subtotal) || 0).toLocaleString()} ₭
+                </td>
+                <td class="text-end text-danger fw-semibold">
+                    ${parseFloat(b.discount) > 0 ? '-' + parseFloat(b.discount).toLocaleString() + ' ₭' : '0 ₭'}
+                </td>
+                <td class="text-end fw-bold text-success fs-6">
+                    ${(parseFloat(b.payable_amount) || 0).toLocaleString()} ₭
+                </td>
+                <td class="text-center">
+                    <span class="badge bg-success bg-opacity-15 text-success border border-success border-opacity-25 rounded-pill px-2.5 py-1 fw-semibold">
+                        <i class="bi bi-check-circle-fill me-1"></i> ${b.status || 'ชำระแล้ว'}
+                    </span>
+                    <div class="text-muted extra-small mt-0.5" style="font-size: 0.75rem;">${b.payment_method || 'เงินสด'}</div>
+                </td>
+                <td class="text-center text-muted small">
+                    ${dateStr}
+                </td>
+                <td class="text-center pe-4">
+                    <div class="d-flex justify-content-center gap-1">
+                        <button type="button" class="btn btn-sm btn-outline-primary rounded-3 px-2 py-1 shadow-xs" title="พิมพ์ใบเสร็จ" onclick="printBillDetail('${safeBillId}')">
+                            <i class="bi bi-printer"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-3 px-2 py-1 shadow-xs" title="ดูรายละเอียด" onclick="showBillDetail('${safeBillId}')">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger rounded-3 px-2 py-1 shadow-xs" title="ลบใบเสร็จ" onclick="deleteBill('${safeBillId}')">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = rowsHtml;
+}
+window.renderBillsTable = renderBillsTable;
+
+// ตัวกรองช่วงวันที่ด่วน
+function setBillDateFilter(mode) {
+    const startInput = document.getElementById('billStartDate');
+    const endInput = document.getElementById('billEndDate');
+    const now = new Date();
+
+    if (mode === 'today') {
+        const todayStr = now.toISOString().slice(0, 10);
+        if (startInput) startInput.value = todayStr;
+        if (endInput) endInput.value = todayStr;
+    } else if (mode === 'month') {
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+        if (startInput) startInput.value = firstDay;
+        if (endInput) endInput.value = lastDay;
+    } else if (mode === 'all') {
+        if (startInput) startInput.value = '';
+        if (endInput) endInput.value = '';
+    }
+
+    renderBillsTable();
+}
+window.setBillDateFilter = setBillDateFilter;
+
+// สลับมุมมองในหน้า Bills
+function switchBillsView(view) {
+    const listEl = document.getElementById('billsListView');
+    const dailyEl = document.getElementById('billsDailyReportView');
+    const tabListBtn = document.getElementById('tabBillsList');
+    const tabDailyBtn = document.getElementById('tabDailyReport');
+
+    if (view === 'daily') {
+        if (listEl) listEl.style.display = 'none';
+        if (dailyEl) dailyEl.style.display = 'block';
+        if (tabListBtn) tabListBtn.classList.remove('active');
+        if (tabDailyBtn) tabDailyBtn.classList.add('active');
+
+        const dateInput = document.getElementById('dailyReportDateInput');
+        if (dateInput && !dateInput.value) {
+            dateInput.value = new Date().toISOString().slice(0, 10);
+        }
+        loadDailyClinicReport(dateInput?.value);
+    } else {
+        if (listEl) listEl.style.display = 'block';
+        if (dailyEl) dailyEl.style.display = 'none';
+        if (tabListBtn) tabListBtn.classList.add('active');
+        if (tabDailyBtn) tabDailyBtn.classList.remove('active');
+        renderBillsTable();
+    }
+}
+window.switchBillsView = switchBillsView;
+
+// (loadDailyClinicReport is defined in Section 3 with full expenses & marketing integration)
+
+// ดูรายละเอียดใบเสร็จใน Modal
+function showBillDetail(billId) {
+    const bill = (window.clinicBills || []).find(b => b.bill_id === billId);
+    if (!bill) {
+        Swal.fire({ icon: 'warning', title: 'ไม่พบข้อมูล', text: 'ไม่พบข้อมูลใบเสร็จรหัส ' + billId });
+        return;
+    }
+
+    window.currentSelectedBillId = billId;
+    document.getElementById('billDetailModalTitle').textContent = 'รายละเอียดใบเสร็จรับเงิน';
+    document.getElementById('billDetailModalSubtitle').textContent = `Bill ID: ${bill.bill_id} | Visit: ${bill.visit_id || '-'}`;
+
+    const dateObj = new Date(bill.created_at);
+    const dateStr = !isNaN(dateObj) ? dateObj.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+
+    let itemsHtml = '';
+    const items = Array.isArray(bill.items) ? bill.items : [];
+    items.forEach((item, i) => {
+        const price = parseFloat(item.price || 0);
+        itemsHtml += `
+            <tr>
+                <td class="text-center">${i + 1}</td>
+                <td class="fw-semibold">${item.name || item}</td>
+                <td class="text-end fw-bold text-dark">${price > 0 ? price.toLocaleString() + ' ₭' : '-'}</td>
+            </tr>
+        `;
+    });
+
+    if (items.length === 0) {
+        itemsHtml = `<tr><td colspan="3" class="text-center text-muted py-3">ไม่มีรายการแยกย่อย</td></tr>`;
+    }
+
+    const modalBody = document.getElementById('billDetailModalContent');
+    if (modalBody) {
+        modalBody.innerHTML = `
+            <div class="row g-3 mb-3">
+                <div class="col-sm-6">
+                    <div class="p-3 bg-light rounded-3">
+                        <div class="text-muted extra-small">ผู้ป่วย / คนไข้</div>
+                        <div class="fw-bold text-dark fs-6">${bill.patient_name || '-'}</div>
+                        <div class="text-muted small">รหัส HN: <strong>${bill.hn || '-'}</strong></div>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="p-3 bg-light rounded-3">
+                        <div class="text-muted extra-small">วันที่ออกใบเสร็จ</div>
+                        <div class="fw-bold text-dark">${dateStr}</div>
+                        <div class="text-muted small">ผู้ออกบิล: <strong>${bill.created_by || 'Staff'}</strong></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-responsive border rounded-3 mb-3">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 50px;" class="text-center">#</th>
+                            <th>รายการตรวจ / บริการ</th>
+                            <th style="width: 140px;" class="text-end">ราคา</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsHtml}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="p-3 bg-light rounded-3">
+                <div class="d-flex justify-content-between py-1">
+                    <span class="text-muted">ยอดรวมค่าบริการ:</span>
+                    <span class="fw-semibold text-dark">${(parseFloat(bill.subtotal) || 0).toLocaleString()} ₭</span>
+                </div>
+                <div class="d-flex justify-content-between py-1 text-danger">
+                    <span>ส่วนลด:</span>
+                    <span class="fw-semibold">-${(parseFloat(bill.discount) || 0).toLocaleString()} ₭</span>
+                </div>
+                <div class="d-flex justify-content-between py-2 border-top border-secondary border-opacity-25 mt-1 fs-5 fw-bold text-success">
+                    <span>ยอดรับชำระสุทธิ:</span>
+                    <span>${(parseFloat(bill.payable_amount) || 0).toLocaleString()} ₭</span>
+                </div>
+                <div class="d-flex justify-content-between pt-1 border-top small text-muted">
+                    <span>ช่องทางชำระเงิน:</span>
+                    <span class="fw-semibold text-dark">${bill.payment_method || 'เงินสด'}</span>
+                </div>
+                ${bill.note ? `<div class="mt-2 text-muted small"><strong>หมายเหตุ:</strong> ${bill.note}</div>` : ''}
+            </div>
+        `;
+    }
+
+    const modal = new bootstrap.Modal(document.getElementById('billDetailModal'));
+    modal.show();
+}
+window.showBillDetail = showBillDetail;
+
+// พิมพ์ใบเสร็จจาก Bill ID
+function printBillDetail(billId) {
+    const bill = (window.clinicBills || []).find(b => b.bill_id === billId);
+    if (!bill) return;
+
+    const testsStr = Array.isArray(bill.items) ? bill.items.map(i => i.name || i).join(',') : '';
+    printPaymentInvoice(bill.visit_id, bill.hn, bill.patient_name, testsStr, bill.discount || 0);
+}
+window.printBillDetail = printBillDetail;
+
+// พิมพ์จาก Modal
+function printCurrentBillModal() {
+    if (window.currentSelectedBillId) {
+        printBillDetail(window.currentSelectedBillId);
+    }
+}
+window.printCurrentBillModal = printCurrentBillModal;
+
+// ลบใบเสร็จ
+async function deleteBill(billId) {
+    const confirm = await Swal.fire({
+        title: 'ยืนยันการลบใบเสร็จ?',
+        text: `คุณต้องการลบใบเสร็จรหัส ${billId} ใช่หรือไม่? ข้อมูลจะไม่สามารถกู้คืนได้`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'ลบใบเสร็จ',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#dc2626'
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    Swal.fire({ title: 'กำลังลบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    try {
+        await _supabase.from('bills').delete().eq('bill_id', billId);
+    } catch(err) {
+        console.warn('DB delete warning:', err);
+    }
+
+    window.clinicBills = (window.clinicBills || []).filter(b => b.bill_id !== billId);
+    try {
+        localStorage.setItem('clinic_bills_cache', JSON.stringify((window.clinicBills || []).slice(0, 50)));
+    } catch(e) {}
+    renderBillsTable();
+
+    Swal.fire({ icon: 'success', title: 'ลบใบเสร็จเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
+}
+window.deleteBill = deleteBill;
+
+// ลบใบเสร็จจากปุ่มใน Modal
+function deleteCurrentBill() {
+    if (window.currentSelectedBillId) {
+        const modalEl = document.getElementById('billDetailModal');
+        const modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (modalInstance) modalInstance.hide();
+        deleteBill(window.currentSelectedBillId);
+    }
+}
+window.deleteCurrentBill = deleteCurrentBill;
+
+// พิมพ์สรุปรายวัน A4 แนวนอน (เฉพาะใบรายงานในกรอบสีแดง)
+function printDailyClinicReport() {
+    const tableEl = document.getElementById('dailyReportTable');
+    if (!tableEl) return;
+
+    const dateDisplay = document.getElementById('dailyReportDateDisplay')?.textContent || '';
+    const summaryBoxes = document.getElementById('dailyReportSummaryBoxes');
+
+    const html = `
+        <!DOCTYPE html>
+        <html lang="lo">
+        <head>
+            <meta charset="utf-8">
+            <title>ໃບສະຫຼຸບຍອດຄົນມາກວດຄລີນິກແຕ່ລະມື້</title>
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+            <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+            <style>
+                @page { 
+                    size: A4 landscape; 
+                    margin: 8mm 10mm; 
+                }
+                * {
+                    box-sizing: border-box;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }
+                body { 
+                    font-family: 'Noto Sans Lao', 'Noto Sans Thai', 'Plus Jakarta Sans', sans-serif; 
+                    padding: 8px 12px; 
+                    font-size: 11.5px;
+                    color: #0f172a;
+                    background: #fff;
+                }
+                .report-title { 
+                    text-align: center; 
+                    font-size: 17px;
+                    font-weight: 700;
+                    margin: 0 0 2px 0; 
+                    color: #0f172a;
+                }
+                .date-header { 
+                    text-align: center; 
+                    margin-bottom: 12px; 
+                    font-size: 12px;
+                    font-weight: 600; 
+                    color: #475569; 
+                }
+                table { 
+                    width: 100%; 
+                    border-collapse: collapse; 
+                    margin-bottom: 12px;
+                }
+                th, td { 
+                    border: 1px solid #94a3b8 !important; 
+                    padding: 5px 6px !important; 
+                    font-size: 11px;
+                }
+                thead th { 
+                    background-color: #fef08a !important; 
+                    text-align: center; 
+                    font-weight: 700;
+                }
+                .card {
+                    border: 1px solid #cbd5e1 !important;
+                    border-radius: 8px !important;
+                }
+            </style>
+        </head>
+        <body>
+            <h3 class="report-title">ໃບສະຫຼຸບຍອດຄົນມາກວດຄລີນິກແຕ່ລະມື້</h3>
+            <div class="date-header">${dateDisplay}</div>
+            ${tableEl.outerHTML}
+            ${summaryBoxes ? summaryBoxes.innerHTML : ''}
+            <script>
+                window.onload = function() { 
+                    window.focus();
+                    setTimeout(function() { window.print(); }, 250); 
+                };
+            </script>
+        </body>
+        </html>
+    `;
+
+    const printWin = window.open('', '_blank', 'width=1100,height=850');
+    if (printWin) {
+        printWin.document.open();
+        printWin.document.write(html);
+        printWin.document.close();
+    } else {
+        window.print();
+    }
+}
+window.printDailyClinicReport = printDailyClinicReport;
+
+// Export Excel สำหรับ Bills
+function exportBillsExcel() {
+    const bills = window.clinicBills || [];
+    if (bills.length === 0) {
+        Swal.fire({ icon: 'info', title: 'ไม่มีข้อมูล', text: 'ไม่มีรายการใบเสร็จสำหรับส่งออก' });
+        return;
+    }
+
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+    csvContent += "Bill ID,Visit ID,HN,Patient Name,Subtotal (LAK),Discount (LAK),Net Amount (LAK),Payment Method,Status,Date\n";
+
+    bills.forEach(b => {
+        const row = [
+            `"${b.bill_id || ''}"`,
+            `"${b.visit_id || ''}"`,
+            `"${b.hn || ''}"`,
+            `"${(b.patient_name || '').replace(/"/g, '""')}"`,
+            parseFloat(b.subtotal || 0),
+            parseFloat(b.discount || 0),
+            parseFloat(b.payable_amount || 0),
+            `"${b.payment_method || 'เงินสด'}"`,
+            `"${b.status || 'ชำระแล้ว'}"`,
+            `"${(b.created_at || '').slice(0, 19).replace('T', ' ')}"`
+        ];
+        csvContent += row.join(",") + "\n";
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Clinic_Bills_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+window.exportBillsExcel = exportBillsExcel;
+
+// Export PDF สำรอง (เรียก print)
+function exportBillsPDF() {
+    printBillsReport();
+}
+window.exportBillsPDF = exportBillsPDF;
 
 // =====================================
 // การบันทึกและส่งข้อมูล
@@ -2853,43 +4371,16 @@ function addCustomLabCheckbox() {
 }
 
 async function confirmPayment(visitId) {
-    const result = await Swal.fire({
-        title: 'ยืนยันการชำระเงิน?',
-        text: `ต้องการยืนยันชำระเงินและส่งผู้ป่วยเคส ${visitId} ไปห้อง Lab ใช่หรือไม่?`,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: '#10b981',
-        cancelButtonColor: '#64748b',
-        confirmButtonText: 'ยืนยันจ่าย & ส่ง Lab',
-        cancelButtonText: 'ยกเลิก'
-    });
-
-    if (!result.isConfirmed) return;
-
-    Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
-    const { error } = await _supabase
-        .from('visits')
-        .update({ status: 'รอผลแล็บ' })
-        .eq('visit_id', visitId);
-
-    if (error) {
-        Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
-    } else {
-        if (typeof saveBill === 'function') {
-            try { await saveBill(visitId); } catch (e) { console.warn('saveBill error:', e); }
+    try {
+        const { data: vData } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
+        if (vData) {
+            showPaymentDetails(vData.visit_id, vData.hn, vData.patient_name, vData.lab_tests, vData.discount || vData.lab_discount || 0);
+            return;
         }
-        if (typeof loadBills === 'function') {
-            loadBills();
-        }
-        if (typeof processPaymentCommission === 'function') {
-            await processPaymentCommission(visitId);
-        }
-        Swal.fire('สำเร็จ', 'ยืนยันชำระเงินและส่งผู้ป่วยไปห้อง Lab เรียบร้อยแล้ว', 'success');
-        if (typeof loadPaymentQueue === 'function') loadPaymentQueue();
-        if (typeof loadLabQueue === 'function') loadLabQueue();
-        if (typeof loadPatients === 'function') loadPatients();
+    } catch (e) {
+        console.warn('confirmPayment fetch visit error:', e);
     }
+    showPaymentDetails(visitId);
 }
 
 async function loadPaymentQueue() {
@@ -2904,27 +4395,56 @@ async function loadPaymentQueue() {
 
     tbody.innerHTML = '';
     if (error) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
         return;
     }
     if (!data || data.length === 0) {
         const emptyText = typeof t === 'function' ? t('payment_empty', 'ไม่มีรายการรอชำระเงิน') : 'ไม่มีรายการรอชำระเงิน';
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-3">${emptyText}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">${emptyText}</td></tr>`;
         return;
+    }
+
+    // โหลด mapping ชื่อผู้ป่วย -> HN เพื่อเติม HN อัตโนมัติหากใน visits เป็น null
+    let patientsMap = {};
+    const hasMissingHn = data.some(r => !r.hn || r.hn === 'null' || r.hn === '-' || r.hn === 'undefined');
+    if (hasMissingHn) {
+        try {
+            const { data: pList } = await _supabase.from('patients').select('hn, patient_name');
+            if (pList) {
+                pList.forEach(p => {
+                    const pName = p.patient_name || p.name;
+                    if (pName && p.hn) {
+                        patientsMap[pName.trim().toLowerCase()] = p.hn;
+                    }
+                });
+            }
+        } catch (e) {
+            console.warn('loadPaymentQueue fetch patientsMap error:', e);
+        }
     }
 
     const detailsLabel = typeof t === 'function' ? t('payment_btn_details', 'ดูรายละเอียด') : 'ดูรายละเอียด';
     const pendingLabel = typeof t === 'function' ? t('payment_status_pending', 'รอชำระเงิน') : 'รอชำระเงิน';
-    const payBtnLabel = typeof t === 'function' ? t('payment_btn_pay', 'รับชำระเงิน & ส่ง Lab') : 'รับชำระเงิน & ส่ง Lab';
 
     data.forEach(row => {
+        let rowHn = (row.hn && row.hn !== 'null' && row.hn !== 'undefined' && row.hn !== '-') ? row.hn.trim() : '';
+        if (!rowHn && row.patient_name) {
+            const mappedHn = patientsMap[row.patient_name.trim().toLowerCase()];
+            if (mappedHn) {
+                rowHn = mappedHn;
+                // บันทึกกลับไปยังตาราง visits ใน DB เพื่อให้ข้อมูลสมบูรณ์
+                _supabase.from('visits').update({ hn: mappedHn }).eq('visit_id', row.visit_id).then(() => {});
+            }
+        }
+
         const testCount = row.lab_tests ? row.lab_tests.split(',').filter(Boolean).length : 0;
         const safeTests = (row.lab_tests || '').replace(/'/g, "\\'");
         const safeName = (row.patient_name || '').replace(/'/g, "\\'");
+        const hnDisplay = rowHn || '-';
 
-        let labDetailsHtml = `<button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1 fw-semibold" onclick="showPaymentDetails('${row.visit_id}', '${row.hn || ''}', '${safeName}', '${safeTests}', ${row.discount || row.lab_discount || 0})"><i class="bi bi-credit-card me-1"></i> ${detailsLabel} (${testCount} รายการ)</button>`;
+        let labDetailsHtml = `<button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1 fw-semibold" onclick="showPaymentDetails('${row.visit_id}', '${rowHn}', '${safeName}', '${safeTests}', ${row.discount || row.lab_discount || 0})"><i class="bi bi-credit-card me-1"></i> ${detailsLabel} (${testCount} รายการ)</button>`;
 
-        tbody.innerHTML += `<tr><td class="ps-4 fw-bold text-primary">${row.visit_id}</td><td>${row.hn}</td><td class="fw-bold">${row.patient_name}</td><td>${labDetailsHtml}</td><td><span class="badge-soft-warning">${pendingLabel}</span></td><td class="text-center"><button class="btn btn-sm btn-success rounded-pill px-3" onclick="confirmPayment('${row.visit_id}')"><i class="bi bi-check-circle me-1"></i> ${payBtnLabel}</button></td></tr>`;
+        tbody.innerHTML += `<tr><td class="ps-4 fw-bold text-primary">${row.visit_id}</td><td class="fw-semibold text-secondary">${hnDisplay}</td><td class="fw-bold">${row.patient_name || '-'}</td><td>${labDetailsHtml}</td><td><span class="badge-soft-warning">${pendingLabel}</span></td></tr>`;
     });
 }
 
@@ -3186,18 +4706,37 @@ async function loadLabQueue() {
     const { data, error } = await _supabase
         .from('visits')
         .select('*')
-        .eq('status', 'รอผลแล็บ')
+        .in('status', ['รอผลแล็บ', 'รอผลตรวจ Lab'])
         .order('created_at', { ascending: true });
 
     tbody.innerHTML = '';
     if (error) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
         return;
     }
     if (!data || data.length === 0) {
         const emptyText = typeof t === 'function' ? t('lab_empty', 'ไม่มีรายการรอตรวจ Lab') : 'ไม่มีรายการรอตรวจ Lab';
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-3">${emptyText}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-3">${emptyText}</td></tr>`;
         return;
+    }
+
+    // โหลด mapping ชื่อผู้ป่วย -> HN เพื่อเติม HN อัตโนมัติหากใน visits เป็น null/ว่าง
+    let patientsMap = {};
+    const hasMissingHn = data.some(r => !r.hn || r.hn === 'null' || r.hn === '-' || r.hn === 'undefined');
+    if (hasMissingHn) {
+        try {
+            const { data: pList } = await _supabase.from('patients').select('hn, patient_name');
+            if (pList) {
+                pList.forEach(p => {
+                    const pName = p.patient_name || p.name;
+                    if (pName && p.hn) {
+                        patientsMap[pName.trim().toLowerCase()] = p.hn;
+                    }
+                });
+            }
+        } catch (e) {
+            console.warn('loadLabQueue fetch patientsMap error:', e);
+        }
     }
 
     const itemsLabel = typeof t === 'function' ? t('lab_btn_items', 'รายการส่งแล็บ') : 'รายการส่งแล็บ';
@@ -3211,6 +4750,16 @@ async function loadLabQueue() {
     } catch (e) {}
 
     data.forEach(row => {
+        let rowHn = (row.hn && row.hn !== 'null' && row.hn !== 'undefined' && row.hn !== '-') ? row.hn.trim() : '';
+        if (!rowHn && row.patient_name) {
+            const mappedHn = patientsMap[row.patient_name.trim().toLowerCase()];
+            if (mappedHn) {
+                rowHn = mappedHn;
+                _supabase.from('visits').update({ hn: mappedHn }).eq('visit_id', row.visit_id).then(() => {});
+            }
+        }
+        const hnDisplay = rowHn || '-';
+
         const testCount = row.lab_tests ? row.lab_tests.split(',').filter(Boolean).length : 0;
         const safeName = (row.patient_name || '').replace(/'/g, "\\'");
 
@@ -3218,7 +4767,7 @@ async function loadLabQueue() {
         window.labRowCache = window.labRowCache || {};
         window.labRowCache[row.visit_id] = {
             visitId: row.visit_id,
-            hn: row.hn || '',
+            hn: rowHn,
             patientName: row.patient_name || '',
             labTests: row.lab_tests || '',
             labNote: row.lab_note || ''
@@ -3286,7 +4835,7 @@ async function loadLabQueue() {
         tbody.innerHTML += `
             <tr>
                 <td class="ps-4 fw-bold text-primary">${row.visit_id}</td>
-                <td>${row.hn}</td>
+                <td>${hnDisplay}</td>
                 <td class="fw-bold">${row.patient_name}</td>
                 <td>${labDetailsHtml}</td>
                 <td class="text-center">${allResultDisplay}</td> <!-- คอลัมน์ผลตรวจทั้งหมด -->
@@ -6016,6 +7565,23 @@ async function showHistoryDetails(visitId) {
     setSafeText('histPatientName', row.patient_name);
     setSafeText('histHN', row.hn);
 
+    // --- เริ่มโค้ดส่วนที่เพิ่มใหม่: ดึงและแสดงเบอร์โทรศัพท์ ---
+    let patientPhone = '-';
+    // ตรวจสอบว่าในตาราง visits (ตัวแปร row) มีข้อมูลเบอร์โทรหรือไม่
+    if (row.phone) {
+        patientPhone = row.phone;
+    } 
+    // หากไม่มี ให้ไปค้นหาเบอร์โทรจากประวัติผู้ป่วย (ตาราง patients) โดยอ้างอิงจากรหัส HN
+    else if (row.hn && window.allPatients) {
+        const pat = window.allPatients.find(p => p.hn === row.hn);
+        if (pat && pat.phone) {
+            patientPhone = pat.phone;
+        }
+    }
+    // ส่งข้อมูลเบอร์โทรศัพท์ไปแสดงที่ช่อง ID 'histPhone' ใน HTML
+    setSafeText('histPhone', patientPhone);
+    // --- จบโค้ดส่วนที่เพิ่มใหม่ ---
+
     // 🌟 ส่วนที่ 1: ประมวลผลและแสดงผลข้อมูลผู้แนะนำ (Referrer)
     let refId = row.referred_by;
     if (!refId && row.hn) {
@@ -6386,402 +7952,6 @@ function repeatPrescriptionFromHistory(targetVisitId) {
         icon: 'success',
         title: `เปิดสั่งจ่ายต่อยา ${batchTag} (${medsList.length} รายการ) เรียบร้อย`
     });
-}
-
-// =====================================
-// คลังพัสดุ (Supply Room Management)
-// =====================================
-async function loadSupplyItems() {
-    const tbody = document.querySelector('#supplyItemsTable tbody');
-    if (!tbody) return;
-
-    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูลคลังพัสดุ...</td></tr>';
-
-    const { data, error } = await _supabase
-        .from('supplies')
-        .select('*')
-        .order('name', { ascending: true });
-
-    tbody.innerHTML = '';
-    if (error) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4"><i class="bi bi-exclamation-triangle-fill me-2"></i>เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
-        return;
-    }
-
-    window.allSupplyItems = data || [];
-    renderSupplyTable(window.allSupplyItems);
-    updateSupplyStats(window.allSupplyItems);
-}
-
-function renderSupplyTable(list) {
-    const tbody = document.querySelector('#supplyItemsTable tbody');
-    if (!tbody) return;
-
-    tbody.innerHTML = '';
-    if (!list || list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">ไม่มีรายการพัสดุในคลัง</td></tr>';
-        return;
-    }
-
-    list.forEach(item => {
-        const stock = item.stock || 0;
-        const stockClass = stock <= 0 ? 'text-danger fw-bold' : stock <= 5 ? 'text-warning fw-bold' : 'text-success fw-bold';
-        const stockBadge = stock <= 0
-            ? `<span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-6 px-3">${stock}</span>`
-            : stock <= 5
-                ? `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fs-6 px-3">${stock}</span>`
-                : `<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle fs-6 px-3">${stock}</span>`;
-
-        let typeBadge = `<span class="badge bg-secondary-subtle text-secondary border" style="font-size:0.75rem;">${item.type || 'อื่นๆ'}</span>`;
-        if (item.type === 'อุปกรณ์การแพทย์') typeBadge = `<span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size:0.75rem;"><i class="bi bi-heart-pulse me-1"></i>${item.type}</span>`;
-        else if (item.type === 'วัสดุสิ้นเปลือง') typeBadge = `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size:0.75rem;"><i class="bi bi-bag me-1"></i>${item.type}</span>`;
-        else if (item.type === 'ครุภัณฑ์') typeBadge = `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" style="font-size:0.75rem;"><i class="bi bi-tools me-1"></i>${item.type}</span>`;
-        else if (item.type === 'เอกสาร/แบบฟอร์ม') typeBadge = `<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle" style="font-size:0.75rem;"><i class="bi bi-file-text me-1"></i>${item.type}</span>`;
-
-        tbody.innerHTML += `
-            <tr data-supply-name="${(item.name || '').toLowerCase()}" data-supply-type="${(item.type || '').toLowerCase()}">
-                <td class="ps-4 fw-bold text-secondary small">${item.id}</td>
-                <td class="fw-medium text-dark">${item.name}<br><span class="text-muted small">${item.note || ''}</span></td>
-                <td class="text-center">${typeBadge}</td>
-                <td class="text-center">${stockBadge}</td>
-                <td class="text-center text-muted fw-medium">${item.unit || '-'}</td>
-                <td class="text-center">
-                    <button class="btn btn-sm btn-success py-0 px-2 me-1 text-white fw-bold" title="รับเข้าพัสดุ" onclick="openSupplyIntakeModal('${item.id}', '${item.name}', ${stock}, '${item.unit || ''}')"><i class="bi bi-box-arrow-in-down"></i> รับเข้า</button>
-                    <button class="btn btn-sm btn-warning py-0 px-2 me-1 text-white" title="เบิกพัสดุ" ${stock <= 0 ? 'disabled' : ''} onclick="openSupplyReqModal('${item.id}', '${item.name}', ${stock}, '${item.unit || ''}')"><i class="bi bi-box-arrow-up"></i> เบิก</button>
-                    <button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" title="แก้ไข" onclick="editSupplyItem('${item.id}')"><i class="bi bi-pencil"></i></button>
-                    <button class="btn btn-sm btn-outline-danger py-0 px-2" title="ลบ" onclick="deleteSupplyItem('${item.id}')"><i class="bi bi-trash"></i></button>
-                </td>
-            </tr>
-        `;
-    });
-}
-
-function filterSupplyTable() {
-    const q = document.getElementById('searchSupplyInput').value.toLowerCase().trim();
-    if (!q) { renderSupplyTable(window.allSupplyItems || []); return; }
-    const filtered = (window.allSupplyItems || []).filter(i =>
-        (i.name && i.name.toLowerCase().includes(q)) ||
-        (i.type && i.type.toLowerCase().includes(q)) ||
-        (i.unit && i.unit.toLowerCase().includes(q))
-    );
-    renderSupplyTable(filtered);
-}
-
-function updateSupplyStats(list) {
-    const totalEl = document.getElementById('statTotalItems');
-    const lowEl = document.getElementById('statLowStock');
-    if (totalEl) totalEl.innerText = list.length;
-    const low = list.filter(i => (i.stock || 0) <= 5).length;
-    if (lowEl) lowEl.innerText = low;
-}
-
-function openAddSupplyModal() {
-    document.getElementById('supplyItemId').value = '';
-    document.getElementById('supplyItemModalTitle').innerHTML = '<i class="bi bi-boxes text-primary me-2"></i>เพิ่มรายการพัสดุ';
-    document.getElementById('supplyItemForm').reset();
-    document.getElementById('supplyStock').value = 0;
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('supplyItemModal')).show();
-}
-
-function editSupplyItem(id) {
-    const item = (window.allSupplyItems || []).find(i => i.id === id);
-    if (!item) return;
-    document.getElementById('supplyItemId').value = item.id;
-    document.getElementById('supplyItemModalTitle').innerHTML = '<i class="bi bi-pencil-square text-primary me-2"></i>แก้ไขรายการพัสดุ';
-    document.getElementById('supplyName').value = item.name || '';
-    document.getElementById('supplyType').value = item.type || 'วัสดุสิ้นเปลือง';
-    document.getElementById('supplyUnit').value = item.unit || '';
-    document.getElementById('supplyStock').value = item.stock || 0;
-    document.getElementById('supplyNote').value = item.note || '';
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('supplyItemModal')).show();
-}
-
-async function saveSupplyItem() {
-    const id = document.getElementById('supplyItemId').value;
-    const payload = {
-        name: document.getElementById('supplyName').value,
-        type: document.getElementById('supplyType').value,
-        unit: document.getElementById('supplyUnit').value,
-        stock: parseInt(document.getElementById('supplyStock').value) || 0,
-        note: document.getElementById('supplyNote').value || null
-    };
-
-    Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
-    let response;
-    if (!id) {
-        payload.id = 'SUP-' + Math.floor(100000 + Math.random() * 900000);
-        response = await _supabase.from('supplies').insert([payload]);
-    } else {
-        response = await _supabase.from('supplies').update(payload).eq('id', id);
-    }
-
-    if (response.error) {
-        Swal.fire('เกิดข้อผิดพลาด', response.error.message, 'error');
-    } else {
-        Swal.fire('สำเร็จ', 'บันทึกข้อมูลพัสดุเรียบร้อยแล้ว', 'success');
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('supplyItemModal')).hide();
-        loadSupplyItems();
-    }
-}
-
-async function deleteSupplyItem(id) {
-    const item = (window.allSupplyItems || []).find(i => i.id === id);
-    if (!item) return;
-    const result = await Swal.fire({
-        title: 'ยืนยันการลบ?',
-        text: `ต้องการลบรายการ "${item.name}" ออกจากคลังพัสดุใช่หรือไม่?`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#64748b',
-        confirmButtonText: 'ใช่, ลบเลย',
-        cancelButtonText: 'ยกเลิก'
-    });
-    if (!result.isConfirmed) return;
-    Swal.fire({ title: 'กำลังลบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    const { error } = await _supabase.from('supplies').delete().eq('id', id);
-    if (error) {
-        Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
-    } else {
-        Swal.fire('ลบแล้ว!', 'ลบรายการพัสดุเรียบร้อย', 'success');
-        loadSupplyItems();
-    }
-}
-
-// --- รับเข้าพัสดุ ---
-function openSupplyIntakeModal(itemId, itemName, stock, unit) {
-    document.getElementById('intakeItemId').value = itemId;
-    document.getElementById('intakeItemName').innerText = itemName;
-    document.getElementById('intakeItemStock').innerText = stock;
-    document.getElementById('intakeItemUnit').innerText = unit;
-    document.getElementById('intakeQty').value = 1;
-    document.getElementById('intakeReceiver').value = '';
-    document.getElementById('intakeRemark').value = '';
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('supplyIntakeModal')).show();
-}
-
-async function submitSupplyIntake() {
-    const itemId = document.getElementById('intakeItemId').value;
-    const qty = parseInt(document.getElementById('intakeQty').value);
-    const receiver = document.getElementById('intakeReceiver').value;
-    const remark = document.getElementById('intakeRemark').value;
-    const item = (window.allSupplyItems || []).find(i => i.id === itemId);
-    if (!item || qty < 1) return;
-
-    Swal.fire({ title: 'กำลังบันทึกการรับเข้า...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
-    const intakePayload = {
-        supply_id: itemId,
-        supply_name: item.name,
-        unit: item.unit || '',
-        qty_received: qty,
-        receiver_name: receiver,
-        remark: remark || null,
-        received_at: new Date().toISOString()
-    };
-
-    const { error: intakeErr } = await _supabase.from('supply_intakes').insert([intakePayload]);
-    if (intakeErr) { Swal.fire('เกิดข้อผิดพลาด', intakeErr.message, 'error'); return; }
-
-    const newStock = (item.stock || 0) + qty;
-    const { error: updateErr } = await _supabase.from('supplies').update({ stock: newStock }).eq('id', itemId);
-    if (updateErr) { Swal.fire('เกิดข้อผิดพลาด', updateErr.message, 'error'); return; }
-
-    Swal.fire('สำเร็จ', `รับเข้า "${item.name}" จำนวน ${qty} ${item.unit || ''} เรียบร้อยแล้ว\nสต็อกใหม่: ${newStock} ${item.unit || ''}`, 'success');
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('supplyIntakeModal')).hide();
-    loadSupplyItems();
-    loadSupplyIntakes();
-}
-
-async function loadSupplyIntakes() {
-    const tbody = document.querySelector('#supplyIntakeTable tbody');
-    if (!tbody) return;
-
-    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-success me-2"></div>กำลังโหลดประวัติรับเข้า...</td></tr>';
-
-    const { data, error } = await _supabase
-        .from('supply_intakes')
-        .select('*')
-        .order('received_at', { ascending: false });
-
-    tbody.innerHTML = '';
-    if (error) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4"><i class="bi bi-exclamation-triangle-fill me-2"></i>เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
-        return;
-    }
-
-    window.allSupplyIntakes = data || [];
-
-    const todayStr = new Date().toDateString();
-    const todayCount = (data || []).filter(r => new Date(r.received_at).toDateString() === todayStr).length;
-    const todayEl = document.getElementById('statTodayIntake');
-    if (todayEl) todayEl.innerText = todayCount;
-
-    renderIntakeTable(window.allSupplyIntakes);
-}
-
-function renderIntakeTable(list) {
-    const tbody = document.querySelector('#supplyIntakeTable tbody');
-    if (!tbody) return;
-
-    tbody.innerHTML = '';
-    if (!list || list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">ไม่มีประวัติรับพัสดุ</td></tr>';
-        return;
-    }
-
-    list.forEach(rec => {
-        const dateObj = new Date(rec.received_at);
-        const formatted = dateObj.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' น.';
-        tbody.innerHTML += `
-            <tr>
-                <td class="ps-4 text-muted small">${formatted}</td>
-                <td class="fw-medium text-dark">${rec.supply_name}</td>
-                <td class="text-center fw-bold text-success">+${rec.qty_received}</td>
-                <td class="text-center text-muted">${rec.unit || '-'}</td>
-                <td class="fw-medium">${rec.receiver_name}</td>
-                <td class="text-muted small">${rec.remark || '-'}</td>
-            </tr>
-        `;
-    });
-}
-
-function filterIntakeTable() {
-    const q = document.getElementById('searchIntakeInput').value.toLowerCase().trim();
-    if (!q) { renderIntakeTable(window.allSupplyIntakes || []); return; }
-    const filtered = (window.allSupplyIntakes || []).filter(r =>
-        (r.supply_name && r.supply_name.toLowerCase().includes(q)) ||
-        (r.receiver_name && r.receiver_name.toLowerCase().includes(q)) ||
-        (r.remark && r.remark.toLowerCase().includes(q))
-    );
-    renderIntakeTable(filtered);
-}
-
-// --- เบิกพัสดุ ---
-function openSupplyReqModal(itemId, itemName, stock, unit) {
-    document.getElementById('reqItemId').value = itemId;
-    document.getElementById('reqItemName').innerText = itemName;
-    document.getElementById('reqItemRemain').innerText = stock;
-    document.getElementById('reqItemUnit').innerText = unit;
-    document.getElementById('reqQty').max = stock;
-    document.getElementById('reqQty').value = 1;
-    document.getElementById('reqRequester').value = '';
-    document.getElementById('reqRemark').value = '';
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('supplyReqModal')).show();
-}
-
-async function submitSupplyRequest() {
-    const itemId = document.getElementById('reqItemId').value;
-    const qty = parseInt(document.getElementById('reqQty').value);
-    const requester = document.getElementById('reqRequester').value;
-    const remark = document.getElementById('reqRemark').value;
-    const item = (window.allSupplyItems || []).find(i => i.id === itemId);
-    if (!item) return;
-    const stock = item.stock || 0;
-
-    if (qty > stock) {
-        Swal.fire('ไม่สำเร็จ', `จำนวนที่เบิก (${qty}) มากกว่าพัสดุคงเหลือ (${stock})`, 'warning');
-        return;
-    }
-
-    Swal.fire({ title: 'กำลังบันทึกการเบิก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
-    const reqPayload = {
-        supply_id: itemId,
-        supply_name: item.name,
-        unit: item.unit || '',
-        qty_requested: qty,
-        requester_name: requester,
-        remark: remark || null,
-        requested_at: new Date().toISOString()
-    };
-
-    const { error: reqErr } = await _supabase.from('supply_requests').insert([reqPayload]);
-    if (reqErr) { Swal.fire('เกิดข้อผิดพลาด', reqErr.message, 'error'); return; }
-
-    const newStock = stock - qty;
-    const { error: updateErr } = await _supabase.from('supplies').update({ stock: newStock }).eq('id', itemId);
-    if (updateErr) { Swal.fire('เกิดข้อผิดพลาด', updateErr.message, 'error'); return; }
-
-    Swal.fire('สำเร็จ', `บันทึกการเบิก "${item.name}" จำนวน ${qty} ${item.unit || ''} เรียบร้อยแล้ว\nสต็อกคงเหลือ: ${newStock} ${item.unit || ''}`, 'success');
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('supplyReqModal')).hide();
-    loadSupplyItems();
-    loadSupplyRequests();
-}
-
-async function loadSupplyRequests() {
-    const tbody = document.querySelector('#supplyReqTable tbody');
-    if (!tbody) return;
-
-    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดประวัติการเบิก...</td></tr>';
-
-    const { data, error } = await _supabase
-        .from('supply_requests')
-        .select('*')
-        .order('requested_at', { ascending: false });
-
-    tbody.innerHTML = '';
-    if (error) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4"><i class="bi bi-exclamation-triangle-fill me-2"></i>เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
-        return;
-    }
-
-    window.allSupplyRequests = data || [];
-
-    const todayStr = new Date().toDateString();
-    const todayCount = (data || []).filter(r => new Date(r.requested_at).toDateString() === todayStr).length;
-    const todayEl = document.getElementById('statTodayReq');
-    if (todayEl) todayEl.innerText = todayCount;
-
-    renderReqTable(window.allSupplyRequests);
-}
-
-function renderReqTable(list) {
-    const tbody = document.querySelector('#supplyReqTable tbody');
-    if (!tbody) return;
-
-    tbody.innerHTML = '';
-    if (!list || list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">ไม่มีประวัติการเบิกพัสดุ</td></tr>';
-        return;
-    }
-
-    list.forEach(req => {
-        const dateObj = new Date(req.requested_at);
-        const formatted = dateObj.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' น.';
-        tbody.innerHTML += `
-            <tr>
-                <td class="ps-4 text-muted small">${formatted}</td>
-                <td class="fw-medium text-dark">${req.supply_name}</td>
-                <td class="text-center fw-bold text-warning">-${req.qty_requested}</td>
-                <td class="text-center text-muted">${req.unit || '-'}</td>
-                <td class="fw-medium">${req.requester_name}</td>
-                <td class="text-muted small">${req.remark || '-'}</td>
-            </tr>
-        `;
-    });
-}
-
-function filterReqTable() {
-    const q = document.getElementById('searchReqInput').value.toLowerCase().trim();
-    if (!q) { renderReqTable(window.allSupplyRequests || []); return; }
-    const filtered = (window.allSupplyRequests || []).filter(r =>
-        (r.supply_name && r.supply_name.toLowerCase().includes(q)) ||
-        (r.requester_name && r.requester_name.toLowerCase().includes(q)) ||
-        (r.remark && r.remark.toLowerCase().includes(q))
-    );
-    renderReqTable(filtered);
-}
-
-function switchSupplyTab(tab, btnEl) {
-    document.querySelectorAll('#supplyTab .nav-link').forEach(b => b.classList.remove('active'));
-    if (btnEl) btnEl.classList.add('active');
-    document.getElementById('supplyListTab').style.display = tab === 'list' ? 'block' : 'none';
-    document.getElementById('supplyIntakeTab').style.display = tab === 'intake' ? 'block' : 'none';
-    document.getElementById('supplyHistoryTab').style.display = tab === 'history' ? 'block' : 'none';
-    if (tab === 'intake') loadSupplyIntakes();
-    if (tab === 'history') loadSupplyRequests();
 }
 
 // =====================================
@@ -10102,61 +11272,87 @@ function saveItemCommissionSettings() {
 }
 window.saveItemCommissionSettings = saveItemCommissionSettings;
 
-async function processPaymentCommission(visitId) {
+async function calculateAndRecordCommission(visitRecordOrId, testsString = '') {
     if (!window.commissionSettings || !window.commissionSettings.auto_trigger) return;
 
+    let visitRecord = null;
+    let visitId = null;
+
+    if (typeof visitRecordOrId === 'string') {
+        visitId = visitRecordOrId;
+        try {
+            const { data } = await _supabase.from('visits').select('*').eq('visit_id', visitId).single();
+            visitRecord = data;
+        } catch (e) { console.log('visit fetch error', e); }
+
+        if (!visitRecord && window.allPaymentQueue) {
+            visitRecord = window.allPaymentQueue.find(v => v.visit_id === visitId || v.id === visitId);
+        }
+        if (!visitRecord) {
+            const cachedVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
+            visitRecord = cachedVisits.find(v => (v.visit_id === visitId || v.id === visitId));
+        }
+    } else if (visitRecordOrId && typeof visitRecordOrId === 'object') {
+        visitRecord = visitRecordOrId;
+        visitId = visitRecord.visit_id || visitRecord.id;
+    }
+
+    if (!visitRecord) return;
+
     // ตรวจสอบว่าเคยสร้าง Log สำหรับ visitId นี้แล้วหรือยัง เพื่อป้องกันการคำนวณซ้ำ
-    const existingLog = (window.commissionLogs || []).find(l => l.visit_id === visitId);
+    window.commissionLogs = window.commissionLogs || [];
+    const existingLog = window.commissionLogs.find(l => l.visit_id === visitId);
     if (existingLog) return;
 
-    let visit = null;
-    try {
-        const { data } = await _supabase.from('visits').select('*').eq('visit_id', visitId).single();
-        visit = data;
-    } catch (e) { console.log('visit fetch error', e); }
+    // 1. ดึงรหัสผู้แนะนำจาก Visit หากไม่มีให้ค้นหาจากตาราง patients อัตโนมัติ
+    let referrerCode = visitRecord.referrer || visitRecord.ref_code || visitRecord.doctor_ref || visitRecord.referred_by || '';
 
-    if (!visit && window.allPaymentQueue) {
-        visit = window.allPaymentQueue.find(v => v.visit_id === visitId || v.id === visitId);
+    if (!referrerCode || referrerCode === '-' || referrerCode === 'null' || referrerCode === 'undefined') {
+        // ค้นหาผู้แนะนำจากตาราง patients ตาม HN หรือชื่อคนไข้
+        const patientHn = visitRecord.hn || '';
+        const patientName = visitRecord.patient_name || '';
+        
+        if (patientHn && patientHn !== '-') {
+            try {
+                const { data: pData } = await _supabase.from('patients').select('referrer, ref_code, referred_by').eq('hn', patientHn).maybeSingle();
+                referrerCode = pData?.referrer || pData?.ref_code || pData?.referred_by || '';
+            } catch (e) {
+                console.warn('Patient referrer fetch by HN error:', e);
+            }
+        }
+        if (!referrerCode && patientName) {
+            try {
+                const { data: pData } = await _supabase.from('patients').select('referrer, ref_code, referred_by').eq('patient_name', patientName).maybeSingle();
+                referrerCode = pData?.referrer || pData?.ref_code || pData?.referred_by || '';
+            } catch (e) {
+                console.warn('Patient referrer fetch by Name error:', e);
+            }
+        }
     }
 
-    if (!visit) {
-        // สร้าง fallback visit object หากมีในข้อมูล LocalStorage Queue
-        const cachedVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
-        visit = cachedVisits.find(v => (v.visit_id === visitId || v.id === visitId));
-    }
+    let referrerId = referrerCode || null;
+    let patientName = visitRecord.patient_name || 'ผู้ป่วย';
 
-    if (!visit) return;
-
-    let referrerId = visit.referred_by || null;
-    let patientName = visit.patient_name || 'ผู้ป่วย';
-
-    // 1. ค้นหาจาก LocalStorage Maps โดยตรง (แม่นยำและล่าสุดที่สุด)
+    // 2. ค้นหาจาก LocalStorage Maps สำรอง
     const patMap = JSON.parse(localStorage.getItem('clinic_patient_referrers') || '{}');
-    if (!referrerId && visit.hn && patMap[visit.hn]) {
-        referrerId = patMap[visit.hn];
+    if (!referrerId && visitRecord.hn && patMap[visitRecord.hn]) {
+        referrerId = patMap[visitRecord.hn];
     }
 
     const apptMap = JSON.parse(localStorage.getItem('clinic_appointment_referrers') || '{}');
-    if (!referrerId && visit.appointment_id && apptMap[visit.appointment_id]) {
-        referrerId = apptMap[visit.appointment_id];
+    if (!referrerId && visitRecord.appointment_id && apptMap[visitRecord.appointment_id]) {
+        referrerId = apptMap[visitRecord.appointment_id];
     }
 
-    // 2. ค้นหาในประวัติผู้ป่วย (patients) สำรอง
-    if (!referrerId && (visit.hn || visit.patient_name)) {
+    // 3. ค้นหาใน memory cache ของผู้ป่วย (patients) สำรอง
+    if (!referrerId && (visitRecord.hn || visitRecord.patient_name)) {
         const pat = (window.allPatients || []).find(p =>
-            (visit.hn && (p.hn === visit.hn || p.HN === visit.hn || p.id === visit.hn)) ||
-            (visit.patient_name && (p.patient_name === visit.patient_name || p.FullName === visit.patient_name))
+            (visitRecord.hn && (p.hn === visitRecord.hn || p.HN === visitRecord.hn || p.id === visitRecord.hn)) ||
+            (visitRecord.patient_name && (p.patient_name === visitRecord.patient_name || p.FullName === visitRecord.patient_name))
         );
-        if (pat && pat.referred_by) referrerId = pat.referred_by;
-    }
-
-    // 3. ค้นหาในประวัติตารางนัดหมาย (appointments) สำรอง
-    if (!referrerId && (visit.patient_name || visit.appointment_id)) {
-        const appt = (window.allAppointments || []).find(a =>
-            (visit.appointment_id && a.appointment_id === visit.appointment_id) ||
-            (visit.patient_name && a.guest_name === visit.patient_name)
-        );
-        if (appt && appt.referred_by) referrerId = appt.referred_by;
+        if (pat && (pat.referrer || pat.ref_code || pat.referred_by)) {
+            referrerId = pat.referrer || pat.ref_code || pat.referred_by;
+        }
     }
 
     if (!referrerId) {
@@ -10177,20 +11373,21 @@ async function processPaymentCommission(visitId) {
     }
 
     let totalInvoice = 0;
-    if (visit.payable_amount !== undefined && parseFloat(visit.payable_amount) > 0) {
-        totalInvoice = parseFloat(visit.payable_amount);
-    } else if (visit.total_price !== undefined && parseFloat(visit.total_price) > 0) {
-        totalInvoice = parseFloat(visit.total_price);
-    } else if (visit.price !== undefined && parseFloat(visit.price) > 0) {
-        totalInvoice = parseFloat(visit.price);
-    } else if (visit.total_amount !== undefined && parseFloat(visit.total_amount) > 0) {
-        totalInvoice = parseFloat(visit.total_amount);
+    if (visitRecord.payable_amount !== undefined && parseFloat(visitRecord.payable_amount) > 0) {
+        totalInvoice = parseFloat(visitRecord.payable_amount);
+    } else if (visitRecord.total_price !== undefined && parseFloat(visitRecord.total_price) > 0) {
+        totalInvoice = parseFloat(visitRecord.total_price);
+    } else if (visitRecord.price !== undefined && parseFloat(visitRecord.price) > 0) {
+        totalInvoice = parseFloat(visitRecord.price);
+    } else if (visitRecord.total_amount !== undefined && parseFloat(visitRecord.total_amount) > 0) {
+        totalInvoice = parseFloat(visitRecord.total_amount);
     }
 
     if (totalInvoice <= 0 || totalInvoice === 1500) {
         let calcSum = 0;
-        if (visit.lab_tests && typeof visit.lab_tests === 'string') {
-            const testNames = visit.lab_tests.split(',').map(s => s.trim()).filter(Boolean);
+        const testStr = testsString || visitRecord.lab_tests || '';
+        if (testStr && typeof testStr === 'string') {
+            const testNames = testStr.split(',').map(s => s.trim()).filter(Boolean);
             testNames.forEach(t => {
                 if (typeof getTestItemDetails === 'function') {
                     calcSum += getTestItemDetails(t).price;
@@ -10201,7 +11398,7 @@ async function processPaymentCommission(visitId) {
             });
         }
         if (calcSum > 0) {
-            const disc = parseFloat(visit.discount || visit.lab_discount || 0);
+            const disc = parseFloat(visitRecord.discount || visitRecord.lab_discount || 0);
             totalInvoice = Math.max(0, calcSum - disc);
         }
     }
@@ -10248,12 +11445,13 @@ async function processPaymentCommission(visitId) {
         const itemSettings = JSON.parse(localStorage.getItem('hr_item_commission_settings') || '{}');
         let itemList = [];
 
-        if (Array.isArray(visit.items)) itemList = itemList.concat(visit.items);
-        if (Array.isArray(visit.services)) itemList = itemList.concat(visit.services);
-        if (Array.isArray(visit.lab_orders)) itemList = itemList.concat(visit.lab_orders);
+        if (Array.isArray(visitRecord.items)) itemList = itemList.concat(visitRecord.items);
+        if (Array.isArray(visitRecord.services)) itemList = itemList.concat(visitRecord.services);
+        if (Array.isArray(visitRecord.lab_orders)) itemList = itemList.concat(visitRecord.lab_orders);
 
-        if (visit.lab_tests && typeof visit.lab_tests === 'string') {
-            const labArr = visit.lab_tests.split(',').map(s => s.trim()).filter(Boolean);
+        const currentLabTests = testsString || visitRecord.lab_tests || '';
+        if (currentLabTests && typeof currentLabTests === 'string') {
+            const labArr = currentLabTests.split(',').map(s => s.trim()).filter(Boolean);
             labArr.forEach(labName => {
                 itemList.push({ name: labName, id: labName });
             });
@@ -10339,6 +11537,9 @@ async function processPaymentCommission(visitId) {
         console.log('Commission log Supabase insert fallback');
     }
 }
+window.calculateAndRecordCommission = calculateAndRecordCommission;
+window.processPaymentCommission = calculateAndRecordCommission;
+const processPaymentCommission = calculateAndRecordCommission;
 
 async function syncAllVisitsCommissionLogs() {
     window.commissionLogs = window.commissionLogs || [];
@@ -11792,10 +12993,11 @@ async function saveBill(visitId, opts) {
             discount: discount,
             payable_amount: payable,
             currency: opts.currency || (visitData && visitData.currency) || 'LAK',
+            payment_method: opts.payment_method || (visitData && visitData.payment_method) || 'เงินสด',
             status: 'ชำระแล้ว',
             created_by: currentUser,
             created_at: new Date().toISOString(),
-            note: opts.note || ''
+            note: opts.note || (visitData && visitData.payment_note) || ''
         };
 
         window.allBillsData = window.allBillsData || [];
@@ -11803,7 +13005,15 @@ async function saveBill(visitId, opts) {
 
         try {
             const { error } = await _supabase.from('bills').insert([bill]);
-            if (error) console.warn('Bill insert warning:', error.message);
+            if (error) {
+                console.warn('Bill insert warning:', error.message);
+                if (error.message && (error.message.includes('payment_method') || error.message.includes('column'))) {
+                    const billFallback = { ...bill };
+                    delete billFallback.payment_method;
+                    const { error: err2 } = await _supabase.from('bills').insert([billFallback]);
+                    if (err2) console.warn('Bill insert fallback warning:', err2.message);
+                }
+            }
         } catch (e) { console.warn('Bill save fallback:', e); }
 
         console.log('Bill saved: ' + billId + ' for visit ' + visitId);
@@ -11879,6 +13089,10 @@ async function loadBills() {
                     const discount = parseFloat(v.discount || v.lab_discount || 0);
                     const payable = Math.max(0, subtotal - discount);
 
+                    const vPayMethod = v.payment_method || 'เงินสด';
+                    const vPayMode = v.pay_mode || ((vPayMethod.includes('โอน') || vPayMethod.includes('ໂອນ')) ? 'โอน' : 'สด');
+                    const isVTransfer = vPayMode === 'โอน' || vPayMode === 'ໂອນ' || (vPayMethod.includes('โอน') || vPayMethod.includes('ໂອນ'));
+
                     billsList.push({
                         bill_id: 'BILL-' + (v.visit_id || Math.floor(100000 + Math.random() * 900000)),
                         visit_id: v.visit_id,
@@ -11889,6 +13103,10 @@ async function loadBills() {
                         discount: discount,
                         payable_amount: payable,
                         currency: v.currency || 'LAK',
+                        payment_method: vPayMethod,
+                        pay_mode: vPayMode,
+                        cash_lak: v.cash_lak !== undefined ? v.cash_lak : (isVTransfer ? 0 : payable),
+                        transfer_lak: v.transfer_lak !== undefined ? v.transfer_lak : (isVTransfer ? payable : 0),
                         status: 'ชำระแล้ว',
                         created_by: v.doctor_name || 'ระบบ',
                         created_at: v.created_at || new Date().toISOString(),
@@ -11902,6 +13120,7 @@ async function loadBills() {
     }
 
     window.allBillsData = billsList;
+    window.clinicBills = billsList;
     renderBillsTable();
 }
 window.loadBills = loadBills;
@@ -11934,6 +13153,296 @@ function setBillDateFilter(type) {
 }
 window.setBillDateFilter = setBillDateFilter;
 
+// ============================================================
+// ระบบจัดการรายจ่ายประจำวัน + ดึงข้อมูลส่งแล็บนอกอัตโนมัติ
+// ============================================================
+window.clinicExpenseLabVisits = [];
+window.currentExpenseSelectedPatient = null;
+
+// 1. เปิด/ปิด กล่องเลือกเคสแล็บตามหมวดหมู่ที่เลือก
+function toggleExpenseLabCasePicker() {
+    const cat = (document.getElementById('expenseCategory')?.value || '').trim();
+    const labBox = document.getElementById('expenseLabCaseBox');
+    if (!labBox) return;
+
+    const isSendOutLab = cat.includes('ແລັບ') || cat.includes('แล็บ') || cat.includes('Lab') || cat === 'ຄ່າສົ່ງແລັບນອກ';
+
+    if (isSendOutLab) {
+        labBox.style.display = 'block';
+        loadExpenseLabCases();
+    } else {
+        labBox.style.display = 'none';
+        resetExpenseLabPicker();
+    }
+}
+window.toggleExpenseLabCasePicker = toggleExpenseLabCasePicker;
+
+function resetExpenseLabPicker() {
+    window.currentExpenseSelectedPatient = null;
+    const select = document.getElementById('expenseLabCaseSelect');
+    if (select) select.value = '';
+    const testSelect = document.getElementById('expenseLabTestSelect');
+    if (testSelect) testSelect.innerHTML = '<option value="">-- ກະລຸນາເລືອກລາຍການກວດ Lab --</option>';
+    const chkContainer = document.getElementById('expenseLabTestCheckboxesContainer');
+    if (chkContainer) chkContainer.style.display = 'none';
+    const chkList = document.getElementById('expenseLabTestCheckboxesList');
+    if (chkList) chkList.innerHTML = '';
+}
+window.resetExpenseLabPicker = resetExpenseLabPicker;
+
+// 2. ดึงรายการเคสคนไข้ที่มีการสั่ง Lab ในระบบ (เน้นคนไข้วันปัจจุบันขึ้นก่อน)
+async function loadExpenseLabCases(force = false) {
+    const select = document.getElementById('expenseLabCaseSelect');
+    if (!select) return;
+
+    if (!window.clinicExpenseLabVisits || !window.clinicExpenseLabVisits.length || force) {
+        select.innerHTML = '<option value="">-- ກຳລັງໂຫຼດລາຍຊື່ຄົນເຈັບ... --</option>';
+    }
+
+    const getCleanDate = (raw) => {
+        if (!raw) return '';
+        if (typeof raw === 'string') {
+            const s = raw.trim();
+            if (s.length >= 10 && s[4] === '-' && s[7] === '-') return s.slice(0, 10);
+        }
+        try {
+            const d = new Date(raw);
+            if (!isNaN(d.getTime())) {
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+        } catch(e) {}
+        return String(raw).slice(0, 10);
+    };
+
+    const targetDate = getCleanDate(document.getElementById('expenseDate')?.value || new Date());
+
+    try {
+        let combinedMap = new Map();
+
+        // 2.1 ดึงจาก window.allBillsData หรือ Local Cache
+        const localBills = (window.allBillsData && window.allBillsData.length > 0)
+            ? window.allBillsData
+            : JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]');
+
+        localBills.forEach(b => {
+            const key = b.visit_id || b.hn || b.bill_id || ('BILL-' + Math.random());
+            const tests = b.lab_tests || b.tests || b.items_detail || (Array.isArray(b.items) ? b.items.map(i => i.name).join(', ') : '');
+            combinedMap.set(key, {
+                visit_id: b.visit_id || b.bill_id || key,
+                hn: b.hn || b.patient_hn || '-',
+                patient_name: b.patient_name || b.name || 'ຄົນເຈັບ',
+                lab_tests: tests,
+                created_at: b.created_at || b.date || '',
+                date_str: getCleanDate(b.created_at || b.date)
+            });
+        });
+
+        // 2.2 ดึงจาก Supabase visits
+        if (typeof _supabase !== 'undefined') {
+            try {
+                const { data, error } = await _supabase
+                    .from('visits')
+                    .select('visit_id, hn, patient_name, name, lab_tests, tests, items, total_price, price, created_at')
+                    .order('created_at', { ascending: false })
+                    .limit(100);
+
+                if (!error && data && data.length > 0) {
+                    data.forEach(v => {
+                        const key = v.visit_id || v.hn || ('VIS-' + Math.random());
+                        const tests = v.lab_tests || v.tests || (Array.isArray(v.items) ? v.items.map(i => i.name).join(', ') : '');
+                        combinedMap.set(key, {
+                            visit_id: v.visit_id || key,
+                            hn: v.hn || '-',
+                            patient_name: v.patient_name || v.name || 'ຄົນເຈັບ',
+                            lab_tests: tests,
+                            created_at: v.created_at || '',
+                            date_str: getCleanDate(v.created_at)
+                        });
+                    });
+                }
+            } catch(e) {}
+        }
+
+        // 2.3 ดึงจาก window.clinicVisits
+        if (Array.isArray(window.clinicVisits) && window.clinicVisits.length > 0) {
+            window.clinicVisits.forEach(v => {
+                const key = v.visit_id || v.hn || ('VIS-' + Math.random());
+                const tests = v.lab_tests || v.tests || (Array.isArray(v.items) ? v.items.map(i => i.name).join(', ') : '');
+                if (!combinedMap.has(key)) {
+                    combinedMap.set(key, {
+                        visit_id: v.visit_id || key,
+                        hn: v.hn || '-',
+                        patient_name: v.patient_name || v.name || 'ຄົນເຈັບ',
+                        lab_tests: tests,
+                        created_at: v.created_at || '',
+                        date_str: getCleanDate(v.created_at)
+                    });
+                }
+            });
+        }
+
+        const allCases = Array.from(combinedMap.values());
+        window.clinicExpenseLabVisits = allCases;
+
+        // แยกเคสวันนี้ และเคสอื่นๆ
+        const todayCases = allCases.filter(c => c.date_str === targetDate);
+        const otherCases = allCases.filter(c => c.date_str !== targetDate);
+
+        let optionsHtml = '<option value="">-- ກົດເລືອກຄົນເຈັບ (HN / ຊື່) --</option>';
+
+        if (todayCases.length > 0) {
+            optionsHtml += `<optgroup label="🌟 ລາຍຊື່ຄົນເຈັບມື້ນີ້ (${targetDate})">`;
+            todayCases.forEach(v => {
+                const pName = v.patient_name;
+                const pHN = v.hn;
+                const vId = v.visit_id;
+                const shortTests = (v.lab_tests || 'ກວດ Lab').split(',').slice(0, 2).join(', ');
+                optionsHtml += `<option value="${vId}">👉 [HN: ${pHN}] ${pName} (${vId}) - ${shortTests}</option>`;
+            });
+            optionsHtml += `</optgroup>`;
+        }
+
+        if (otherCases.length > 0) {
+            optionsHtml += `<optgroup label="📁 ລາຍຊື່ຄົນເຈັບຫຼ້າສຸດອື່ນໆ">`;
+            otherCases.slice(0, 40).forEach(v => {
+                const pName = v.patient_name;
+                const pHN = v.hn;
+                const vId = v.visit_id;
+                const shortTests = (v.lab_tests || 'ກວດ Lab').split(',').slice(0, 2).join(', ');
+                optionsHtml += `<option value="${vId}">[HN: ${pHN}] ${pName} (${vId}) - ${shortTests}</option>`;
+            });
+            optionsHtml += `</optgroup>`;
+        }
+
+        select.innerHTML = optionsHtml;
+
+    } catch (e) {
+        console.warn('loadExpenseLabCases error:', e);
+        if (select) select.innerHTML = '<option value="">-- ບໍ່ສາມາດໂຫຼດຂໍ້ມູນໄດ້ --</option>';
+    }
+}
+window.loadExpenseLabCases = loadExpenseLabCases;
+
+// 4. เมื่อเลือกเคสคนไข้จาก Dropdown ช่องที่ 1
+function onSelectExpenseLabCase(selectEl) {
+    if (!selectEl || !selectEl.value) {
+        window.currentExpenseSelectedPatient = null;
+        const chkContainer = document.getElementById('expenseLabTestCheckboxesContainer');
+        if (chkContainer) chkContainer.style.display = 'none';
+        const detailInput = document.getElementById('expenseDetail');
+        if (detailInput) detailInput.value = '';
+        return;
+    }
+    const val = selectEl.value;
+
+    const allVisits = window.clinicExpenseLabVisits && window.clinicExpenseLabVisits.length > 0 
+        ? window.clinicExpenseLabVisits 
+        : (window.clinicVisits || []);
+
+    const matched = allVisits.find(v => v.visit_id === val || v.hn === val);
+    if (matched) {
+        renderExpenseLabTests(matched);
+    }
+}
+window.onSelectExpenseLabCase = onSelectExpenseLabCase;
+
+// 5. แสดงผลรายการตรวจใน Dropdown ช่องที่ 2 และปุ่มตัวเลือก
+function renderExpenseLabTests(visit) {
+    if (!visit) return;
+    window.currentExpenseSelectedPatient = visit;
+
+    const matchedHN = document.getElementById('expenseMatchedHN');
+    const pHN = visit.hn || '-';
+    if (matchedHN) matchedHN.textContent = 'HN: ' + pHN;
+
+    // ดึงรายการตรวจทั้งหมดของผู้ป่วยคนนี้
+    let rawTests = [];
+    if (visit.lab_tests) {
+        rawTests = visit.lab_tests.split(/[,;\n]/).map(t => t.trim()).filter(Boolean);
+    } else if (visit.tests) {
+        rawTests = visit.tests.split(/[,;\n]/).map(t => t.trim()).filter(Boolean);
+    } else if (Array.isArray(visit.items)) {
+        rawTests = visit.items.map(i => i.name).filter(Boolean);
+    }
+
+    // ขยาย Package หากมีรายการย่อย
+    let cleanTests = [];
+    rawTests.forEach(t => {
+        if (typeof getTestItemDetails === 'function') {
+            const details = getTestItemDetails(t);
+            if (details && details.isPackage && Array.isArray(details.packageItems) && details.packageItems.length > 0) {
+                cleanTests.push(details.name || t);
+                details.packageItems.forEach(pi => {
+                    if (!cleanTests.includes(pi)) cleanTests.push(pi);
+                });
+                return;
+            }
+        }
+        if (!cleanTests.includes(t)) cleanTests.push(t);
+    });
+
+    if (cleanTests.length === 0) {
+        cleanTests = ['ກວດເລືອດທົ່ວໄປ (General Lab)'];
+    }
+
+    // สร้างรายการ Checkbox (ค่าเริ่มต้นยังไม่เลือก ให้ผู้ใช้เลือกเองตามต้องการ)
+    const chkContainer = document.getElementById('expenseLabTestCheckboxesContainer');
+    const chkList = document.getElementById('expenseLabTestCheckboxesList');
+
+    if (chkList) {
+        let chkHtml = '';
+        cleanTests.forEach((testName, i) => {
+            chkHtml += `
+                <div class="form-check d-flex align-items-center p-2 rounded-2 border bg-light bg-opacity-50 m-0" style="cursor: pointer;">
+                    <input class="form-check-input ms-0 me-2.5 expense-lab-test-chk" type="checkbox" id="exp_chk_${i}" value="${testName}" onchange="onExpenseTestCheckboxChange()" style="cursor: pointer; width: 1.25em; height: 1.25em; margin-top: 0;">
+                    <label class="form-check-label fw-semibold text-dark mb-0 small" for="exp_chk_${i}" style="cursor: pointer; user-select: none; flex: 1;">
+                        ${testName}
+                    </label>
+                </div>
+            `;
+        });
+        chkList.innerHTML = chkHtml;
+    }
+
+    if (chkContainer) chkContainer.style.display = 'block';
+
+    // อัปเดตช่องรายละเอียดทันที
+    onExpenseTestCheckboxChange();
+}
+window.renderExpenseLabTests = renderExpenseLabTests;
+
+// 6. ปุ่มเลือกทั้งหมด / ยกเลิกทั้งหมด
+function toggleAllExpenseLabTests(checked) {
+    const chks = document.querySelectorAll('.expense-lab-test-chk');
+    chks.forEach(c => c.checked = checked);
+    onExpenseTestCheckboxChange();
+}
+window.toggleAllExpenseLabTests = toggleAllExpenseLabTests;
+
+// 7. เมื่อคลิกเลือก/ยกเลิก Checkbox แต่ละรายการตรวจ ให้อัปเดตช่องรายละเอียด
+function onExpenseTestCheckboxChange() {
+    const checkedBoxes = document.querySelectorAll('.expense-lab-test-chk:checked');
+    const selectedTests = Array.from(checkedBoxes).map(cb => cb.value.trim()).filter(Boolean);
+
+    const p = window.currentExpenseSelectedPatient;
+    const pName = p ? (p.patient_name || p.name || '') : '';
+    const pHN = p ? (p.hn || '') : '';
+
+    const detailInput = document.getElementById('expenseDetail');
+    if (detailInput) {
+        const hnPart = pHN ? `HN: ${pHN} ` : '';
+        if (selectedTests.length > 0) {
+            detailInput.value = `[ຄ່າກວດແລັບນອກ] ${hnPart}${pName} - ${selectedTests.join(', ')}`;
+        } else {
+            detailInput.value = `[ຄ່າກວດແລັບນອກ] ${hnPart}${pName}`;
+        }
+    }
+}
+window.onExpenseTestCheckboxChange = onExpenseTestCheckboxChange;
+
 function renderBillsTable() {
     const tbody = document.getElementById('billsTableBody');
     if (!tbody) return;
@@ -11964,16 +13473,19 @@ function renderBillsTable() {
         });
     }
 
-    // Calculate totals for Stat Cards
     let grandSubtotal = 0;
     let grandDiscount = 0;
     let grandPayable = 0;
+    let grandCash = 0;
+    let grandTransfer = 0;
 
     tbody.innerHTML = '';
     if (bills.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-5"><i class="ph ph-receipt fs-2 text-primary opacity-25 d-block mb-2"></i>ไม่พบข้อมูลใบเสร็จรับเงินในระบบ</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="13" class="text-center text-muted py-5"><i class="ph ph-receipt fs-2 text-primary opacity-25 d-block mb-2"></i>ไม่พบข้อมูลใบเสร็จรับเงินในระบบ</td></tr>';
         if (document.getElementById('billFooterCount')) document.getElementById('billFooterCount').textContent = '0';
         if (document.getElementById('billFooterTotal')) document.getElementById('billFooterTotal').textContent = '₭0';
+        if (document.getElementById('billFooterCash')) document.getElementById('billFooterCash').textContent = '₭0';
+        if (document.getElementById('billFooterTransfer')) document.getElementById('billFooterTransfer').textContent = '₭0';
         if (document.getElementById('billStatCount')) document.getElementById('billStatCount').textContent = '0';
         if (document.getElementById('billStatSubtotal')) document.getElementById('billStatSubtotal').textContent = '₭0';
         if (document.getElementById('billStatDiscount')) document.getElementById('billStatDiscount').textContent = '₭0';
@@ -12008,9 +13520,101 @@ function renderBillsTable() {
         b.subtotal = subtotal;
         b.payable_amount = payable;
 
+        // แยกยอดสด/โอนสำหรับบิลนี้
+        const pMethod = (b.payment_method || '').toString().trim();
+        const pMode = (b.pay_mode || '').toString().trim();
+        const pNote = (b.note || b.payment_note || '').toString().trim();
+
+        let vMatch = null;
+        if (Array.isArray(window.clinicVisits)) {
+            vMatch = window.clinicVisits.find(x => x.visit_id === b.visit_id || (b.hn && x.hn === b.hn));
+        }
+        const vMethod = vMatch ? (vMatch.payment_method || vMatch.pay_mode || '') : '';
+        const vNote = vMatch ? (vMatch.note || vMatch.doctor_note || '') : '';
+
+        let cachedMatch = null;
+        try {
+            const cachedBills = JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]');
+            cachedMatch = cachedBills.find(x => x.bill_id === b.bill_id || x.visit_id === b.visit_id);
+        } catch(e) {}
+
+        const allNotesText = `${pNote} ${vNote} ${b.note || ''} ${pMethod} ${vMethod}`.trim();
+
+        let expCash = (b.cash_lak !== undefined && b.cash_lak !== null) ? parseFloat(b.cash_lak) :
+                      (cachedMatch && cachedMatch.cash_lak !== undefined && cachedMatch.cash_lak !== null ? parseFloat(cachedMatch.cash_lak) :
+                      (vMatch && vMatch.cash_lak !== undefined && vMatch.cash_lak !== null ? parseFloat(vMatch.cash_lak) : null));
+        
+        let expTransfer = (b.transfer_lak !== undefined && b.transfer_lak !== null) ? parseFloat(b.transfer_lak) :
+                          (cachedMatch && cachedMatch.transfer_lak !== undefined && cachedMatch.transfer_lak !== null ? parseFloat(cachedMatch.transfer_lak) :
+                          (vMatch && vMatch.transfer_lak !== undefined && vMatch.transfer_lak !== null ? parseFloat(vMatch.transfer_lak) : null));
+
+        const splitMatch = allNotesText.match(/\[PAY_SPLIT:\s*CASH=([\d.]+),\s*TRANSFER=([\d.]+)/i);
+        if (splitMatch) {
+            expCash = parseFloat(splitMatch[1]) || 0;
+            expTransfer = parseFloat(splitMatch[2]) || 0;
+        }
+
+        if ((expCash === null && expTransfer === null) || (expCash === 0 && expTransfer === 0 && payable > 0)) {
+            const cashNumMatch = allNotesText.match(/สด[^\d]*([\d,]+)/i);
+            const transferNumMatch = allNotesText.match(/โอน[^\d]*([\d,]+)/i);
+
+            if (cashNumMatch && transferNumMatch) {
+                const parsedCash = parseFloat(cashNumMatch[1].replace(/,/g, '')) || 0;
+                const parsedTransfer = parseFloat(transferNumMatch[1].replace(/,/g, '')) || 0;
+                if (parsedCash > 0 || parsedTransfer > 0) {
+                    expCash = parsedCash;
+                    expTransfer = parsedTransfer;
+                }
+            } else if (transferNumMatch && !cashNumMatch) {
+                const parsedTransfer = parseFloat(transferNumMatch[1].replace(/,/g, '')) || 0;
+                if (parsedTransfer > 0) {
+                    expTransfer = parsedTransfer;
+                    expCash = Math.max(0, payable - expTransfer);
+                }
+            } else if (cashNumMatch && !transferNumMatch) {
+                const parsedCash = parseFloat(cashNumMatch[1].replace(/,/g, '')) || 0;
+                if (parsedCash > 0) {
+                    expCash = parsedCash;
+                    expTransfer = Math.max(0, payable - expCash);
+                }
+            }
+        }
+
+        let cashAmount = 0;
+        let transferAmount = 0;
+
+        if (expCash !== null || expTransfer !== null) {
+            cashAmount = expCash || 0;
+            transferAmount = expTransfer || 0;
+            if (cashAmount + transferAmount === 0 && payable > 0) {
+                cashAmount = payable;
+            }
+        } else {
+            const fullHint = `${pMethod} ${pMode} ${pNote} ${vMethod} ${vNote}`.toLowerCase();
+            const hasTransferWord = fullHint.includes('โอน') || fullHint.includes('ໂອນ') || fullHint.includes('transfer') || 
+                                    fullHint.includes('bcel') || fullHint.includes('kbank') || fullHint.includes('scb') || 
+                                    fullHint.includes('ldb') || fullHint.includes('jdb') || fullHint.includes('apb') || 
+                                    fullHint.includes('lvb') || fullHint.includes('promptpay') || fullHint.includes('bank') || fullHint.includes('ธนาคาร');
+            const hasCashWord = fullHint.includes('สด') || fullHint.includes('ສົດ') || fullHint.includes('cash');
+            const isBothMode = (pMode === 'สด+โอน' || pMode === 'ສົດ+ໂອນ' || fullHint.includes('สด+โอน') || fullHint.includes('ສົດ+ໂອນ') || (hasTransferWord && hasCashWord && (fullHint.includes('+') || fullHint.includes('|') || fullHint.includes('และ'))));
+
+            if (isBothMode) {
+                cashAmount = Math.round(payable / 2);
+                transferAmount = payable - cashAmount;
+            } else if (hasTransferWord) {
+                transferAmount = payable;
+                cashAmount = 0;
+            } else {
+                cashAmount = payable;
+                transferAmount = 0;
+            }
+        }
+
         grandSubtotal += subtotal;
         grandDiscount += discount;
         grandPayable += payable;
+        grandCash += cashAmount;
+        grandTransfer += transferAmount;
 
         const d = b.created_at ? new Date(b.created_at) : null;
         const dateStr = d ? d.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
@@ -12024,7 +13628,9 @@ function renderBillsTable() {
             '<td class="text-center"><span class="badge bg-primary-subtle text-primary rounded-pill px-2.5 py-1" style="font-size:0.75rem;">' + itemCount + ' รายการ</span></td>' +
             '<td class="text-end fw-semibold text-secondary">' + subtotal.toLocaleString() + ' LAK</td>' +
             '<td class="text-end text-danger fw-medium">' + (discount > 0 ? '-' + discount.toLocaleString() : '-') + ' LAK</td>' +
-            '<td class="text-end fw-bold text-success fs-6">' + payable.toLocaleString() + ' LAK</td>' +
+            '<td class="text-end fw-bold text-dark fs-6">' + payable.toLocaleString() + ' LAK</td>' +
+            '<td class="text-end fw-semibold text-primary" style="background-color: #f0fdf4;">' + (cashAmount > 0 ? cashAmount.toLocaleString() + ' LAK' : '-') + '</td>' +
+            '<td class="text-end fw-semibold text-info" style="background-color: #f0f9ff;">' + (transferAmount > 0 ? transferAmount.toLocaleString() + ' LAK' : '-') + '</td>' +
             '<td class="text-center">' + statusBadge + '</td>' +
             '<td class="text-center small text-muted">' + dateStr + '</td>' +
             '<td class="text-center pe-4"><button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1 fw-semibold" onclick="showBillDetails(\'' + b.bill_id + '\')"><i class="bi bi-eye me-1"></i><span data-i18n="details">' + (typeof t === 'function' ? t('details', 'รายละเอียด') : 'รายละเอียด') + '</span></button></td>' +
@@ -12039,9 +13645,10 @@ function renderBillsTable() {
 
     if (document.getElementById('billFooterCount')) document.getElementById('billFooterCount').textContent = bills.length.toLocaleString();
     if (document.getElementById('billFooterTotal')) document.getElementById('billFooterTotal').textContent = '₭' + grandPayable.toLocaleString();
+    if (document.getElementById('billFooterCash')) document.getElementById('billFooterCash').textContent = '₭' + grandCash.toLocaleString();
+    if (document.getElementById('billFooterTransfer')) document.getElementById('billFooterTransfer').textContent = '₭' + grandTransfer.toLocaleString();
 }
 window.renderBillsTable = renderBillsTable;
-
 
 function showBillDetails(billId) {
     const bill = (window.allBillsData || []).find(function (b) { return b.bill_id === billId; });
@@ -12085,8 +13692,8 @@ function showBillDetails(billId) {
 
     const bodyHtml = '<div class="p-3 mb-3 rounded-3 bg-light border d-flex justify-content-between align-items-start flex-wrap gap-2">' +
         '<div><div class="small text-muted mb-1">ชื่อ-นามสกุล: <strong class="text-dark">' + (bill.patient_name || '-') + '</strong></div>' +
-        '<div class="small text-muted">HN: <strong class="text-secondary">' + (bill.hn || '-') + '</strong></div>' +
-        '<div class="small text-muted">เจ้าหน้าที่: <strong class="text-secondary">' + (bill.created_by || '-') + '</strong></div></div>' +
+        '<div class="small text-muted mb-1">HN: <strong class="text-secondary">' + (bill.hn && bill.hn !== 'null' && bill.hn !== 'undefined' ? bill.hn : '-') + '</strong></div>' +
+        '<div class="small text-muted">ช่องทางชำระ: <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-0.5">' + (bill.payment_method || 'เงินสด') + '</span></div></div>' +
         '<div class="text-end"><div class="small text-muted mb-1">Bill ID: <strong class="text-primary">' + bill.bill_id + '</strong></div>' +
         '<div class="small text-muted">Visit: <strong>' + (bill.visit_id || '-') + '</strong></div>' +
         '<div class="small text-muted">วันที่: <strong>' + (bill.created_at ? new Date(bill.created_at).toLocaleDateString('th-TH') : '-') + '</strong></div></div></div>' +
@@ -12459,14 +14066,27 @@ function exportBillsExcel() {
     const dateRangeStr = (startVal || endVal) ? `_${startVal}_ถึง_${endVal}` : '';
 
     let csvContent = "\uFEFF"; // UTF-8 BOM for Excel
-    csvContent += "ลำดับ,Bill ID,Visit ID,ชื่อผู้ป่วย,HN,จำนวนรายการตรวจ,รายการตรวจ,ยอดบริการ (LAK),ส่วนลด (LAK),ยอดสุทธิ (LAK),สถานะ,วันที่บันทึก,เจ้าหน้าที่\n";
+    csvContent += "ลำดับ,Bill ID,Visit ID,ชื่อผู้ป่วย,HN,จำนวนรายการตรวจ,รายการตรวจ,ยอดบริการ (LAK),ส่วนลด (LAK),ยอดสุทธิ (LAK),เงินสด (LAK),เงินโอน (LAK),ช่องทางชำระ,สถานะ,วันที่บันทึก,เจ้าหน้าที่\n";
 
     bills.forEach((b, idx) => {
         const labItems = (Array.isArray(b.items) ? b.items : []).filter(i => i.type !== 'med');
         const itemNames = labItems.map(i => i.name).join('; ');
-        const subtotal = parseFloat(b.subtotal || 0);
-        const discount = parseFloat(b.discount || 0);
-        const payable = parseFloat(b.payable_amount || (subtotal - discount));
+        
+        let splitInfo = { subtotal: 0, discount: 0, payable: 0, cashAmount: 0, transferAmount: 0 };
+        if (typeof parseBillPaymentSplit === 'function') {
+            splitInfo = parseBillPaymentSplit(b);
+        } else {
+            const subtotal = parseFloat(b.subtotal || 0);
+            const discount = parseFloat(b.discount || 0);
+            splitInfo = {
+                subtotal: subtotal,
+                discount: discount,
+                payable: parseFloat(b.payable_amount || (subtotal - discount)),
+                cashAmount: parseFloat(b.cash_lak || 0),
+                transferAmount: parseFloat(b.transfer_lak || 0)
+            };
+        }
+
         const dateStr = b.created_at ? new Date(b.created_at).toLocaleString('th-TH') : '-';
 
         const billId = `"${(b.bill_id || '').replace(/"/g, '""')}"`;
@@ -12474,10 +14094,11 @@ function exportBillsExcel() {
         const patientName = `"${(b.patient_name || '').replace(/"/g, '""')}"`;
         const hn = `"${(b.hn || '').replace(/"/g, '""')}"`;
         const testList = `"${itemNames.replace(/"/g, '""')}"`;
+        const payMethod = `"${(b.payment_method || 'เงินสด').replace(/"/g, '""')}"`;
         const status = `"${(b.status || 'ชำระแล้ว').replace(/"/g, '""')}"`;
         const creator = `"${(b.created_by || '-').replace(/"/g, '""')}"`;
 
-        csvContent += `${idx + 1},${billId},${visitId},${patientName},${hn},${labItems.length},${testList},${subtotal},${discount},${payable},${status},"${dateStr}",${creator}\n`;
+        csvContent += `${idx + 1},${billId},${visitId},${patientName},${hn},${labItems.length},${testList},${splitInfo.subtotal},${splitInfo.discount},${splitInfo.payable},${splitInfo.cashAmount},${splitInfo.transferAmount},${payMethod},${status},"${dateStr}",${creator}\n`;
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -12510,85 +14131,107 @@ function printBillsReport() {
     let grandSubtotal = 0;
     let grandDiscount = 0;
     let grandPayable = 0;
+    let grandCash = 0;
+    let grandTransfer = 0;
 
     const rowsHtml = bills.map((b, idx) => {
         const labItems = (Array.isArray(b.items) ? b.items : []).filter(i => i.type !== 'med');
         const itemNames = labItems.map(i => i.name).join(', ') || '-';
-        const subtotal = parseFloat(b.subtotal || 0);
-        const discount = parseFloat(b.discount || 0);
-        const payable = parseFloat(b.payable_amount || (subtotal - discount));
+        
+        let splitInfo = { subtotal: 0, discount: 0, payable: 0, cashAmount: 0, transferAmount: 0 };
+        if (typeof parseBillPaymentSplit === 'function') {
+            splitInfo = parseBillPaymentSplit(b);
+        } else {
+            const subtotal = parseFloat(b.subtotal || 0);
+            const discount = parseFloat(b.discount || 0);
+            splitInfo = {
+                subtotal: subtotal,
+                discount: discount,
+                payable: parseFloat(b.payable_amount || (subtotal - discount)),
+                cashAmount: parseFloat(b.cash_lak || 0),
+                transferAmount: parseFloat(b.transfer_lak || 0)
+            };
+        }
 
-        grandSubtotal += subtotal;
-        grandDiscount += discount;
-        grandPayable += payable;
+        grandSubtotal += splitInfo.subtotal;
+        grandDiscount += splitInfo.discount;
+        grandPayable += splitInfo.payable;
+        grandCash += splitInfo.cashAmount;
+        grandTransfer += splitInfo.transferAmount;
 
         const d = b.created_at ? new Date(b.created_at) : null;
         const dateStr = d ? d.toLocaleDateString('th-TH') + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
 
         return `<tr>
-            <td style="text-align:center;padding:8px 6px;">${idx + 1}</td>
-            <td style="font-weight:600;color:#0b3c73;padding:8px 6px;">${b.bill_id || '-'}</td>
-            <td style="padding:8px 6px;color:#64748b;">${b.visit_id || '-'}</td>
-            <td style="padding:8px 6px;"><strong>${b.patient_name || '-'}</strong><br><small style="color:#64748b;">HN: ${b.hn || '-'}</small></td>
-            <td style="padding:8px 6px;font-size:12px;">${itemNames} (${labItems.length} รายการ)</td>
-            <td style="text-align:right;padding:8px 6px;">${subtotal.toLocaleString()} LAK</td>
-            <td style="text-align:right;padding:8px 6px;color:#dc2626;">${discount > 0 ? '-' + discount.toLocaleString() : '-'} LAK</td>
-            <td style="text-align:right;padding:8px 6px;font-weight:700;color:#16a34a;">${payable.toLocaleString()} LAK</td>
-            <td style="text-align:center;padding:8px 6px;"><span style="background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;">${b.status || 'ชำระแล้ว'}</span></td>
-            <td style="text-align:center;padding:8px 6px;font-size:11px;color:#64748b;">${dateStr}</td>
+            <td style="text-align:center;padding:7px 5px;">${idx + 1}</td>
+            <td style="font-weight:600;color:#0b3c73;padding:7px 5px;">${b.bill_id || '-'}</td>
+            <td style="padding:7px 5px;color:#64748b;">${b.visit_id || '-'}</td>
+            <td style="padding:7px 5px;"><strong>${b.patient_name || '-'}</strong><br><small style="color:#64748b;">HN: ${b.hn || '-'}</small></td>
+            <td style="padding:7px 5px;font-size:11.5px;">${itemNames} (${labItems.length} รายการ)</td>
+            <td style="text-align:right;padding:7px 5px;">${splitInfo.subtotal.toLocaleString()} LAK</td>
+            <td style="text-align:right;padding:7px 5px;color:#dc2626;">${splitInfo.discount > 0 ? '-' + splitInfo.discount.toLocaleString() : '-'} LAK</td>
+            <td style="text-align:right;padding:7px 5px;font-weight:700;color:#0f172a;">${splitInfo.payable.toLocaleString()} LAK</td>
+            <td style="text-align:right;padding:7px 5px;font-weight:600;color:#0b3c73;background:#f0fdf4;">${splitInfo.cashAmount > 0 ? splitInfo.cashAmount.toLocaleString() + ' LAK' : '-'}</td>
+            <td style="text-align:right;padding:7px 5px;font-weight:600;color:#0284c7;background:#f0f9ff;">${splitInfo.transferAmount > 0 ? splitInfo.transferAmount.toLocaleString() + ' LAK' : '-'}</td>
+            <td style="text-align:center;padding:7px 5px;"><span style="background:#dcfce7;color:#15803d;padding:2px 6px;border-radius:10px;font-size:10.5px;font-weight:600;">${b.status || 'ชำระแล้ว'}</span></td>
+            <td style="text-align:center;padding:7px 5px;font-size:10.5px;color:#64748b;">${dateStr}</td>
         </tr>`;
     }).join('');
 
-    const html = `<!DOCTYPE html><html><head><title>รายงานประวัติใบเสร็จรับเงิน (Bill Summary Report)</title><meta charset="UTF-8">
+    const html = `<!DOCTYPE html><html lang="lo"><head><title>รายงานประวัติใบเสร็จรับเงิน (Bill Summary Report)</title><meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Noto+Sans+Lao:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0;}
-        body{font-family:'Kanit',sans-serif;color:#1e293b;padding:20px;background:#f8fafc;}
-        .page{width:297mm;margin:0 auto;background:#fff;padding:15mm;border-radius:8px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);}
-        .header{text-align:center;border-bottom:2px solid #0b3c73;padding-bottom:12px;margin-bottom:16px;}
-        .header h1{font-size:22px;color:#0b3c73;font-weight:700;margin-bottom:4px;}
-        .header p{font-size:13px;color:#64748b;}
-        .summary-bar{display:flex;justify-content:space-between;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;}
+        *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+        body{font-family:'Kanit','Noto Sans Lao','Noto Sans Thai',sans-serif;color:#1e293b;padding:15px;background:#f8fafc;font-size:11.5px;}
+        .page{width:297mm;margin:0 auto;background:#fff;padding:10mm 12mm;border-radius:8px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);}
+        .header{text-align:center;border-bottom:2px solid #0b3c73;padding-bottom:10px;margin-bottom:12px;}
+        .header h1{font-size:20px;color:#0b3c73;font-weight:700;margin-bottom:3px;}
+        .header p{font-size:11.5px;color:#64748b;}
+        .summary-bar{display:flex;justify-content:space-between;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;flex-wrap:wrap;gap:8px;}
         .stat-item{display:flex;flex-direction:column;}
-        .stat-label{font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;}
-        .stat-val{font-size:16px;font-weight:700;color:#0f172a;}
-        table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12px;}
-        thead th{background:#0b3c73;color:#fff;padding:8px 6px;font-weight:600;border:1px solid #0b3c73;}
+        .stat-label{font-size:10.5px;color:#64748b;font-weight:600;text-transform:uppercase;}
+        .stat-val{font-size:15px;font-weight:700;color:#0f172a;}
+        table{width:100%;border-collapse:collapse;margin:10px 0;font-size:11px;}
+        thead th{background:#0b3c73;color:#fff;padding:7px 5px;font-weight:600;border:1px solid #0b3c73;}
         tbody td{border:1px solid #e2e8f0;vertical-align:middle;}
         tbody tr:nth-child(even){background:#f8fafc;}
-        .footer{margin-top:40px;display:flex;justify-content:space-between;text-align:center;font-size:12px;color:#64748b;}
-        .sig-box{width:220px;}
-        .sig-line{border-top:1px dashed #94a3b8;margin-top:50px;padding-top:4px;}
+        .footer{margin-top:40px;display:flex;justify-content:space-between;text-align:center;font-size:11.5px;color:#475569;}
+        .sig-box{width:240px;}
+        .sig-line{border-top:1px dashed #94a3b8;margin-top:45px;padding-top:4px;}
         @media print{
             body{padding:0;background:#fff;}
-            .page{box-shadow:none;padding:5mm;width:100%;}
-            @page{size: A4 landscape; margin: 10mm;}
+            .page{box-shadow:none;padding:4mm;width:100%;}
+            @page{size: A4 landscape; margin: 8mm;}
         }
     </style></head><body>
     <div class="page">
         <div class="header">
-            <h1> รายงานประวัติการออกใบเสร็จรับเงิน (Bill Summary Report)</h1>
+            <h1>รายงานประวัติการออกใบเสร็จรับเงิน (Bill Summary Report)</h1>
             <p>ข้อมูลวันที่พิมพ์: ${printDate} | ช่วงวันที่: ${startVal} ถึง ${endVal}</p>
         </div>
         <div class="summary-bar">
             <div class="stat-item"><span class="stat-label">จำนวนบิลทั้งหมด</span><span class="stat-val">${bills.length.toLocaleString()} รายการ</span></div>
             <div class="stat-item"><span class="stat-label">ยอดรวมบริการ</span><span class="stat-val" style="color:#2563eb;">₭${grandSubtotal.toLocaleString()}</span></div>
             <div class="stat-item"><span class="stat-label">ส่วนลดรวม</span><span class="stat-val" style="color:#dc2626;">₭${grandDiscount.toLocaleString()}</span></div>
+            <div class="stat-item"><span class="stat-label">เงินสดรวม</span><span class="stat-val" style="color:#0b3c73;">₭${grandCash.toLocaleString()}</span></div>
+            <div class="stat-item"><span class="stat-label">เงินโอนรวม</span><span class="stat-val" style="color:#0284c7;">₭${grandTransfer.toLocaleString()}</span></div>
             <div class="stat-item"><span class="stat-label">ยอดรับสุทธิรวม</span><span class="stat-val" style="color:#16a34a;">₭${grandPayable.toLocaleString()}</span></div>
         </div>
         <table>
             <thead>
                 <tr>
-                    <th style="width:40px;">#</th>
-                    <th style="width:130px;">Bill ID</th>
-                    <th style="width:110px;">Visit ID</th>
-                    <th style="width:160px;">ผู้ป่วย / HN</th>
+                    <th style="width:35px;">#</th>
+                    <th style="width:125px;">Bill ID</th>
+                    <th style="width:95px;">Visit ID</th>
+                    <th style="width:145px;">ผู้ป่วย / HN</th>
                     <th>รายการตรวจ</th>
-                    <th style="width:120px;text-align:right;">ยอดบริการ</th>
-                    <th style="width:100px;text-align:right;">ส่วนลด</th>
-                    <th style="width:130px;text-align:right;">ยอดสุทธิ</th>
-                    <th style="width:90px;text-align:center;">สถานะ</th>
-                    <th style="width:120px;text-align:center;">วันที่</th>
+                    <th style="width:95px;text-align:right;">ยอดบริการ</th>
+                    <th style="width:75px;text-align:right;">ส่วนลด</th>
+                    <th style="width:105px;text-align:right;">ยอดสุทธิ</th>
+                    <th style="width:100px;text-align:right;background:#065f46;">เงินสด</th>
+                    <th style="width:100px;text-align:right;background:#0369a1;">เงินโอน</th>
+                    <th style="width:70px;text-align:center;">สถานะ</th>
+                    <th style="width:105px;text-align:center;">วันที่</th>
                 </tr>
             </thead>
             <tbody>
@@ -12600,11 +14243,17 @@ function printBillsReport() {
             <div class="sig-box"><div class="sig-line">ลงชื่อ......................................................<br>( ผู้จัดการ / ผู้ตรวจสอบ )</div></div>
         </div>
     </div>
-    <script>window.onload=function(){window.print();};<\/script>
+    <script>
+        window.onload = function() { 
+            window.focus();
+            setTimeout(function() { window.print(); }, 250); 
+        };
+    </script>
     </body></html>`;
 
-    const printWin = window.open('', '_blank');
+    const printWin = window.open('', '_blank', 'width=1150,height=850');
     if (printWin) {
+        printWin.document.open();
         printWin.document.write(html);
         printWin.document.close();
     }
@@ -13033,3 +14682,695 @@ async function viewVascularResult(visitId) {
         }
     });
 }
+
+// ===============================================
+// 1. ระบบจัดการรายจ่ายประจำวัน (Daily Expenses)
+// ===============================================
+window.clinicExpensesData = [];
+async function loadExpenses() {
+    try {
+        let expenses = [];
+        if (typeof _supabase !== 'undefined') {
+            try {
+                const { data } = await _supabase.from('clinic_expenses').select('*').order('created_at', { ascending: false });
+                if (data && data.length > 0) expenses = data;
+            } catch (e) {}
+        }
+        if (expenses.length === 0) {
+            expenses = JSON.parse(localStorage.getItem('clinic_expenses_data') || '[]');
+        }
+        window.clinicExpensesData = expenses;
+        renderExpensesTable(expenses);
+    } catch (e) {
+        console.warn('loadExpenses error:', e);
+    }
+}
+function renderExpensesTable(list) {
+    const tbody = document.getElementById('expensesTableBody');
+    if (!tbody) return;
+    if (!list || list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">ຍັງບໍ່ມີລາຍການລາຍຈ່າຍ</td></tr>';
+        updateExpenseStats([]);
+        return;
+    }
+    let html = '';
+    list.forEach((item, index) => {
+        const dateStr = item.date || (item.created_at ? new Date(item.created_at).toLocaleDateString('th-TH') : '-');
+        const amount = parseFloat(item.amount || 0);
+        html += `
+            <tr>
+                <td class="ps-3 py-3 text-muted text-center">${index + 1}</td>
+                <td>${dateStr}</td>
+                <td><span class="badge bg-secondary-subtle text-secondary rounded-pill px-2.5 py-1">${item.category || 'ທົ່ວໄປ'}</span></td>
+                <td class="fw-semibold text-dark">${item.title || '-'}</td>
+                <td class="text-end fw-bold text-danger">${amount.toLocaleString()} LAK</td>
+                <td class="text-center"><span class="badge bg-primary-subtle text-primary rounded-pill px-2 py-0.5">${item.pay_mode || 'ເງິນສົດ'}</span></td>
+                <td>${item.recorded_by || '-'}</td>
+                <td class="pe-3 py-3 text-center">
+                    <button class="btn btn-sm btn-outline-danger rounded-circle p-1" onclick="deleteExpenseItem('${item.id}')" title="ລຶບ"><i class="bi bi-trash"></i></button>
+                </td>
+            </tr>
+        `;
+    });
+    tbody.innerHTML = html;
+    updateExpenseStats(list);
+}
+function updateExpenseStats(list) {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const currentMonth = todayStr.substring(0, 7);
+    let todayTotal = 0;
+    let todayCount = 0;
+    let monthTotal = 0;
+    list.forEach(item => {
+        const itemDate = item.date || (item.created_at ? item.created_at.split('T')[0] : '');
+        const amount = parseFloat(item.amount || 0);
+        if (itemDate === todayStr) {
+            todayTotal += amount;
+            todayCount++;
+        }
+        if (itemDate && itemDate.startsWith(currentMonth)) {
+            monthTotal += amount;
+        }
+    });
+    if (document.getElementById('statTodayExpense')) document.getElementById('statTodayExpense').textContent = '₭' + todayTotal.toLocaleString();
+    if (document.getElementById('statTodayExpenseCount')) document.getElementById('statTodayExpenseCount').textContent = todayCount + ' ລາຍການ';
+    if (document.getElementById('statMonthExpense')) document.getElementById('statMonthExpense').textContent = '₭' + monthTotal.toLocaleString();
+}
+function filterExpensesTable() {
+    const q = (document.getElementById('expenseSearchInput')?.value || '').toLowerCase().trim();
+    const cat = (document.getElementById('expenseCategoryFilter')?.value || '').trim();
+    const date = (document.getElementById('expenseDateFilter')?.value || '').trim();
+    
+    let filtered = (window.clinicExpensesData || []).filter(item => {
+        const itemDate = item.date || (item.created_at ? item.created_at.split('T')[0] : '');
+        const matchQ = !q || (item.title && item.title.toLowerCase().includes(q)) || (item.recorded_by && item.recorded_by.toLowerCase().includes(q));
+        const matchCat = !cat || item.category === cat;
+        const matchDate = !date || itemDate === date;
+        return matchQ && matchCat && matchDate;
+    });
+    renderExpensesTable(filtered);
+}
+function resetExpenseFilter() {
+    if (document.getElementById('expenseSearchInput')) document.getElementById('expenseSearchInput').value = '';
+    if (document.getElementById('expenseCategoryFilter')) document.getElementById('expenseCategoryFilter').value = '';
+    if (document.getElementById('expenseDateFilter')) document.getElementById('expenseDateFilter').value = '';
+    renderExpensesTable(window.clinicExpensesData || []);
+}
+
+// 5. ปิด Modal รายจ่ายและเคลียร์ Backdrop ให้สะอาด
+function closeExpenseModal() {
+    const modalEl = document.getElementById('expenseModal');
+    if (modalEl) {
+        try {
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if (modalInstance) {
+                modalInstance.hide();
+            }
+        } catch (e) {}
+
+        try {
+            const closeBtn = modalEl.querySelector('[data-bs-dismiss="modal"]');
+            if (closeBtn) closeBtn.click();
+        } catch (e) {}
+
+        // เคลียร์ backdrop / class ที่อาจค้าง
+        setTimeout(() => {
+            modalEl.classList.remove('show');
+            modalEl.style.display = 'none';
+            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('padding-right');
+        }, 100);
+    }
+}
+window.closeExpenseModal = closeExpenseModal;
+
+// ============================================================
+// ฟังก์ชันบันทึกรายจ่ายประจำวัน (ป้องกันอาการค้าง 100%)
+// ============================================================
+async function saveExpense(e) {
+    if (e && typeof e.preventDefault === 'function') {
+        e.preventDefault();
+    }
+
+    const dateInput = document.getElementById('expenseDate');
+    const catInput = document.getElementById('expenseCategory');
+    const detailInput = document.getElementById('expenseDetail');
+    const amountInput = document.getElementById('expenseAmount');
+    const methodInput = document.getElementById('expensePaymentMethod');
+    const payerInput = document.getElementById('expensePayer');
+
+    const dateVal = dateInput?.value || new Date().toISOString().split('T')[0];
+    const catVal = catInput?.value || 'ອື່ນໆ';
+    const detailVal = detailInput?.value?.trim() || '';
+    
+    // แปลงตัวเลขให้เป็น Number แท้จริง (ตัด comma ออก)
+    const rawAmount = (amountInput?.value || '0').replace(/,/g, '').trim();
+    const amountVal = parseFloat(rawAmount) || 0;
+    
+    const methodVal = methodInput?.value || 'ເງິນສົດ (Cash)';
+    const payerVal = payerInput?.value?.trim() || 'Staff';
+
+    // ตรวจสอบความถูกต้องของข้อมูล
+    if (!detailVal) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'ແຈ້ງເຕືອນ',
+            text: 'ກະລຸນາລະບຸລາຍການ / ລາຍລະອຽດລາຍຈ່າຍ',
+            confirmButtonColor: '#0b3c73',
+            confirmButtonText: 'ຮັບຊາບ'
+        });
+        return;
+    }
+
+    if (amountVal <= 0) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'ແຈ້ງເຕືອນ',
+            text: 'ກະລຸນາລະບຸຈຳນວນເງິນທີ່ຖືກຕ້ອງ (ຫຼາຍກວ່າ 0)',
+            confirmButtonColor: '#0b3c73',
+            confirmButtonText: 'ຮັບຊາບ'
+        });
+        return;
+    }
+
+    // แสดง Loading
+    Swal.fire({
+        title: 'ກຳລັງບັນທຶກລາຍຈ່າຍ...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    const expId = 'EXP-' + Date.now();
+    const nowIso = new Date().toISOString();
+
+    const expensePayload = {
+        id: expId,
+        date: dateVal,
+        expense_date: dateVal,
+        category: catVal,
+        title: detailVal,
+        detail: detailVal,
+        amount: amountVal,
+        pay_mode: methodVal,
+        payment_method: methodVal,
+        recorded_by: payerVal,
+        payer: payerVal,
+        created_at: nowIso
+    };
+
+    try {
+        // 1. บันทึกลงตาราง clinic_expenses ใน Supabase (และ fallback expenses)
+        try {
+            if (typeof _supabase !== 'undefined') {
+                const { error: dbErr } = await _supabase.from('clinic_expenses').insert([{
+                    id: expId,
+                    date: dateVal,
+                    category: catVal,
+                    title: detailVal,
+                    amount: amountVal,
+                    pay_mode: methodVal,
+                    recorded_by: payerVal,
+                    created_at: nowIso
+                }]);
+                if (dbErr) {
+                    console.warn('Supabase clinic_expenses insert warning, retrying expenses table:', dbErr.message);
+                    await _supabase.from('expenses').insert([{
+                        expense_date: dateVal,
+                        category: catVal,
+                        detail: detailVal,
+                        amount: amountVal,
+                        payment_method: methodVal,
+                        payer: payerVal,
+                        created_at: nowIso
+                    }]);
+                }
+            }
+        } catch (dbErr) {
+            console.warn('DB error fallback:', dbErr);
+        }
+
+        // 2. บันทึกลง LocalStorage Cache ทันที (ทั้ง clinic_expenses_data และ clinic_expenses_cache)
+        try {
+            let cached = JSON.parse(localStorage.getItem('clinic_expenses_data') || '[]');
+            if (!Array.isArray(cached)) cached = [];
+            cached.unshift(expensePayload);
+            localStorage.setItem('clinic_expenses_data', JSON.stringify(cached));
+            localStorage.setItem('clinic_expenses_cache', JSON.stringify(cached));
+            window.clinicExpensesData = cached;
+        } catch (cErr) {
+            console.warn('Cache error:', cErr);
+        }
+
+        // 3. ปิด Modal บันทึกรายจ่าย
+        closeExpenseModal();
+
+        // 4. ล้างค่าในฟอร์ม
+        const formEl = document.getElementById('expenseForm');
+        if (formEl) formEl.reset();
+
+        // 5. แจ้งเตือนสำเร็จ
+        Swal.fire({
+            icon: 'success',
+            title: 'ບັນທຶກສຳເລັດ!',
+            text: 'ບັນທຶກລາຍການລາຍຈ່າຍຮຽບຮ້ອຍແລ້ວ',
+            timer: 1500,
+            showConfirmButton: false
+        });
+
+        // 6. โหลดข้อมูลตารางรายจ่ายใหม่ทันที
+        if (typeof loadExpenses === 'function') {
+            loadExpenses();
+        }
+        if (typeof loadDailyClinicReport === 'function') {
+            loadDailyClinicReport();
+        }
+
+    } catch (err) {
+        console.error('Save expense fatal error:', err);
+        Swal.fire({
+            icon: 'error',
+            title: 'ເກີດຂໍ້ຜິດພາດ',
+            text: err.message || 'ບໍ່ສາມາດບັນທຶກລາຍຈ່າຍໄດ້',
+            confirmButtonColor: '#0b3c73',
+            confirmButtonText: 'ຮັບຊາບ'
+        });
+    }
+}
+window.saveExpense = saveExpense;
+
+// ============================================================
+// ฟังก์ชันเปิดหน้าต่างบันทึกรายจ่าย (ป้องกันหน้าจอค้าง 100%)
+// ============================================================
+function openExpenseModal() {
+    try {
+        // 1. เคลียร์ฉากหลัง (Backdrop) ที่อาจตกค้างออกทั้งหมด
+        document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
+
+        // 2. รีเซ็ตฟอร์มอย่างปลอดภัย
+        const form = document.getElementById('expenseForm');
+        if (form) form.reset();
+
+        // 3. ใส่วันที่ปัจจุบันเป็นค่าเริ่มต้น
+        const dateInput = document.getElementById('expenseDate');
+        if (dateInput) {
+            const today = new Date().toISOString().split('T')[0];
+            dateInput.value = today;
+        }
+
+        // 4. ตั้งค่าหมวดหมู่เริ่มต้น
+        const catSelect = document.getElementById('expenseCategory');
+        if (catSelect) {
+            catSelect.value = 'ຄ່າເຄື່ອງໃຊ້/ອຸປະກອນ';
+        }
+
+        // 5. เติมชื่อผู้บันทึกอัตโนมัติ
+        const payerInput = document.getElementById('expensePayer');
+        if (payerInput) {
+            try {
+                const user = JSON.parse(localStorage.getItem('clinicUser') || '{}');
+                payerInput.value = user.name || user.full_name || 'Staff';
+            } catch(e) {}
+        }
+
+        // 6. ซ่อนกล่องแล็บนอกไว้ก่อน (จะแสดงเมื่อเลือกหมวดแล็บนอก)
+        const labBox = document.getElementById('expenseLabCaseBox');
+        if (labBox) labBox.style.display = 'none';
+
+        // 7. เปิด Modal
+        const modalEl = document.getElementById('expenseModal');
+        if (modalEl) {
+            const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modalInstance.show();
+        } else {
+            console.error('ไม่พบ element #expenseModal ในหน้าเว็บ');
+        }
+    } catch (err) {
+        console.error('openExpenseModal Error:', err);
+    }
+}
+window.openExpenseModal = openExpenseModal;
+window.openAddExpenseModal = openExpenseModal;
+async function deleteExpenseItem(id) {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ຢືນຢັນການລຶບ?',
+        text: 'ທ່ານຕ້ອງການລຶບລາຍການລາຍຈ່າຍນີ້ແທ້ບໍ່?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'ລຶບ',
+        cancelButtonText: 'ຍົກເລີກ',
+        confirmButtonColor: '#ef4444'
+    });
+    if (isConfirmed) {
+        let list = JSON.parse(localStorage.getItem('clinic_expenses_data') || '[]');
+        list = list.filter(item => item.id !== id);
+        localStorage.setItem('clinic_expenses_data', JSON.stringify(list));
+        try {
+            if (typeof _supabase !== 'undefined') {
+                await _supabase.from('clinic_expenses').delete().eq('id', id);
+            }
+        } catch (e) {}
+        loadExpenses();
+    }
+}
+
+// ===============================================
+// 2. สลับแท็บในหน้า Bills
+// ===============================================
+function switchBillsView(viewMode) {
+    const listTab = document.getElementById('tabBillsList');
+    const dailyTab = document.getElementById('tabDailyReport');
+    const listView = document.getElementById('billsListView');
+    const dailyView = document.getElementById('billsDailyReportView');
+    if (viewMode === 'daily') {
+        if (listTab) listTab.classList.remove('active');
+        if (dailyTab) dailyTab.classList.add('active');
+        if (listView) listView.style.display = 'none';
+        if (dailyView) dailyView.style.display = 'block';
+        loadDailyClinicReport();
+    } else {
+        if (dailyTab) dailyTab.classList.remove('active');
+        if (listTab) listTab.classList.add('active');
+        if (dailyView) dailyView.style.display = 'none';
+        if (listView) listView.style.display = 'block';
+    }
+}
+
+// ===============================================
+// 3. ใบสรุปยอดคนมาตรวจคลินิกแต่ละวัน (Daily Clinic Summary)
+// ===============================================
+async function loadDailyClinicReport(customDate) {
+    const getCleanDateStr = (raw) => {
+        if (!raw) return '';
+        if (typeof raw === 'string') {
+            const s = raw.trim();
+            if (s.length >= 10 && s[4] === '-' && s[7] === '-') {
+                return s.slice(0, 10);
+            }
+        }
+        try {
+            const d = new Date(raw);
+            if (!isNaN(d.getTime())) {
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+        } catch(e) {}
+        return String(raw).slice(0, 10);
+    };
+
+    const dateInput = document.getElementById('dailyReportDateInput');
+    const todayStr = getCleanDateStr(new Date());
+    const dateVal = getCleanDateStr(customDate || (dateInput ? dateInput.value : '') || todayStr);
+    
+    if (dateInput) dateInput.value = dateVal;
+    const dateDisplay = document.getElementById('dailyReportDateDisplay');
+    if (dateDisplay) {
+        const parts = dateVal.split('-');
+        if (parts.length === 3) {
+            dateDisplay.textContent = `ວັນທີ ${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+    }
+    const tbody = document.getElementById('dailyReportTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">ກຳລັງປະມວນຜົນຂໍ້ມູນ...</td></tr>';
+    
+    // โหลด Bills ล่าสุดจาก Supabase ก่อนถ้ายังไม่มี
+    if (!window.allBillsData || window.allBillsData.length === 0) {
+        try {
+            if (typeof loadBills === 'function') await loadBills();
+        } catch(e) { console.warn('loadDailyClinicReport loadBills error:', e); }
+    }
+
+    // 1. ดึงข้อมูล Bills
+    const allBills = (window.allBillsData && window.allBillsData.length > 0) 
+        ? window.allBillsData 
+        : ((window.clinicBills && window.clinicBills.length > 0) 
+            ? window.clinicBills 
+            : JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]'));
+
+    const filteredBills = allBills.filter(b => {
+        const bDate = getCleanDateStr(b.created_at || b.date);
+        return bDate === dateVal;
+    });
+
+    // 2. ดึงข้อมูลคอมมิชชั่น & สมาชิก
+    let comLogs = [];
+    try {
+        if (typeof _supabase !== 'undefined') {
+            const { data } = await _supabase.from('commission_logs').select('*');
+            if (data) comLogs = data;
+        }
+    } catch (e) {}
+
+    // 3. ดึงข้อมูลรายจ่ายประจำวัน
+    let allExpenses = window.clinicExpensesData || [];
+    if (allExpenses.length === 0) {
+        allExpenses = JSON.parse(localStorage.getItem('clinic_expenses_data') || '[]');
+    }
+    const todayExpenses = allExpenses.filter(e => {
+        const eDate = getCleanDateStr(e.date || e.created_at);
+        return eDate === dateVal;
+    });
+
+    if (filteredBills.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">ບໍ່ພົບຂໍ້ມູນການກວດໃນວັນທີເລືອກ</td></tr>';
+        renderDailyReportSummary(0, 0, 0, 0, todayExpenses);
+        return;
+    }
+
+    let rowsHtml = '';
+    let sumCash = 0;
+    let sumTransfer = 0;
+    let sumDividend = 0;
+    let sumNet = 0;
+    let sumSendOutLab = 0;
+
+    filteredBills.forEach((b, idx) => {
+        const payable = parseFloat(b.payable_amount || 0);
+        let cashAmount = 0;
+        let transferAmount = 0;
+
+        const pMethod = (b.payment_method || '').toString().trim();
+        const pMode = (b.pay_mode || '').toString().trim();
+        const pNote = (b.note || b.payment_note || '').toString().trim();
+
+        let vMatch = null;
+        if (Array.isArray(window.clinicVisits)) {
+            vMatch = window.clinicVisits.find(x => x.visit_id === b.visit_id || (b.hn && x.hn === b.hn && getCleanDateStr(x.created_at) === dateVal));
+        }
+        const vMethod = vMatch ? (vMatch.payment_method || vMatch.pay_mode || '') : '';
+        const vNote = vMatch ? (vMatch.note || vMatch.doctor_note || '') : '';
+
+        // Check local cache if available for exact split
+        let cachedMatch = null;
+        try {
+            const cachedBills = JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]');
+            cachedMatch = cachedBills.find(x => x.bill_id === b.bill_id || x.visit_id === b.visit_id);
+        } catch(e) {}
+
+        const allNotesText = `${pNote} ${vNote} ${b.note || ''} ${pMethod} ${vMethod}`.trim();
+
+        // 1. ตรวจสอบฟิลด์ explicit cash_lak / transfer_lak จาก bill, cachedMatch, หรือ visit
+        let expCash = (b.cash_lak !== undefined && b.cash_lak !== null) ? parseFloat(b.cash_lak) :
+                      (cachedMatch && cachedMatch.cash_lak !== undefined && cachedMatch.cash_lak !== null ? parseFloat(cachedMatch.cash_lak) :
+                      (vMatch && vMatch.cash_lak !== undefined && vMatch.cash_lak !== null ? parseFloat(vMatch.cash_lak) : null));
+        
+        let expTransfer = (b.transfer_lak !== undefined && b.transfer_lak !== null) ? parseFloat(b.transfer_lak) :
+                          (cachedMatch && cachedMatch.transfer_lak !== undefined && cachedMatch.transfer_lak !== null ? parseFloat(cachedMatch.transfer_lak) :
+                          (vMatch && vMatch.transfer_lak !== undefined && vMatch.transfer_lak !== null ? parseFloat(vMatch.transfer_lak) : null));
+
+        // 2. ตรวจสอบแท็ก [PAY_SPLIT: CASH=..., TRANSFER=...]
+        const splitMatch = allNotesText.match(/\[PAY_SPLIT:\s*CASH=([\d.]+),\s*TRANSFER=([\d.]+)/i);
+        if (splitMatch) {
+            expCash = parseFloat(splitMatch[1]) || 0;
+            expTransfer = parseFloat(splitMatch[2]) || 0;
+        }
+
+        // 3. ตรวจสอบ Regex หาตัวเลขสดและโอนจากข้อความ เช่น "สด: 900,000 ₭ | โอน: BCEL 1,000,000 ₭" หรือ "สด (900,000 ₭)"
+        if ((expCash === null && expTransfer === null) || (expCash === 0 && expTransfer === 0 && payable > 0)) {
+            // Regex หาตัวเลขของ สด
+            const cashNumMatch = allNotesText.match(/สด[^\d]*([\d,]+)/i);
+            // Regex หาตัวเลขของ โอน
+            const transferNumMatch = allNotesText.match(/โอน[^\d]*([\d,]+)/i);
+
+            if (cashNumMatch && transferNumMatch) {
+                const parsedCash = parseFloat(cashNumMatch[1].replace(/,/g, '')) || 0;
+                const parsedTransfer = parseFloat(transferNumMatch[1].replace(/,/g, '')) || 0;
+                if (parsedCash > 0 || parsedTransfer > 0) {
+                    expCash = parsedCash;
+                    expTransfer = parsedTransfer;
+                }
+            } else if (transferNumMatch && !cashNumMatch) {
+                const parsedTransfer = parseFloat(transferNumMatch[1].replace(/,/g, '')) || 0;
+                if (parsedTransfer > 0) {
+                    expTransfer = parsedTransfer;
+                    expCash = Math.max(0, payable - expTransfer);
+                }
+            } else if (cashNumMatch && !transferNumMatch) {
+                const parsedCash = parseFloat(cashNumMatch[1].replace(/,/g, '')) || 0;
+                if (parsedCash > 0) {
+                    expCash = parsedCash;
+                    expTransfer = Math.max(0, payable - expCash);
+                }
+            }
+        }
+
+        if (expCash !== null || expTransfer !== null) {
+            cashAmount = expCash || 0;
+            transferAmount = expTransfer || 0;
+            if (cashAmount + transferAmount === 0 && payable > 0) {
+                cashAmount = payable;
+            }
+        } else {
+            // 4. Fallback จากคีย์เวิร์ดทั่วไป
+            const fullHint = `${pMethod} ${pMode} ${pNote} ${vMethod} ${vNote}`.toLowerCase();
+            const hasTransferWord = fullHint.includes('โอน') || 
+                                    fullHint.includes('ໂອນ') || 
+                                    fullHint.includes('transfer') || 
+                                    fullHint.includes('bcel') || 
+                                    fullHint.includes('kbank') || 
+                                    fullHint.includes('scb') || 
+                                    fullHint.includes('ldb') || 
+                                    fullHint.includes('jdb') || 
+                                    fullHint.includes('apb') || 
+                                    fullHint.includes('lvb') || 
+                                    fullHint.includes('promptpay') || 
+                                    fullHint.includes('bank') || 
+                                    fullHint.includes('ธนาคาร');
+
+            const hasCashWord = fullHint.includes('สด') || 
+                                fullHint.includes('ສົດ') || 
+                                fullHint.includes('cash');
+
+            const isBothMode = (pMode === 'สด+โอน' || pMode === 'ສົດ+ໂອນ' || 
+                                fullHint.includes('สด+โอน') || fullHint.includes('ສົດ+ໂອນ') || 
+                                (hasTransferWord && hasCashWord && (fullHint.includes('+') || fullHint.includes('|') || fullHint.includes('และ'))));
+
+            if (isBothMode) {
+                cashAmount = Math.round(payable / 2);
+                transferAmount = payable - cashAmount;
+            } else if (hasTransferWord) {
+                transferAmount = payable;
+                cashAmount = 0;
+            } else {
+                cashAmount = payable;
+                transferAmount = 0;
+            }
+        }
+
+        sumCash += cashAmount;
+        sumTransfer += transferAmount;
+        
+        // หาเงินปันผลการตลาด
+        const matchCom = comLogs.find(c => c.visit_id === b.visit_id);
+        const dividend = matchCom ? parseFloat(matchCom.amount || 0) : 0;
+        sumDividend += dividend;
+        const netAfterMarketing = (cashAmount + transferAmount) - dividend;
+        sumNet += netAfterMarketing;
+
+        // รายการตรวจ
+        const items = Array.isArray(b.items) ? b.items : [];
+        const testsStr = items.map(i => i.name).join(', ') || (b.tests || 'ກວດສຸຂະພາບທົ່ວໄປ');
+
+        rowsHtml += `
+            <tr>
+                <td class="text-center fw-bold">${idx + 1}</td>
+                <td class="text-center text-secondary">${matchCom ? matchCom.referrer_id : (b.hn || '-')}</td>
+                <td>${matchCom ? matchCom.referrer_name : (b.referrer_name || (vMatch ? vMatch.referrer_name : '-'))}</td>
+                <td class="fw-bold text-dark">${b.patient_name || '-'}</td>
+                <td style="max-width: 250px; white-space: normal;">${testsStr}</td>
+                <td class="text-end fw-semibold text-primary" style="background-color: #f0f9ff;">${cashAmount > 0 ? cashAmount.toLocaleString() : '-'}</td>
+                <td class="text-end fw-semibold text-info" style="background-color: #f0f9ff;">${transferAmount > 0 ? transferAmount.toLocaleString() : '-'}</td>
+                <td class="text-center">1</td>
+            </tr>
+        `;
+    });
+    tbody.innerHTML = rowsHtml;
+    renderDailyReportSummary(sumCash, sumTransfer, sumDividend, sumNet, todayExpenses);
+}
+function renderDailyReportSummary(sumCash, sumTransfer, sumDividend, sumNet, todayExpenses) {
+    const sumTotalRevenue = sumCash + sumTransfer;
+    let expenseTotal = 0;
+    let expenseRowsHtml = '';
+    todayExpenses.forEach((exp, i) => {
+        const amt = parseFloat(exp.amount || 0);
+        expenseTotal += amt;
+        expenseRowsHtml += `<div class="small text-muted mb-1">${i + 1}. ${exp.title}: <strong class="text-danger">${amt.toLocaleString()} LAK</strong></div>`;
+    });
+    if (todayExpenses.length === 0) {
+        expenseRowsHtml = '<div class="small text-muted">- ບໍ່ມີລາຍຈ່າຍໃນມື້ນີ້ -</div>';
+    }
+    const netHandoverCash = Math.max(0, sumCash - expenseTotal);
+    const summaryBox = document.getElementById('dailyReportSummaryBoxes');
+    if (!summaryBox) return;
+    summaryBox.innerHTML = `
+        <div class="row g-3">
+            <div class="col-md-7">
+                <div class="border rounded-3 p-3 bg-light">
+                    <h6 class="fw-bold text-secondary mb-2"><i class="bi bi-wallet2 me-1"></i>ລາຍຈ່າຍຂອງມື້ (Daily Expenses)</h6>
+                    ${expenseRowsHtml}
+                </div>
+            </div>
+            <div class="col-md-5">
+                <div class="border rounded-3 p-3 bg-light">
+                    <div class="d-flex justify-content-between mb-2 small">
+                        <span>ລວມຈຳນວນເງິນ (ສົດ + ໂອນ):</span>
+                        <strong class="text-dark fs-6">${sumTotalRevenue.toLocaleString()} LAK</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2 small">
+                        <span>ລາຍຮັບທີ່ໄດ້ຮັບເປັນເງິນສົດ:</span>
+                        <strong class="text-primary fs-6">${sumCash.toLocaleString()} LAK</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2 small text-danger">
+                        <span>ຫັກລາຍຈ່າຍຂອງມື້:</span>
+                        <strong>-${expenseTotal.toLocaleString()} LAK</strong>
+                    </div>
+                    <hr class="my-2">
+                    <div class="d-flex justify-content-between text-success">
+                        <span class="fw-bold">ມອບເງິນສົດໃຫ້ການເງິນ:</span>
+                        <strong class="fs-5">${netHandoverCash.toLocaleString()} LAK</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- ช่องลงนาม 3 ฝ่าย -->
+        <div class="row text-center mt-4 pt-3 border-top">
+            <div class="col-4">
+                <div class="small text-muted mb-4">ຜູ້ສັງລວມ</div>
+                <div class="fw-bold">.........................................</div>
+            </div>
+            <div class="col-4">
+                <div class="small text-muted mb-4">ຜູ້ກວດກາ</div>
+                <div class="fw-bold">.........................................</div>
+            </div>
+            <div class="col-4">
+                <div class="small text-muted mb-4">ປະທານ ບໍລິສັດ ຄລີນິກ</div>
+                <div class="fw-bold">.........................................</div>
+            </div>
+        </div>
+    `;
+}
+
+window.loadExpenses = loadExpenses;
+window.renderExpensesTable = renderExpensesTable;
+window.updateExpenseStats = updateExpenseStats;
+window.filterExpensesTable = filterExpensesTable;
+window.resetExpenseFilter = resetExpenseFilter;
+window.openAddExpenseModal = openExpenseModal;
+window.openExpenseModal = openExpenseModal;
+window.deleteExpenseItem = deleteExpenseItem;
+window.toggleExpenseLabCasePicker = toggleExpenseLabCasePicker;
+window.loadExpenseLabCases = loadExpenseLabCases;
+window.onSelectExpenseLabCase = onSelectExpenseLabCase;
+window.formatMoneyInput = formatMoneyInput;
+window.saveExpense = saveExpense;
+window.switchBillsView = switchBillsView;
+window.loadDailyClinicReport = loadDailyClinicReport;
+window.renderDailyReportSummary = renderDailyReportSummary;
+window.printDailyClinicReport = printDailyClinicReport;

@@ -69,7 +69,7 @@ const CLINIC_I18N_DICTIONARY = {
         db_stat_appointments: "ນັດໝາຍມື້ນີ້",
         db_stat_payments: "ລໍຖ້າຊຳລະເງິນ",
         db_stat_rescheduled: "ເລື່ອນນັດ",
-        db_stat_patients: "ຜູ້ປ່ວຍທັງໝົດ",
+        db_stat_patients: "ທີມແພດ",
         db_patient_type: "ປະເພດຜູ້ປ່ວຍ",
         db_communicable: "ໂລກຕິດຕໍ່",
         db_non_communicable: "ໂລກບໍ່ຕິດຕໍ່",
@@ -87,8 +87,8 @@ const CLINIC_I18N_DICTIONARY = {
         appts_th_reason: "ເລື່ອງທີ່ຕ້ອງການກວດ",
         appts_modal_title: "ເພີ່ມການນັດໝາຍ",
         appts_modal_type: "ຮູບແບບການນັດໝາຍ",
-        appts_modal_self: "ນັດໝາຍເອງ (ຄົນໄຂ້)",
-        appts_modal_assisted: "ນັດໝາຍຜ່ານຜູ້ປ່ວຍ / ພະຍາບານ",
+        appts_modal_self: "ນັດໝາຍເອງ",
+        appts_modal_assisted: "ນັດໝາຍຜ່ານຜູ້ຊ່ວຍ/ພະຍາບານ",
         appts_modal_save: "ບັນທຶກການນັດໝາຍ",
 
         // Patient Registration
@@ -283,9 +283,36 @@ const CLINIC_I18N_DICTIONARY = {
         login_email_placeholder: "ອີເມວ ຫຼື ລະຫັດພະນັກງານ",
         login_password_placeholder: "ລະຫັດຜ່ານ",
         login_button: "ເຂົ້າສູ່ລະບົບ",
+        // Tab: Settings (ตั้งค่าปันผล)
+        ref_set_overall_title: "ຕັ້ງຄ່າຮູບແບບການຈ່າຍປັນຜົນ (ແບບພາບລວມ)",
+        ref_set_enable: "ເປີດໃຊ້ງານ",
+        ref_set_calc_type: "ປະເພດການຄິດຄ່າຄອມມິດຊັ່ນ / ປັນຜົນ",
+        ref_set_fixed: "ແບບຄົງທີ່ (Fixed Amount)",
+        ref_set_fixed_desc: "ຈ່າຍຈຳນວນເງິນຄົງທີ່ຕໍ່ຜູ້ປ່ວຍ 1 ຄົນ",
+        ref_set_percent: "ແບບເປີເຊັນ (% Rate)",
+        ref_set_percent_desc: "ຄິດອັດຕາ % ຈາກຍອດລວມຄ່າປິ່ນປົວ",
+        ref_set_currency: "ສະກຸນເງິນຫຼັກທີ່ໃຊ້ຄຳນວນປັນຜົນ (Currency)",
+        ref_set_currency_desc: "ລະບົບຈະສະແດງຜົນສັນຍາລັກ ແລະ ໜ່ວຍເງິນຕາມສະກຸນເງິນທີ່ເລືອກ",
+        ref_set_amount_per_patient: "ຈຳນວນເງິນປັນຜົນຕໍ່ຜູ້ປ່ວຍ 1 ຄົນ (ປົກກະຕິ)",
+        ref_set_target_bonus: "ເປີດໃຊ້ງານລະບົບໂບນັດຕາມເປົ້າໝາຍ (Monthly Target Goal)",
+        ref_set_target_desc: "ຫາກຜູ້ແນະນຳເຮັດຍອດຜູ້ປ່ວຍຮອດເປົ້າໝາຍປະຈຳເດືອນ ຈະໄດ້ຮັບອັດຕາໂບນັດພິເສດ",
+        ref_set_target_count: "ເປົ້າໝາຍຈຳນວນຜູ້ປ່ວຍ (ຄົນ/ເດືອນ)",
+        ref_set_target_unit: "ຄົນ / ເດືອນ",
+        ref_set_target_bonus_rate: "ອັດຕາໂບນັດພິເສດເມື່ອຮອດເປົ້າໝາຍ",
+        ref_set_auto_calc: "ຄຳນວນແລະບັນທຶກຍອດປັນຜົນອັດຕະໂນມັດທັນທີທີ່ຊຳລະເງິນສຳເລັດໃນໜ້າ (Payment)",
+        ref_set_save_btn: "ບັນທຶກການຕັ້ງຄ່າ",
+
+        ref_set_item_title: "ຕັ້ງຄ່າຮູບແບບການຈ່າຍປັນຜົນ (ແບບລາຍການ)",
+        ref_set_add_item: "ເພີ່ມລາຍການປັນຜົນ",
+        ref_set_th_no: "ລຳດັບ",
+        ref_set_th_item: "ລາຍການ",
+        ref_set_th_price: "ລາຄາ",
+        ref_set_th_dividend: "ຈຳນວນປັນຜົນ",
+        ref_set_th_action: "ຈັດການ",
 
         // System Settings
         lang_selector_label: "ພາສາລະບົບ"
+
     },
 
     // -------------------------------------
@@ -353,7 +380,7 @@ const CLINIC_I18N_DICTIONARY = {
         db_stat_appointments: "นัดหมายวันนี้",
         db_stat_payments: "รอการชำระเงิน",
         db_stat_rescheduled: "เลื่อนนัด",
-        db_stat_patients: "ผู้ป่วยทั้งหมด",
+        db_stat_patients: "ทีมแพทย",
         db_patient_type: "ประเภทผู้ป่วย",
         db_communicable: "โรคติดต่อ",
         db_non_communicable: "โรคไม่ติดต่อ",
@@ -372,7 +399,7 @@ const CLINIC_I18N_DICTIONARY = {
         appts_modal_title: "เพิ่มการนัดหมาย",
         appts_modal_type: "รูปแบบการนัดหมาย",
         appts_modal_self: "นัดหมายเอง (คนไข้)",
-        appts_modal_assisted: "นัดหมายผ่านผู้ป่วย / พยาบาล",
+        appts_modal_assisted: "นัดหมายผ่านผู้ช่วย /พยาบาล",
         appts_modal_save: "บันทึกการนัดหมาย",
 
         // Patient Registration
@@ -567,6 +594,32 @@ const CLINIC_I18N_DICTIONARY = {
         login_email_placeholder: "อีเมล หรือ รหัสพนักงาน",
         login_password_placeholder: "รหัสผ่าน",
         login_button: "เข้าสู่ระบบ",
+        // Tab: Settings (ตั้งค่าปันผล)
+        ref_set_overall_title: "ตั้งค่ารูปแบบการจ่ายปันผล (แบบภาพรวม)",
+        ref_set_enable: "เปิดใช้งาน",
+        ref_set_calc_type: "ประเภทการคิดค่าคอมมิชชั่น / ปันผล",
+        ref_set_fixed: "แบบคงที่ (Fixed Amount)",
+        ref_set_fixed_desc: "จ่ายจำนวนเงินคงที่ต่อผู้ป่วย 1 คน",
+        ref_set_percent: "แบบเปอร์เซ็นต์ (% Rate)",
+        ref_set_percent_desc: "คิดตาม % จากยอดรวมค่ารักษา",
+        ref_set_currency: "สกุลเงินหลักที่ใช้คำนวณปันผล (Currency)",
+        ref_set_currency_desc: "ระบบจะแสดงผลสัญลักษณ์และหน่วยเงินตามสกุลเงินที่เลือก",
+        ref_set_amount_per_patient: "จำนวนเงินปันผลต่อผู้ป่วย 1 คน (ปกติ)",
+        ref_set_target_bonus: "เปิดใช้งานระบบโบนัสตามเป้าหมาย (Monthly Target Goal)",
+        ref_set_target_desc: "หากผู้แนะนำทำยอดผู้ป่วยถึงเป้าหมายประจำเดือน จะได้รับอัตราโบนัสพิเศษ",
+        ref_set_target_count: "เป้าหมายจำนวนผู้ป่วย (คน/เดือน)",
+        ref_set_target_unit: "คน / เดือน",
+        ref_set_target_bonus_rate: "อัตราโบนัสพิเศษเมื่อถึงเป้าหมาย",
+        ref_set_auto_calc: "คำนวณและบันทึกยอดปันผลให้อัตโนมัติทันทีที่ชำระเงินเสร็จสิ้นในหน้า (Payment)",
+        ref_set_save_btn: "บันทึกการตั้งค่า",
+
+        ref_set_item_title: "ตั้งค่ารูปแบบการจ่ายปันผล (แบบรายรายการ)",
+        ref_set_add_item: "เพิ่มรายการปันผล",
+        ref_set_th_no: "ลำดับ",
+        ref_set_th_item: "รายการ",
+        ref_set_th_price: "ราคา",
+        ref_set_th_dividend: "จำนวนปันผล",
+        ref_set_th_action: "จัดการ",
 
         // System Settings
         lang_selector_label: "ภาษาของระบบ"
@@ -851,6 +904,32 @@ const CLINIC_I18N_DICTIONARY = {
         login_email_placeholder: "Email address or Staff Code",
         login_password_placeholder: "Password",
         login_button: "Sign In",
+        // Tab: Settings (ตั้งค่าปันผล)
+        ref_set_overall_title: "Dividend Payout Settings (Overall)",
+        ref_set_enable: "Enable",
+        ref_set_calc_type: "Commission / Dividend Calculation Type",
+        ref_set_fixed: "Fixed Amount",
+        ref_set_fixed_desc: "Pay a fixed amount per 1 patient",
+        ref_set_percent: "Percentage (% Rate)",
+        ref_set_percent_desc: "Calculate % from total treatment cost",
+        ref_set_currency: "Main Currency for Calculation",
+        ref_set_currency_desc: "The system will display symbols and units based on the selected currency",
+        ref_set_amount_per_patient: "Dividend amount per 1 patient (Normal)",
+        ref_set_target_bonus: "Enable Monthly Target Goal Bonus",
+        ref_set_target_desc: "If the referrer reaches the monthly patient target, they receive a special bonus rate",
+        ref_set_target_count: "Patient Target (Persons/Month)",
+        ref_set_target_unit: "Persons / Month",
+        ref_set_target_bonus_rate: "Special Bonus Rate on Target",
+        ref_set_auto_calc: "Automatically calculate and record dividends upon payment completion",
+        ref_set_save_btn: "Save Settings",
+
+        ref_set_item_title: "Dividend Payout Settings (Per Item)",
+        ref_set_add_item: "Add Dividend Item",
+        ref_set_th_no: "No.",
+        ref_set_th_item: "Item",
+        ref_set_th_price: "Price",
+        ref_set_th_dividend: "Dividend Amount",
+        ref_set_th_action: "Action",
 
         // System Settings
         lang_selector_label: "System Language"
