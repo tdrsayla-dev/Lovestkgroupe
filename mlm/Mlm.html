@@ -179,11 +179,29 @@
     // ==========================================
     // 📌 Dashboard View Component
     // ==========================================
-    const DashboardView = ({ sales, members, customers, isAdmin, activeCustomerTypes, businessTeams, initialTargetHistory }) => {
+    const DashboardView = ({ sales, members, customers, isAdmin, activeCustomerTypes, businessTeams, initialTargetHistory, fetchSalesForPeriod, fetchFreshData }) => {
         const todayStr = getLocalISODate();
         const firstDayOfMonthStr = `${todayStr.substring(0, 7)}-01`;
-        const [dashStartDate, setDashStartDate] = useState(firstDayOfMonthStr);
-        const [dashEndDate, setDashEndDate] = useState(todayStr);
+        const getDefaultMonthRange = () => {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+            return { start: `${y}-${m}-01`, end: `${y}-${m}-${String(lastDay).padStart(2, '0')}` };
+        };
+        const [dashStartDate, setDashStartDate] = useState(getDefaultMonthRange().start);
+        const [dashEndDate, setDashEndDate] = useState(getDefaultMonthRange().end);
+        
+        // Ensure sales are fetched when dates change
+        const [lastFetchedRange, setLastFetchedRange] = useState({ start: getDefaultMonthRange().start, end: getDefaultMonthRange().end });
+        useEffect(() => {
+            if (dashStartDate !== lastFetchedRange.start || dashEndDate !== lastFetchedRange.end) {
+                if (fetchSalesForPeriod) {
+                    fetchSalesForPeriod(dashStartDate, dashEndDate);
+                    setLastFetchedRange({ start: dashStartDate, end: dashEndDate });
+                }
+            }
+        }, [dashStartDate, dashEndDate, fetchSalesForPeriod, lastFetchedRange]);
         const [dashboardTarget, setDashboardTarget] = useState(4000);
         const [competitionPage, setCompetitionPage] = useState(0);
 
@@ -1490,7 +1508,18 @@
           supabaseSelect('stk_closers').catch(() => []),
           supabaseSelect('stk_members').catch(() => []),
           supabaseSelect('stk_customers', 'limit=10000').catch(() => []),
-          supabaseSelect('stk_sales', 'order=order_id.desc&limit=10000').catch(() => []),
+          (async () => {
+              const now = new Date();
+              const y = now.getFullYear();
+              const m = String(now.getMonth() + 1).padStart(2, '0');
+              const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+              const s = `${y}-${m}-01`;
+              const e = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+              if (window.supabaseRpc) {
+                  try { return await window.supabaseRpc('get_stk_sales_by_date', { p_start_date: s, p_end_date: e }); } catch(err) {}
+              }
+              return supabaseSelect('stk_sales', `date=gte.${s}&date=lte.${e}&limit=100000`).catch(() => []);
+          })(),
           supabaseSelect('stk_business_teams').catch(() => []),
           supabaseSelect('stk_target_history').catch(() => [])
         ]).then(([pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes, tgtRes]) => {
@@ -1512,8 +1541,29 @@
         }).catch(err => {
           console.error("Supabase load error:", err);
         }).finally(() => {
-          setIsAppLoading(false);
+          if (!isBackground) setIsAppLoading(false);
         });
+      };
+
+      const fetchSalesForPeriod = async (start, end) => {
+          setIsAppLoading(true);
+          try {
+              let salesData = [];
+              if (window.supabaseRpc) {
+                  try { salesData = await window.supabaseRpc('get_stk_sales_by_date', { p_start_date: start, p_end_date: end }); }
+                  catch(e) { salesData = await supabaseSelect('stk_sales', `date=gte.${start}&date=lte.${end}&limit=100000`).catch(()=>[]); }
+              } else {
+                  salesData = await supabaseSelect('stk_sales', `date=gte.${start}&date=lte.${end}&limit=100000`).catch(()=>[]);
+              }
+              setSales(salesData || []);
+              const currentCache = (() => { try { return JSON.parse(localStorage.getItem('stk_app_cache_data')) || {}; } catch(e) { return {}; } })();
+              currentCache.sales = salesData || [];
+              try { localStorage.setItem('stk_app_cache_data', JSON.stringify(currentCache)); } catch(e){}
+          } catch(e) {
+              console.error(e);
+          } finally {
+              setIsAppLoading(false);
+          }
       };
 
       window.refreshAppDashboardData = () => fetchFreshData(false);
@@ -1745,6 +1795,8 @@
                     ) : (
                       <DashboardView 
                         sales={sales} 
+                        fetchFreshData={fetchFreshData}
+                        fetchSalesForPeriod={fetchSalesForPeriod}
                         members={members} 
                         customers={customers} 
                         isAdmin={isAdmin}

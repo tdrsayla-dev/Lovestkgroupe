@@ -1,6 +1,7 @@
-﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="th">
 <head>
+  <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>รายงานสรุปและผลประโยชน์ (Reports) - LOVE STK GROUPE</title>
@@ -2051,7 +2052,7 @@
                             </div>
                         </div>
 
-                        {subTab === 'referral_payout' ? (
+                                                                        {subTab === 'referral_payout' ? (
                             <div className="space-y-4 animation-fade-in">
                                 <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-5 rounded-2xl shadow-lg border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                                     <div className="flex flex-wrap items-center gap-3">
@@ -2208,7 +2209,7 @@
                     </div>
                 )}
 
-                {detailModalEarner && (
+                                {detailModalEarner && (
                     <EditModal isOpen={true} onClose={() => setDetailModalEarner(null)} title={`บัญชีแยกประเภทค่าแนะนำ & ค่าคอมมิชชัน: ${detailModalEarner.name}`} icon={SearchIcon} maxWidthClass="max-w-6xl">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b border-slate-200 pb-4 gap-4 no-print">
                             <div>
@@ -2279,7 +2280,7 @@
                     </EditModal>
                 )}
 
-                <EditModal isOpen={showPayoutModal} onClose={() => setShowPayoutModal(false)} title="💸 ยืนยันทำรายการจ่ายปันผล" maxWidthClass="max-w-3xl">
+                <EditModal isOpen={showPayoutModal} onClose={() => setShowPayoutModal(false)} title="✔️ ยืนยันการสั่งจ่ายเงินปันผล" maxWidthClass="max-w-3xl">
                     <div className="space-y-4">
                         <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl">
                             <h3 className="text-amber-800 font-bold mb-2">รายการที่เลือกจ่าย ({selectedPayouts.length} รายการ)</h3>
@@ -2397,6 +2398,13 @@
                 ]);
 
                 let loadedSettings = { exchange_rate: 700, commission_levels: 6 };
+                try {
+                    const localSaved = localStorage.getItem('stk_system_settings');
+                    if (localSaved) {
+                        const parsed = JSON.parse(localSaved);
+                        if (parsed.commission_levels != null) loadedSettings.commission_levels = Number(parsed.commission_levels);
+                    }
+                } catch(e) {}
                 if (Array.isArray(settingsRes) && settingsRes.length > 0) {
                     const mainRow = settingsRes.find(s => s && (s.key === 'MAIN' || s.setting_key === 'MAIN' || s.setting_id === 'MAIN' || s.id === 'MAIN'));
                     if (mainRow) {

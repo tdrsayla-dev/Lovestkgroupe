@@ -1236,6 +1236,26 @@
         return await originalUpsert(table, data);
       };
     }
+  
+  if (typeof window !== 'undefined') {
+    window.supabaseRpc = async function(rpcName, body) {
+      if (!window.SUPABASE_REST_URL || !window.SUPABASE_HEADERS) {
+          throw new Error('Supabase configuration missing');
+      }
+      var url = window.SUPABASE_REST_URL + '/rpc/' + rpcName;
+      var res = await fetch(url, {
+        method: 'POST',
+        headers: Object.assign({}, window.SUPABASE_HEADERS, { 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body || {})
+      });
+      if (!res.ok) {
+          var errorData;
+          try { errorData = await res.json(); } catch(e) { errorData = { message: res.statusText }; }
+          throw new Error('RPC ' + rpcName + ': ' + (errorData.message || res.status));
+      }
+      return res.json();
+    };
+  }
   }
 
   // 🔄 Supabase Cloud Permission Sync Listener: ซิงค์สิทธิ์ผู้ใช้งานจาก Supabase ลงเครื่องผู้ใช้อัตโนมัติทุกครั้งที่เปิดเว็บ
