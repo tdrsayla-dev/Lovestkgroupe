@@ -984,21 +984,100 @@ async function loadPatients() {
     filterPatients();
 }
 
-function renderPatientsTable(data) {
+// =====================================
+// ระบบทะเบียนผู้ป่วย (Patient Registration) - รองรับ Pagination
+// =====================================
+
+window.patientFilteredData = []; // เก็บข้อมูลผู้ป่วยที่ถูกค้นหา/กรองแล้ว
+window.patientCurrentPage = 1;   // เก็บหน้าปัจจุบัน
+const PATIENTS_PER_PAGE = 10;    // แสดง 10 รายการต่อหน้า
+
+// 1. ฟังก์ชันกรองข้อมูลผู้ป่วย
+function filterPatients() {
+    if (!window.allPatients) return;
+
+    let filtered = window.allPatients;
+
+    // Filter by Date
+    const startDateStr = document.getElementById('patientFilterStartDate')?.value;
+    const endDateStr = document.getElementById('patientFilterEndDate')?.value;
+
+    if (startDateStr || endDateStr) {
+        filtered = filtered.filter(row => {
+            if (!row.created_at) return true;
+            const rowDate = new Date(row.created_at).toISOString().split('T')[0];
+
+            let pass = true;
+            if (startDateStr && rowDate < startDateStr) pass = false;
+            if (endDateStr && rowDate > endDateStr) pass = false;
+            return pass;
+        });
+    }
+
+    // Filter by Search Input
+    const q = (document.getElementById('patientSearchInput')?.value || '').toLowerCase().trim();
+    const cleanQ = q.replace(/[-\s]/g, '');
+    if (q) {
+        filtered = filtered.filter(row => {
+            const phone = (row.phone || row.tel || '').toLowerCase();
+            const cleanPhone = phone.replace(/[-\s]/g, '');
+            return (row.hn && row.hn.toLowerCase().includes(q)) ||
+                (row.patient_name && row.patient_name.toLowerCase().includes(q)) ||
+                (phone && phone.includes(q)) ||
+                (cleanPhone && cleanPhone.includes(cleanQ)) ||
+                (row.province && row.province.toLowerCase().includes(q)) ||
+                (row.village && row.village.toLowerCase().includes(q)) ||
+                (row.allergies && row.allergies.toLowerCase().includes(q)) ||
+                (row.referred_by && row.referred_by.toLowerCase().includes(q));
+        });
+    }
+
+    // 🌟 นำข้อมูลที่กรองแล้วมาเก็บไว้ และรีเซ็ตหน้ากลับไปที่ 1 เสมอ
+    window.patientFilteredData = filtered;
+    window.patientCurrentPage = 1;
+    renderPatientsTable();
+}
+
+// 2. ฟังก์ชันวาดตารางและปุ่มแบ่งหน้า (Pagination)
+function renderPatientsTable(page = window.patientCurrentPage) {
+    window.patientCurrentPage = page;
     const tbody = document.querySelector('#patientsTable tbody');
+    const paginationContainer = document.getElementById('patientPagination');
     if (!tbody) return;
+    
     tbody.innerHTML = '';
 
-    if (!data || data.length === 0) {
-        const noDataText = typeof t === 'function' ? t('reg_no_data', 'ไม่พบข้อมูลผู้ป่วย') : 'ไม่พบข้อมูลผู้ป่วย';
-        tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-5"><i class="bi bi-search fs-3 d-block mb-2 text-secondary"></i>${noDataText}</td></tr>`;
+    const startDateStr = document.getElementById('patientFilterStartDate')?.value;
+    const endDateStr = document.getElementById('patientFilterEndDate')?.value;
+
+    // กรณีไม่มีข้อมูล
+    if (!window.patientFilteredData || window.patientFilteredData.length === 0) {
+        if (startDateStr || endDateStr) {
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-calendar-x text-warning me-2 fs-5"></i>ไม่พบข้อมูลผู้ป่วยลงทะเบียนในช่วงวันที่เลือก <button type="button" class="btn btn-sm btn-link text-primary text-decoration-none fw-semibold p-0 ms-2" onclick="clearPatientDateFilter()">ดูทั้งหมด</button></td></tr>`;
+        } else {
+            const noDataText = typeof t === 'function' ? t('reg_no_data', 'ไม่พบข้อมูลผู้ป่วย') : 'ไม่พบข้อมูลผู้ป่วย';
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-5"><i class="bi bi-search fs-3 d-block mb-2 text-secondary"></i>${noDataText}</td></tr>`;
+        }
+        if (paginationContainer) paginationContainer.innerHTML = '';
         return;
     }
 
-    data.forEach(row => {
+    // คำนวณจำนวนหน้า
+    const totalItems = window.patientFilteredData.length;
+    const totalPages = Math.ceil(totalItems / PATIENTS_PER_PAGE);
+
+    if (window.patientCurrentPage > totalPages) window.patientCurrentPage = totalPages;
+    if (window.patientCurrentPage < 1) window.patientCurrentPage = 1;
+
+    // ตัดข้อมูล (Slice) มาเฉพาะ 10 รายการ
+    const startIndex = (window.patientCurrentPage - 1) * PATIENTS_PER_PAGE;
+    const endIndex = startIndex + PATIENTS_PER_PAGE;
+    const currentData = window.patientFilteredData.slice(startIndex, endIndex);
+
+    // วาดข้อมูลลงในตาราง
+    currentData.forEach(row => {
         let allergy = (row.allergies || '').trim();
 
-        // 🐛 แก้ไข: เปลี่ยนชื่อตัวแปรจาก allergyText เป็น allergyBadge เพื่อให้ตรงกับโครงสร้าง HTML ด้านล่าง
         let allergyBadge = (allergy && allergy !== '-' && allergy !== 'ไม่มี')
             ? `<span class="badge-soft-danger">${allergy}</span>`
             : `<span class="badge-soft-success">${typeof t === 'function' ? t('none', 'ไม่มี') : 'ไม่มี'}</span>`;
@@ -1018,10 +1097,9 @@ function renderPatientsTable(data) {
             refHtml = `<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1" style="font-weight: 500;"><i class="ph ph-hand-coins me-1"></i>${displayRefName}</span>`;
         }
 
-        // ประมวลผลสถานะการคัดกรองและการชำระเงิน ตามความต้องการของผู้ใช้
         const latestVisit = window.latestVisitMap ? window.latestVisitMap[row.hn] : null;
 
-        // 1. สถานะการส่งคัดกรอง (Screening Status)
+        // สถานะการคัดกรอง
         let triageBadge = '';
         let isSent = !!latestVisit;
         if (isSent) {
@@ -1032,7 +1110,7 @@ function renderPatientsTable(data) {
             triageBadge = `<span class="badge bg-secondary-subtle text-secondary border px-2 py-1 text-nowrap"><i class="bi bi-clock me-1"></i>${waitText}</span>`;
         }
 
-        // 2. สถานะการชำระเงิน (Payment Status) และสถานะการรักษา
+        // สถานะการชำระเงิน
         let paymentBadge = '';
         const vStatus = latestVisit ? latestVisit.status : null;
         if (vStatus === 'เสร็จสิ้น' || vStatus === 'รอจัดยา' || vStatus === 'รอจ่ายยา') {
@@ -1084,52 +1162,45 @@ function renderPatientsTable(data) {
             <td class="text-center text-nowrap align-middle">${actionBtns}</td>
         </tr>`;
     });
-}
 
-function filterPatients() {
-    if (!window.allPatients) return;
+    // 🌟 วาดปุ่ม Pagination พร้อมข้อความบอกจำนวนรวมที่มุมขวา
+    if (paginationContainer) {
+        paginationContainer.className = "mt-3 mb-2";
+        let paginationHtml = `<div class="d-flex justify-content-between align-items-center w-100 px-3 flex-wrap gap-2">`;
+        
+        // 1. ช่องซ้าย (เว้นไว้เพื่อดัน Pagination ให้อยู่ตรงกลางสมมาตรกับช่องขวา)
+        paginationHtml += `<div class="d-none d-md-block" style="min-width: 180px;"></div>`;
+        
+        // 2. ช่องกลาง (ตัวปุ่มแบ่งหน้า)
+        paginationHtml += `<div class="d-flex justify-content-center align-items-center gap-1 flex-grow-1">`;
+        if (totalPages > 1) {
+            paginationHtml += `<button class="btn btn-sm btn-light border text-muted px-2.5 py-1" onclick="renderPatientsTable(${window.patientCurrentPage - 1})" ${window.patientCurrentPage === 1 ? 'disabled' : ''}><i class="bi bi-chevron-left"></i></button>`;
+            
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= window.patientCurrentPage - 2 && i <= window.patientCurrentPage + 2)) {
+                    const activeClass = i === window.patientCurrentPage ? 'btn-primary fw-bold' : 'btn-light border text-dark';
+                    paginationHtml += `<button class="btn btn-sm ${activeClass} px-3 py-1" onclick="renderPatientsTable(${i})">${i}</button>`;
+                } else if (i === window.patientCurrentPage - 3 || i === window.patientCurrentPage + 3) {
+                    paginationHtml += `<span class="px-2 text-muted">...</span>`;
+                }
+            }
 
-    let filtered = window.allPatients;
-
-    // Filter by Date
-    const startDateStr = document.getElementById('patientFilterStartDate')?.value;
-    const endDateStr = document.getElementById('patientFilterEndDate')?.value;
-
-    if (startDateStr || endDateStr) {
-        filtered = filtered.filter(row => {
-            if (!row.created_at) return true;
-            const rowDate = new Date(row.created_at).toISOString().split('T')[0];
-
-            let pass = true;
-            if (startDateStr && rowDate < startDateStr) pass = false;
-            if (endDateStr && rowDate > endDateStr) pass = false;
-            return pass;
-        });
-    }
-
-    // Filter by Search Input
-    const q = (document.getElementById('patientSearchInput')?.value || '').toLowerCase().trim();
-    if (q) {
-        filtered = filtered.filter(row =>
-            (row.hn && row.hn.toLowerCase().includes(q)) ||
-            (row.patient_name && row.patient_name.toLowerCase().includes(q)) ||
-            (row.phone && row.phone.toLowerCase().includes(q)) ||
-            (row.province && row.province.toLowerCase().includes(q)) ||
-            (row.village && row.village.toLowerCase().includes(q)) ||
-            (row.allergies && row.allergies.toLowerCase().includes(q)) ||
-            (row.referred_by && row.referred_by.toLowerCase().includes(q))
-        );
-    }
-
-    const tbody = document.querySelector('#patientsTable tbody');
-    if (tbody && (!filtered || filtered.length === 0)) {
-        if (startDateStr || endDateStr) {
-            tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-calendar-x text-warning me-2 fs-5"></i>ไม่พบข้อมูลผู้ป่วยลงทะเบียนในช่วงวันที่เลือก <button type="button" class="btn btn-sm btn-link text-primary text-decoration-none fw-semibold p-0 ms-2" onclick="clearPatientDateFilter()">ดูทั้งหมด</button></td></tr>`;
-            return;
+            paginationHtml += `<button class="btn btn-sm btn-light border text-muted px-2.5 py-1" onclick="renderPatientsTable(${window.patientCurrentPage + 1})" ${window.patientCurrentPage === totalPages ? 'disabled' : ''}><i class="bi bi-chevron-right"></i></button>`;
         }
+        paginationHtml += `</div>`;
+        
+        // 3. ช่องขวา (จำนวนรายการ)
+        const startItem = totalItems === 0 ? 0 : startIndex + 1;
+        const endItem = Math.min(startIndex + PATIENTS_PER_PAGE, totalItems);
+        paginationHtml += `
+            <div class="text-end text-muted small fw-semibold" style="min-width: 180px;">
+                แสดง ${startItem}-${endItem} จาก <span class="text-primary fw-bold">${totalItems}</span> รายการ
+            </div>
+        `;
+        
+        paginationHtml += `</div>`;
+        paginationContainer.innerHTML = paginationHtml;
     }
-
-    renderPatientsTable(filtered);
 }
 
 function setPatientTodayFilter() {
@@ -1341,9 +1412,19 @@ function isVisitAssignedToCurrentDoctor(visitDoctorName, currentUser) {
 }
 window.isVisitAssignedToCurrentDoctor = isVisitAssignedToCurrentDoctor;
 
-async function loadDoctorQueue() {
+// =====================================
+// ระบบห้องตรวจแพทย์ (Doctor Room) - รองรับ Pagination 15 รายการ/หน้า
+// =====================================
+window.doctorQueueData = []; // ตัวแปรเก็บข้อมูลทั้งหมด
+window.doctorCurrentPage = 1; // หน้าปัจจุบัน
+const DOCTOR_PER_PAGE = 15; // 🌟 กำหนดจำนวน 15 รายการต่อหน้า
+
+// 1. ดึงข้อมูลจากฐานข้อมูลมาเก็บไว้
+window.loadDoctorQueue = async function() {
     const tbody = document.querySelector('#doctorTable tbody');
     if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูล...</td></tr>';
 
     let currentUser = window.currentUser;
     if (!currentUser) {
@@ -1357,32 +1438,118 @@ async function loadDoctorQueue() {
         .eq('status', 'รอตรวจ')
         .order('created_at', { ascending: true });
 
-    tbody.innerHTML = '';
     if (error) {
         tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
         return;
     }
 
     let filtered = data || [];
+    // หากเป็นแพทย์ ให้เห็นเฉพาะคิวของตัวเอง
     if (isDoc) {
-        // หากเป็นแพทย์ จะแสดงเฉพาะคิวที่ระบุชื่อแพทย์คนนี้ หรือยังไม่ได้ระบุแพทย์เจาะจง
         filtered = filtered.filter(row => !row.doctor_name || isVisitAssignedToCurrentDoctor(row.doctor_name, currentUser));
     }
 
-    if (!filtered || filtered.length === 0) {
+    // เก็บข้อมูลลงตัวแปรกลาง แล้วเรียกฟังก์ชันวาดตาราง
+    window.doctorQueueData = filtered;
+    window.doctorCurrentPage = 1;
+    renderDoctorTable();
+};
+
+// 2. ฟังก์ชันตัดข้อมูล 15 รายการและสร้างปุ่มแบ่งหน้า
+window.renderDoctorTable = function(page = window.doctorCurrentPage) {
+    window.doctorCurrentPage = page;
+    const tbody = document.querySelector('#doctorTable tbody');
+    const paginationContainer = document.getElementById('doctorPagination');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    // กรณีไม่มีข้อมูล
+    if (!window.doctorQueueData || window.doctorQueueData.length === 0) {
         const emptyText = typeof t === 'function' ? t('doctor_empty', 'ไม่มีผู้ป่วยรอตรวจ') : 'ไม่มีผู้ป่วยรอตรวจ';
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">${emptyText}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-5">${emptyText}</td></tr>`;
+        if (paginationContainer) paginationContainer.innerHTML = '';
         return;
     }
 
+    // คำนวณจำนวนหน้า
+    const totalItems = window.doctorQueueData.length;
+    const totalPages = Math.ceil(totalItems / DOCTOR_PER_PAGE);
+
+    if (window.doctorCurrentPage > totalPages) window.doctorCurrentPage = totalPages;
+    if (window.doctorCurrentPage < 1) window.doctorCurrentPage = 1;
+
+    // หาจุดเริ่มต้นและจุดสิ้นสุด
+    const startIndex = (window.doctorCurrentPage - 1) * DOCTOR_PER_PAGE;
+    const endIndex = startIndex + DOCTOR_PER_PAGE;
+    
+    // ตัดข้อมูล (Slice) มา 15 รายการ
+    const currentData = window.doctorQueueData.slice(startIndex, endIndex);
+
     const labBtnText = typeof t === 'function' ? t('doctor_btn_order_lab', 'สั่ง Lab') : 'สั่ง Lab';
     const finishBtnText = typeof t === 'function' ? t('doctor_btn_finish', 'ตรวจเสร็จ') : 'ตรวจเสร็จ';
-    filtered.forEach(row => {
+
+    // นำข้อมูล 15 รายการมาวาดลงตาราง
+    currentData.forEach(row => {
         let vitals = `ความดัน: ${row.bp || '-'}, นน.: ${row.weight || '-'} กก., อุณหภูมิ: ${row.temp || '-'}°C`;
         let docBadge = row.doctor_name ? `<span class="badge bg-info-subtle text-info border border-info-subtle ms-2"><i class="bi bi-person me-1"></i>${row.doctor_name}</span>` : '';
-        tbody.innerHTML += `<tr><td class="ps-4 fw-bold">${row.visit_id}</td><td><div class="fw-bold text-dark">${row.patient_name}${docBadge}</div><div class="text-muted small">อาการ: <span class="text-danger">${row.symptom || '-'}</span></div></td><td class="text-muted small">${vitals}</td><td class="text-end pe-4"><button class="btn btn-sm btn-outline-primary me-2" onclick="openLabOrder('${row.visit_id}', '${row.patient_name}', '${row.hn}')"><i class="bi bi-virus"></i> ${labBtnText}</button><button class="btn btn-sm btn-success px-3" onclick="completeDoctorCheck('${row.visit_id}')"><i class="bi bi-check-circle me-1"></i>${finishBtnText}</button></td></tr>`;
+        
+        // 🌟 เพิ่มคลาส py-2 เพื่อให้แถวแคบและชิดกันมากขึ้น ปรับปุ่มให้โค้งมนดูทันสมัย
+        tbody.innerHTML += `
+            <tr class="border-bottom">
+                <td class="ps-4 fw-bold text-dark align-middle py-2" style="font-size: 0.92rem;">${row.visit_id}</td>
+                <td class="align-middle py-2">
+                    <div class="fw-bold text-dark" style="font-size: 0.92rem;">${row.patient_name}${docBadge}</div>
+                    <div class="text-muted small">อาการ: <span class="text-danger">${row.symptom || '-'}</span></div>
+                </td>
+                <td class="text-muted small align-middle py-2">${vitals}</td>
+                <td class="text-end pe-4 align-middle py-2">
+                    <button class="btn btn-sm btn-outline-primary me-2 shadow-sm rounded-pill fw-semibold px-3 py-1" style="font-size: 0.75rem;" onclick="openLabOrder('${row.visit_id}', '${row.patient_name}', '${row.hn}')"><i class="bi bi-virus"></i> ${labBtnText}</button>
+                    <button class="btn btn-sm btn-success px-3 shadow-sm rounded-pill fw-semibold py-1" style="font-size: 0.75rem;" onclick="completeDoctorCheck('${row.visit_id}')"><i class="bi bi-check-circle me-1"></i>${finishBtnText}</button>
+                </td>
+            </tr>
+        `;
     });
-}
+
+    // วาดกล่องตัวเลขแบ่งหน้าและข้อความนับจำนวน
+    if (paginationContainer) {
+        paginationContainer.className = "mt-3 mb-2";
+        let paginationHtml = `<div class="d-flex justify-content-between align-items-center w-100 px-3 flex-wrap gap-2">`;
+        
+        // ส่วนช่องซ้าย (ใช้รักษาความสมดุล)
+        paginationHtml += `<div class="d-none d-md-block" style="min-width: 180px;"></div>`;
+        
+        // ส่วนช่องกลาง (ปุ่มเลขหน้า)
+        paginationHtml += `<div class="d-flex justify-content-center align-items-center gap-1 flex-grow-1">`;
+        if (totalPages > 1) {
+            paginationHtml += `<button class="btn btn-sm btn-light border text-muted px-2.5 py-1" onclick="renderDoctorTable(${window.doctorCurrentPage - 1})" ${window.doctorCurrentPage === 1 ? 'disabled' : ''}><i class="bi bi-chevron-left"></i></button>`;
+            
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= window.doctorCurrentPage - 2 && i <= window.doctorCurrentPage + 2)) {
+                    const activeClass = i === window.doctorCurrentPage ? 'btn-primary fw-bold' : 'btn-light border text-dark';
+                    paginationHtml += `<button class="btn btn-sm ${activeClass} px-3 py-1" onclick="renderDoctorTable(${i})">${i}</button>`;
+                } else if (i === window.doctorCurrentPage - 3 || i === window.doctorCurrentPage + 3) {
+                    paginationHtml += `<span class="px-2 text-muted">...</span>`;
+                }
+            }
+
+            paginationHtml += `<button class="btn btn-sm btn-light border text-muted px-2.5 py-1" onclick="renderDoctorTable(${window.doctorCurrentPage + 1})" ${window.doctorCurrentPage === totalPages ? 'disabled' : ''}><i class="bi bi-chevron-right"></i></button>`;
+        }
+        paginationHtml += `</div>`;
+        
+        // ส่วนช่องขวา (โชว์ข้อความ "แสดง X-Y จาก Z รายการ")
+        const startItem = totalItems === 0 ? 0 : startIndex + 1;
+        const endItem = Math.min(startIndex + DOCTOR_PER_PAGE, totalItems);
+        paginationHtml += `
+            <div class="text-end text-muted small fw-semibold" style="min-width: 180px;">
+                แสดง ${startItem}-${endItem} จาก <span class="text-primary fw-bold">${totalItems}</span> รายการ
+            </div>
+        `;
+        
+        paginationHtml += `</div>`;
+        paginationContainer.innerHTML = paginationHtml;
+    }
+};
 
 async function completeDoctorCheck(visitId) {
     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -7880,197 +8047,196 @@ window.completeDispensing = async function (visitId) {
 };
 
 // =====================================
-// ประวัติผู้ป่วย (Patient History)
+// ระบบประวัติการเข้าตรวจผู้ป่วย (Patient History) - รองรับ Search + Pagination
 // =====================================
-async function loadPatientHistory() {
+
+window.allHistoryVisits = []; // ข้อมูลทั้งหมดจากฐานข้อมูล
+window.historyFilteredData = []; // ข้อมูลที่ผ่านการค้นหา
+window.historyCurrentPage = 1;
+const HISTORY_PER_PAGE = 10; // กำหนด 10 รายการต่อหน้า
+
+// 1. ฟังก์ชันโหลดข้อมูลประวัติจากฐานข้อมูล
+window.loadPatientHistory = async function() {
     const tbody = document.querySelector('#historyTable tbody');
     if (!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูลประวัติการรักษา...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูลประวัติ...</td></tr>';
 
-    let data = [];
     try {
-        const res = await _supabase
-            .from('visits')
-            .select('*')
-            .order('created_at', { ascending: false });
-        if (res && res.data && res.data.length > 0) {
-            data = res.data;
+        if (typeof _supabase !== 'undefined') {
+            const { data, error } = await _supabase
+                .from('visits')
+                .select('*')
+                .order('created_at', { ascending: false });
+            
+            if (data && !error) {
+                let rows = data;
+
+                // ดึงเบอร์โทรศัพท์จากตาราง patients มาผูกกับ visits
+                try {
+                    let patientsMap = {};
+                    if (window.allPatients && window.allPatients.length > 0) {
+                        window.allPatients.forEach(p => {
+                            const phoneVal = p.phone || p.tel || p.emergency_tel || '';
+                            if (p.hn) patientsMap[p.hn] = phoneVal;
+                            if (p.patient_name) patientsMap[p.patient_name] = phoneVal;
+                        });
+                    } else {
+                        const { data: pList } = await _supabase.from('patients').select('hn, patient_name, phone, emergency_tel');
+                        if (pList) {
+                            pList.forEach(p => {
+                                const phoneVal = p.phone || p.emergency_tel || '';
+                                if (p.hn) patientsMap[p.hn] = phoneVal;
+                                if (p.patient_name) patientsMap[p.patient_name] = phoneVal;
+                            });
+                        }
+                    }
+
+                    rows.forEach(v => {
+                        if (!v.phone) {
+                            v.phone = (v.hn && patientsMap[v.hn]) || (v.patient_name && patientsMap[v.patient_name]) || '';
+                        }
+                    });
+                } catch (pErr) {
+                    console.warn('Patient phone mapping notice:', pErr);
+                }
+
+                window.allHistoryVisits = rows;
+            }
         }
     } catch (e) {
-        console.warn('Load history visits DB notice:', e);
+        console.warn('Load patient history error:', e);
     }
 
-    // Merge fallback จาก LocalStorage เพื่อความสมบูรณ์
-    try {
-        const cachedVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
-        if (Array.isArray(cachedVisits)) {
-            const map = new Map();
-            data.forEach(v => { if (v && (v.visit_id || v.id)) map.set(v.visit_id || v.id, v); });
-            cachedVisits.forEach(v => {
-                if (v && (v.visit_id || v.id)) {
-                    const vKey = v.visit_id || v.id;
-                    const existing = map.get(vKey) || {};
-                    map.set(vKey, { ...existing, ...v, visit_id: vKey });
-                }
-            });
-            data = Array.from(map.values());
-        }
-    } catch (e) { }
+    // โหลดเสร็จเรียกฟังก์ชันค้นหา และวาดตาราง
+    searchPatientHistory();
+};
 
-    // 🌟 ดึงข้อมูลเบอร์โทรศัพท์จากตาราง patients มาผูกกับ visits เพื่อให้ค้นหาด้วยเบอร์โทรได้ 100%
-    try {
-        let patientsMap = {};
-        if (window.allPatients && window.allPatients.length > 0) {
-            window.allPatients.forEach(p => {
-                const phoneVal = p.phone || p.tel || p.emergency_tel || '';
-                if (p.hn) patientsMap[p.hn] = phoneVal;
-                if (p.patient_name) patientsMap[p.patient_name] = phoneVal;
-            });
-        } else {
-            const { data: pList } = await _supabase.from('patients').select('hn, patient_name, phone, emergency_tel');
-            if (pList) {
-                pList.forEach(p => {
-                    const phoneVal = p.phone || p.emergency_tel || '';
-                    if (p.hn) patientsMap[p.hn] = phoneVal;
-                    if (p.patient_name) patientsMap[p.patient_name] = phoneVal;
-                });
-            }
-        }
-
-        data.forEach(v => {
-            if (!v.phone) {
-                v.phone = (v.hn && patientsMap[v.hn]) || (v.patient_name && patientsMap[v.patient_name]) || '';
-            }
-        });
-    } catch (err) {
-        console.warn('Map patient phone to visits notice:', err);
-    }
-
-    // กรองเอาเฉพาะรายการที่มีข้อมูลผู้ป่วย หรือเลือกแสดงรายการเสร็จสิ้น/ทั้งหมดที่ไม่เป็นค่าว่าง
-    if (data.length > 0) {
-        const completedVisits = data.filter(v =>
-            !v.status ||
-            v.status === 'เสร็จสิ้น' ||
-            v.status === 'สำเร็จ' ||
-            v.status === 'จ่ายเงินแล้ว' ||
-            v.status === 'รับยาแล้ว' ||
-            v.status === 'เรียบร้อย' ||
-            v.status === 'ไม่รับยา' ||
-            (v.status && v.status.includes('ไม่รับยา'))
-        );
-        if (completedVisits.length > 0) {
-            data = completedVisits;
-        }
-    }
-
-    window.allHistoryVisits = data;
-    renderHistoryTable(window.allHistoryVisits);
-}
-
-function renderHistoryTable(list) {
-    const tbody = document.querySelector('#historyTable tbody');
-    if (!tbody) return;
-
-    tbody.innerHTML = '';
-    if (!list || list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">ไม่มีข้อมูลประวัติผู้ป่วย</td></tr>';
-        return;
-    }
-
-    list.forEach(row => {
-        let formattedDate = '-';
-        if (row.created_at) {
-            const dateObj = new Date(row.created_at);
-            formattedDate = dateObj.toLocaleDateString('th-TH', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            }) + ' น.';
-        }
-
-        const actionBtn = `
-            <div class="d-flex justify-content-center gap-1">
-                <button class="btn btn-sm btn-outline-primary px-2.5 py-1 fw-semibold" onclick="showHistoryDetails('${row.visit_id}')" title="ดูรายละเอียด">
-                    <i class="bi bi-eye me-1"></i> ดูรายละเอียด
-                </button>
-                <button class="btn btn-sm btn-outline-danger px-2.5 py-1 fw-semibold" onclick="deleteHistoryVisit('${row.visit_id}')" title="ลบรายการนี้">
-                    <i class="bi bi-trash me-1"></i> ลบ
-                </button>
-            </div>
-        `;
-
-        // 🌟 ส่วนที่แก้ไข: จัดการข้อความที่ยาวเกินไป
-        let detailText = row.symptom || row.reason || row.lab_tests || '-';
-        let detailDisplay = detailText !== '-'
-            ? `<div class="text-truncate" style="max-width: 350px;" title="${detailText.replace(/"/g, '&quot;')}">${detailText}</div>`
-            : `<span class="text-muted">-</span>`;
-
-        // 🌟 ตรวจสอบและแสดงป้ายกำกับเคสต่อยา (ชุดที่ 2, 3...)
-        const isRefill = (row.symptom && row.symptom.includes('ต่อยา')) || row.refill_batch;
-        let refillBadge = '';
-        if (isRefill) {
-            const tagText = row.refill_batch || (row.symptom && row.symptom.includes('ต่อยา') ? row.symptom : 'ต่อยา');
-            refillBadge = `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning ms-1"><i class="bi bi-arrow-repeat me-1"></i>${tagText}</span>`;
-        }
-
-        // 🌟 ตรวจสอบและแสดงป้ายกำกับกรณีไม่รับยา
-        const isRejectedMed = row.status === 'ไม่รับยา' || (row.symptom && row.symptom.includes('ไม่รับยา'));
-        let rejectMedBadge = '';
-        if (isRejectedMed) {
-            rejectMedBadge = `<span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1"><i class="bi bi-x-circle me-1"></i>ไม่รับยา</span>`;
-        }
-
-        const phoneDisplay = row.phone ? `<div class="text-muted small fw-normal"><i class="bi bi-telephone text-primary me-1"></i>${row.phone}</div>` : '';
-
-        tbody.innerHTML += `
-            <tr data-visit-id="${(row.visit_id || '').toLowerCase()}" data-hn="${(row.hn || '').toLowerCase()}" data-name="${(row.patient_name || '').toLowerCase()}" data-phone="${(row.phone || '').toLowerCase()}">
-                <td class="ps-4 fw-bold text-primary">${row.visit_id || '-'}</td>
-                <td class="fw-bold">${row.hn || '-'}</td>
-                <td class="fw-bold text-dark">${row.patient_name || '-'} ${refillBadge} ${rejectMedBadge} ${phoneDisplay}</td>
-                <td>${formattedDate}</td>
-                <td>${detailDisplay}</td> 
-                <td class="text-center">${actionBtn}</td>
-            </tr>
-        `;
-    });
-}
-
-function searchPatientHistory() {
-    const input = document.getElementById('searchHistoryInput');
-    if (!input) return;
-    const q = input.value.trim().toLowerCase();
+// 2. ฟังก์ชันค้นหาข้อมูล
+window.searchPatientHistory = function() {
+    const q = (document.getElementById('searchHistoryInput')?.value || '').toLowerCase().trim();
+    const cleanQ = q.replace(/[-\s]/g, '');
 
     if (!window.allHistoryVisits) return;
 
     if (!q) {
-        renderHistoryTable(window.allHistoryVisits);
+        window.historyFilteredData = [...window.allHistoryVisits];
+    } else {
+        window.historyFilteredData = window.allHistoryVisits.filter(row => {
+            const hn = (row.hn || '').toLowerCase();
+            const name = (row.patient_name || '').toLowerCase();
+            const visitId = (row.visit_id || '').toLowerCase();
+            const phone = (row.phone || row.tel || row.emergency_tel || '').toLowerCase();
+            const cleanPhone = phone.replace(/[-\s]/g, '');
+            const symptom = (row.symptom || row.reason || '').toLowerCase();
+
+            return hn.includes(q) ||
+                name.includes(q) ||
+                visitId.includes(q) ||
+                symptom.includes(q) ||
+                (phone && phone.includes(q)) ||
+                (cleanPhone && cleanPhone.includes(cleanQ));
+        });
+    }
+
+    window.historyCurrentPage = 1; // รีเซ็ตหน้ากลับไปที่ 1 เสมอเมื่อค้นหา
+    renderHistoryTable();
+};
+
+// 3. ฟังก์ชันวาดตารางและปุ่มแบ่งหน้า (Pagination)
+window.renderHistoryTable = function(page = window.historyCurrentPage) {
+    window.historyCurrentPage = page;
+    const tbody = document.querySelector('#historyTable tbody');
+    const paginationContainer = document.getElementById('historyPagination');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    if (!window.historyFilteredData || window.historyFilteredData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">ไม่พบข้อมูลประวัติผู้ป่วยที่ค้นหา</td></tr>';
+        if (paginationContainer) paginationContainer.innerHTML = '';
         return;
     }
 
-    // ลบเครื่องหมายขีด - และช่องว่าง สำหรับเปรียบเทียบเบอร์โทรแบบยืดหยุ่น
-    const cleanQ = q.replace(/[-\s]/g, '');
+    // คำนวณจำนวนหน้า
+    const totalItems = window.historyFilteredData.length;
+    const totalPages = Math.ceil(totalItems / HISTORY_PER_PAGE);
+    
+    if (window.historyCurrentPage > totalPages) window.historyCurrentPage = totalPages;
+    if (window.historyCurrentPage < 1) window.historyCurrentPage = 1;
 
-    const filtered = window.allHistoryVisits.filter(row => {
-        const hn = (row.hn || '').toLowerCase();
-        const name = (row.patient_name || '').toLowerCase();
-        const visitId = (row.visit_id || '').toLowerCase();
-        const phone = (row.phone || row.tel || row.emergency_tel || '').toLowerCase();
-        const cleanPhone = phone.replace(/[-\s]/g, '');
-        const symptom = (row.symptom || '').toLowerCase();
+    // ตัดข้อมูล (Slice)
+    const startIndex = (window.historyCurrentPage - 1) * HISTORY_PER_PAGE;
+    const endIndex = startIndex + HISTORY_PER_PAGE;
+    const currentData = window.historyFilteredData.slice(startIndex, endIndex);
 
-        return hn.includes(q) ||
-            name.includes(q) ||
-            visitId.includes(q) ||
-            symptom.includes(q) ||
-            (phone && phone.includes(q)) ||
-            (cleanPhone && cleanPhone.includes(cleanQ));
+    // วาดแถวตาราง (10 รายการ)
+    currentData.forEach(row => {
+        const dateObj = new Date(row.created_at || row.updated_at);
+        const dateStr = !isNaN(dateObj) ? dateObj.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' + dateObj.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.' : '-';
+        
+        const phoneHtml = row.phone ? `<br><small class="text-muted"><i class="bi bi-telephone text-primary"></i> ${row.phone}</small>` : '';
+        const symptomHtml = row.symptom || row.reason || '-';
+
+        tbody.innerHTML += `
+            <tr class="border-bottom">
+                <td class="ps-4 fw-bold text-dark align-middle py-2" style="font-size: 0.92rem;">${row.visit_id || '-'}</td>
+                <td class="text-muted align-middle py-2" style="font-size: 0.88rem;">${row.hn || '-'}</td>
+                <td class="align-middle fw-bold text-dark py-2" style="font-size: 0.92rem;">${row.patient_name || '-'}${phoneHtml}</td>
+                <td class="align-middle text-muted py-2" style="font-size: 0.88rem;">${dateStr}</td>
+                <td class="align-middle text-dark py-2" style="font-size: 0.88rem;">${symptomHtml}</td>
+                <td class="text-center align-middle py-2">
+                    <button class="btn btn-sm btn-outline-primary px-3 py-1 fw-semibold shadow-sm" style="border-radius: 50rem; font-size: 0.75rem;" onclick="showHistoryDetails('${row.visit_id}')"><i class="bi bi-eye me-1"></i> ดูรายละเอียด</button>
+                    <button class="btn btn-sm btn-outline-danger px-3 py-1 fw-semibold shadow-sm ms-1" style="border-radius: 50rem; font-size: 0.75rem;" onclick="deleteHistoryVisit('${row.visit_id}')"><i class="bi bi-trash"></i> ลบ</button>
+                </td>
+            </tr>
+        `;
     });
 
-    renderHistoryTable(filtered);
-}
+    // วาดปุ่ม Pagination
+    if (paginationContainer) {
+        let paginationHtml = `<div class="d-flex justify-content-between align-items-center w-100 px-3 flex-wrap gap-2">`;
+        
+        // ด้านซ้าย
+        paginationHtml += `<div class="d-none d-md-block" style="min-width: 180px;"></div>`;
+        
+        // ตรงกลาง
+        paginationHtml += `<div class="d-flex justify-content-center align-items-center gap-1 flex-grow-1">`;
+        if (totalPages > 1) {
+            paginationHtml += `<button class="btn btn-sm btn-light border text-muted px-2.5 py-1" onclick="renderHistoryTable(${window.historyCurrentPage - 1})" ${window.historyCurrentPage === 1 ? 'disabled' : ''}><i class="bi bi-chevron-left"></i></button>`;
+            
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= window.historyCurrentPage - 2 && i <= window.historyCurrentPage + 2)) {
+                    const activeClass = i === window.historyCurrentPage ? 'btn-primary fw-bold' : 'btn-light border text-dark';
+                    paginationHtml += `<button class="btn btn-sm ${activeClass} px-3 py-1" onclick="renderHistoryTable(${i})">${i}</button>`;
+                } else if (i === window.historyCurrentPage - 3 || i === window.historyCurrentPage + 3) {
+                    paginationHtml += `<span class="px-2 text-muted">...</span>`;
+                }
+            }
+
+            paginationHtml += `<button class="btn btn-sm btn-light border text-muted px-2.5 py-1" onclick="renderHistoryTable(${window.historyCurrentPage + 1})" ${window.historyCurrentPage === totalPages ? 'disabled' : ''}><i class="bi bi-chevron-right"></i></button>`;
+        }
+        paginationHtml += `</div>`;
+        
+        // ด้านขวา
+        const startItem = totalItems === 0 ? 0 : startIndex + 1;
+        const endItem = Math.min(startIndex + HISTORY_PER_PAGE, totalItems);
+        paginationHtml += `
+            <div class="text-end text-muted small fw-semibold" style="min-width: 180px;">
+                แสดง ${startItem}-${endItem} จาก <span class="text-primary fw-bold">${totalItems}</span> รายการ
+            </div>
+        `;
+        
+        paginationHtml += `</div>`;
+        paginationContainer.innerHTML = paginationHtml;
+    }
+};
+
+window.viewHistoryDetail = function(visitId) {
+    if (typeof showHistoryDetails === 'function') {
+        showHistoryDetails(visitId);
+    }
+};
 
 async function deleteHistoryVisit(visitId) {
     if (!visitId) return;

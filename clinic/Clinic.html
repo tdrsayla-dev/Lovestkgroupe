@@ -899,6 +899,10 @@
                     </tbody>
                 </table>
             </div>
+            
+            <!-- 🌟 พื้นที่แสดงปุ่มแบ่งหน้า (Pagination) -->
+            <div id="patientPagination" class="mt-3 mb-2"></div>
+            
         </div>
 
 
@@ -1036,6 +1040,10 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- 🌟 พื้นที่แสดงปุ่มแบ่งหน้า (Pagination) สำหรับห้องตรวจแพทย์ -->
+            <div id="doctorPagination" class="mt-3 mb-2"></div>
+
         </div>
 
         <!-- 6. จ่ายค่ารักษา (Payment) -->
@@ -1680,6 +1688,10 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- 🌟 พื้นที่แสดงปุ่มแบ่งหน้า (Pagination) -->
+            <div id="historyPagination" class="mt-3 mb-2"></div>
+
         </div>
         <!-- 12. จัดการพนักงาน (Staff Management) -->
         <div id="staff" class="page-section">
@@ -2166,65 +2178,10 @@
                                 </div>
                                 <form id="commissionSettingsForm"
                                     onsubmit="event.preventDefault(); saveCommissionSettings();">
-                                    <div class="mb-4">
-                                        <label class="form-label fw-bold"
-                                            data-i18n="ref_set_calc_type">ประเภทการคิดค่าคอมมิชชั่น / ปันผล</label>
-                                        <div class="row g-3">
-                                            <div class="col-md-6">
-                                                <div class="form-check p-3 border rounded-3 bg-light cursor-pointer">
-                                                    <input class="form-check-input" type="radio" name="commType"
-                                                        id="commTypeFixed" value="fixed" checked
-                                                        onchange="toggleCommTypeDisplay()">
-                                                    <label class="form-check-label fw-semibold" for="commTypeFixed">
-                                                        <i class="ph ph-currency-btc text-success me-1"></i> <span
-                                                            data-i18n="ref_set_fixed">แบบคงที่ (Fixed Amount)</span>
-                                                        <div class="text-muted small fw-normal"
-                                                            data-i18n="ref_set_fixed_desc">จ่ายจำนวนเงินคงที่ต่อผู้ป่วย
-                                                            1 คน</div>
-                                                    </label>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-6">
-                                                <div class="form-check p-3 border rounded-3 bg-light cursor-pointer">
-                                                    <input class="form-check-input" type="radio" name="commType"
-                                                        id="commTypePercent" value="percentage"
-                                                        onchange="toggleCommTypeDisplay()">
-                                                    <label class="form-check-label fw-semibold" for="commTypePercent">
-                                                        <i class="ph ph-percent text-primary me-1"></i> <span
-                                                            data-i18n="ref_set_percent">แบบเปอร์เซ็นต์ (% Rate)</span>
-                                                        <div class="text-muted small fw-normal"
-                                                            data-i18n="ref_set_percent_desc">คิดตาม % จากยอดรวมค่ารักษา
-                                                        </div>
-                                                    </label>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="mb-4">
-                                        <label class="form-label fw-bold"
-                                            data-i18n="ref_set_currency">สกุลเงินหลักที่ใช้คำนวณปันผล (Currency)</label>
-                                        <select class="form-select custom-input" id="commCurrencySelect"
-                                            style="max-width: 300px;" onchange="toggleCommTypeDisplay()">
-                                            <option value="THB">บาท (THB / ฿)</option>
-                                            <option value="LAK">กีบ (LAK / ₭)</option>
-                                        </select>
-                                        <div class="form-text text-muted small"><i
-                                                class="bi bi-info-circle me-1"></i><span
-                                                data-i18n="ref_set_currency_desc">ระบบจะแสดงผลสัญลักษณ์และหน่วยเงินตามสกุลเงินที่เลือก</span>
-                                        </div>
-                                    </div>
-
-                                    <div class="mb-3" id="commRateContainer">
-                                        <label class="form-label fw-bold" id="commRateLabel"
-                                            data-i18n="ref_set_amount_per_patient">จำนวนเงินปันผลต่อผู้ป่วย 1 คน
-                                            (ปกติ)</label>
-                                        <div class="input-group" style="max-width: 300px;">
-                                            <input type="text" class="form-control custom-input" id="commValueInput"
-                                                value="200" required oninput="formatNumberInput(this)">
-                                            <span class="input-group-text" id="commUnitAddon">บาท</span>
-                                        </div>
-                                    </div>
+                                    <!-- ซ่อนการตั้งค่าพื้นฐานไว้เพื่อป้องกัน JavaScript Error -->
+                                    <input type="hidden" name="commType" id="commTypeFixed" value="fixed">
+                                    <input type="hidden" id="commCurrencySelect" value="LAK">
+                                    <input type="hidden" id="commValueInput" value="0">
 
                                     <div class="p-3 border rounded-3 bg-light mb-4">
                                         <div class="form-check form-switch mb-2">
