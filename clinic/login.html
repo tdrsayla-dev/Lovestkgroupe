@@ -18,6 +18,90 @@
     <link rel="stylesheet" href="style.css">
     <!-- i18n Internationalization Engine -->
     <script src="i18n.js"></script>
+
+    <style>
+        /* 1. ตั้งค่าพื้นหลังหน้า Login ด้วยรหัสสีใหม่ และเพิ่ม Motion */
+        body, body.login-page {
+            /* 🌟 ใช้รหัสสี #02060E และ #0356C5 ไล่เฉดสี */
+            background: linear-gradient(-45deg, #02060E, #0356C5, #02060E, #012b63) !important;
+            
+            /* ขยายขนาดพื้นหลังให้ใหญ่ขึ้น เพื่อให้มีพื้นที่ขยับ */
+            background-size: 400% 400% !important;
+            
+            /* เรียกใช้แอนิเมชันชื่อ 'premiumMotion' ขยับแบบนุ่มนวลทุกๆ 12 วินาที */
+            animation: premiumMotion 12s ease infinite !important;
+            
+            /* จัดการจัดวางให้เต็มหน้าจอและอยู่กึ่งกลาง */
+            min-height: 100vh !important;
+            margin: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+
+        /* 2. คำสั่งแอนิเมชันให้สีพื้นหลังเคลื่อนไหวช้าๆ */
+        @keyframes premiumMotion {
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        /* 3. สไตล์สำหรับกล่อง Login แบบกระจกฝ้า (Glassmorphism) */
+        .login-card {
+            /* 1. พื้นหลังสีขาวโปร่งแสง (ค่า 0.6 คือความโปร่งใส ปรับลดเป็น 0.2 ให้ใสขึ้น หรือ 0.8 ให้ทึบขึ้นได้ตามชอบ) */
+            background-color: rgba(255, 255, 255, 0.6) !important;
+            
+            /* 2. เอฟเฟกต์เบลอเฉพาะพื้นหลังที่อยู่ใต้กล่อง (ค่า 16px คือระดับความเบลอ) */
+            backdrop-filter: blur(16px) !important;
+            -webkit-backdrop-filter: blur(16px) !important; /* สำหรับรองรับเบราว์เซอร์ Safari ของ Apple */
+            
+            /* 3. เส้นขอบสีขาวโปร่งแสงบางๆ เพิ่มมิติแสงสะท้อนที่ขอบกระจก */
+            border: 1px solid rgba(255, 255, 255, 0.5) !important;
+            
+            /* 4. เงากล่องนุ่มๆ ให้ดูลอยเด่นขึ้นมาจากพื้นหลัง */
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3) !important;
+            
+            /* 5. ความโค้งมนของมุมกล่อง */
+            border-radius: 16px !important;
+            width: 100%;
+            max-width: 420px;
+            padding: 2.5rem;
+        }
+
+        /* 4. สไตล์สำหรับไอคอนหน้า Login */
+        .login-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 1rem auto;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #0356C5, #0ea5e9) !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.85rem;
+            box-shadow: 0 8px 20px rgba(3, 86, 197, 0.35);
+        }
+
+        /* 1. เปลี่ยนสีตัวไอคอนให้เป็นสีขาว */
+        .login-icon i, 
+        .login-icon svg,
+        .icon-container {
+            color: #ffffff !important; 
+            fill: #ffffff !important; /* ใช้ในกรณีที่ไอคอนเป็นไฟล์ SVG */
+        }
+
+        /* 2. (ตัวเลือกเสริม) ปรับกรอบวงกลมด้านหลังไอคอนให้เป็นสีขาวโปร่งแสงเข้ากับกระจก */
+        .icon-wrapper-circle {
+            background-color: rgba(255, 255, 255, 0.15) !important; /* พื้นหลังขาวใสๆ */
+            border: 1px solid rgba(255, 255, 255, 0.4) !important; /* ขอบวงกลมสีขาวบางๆ */
+        }
+    </style>
 </head>
 
 <body class="login-page">
