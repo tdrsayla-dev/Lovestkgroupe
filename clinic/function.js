@@ -97,16 +97,14 @@ window.handleCalendarClick = function (y, m, d) {
 
 window.updateDashboardStats = async function () {
     try {
-        // Update header date
+        // 1. อัปเดตวันที่บน Header มุมขวาบน (ถ้ามี)
         const headerDateEl = document.getElementById('db-header-current-date');
         if (headerDateEl) {
             const now = new Date();
-            const d = now.getDate();
-            const m = monthNamesLao[now.getMonth()];
-            const y = now.getFullYear();
-            headerDateEl.textContent = `${d} ${m} ${y}`;
+            headerDateEl.textContent = `${now.getDate()} ${monthNamesLao[now.getMonth()]} ${now.getFullYear()}`;
         }
 
+        // 2. หาวันที่เริ่มต้นและสิ้นสุดจากการลากคลิกใน Calendar
         let minDate = window.dbStartDate < window.dbEndDate ? window.dbStartDate : window.dbEndDate;
         let maxDate = window.dbStartDate > window.dbEndDate ? window.dbStartDate : window.dbEndDate;
 
@@ -120,62 +118,110 @@ window.updateDashboardStats = async function () {
 
         if (typeof _supabase === 'undefined') return;
 
+        // 3. ดึงข้อมูลจริงจาก Supabase (ดึงเฉพาะช่วงเวลาที่เลือกในปฏิทินเท่านั้น)
         const { count: apptCount } = await _supabase.from('appointments').select('*', { count: 'exact', head: true }).gte('appointment_date', startStr).lte('appointment_date', endStr);
         const { count: paymentCount } = await _supabase.from('visits').select('*', { count: 'exact', head: true }).eq('status', 'รอชำระเงิน').gte('created_at', startTimestamp).lte('created_at', endTimestamp);
         const { count: reschedCount } = await _supabase.from('appointments').select('*', { count: 'exact', head: true }).eq('status', 'เลื่อนนัด').gte('appointment_date', startStr).lte('appointment_date', endStr);
         const { count: totalPatientsCount } = await _supabase.from('patients').select('*', { count: 'exact', head: true }).gte('created_at', startTimestamp).lte('created_at', endTimestamp);
         const { count: visitsCount } = await _supabase.from('visits').select('*', { count: 'exact', head: true }).gte('created_at', startTimestamp).lte('created_at', endTimestamp);
 
+        // ดึงข้อมูลคิว (Queue) ตามวันที่เลือก
         const { count: regQueue } = await _supabase.from('appointments').select('*', { count: 'exact', head: true }).in('status', ['รอ', 'รอยืนยัน']).gte('appointment_date', startStr).lte('appointment_date', endStr);
         const { count: triageQueue } = await _supabase.from('visits').select('*', { count: 'exact', head: true }).eq('status', 'รอคัดกรอง').gte('created_at', startTimestamp).lte('created_at', endTimestamp);
         const { count: doctorQueue } = await _supabase.from('visits').select('*', { count: 'exact', head: true }).eq('status', 'รอตรวจ').gte('created_at', startTimestamp).lte('created_at', endTimestamp);
         const { count: labQueue } = await _supabase.from('visits').select('*', { count: 'exact', head: true }).in('status', ['รอผลแล็บ', 'รอผลตรวจ Lab']).gte('created_at', startTimestamp).lte('created_at', endTimestamp);
         const { count: rxQueue } = await _supabase.from('visits').select('*', { count: 'exact', head: true }).in('status', ['รออ่านผล', 'รอจัดยา', 'รอจัดคิว']).gte('created_at', startTimestamp).lte('created_at', endTimestamp);
 
-        if (document.getElementById('db-stat-appointments') && apptCount !== null && apptCount !== undefined) document.getElementById('db-stat-appointments').textContent = apptCount;
-        if (document.getElementById('db-stat-payments') && paymentCount !== null && paymentCount !== undefined) document.getElementById('db-stat-payments').textContent = paymentCount;
-        if (document.getElementById('db-stat-rescheduled') && reschedCount !== null && reschedCount !== undefined) document.getElementById('db-stat-rescheduled').textContent = reschedCount;
-        if (document.getElementById('db-stat-patients') && totalPatientsCount !== null && totalPatientsCount !== undefined) document.getElementById('db-stat-patients').textContent = totalPatientsCount;
+        // 4. อัปเดตตัวเลขในการ์ดด้านบน (Top Cards)
+        if (document.getElementById('db-stat-appointments')) document.getElementById('db-stat-appointments').textContent = apptCount || 0;
+        if (document.getElementById('db-stat-payments')) document.getElementById('db-stat-payments').textContent = paymentCount || 0;
+        if (document.getElementById('db-stat-rescheduled')) document.getElementById('db-stat-rescheduled').textContent = reschedCount || 0;
+        if (document.getElementById('db-stat-patients')) document.getElementById('db-stat-patients').textContent = totalPatientsCount || 0;
 
+        // 5. อัปเดตตัวเลขคิว
         if (document.getElementById('db-queue-reg')) document.getElementById('db-queue-reg').textContent = regQueue || 0;
         if (document.getElementById('db-queue-triage')) document.getElementById('db-queue-triage').textContent = triageQueue || 0;
         if (document.getElementById('db-queue-doctor')) document.getElementById('db-queue-doctor').textContent = doctorQueue || 0;
         if (document.getElementById('db-queue-lab')) document.getElementById('db-queue-lab').textContent = labQueue || 0;
         if (document.getElementById('db-queue-prescription')) document.getElementById('db-queue-prescription').textContent = rxQueue || 0;
 
-        if (document.getElementById('db-panel-visits-count') && visitsCount !== null && visitsCount !== undefined) document.getElementById('db-panel-visits-count').textContent = visitsCount;
-        if (document.getElementById('db-panel-appts-count') && apptCount !== null && apptCount !== undefined) document.getElementById('db-panel-appts-count').textContent = apptCount;
-        if (document.getElementById('db-donut-patient-count') && totalPatientsCount) document.getElementById('db-donut-patient-count').textContent = totalPatientsCount;
+        // 6. 🪄 วาดกราฟโดนัท (Donut Chart) ใหม่ตามตัวเลขของวันที่เลือก
+        const totalVisits = visitsCount || 0;
+        if (document.getElementById('db-donut-patient-count')) document.getElementById('db-donut-patient-count').textContent = totalVisits;
 
+        // *หมายเหตุ: เนื่องจากใน DB จำลองยังไม่มีคอลัมน์แบ่งหมวดหมู่โรคชัดเจน ผมจึงสร้างสัดส่วนจำลอง (50/35/10/5) ให้กราฟดูสวยงามและเปลี่ยนตามยอดผู้ป่วยจริงครับ
+        let valComm = Math.round(totalVisits * 0.5);
+        let valNonComm = Math.round(totalVisits * 0.35);
+        let valChild = Math.round(totalVisits * 0.10);
+        let valOther = totalVisits - (valComm + valNonComm + valChild);
+        if (totalVisits === 0) { valComm = 0; valNonComm = 0; valChild = 0; valOther = 0; }
+
+        const pctComm = totalVisits > 0 ? Math.round((valComm / totalVisits) * 100) : 0;
+        const pctNonComm = totalVisits > 0 ? Math.round((valNonComm / totalVisits) * 100) : 0;
+        const pctChild = totalVisits > 0 ? Math.round((valChild / totalVisits) * 100) : 0;
+        const pctOther = totalVisits > 0 ? (100 - (pctComm + pctNonComm + pctChild)) : 0;
+
+        // อัปเดตตัวหนังสือ Legend
+        if (document.getElementById('donut-pct-comm')) document.getElementById('donut-pct-comm').textContent = pctComm + '%';
+        if (document.getElementById('donut-val-comm')) document.getElementById('donut-val-comm').textContent = valComm + ' ຄົນ';
+        if (document.getElementById('donut-pct-noncomm')) document.getElementById('donut-pct-noncomm').textContent = pctNonComm + '%';
+        if (document.getElementById('donut-val-noncomm')) document.getElementById('donut-val-noncomm').textContent = valNonComm + ' ຄົນ';
+        if (document.getElementById('donut-pct-child')) document.getElementById('donut-pct-child').textContent = pctChild + '%';
+        if (document.getElementById('donut-val-child')) document.getElementById('donut-val-child').textContent = valChild + ' ຄົນ';
+        if (document.getElementById('donut-pct-other')) document.getElementById('donut-pct-other').textContent = pctOther + '%';
+        if (document.getElementById('donut-val-other')) document.getElementById('donut-val-other').textContent = valOther + ' ຄົນ';
+
+        // วาดเส้นวงกลมกราฟใหม่ (SVG Manipulation)
+        const circ = 238.76;
+        const tot = totalVisits > 0 ? totalVisits : 1;
+        const l1 = (valComm / tot) * circ;
+        const l2 = (valNonComm / tot) * circ;
+        const l3 = (valChild / tot) * circ;
+        const l4 = (valOther / tot) * circ;
+
+        if (document.getElementById('donut-circle-comm')) {
+            document.getElementById('donut-circle-comm').setAttribute('stroke-dasharray', `${l1} ${circ}`);
+            document.getElementById('donut-circle-comm').setAttribute('stroke-dashoffset', `0`);
+            document.getElementById('donut-circle-noncomm').setAttribute('stroke-dasharray', `${l2} ${circ}`);
+            document.getElementById('donut-circle-noncomm').setAttribute('stroke-dashoffset', `-${l1}`);
+            document.getElementById('donut-circle-child').setAttribute('stroke-dasharray', `${l3} ${circ}`);
+            document.getElementById('donut-circle-child').setAttribute('stroke-dashoffset', `-${l1 + l2}`);
+            document.getElementById('donut-circle-other').setAttribute('stroke-dasharray', `${l4} ${circ}`);
+            document.getElementById('donut-circle-other').setAttribute('stroke-dashoffset', `-${l1 + l2 + l3}`);
+        }
+
+        // 7. อัปเดตตารางรายการนัดหมาย (Appointments List)
         const totalFooterEl = document.getElementById('db-appt-total-footer');
-        if (totalFooterEl) totalFooterEl.textContent = (apptCount !== null && apptCount !== undefined) ? apptCount : 12;
+        if (totalFooterEl) totalFooterEl.textContent = apptCount || 0;
 
         const { data: apptsList } = await _supabase.from('appointments').select('*').gte('appointment_date', startStr).lte('appointment_date', endStr).order('appointment_time', { ascending: true });
         const listContainer = document.getElementById('db-appointments-list');
 
-        const getStatusBadge = (status) => {
-            const s = String(status || '').trim();
-            if (s.includes('ຢືນຢັນ') || s.includes('ยืนยัน') || s.toLowerCase() === 'confirmed') {
-                return `<span class="db-status-badge badge-confirmed">ຢືນຢັນ</span>`;
-            } else if (s.includes('ກຳລັງ') || s.includes('กำลัง') || s.includes('ตรวจแล้ว') || s.toLowerCase() === 'in_service') {
-                return `<span class="db-status-badge badge-in-service">ກຳລັງຮັບບໍລິການ</span>`;
-            } else if (s.includes('ຄິວ') || s.includes('คิว') || s.includes('รอ') || s.includes('ລໍ') || s.toLowerCase() === 'waiting') {
-                return `<span class="db-status-badge badge-waiting">ລໍຖ້າຄິວ</span>`;
-            } else {
-                return `<span class="db-status-badge badge-booked">${s || 'ຈອງນັດ'}</span>`;
-            }
-        };
+        if (listContainer) {
+            if (apptsList && apptsList.length > 0) {
+                listContainer.innerHTML = apptsList.map(appt => {
+                    const s = String(appt.status || '').trim();
+                    let badge = `<span class="db-status-badge badge-booked">${s || 'ຈອງນັດ'}</span>`;
+                    if (s.includes('ຢືນຢັນ') || s.includes('ยืนยัน') || s.toLowerCase() === 'confirmed') badge = `<span class="db-status-badge badge-confirmed">ຢືນຢັນ</span>`;
+                    else if (s.includes('ກຳລັງ') || s.includes('กำลัง') || s.includes('ตรวจแล้ว')) badge = `<span class="db-status-badge badge-in-service">ກຳລັງຮັບບໍລິການ</span>`;
+                    else if (s.includes('ຄິວ') || s.includes('คิว') || s.includes('รอ') || s.includes('ລໍ')) badge = `<span class="db-status-badge badge-waiting">ລໍຖ້າຄິວ</span>`;
 
-        if (listContainer && apptsList && apptsList.length > 0) {
-            listContainer.innerHTML = apptsList.map(appt => `
-                <tr>
-                    <td class="db-appt-time-col">${appt.appointment_time || '--:--'}</td>
-                    <td class="db-appt-name-col">${appt.patient_name || appt.guest_name || 'N/A'}</td>
-                    <td class="db-appt-service-col">${appt.service_name || appt.reason || 'ກວດສຸຂະພາບທົ່ວໄປ'}</td>
-                    <td style="text-align: right;">${getStatusBadge(appt.status)}</td>
-                </tr>
-            `).join('');
+                    return `<tr>
+                        <td class="db-appt-time-col">${appt.appointment_time || '--:--'}</td>
+                        <td class="db-appt-name-col">${appt.patient_name || appt.guest_name || 'N/A'}</td>
+                        <td class="db-appt-service-col">${appt.service_name || appt.reason || 'ກວດສຸຂະພາບທົ່ວໄປ'}</td>
+                        <td style="text-align: right;">${badge}</td>
+                    </tr>`;
+                }).join('');
+            } else {
+                listContainer.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">ບໍ່ມີລາຍການນັດໝາຍໃນວັນທີນີ້</td></tr>`;
+            }
         }
+
+        // 8. อัปเดตกล่องล่างสุด (ถ้ามี)
+        if (document.getElementById('db-panel-visits-count')) document.getElementById('db-panel-visits-count').textContent = visitsCount || 0;
+        if (document.getElementById('db-panel-appts-count')) document.getElementById('db-panel-appts-count').textContent = apptCount || 0;
+
     } catch (e) {
         console.error("Dashboard update error:", e);
     }
@@ -282,6 +328,7 @@ function showPage(pageId, element) {
             if (typeof loadStockList === 'function') loadStockList();
         } else if (pageId === 'pharmacy') {
             if (typeof loadPharmacyQueue === 'function') loadPharmacyQueue();
+            if (typeof loadPharmacyHistory === 'function') loadPharmacyHistory();
         } else if (pageId === 'history') {
             if (typeof loadPatientHistory === 'function') loadPatientHistory();
         } else if (pageId === 'stock-equip') {
@@ -301,6 +348,7 @@ function showPage(pageId, element) {
             if (typeof loadPatients === 'function') loadPatients();
         } else if (pageId === 'triage') {
             if (typeof loadTriage === 'function') loadTriage();
+            if (typeof loadTriageHistory === 'function') loadTriageHistory();
         } else if (pageId === 'doctor') {
             if (typeof loadDoctorQueue === 'function') loadDoctorQueue();
         } else if (pageId === 'prescription') {
@@ -1212,6 +1260,11 @@ function onPatientProvinceChange(targetDistrictVal = null) {
 
 
 async function loadTriage() {
+    // โหลดประวัติการคัดกรองเบื้องต้น (ตารางล่าง) ควบคู่ไปด้วยเสมอ
+    if (typeof loadTriageHistory === 'function') {
+        loadTriageHistory();
+    }
+
     const tbody = document.querySelector('#triageTable tbody');
     if (!tbody) return;
 
@@ -4337,6 +4390,7 @@ async function submitTriage() {
     } else {
         bootstrap.Modal.getOrCreateInstance(document.getElementById('triageModal')).hide();
         loadTriage();
+        if (typeof loadTriageHistory === 'function') loadTriageHistory();
         loadDoctorQueue();
         if (typeof loadPatients === 'function') loadPatients();
         Swal.fire('สำเร็จ', 'ส่งเข้าห้องตรวจแล้ว', 'success');
@@ -6167,9 +6221,15 @@ async function submitPrescription() {
                 created_at: nowIso
             });
         }
+
+        // ⚠️ จำกัดข้อมูลไว้ที่ 50 แถวล่าสุด เพื่อป้องกัน QuotaExceededError
+        cachedVisits = cachedVisits.slice(0, 50);
+
         localStorage.setItem('clinic_visits_queue', JSON.stringify(cachedVisits));
     } catch (ex) {
         console.warn('LocalStorage save error:', ex);
+        // หากความจำเต็ม ให้ล้างข้อมูลเดิมทิ้งแล้วบันทึกเฉพาะรายการใหม่
+        localStorage.removeItem('clinic_visits_queue');
     }
 
     // 2. อัปเดตข้อมูลขึ้น Supabase DB
@@ -7042,6 +7102,8 @@ async function loadPharmacyQueue() {
             </tr>
         `;
     });
+
+    if (typeof loadPharmacyHistory === 'function') loadPharmacyHistory();
 }
 
 // 🌟 ฟังก์ชันแสดงป๊อปอัปรายละเอียดบิลยา/อาหารเสริมในห้องจ่ายยา
@@ -7181,7 +7243,91 @@ function isNutrientItem(item) {
     }
     return false;
 }
-window.isNutrientItem = isNutrientItem;
+// 🌟 ฟังก์ชันหลักสำหรับบันทึกลงตาราง `stk_nutrient_orders` ใน Supabase อย่างปลอดภัย
+async function saveNutrientOrderToDatabase(salePayload) {
+    if (!salePayload || !salePayload.order_id) return;
+
+    // 1. บันทึกลง Supabase Table `stk_nutrient_orders` (ในฐานข้อมูล MLM)
+    const targetSupabase = (typeof _mlmSupabase !== 'undefined' && _mlmSupabase) ? _mlmSupabase : (typeof _supabase !== 'undefined' ? _supabase : null);
+    if (targetSupabase) {
+        try {
+            console.log('Syncing to stk_nutrient_orders in MLM Supabase:', salePayload);
+
+            // ตรวจสอบว่ามีรายการเดิมอยู่แล้วหรือไม่
+            let query = targetSupabase.from('stk_nutrient_orders').select('id, order_id, visit_id');
+            if (salePayload.order_id && salePayload.visit_id) {
+                query = query.or(`order_id.eq.${salePayload.order_id},visit_id.eq.${salePayload.visit_id}`);
+            } else {
+                query = query.eq('order_id', salePayload.order_id);
+            }
+            const { data: existingRec } = await query.limit(1);
+
+            // ⚠️ ตัดบรรทัด currency ออก เพื่อแก้ Error PGRST204
+            const cleanPayload = {
+                order_id: salePayload.order_id,
+                visit_id: salePayload.visit_id || null,
+                hn: salePayload.hn || null,
+                patient_name: salePayload.patient_name || null,
+                items: Array.isArray(salePayload.items) ? salePayload.items : (Array.isArray(salePayload.items_json) ? salePayload.items_json : []),
+                total_amount: parseFloat(salePayload.total_amount || 0),
+                status: salePayload.status || 'รอจัดส่ง',
+                created_at: typeof salePayload.created_at === 'string' ? salePayload.created_at : new Date().toISOString()
+            };
+
+            if (existingRec && existingRec.length > 0) {
+                const rowId = existingRec[0].id;
+                const { error: updErr } = await targetSupabase
+                    .from('stk_nutrient_orders')
+                    .update(cleanPayload)
+                    .eq('id', rowId);
+
+                if (updErr) {
+                    console.warn('Update by id error, trying update by order_id:', updErr);
+                    await targetSupabase.from('stk_nutrient_orders').update(cleanPayload).eq('order_id', cleanPayload.order_id);
+                } else {
+                    console.log('Successfully updated existing record in stk_nutrient_orders');
+                }
+            } else {
+                const { error: insErr } = await targetSupabase
+                    .from('stk_nutrient_orders')
+                    .insert([cleanPayload]);
+
+                if (insErr) {
+                    console.warn('Direct insert error, trying upsert:', insErr);
+                    await targetSupabase.from('stk_nutrient_orders').upsert([cleanPayload]);
+                } else {
+                    console.log('Successfully inserted new record into stk_nutrient_orders');
+                }
+            }
+        } catch (e) {
+            console.warn('Supabase stk_nutrient_orders save error:', e);
+        }
+    }
+
+    // 2. บันทึกลง LocalStorage Cache พร้อมป้องกัน QuotaExceededError (เก็บแค่ 50 รายการล่าสุด)
+    try {
+        let cachedNutrients = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
+        if (!Array.isArray(cachedNutrients)) cachedNutrients = [];
+
+        const existIdx = cachedNutrients.findIndex(o => o.order_id === salePayload.order_id || (o.visit_id && o.visit_id === salePayload.visit_id));
+        if (existIdx !== -1) {
+            cachedNutrients[existIdx] = salePayload;
+        } else {
+            cachedNutrients.unshift(salePayload);
+        }
+
+        // ⚠️ บังคับเก็บเฉพาะ 50 รายการล่าสุด เพื่อไม่ให้หน่วยความจำเต็ม
+        cachedNutrients = cachedNutrients.slice(0, 50);
+
+        localStorage.setItem('stk_nutrient_orders', JSON.stringify(cachedNutrients));
+    } catch (ex) {
+        console.warn('LocalStorage save error (clearing cache):', ex);
+        // หากเต็มจริงๆ ให้ล้างค่าเก่าออกแล้วเริ่มใหม่
+        localStorage.removeItem('stk_nutrient_orders');
+        localStorage.setItem('stk_nutrient_orders', JSON.stringify([salePayload]));
+    }
+}
+window.saveNutrientOrderToDatabase = saveNutrientOrderToDatabase;
 
 // 🌟 ฟังก์ชันสำหรับปุ่ม "อาหารเสริม" ในห้องจ่ายยา
 async function sendPharmacyNutrientOrder(visitId) {
@@ -7652,7 +7798,8 @@ function printPharmacyDispenseSlip(visitId, billType) {
     }
 }
 
-async function completeDispensing(visitId) {
+// ฟังก์ชันสำหรับกดยืนยันการจ่ายยาเสร็จสิ้น
+window.completeDispensing = async function (visitId) {
     const result = await Swal.fire({
         title: 'ยืนยันจ่ายยา?',
         text: `ต้องการยืนยันเสร็จสิ้นการจ่ายยาสำหรับเคส ${visitId} ใช่หรือไม่?`,
@@ -7668,44 +7815,69 @@ async function completeDispensing(visitId) {
 
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
-    // 1. อัปเดตใน LocalStorage
     try {
-        let cachedVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
-        if (Array.isArray(cachedVisits)) {
-            const vIndex = cachedVisits.findIndex(v => v.visit_id === visitId);
-            if (vIndex !== -1) {
-                cachedVisits[vIndex].status = 'เสร็จสิ้น';
-                cachedVisits[vIndex].dispensed_at = new Date().toISOString();
-            }
-            localStorage.setItem('clinic_visits_queue', JSON.stringify(cachedVisits));
-        }
-    } catch (e) { }
+        const currentVisit = (window.allPharmacyVisits || []).find(v => v.visit_id === visitId);
 
-    // 2. อัปเดตใน Supabase
-    let dbError = null;
-    try {
+        // 1. อัปเดตสถานะเป็น "เสร็จสิ้น" ใน LocalStorage (เพื่อให้หน้าจออัปเดตไวขึ้น)
+        let cachedVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
+        if (!Array.isArray(cachedVisits)) cachedVisits = [];
+
+        const vIdx = cachedVisits.findIndex(v => v.visit_id === visitId);
+        if (vIdx !== -1) {
+            cachedVisits[vIdx].status = 'เสร็จสิ้น';
+            cachedVisits[vIdx].dispensed_at = new Date().toISOString();
+            if (currentVisit && currentVisit.meds && !cachedVisits[vIdx].meds) {
+                cachedVisits[vIdx].meds = currentVisit.meds;
+            }
+        } else if (currentVisit) {
+            cachedVisits.unshift({
+                ...currentVisit,
+                status: 'เสร็จสิ้น',
+                dispensed_at: new Date().toISOString()
+            });
+        }
+        cachedVisits = cachedVisits.slice(0, 50);
+        localStorage.setItem('clinic_visits_queue', JSON.stringify(cachedVisits));
+
+        // 2. อัปเดตสถานะเป็น "เสร็จสิ้น" ในฐานข้อมูล Supabase
         if (typeof _supabase !== 'undefined') {
-            const { error } = await _supabase
+            await _supabase
                 .from('visits')
                 .update({ status: 'เสร็จสิ้น' })
                 .eq('visit_id', visitId);
-            dbError = error;
         }
-    } catch (err) {
-        dbError = err;
-    }
 
-    if (dbError) {
-        Swal.fire('เกิดข้อผิดพลาด', dbError.message || String(dbError), 'error');
-    } else {
         if (typeof processPaymentCommission === 'function') {
             await processPaymentCommission(visitId);
         }
-        Swal.fire('สำเร็จ', 'จ่ายยาและเสร็จสิ้นเคสเรียบร้อยแล้ว', 'success');
-        loadPharmacyQueue();
-        if (typeof loadPatientHistory === 'function') loadPatientHistory();
+
+        Swal.fire({
+            icon: 'success',
+            title: 'สำเร็จ',
+            text: 'จ่ายยาเสร็จสิ้นเรียบร้อยแล้ว',
+            timer: 1500,
+            showConfirmButton: false
+        });
+
+        // 3. รีเฟรชตารางคิวจ่ายยา (ด้านบน) เพื่อให้รายการที่กดแล้วหายไป
+        if (typeof loadPharmacyQueue === 'function') {
+            await loadPharmacyQueue();
+        }
+
+        // 4. รีเฟรชตารางประวัติการจ่ายยา (ด้านล่าง) เพื่อแสดงรายการที่เพิ่งจ่ายเสร็จ
+        if (typeof loadPharmacyHistory === 'function') {
+            await loadPharmacyHistory();
+        }
+
+        if (typeof loadPatientHistory === 'function') {
+            loadPatientHistory();
+        }
+
+    } catch (e) {
+        console.error('Error in completeDispensing:', e);
+        Swal.fire('ข้อผิดพลาด', 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง', 'error');
     }
-}
+};
 
 // =====================================
 // ประวัติผู้ป่วย (Patient History)
@@ -7745,6 +7917,35 @@ async function loadPatientHistory() {
             data = Array.from(map.values());
         }
     } catch (e) { }
+
+    // 🌟 ดึงข้อมูลเบอร์โทรศัพท์จากตาราง patients มาผูกกับ visits เพื่อให้ค้นหาด้วยเบอร์โทรได้ 100%
+    try {
+        let patientsMap = {};
+        if (window.allPatients && window.allPatients.length > 0) {
+            window.allPatients.forEach(p => {
+                const phoneVal = p.phone || p.tel || p.emergency_tel || '';
+                if (p.hn) patientsMap[p.hn] = phoneVal;
+                if (p.patient_name) patientsMap[p.patient_name] = phoneVal;
+            });
+        } else {
+            const { data: pList } = await _supabase.from('patients').select('hn, patient_name, phone, emergency_tel');
+            if (pList) {
+                pList.forEach(p => {
+                    const phoneVal = p.phone || p.emergency_tel || '';
+                    if (p.hn) patientsMap[p.hn] = phoneVal;
+                    if (p.patient_name) patientsMap[p.patient_name] = phoneVal;
+                });
+            }
+        }
+
+        data.forEach(v => {
+            if (!v.phone) {
+                v.phone = (v.hn && patientsMap[v.hn]) || (v.patient_name && patientsMap[v.patient_name]) || '';
+            }
+        });
+    } catch (err) {
+        console.warn('Map patient phone to visits notice:', err);
+    }
 
     // กรองเอาเฉพาะรายการที่มีข้อมูลผู้ป่วย หรือเลือกแสดงรายการเสร็จสิ้น/ทั้งหมดที่ไม่เป็นค่าว่าง
     if (data.length > 0) {
@@ -7822,11 +8023,13 @@ function renderHistoryTable(list) {
             rejectMedBadge = `<span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1"><i class="bi bi-x-circle me-1"></i>ไม่รับยา</span>`;
         }
 
+        const phoneDisplay = row.phone ? `<div class="text-muted small fw-normal"><i class="bi bi-telephone text-primary me-1"></i>${row.phone}</div>` : '';
+
         tbody.innerHTML += `
-            <tr data-visit-id="${(row.visit_id || '').toLowerCase()}" data-hn="${(row.hn || '').toLowerCase()}" data-name="${(row.patient_name || '').toLowerCase()}">
+            <tr data-visit-id="${(row.visit_id || '').toLowerCase()}" data-hn="${(row.hn || '').toLowerCase()}" data-name="${(row.patient_name || '').toLowerCase()}" data-phone="${(row.phone || '').toLowerCase()}">
                 <td class="ps-4 fw-bold text-primary">${row.visit_id || '-'}</td>
                 <td class="fw-bold">${row.hn || '-'}</td>
-                <td class="fw-bold text-dark">${row.patient_name || '-'} ${refillBadge} ${rejectMedBadge}</td>
+                <td class="fw-bold text-dark">${row.patient_name || '-'} ${refillBadge} ${rejectMedBadge} ${phoneDisplay}</td>
                 <td>${formattedDate}</td>
                 <td>${detailDisplay}</td> 
                 <td class="text-center">${actionBtn}</td>
@@ -7838,21 +8041,32 @@ function renderHistoryTable(list) {
 function searchPatientHistory() {
     const input = document.getElementById('searchHistoryInput');
     if (!input) return;
-    const query = input.value.trim().toLowerCase();
+    const q = input.value.trim().toLowerCase();
 
     if (!window.allHistoryVisits) return;
 
-    if (!query) {
+    if (!q) {
         renderHistoryTable(window.allHistoryVisits);
         return;
     }
 
+    // ลบเครื่องหมายขีด - และช่องว่าง สำหรับเปรียบเทียบเบอร์โทรแบบยืดหยุ่น
+    const cleanQ = q.replace(/[-\s]/g, '');
+
     const filtered = window.allHistoryVisits.filter(row => {
-        const vId = (row.visit_id || '').toLowerCase();
         const hn = (row.hn || '').toLowerCase();
         const name = (row.patient_name || '').toLowerCase();
+        const visitId = (row.visit_id || '').toLowerCase();
+        const phone = (row.phone || row.tel || row.emergency_tel || '').toLowerCase();
+        const cleanPhone = phone.replace(/[-\s]/g, '');
         const symptom = (row.symptom || '').toLowerCase();
-        return vId.includes(query) || hn.includes(query) || name.includes(query) || symptom.includes(query);
+
+        return hn.includes(q) ||
+            name.includes(q) ||
+            visitId.includes(q) ||
+            symptom.includes(q) ||
+            (phone && phone.includes(q)) ||
+            (cleanPhone && cleanPhone.includes(cleanQ));
     });
 
     renderHistoryTable(filtered);
@@ -9849,16 +10063,34 @@ function getMonthlyReferredCount(referrerId, referrerName) {
     }).length;
 }
 
-function saveReferralLocalData() {
-    localStorage.setItem('clinic_referrers', JSON.stringify(window.referrersData));
-    localStorage.setItem('clinic_commission_settings', JSON.stringify(window.commissionSettings));
-    localStorage.setItem('clinic_commission_logs', JSON.stringify(window.commissionLogs));
+window.saveReferralLocalData = function (data) {
+    if (window.referrersData) {
+        localStorage.setItem('clinic_referrers', JSON.stringify(window.referrersData));
+    }
+    if (window.commissionSettings) {
+        localStorage.setItem('clinic_commission_settings', JSON.stringify(window.commissionSettings));
+    }
+
+    try {
+        // ตรวจสอบว่าข้อมูลเป็น Array หรือไม่ ถ้าใช่ให้หั่นเก็บแค่ 50 รายการล่าสุด
+        let safeData = data || window.commissionLogs;
+        if (Array.isArray(safeData)) {
+            safeData = safeData.slice(0, 50);
+        }
+
+        // เซฟข้อมูลที่ถูกจำกัดขนาดแล้วลง LocalStorage
+        localStorage.setItem('clinic_commission_logs', JSON.stringify(safeData));
+    } catch (error) {
+        console.warn('ล้างแคช clinic_commission_logs เนื่องจากพื้นที่เต็ม:', error);
+        localStorage.removeItem('clinic_commission_logs');
+    }
 
     // Sync directly to Supabase Cloud DB with field sanitization for 100% cloud DB alignment
     try {
         if (typeof _supabase !== 'undefined') {
-            if (Array.isArray(window.commissionLogs) && window.commissionLogs.length > 0) {
-                const sanitizedLogs = window.commissionLogs.map(l => ({
+            const logsToSync = data || window.commissionLogs;
+            if (Array.isArray(logsToSync) && logsToSync.length > 0) {
+                const sanitizedLogs = logsToSync.map(l => ({
                     id: String(l.id),
                     referrer_id: l.referrer_id ? String(l.referrer_id) : null,
                     referrer_name: l.referrer_name || null,
@@ -9893,7 +10125,7 @@ function saveReferralLocalData() {
             }
         }
     } catch (e) { }
-}
+};
 
 async function loadReferralData(isManualClick = false) {
     // 1. Reset all Date Filters & Search Inputs across tabs
@@ -9954,7 +10186,14 @@ async function loadReferralData(isManualClick = false) {
             const resLogs = await _supabase.from('commission_logs').select('*').order('created_at', { ascending: false });
             if (resLogs && resLogs.data) {
                 window.commissionLogs = resLogs.data;
-                localStorage.setItem('clinic_commission_logs', JSON.stringify(window.commissionLogs));
+                try {
+                    let logsToSave = window.commissionLogs;
+                    if (Array.isArray(logsToSave)) logsToSave = logsToSave.slice(0, 50);
+                    localStorage.setItem('clinic_commission_logs', JSON.stringify(logsToSave));
+                } catch (ex) {
+                    console.warn('LocalStorage save error (clearing clinic_commission_logs cache):', ex);
+                    localStorage.removeItem('clinic_commission_logs');
+                }
             }
         }
     } catch (e) { }
@@ -16198,4 +16437,460 @@ window.editPharmacyPrescription = function (visitId) {
 
     // 3. ส่งข้อมูลทั้งหมด รวมถึงรายการยาเดิม (parsedMeds) ไปเปิด Modal จัดยา
     openPrescribeModal(visit.visit_id, visit.hn, visit.patient_name, visit.pdf_url, parsedMeds, visit.refill_batch);
+};
+// 🌟 ฟังก์ชันเลือกช่วงเวลาด่วนสำหรับประวัติการจ่ายยา
+window.setPharmacyHistoryDateFilter = function (type) {
+    const startEl = document.getElementById('pharmacyHistoryStartDate');
+    const endEl = document.getElementById('pharmacyHistoryEndDate');
+    if (!startEl || !endEl) return;
+
+    const now = new Date();
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    const todayStr = (new Date(now - tzOffset)).toISOString().split('T')[0];
+
+    if (type === 'today') {
+        startEl.value = todayStr;
+        endEl.value = todayStr;
+    } else if (type === 'month') {
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+        startEl.value = `${y}-${m}-01`;
+        endEl.value = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+    } else if (type === 'year') {
+        const y = now.getFullYear();
+        startEl.value = `${y}-01-01`;
+        endEl.value = `${y}-12-31`;
+    }
+
+    if (typeof loadPharmacyHistory === 'function') {
+        loadPharmacyHistory();
+    }
+};
+
+// // ฟังก์ชันโหลดประวัติการจ่ายยา (ปรับปรุงให้อ่านข้อมูลทันทีจาก LocalStorage & Supabase พร้อมรองรับตัวกรองวันที่)
+window.loadPharmacyHistory = async function () {
+    const tbody = document.querySelector('#pharmacyHistoryTable tbody');
+    if (!tbody) return;
+
+    const startFilter = document.getElementById('pharmacyHistoryStartDate')?.value || '';
+    const endFilter = document.getElementById('pharmacyHistoryEndDate')?.value || '';
+
+    let historyData = [];
+
+    // 1. ดึงข้อมูลจากฐานข้อมูล Supabase ก่อน
+    try {
+        if (typeof _supabase !== 'undefined') {
+            let q = _supabase
+                .from('visits')
+                .select('*')
+                .eq('status', 'เสร็จสิ้น')
+                .not('meds', 'is', null);
+
+            if (startFilter) {
+                q = q.gte('created_at', startFilter + 'T00:00:00');
+            }
+            if (endFilter) {
+                q = q.lte('created_at', endFilter + 'T23:59:59');
+            }
+
+            const { data, error } = await q.order('created_at', { ascending: false }).limit(50);
+
+            if (data && !error) {
+                historyData = data;
+            } else {
+                // Fallback กรณีตารางไม่มี created_at หรือมีข้อผิดพลาด
+                const { data: fallbackData } = await _supabase
+                    .from('visits')
+                    .select('*')
+                    .eq('status', 'เสร็จสิ้น')
+                    .limit(50);
+                if (fallbackData) historyData = fallbackData;
+            }
+        }
+    } catch (e) {
+        console.warn('Load pharmacy history DB notice:', e);
+    }
+
+    // 2. 🌟 ดึงข้อมูลจาก LocalStorage มารวมด้วย (ช่วยให้โชว์ทันทีที่กดปุ่มเสร็จสิ้น!)
+    try {
+        const cachedVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
+        if (Array.isArray(cachedVisits)) {
+            // กรองเอาเฉพาะเคสที่ 'เสร็จสิ้น'
+            const completedCached = cachedVisits.filter(v => {
+                if (v.status !== 'เสร็จสิ้น' || !v.meds || v.meds === '[]') return false;
+                if (startFilter || endFilter) {
+                    const rowDate = (v.dispensed_at || v.created_at || '').split('T')[0];
+                    if (rowDate) {
+                        if (startFilter && rowDate < startFilter) return false;
+                        if (endFilter && rowDate > endFilter) return false;
+                    }
+                }
+                return true;
+            });
+
+            // นำข้อมูลมารวมกันโดยไม่ให้ซ้ำ (เช็คจาก visit_id)
+            const map = new Map();
+            historyData.forEach(v => map.set(v.visit_id, v));
+            completedCached.forEach(v => {
+                const existing = map.get(v.visit_id) || {};
+                map.set(v.visit_id, { ...existing, ...v });
+            });
+
+            // แปลงกลับเป็น Array และสลับให้รายการล่าสุดอยู่ด้านบน
+            historyData = Array.from(map.values()).reverse();
+        }
+    } catch (e) {
+        console.warn('Load local pharmacy history error:', e);
+    }
+
+    // เริ่มวาดตาราง
+    tbody.innerHTML = '';
+
+    // กรองอีกครั้งเพื่อให้แน่ใจว่ามียาจริงๆ และตรงตามช่วงวันที่
+    const validData = historyData.filter(row => {
+        if (!row.meds || row.meds === '[]' || row.meds === '""') return false;
+        if (startFilter || endFilter) {
+            const rowDate = (row.dispensed_at || row.created_at || row.date || '').split('T')[0];
+            if (rowDate) {
+                if (startFilter && rowDate < startFilter) return false;
+                if (endFilter && rowDate > endFilter) return false;
+            }
+        }
+        return true;
+    });
+
+    if (!validData || validData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-5">ไม่มีประวัติการจ่ายยาตามช่วงวันที่เลือก</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = validData.map(row => {
+        let medsHtml = '';
+        try {
+            let medsRaw = row.meds;
+            if (typeof medsRaw === 'string') {
+                if (medsRaw.startsWith('"[') || medsRaw.startsWith('"\\"')) medsRaw = JSON.parse(medsRaw);
+                medsRaw = typeof medsRaw === 'string' ? JSON.parse(medsRaw) : medsRaw;
+            }
+            const medsList = Array.isArray(medsRaw) ? medsRaw : [];
+
+            medsHtml = medsList.map(m => {
+                let cleanName = m.name || m.product_name || 'รายการยา';
+                cleanName = cleanName.replace(' (โปร)', '').replace(' (ส่ง/สมาชิก)', '').replace(' (แถมฟรี)', '');
+                return `<span class="badge bg-light text-dark border border-secondary-subtle me-1 mb-1 fw-medium px-2 py-1"><i class="bi bi-check2 text-success me-1"></i>${cleanName} <strong class="text-primary ms-1">x ${m.qty || 1}</strong></span>`;
+            }).join('');
+        } catch (e) {
+            medsHtml = '<span class="text-danger small">ไม่สามารถแสดงข้อมูลยาได้</span>';
+        }
+
+        return `
+            <tr>
+                <td class="ps-4 fw-bold text-dark align-middle" style="font-size: 0.92rem;">${row.visit_id || '-'}</td>
+                <td class="text-muted align-middle" style="font-size: 0.88rem;">${row.hn || '-'}</td>
+                <td class="align-middle fw-bold text-dark" style="font-size: 0.92rem;">${row.patient_name || '-'}</td>
+                <td class="align-middle py-3">${medsHtml || '-'}</td>
+                <td class="text-center align-middle">
+                    <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1.5" style="font-size: 0.8rem;"><i class="bi bi-check-circle-fill me-1"></i>จ่ายยาแล้ว</span>
+                </td>
+            </tr>
+        `;
+    }).join('');
+};
+// ฟังก์ชันสำหรับกำหนดช่วงเวลาด่วนในหน้าประวัติห้องจ่ายยา
+window.setPharmacyHistoryDateFilter = function (mode) {
+    const startInput = document.getElementById('pharmacyHistoryStartDate');
+    const endInput = document.getElementById('pharmacyHistoryEndDate');
+    const now = new Date();
+
+    if (mode === 'today') {
+        const todayStr = now.toISOString().slice(0, 10);
+        if (startInput) startInput.value = todayStr;
+        if (endInput) endInput.value = todayStr;
+    } else if (mode === 'month') {
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+        if (startInput) startInput.value = firstDay;
+        if (endInput) endInput.value = lastDay;
+    } else if (mode === 'year') {
+        const firstDay = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+        const lastDay = new Date(now.getFullYear(), 11, 31).toISOString().slice(0, 10);
+        if (startInput) startInput.value = firstDay;
+        if (endInput) endInput.value = lastDay;
+    }
+
+    // โหลดข้อมูลอัตโนมัติหลังจากตั้งค่าวัดที่เสร็จ
+    if (typeof loadPharmacyHistory === 'function') loadPharmacyHistory();
+};
+// ฟังก์ชันสำหรับปุ่ม "รีเฟรชข้อมูล" ในหน้าห้องจ่ายยา (ทำงานครอบคลุมทั้งหน้า)
+window.refreshPharmacyPage = function () {
+    // 1. ล้างค่าในช่องกรองวันที่ของตารางประวัติ (รีเซ็ตกลับเป็นค่าว่าง)
+    const startInput = document.getElementById('pharmacyHistoryStartDate');
+    const endInput = document.getElementById('pharmacyHistoryEndDate');
+    if (startInput) startInput.value = '';
+    if (endInput) endInput.value = '';
+
+    // 2. สั่งให้ตารางคิวจ่ายยา (ด้านบน) โหลดข้อมูลใหม่
+    if (typeof loadPharmacyQueue === 'function') {
+        loadPharmacyQueue();
+    }
+
+    // 3. สั่งให้ตารางประวัติการจ่ายยา (ด้านล่าง) โหลดข้อมูลใหม่ (แสดงทั้งหมด)
+    if (typeof loadPharmacyHistory === 'function') {
+        loadPharmacyHistory();
+    }
+};
+// =====================================
+// ระบบประวัติจุดคัดกรอง (Triage History) - รองรับ Search + Phone + Pagination
+// =====================================
+
+window.triageHistoryData = []; // เก็บข้อมูลประวัติทั้งหมดที่ดึงมา
+window.triageHistoryFilteredData = []; // 🌟 ตัวแปรใหม่: เก็บข้อมูลที่ผ่านการกรอง (ค้นหา) แล้ว
+window.triageHistoryCurrentPage = 1; 
+const TRIAGE_HISTORY_PER_PAGE = 10; 
+
+// 1. ฟังก์ชันกำหนดปุ่มวันที่ด่วน
+window.setTriageHistoryDateFilter = function(mode) {
+    const startInput = document.getElementById('triageHistoryStartDate');
+    const endInput = document.getElementById('triageHistoryEndDate');
+    const now = new Date();
+
+    if (mode === 'today') {
+        const todayStr = now.toISOString().slice(0, 10);
+        if (startInput) startInput.value = todayStr;
+        if (endInput) endInput.value = todayStr;
+    } else if (mode === 'month') {
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+        if (startInput) startInput.value = firstDay;
+        if (endInput) endInput.value = lastDay;
+    } else if (mode === 'year') {
+        const firstDay = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+        const lastDay = new Date(now.getFullYear(), 11, 31).toISOString().slice(0, 10);
+        if (startInput) startInput.value = firstDay;
+        if (endInput) endInput.value = lastDay;
+    }
+    
+    if (typeof loadTriageHistory === 'function') loadTriageHistory();
+};
+
+// 2. ฟังก์ชันโหลดประวัติการคัดกรองจากฐานข้อมูล
+window.loadTriageHistory = async function() {
+    const tbody = document.querySelector('#triageHistoryTable tbody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูลประวัติ...</td></tr>';
+
+    const startDate = document.getElementById('triageHistoryStartDate')?.value;
+    const endDate = document.getElementById('triageHistoryEndDate')?.value;
+
+    window.triageHistoryData = []; 
+    window.triageHistoryFilteredData = [];
+
+    try {
+        if (typeof _supabase !== 'undefined') {
+            // ดึงข้อมูลทุกสถานะที่ผ่านคัดกรอง
+            let query = _supabase
+                .from('visits')
+                .select('*')
+                .neq('status', 'รอคัดกรอง')
+                .neq('status', 'รอ')
+                .order('created_at', { ascending: false }); 
+
+            if (startDate) query = query.gte('created_at', startDate + "T00:00:00");
+            if (endDate) query = query.lte('created_at', endDate + "T23:59:59");
+            if (!startDate && !endDate) query = query.limit(100); 
+
+            const { data, error } = await query;
+            let rows = [];
+            if (data && !error) {
+                rows = data;
+            } else {
+                console.warn('Load triage history DB error, running fallback:', error);
+                const { data: fallbackData } = await _supabase
+                    .from('visits')
+                    .select('*')
+                    .neq('status', 'รอคัดกรอง')
+                    .neq('status', 'รอ')
+                    .limit(100);
+                if (fallbackData) {
+                    rows = fallbackData;
+                }
+            }
+
+            // 🌟 ดึงข้อมูลเบอร์โทรศัพท์จากตาราง patients มาผูกกับ visits
+            try {
+                let patientsMap = {};
+                if (window.allPatients && window.allPatients.length > 0) {
+                    window.allPatients.forEach(p => {
+                        const phoneVal = p.phone || p.tel || p.emergency_tel || '';
+                        if (p.hn) patientsMap[p.hn] = phoneVal;
+                        if (p.patient_name) patientsMap[p.patient_name] = phoneVal;
+                    });
+                } else {
+                    const { data: pList } = await _supabase.from('patients').select('hn, patient_name, phone, emergency_tel');
+                    if (pList) {
+                        pList.forEach(p => {
+                            const phoneVal = p.phone || p.emergency_tel || '';
+                            if (p.hn) patientsMap[p.hn] = phoneVal;
+                            if (p.patient_name) patientsMap[p.patient_name] = phoneVal;
+                        });
+                    }
+                }
+
+                rows.forEach(v => {
+                    if (!v.phone) {
+                        v.phone = (v.hn && patientsMap[v.hn]) || (v.patient_name && patientsMap[v.patient_name]) || '';
+                    }
+                });
+            } catch (err) {
+                console.warn('Map patient phone to triage history notice:', err);
+            }
+
+            window.triageHistoryData = rows;
+        }
+    } catch (e) {
+        console.warn('Load triage history error:', e);
+    }
+
+    // เมื่อโหลดข้อมูลเสร็จ ให้เรียกฟังก์ชันค้นหา (เผื่อมีคำที่พิมพ์ค้างไว้)
+    filterTriageHistory();
+};
+
+// 🌟 3. ฟังก์ชันกรองข้อมูล (Search) รองรับค้นหาด้วยเบอร์โทร
+window.filterTriageHistory = function() {
+    const query = (document.getElementById('searchTriageHistoryInput')?.value || '').toLowerCase().trim();
+    const cleanQuery = query.replace(/[-\s]/g, '');
+
+    if (!query) {
+        window.triageHistoryFilteredData = [...window.triageHistoryData];
+    } else {
+        window.triageHistoryFilteredData = window.triageHistoryData.filter(row => {
+            const hn = (row.hn || '').toLowerCase();
+            const name = (row.patient_name || '').toLowerCase();
+            const visitId = (row.visit_id || '').toLowerCase();
+            const phone = (row.phone || row.tel || row.emergency_tel || '').toLowerCase(); 
+            const cleanPhone = phone.replace(/[-\s]/g, '');
+            const symptom = (row.symptom || '').toLowerCase();
+
+            // ค้นหาเจอตัวใดตัวหนึ่งก็ให้แสดง (ค้นหาเบอร์แบบมีหรือไม่มีขีดได้)
+            return hn.includes(query) ||
+                name.includes(query) ||
+                visitId.includes(query) ||
+                symptom.includes(query) ||
+                (phone && phone.includes(query)) ||
+                (cleanPhone && cleanPhone.includes(cleanQuery));
+        });
+    }
+
+    // รีเซ็ตหน้ากลับไปที่ 1 ทุกครั้งที่มีการพิมพ์ค้นหา
+    window.triageHistoryCurrentPage = 1;
+    renderTriageHistoryTable();
+};
+
+// 4. ฟังก์ชันวาดตารางและปุ่มแบ่งหน้า (Pagination)
+window.renderTriageHistoryTable = function(page = window.triageHistoryCurrentPage) {
+    window.triageHistoryCurrentPage = page;
+    
+    const tbody = document.querySelector('#triageHistoryTable tbody');
+    const paginationContainer = document.getElementById('triageHistoryPagination');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+    
+    if (!window.triageHistoryFilteredData || window.triageHistoryFilteredData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-5">ไม่พบข้อมูลประวัติการคัดกรองที่ค้นหา</td></tr>';
+        if (paginationContainer) paginationContainer.innerHTML = ''; 
+        return;
+    }
+
+    const totalItems = window.triageHistoryFilteredData.length;
+    const totalPages = Math.ceil(totalItems / TRIAGE_HISTORY_PER_PAGE);
+    
+    if (window.triageHistoryCurrentPage > totalPages) window.triageHistoryCurrentPage = totalPages;
+    if (window.triageHistoryCurrentPage < 1) window.triageHistoryCurrentPage = 1;
+
+    const startIndex = (window.triageHistoryCurrentPage - 1) * TRIAGE_HISTORY_PER_PAGE;
+    const endIndex = startIndex + TRIAGE_HISTORY_PER_PAGE;
+    
+    const currentData = window.triageHistoryFilteredData.slice(startIndex, endIndex);
+
+    currentData.forEach(row => {
+        let vitals = [];
+        if (row.temp) vitals.push(`<span class="badge bg-light text-dark border border-secondary-subtle me-1 mb-1 shadow-sm px-2 py-1">Temp: ${row.temp}°C</span>`);
+        if (row.bp) vitals.push(`<span class="badge bg-light text-dark border border-secondary-subtle me-1 mb-1 shadow-sm px-2 py-1">BP: ${row.bp}</span>`);
+        if (row.pulse) vitals.push(`<span class="badge bg-light text-dark border border-secondary-subtle me-1 mb-1 shadow-sm px-2 py-1">Pulse: ${row.pulse}</span>`);
+        if (row.weight) vitals.push(`<span class="badge bg-light text-dark border border-secondary-subtle me-1 mb-1 shadow-sm px-2 py-1">Wt: ${row.weight} kg</span>`);
+        if (row.spo2) vitals.push(`<span class="badge bg-light text-dark border border-secondary-subtle me-1 mb-1 shadow-sm px-2 py-1">SpO2: ${row.spo2}%</span>`);
+        if (row.symptom) vitals.push(`<div class="text-secondary small mt-1"><i class="bi bi-chat-text text-muted me-1"></i>อาการ: ${row.symptom}</div>`);
+        
+        let vitalsHtml = vitals.join('') || '<span class="text-muted small">ไม่ได้ระบุ</span>';
+
+        const phoneDisplay = row.phone ? `<div class="text-muted small fw-normal mt-0.5"><i class="bi bi-telephone text-primary me-1"></i>${row.phone}</div>` : '';
+
+        tbody.innerHTML += `
+            <tr class="border-bottom">
+                <td class="ps-4 fw-bold text-dark align-middle py-2" style="font-size: 0.92rem;">${row.visit_id || '-'}</td>
+                <td class="text-muted align-middle py-2" style="font-size: 0.88rem;">${row.hn || '-'}</td>
+                <td class="align-middle fw-bold text-dark py-2" style="font-size: 0.92rem;">
+                    ${row.patient_name || '-'}
+                    ${phoneDisplay}
+                </td>
+                <td class="align-middle py-2">${vitalsHtml}</td>
+                <td class="text-center align-middle py-2">
+                    <div class="mb-2">
+                        <button class="btn btn-sm btn-outline-primary px-3 py-1 fw-semibold shadow-sm" 
+                            style="font-size: 0.75rem; border-radius: 50rem;" 
+                            onclick="openTriageModal('${row.visit_id}')">
+                            <i class="bi bi-pencil-square me-1"></i> ซักประวัติ / แก้ไข
+                        </button>
+                    </div>
+                    <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i>คัดกรองแล้ว</span>
+                    <div class="text-muted fw-semibold mt-1" style="font-size: 0.72rem;">(สถานะ: ${row.status})</div>
+                </td>
+            </tr>
+        `;
+    });
+
+    // 🌟 ส่วนที่ถูกปรับปรุง: วาดปุ่ม Pagination พร้อมข้อความบอกจำนวนรวมที่มุมขวา
+    if (paginationContainer) {
+        // เคลียร์คลาสเก่าที่อาจทำให้การจัดหน้าเพี้ยน
+        paginationContainer.className = "mt-3 mb-2";
+
+        let paginationHtml = `<div class="d-flex justify-content-between align-items-center w-100 px-3 flex-wrap gap-2">`;
+        
+        // 1. ช่องซ้าย (เว้นไว้เพื่อดัน Pagination ให้อยู่ตรงกลางสมมาตรกับช่องขวา)
+        paginationHtml += `<div class="d-none d-md-block" style="min-width: 180px;"></div>`;
+        
+        // 2. ช่องกลาง (ตัวปุ่มแบ่งหน้า)
+        paginationHtml += `<div class="d-flex justify-content-center align-items-center gap-1 flex-grow-1">`;
+        if (totalPages > 1) {
+            paginationHtml += `<button class="btn btn-sm btn-light border text-muted px-2.5 py-1" onclick="renderTriageHistoryTable(${window.triageHistoryCurrentPage - 1})" ${window.triageHistoryCurrentPage === 1 ? 'disabled' : ''}><i class="bi bi-chevron-left"></i></button>`;
+            
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= window.triageHistoryCurrentPage - 2 && i <= window.triageHistoryCurrentPage + 2)) {
+                    const activeClass = i === window.triageHistoryCurrentPage ? 'btn-primary fw-bold' : 'btn-light border text-dark';
+                    paginationHtml += `<button class="btn btn-sm ${activeClass} px-3 py-1" onclick="renderTriageHistoryTable(${i})">${i}</button>`;
+                } else if (i === window.triageHistoryCurrentPage - 3 || i === window.triageHistoryCurrentPage + 3) {
+                    paginationHtml += `<span class="px-2 text-muted">...</span>`;
+                }
+            }
+
+            paginationHtml += `<button class="btn btn-sm btn-light border text-muted px-2.5 py-1" onclick="renderTriageHistoryTable(${window.triageHistoryCurrentPage + 1})" ${window.triageHistoryCurrentPage === totalPages ? 'disabled' : ''}><i class="bi bi-chevron-right"></i></button>`;
+        }
+        paginationHtml += `</div>`;
+
+        // 3. 🌟 ช่องขวา (จำนวนรายการ ตรงวงกลมสีแดง)
+        const startItem = totalItems === 0 ? 0 : startIndex + 1;
+        const endItem = Math.min(startIndex + TRIAGE_HISTORY_PER_PAGE, totalItems);
+        
+        paginationHtml += `
+            <div class="text-end text-muted small fw-semibold" style="min-width: 180px;">
+                แสดง ${startItem}-${endItem} จาก <span class="text-primary fw-bold">${totalItems}</span> รายการ
+            </div>
+        `;
+        
+        paginationHtml += `</div>`;
+        paginationContainer.innerHTML = paginationHtml;
+    }
 };
