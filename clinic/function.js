@@ -1,5 +1,5 @@
 // Initialize Current User Session Immediately
-try { window.currentUser = JSON.parse(localStorage.getItem('clinicUser') || 'null'); } catch(e) {}
+try { window.currentUser = JSON.parse(localStorage.getItem('clinicUser') || 'null'); } catch (e) { }
 
 // Global variables for Dashboard Calendar
 window.dbStartDate = new Date();
@@ -346,6 +346,155 @@ try {
     console.warn('MLM Supabase client init error:', err);
 }
 
+// =====================================
+// Centralized Real-time Synchronization Hub (All Tables)
+// =====================================
+let _realtimeDebounceTimers = {};
+
+function debounceRealtime(key, callback, delay = 250) {
+    if (_realtimeDebounceTimers[key]) {
+        clearTimeout(_realtimeDebounceTimers[key]);
+    }
+    _realtimeDebounceTimers[key] = setTimeout(() => {
+        try {
+            callback();
+        } catch (e) {
+            console.warn('Realtime callback error for ' + key, e);
+        }
+    }, delay);
+}
+
+function initClinicRealtimeHub() {
+    if (typeof _supabase === 'undefined' || !_supabase) return;
+
+    try {
+        console.log('⚡ Initializing Clinic Central Real-time Subscriptions across all tables...');
+
+        // 1. Channel สำหรับตาราง VISITS (คัดกรอง, ตรวจแพทย์, แล็บ, จัดคิว, อ่านผล/จัดยา, จ่ายยา, ชำระเงิน, ประวัติ)
+        _supabase.channel('realtime_visits')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'visits' }, (payload) => {
+                console.log('⚡ [Realtime: Visits Update]', payload.eventType, payload.new || payload.old);
+                debounceRealtime('visits', () => {
+                    if (typeof loadTriage === 'function') loadTriage();
+                    if (typeof loadDoctorQueue === 'function') loadDoctorQueue();
+                    if (typeof loadLabQueue === 'function') loadLabQueue();
+                    if (typeof loadQueueList === 'function') loadQueueList();
+                    if (typeof loadPrescriptionList === 'function') loadPrescriptionList();
+                    if (typeof loadPharmacyQueue === 'function') loadPharmacyQueue();
+                    if (typeof loadPaymentQueue === 'function') loadPaymentQueue();
+                    if (typeof loadPatientHistory === 'function') loadPatientHistory();
+                    if (typeof updateDashboardStats === 'function') updateDashboardStats();
+                }, 200);
+            })
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') console.log('✅ Realtime Active: visits table');
+            });
+
+        // 2. Channel สำหรับตาราง APPOINTMENTS (นัดหมายล่วงหน้า & ปฏิทิน Dashboard)
+        _supabase.channel('realtime_appointments')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, (payload) => {
+                console.log('⚡ [Realtime: Appointments Update]', payload.eventType);
+                debounceRealtime('appointments', () => {
+                    if (typeof loadAppointments === 'function') loadAppointments();
+                    if (typeof window.renderCalendar === 'function') window.renderCalendar();
+                    if (typeof updateDashboardStats === 'function') updateDashboardStats();
+                }, 200);
+            })
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') console.log('✅ Realtime Active: appointments table');
+            });
+
+        // 3. Channel สำหรับตาราง PATIENTS (ทะเบียนผู้ป่วย)
+        _supabase.channel('realtime_patients')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'patients' }, (payload) => {
+                console.log('⚡ [Realtime: Patients Update]', payload.eventType);
+                debounceRealtime('patients', () => {
+                    if (typeof loadPatients === 'function') loadPatients();
+                    if (typeof updateDashboardStats === 'function') updateDashboardStats();
+                }, 200);
+            })
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') console.log('✅ Realtime Active: patients table');
+            });
+
+        // 4. Channel สำหรับตาราง MEDICINES (คลังยา & สต็อกยา)
+        _supabase.channel('realtime_medicines')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'medicines' }, (payload) => {
+                console.log('⚡ [Realtime: Medicines Update]', payload.eventType);
+                debounceRealtime('medicines', () => {
+                    if (typeof loadStockList === 'function') loadStockList();
+                    if (typeof loadMedicines === 'function') loadMedicines();
+                    if (typeof populateRxMedDropdown === 'function') populateRxMedDropdown();
+                }, 200);
+            })
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') console.log('✅ Realtime Active: medicines table');
+            });
+
+        // 5. Channel สำหรับตาราง SUPPLIES & SUPPLY_REQUESTS (คลังพัสดุ & เบิกพัสดุ)
+        _supabase.channel('realtime_supplies')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'supplies' }, () => {
+                debounceRealtime('supplies', () => {
+                    if (typeof loadSupplyItems === 'function') loadSupplyItems();
+                }, 200);
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'supply_requests' }, () => {
+                debounceRealtime('supply_requests', () => {
+                    if (typeof loadSupplyRequests === 'function') loadSupplyRequests();
+                }, 200);
+            })
+            .subscribe();
+
+        // 6. Channel สำหรับตาราง BILLS & EXPENSES (ระบบบิล & รายจ่ายประจำวัน)
+        _supabase.channel('realtime_finance')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'clinic_bills' }, () => {
+                debounceRealtime('bills', () => {
+                    if (typeof loadBills === 'function') loadBills();
+                    if (typeof updateDashboardStats === 'function') updateDashboardStats();
+                }, 200);
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'clinic_expenses' }, () => {
+                debounceRealtime('expenses', () => {
+                    if (typeof loadExpenses === 'function') loadExpenses();
+                    if (typeof updateDashboardStats === 'function') updateDashboardStats();
+                }, 200);
+            })
+            .subscribe();
+
+        // 7. Channel สำหรับตาราง STAFF_USERS & STAFF (พนักงาน & สิทธิ์ผู้ใช้)
+        _supabase.channel('realtime_staff')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_users' }, () => {
+                debounceRealtime('staff', () => {
+                    if (typeof loadStaffUsers === 'function') loadStaffUsers();
+                    if (typeof loadQueueList === 'function') loadQueueList();
+                }, 200);
+            })
+            .subscribe();
+
+        // 8. Channel สำหรับตาราง SERVICES (รายการบริการตรวจ)
+        _supabase.channel('realtime_services')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'services' }, () => {
+                debounceRealtime('services', () => {
+                    if (typeof loadServicesData === 'function') loadServicesData();
+                }, 200);
+            })
+            .subscribe();
+
+        // 9. Channel สำหรับตาราง REFERRALS (ระบบปันผล & สมาชิก)
+        _supabase.channel('realtime_referrals')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'referrals' }, () => {
+                debounceRealtime('referrals', () => {
+                    if (typeof loadReferralData === 'function') loadReferralData();
+                }, 200);
+            })
+            .subscribe();
+
+    } catch (err) {
+        console.warn('Real-time Hub initialization error:', err);
+    }
+}
+window.initClinicRealtimeHub = initClinicRealtimeHub;
+
 function generateId(prefix) {
     return prefix + '-' + Math.floor(100000 + Math.random() * 900000);
 }
@@ -410,6 +559,7 @@ document.addEventListener("DOMContentLoaded", function () {
     loadMedicines();
     loadMlmProducts();
     initMlmRealtimeSubscription();
+    initClinicRealtimeHub();
     loadPharmacyQueue();
     loadPatientHistory();
     loadSupplyItems();
@@ -1144,7 +1294,7 @@ async function loadDoctorQueue() {
 
     let currentUser = window.currentUser;
     if (!currentUser) {
-        try { currentUser = JSON.parse(localStorage.getItem('clinicUser') || 'null'); } catch (e) {}
+        try { currentUser = JSON.parse(localStorage.getItem('clinicUser') || 'null'); } catch (e) { }
     }
     const isDoc = isDoctorUser(currentUser);
 
@@ -1358,7 +1508,7 @@ async function loadPrescriptionList() {
 
     let currentUser = window.currentUser;
     if (!currentUser) {
-        try { currentUser = JSON.parse(localStorage.getItem('clinicUser') || 'null'); } catch (e) {}
+        try { currentUser = JSON.parse(localStorage.getItem('clinicUser') || 'null'); } catch (e) { }
     }
     const isDoc = isDoctorUser(currentUser);
 
@@ -1402,7 +1552,7 @@ async function loadPrescriptionList() {
                     filterSelect.innerHTML += `<option value="${dName}">👨‍⚕️ ${dName}</option>`;
                 });
             }
-        } catch (e) {}
+        } catch (e) { }
     }
 
     let filtered = data || [];
@@ -1416,7 +1566,7 @@ async function loadPrescriptionList() {
     }
 
     if (!filtered || filtered.length === 0) {
-        const emptyMsg = isDoc 
+        const emptyMsg = isDoc
             ? `ไม่มีรายการรออ่านผลสำหรับคุณหมอ (${currentUser.full_name || currentUser.name || 'ท่านนี้'})`
             : 'ไม่มีรายการรออ่านผล';
         tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-5"><i class="bi bi-person-check me-2"></i>${emptyMsg}</td></tr>`;
@@ -1602,14 +1752,14 @@ async function getClinicExchangeRate() {
                     window.clinicExchangeRate = parseFloat(data.value) || 700;
                     return window.clinicExchangeRate;
                 }
-            } catch (e) {}
+            } catch (e) { }
             try {
                 const { data: sysData } = await _supabase.from('system_settings').select('value').eq('key', 'exchange_rate').maybeSingle();
                 if (sysData && sysData.value) {
                     window.clinicExchangeRate = parseFloat(sysData.value) || 700;
                     return window.clinicExchangeRate;
                 }
-            } catch (e) {}
+            } catch (e) { }
         }
     } catch (e) { }
     return window.clinicExchangeRate || 700;
@@ -1730,7 +1880,7 @@ function formatMoneyInput(el, allowDecimal = false, effectiveTotal = null) {
         const parts = clean.split('.');
         let integerPart = parts[0] || '';
         let decimalPart = parts.length > 1 ? '.' + parts.slice(1).join('') : '';
-        
+
         let formatted = integerPart ? Number(integerPart).toLocaleString('en-US') : '';
         if (clean.startsWith('.') && !formatted) formatted = '0';
         el.value = (formatted || clean === '0' || clean.startsWith('0')) ? formatted + decimalPart : '';
@@ -1755,7 +1905,7 @@ function formatMoneyInput(el, allowDecimal = false, effectiveTotal = null) {
         if (digitsBeforeCursor === 0) newPos = 0;
         try {
             el.setSelectionRange(newPos, newPos);
-        } catch (e) {}
+        } catch (e) { }
     }
 
     if (typeof recalcClinicPayment === 'function') {
@@ -2050,7 +2200,7 @@ async function viewLabDetailsByVisitId(visitId) {
                     };
                 }
             }
-        } catch (e) {}
+        } catch (e) { }
     }
 
     if (item) {
@@ -2256,7 +2406,7 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
             if (pData && pData.hn) {
                 hn = pData.hn;
                 if (visitId && visitId !== '-') {
-                    _supabase.from('visits').update({ hn: pData.hn }).eq('visit_id', visitId).then(() => {});
+                    _supabase.from('visits').update({ hn: pData.hn }).eq('visit_id', visitId).then(() => { });
                 }
             }
         } catch (e) {
@@ -2271,7 +2421,7 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
     try {
         const discountsMap = JSON.parse(localStorage.getItem('clinic_visit_discounts') || '{}');
         if (discountsMap[visitId] !== undefined) savedDiscount = parseFloat(discountsMap[visitId]) || 0;
-    } catch (e) {}
+    } catch (e) { }
 
     const discount = parseFloat(discountVal) || savedDiscount || (visitRecord ? parseFloat(visitRecord.discount || visitRecord.lab_discount || 0) : 0);
 
@@ -2892,13 +3042,13 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
         if (cashLAK > 0) cashDetail.push(`${cashLAK.toLocaleString()} ₭`);
         if (cashTHB > 0) cashDetail.push(`฿${cashTHB.toLocaleString()}`);
         if (cashDetail.length > 0) parts.push(`สด: ${cashDetail.join(' + ')}`);
-        
+
         let transferDetail = [];
         if (transferLaosLAK > 0) transferDetail.push(`${transferLaosBankLAK} ${transferLaosLAK.toLocaleString()} ₭`);
         if (transferLaosTHB > 0) transferDetail.push(`${transferLaosBankTHB} ฿${transferLaosTHB.toLocaleString()}`);
         if (transferThaiTHB > 0) transferDetail.push(`${transferThaiBank} ฿${transferThaiTHB.toLocaleString()}`);
         if (transferDetail.length > 0) parts.push(`โอน: ${transferDetail.join(' + ')}`);
-        
+
         paymentMethodSummary = parts.join(' | ') || 'เงินสด + เงินโอน';
     }
 
@@ -2914,9 +3064,9 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
     });
 
     const now = new Date();
-    const dateCode = now.getFullYear().toString().slice(-2) + 
-                     String(now.getMonth() + 1).padStart(2, '0') + 
-                     String(now.getDate()).padStart(2, '0');
+    const dateCode = now.getFullYear().toString().slice(-2) +
+        String(now.getMonth() + 1).padStart(2, '0') +
+        String(now.getDate()).padStart(2, '0');
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const billId = `BILL-${dateCode}-${randomSuffix}`;
 
@@ -2925,7 +3075,7 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
     try {
         const user = JSON.parse(localStorage.getItem('clinicUser') || '{}');
         staffName = user.name || user.full_name || 'Staff';
-    } catch(e) {}
+    } catch (e) { }
 
     // ตรวจสอบอัตราแลกเปลี่ยน
     const exRateInput = document.getElementById('clinicExchangeRateInput');
@@ -3037,7 +3187,7 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
                 const res2 = await _supabase.from('bills').insert([billFallback]);
                 if (res2 && res2.error) console.warn('Bills DB insert fallback warning:', res2.error.message);
             }
-        } catch(bErr) {
+        } catch (bErr) {
             console.warn('Bills DB insert exception:', bErr);
         }
 
@@ -3051,7 +3201,7 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
             localStorage.setItem('clinic_bills_cache', JSON.stringify(safeBillsCache));
         } catch (storageErr) {
             console.warn('LocalStorage clinic_bills_cache quota exceeded, clearing cache:', storageErr);
-            try { localStorage.removeItem('clinic_bills_cache'); } catch(e) {}
+            try { localStorage.removeItem('clinic_bills_cache'); } catch (e) { }
         }
 
         // ⚡ นำแถวออกจากตารางห้องจ่ายค่ารักษาทันที (Realtime UI removal)
@@ -3085,7 +3235,7 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
             const { error: vErr } = await _supabase.from('visits').update(visitUpdatePayload).eq('visit_id', visitId);
             if (vErr) {
                 console.warn('Visits update with extra fields failed, fallback to status only:', vErr.message);
-                const { error: vErr2 } = await _supabase.from('visits').update({ 
+                const { error: vErr2 } = await _supabase.from('visits').update({
                     status: 'รอผลแล็บ',
                     payment_status: 'paid',
                     payable_amount: netPayable,
@@ -3095,11 +3245,11 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
                     await _supabase.from('visits').update({ status: 'รอผลแล็บ' }).eq('visit_id', visitId);
                 }
             }
-        } catch(vErr) {
+        } catch (vErr) {
             console.warn('Visits update fallback:', vErr);
             try {
                 await _supabase.from('visits').update({ status: 'รอผลแล็บ' }).eq('visit_id', visitId);
-            } catch(e) {}
+            } catch (e) { }
         }
 
         if (Array.isArray(window.clinicVisits)) {
@@ -3204,17 +3354,17 @@ function parseBillPaymentSplit(b) {
     try {
         const cachedBills = JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]');
         cachedMatch = cachedBills.find(x => x.bill_id === b.bill_id || x.visit_id === b.visit_id);
-    } catch(e) {}
+    } catch (e) { }
 
     const allNotesText = `${pNote} ${vNote} ${b.note || ''} ${pMethod} ${vMethod}`.trim();
 
     let expCash = (b.cash_lak !== undefined && b.cash_lak !== null) ? parseFloat(b.cash_lak) :
-                  (cachedMatch && cachedMatch.cash_lak !== undefined && cachedMatch.cash_lak !== null ? parseFloat(cachedMatch.cash_lak) :
-                  (vMatch && vMatch.cash_lak !== undefined && vMatch.cash_lak !== null ? parseFloat(vMatch.cash_lak) : null));
-    
+        (cachedMatch && cachedMatch.cash_lak !== undefined && cachedMatch.cash_lak !== null ? parseFloat(cachedMatch.cash_lak) :
+            (vMatch && vMatch.cash_lak !== undefined && vMatch.cash_lak !== null ? parseFloat(vMatch.cash_lak) : null));
+
     let expTransfer = (b.transfer_lak !== undefined && b.transfer_lak !== null) ? parseFloat(b.transfer_lak) :
-                      (cachedMatch && cachedMatch.transfer_lak !== undefined && cachedMatch.transfer_lak !== null ? parseFloat(cachedMatch.transfer_lak) :
-                      (vMatch && vMatch.transfer_lak !== undefined && vMatch.transfer_lak !== null ? parseFloat(vMatch.transfer_lak) : null));
+        (cachedMatch && cachedMatch.transfer_lak !== undefined && cachedMatch.transfer_lak !== null ? parseFloat(cachedMatch.transfer_lak) :
+            (vMatch && vMatch.transfer_lak !== undefined && vMatch.transfer_lak !== null ? parseFloat(vMatch.transfer_lak) : null));
 
     const splitMatch = allNotesText.match(/\[PAY_SPLIT:\s*CASH=([\d.]+),\s*TRANSFER=([\d.]+)/i);
     if (splitMatch) {
@@ -3259,10 +3409,10 @@ function parseBillPaymentSplit(b) {
         }
     } else {
         const fullHint = `${pMethod} ${pMode} ${pNote} ${vMethod} ${vNote}`.toLowerCase();
-        const hasTransferWord = fullHint.includes('โอน') || fullHint.includes('ໂອນ') || fullHint.includes('transfer') || 
-                                fullHint.includes('bcel') || fullHint.includes('kbank') || fullHint.includes('scb') || 
-                                fullHint.includes('ldb') || fullHint.includes('jdb') || fullHint.includes('apb') || 
-                                fullHint.includes('lvb') || fullHint.includes('promptpay') || fullHint.includes('bank') || fullHint.includes('ธนาคาร');
+        const hasTransferWord = fullHint.includes('โอน') || fullHint.includes('ໂອນ') || fullHint.includes('transfer') ||
+            fullHint.includes('bcel') || fullHint.includes('kbank') || fullHint.includes('scb') ||
+            fullHint.includes('ldb') || fullHint.includes('jdb') || fullHint.includes('apb') ||
+            fullHint.includes('lvb') || fullHint.includes('promptpay') || fullHint.includes('bank') || fullHint.includes('ธนาคาร');
         const hasCashWord = fullHint.includes('สด') || fullHint.includes('ສົດ') || fullHint.includes('cash');
         const isBothMode = (pMode === 'สด+โอน' || pMode === 'ສົດ+ໂອນ' || fullHint.includes('สด+โอน') || fullHint.includes('ສົດ+ໂອນ') || (hasTransferWord && hasCashWord && (fullHint.includes('+') || fullHint.includes('|') || fullHint.includes('และ'))));
 
@@ -3317,7 +3467,7 @@ async function loadBills(forceReload = false) {
             if (data && !error && data.length > 0) {
                 billsData = data;
             }
-        } catch(dbErr) {
+        } catch (dbErr) {
             console.warn('Supabase bills query warning:', dbErr);
         }
 
@@ -3355,7 +3505,7 @@ async function loadBills(forceReload = false) {
         window.clinicBills = billsData;
         try {
             localStorage.setItem('clinic_bills_cache', JSON.stringify((billsData || []).slice(0, 50)));
-        } catch(e) {
+        } catch (e) {
             console.warn('LocalStorage clinic_bills_cache quota exceeded in loadBills:', e);
         }
         renderBillsTable();
@@ -3382,7 +3532,7 @@ function renderBillsTable() {
 
     // ค้นหาข้อความ
     if (searchInput) {
-        filtered = filtered.filter(b => 
+        filtered = filtered.filter(b =>
             (b.bill_id && b.bill_id.toLowerCase().includes(searchInput)) ||
             (b.visit_id && b.visit_id.toLowerCase().includes(searchInput)) ||
             (b.hn && b.hn.toLowerCase().includes(searchInput)) ||
@@ -3394,12 +3544,12 @@ function renderBillsTable() {
     // กรองตามช่วงวันที่
     if (startDate) {
         const start = new Date(startDate);
-        start.setHours(0,0,0,0);
+        start.setHours(0, 0, 0, 0);
         filtered = filtered.filter(b => new Date(b.created_at) >= start);
     }
     if (endDate) {
         const end = new Date(endDate);
-        end.setHours(23,59,59,999);
+        end.setHours(23, 59, 59, 999);
         filtered = filtered.filter(b => new Date(b.created_at) <= end);
     }
 
@@ -3437,8 +3587,8 @@ function renderBillsTable() {
     let rowsHtml = '';
     filtered.forEach((b, idx) => {
         const dateObj = new Date(b.created_at);
-        const dateStr = !isNaN(dateObj) ? 
-            dateObj.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' }) + ' ' + 
+        const dateStr = !isNaN(dateObj) ?
+            dateObj.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' }) + ' ' +
             dateObj.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
 
         const itemCount = Array.isArray(b.items) ? b.items.length : (b.items_count || 1);
@@ -3538,11 +3688,15 @@ function switchBillsView(view) {
         if (tabListBtn) tabListBtn.classList.remove('active');
         if (tabDailyBtn) tabDailyBtn.classList.add('active');
 
-        const dateInput = document.getElementById('dailyReportDateInput');
-        if (dateInput && !dateInput.value) {
-            dateInput.value = new Date().toISOString().slice(0, 10);
+        const startInput = document.getElementById('dailyReportStartDate');
+        const endInput = document.getElementById('dailyReportEndDate');
+        if (startInput && !startInput.value) {
+            startInput.value = getExpenseLocalDateStr(new Date());
         }
-        loadDailyClinicReport(dateInput?.value);
+        if (endInput && !endInput.value) {
+            endInput.value = getExpenseLocalDateStr(new Date());
+        }
+        loadDailyClinicReport();
     } else {
         if (listEl) listEl.style.display = 'block';
         if (dailyEl) dailyEl.style.display = 'none';
@@ -3685,14 +3839,14 @@ async function deleteBill(billId) {
 
     try {
         await _supabase.from('bills').delete().eq('bill_id', billId);
-    } catch(err) {
+    } catch (err) {
         console.warn('DB delete warning:', err);
     }
 
     window.clinicBills = (window.clinicBills || []).filter(b => b.bill_id !== billId);
     try {
         localStorage.setItem('clinic_bills_cache', JSON.stringify((window.clinicBills || []).slice(0, 50)));
-    } catch(e) {}
+    } catch (e) { }
     renderBillsTable();
 
     Swal.fire({ icon: 'success', title: 'ลบใบเสร็จเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
@@ -4631,7 +4785,7 @@ async function loadPaymentQueue() {
             if (mappedHn) {
                 rowHn = mappedHn;
                 // บันทึกกลับไปยังตาราง visits ใน DB เพื่อให้ข้อมูลสมบูรณ์
-                _supabase.from('visits').update({ hn: mappedHn }).eq('visit_id', row.visit_id).then(() => {});
+                _supabase.from('visits').update({ hn: mappedHn }).eq('visit_id', row.visit_id).then(() => { });
             }
         }
 
@@ -4799,7 +4953,7 @@ function getLabFilesForVisit(visitId, rowPdfUrl) {
                 }
             });
         }
-    } catch (e) {}
+    } catch (e) { }
 
     // 3. ดึงจาก Legacy Storage ใน LocalStorage (เผื่อไฟล์เก่าที่เคยเซฟไว้)
     try {
@@ -4819,7 +4973,7 @@ function getLabFilesForVisit(visitId, rowPdfUrl) {
                 }
             }
         });
-    } catch (e) {}
+    } catch (e) { }
 
     return files;
 }
@@ -4840,7 +4994,7 @@ async function getLabFilesForVisitAsync(visitId, rowPdfUrl) {
                 }
             });
         }
-    } catch (e) {}
+    } catch (e) { }
 
     // 2. ดึงจาก Supabase DB (visits)
     if (visitId && typeof _supabase !== 'undefined') {
@@ -4875,7 +5029,7 @@ async function getLabFilesForVisitAsync(visitId, rowPdfUrl) {
                                 }
                             });
                         }
-                    } catch (e) {}
+                    } catch (e) { }
                 } else if (isValidLabFileUrl(rawUrl)) {
                     if (!files.some(f => f.url === rawUrl || f.publicUrl === rawUrl)) {
                         files.push({
@@ -4945,7 +5099,7 @@ async function loadLabQueue() {
     let cachedVascularMap = {};
     try {
         cachedVascularMap = JSON.parse(localStorage.getItem('clinic_vascular_results') || '{}');
-    } catch (e) {}
+    } catch (e) { }
 
     data.forEach(row => {
         let rowHn = (row.hn && row.hn !== 'null' && row.hn !== 'undefined' && row.hn !== '-') ? row.hn.trim() : '';
@@ -4953,7 +5107,7 @@ async function loadLabQueue() {
             const mappedHn = patientsMap[row.patient_name.trim().toLowerCase()];
             if (mappedHn) {
                 rowHn = mappedHn;
-                _supabase.from('visits').update({ hn: mappedHn }).eq('visit_id', row.visit_id).then(() => {});
+                _supabase.from('visits').update({ hn: mappedHn }).eq('visit_id', row.visit_id).then(() => { });
             }
         }
         const hnDisplay = rowHn || '-';
@@ -5200,7 +5354,7 @@ async function submitLabUpload() {
                         try {
                             const parsed = JSON.parse(rawUrl);
                             if (Array.isArray(parsed)) existingFiles = parsed;
-                        } catch (e) {}
+                        } catch (e) { }
                     } else if (isValidLabFileUrl(rawUrl)) {
                         existingFiles.push({
                             id: 'FILE-LEGACY-' + Date.now(),
@@ -5297,7 +5451,7 @@ async function viewRealLabFile(fileUrlOrId, visitId, patientName, categoryName) 
                     if (fObj && isValidLabFileUrl(fObj.url || fObj.publicUrl)) {
                         fileUrl = fObj.url || fObj.publicUrl;
                     }
-                } catch (e) {}
+                } catch (e) { }
             }
             if (!isValidLabFileUrl(fileUrl)) {
                 fileUrl = matchFile.url || matchFile.publicUrl;
@@ -5533,13 +5687,13 @@ async function loadMlmProducts(isRealtimeUpdate = false) {
     if (!data || data.length === 0) {
         const cached = localStorage.getItem('mlm_stk_products_cache');
         if (cached) {
-            try { data = JSON.parse(cached); } catch (e) {}
+            try { data = JSON.parse(cached); } catch (e) { }
         }
         if (!data || data.length === 0) {
             data = window.DEFAULT_MLM_PRODUCTS;
         }
     } else {
-        try { localStorage.setItem('mlm_stk_products_cache', JSON.stringify(data)); } catch (e) {}
+        try { localStorage.setItem('mlm_stk_products_cache', JSON.stringify(data)); } catch (e) { }
     }
 
     window.allMlmProducts = data.map(item => ({
@@ -5701,7 +5855,7 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
         try {
             const { data } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
             if (data) visitRow = data;
-        } catch (e) {}
+        } catch (e) { }
     }
 
     if (visitRow) {
@@ -5781,7 +5935,7 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
         let cachedVascularMap = {};
         try {
             cachedVascularMap = JSON.parse(localStorage.getItem('clinic_vascular_results') || '{}');
-        } catch (e) {}
+        } catch (e) { }
 
         const cachedVasc = cachedVascularMap[visitId];
         let hasVasc = false;
@@ -6014,7 +6168,7 @@ async function submitPrescription() {
             });
         }
         localStorage.setItem('clinic_visits_queue', JSON.stringify(cachedVisits));
-    } catch (ex) { 
+    } catch (ex) {
         console.warn('LocalStorage save error:', ex);
     }
 
@@ -6054,16 +6208,16 @@ async function submitPrescription() {
     }
 
     // 3. หากมีรายการสินค้าสารอาหาร / MLM ให้บันทึกลงตาราง stk_nutrient_orders อัตโนมัติด้วย
-    const mlmItems = (window.currentRxMeds || []).filter(i => 
-        i.source === 'mlm' || 
-        (i.sourceLabel && i.sourceLabel.includes('MLM')) || 
+    const mlmItems = (window.currentRxMeds || []).filter(i =>
+        i.source === 'mlm' ||
+        (i.sourceLabel && i.sourceLabel.includes('MLM')) ||
         (i.name && (i.name.includes('STK') || i.name.includes('BOOM') || i.name.includes('GOLD') || i.name.includes('ORYZA') || i.name.includes('APPLE') || i.name.includes('COLLAGEN') || i.name.includes('VIT') || i.name.includes('COFFEE')))
     );
     if (mlmItems.length > 0) {
         try {
             const assistant = document.getElementById('rxAssistantDisplay')?.innerText || 'L03709 - MS CHERRY LOUANGPHAN';
             const orderId = `ORD-CLINIC-${visitId || Date.now()}`;
-            
+
             const nutrientPayload = {
                 order_id: orderId,
                 sale_id: orderId,
@@ -6716,7 +6870,7 @@ async function loadPharmacyQueue() {
                     medsRaw = typeof medsRaw === 'string' ? JSON.parse(medsRaw) : medsRaw;
                 }
                 const medsList = Array.isArray(medsRaw) ? medsRaw : [];
-                
+
                 // แยกหมวดหมู่ ยารักษาโรค vs อาหารเสริม MLM
                 clinicDrugs = medsList.filter(m => !isNutrientItem(m));
                 mlmNutrients = medsList.filter(m => isNutrientItem(m));
@@ -6836,29 +6990,40 @@ async function loadPharmacyQueue() {
         const orderedNutrientVisits = JSON.parse(localStorage.getItem('clinic_nutrient_ordered_visits') || '[]');
         const isNutrientOrdered = row.nutrient_ordered || (Array.isArray(orderedNutrientVisits) && orderedNutrientVisits.includes(row.visit_id));
 
+        // 1. ตรวจสอบสถานะการสั่งอาหารเสริม (ปุ่ม MLM)
         let nutrientBtn = '';
         if (isNutrientOrdered) {
             nutrientBtn = `
-                <button class="btn btn-sm w-100 fw-bold shadow-2xs" style="background-color: #f59e0b; border: none; color: #1e293b; font-size: 0.82rem; padding: 7px 10px; border-radius: 8px; cursor: not-allowed; opacity: 0.95;" disabled title="สั่งซื้อสารอาหารเรียบร้อยแล้ว (ป้องกันการสั่งซ้ำ)">
-                    <i class="bi bi-check-lg me-1"></i>ส่งแล้ว (MLM)
+                <button class="btn btn-sm btn-light border w-100 fw-semibold text-muted shadow-sm" style="font-size: 0.82rem; padding: 6px 10px; border-radius: 8px; cursor: not-allowed;" disabled title="สั่งซื้อสารอาหารเรียบร้อยแล้ว (ป้องกันการสั่งซ้ำ)">
+                    <i class="bi bi-check2-circle me-1"></i>ส่งแล้ว (MLM)
                 </button>
             `;
         } else {
             nutrientBtn = `
-                <button class="btn btn-sm w-100 text-white fw-bold shadow-2xs" style="background-color: #f59e0b; border: none; font-size: 0.82rem; padding: 7px 10px; border-radius: 8px;" onclick="sendPharmacyNutrientOrder('${row.visit_id}')">
+                <button class="btn btn-sm btn-light border w-100 fw-semibold shadow-sm" style="color: #d97706; font-size: 0.82rem; padding: 6px 10px; border-radius: 8px;" onclick="sendPharmacyNutrientOrder('${row.visit_id}')">
                     <i class="bi bi-send me-1"></i>สั่งอาหารเสริม (MLM)
                 </button>
             `;
         }
 
+        // 2. ปุ่ม จ่ายยาเสร็จสิ้น
         let completeBtn = `
-            <button class="btn btn-sm w-100 text-white fw-bold shadow-2xs" style="background-color: #16a34a; border: none; font-size: 0.82rem; padding: 7px 10px; border-radius: 8px;" onclick="completeDispensing('${row.visit_id}')">
+            <button class="btn btn-sm btn-light border w-100 fw-semibold text-success shadow-sm" style="font-size: 0.82rem; padding: 6px 10px; border-radius: 8px;" onclick="completeDispensing('${row.visit_id}')">
                 <i class="bi bi-check-circle me-1"></i>จ่ายยาเสร็จสิ้น
             </button>
         `;
 
+        // 3. ปุ่ม แก้ไขรายการ
+        let editBtn = `
+            <button class="btn btn-sm btn-light border w-100 fw-semibold text-primary shadow-sm" style="font-size: 0.82rem; padding: 6px 10px; border-radius: 8px;" onclick="editPharmacyPrescription('${row.visit_id}')">
+                <i class="bi bi-pencil-square me-1"></i>แก้ไขรายการ
+            </button>
+        `;
+
+        // 4. นำปุ่มทั้ง 3 มาเรียงต่อกัน โดยเว้นช่องไฟให้พอดี
         const actionBtn = `
-            <div class="d-flex flex-column gap-1.5 align-items-stretch" style="min-width: 140px;">
+            <div class="d-flex flex-column gap-2 align-items-stretch" style="min-width: 140px;">
+                ${editBtn}
                 ${nutrientBtn}
                 ${completeBtn}
             </div>
@@ -6897,7 +7062,7 @@ function viewPharmacyBillDetails(visitId, billType) {
             } else if (Array.isArray(visit.meds)) {
                 medsList = visit.meds;
             }
-        } catch (e) {}
+        } catch (e) { }
     }
 
     const isMlm = billType === 'nutrient';
@@ -7104,7 +7269,7 @@ async function sendPharmacyNutrientOrder(visitId) {
     // บันทึกลง Supabase `stk_nutrient_orders` และ LocalStorage อย่างปลอดภัย
     await saveNutrientOrderToDatabase(salePayload);
 
-    let itemsSummaryHtml = cleanItems.map(i => 
+    let itemsSummaryHtml = cleanItems.map(i =>
         `<li class="d-flex justify-content-between py-1 border-bottom"><span>${i.name}</span><strong>${i.qty} ชิ้น (${(i.total || 0).toLocaleString()} ฿)</strong></li>`
     ).join('');
 
@@ -7151,7 +7316,7 @@ async function sendPharmacyNutrientOrder(visitId) {
                     localStorage.setItem('clinic_visits_queue', JSON.stringify(cachedVisits));
                 }
             }
-        } catch(e) {}
+        } catch (e) { }
 
         // รีเฟรชตารางห้องจ่ายยาทันทีเพื่อเปลี่ยนปุ่มเป็น "สั่งแล้ว" (สีเหลือง)
         loadPharmacyQueue();
@@ -7514,7 +7679,7 @@ async function completeDispensing(visitId) {
             }
             localStorage.setItem('clinic_visits_queue', JSON.stringify(cachedVisits));
         }
-    } catch (e) {}
+    } catch (e) { }
 
     // 2. อัปเดตใน Supabase
     let dbError = null;
@@ -7846,7 +8011,7 @@ async function showHistoryDetails(visitId) {
     // ตรวจสอบว่าในตาราง visits (ตัวแปร row) มีข้อมูลเบอร์โทรหรือไม่
     if (row.phone) {
         patientPhone = row.phone;
-    } 
+    }
     // หากไม่มี ให้ไปค้นหาเบอร์โทรจากประวัติผู้ป่วย (ตาราง patients) โดยอ้างอิงจากรหัส HN
     else if (row.hn && window.allPatients) {
         const pat = window.allPatients.find(p => p.hn === row.hn);
@@ -7935,7 +8100,7 @@ async function showHistoryDetails(visitId) {
     let cachedVascularMap = {};
     try {
         cachedVascularMap = JSON.parse(localStorage.getItem('clinic_vascular_results') || '{}');
-    } catch (e) {}
+    } catch (e) { }
 
     const cachedVasc = cachedVascularMap[row.visit_id];
     const hasVascNote = (row.lab_note && row.lab_note.includes('[ผลตรวจหลอดเลือด]'));
@@ -8212,7 +8377,7 @@ function repeatPrescriptionFromHistory(targetVisitId) {
 
     // 4. สร้าง Visit ID ใหม่สำหรับการต่อยา
     const newVisitId = `VIS-${Date.now().toString().slice(-6)}`;
-    
+
     // 5. เปิด Prescribe Modal พร้อมใส่รายการยาเดิมลงใน Cart ทันที
     openPrescribeModal(newVisitId, row.hn, row.patient_name, row.pdf_url || '', medsList, batchTag);
 
@@ -11621,7 +11786,7 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '') {
         // ค้นหาผู้แนะนำจากตาราง patients ตาม HN หรือชื่อคนไข้
         const patientHn = visitRecord.hn || '';
         const patientName = visitRecord.patient_name || '';
-        
+
         if (patientHn && patientHn !== '-') {
             try {
                 const { data: pData } = await _supabase.from('patients').select('referrer, ref_code, referred_by').eq('hn', patientHn).maybeSingle();
@@ -13523,7 +13688,7 @@ async function loadExpenseLabCases(force = false) {
                 const day = String(d.getDate()).padStart(2, '0');
                 return `${year}-${month}-${day}`;
             }
-        } catch(e) {}
+        } catch (e) { }
         return String(raw).slice(0, 10);
     };
 
@@ -13573,7 +13738,7 @@ async function loadExpenseLabCases(force = false) {
                         });
                     });
                 }
-            } catch(e) {}
+            } catch (e) { }
         }
 
         // 2.3 ดึงจาก window.clinicVisits
@@ -13648,8 +13813,8 @@ function onSelectExpenseLabCase(selectEl) {
     }
     const val = selectEl.value;
 
-    const allVisits = window.clinicExpenseLabVisits && window.clinicExpenseLabVisits.length > 0 
-        ? window.clinicExpenseLabVisits 
+    const allVisits = window.clinicExpenseLabVisits && window.clinicExpenseLabVisits.length > 0
+        ? window.clinicExpenseLabVisits
         : (window.clinicVisits || []);
 
     const matched = allVisits.find(v => v.visit_id === val || v.hn === val);
@@ -13846,17 +14011,17 @@ function renderBillsTable() {
         try {
             const cachedBills = JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]');
             cachedMatch = cachedBills.find(x => x.bill_id === b.bill_id || x.visit_id === b.visit_id);
-        } catch(e) {}
+        } catch (e) { }
 
         const allNotesText = `${pNote} ${vNote} ${b.note || ''} ${pMethod} ${vMethod}`.trim();
 
         let expCash = (b.cash_lak !== undefined && b.cash_lak !== null) ? parseFloat(b.cash_lak) :
-                      (cachedMatch && cachedMatch.cash_lak !== undefined && cachedMatch.cash_lak !== null ? parseFloat(cachedMatch.cash_lak) :
-                      (vMatch && vMatch.cash_lak !== undefined && vMatch.cash_lak !== null ? parseFloat(vMatch.cash_lak) : null));
-        
+            (cachedMatch && cachedMatch.cash_lak !== undefined && cachedMatch.cash_lak !== null ? parseFloat(cachedMatch.cash_lak) :
+                (vMatch && vMatch.cash_lak !== undefined && vMatch.cash_lak !== null ? parseFloat(vMatch.cash_lak) : null));
+
         let expTransfer = (b.transfer_lak !== undefined && b.transfer_lak !== null) ? parseFloat(b.transfer_lak) :
-                          (cachedMatch && cachedMatch.transfer_lak !== undefined && cachedMatch.transfer_lak !== null ? parseFloat(cachedMatch.transfer_lak) :
-                          (vMatch && vMatch.transfer_lak !== undefined && vMatch.transfer_lak !== null ? parseFloat(vMatch.transfer_lak) : null));
+            (cachedMatch && cachedMatch.transfer_lak !== undefined && cachedMatch.transfer_lak !== null ? parseFloat(cachedMatch.transfer_lak) :
+                (vMatch && vMatch.transfer_lak !== undefined && vMatch.transfer_lak !== null ? parseFloat(vMatch.transfer_lak) : null));
 
         const splitMatch = allNotesText.match(/\[PAY_SPLIT:\s*CASH=([\d.]+),\s*TRANSFER=([\d.]+)/i);
         if (splitMatch) {
@@ -13901,10 +14066,10 @@ function renderBillsTable() {
             }
         } else {
             const fullHint = `${pMethod} ${pMode} ${pNote} ${vMethod} ${vNote}`.toLowerCase();
-            const hasTransferWord = fullHint.includes('โอน') || fullHint.includes('ໂອນ') || fullHint.includes('transfer') || 
-                                    fullHint.includes('bcel') || fullHint.includes('kbank') || fullHint.includes('scb') || 
-                                    fullHint.includes('ldb') || fullHint.includes('jdb') || fullHint.includes('apb') || 
-                                    fullHint.includes('lvb') || fullHint.includes('promptpay') || fullHint.includes('bank') || fullHint.includes('ธนาคาร');
+            const hasTransferWord = fullHint.includes('โอน') || fullHint.includes('ໂອນ') || fullHint.includes('transfer') ||
+                fullHint.includes('bcel') || fullHint.includes('kbank') || fullHint.includes('scb') ||
+                fullHint.includes('ldb') || fullHint.includes('jdb') || fullHint.includes('apb') ||
+                fullHint.includes('lvb') || fullHint.includes('promptpay') || fullHint.includes('bank') || fullHint.includes('ธนาคาร');
             const hasCashWord = fullHint.includes('สด') || fullHint.includes('ສົດ') || fullHint.includes('cash');
             const isBothMode = (pMode === 'สด+โอน' || pMode === 'ສົດ+ໂອນ' || fullHint.includes('สด+โอน') || fullHint.includes('ສົດ+ໂອນ') || (hasTransferWord && hasCashWord && (fullHint.includes('+') || fullHint.includes('|') || fullHint.includes('และ'))));
 
@@ -14038,7 +14203,7 @@ function printBill(billId) {
     const subtotal = parseFloat(bill.subtotal || 0);
     const discount = parseFloat(bill.discount || 0);
     const payable = parseFloat(bill.payable_amount || 0);
-    
+
     // 1. วันที่และเวลา
     let dateObj = bill.created_at ? new Date(bill.created_at) : new Date();
     if (isNaN(dateObj.getTime())) dateObj = new Date();
@@ -14381,7 +14546,7 @@ function exportBillsExcel() {
     bills.forEach((b, idx) => {
         const labItems = (Array.isArray(b.items) ? b.items : []).filter(i => i.type !== 'med');
         const itemNames = labItems.map(i => i.name).join('; ');
-        
+
         let splitInfo = { subtotal: 0, discount: 0, payable: 0, cashAmount: 0, transferAmount: 0 };
         if (typeof parseBillPaymentSplit === 'function') {
             splitInfo = parseBillPaymentSplit(b);
@@ -14447,7 +14612,7 @@ function printBillsReport() {
     const rowsHtml = bills.map((b, idx) => {
         const labItems = (Array.isArray(b.items) ? b.items : []).filter(i => i.type !== 'med');
         const itemNames = labItems.map(i => i.name).join(', ') || '-';
-        
+
         let splitInfo = { subtotal: 0, discount: 0, payable: 0, cashAmount: 0, transferAmount: 0 };
         if (typeof parseBillPaymentSplit === 'function') {
             splitInfo = parseBillPaymentSplit(b);
@@ -14727,7 +14892,7 @@ async function openVascularCheckModal(targetVisitId) {
     let cachedVascularMap = {};
     try {
         cachedVascularMap = JSON.parse(localStorage.getItem('clinic_vascular_results') || '{}');
-    } catch (e) {}
+    } catch (e) { }
 
     const cachedVasc = cachedVascularMap[visitId];
 
@@ -14883,7 +15048,7 @@ async function submitVascularCheck() {
             }
             await _supabase
                 .from('visits')
-                .update({ 
+                .update({
                     lab_note: newLabNote
                 })
                 .eq('visit_id', visitId);
@@ -14935,7 +15100,7 @@ async function viewVascularResult(visitId) {
         if (cachedVasc && cachedVasc.resultText) {
             resultText = cachedVasc.resultText;
         }
-    } catch (e) {}
+    } catch (e) { }
 
     // 2. ดึงจาก memory cache (window.labRowCache)
     if (!resultText && window.labRowCache && window.labRowCache[visitId] && window.labRowCache[visitId].labNote) {
@@ -14996,6 +15161,19 @@ async function viewVascularResult(visitId) {
 // ===============================================
 // 1. ระบบจัดการรายจ่ายประจำวัน (Daily Expenses)
 // ===============================================
+// Helper แปลง Date เป็น YYYY-MM-DD ตาม Local Time
+function getExpenseLocalDateStr(dateInput) {
+    if (!dateInput) return '';
+    const d = typeof dateInput === 'string' && dateInput.length === 10 && dateInput.includes('-')
+        ? new Date(dateInput + 'T00:00:00')
+        : new Date(dateInput);
+    if (isNaN(d.getTime())) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 window.clinicExpensesData = [];
 async function loadExpenses() {
     try {
@@ -15004,13 +15182,23 @@ async function loadExpenses() {
             try {
                 const { data } = await _supabase.from('clinic_expenses').select('*').order('created_at', { ascending: false });
                 if (data && data.length > 0) expenses = data;
-            } catch (e) {}
+            } catch (e) { }
         }
         if (expenses.length === 0) {
             expenses = JSON.parse(localStorage.getItem('clinic_expenses_data') || '[]');
         }
         window.clinicExpensesData = expenses;
-        renderExpensesTable(expenses);
+
+        // ถ้ามีการกรองค้างอยู่ให้กรองตามค่านั้น ถ้าไม่มีให้เรนเดอร์ทั้งหมด
+        const q = document.getElementById('expenseSearchInput')?.value?.trim();
+        const cat = document.getElementById('expenseCategoryFilter')?.value?.trim();
+        const sDate = document.getElementById('expenseStartDate')?.value?.trim();
+        const eDate = document.getElementById('expenseEndDate')?.value?.trim();
+        if (q || cat || sDate || eDate) {
+            filterExpensesTable();
+        } else {
+            renderExpensesTable(expenses);
+        }
     } catch (e) {
         console.warn('loadExpenses error:', e);
     }
@@ -15019,13 +15207,13 @@ function renderExpensesTable(list) {
     const tbody = document.getElementById('expensesTableBody');
     if (!tbody) return;
     if (!list || list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">ຍັງບໍ່ມີລາຍການລາຍຈ່າຍ</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">ຍັງບໍ່ມີຂໍ້ມູນລາຍຈ່າຍ</td></tr>';
         updateExpenseStats([]);
         return;
     }
     let html = '';
     list.forEach((item, index) => {
-        const dateStr = item.date || (item.created_at ? new Date(item.created_at).toLocaleDateString('th-TH') : '-');
+        const dateStr = item.date || (item.created_at ? getExpenseLocalDateStr(item.created_at) : '-');
         const amount = parseFloat(item.amount || 0);
         html += `
             <tr>
@@ -15046,13 +15234,13 @@ function renderExpensesTable(list) {
     updateExpenseStats(list);
 }
 function updateExpenseStats(list) {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getExpenseLocalDateStr(new Date());
     const currentMonth = todayStr.substring(0, 7);
     let todayTotal = 0;
     let todayCount = 0;
     let monthTotal = 0;
     list.forEach(item => {
-        const itemDate = item.date || (item.created_at ? item.created_at.split('T')[0] : '');
+        const itemDate = item.date || (item.created_at ? getExpenseLocalDateStr(item.created_at) : '');
         const amount = parseFloat(item.amount || 0);
         if (itemDate === todayStr) {
             todayTotal += amount;
@@ -15066,25 +15254,66 @@ function updateExpenseStats(list) {
     if (document.getElementById('statTodayExpenseCount')) document.getElementById('statTodayExpenseCount').textContent = todayCount + ' ລາຍການ';
     if (document.getElementById('statMonthExpense')) document.getElementById('statMonthExpense').textContent = '₭' + monthTotal.toLocaleString();
 }
+function setExpenseDateFilter(mode) {
+    const startInput = document.getElementById('expenseStartDate');
+    const endInput = document.getElementById('expenseEndDate');
+    const now = new Date();
+
+    if (mode === 'today') {
+        const todayStr = getExpenseLocalDateStr(now);
+        if (startInput) startInput.value = todayStr;
+        if (endInput) endInput.value = todayStr;
+    } else if (mode === 'month') {
+        const firstDay = getExpenseLocalDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
+        const lastDay = getExpenseLocalDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+        if (startInput) startInput.value = firstDay;
+        if (endInput) endInput.value = lastDay;
+    } else if (mode === 'year') {
+        const firstDay = getExpenseLocalDateStr(new Date(now.getFullYear(), 0, 1));
+        const lastDay = getExpenseLocalDateStr(new Date(now.getFullYear(), 11, 31));
+        if (startInput) startInput.value = firstDay;
+        if (endInput) endInput.value = lastDay;
+    }
+
+    if (typeof filterExpensesTable === 'function') {
+        filterExpensesTable();
+    }
+}
+
 function filterExpensesTable() {
     const q = (document.getElementById('expenseSearchInput')?.value || '').toLowerCase().trim();
     const cat = (document.getElementById('expenseCategoryFilter')?.value || '').trim();
-    const date = (document.getElementById('expenseDateFilter')?.value || '').trim();
-    
+    const startDateStr = document.getElementById('expenseStartDate')?.value || '';
+    const endDateStr = document.getElementById('expenseEndDate')?.value || '';
+
     let filtered = (window.clinicExpensesData || []).filter(item => {
-        const itemDate = item.date || (item.created_at ? item.created_at.split('T')[0] : '');
+        const rowDate = item.date || (item.created_at ? getExpenseLocalDateStr(item.created_at) : '');
         const matchQ = !q || (item.title && item.title.toLowerCase().includes(q)) || (item.recorded_by && item.recorded_by.toLowerCase().includes(q));
         const matchCat = !cat || item.category === cat;
-        const matchDate = !date || itemDate === date;
-        return matchQ && matchCat && matchDate;
+
+        let passDate = true;
+        if (startDateStr || endDateStr) {
+            if (startDateStr && rowDate < startDateStr) passDate = false;
+            if (endDateStr && rowDate > endDateStr) passDate = false;
+        }
+
+        return matchQ && matchCat && passDate;
     });
     renderExpensesTable(filtered);
 }
+
 function resetExpenseFilter() {
     if (document.getElementById('expenseSearchInput')) document.getElementById('expenseSearchInput').value = '';
     if (document.getElementById('expenseCategoryFilter')) document.getElementById('expenseCategoryFilter').value = '';
+    if (document.getElementById('expenseStartDate')) document.getElementById('expenseStartDate').value = '';
+    if (document.getElementById('expenseEndDate')) document.getElementById('expenseEndDate').value = '';
     if (document.getElementById('expenseDateFilter')) document.getElementById('expenseDateFilter').value = '';
-    renderExpensesTable(window.clinicExpensesData || []);
+
+    if (typeof filterExpensesTable === 'function') {
+        filterExpensesTable();
+    } else {
+        renderExpensesTable(window.clinicExpensesData || []);
+    }
 }
 
 // 5. ปิด Modal รายจ่ายและเคลียร์ Backdrop ให้สะอาด
@@ -15096,12 +15325,12 @@ function closeExpenseModal() {
             if (modalInstance) {
                 modalInstance.hide();
             }
-        } catch (e) {}
+        } catch (e) { }
 
         try {
             const closeBtn = modalEl.querySelector('[data-bs-dismiss="modal"]');
             if (closeBtn) closeBtn.click();
-        } catch (e) {}
+        } catch (e) { }
 
         // เคลียร์ backdrop / class ที่อาจค้าง
         setTimeout(() => {
@@ -15131,14 +15360,14 @@ async function saveExpense(e) {
     const methodInput = document.getElementById('expensePaymentMethod');
     const payerInput = document.getElementById('expensePayer');
 
-    const dateVal = dateInput?.value || new Date().toISOString().split('T')[0];
+    const dateVal = dateInput?.value || getExpenseLocalDateStr(new Date());
     const catVal = catInput?.value || 'ອື່ນໆ';
     const detailVal = detailInput?.value?.trim() || '';
-    
+
     // แปลงตัวเลขให้เป็น Number แท้จริง (ตัด comma ออก)
     const rawAmount = (amountInput?.value || '0').replace(/,/g, '').trim();
     const amountVal = parseFloat(rawAmount) || 0;
-    
+
     const methodVal = methodInput?.value || 'ເງິນສົດ (Cash)';
     const payerVal = payerInput?.value?.trim() || 'Staff';
 
@@ -15288,7 +15517,7 @@ function openExpenseModal() {
         // 3. ใส่วันที่ปัจจุบันเป็นค่าเริ่มต้น
         const dateInput = document.getElementById('expenseDate');
         if (dateInput) {
-            const today = new Date().toISOString().split('T')[0];
+            const today = getExpenseLocalDateStr(new Date());
             dateInput.value = today;
         }
 
@@ -15304,7 +15533,7 @@ function openExpenseModal() {
             try {
                 const user = JSON.parse(localStorage.getItem('clinicUser') || '{}');
                 payerInput.value = user.name || user.full_name || 'Staff';
-            } catch(e) {}
+            } catch (e) { }
         }
 
         // 6. ซ่อนกล่องแล็บนอกไว้ก่อน (จะแสดงเมื่อเลือกหมวดแล็บนอก)
@@ -15343,7 +15572,7 @@ async function deleteExpenseItem(id) {
             if (typeof _supabase !== 'undefined') {
                 await _supabase.from('clinic_expenses').delete().eq('id', id);
             }
-        } catch (e) {}
+        } catch (e) { }
         loadExpenses();
     }
 }
@@ -15370,6 +15599,34 @@ function switchBillsView(viewMode) {
     }
 }
 
+// Helper สำหรับกำหนดช่วงเวลาด่วนในหน้าสรุปยอดคลินิกรายวัน
+function setClinicSummaryDateFilter(mode) {
+    const startInput = document.getElementById('dailyReportStartDate');
+    const endInput = document.getElementById('dailyReportEndDate');
+    const now = new Date();
+
+    if (mode === 'today') {
+        const todayStr = getExpenseLocalDateStr(now);
+        if (startInput) startInput.value = todayStr;
+        if (endInput) endInput.value = todayStr;
+    } else if (mode === 'month') {
+        const firstDay = getExpenseLocalDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
+        const lastDay = getExpenseLocalDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+        if (startInput) startInput.value = firstDay;
+        if (endInput) endInput.value = lastDay;
+    } else if (mode === 'year') {
+        const firstDay = getExpenseLocalDateStr(new Date(now.getFullYear(), 0, 1));
+        const lastDay = getExpenseLocalDateStr(new Date(now.getFullYear(), 11, 31));
+        if (startInput) startInput.value = firstDay;
+        if (endInput) endInput.value = lastDay;
+    }
+
+    if (typeof loadDailyClinicReport === 'function') {
+        loadDailyClinicReport();
+    }
+}
+window.setClinicSummaryDateFilter = setClinicSummaryDateFilter;
+
 // ===============================================
 // 3. ใบสรุปยอดคนมาตรวจคลินิกแต่ละวัน (Daily Clinic Summary)
 // ===============================================
@@ -15390,43 +15647,72 @@ async function loadDailyClinicReport(customDate) {
                 const day = String(d.getDate()).padStart(2, '0');
                 return `${year}-${month}-${day}`;
             }
-        } catch(e) {}
+        } catch (e) { }
         return String(raw).slice(0, 10);
     };
 
-    const dateInput = document.getElementById('dailyReportDateInput');
+    const startDate = document.getElementById('dailyReportStartDate')?.value;
+    const endDate = document.getElementById('dailyReportEndDate')?.value;
     const todayStr = getCleanDateStr(new Date());
-    const dateVal = getCleanDateStr(customDate || (dateInput ? dateInput.value : '') || todayStr);
-    
-    if (dateInput) dateInput.value = dateVal;
+
+    let finalStartDate = getCleanDateStr(startDate || todayStr);
+    let finalEndDate = getCleanDateStr(endDate || finalStartDate);
+
+    if (customDate) {
+        finalStartDate = getCleanDateStr(customDate);
+        finalEndDate = finalStartDate;
+        const startInput = document.getElementById('dailyReportStartDate');
+        const endInput = document.getElementById('dailyReportEndDate');
+        if (startInput) startInput.value = finalStartDate;
+        if (endInput) endInput.value = finalEndDate;
+    }
+
+    if (finalStartDate > finalEndDate) {
+        const temp = finalStartDate;
+        finalStartDate = finalEndDate;
+        finalEndDate = temp;
+    }
+
     const dateDisplay = document.getElementById('dailyReportDateDisplay');
     if (dateDisplay) {
-        const parts = dateVal.split('-');
-        if (parts.length === 3) {
-            dateDisplay.textContent = `ວັນທີ ${parts[2]}/${parts[1]}/${parts[0]}`;
+        if (finalStartDate === finalEndDate) {
+            const parts = finalStartDate.split('-');
+            if (parts.length === 3) {
+                dateDisplay.textContent = `ວັນທີ ${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+        } else {
+            const p1 = finalStartDate.split('-');
+            const p2 = finalEndDate.split('-');
+            if (p1.length === 3 && p2.length === 3) {
+                dateDisplay.textContent = `ວັນທີ ${p1[2]}/${p1[1]}/${p1[0]} ຫາ ${p2[2]}/${p2[1]}/${p2[0]}`;
+            }
         }
     }
+
     const tbody = document.getElementById('dailyReportTableBody');
     if (!tbody) return;
     tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">ກຳລັງປະມວນຜົນຂໍ້ມູນ...</td></tr>';
-    
+
     // โหลด Bills ล่าสุดจาก Supabase ก่อนถ้ายังไม่มี
     if (!window.allBillsData || window.allBillsData.length === 0) {
         try {
             if (typeof loadBills === 'function') await loadBills();
-        } catch(e) { console.warn('loadDailyClinicReport loadBills error:', e); }
+        } catch (e) { console.warn('loadDailyClinicReport loadBills error:', e); }
     }
 
     // 1. ดึงข้อมูล Bills
-    const allBills = (window.allBillsData && window.allBillsData.length > 0) 
-        ? window.allBillsData 
-        : ((window.clinicBills && window.clinicBills.length > 0) 
-            ? window.clinicBills 
+    const allBills = (window.allBillsData && window.allBillsData.length > 0)
+        ? window.allBillsData
+        : ((window.clinicBills && window.clinicBills.length > 0)
+            ? window.clinicBills
             : JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]'));
 
     const filteredBills = allBills.filter(b => {
-        const bDate = getCleanDateStr(b.created_at || b.date);
-        return bDate === dateVal;
+        const rowDate = getCleanDateStr(b.created_at || b.date);
+        let pass = true;
+        if (finalStartDate && rowDate < finalStartDate) pass = false;
+        if (finalEndDate && rowDate > finalEndDate) pass = false;
+        return pass;
     });
 
     // 2. ดึงข้อมูลคอมมิชชั่น & สมาชิก
@@ -15436,7 +15722,7 @@ async function loadDailyClinicReport(customDate) {
             const { data } = await _supabase.from('commission_logs').select('*');
             if (data) comLogs = data;
         }
-    } catch (e) {}
+    } catch (e) { }
 
     // 3. ดึงข้อมูลรายจ่ายประจำวัน
     let allExpenses = window.clinicExpensesData || [];
@@ -15444,8 +15730,11 @@ async function loadDailyClinicReport(customDate) {
         allExpenses = JSON.parse(localStorage.getItem('clinic_expenses_data') || '[]');
     }
     const todayExpenses = allExpenses.filter(e => {
-        const eDate = getCleanDateStr(e.date || e.created_at);
-        return eDate === dateVal;
+        const rowDate = getCleanDateStr(e.date || e.created_at);
+        let pass = true;
+        if (finalStartDate && rowDate < finalStartDate) pass = false;
+        if (finalEndDate && rowDate > finalEndDate) pass = false;
+        return pass;
     });
 
     if (filteredBills.length === 0) {
@@ -15482,18 +15771,18 @@ async function loadDailyClinicReport(customDate) {
         try {
             const cachedBills = JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]');
             cachedMatch = cachedBills.find(x => x.bill_id === b.bill_id || x.visit_id === b.visit_id);
-        } catch(e) {}
+        } catch (e) { }
 
         const allNotesText = `${pNote} ${vNote} ${b.note || ''} ${pMethod} ${vMethod}`.trim();
 
         // 1. ตรวจสอบฟิลด์ explicit cash_lak / transfer_lak จาก bill, cachedMatch, หรือ visit
         let expCash = (b.cash_lak !== undefined && b.cash_lak !== null) ? parseFloat(b.cash_lak) :
-                      (cachedMatch && cachedMatch.cash_lak !== undefined && cachedMatch.cash_lak !== null ? parseFloat(cachedMatch.cash_lak) :
-                      (vMatch && vMatch.cash_lak !== undefined && vMatch.cash_lak !== null ? parseFloat(vMatch.cash_lak) : null));
-        
+            (cachedMatch && cachedMatch.cash_lak !== undefined && cachedMatch.cash_lak !== null ? parseFloat(cachedMatch.cash_lak) :
+                (vMatch && vMatch.cash_lak !== undefined && vMatch.cash_lak !== null ? parseFloat(vMatch.cash_lak) : null));
+
         let expTransfer = (b.transfer_lak !== undefined && b.transfer_lak !== null) ? parseFloat(b.transfer_lak) :
-                          (cachedMatch && cachedMatch.transfer_lak !== undefined && cachedMatch.transfer_lak !== null ? parseFloat(cachedMatch.transfer_lak) :
-                          (vMatch && vMatch.transfer_lak !== undefined && vMatch.transfer_lak !== null ? parseFloat(vMatch.transfer_lak) : null));
+            (cachedMatch && cachedMatch.transfer_lak !== undefined && cachedMatch.transfer_lak !== null ? parseFloat(cachedMatch.transfer_lak) :
+                (vMatch && vMatch.transfer_lak !== undefined && vMatch.transfer_lak !== null ? parseFloat(vMatch.transfer_lak) : null));
 
         // 2. ตรวจสอบแท็ก [PAY_SPLIT: CASH=..., TRANSFER=...]
         const splitMatch = allNotesText.match(/\[PAY_SPLIT:\s*CASH=([\d.]+),\s*TRANSFER=([\d.]+)/i);
@@ -15540,27 +15829,27 @@ async function loadDailyClinicReport(customDate) {
         } else {
             // 4. Fallback จากคีย์เวิร์ดทั่วไป
             const fullHint = `${pMethod} ${pMode} ${pNote} ${vMethod} ${vNote}`.toLowerCase();
-            const hasTransferWord = fullHint.includes('โอน') || 
-                                    fullHint.includes('ໂອນ') || 
-                                    fullHint.includes('transfer') || 
-                                    fullHint.includes('bcel') || 
-                                    fullHint.includes('kbank') || 
-                                    fullHint.includes('scb') || 
-                                    fullHint.includes('ldb') || 
-                                    fullHint.includes('jdb') || 
-                                    fullHint.includes('apb') || 
-                                    fullHint.includes('lvb') || 
-                                    fullHint.includes('promptpay') || 
-                                    fullHint.includes('bank') || 
-                                    fullHint.includes('ธนาคาร');
+            const hasTransferWord = fullHint.includes('โอน') ||
+                fullHint.includes('ໂອນ') ||
+                fullHint.includes('transfer') ||
+                fullHint.includes('bcel') ||
+                fullHint.includes('kbank') ||
+                fullHint.includes('scb') ||
+                fullHint.includes('ldb') ||
+                fullHint.includes('jdb') ||
+                fullHint.includes('apb') ||
+                fullHint.includes('lvb') ||
+                fullHint.includes('promptpay') ||
+                fullHint.includes('bank') ||
+                fullHint.includes('ธนาคาร');
 
-            const hasCashWord = fullHint.includes('สด') || 
-                                fullHint.includes('ສົດ') || 
-                                fullHint.includes('cash');
+            const hasCashWord = fullHint.includes('สด') ||
+                fullHint.includes('ສົດ') ||
+                fullHint.includes('cash');
 
-            const isBothMode = (pMode === 'สด+โอน' || pMode === 'ສົດ+ໂອນ' || 
-                                fullHint.includes('สด+โอน') || fullHint.includes('ສົດ+ໂອນ') || 
-                                (hasTransferWord && hasCashWord && (fullHint.includes('+') || fullHint.includes('|') || fullHint.includes('และ'))));
+            const isBothMode = (pMode === 'สด+โอน' || pMode === 'ສົດ+ໂອນ' ||
+                fullHint.includes('สด+โอน') || fullHint.includes('ສົດ+ໂອນ') ||
+                (hasTransferWord && hasCashWord && (fullHint.includes('+') || fullHint.includes('|') || fullHint.includes('และ'))));
 
             if (isBothMode) {
                 cashAmount = Math.round(payable / 2);
@@ -15576,7 +15865,7 @@ async function loadDailyClinicReport(customDate) {
 
         sumCash += cashAmount;
         sumTransfer += transferAmount;
-        
+
         // หาเงินปันผลการตลาด
         const matchCom = comLogs.find(c => c.visit_id === b.visit_id);
         const dividend = matchCom ? parseFloat(matchCom.amount || 0) : 0;
@@ -15670,6 +15959,7 @@ function renderDailyReportSummary(sumCash, sumTransfer, sumDividend, sumNet, tod
 window.loadExpenses = loadExpenses;
 window.renderExpensesTable = renderExpensesTable;
 window.updateExpenseStats = updateExpenseStats;
+window.setExpenseDateFilter = setExpenseDateFilter;
 window.filterExpensesTable = filterExpensesTable;
 window.resetExpenseFilter = resetExpenseFilter;
 window.openAddExpenseModal = openExpenseModal;
@@ -15684,3 +15974,228 @@ window.switchBillsView = switchBillsView;
 window.loadDailyClinicReport = loadDailyClinicReport;
 window.renderDailyReportSummary = renderDailyReportSummary;
 window.printDailyClinicReport = printDailyClinicReport;
+
+// ==========================================
+// ส่วนของการพิมพ์และ Export สำหรับหน้า "รายจ่ายประจำวัน" (Expenses)
+// ==========================================
+
+// 1. ฟังก์ชันส่งออกเป็นไฟล์ Excel (CSV Format)
+window.exportExpensesExcel = function () {
+    const table = document.getElementById("expensesTable");
+    if (!table) return;
+
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // \uFEFF ช่วยให้ Excel อ่านภาษาลาว/ไทยได้ถูกต้อง
+
+    // ตั้งชื่อหัวคอลัมน์ (Headers)
+    const headers = ["ວັນທີ / ເວລາ", "ໝວດໝູ່", "ລາຍການ / ລາຍລະອຽດ", "ຈຳນວນເງິນ (LAK)", "ຊ່ອງທາງຈ່າຍ", "ຜູ້ເບີກ / ບັນທຶກ"];
+    csvContent += headers.join(",") + "\n";
+
+    // วนลูปดึงข้อมูลจากแต่ละแถว (Rows)
+    const rows = table.querySelectorAll("tbody tr");
+    rows.forEach(row => {
+        const cols = row.querySelectorAll("td");
+        // เช็คให้แน่ใจว่าไม่ใช่แถว "ไม่มีข้อมูล"
+        if (cols.length > 1 && !cols[0].innerText.includes("ຍັງບໍ່ມີຂໍ້ມູນລາຍຈ່າຍ")) {
+            let rowData = [
+                `"${cols[1].innerText.trim()}"`,
+                `"${cols[2].innerText.trim()}"`,
+                `"${cols[3].innerText.trim()}"`,
+                // ลบลูกน้ำ (,) และสัญลักษณ์ ₭ ออก เพื่อให้ Excel มองเป็นตัวเลข
+                `"${cols[4].innerText.replace(/,/g, '').replace('₭', '').trim()}"`,
+                `"${cols[5].innerText.trim()}"`,
+                `"${cols[6].innerText.trim()}"`
+            ];
+            csvContent += rowData.join(",") + "\n";
+        }
+    });
+
+    // สร้างลิงก์จำลองเพื่อทำการดาวน์โหลด
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    // ตั้งชื่อไฟล์พร้อมวันที่ปัจจุบัน
+    link.setAttribute("download", `Expenses_Report_${getExpenseLocalDateStr(new Date())}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
+// 2. ฟังก์ชันพิมพ์รายงาน (Print) พร้อมยอดรวมและลายเซ็น
+window.printExpensesReport = function () {
+    const originalTable = document.getElementById("expensesTable");
+    if (!originalTable) return;
+
+    // คัดลอกตารางเพื่อนำมาประมวลผลก่อนพิมพ์ (จะได้ไม่กระทบหน้าจอหลัก)
+    const clonedTable = originalTable.cloneNode(true);
+    const rows = clonedTable.querySelectorAll("tbody tr");
+
+    let totalAmount = 0;
+    let hasData = false;
+
+    // วนลูปคำนวณยอดเงินรวมจากคอลัมน์ที่ 4 (Index 4: ຈຳນວນເງິນ)
+    rows.forEach(row => {
+        const cols = row.querySelectorAll("td");
+        // เช็คให้แน่ใจว่าไม่ใช่แถว "ไม่มีข้อมูล"
+        if (cols.length > 1 && !cols[0].innerText.includes("ຍັງບໍ່ມີຂໍ້ມູນລາຍຈ່າຍ")) {
+            hasData = true;
+            // ดึงข้อความ ลบลูกน้ำ และดึงเฉพาะตัวเลขมาบวกกัน
+            const amountText = cols[4].innerText.replace(/,/g, '').replace(/[^0-9.-]+/g, '');
+            const amount = parseFloat(amountText) || 0;
+            totalAmount += amount;
+        }
+    });
+
+    // ถ้ามีข้อมูล ให้สร้างแถวแสดง "ยอดรวม" ต่อท้ายตาราง
+    if (hasData) {
+        const tbody = clonedTable.querySelector("tbody");
+        const totalRow = document.createElement("tr");
+        totalRow.innerHTML = `
+            <td colspan="4" class="text-end" style="font-weight: bold; background-color: #f8f9fa;">ຍອດລວມທັງໝົດ (Total):</td>
+            <td class="text-end" style="font-weight: bold; color: #10b981; font-size: 16px;">${totalAmount.toLocaleString('en-US')} LAK</td>
+            <td colspan="3" style="background-color: #f8f9fa;"></td>
+        `;
+        tbody.appendChild(totalRow);
+    }
+
+    const tableHtml = clonedTable.outerHTML;
+
+    // สร้างส่วนบล็อกลายเซ็น (Signatures HTML)
+    const signaturesHtml = `
+        <div class="signatures">
+            <div class="sig-box">
+                <div class="sig-line"></div>
+                <div>( ເຈົ້າໜ້າທີ່ການເງິນ / ຜູ້ຈັດທຳ )</div>
+                <div style="font-size: 12px; color: #666;">( เจ้าหน้าที่การเงิน / ผู้จัดทำ )</div>
+            </div>
+            <div class="sig-box">
+                <div class="sig-line"></div>
+                <div>( ຜູ້ຈັດການ / ຜູ້ກວດສອບ )</div>
+                <div style="font-size: 12px; color: #666;">( ผู้จัดการ / ผู้ตรวจสอบ )</div>
+            </div>
+        </div>
+    `;
+
+    // สร้างหน้าต่างใหม่สำหรับการสั่งพิมพ์
+    const printWindow = window.open('', '', 'width=1000,height=800');
+
+    // เขียนโครงสร้าง HTML สำหรับหน้าพิมพ์
+    printWindow.document.write(`
+        <html>
+            <head>
+                <title>ລາຍງານລາຍຈ່າຍປະຈຳວັນ</title>
+                <style>
+                    body { font-family: 'Sarabun', 'Noto Sans Lao', sans-serif; padding: 20px; color: #333; }
+                    h2 { text-align: center; color: #0b3c73; }
+                    .header-info { text-align: center; margin-bottom: 20px; font-size: 14px; color: #555; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+                    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+                    th { background-color: #f8f9fa; color: #000; font-weight: bold; }
+                    .text-end { text-align: right !important; }
+                    .text-center { text-align: center !important; }
+                    
+                    /* ซ่อนคอลัมน์ "จัดการ" ตอนปริ้น (คอลัมน์สุดท้ายของตาราง) */
+                    th:last-child, td:last-child { display: none; }
+                    
+                    /* CSS จัดรูปแบบช่องลายเซ็น */
+                    .signatures { 
+                        display: flex; 
+                        justify-content: space-around; 
+                        margin-top: 80px; 
+                        text-align: center; 
+                        font-size: 14px; 
+                        font-weight: bold;
+                    }
+                    .sig-box { width: 260px; }
+                    .sig-line { 
+                        border-bottom: 1px dashed #333; 
+                        margin-bottom: 8px; 
+                        height: 40px; 
+                    }
+                </style>
+            </head>
+            <body>
+                <h2>ລາຍງານລາຍຈ່າຍປະຈຳວັນ (Expenses Report)</h2>
+                <div class="header-info">
+                    <strong>ວັນທີພິມ:</strong> ${new Date().toLocaleDateString('lo-LA')} 
+                    <span style="margin-left: 15px;"><strong>ເວລາ:</strong> ${new Date().toLocaleTimeString('lo-LA')}</span>
+                </div>
+                ${tableHtml}
+                ${signaturesHtml}
+                <script>
+                    // สั่งปริ้นอัตโนมัติเมื่อโหลดเนื้อหาหน้าเว็บเสร็จ
+                    setTimeout(() => { 
+                        window.print(); 
+                        window.close(); 
+                    }, 500);
+                </script>
+            </body>
+        </html>
+    `);
+    printWindow.document.close();
+};
+
+// 3. ฟังก์ชัน Export PDF
+window.exportExpensesPDF = function () {
+    // บนเบราว์เซอร์ปัจจุบัน การสั่ง Print สามารถเลือก "Save as PDF" ได้ 
+    // เราจึงใช้ฟังก์ชัน Print ร่วมกันเพื่อความเสถียรและสวยงามที่สุดครับ
+    printExpensesReport();
+};
+// ฟังก์ชันสำหรับกำหนดช่วงเวลาด่วนในหน้าใบสรุปยอดคลินิก
+window.setClinicSummaryDateFilter = function (mode) {
+    const startInput = document.getElementById('dailyReportStartDate');
+    const endInput = document.getElementById('dailyReportEndDate');
+    const now = new Date();
+
+    if (mode === 'today') {
+        const todayStr = getExpenseLocalDateStr(now);
+        if (startInput) startInput.value = todayStr;
+        if (endInput) endInput.value = todayStr;
+    } else if (mode === 'month') {
+        const firstDay = getExpenseLocalDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
+        const lastDay = getExpenseLocalDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+        if (startInput) startInput.value = firstDay;
+        if (endInput) endInput.value = lastDay;
+    } else if (mode === 'year') {
+        const firstDay = getExpenseLocalDateStr(new Date(now.getFullYear(), 0, 1));
+        const lastDay = getExpenseLocalDateStr(new Date(now.getFullYear(), 11, 31));
+        if (startInput) startInput.value = firstDay;
+        if (endInput) endInput.value = lastDay;
+    }
+
+    // โหลดข้อมูลอัตโนมัติหลังจากตั้งค่าวัดที่เสร็จ
+    if (typeof loadDailyClinicReport === 'function') {
+        loadDailyClinicReport();
+    }
+};
+// ฟังก์ชันสำหรับเปิดหน้าต่างแก้ไขรายการจัดยา (ดึงรายการเดิมมาแสดง)
+window.editPharmacyPrescription = function (visitId) {
+    // 1. ค้นหาข้อมูลการตรวจ (Visit) จากคิวห้องจ่ายยา
+    const visit = (window.allPharmacyVisits || []).find(v => v.visit_id === visitId);
+
+    if (!visit) {
+        Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลรายการสำหรับเคสนี้', 'error');
+        return;
+    }
+
+    // 2. ดึงและแปลงข้อมูลรายการยาเดิมที่เคยสั่งไว้
+    let parsedMeds = [];
+    if (visit.meds) {
+        try {
+            let medsRaw = visit.meds;
+            if (typeof medsRaw === 'string') {
+                // จัดการกรณีข้อมูลถูกซ้อน String ไว้
+                if (medsRaw.startsWith('"[') || medsRaw.startsWith('"\\"')) {
+                    medsRaw = JSON.parse(medsRaw);
+                }
+                parsedMeds = typeof medsRaw === 'string' ? JSON.parse(medsRaw) : medsRaw;
+            } else if (Array.isArray(visit.meds)) {
+                parsedMeds = visit.meds;
+            }
+        } catch (e) {
+            console.warn("Error parsing meds for edit:", e);
+        }
+    }
+
+    // 3. ส่งข้อมูลทั้งหมด รวมถึงรายการยาเดิม (parsedMeds) ไปเปิด Modal จัดยา
+    openPrescribeModal(visit.visit_id, visit.hn, visit.patient_name, visit.pdf_url, parsedMeds, visit.refill_batch);
+};
