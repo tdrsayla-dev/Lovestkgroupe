@@ -10185,12 +10185,12 @@ window.referrersData = JSON.parse(localStorage.getItem('clinic_referrers') || 'n
 
 window.commissionSettings = JSON.parse(localStorage.getItem('clinic_commission_settings') || 'null') || {
     type: 'fixed',
-    value: 200000,
+    value: 0,
     currency: 'LAK',
     auto_trigger: true,
-    target_enabled: true,
-    target_goal: 20,
-    target_bonus_value: 50000
+    target_enabled: false,
+    target_goal: 0,
+    target_bonus_value: 0
 };
 
 window.commissionLogs = JSON.parse(localStorage.getItem('clinic_commission_logs') || 'null') || [
@@ -10294,6 +10294,13 @@ window.saveReferralLocalData = function (data) {
 };
 
 async function loadReferralData(isManualClick = false) {
+    // 🌟 ดึงสถานะเปิด/ปิดปุ่ม จาก Database ทันทีที่เข้าหน้านี้
+    if (typeof loadCommissionToggleStates === 'function') {
+        await loadCommissionToggleStates();
+    } else if (typeof initCommissionToggles === 'function') {
+        initCommissionToggles();
+    }
+
     // 1. Reset all Date Filters & Search Inputs across tabs
     const startDateEl = document.getElementById('referrerReportStartDate');
     const endDateEl = document.getElementById('referrerReportEndDate');
@@ -10394,6 +10401,85 @@ async function loadReferralData(isManualClick = false) {
         });
     }
 
+    // 4. Load commission & item settings from Supabase Database table 'commission_settings' (Strict Single Source of Truth)
+    try {
+        if (typeof _supabase !== 'undefined') {
+            // ดึงข้อมูลทั้งหมดจากตาราง commission_settings
+            const { data: dbCommRows } = await _supabase.from('commission_settings').select('*');
+            if (dbCommRows && Array.isArray(dbCommRows) && dbCommRows.length > 0) {
+                const itemSettingsFromDb = {};
+                let hasItemSettingsInDb = false;
+
+                dbCommRows.forEach(row => {
+                    // โหลดการตั้งค่าแบบภาพรวม (default / overall)
+                    if (row.id === 'default' || row.id === 'overall') {
+                        window.commissionSettings = {
+                            ...window.commissionSettings,
+                            type: row.type || window.commissionSettings?.type || 'fixed',
+                            value: row.value !== undefined && row.value !== null ? parseFloat(row.value) : (window.commissionSettings?.value !== undefined ? window.commissionSettings.value : 0),
+                            currency: row.currency || window.commissionSettings?.currency || 'LAK',
+                            auto_trigger: row.auto_trigger !== undefined ? row.auto_trigger : true,
+                            target_enabled: row.target_enabled !== undefined ? row.target_enabled : false,
+                            target_goal: row.target_goal !== undefined ? parseInt(row.target_goal) : 0,
+                            target_bonus_value: row.target_bonus_value !== undefined ? parseFloat(row.target_bonus_value) : 0
+                        };
+                        localStorage.setItem('clinic_commission_settings', JSON.stringify(window.commissionSettings));
+                    }
+                    // โหลดสถานะเปิด/ปิดปันผลแบบภาพรวม (toggle_overall_mode)
+                    else if (row.id === 'toggle_overall_mode') {
+                        const isEnabled = (row.value === 1 || row.value === '1' || row.auto_trigger === true);
+                        localStorage.setItem('clinic_comm_overall_enabled', isEnabled);
+                        localStorage.setItem('hr_overall_commission_enabled', isEnabled ? 'true' : 'false');
+                        if (window.commissionSettings) window.commissionSettings.overall_enabled = isEnabled;
+                    }
+                    // โหลดสถานะเปิด/ปิดปันผลรายรายการ (toggle_item_mode / item_config)
+                    else if (row.id === 'toggle_item_mode' || row.id === 'item_config') {
+                        const isEnabled = (row.value === 1 || row.value === '1' || row.auto_trigger === true);
+                        localStorage.setItem('clinic_comm_item_enabled', isEnabled);
+                        localStorage.setItem('hr_item_commission_enabled', isEnabled ? 'true' : 'false');
+                    }
+                    // โหลดการตั้งค่าปันผลรายรายการ (Item-based settings)
+                    else if (row.type === 'item' || (row.id && row.id.startsWith('item_'))) {
+                        const serviceId = row.id.replace(/^item_/, '');
+                        itemSettingsFromDb[serviceId] = parseFloat(row.value) || 0;
+                        hasItemSettingsInDb = true;
+                    }
+                });
+
+                if (hasItemSettingsInDb) {
+                    localStorage.setItem('hr_item_commission_settings', JSON.stringify(itemSettingsFromDb));
+                }
+            }
+
+            // โหลด system_settings เพิ่มเติมเป็น fallback สำรอง
+            const { data: sysData } = await _supabase.from('system_settings').select('key, value').in('key', [
+                'hr_item_commission_settings',
+                'hr_item_commission_enabled',
+                'hr_overall_commission_enabled',
+                'clinic_commission_settings'
+            ]);
+            if (sysData && Array.isArray(sysData)) {
+                sysData.forEach(row => {
+                    if (row.key === 'hr_item_commission_settings' && row.value && !localStorage.getItem('hr_item_commission_settings')) {
+                        localStorage.setItem('hr_item_commission_settings', row.value);
+                    } else if (row.key === 'hr_item_commission_enabled' && row.value && !localStorage.getItem('hr_item_commission_enabled')) {
+                        localStorage.setItem('hr_item_commission_enabled', row.value);
+                    } else if (row.key === 'hr_overall_commission_enabled' && row.value) {
+                        localStorage.setItem('hr_overall_commission_enabled', row.value);
+                        if (window.commissionSettings) window.commissionSettings.overall_enabled = (row.value === 'true');
+                    }
+                });
+            }
+        }
+    } catch (e) {
+        console.warn('Load commission DB settings error:', e);
+    }
+
+    // 5. ซิงค์และคำนวณปันผลอัตโนมัติจาก Visits และ Patients ที่มีผู้แนะนำ
+    if (typeof syncAllVisitsCommissionLogs === 'function') {
+        await syncAllVisitsCommissionLogs();
+    }
+
     saveReferralLocalData();
     updateReferralSummaryCards();
     renderReferrersTable();
@@ -10404,7 +10490,7 @@ async function loadReferralData(isManualClick = false) {
 
     const valInput = document.getElementById('commValueInput');
     if (valInput) {
-        valInput.value = window.commissionSettings.value || 200;
+        valInput.value = window.commissionSettings.value !== undefined ? window.commissionSettings.value : 0;
         // เรียกใช้ฟังก์ชันเติมลูกน้ำทันทีที่โหลดข้อมูลเสร็จ
         if (typeof formatNumberInput === 'function') {
             formatNumberInput(valInput);
@@ -10429,30 +10515,40 @@ async function loadReferralData(isManualClick = false) {
     if (targetSw) targetSw.checked = window.commissionSettings.target_enabled === true;
 
     const targetGoalInput = document.getElementById('targetGoalCount');
-    if (targetGoalInput) targetGoalInput.value = window.commissionSettings.target_goal || 20;
+    if (targetGoalInput) targetGoalInput.value = window.commissionSettings.target_goal !== undefined ? window.commissionSettings.target_goal : 0;
 
     const targetBonusInput = document.getElementById('targetBonusValue');
-    if (targetBonusInput) targetBonusInput.value = window.commissionSettings.target_bonus_value || (window.commissionSettings.type === 'percentage' ? 10 : 500);
+    if (targetBonusInput) targetBonusInput.value = window.commissionSettings.target_bonus_value !== undefined ? window.commissionSettings.target_bonus_value : 0;
 
     toggleCommTypeDisplay();
 
     const overallSw = document.getElementById('overallModeSwitch');
     if (overallSw) {
-        const isOverallOn = (window.commissionSettings && window.commissionSettings.overall_enabled !== false) && (localStorage.getItem('hr_overall_commission_enabled') !== 'false');
+        const savedOverall = localStorage.getItem('clinic_comm_overall_enabled') !== null
+            ? (localStorage.getItem('clinic_comm_overall_enabled') === 'true' || localStorage.getItem('clinic_comm_overall_enabled') === true)
+            : (localStorage.getItem('hr_overall_commission_enabled') !== 'false');
+        const isOverallOn = (window.commissionSettings && window.commissionSettings.overall_enabled !== false) && savedOverall;
         overallSw.checked = isOverallOn;
     }
     if (typeof toggleOverallModeDisplay === 'function') {
-        toggleOverallModeDisplay();
+        toggleOverallModeDisplay(true);
     }
 
     const itemSw = document.getElementById('itemModeSwitch');
     if (itemSw) {
-        itemSw.checked = localStorage.getItem('hr_item_commission_enabled') === 'true';
+        const savedItem = localStorage.getItem('clinic_comm_item_enabled') !== null
+            ? (localStorage.getItem('clinic_comm_item_enabled') === 'true' || localStorage.getItem('clinic_comm_item_enabled') === true)
+            : (localStorage.getItem('hr_item_commission_enabled') === 'true');
+        itemSw.checked = savedItem;
     }
     if (typeof toggleItemModeDisplay === 'function') {
-        toggleItemModeDisplay();
+        toggleItemModeDisplay(true);
     }
-    renderItemCommissionSettingsTable();
+    if (typeof loadItemCommissionSettings === 'function') {
+        loadItemCommissionSettings();
+    } else {
+        renderItemCommissionSettingsTable();
+    }
 
     if (isManualClick && typeof Swal !== 'undefined') {
         const Toast = Swal.mixin({
@@ -11881,17 +11977,144 @@ function toggleCommTypeDisplay() {
     toggleTargetGoalDisplay();
 }
 
-function toggleOverallModeDisplay() {
+function initCommissionToggles() {
     const overallSwitch = document.getElementById('overallModeSwitch');
-    const isChecked = overallSwitch ? overallSwitch.checked : true;
-    const label = document.getElementById('overallModeSwitchLabel') || document.querySelector('label[for="overallModeSwitch"]');
-    if (label) {
-        label.innerHTML = isChecked ? '<span class="text-success fw-bold">เปิดใช้งาน</span>' : '<span class="text-secondary fw-bold">ปิดใช้งาน</span>';
+    const itemSwitch = document.getElementById('itemModeSwitch');
+
+    if (overallSwitch) {
+        // ดึงค่าจาก LocalStorage (ถ้าไม่มีค่า จะให้ค่าเริ่มต้นเป็น true/เปิด)
+        const savedOverall = localStorage.getItem('clinic_comm_overall_enabled');
+        if (savedOverall !== null) {
+            overallSwitch.checked = (savedOverall === 'true' || savedOverall === true);
+        }
+        const label = document.getElementById('overallModeSwitchLabel');
+        if (label) label.textContent = overallSwitch.checked ? 'เปิดใช้งาน' : 'ปิดใช้งาน';
     }
+
+    if (itemSwitch) {
+        // ดึงค่าจาก LocalStorage (ถ้าไม่มีค่า จะให้ค่าเริ่มต้นเป็น false/ปิด)
+        const savedItem = localStorage.getItem('clinic_comm_item_enabled');
+        if (savedItem !== null) {
+            itemSwitch.checked = (savedItem === 'true' || savedItem === true);
+        }
+        const label = document.getElementById('itemModeSwitchLabel');
+        if (label) label.textContent = itemSwitch.checked ? 'เปิดใช้งาน' : 'ปิดใช้งาน';
+    }
+}
+window.initCommissionToggles = initCommissionToggles;
+
+// 🌟 ฟังก์ชันโหลดสถานะปุ่มจาก Database มาแสดงที่หน้าเว็บ
+async function loadCommissionToggleStates() {
+    if (typeof _supabase === 'undefined') return;
+
+    try {
+        const { data, error } = await _supabase
+            .from('commission_settings')
+            .select('id, value')
+            .in('id', ['toggle_overall_mode', 'toggle_item_mode']);
+
+        if (!error && data) {
+            data.forEach(setting => {
+                if (setting.id === 'toggle_overall_mode') {
+                    const isChecked = (setting.value === 1 || setting.value === '1' || setting.value === 1.00);
+                    const sw = document.getElementById('overallModeSwitch');
+                    const lbl = document.getElementById('overallModeSwitchLabel');
+                    if (sw) sw.checked = isChecked;
+                    if (lbl) lbl.textContent = isChecked ? 'เปิดใช้งาน' : 'ปิดใช้งาน';
+                    
+                    localStorage.setItem('clinic_comm_overall_enabled', isChecked);
+                    localStorage.setItem('hr_overall_commission_enabled', isChecked ? 'true' : 'false');
+                    if (window.commissionSettings) window.commissionSettings.overall_enabled = isChecked;
+
+                    const form = document.getElementById('commissionSettingsForm');
+                    if (form) {
+                        const inputs = form.querySelectorAll('input:not(#overallModeSwitch), select, button[type="submit"]');
+                        inputs.forEach(el => { el.disabled = !isChecked; });
+                        form.style.opacity = isChecked ? '1' : '0.55';
+                        form.style.pointerEvents = isChecked ? 'auto' : 'none';
+                    }
+                }
+                
+                if (setting.id === 'toggle_item_mode') {
+                    const isChecked = (setting.value === 1 || setting.value === '1' || setting.value === 1.00);
+                    const sw = document.getElementById('itemModeSwitch');
+                    const lbl = document.getElementById('itemModeSwitchLabel');
+                    if (sw) sw.checked = isChecked;
+                    if (lbl) lbl.textContent = isChecked ? 'เปิดใช้งาน' : 'ปิดใช้งาน';
+                    
+                    localStorage.setItem('clinic_comm_item_enabled', isChecked);
+                    localStorage.setItem('hr_item_commission_enabled', isChecked ? 'true' : 'false');
+
+                    const addBtn = document.querySelector('button[onclick="openAddItemDividendModal()"]');
+                    const saveBtn = document.querySelector('button[onclick="saveItemCommissionSettings()"]');
+                    if (addBtn) { addBtn.disabled = !isChecked; addBtn.style.opacity = isChecked ? '1' : '0.55'; }
+                    if (saveBtn) { saveBtn.disabled = !isChecked; saveBtn.style.opacity = isChecked ? '1' : '0.55'; }
+                    const itemInputs = document.querySelectorAll('.item-comm-input');
+                    itemInputs.forEach(inp => inp.disabled = !isChecked);
+                    const deleteBtns = document.querySelectorAll('#itemDividendBody button');
+                    deleteBtns.forEach(btn => btn.disabled = !isChecked);
+                    const tableWrapper = document.querySelector('#itemDividendTable')?.parentElement;
+                    if (tableWrapper) tableWrapper.style.opacity = isChecked ? '1' : '0.55';
+                }
+            });
+        }
+    } catch (e) {
+        console.error('Error loading toggle states from database:', e);
+    }
+}
+window.loadCommissionToggleStates = loadCommissionToggleStates;
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        initCommissionToggles();
+        loadCommissionToggleStates();
+        if (typeof loadItemCommissionSettings === 'function') {
+            loadItemCommissionSettings();
+        }
+    });
+} else {
+    initCommissionToggles();
+    loadCommissionToggleStates();
+    if (typeof loadItemCommissionSettings === 'function') {
+        loadItemCommissionSettings();
+    }
+}
+
+// ฟังก์ชันเมื่อกดปุ่ม เปิด/ปิด "แบบภาพรวม"
+async function toggleOverallModeDisplay() {
+    const overallSwitch = document.getElementById('overallModeSwitch');
+    if (!overallSwitch) return;
+    const isChecked = overallSwitch.checked;
+
+    // 1. บันทึกสถานะลงใน LocalStorage
+    localStorage.setItem('clinic_comm_overall_enabled', isChecked);
     localStorage.setItem('hr_overall_commission_enabled', isChecked ? 'true' : 'false');
     if (window.commissionSettings) {
         window.commissionSettings.overall_enabled = isChecked;
         localStorage.setItem('clinic_commission_settings', JSON.stringify(window.commissionSettings));
+    }
+
+    // เปลี่ยนข้อความ Label
+    const label = document.getElementById('overallModeSwitchLabel');
+    if (label) label.textContent = isChecked ? 'เปิดใช้งาน' : 'ปิดใช้งาน';
+
+    // 🌟 บันทึกสถานะลง Supabase Database ทันที (ตาราง commission_settings)
+    if (typeof _supabase !== 'undefined') {
+        try {
+            await _supabase.from('commission_settings').upsert([{
+                id: 'toggle_overall_mode',
+                type: 'system_toggle',
+                value: isChecked ? 1 : 0,
+                auto_trigger: isChecked,
+                updated_at: new Date().toISOString()
+            }], { onConflict: 'id' });
+
+            await _supabase.from('system_settings').upsert([
+                { key: 'hr_overall_commission_enabled', value: isChecked ? 'true' : 'false', updated_at: new Date().toISOString() }
+            ], { onConflict: 'key' });
+        } catch (err) {
+            console.warn('Error saving overall mode state:', err);
+        }
     }
 
     // จัดการเปิด/ปิด Control ทั้งหมดใน Card 1
@@ -11907,7 +12130,7 @@ function toggleOverallModeDisplay() {
 }
 window.toggleOverallModeDisplay = toggleOverallModeDisplay;
 
-function saveCommissionSettings() {
+async function saveCommissionSettings() {
     const typeRadio = document.querySelector('input[name="commType"]:checked');
     const commType = typeRadio ? typeRadio.value : 'fixed';
     const currency = document.getElementById('commCurrencySelect').value;
@@ -11942,6 +12165,30 @@ function saveCommissionSettings() {
     localStorage.setItem('hr_overall_commission_enabled', overallEnabled ? 'true' : 'false');
     localStorage.setItem('clinic_commission_settings', JSON.stringify(window.commissionSettings));
 
+    // บันทึกลง Supabase Database (ตาราง commission_settings และ system_settings)
+    try {
+        if (typeof _supabase !== 'undefined') {
+            await _supabase.from('commission_settings').upsert([{
+                id: 'default',
+                type: commType,
+                value: commValue,
+                currency: currency,
+                auto_trigger: autoTrigger,
+                target_enabled: targetEnabled,
+                target_goal: targetGoal,
+                target_bonus_value: targetBonus,
+                updated_at: new Date().toISOString()
+            }], { onConflict: 'id' });
+
+            await _supabase.from('system_settings').upsert([
+                { key: 'clinic_commission_settings', value: JSON.stringify(window.commissionSettings), updated_at: new Date().toISOString() },
+                { key: 'hr_overall_commission_enabled', value: overallEnabled ? 'true' : 'false', updated_at: new Date().toISOString() }
+            ], { onConflict: 'key' });
+        }
+    } catch (e) {
+        console.warn('Save commission settings to DB error:', e);
+    }
+
     Swal.fire({
         icon: 'success',
         title: 'บันทึกสำเร็จ',
@@ -11951,63 +12198,147 @@ function saveCommissionSettings() {
 }
 window.saveCommissionSettings = saveCommissionSettings;
 
-function renderItemCommissionSettingsTable() {
+// 🌟 ฟังก์ชันโหลดการตั้งค่าปันผลแบบรายรายการ
+async function loadItemCommissionSettings() {
     const tbody = document.getElementById('itemDividendBody');
     if (!tbody) return;
 
-    const services = window.allServicesData || window.servicesData || [];
-    const itemSettings = JSON.parse(localStorage.getItem('hr_item_commission_settings') || '{}');
-    const addedIds = Object.keys(itemSettings);
+    const renderRows = (settingsList, servicesList) => {
+        if (!settingsList || settingsList.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-5">
+                        <i class="bi bi-plus-circle fs-2 d-block mb-2 text-primary opacity-50"></i>
+                        ยังไม่มีรายการปันผลพิเศษ<br>
+                        <small class="text-muted">กดปุ่ม "+ เพิ่มรายการปันผล" ด้านบน เพื่อเลือกรายการตรวจที่ต้องการคิดปันผลเพิ่ม</small>
+                    </td>
+                </tr>`;
+            return;
+        }
 
-    // กรองเฉพาะรายการที่ถูก Add เข้ามาแล้วเท่านั้น
-    const addedServices = services.filter(s => addedIds.includes(String(s.id)));
+        const isItemActive = localStorage.getItem('clinic_comm_item_enabled') !== null
+            ? (localStorage.getItem('clinic_comm_item_enabled') === 'true' || localStorage.getItem('clinic_comm_item_enabled') === true)
+            : (localStorage.getItem('hr_item_commission_enabled') === 'true');
 
-    if (addedServices.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="5" class="text-center text-muted py-5">
-                    <i class="ph ph-plus-circle fs-2 d-block mb-2 text-primary opacity-50"></i>
-                    ยังไม่มีรายการปันผลพิเศษ<br>
-                    <small class="text-muted">กดปุ่ม "+ เพิ่มรายการปันผล" ด้านบน เพื่อเลือกรายการตรวจที่ต้องการคิดปันผลเพิ่ม</small>
-                </td>
-            </tr>`;
-        return;
+        tbody.innerHTML = settingsList.map((item, index) => {
+            const rawId = item.id || '';
+            const serviceId = rawId.replace(/^item_/, '');
+            
+            // ค้นหา Service จากหลายคีย์เพื่อความแม่นยำ 100%
+            const srv = (servicesList || []).find(s => 
+                String(s.id || '').toLowerCase() === String(serviceId).toLowerCase() ||
+                String(s.service_id || '').toLowerCase() === String(serviceId).toLowerCase() ||
+                String(s.name || '').toLowerCase() === String(serviceId).toLowerCase()
+            ) || { name: item.name || `รายการตรวจ (${serviceId})`, category: item.category || 'บริการ', price: item.price || 0 };
+
+            const cur = item.currency || srv.currency || 'LAK';
+            const priceText = Number(srv.price || 0).toLocaleString() + ' ' + (cur === 'THB' ? 'บาท' : cur);
+            const divValue = Number(item.value !== undefined ? item.value : 0);
+
+            return `
+                <tr>
+                    <td class="text-center align-middle">${index + 1}</td>
+                    <td class="align-middle">
+                        <div class="fw-bold text-dark">${srv.name}</div>
+                        <div class="text-muted small"><i class="bi bi-folder2-open me-1"></i>${srv.category || '-'}</div>
+                    </td>
+                    <td class="text-end align-middle">
+                        <span class="badge bg-light text-success border px-2 py-1">${priceText}</span>
+                    </td>
+                    <td class="text-center align-middle">
+                        <div class="input-group input-group-sm" style="width: 140px; margin: 0 auto;">
+                            <!-- ใส่ Class 'item-dividend-input' และ 'item-comm-input' ไว้ให้ฟังก์ชัน Save กวาดข้อมูลไปบันทึก -->
+                            <input type="number" class="form-control text-end item-dividend-input item-comm-input fw-bold text-primary" 
+                                   data-id="${rawId}" value="${divValue}" ${isItemActive ? '' : 'disabled'}>
+                            <span class="input-group-text">${cur}</span>
+                        </div>
+                    </td>
+                    <td class="text-center align-middle">
+                        <button type="button" class="btn btn-sm btn-outline-danger py-1 px-2" onclick="deleteItemCommission('${rawId}')" title="ลบรายการ" ${isItemActive ? '' : 'disabled'}>
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    };
+
+    // 1. เรนเดอร์ทันทีจาก LocalStorage (Instant Cache) ไม่ให้หน้าจอกะพริบหรือหายตอนรีเฟรช
+    let localServices = window.allServicesData || JSON.parse(localStorage.getItem('clinic_services_packages') || 'null') || window.servicesData || [];
+    let localItemSettings = JSON.parse(localStorage.getItem('hr_item_commission_settings') || '{}');
+    let localSettingsList = Object.keys(localItemSettings).map(sId => ({
+        id: sId.startsWith('item_') ? sId : 'item_' + sId,
+        type: 'item',
+        value: localItemSettings[sId],
+        currency: 'LAK'
+    }));
+
+    if (localSettingsList.length > 0) {
+        renderRows(localSettingsList, localServices);
     }
 
-    const isItemActive = localStorage.getItem('hr_item_commission_enabled') === 'true';
+    try {
+        // 2. ดึงข้อมูลแพ็กเกจและรายการตรวจจาก Supabase
+        let services = localServices;
+        if (typeof _supabase !== 'undefined') {
+            const { data: srvData } = await _supabase.from('services').select('*');
+            if (srvData && srvData.length > 0) {
+                services = srvData;
+                window.allServicesData = srvData;
+                localStorage.setItem('clinic_services_packages', JSON.stringify(srvData));
+            }
+        }
 
-    tbody.innerHTML = addedServices.map((s, index) => {
-        const cur = s.currency === 'THB' ? 'บาท' : (s.currency || 'LAK');
-        const itemVal = itemSettings[s.id] !== undefined ? itemSettings[s.id] : '';
-        const catName = s.category || 'รายการตรวจ';
+        // 3. ดึงข้อมูลรายการปันผลที่บันทึกไว้ใน commission_settings
+        let dbSettings = [];
+        if (typeof _supabase !== 'undefined') {
+            const { data: commData, error } = await _supabase
+                .from('commission_settings')
+                .select('*');
 
-        return `
-            <tr>
-                <td class="text-center text-muted small fw-semibold">${index + 1}</td>
-                <td>
-                    <div class="fw-bold text-dark" style="font-size: 0.88rem;">${s.name}</div>
-                    <div class="text-muted extra-small" style="font-size: 0.72rem;"><i class="bi bi-folder2 me-1"></i>${catName}</div>
-                </td>
-                <td class="text-end font-monospace text-nowrap" style="font-size: 0.84rem;">
-                    <span class="badge bg-light text-success border px-2 py-1 fw-semibold">${Number(s.price || 0).toLocaleString()} ${cur}</span>
-                </td>
-                <td class="text-center">
-                    <div class="input-group input-group-sm ms-auto" style="max-width: 130px;">
-                        <input type="number" step="0.01" min="0" class="form-control custom-input text-end item-comm-input fw-bold text-primary" 
-                               data-id="${s.id}" placeholder="0" value="${itemVal}" ${isItemActive ? '' : 'disabled'}>
-                        <span class="input-group-text px-1.5" style="font-size: 0.75rem;">${cur}</span>
-                    </div>
-                </td>
-                <td class="text-center">
-                    <button type="button" class="btn btn-sm btn-outline-danger border-0 p-1" onclick="removeItemCommissionSetting('${s.id}')" title="ลบออกจากรายการปันผล" ${isItemActive ? '' : 'disabled'}>
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </td>
-            </tr>
-        `;
-    }).join('');
+            if (!error && commData && commData.length > 0) {
+                dbSettings = commData.filter(r => r.type === 'item' || (r.id && r.id.startsWith('item_') && r.id !== 'item_config'));
+            }
+        }
+
+        if (dbSettings.length > 0) {
+            const cachedObj = {};
+            dbSettings.forEach(item => {
+                const sId = item.id.replace(/^item_/, '');
+                cachedObj[sId] = parseFloat(item.value) || 0;
+            });
+            localStorage.setItem('hr_item_commission_settings', JSON.stringify(cachedObj));
+            renderRows(dbSettings, services);
+        } else if (localSettingsList.length > 0) {
+            renderRows(localSettingsList, services);
+        } else {
+            renderRows([], services);
+        }
+    } catch (err) {
+        console.error('Load Item Commission Error:', err);
+        if (localSettingsList.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">เกิดข้อผิดพลาดในการดึงข้อมูลจากฐานข้อมูล</td></tr>';
+        }
+    }
 }
-window.renderItemCommissionSettingsTable = renderItemCommissionSettingsTable;
+window.loadItemCommissionSettings = loadItemCommissionSettings;
+window.renderItemCommissionSettingsTable = loadItemCommissionSettings;
+
+async function deleteItemCommission(itemId) {
+    const serviceId = itemId.replace(/^item_/, '');
+    if (typeof removeItemCommissionSetting === 'function') {
+        await removeItemCommissionSetting(serviceId);
+    } else {
+        const itemSettings = JSON.parse(localStorage.getItem('hr_item_commission_settings') || '{}');
+        delete itemSettings[serviceId];
+        localStorage.setItem('hr_item_commission_settings', JSON.stringify(itemSettings));
+        if (typeof _supabase !== 'undefined') {
+            await _supabase.from('commission_settings').delete().eq('id', itemId);
+        }
+    }
+    await loadItemCommissionSettings();
+}
+window.deleteItemCommission = deleteItemCommission;
 
 async function openAddItemDividendModal() {
     // ดึงข้อมูลรายการตรวจจาก Supabase (allServicesData) เสมอเพื่อให้ข้อมูลสดและครบถ้วน
@@ -12074,7 +12405,45 @@ async function openAddItemDividendModal() {
         localStorage.setItem('hr_item_commission_enabled', 'true');
         const itemSw = document.getElementById('itemModeSwitch');
         if (itemSw) itemSw.checked = true;
-        toggleItemModeDisplay();
+        toggleItemModeDisplay(true);
+
+        // บันทึกลง Supabase Database ตาราง commission_settings
+        try {
+            if (typeof _supabase !== 'undefined') {
+                await _supabase.from('commission_settings').upsert([
+                    {
+                        id: 'item_' + formValues.sId,
+                        type: 'item',
+                        value: formValues.val,
+                        currency: 'LAK',
+                        auto_trigger: true,
+                        target_enabled: false,
+                        target_goal: 0,
+                        target_bonus_value: 0,
+                        updated_at: new Date().toISOString()
+                    },
+                    {
+                        id: 'item_config',
+                        type: 'item_mode',
+                        value: 0,
+                        currency: 'LAK',
+                        auto_trigger: true,
+                        target_enabled: false,
+                        target_goal: 0,
+                        target_bonus_value: 0,
+                        updated_at: new Date().toISOString()
+                    }
+                ], { onConflict: 'id' });
+
+                // บันทึก backup ลง system_settings
+                await _supabase.from('system_settings').upsert([
+                    { key: 'hr_item_commission_settings', value: JSON.stringify(itemSettings), updated_at: new Date().toISOString() },
+                    { key: 'hr_item_commission_enabled', value: 'true', updated_at: new Date().toISOString() }
+                ], { onConflict: 'key' });
+            }
+        } catch (e) {
+            console.warn('Save added item commission to DB error:', e);
+        }
 
         renderItemCommissionSettingsTable();
         Swal.fire('สำเร็จ', 'เพิ่มรายการปันผลเรียบร้อยแล้ว', 'success');
@@ -12082,25 +12451,65 @@ async function openAddItemDividendModal() {
 }
 window.openAddItemDividendModal = openAddItemDividendModal;
 
-function removeItemCommissionSetting(serviceId) {
+async function removeItemCommissionSetting(serviceId) {
     const itemSettings = JSON.parse(localStorage.getItem('hr_item_commission_settings') || '{}');
     if (itemSettings[serviceId] !== undefined) {
         delete itemSettings[serviceId];
         localStorage.setItem('hr_item_commission_settings', JSON.stringify(itemSettings));
+
+        // ลบออกจาก Supabase Database ตาราง commission_settings
+        try {
+            if (typeof _supabase !== 'undefined') {
+                await _supabase.from('commission_settings').delete().eq('id', 'item_' + serviceId);
+
+                // อัปเดต backup ลง system_settings
+                await _supabase.from('system_settings').upsert([
+                    { key: 'hr_item_commission_settings', value: JSON.stringify(itemSettings), updated_at: new Date().toISOString() }
+                ], { onConflict: 'key' });
+            }
+        } catch (e) {
+            console.warn('Remove item commission from DB error:', e);
+        }
+
         renderItemCommissionSettingsTable();
     }
 }
 window.removeItemCommissionSetting = removeItemCommissionSetting;
 
-function toggleItemModeDisplay() {
+// ฟังก์ชันเมื่อกดปุ่ม เปิด/ปิด "แบบรายรายการ"
+async function toggleItemModeDisplay() {
     const itemSwitch = document.getElementById('itemModeSwitch');
-    const isChecked = itemSwitch ? itemSwitch.checked : false;
-    const label = document.getElementById('itemModeSwitchLabel') || document.querySelector('label[for="itemModeSwitch"]');
-    if (label) {
-        label.innerHTML = isChecked ? '<span class="text-success fw-bold">เปิดใช้งาน</span>' : '<span class="text-secondary fw-bold">ปิดใช้งาน</span>';
-    }
+    if (!itemSwitch) return;
+    const isChecked = itemSwitch.checked;
+
+    // 1. บันทึกสถานะลงใน LocalStorage
+    localStorage.setItem('clinic_comm_item_enabled', isChecked);
     localStorage.setItem('hr_item_commission_enabled', isChecked ? 'true' : 'false');
 
+    // เปลี่ยนข้อความ Label
+    const label = document.getElementById('itemModeSwitchLabel');
+    if (label) label.textContent = isChecked ? 'เปิดใช้งาน' : 'ปิดใช้งาน';
+
+    // 🌟 บันทึกสถานะลง Supabase Database ทันที (ตาราง commission_settings)
+    if (typeof _supabase !== 'undefined') {
+        try {
+            await _supabase.from('commission_settings').upsert([{
+                id: 'toggle_item_mode',
+                type: 'system_toggle',
+                value: isChecked ? 1 : 0,
+                auto_trigger: isChecked,
+                updated_at: new Date().toISOString()
+            }], { onConflict: 'id' });
+
+            await _supabase.from('system_settings').upsert([
+                { key: 'hr_item_commission_enabled', value: isChecked ? 'true' : 'false', updated_at: new Date().toISOString() }
+            ], { onConflict: 'key' });
+        } catch (err) {
+            console.warn('Error saving item mode state:', err);
+        }
+    }
+
+    // จัดการเปิด/ปิด Control และตาราง
     const addBtn = document.querySelector('button[onclick="openAddItemDividendModal()"]');
     const saveBtn = document.querySelector('button[onclick="saveItemCommissionSettings()"]');
     if (addBtn) {
@@ -12125,36 +12534,61 @@ function toggleItemModeDisplay() {
 }
 window.toggleItemModeDisplay = toggleItemModeDisplay;
 
-function saveItemCommissionSettings() {
-    const inputs = document.querySelectorAll('.item-comm-input');
-    const settings = {};
-    inputs.forEach(input => {
-        const id = input.getAttribute('data-id');
-        const val = parseFloat(input.value.replace(/,/g, '')) || 0;
+// 🌟 ฟังก์ชันบันทึกตัวเลขปันผลกลับลง Database
+async function saveItemCommissionSettings() {
+    const inputs = document.querySelectorAll('.item-dividend-input, .item-comm-input');
+    if (inputs.length === 0) {
+        Swal.fire('แจ้งเตือน', 'ไม่มีรายการให้บันทึก', 'warning');
+        return;
+    }
 
-        if (id && !isNaN(val)) {
-            settings[id] = val;
-        }
+    Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    // จัดโครงสร้างข้อมูลให้ตรงกับ Database
+    const settingsObj = {};
+    const payload = Array.from(inputs).map(input => {
+        const rawId = input.getAttribute('data-id') || '';
+        const id = rawId.startsWith('item_') ? rawId : 'item_' + rawId;
+        const serviceId = id.replace(/^item_/, '');
+        const val = parseFloat(input.value) || 0;
+        settingsObj[serviceId] = val;
+
+        return {
+            id: id,
+            type: 'item',
+            value: val,
+            currency: 'LAK',
+            auto_trigger: true,
+            target_enabled: false,
+            target_goal: 0,
+            target_bonus_value: 0,
+            updated_at: new Date().toISOString()
+        };
     });
 
-    const itemSwitch = document.getElementById('itemModeSwitch');
-    const itemEnabled = itemSwitch ? itemSwitch.checked : false;
+    localStorage.setItem('hr_item_commission_settings', JSON.stringify(settingsObj));
 
-    localStorage.setItem('hr_item_commission_settings', JSON.stringify(settings));
-    localStorage.setItem('hr_item_commission_enabled', itemEnabled ? 'true' : 'false');
+    let error = null;
+    if (typeof _supabase !== 'undefined') {
+        const res = await _supabase.from('commission_settings').upsert(payload, { onConflict: 'id' });
+        error = res.error;
 
-    Swal.fire({
-        icon: 'success',
-        title: 'บันทึกสำเร็จ',
-        text: 'บันทึกการตั้งค่ารูปแบบการจ่ายปันผลแบบรายรายการเรียบร้อยแล้ว',
-        confirmButtonColor: '#003f88'
-    });
+        try {
+            await _supabase.from('system_settings').upsert([
+                { key: 'hr_item_commission_settings', value: JSON.stringify(settingsObj), updated_at: new Date().toISOString() }
+            ], { onConflict: 'key' });
+        } catch (e) { }
+    }
+
+    if (error) {
+        Swal.fire('ข้อผิดพลาด', error.message, 'error');
+    } else {
+        Swal.fire('สำเร็จ', 'บันทึกการตั้งค่าปันผลแบบรายรายการเรียบร้อยแล้ว', 'success');
+    }
 }
 window.saveItemCommissionSettings = saveItemCommissionSettings;
 
 async function calculateAndRecordCommission(visitRecordOrId, testsString = '') {
-    if (!window.commissionSettings || !window.commissionSettings.auto_trigger) return;
-
     let visitRecord = null;
     let visitId = null;
 
@@ -12283,30 +12717,35 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '') {
         }
     }
 
-    if (totalInvoice <= 0) totalInvoice = 1525000;
+    if (totalInvoice <= 0) totalInvoice = 0;
     let commAmount = 0;
     let isBonusApplied = false;
 
     // 1. คำนวณปันผลแบบภาพรวม (Overall Dividend)
     let overallComm = 0;
     const overallSwitch = document.getElementById('overallModeSwitch');
-    const isOverallActive = overallSwitch ? overallSwitch.checked : ((window.commissionSettings && window.commissionSettings.overall_enabled !== false) && (localStorage.getItem('hr_overall_commission_enabled') !== 'false'));
+    const isOverallActive = overallSwitch ? overallSwitch.checked : (
+        (window.commissionSettings && window.commissionSettings.overall_enabled !== false) &&
+        (localStorage.getItem('clinic_comm_overall_enabled') !== null
+            ? (localStorage.getItem('clinic_comm_overall_enabled') === 'true' || localStorage.getItem('clinic_comm_overall_enabled') === true)
+            : (localStorage.getItem('hr_overall_commission_enabled') !== 'false'))
+    );
 
     if (isOverallActive) {
         const monthlyCount = getMonthlyReferredCount(referrerId, refName);
         const targetEnabled = window.commissionSettings.target_enabled === true;
-        const targetGoal = window.commissionSettings.target_goal || 20;
+        const targetGoal = window.commissionSettings.target_goal || 0;
 
-        if (targetEnabled && (monthlyCount + 1) >= targetGoal) {
+        if (targetEnabled && targetGoal > 0 && (monthlyCount + 1) >= targetGoal) {
             isBonusApplied = true;
-            const bonusValue = parseFloat(window.commissionSettings.target_bonus_value || 10);
+            const bonusValue = parseFloat(window.commissionSettings.target_bonus_value || 0);
             if (window.commissionSettings.type === 'percentage') {
                 overallComm = totalInvoice * (bonusValue / 100);
             } else {
                 overallComm = bonusValue;
             }
         } else {
-            const standardValue = parseFloat(window.commissionSettings.value || 200000);
+            const standardValue = parseFloat(window.commissionSettings.value !== undefined ? window.commissionSettings.value : 0);
             if (window.commissionSettings.type === 'percentage') {
                 overallComm = totalInvoice * (standardValue / 100);
             } else {
@@ -12319,7 +12758,11 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '') {
     let itemCommSum = 0;
     let itemDetailsArr = [];
     const itemSwitch = document.getElementById('itemModeSwitch');
-    const itemModeEnabled = itemSwitch ? itemSwitch.checked : (localStorage.getItem('hr_item_commission_enabled') === 'true');
+    const itemModeEnabled = itemSwitch ? itemSwitch.checked : (
+        localStorage.getItem('clinic_comm_item_enabled') !== null
+            ? (localStorage.getItem('clinic_comm_item_enabled') === 'true' || localStorage.getItem('clinic_comm_item_enabled') === true)
+            : (localStorage.getItem('hr_item_commission_enabled') === 'true')
+    );
 
     if (itemModeEnabled) {
         const itemSettings = JSON.parse(localStorage.getItem('hr_item_commission_settings') || '{}');
@@ -12338,17 +12781,33 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '') {
         }
 
         itemList.forEach(item => {
-            const itemId = String(item.id || item.service_id || item.item_id || item.name || '');
-            const itemName = item.name || item.title || itemId;
+            const rawItemId = String(item.id || item.service_id || item.item_id || item.name || '').trim();
+            const cleanItemId = rawItemId.replace(/^item_/, '');
+            const itemName = (item.name || item.title || rawItemId).trim();
             const qty = parseFloat(item.qty || item.quantity || 1);
 
             let matchedVal = null;
-            if (itemSettings[itemId] !== undefined) {
-                matchedVal = parseFloat(itemSettings[itemId]);
+            // 1. ตรวจสอบตรงกับคีย์ใน itemSettings (ทั้งแบบมีและไม่มี item_ prefix)
+            if (itemSettings[cleanItemId] !== undefined) {
+                matchedVal = parseFloat(itemSettings[cleanItemId]);
+            } else if (itemSettings['item_' + cleanItemId] !== undefined) {
+                matchedVal = parseFloat(itemSettings['item_' + cleanItemId]);
+            } else if (itemSettings[rawItemId] !== undefined) {
+                matchedVal = parseFloat(itemSettings[rawItemId]);
             } else {
-                const foundSvc = (window.servicesData || []).find(s => String(s.name).trim().toLowerCase() === String(itemName).trim().toLowerCase());
-                if (foundSvc && itemSettings[foundSvc.id] !== undefined) {
-                    matchedVal = parseFloat(itemSettings[foundSvc.id]);
+                // 2. ค้นหาในฐานข้อมูลรายการตรวจทั้งหมด (allServicesData / services)
+                const allSvc = window.allServicesData || JSON.parse(localStorage.getItem('clinic_services_packages') || '[]') || window.servicesData || [];
+                const foundSvc = allSvc.find(s => 
+                    String(s.name || '').trim().toLowerCase() === itemName.toLowerCase() ||
+                    String(s.id || '').trim().toLowerCase() === cleanItemId.toLowerCase()
+                );
+                if (foundSvc) {
+                    const sId = String(foundSvc.id).replace(/^item_/, '');
+                    if (itemSettings[sId] !== undefined) {
+                        matchedVal = parseFloat(itemSettings[sId]);
+                    } else if (itemSettings['item_' + sId] !== undefined) {
+                        matchedVal = parseFloat(itemSettings['item_' + sId]);
+                    }
                 }
             }
 
@@ -12419,98 +12878,64 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '') {
 }
 window.calculateAndRecordCommission = calculateAndRecordCommission;
 window.processPaymentCommission = calculateAndRecordCommission;
-const processPaymentCommission = calculateAndRecordCommission;
-
 async function syncAllVisitsCommissionLogs() {
     window.commissionLogs = window.commissionLogs || [];
     let visits = [];
+    let patients = window.allPatients || [];
 
     try {
         if (typeof _supabase !== 'undefined') {
-            const { data } = await _supabase.from('visits').select('*');
-            if (data && data.length > 0) visits = data;
+            const [ { data: vData }, { data: pData } ] = await Promise.all([
+                _supabase.from('visits').select('*'),
+                _supabase.from('patients').select('*')
+            ]);
+            if (vData && vData.length > 0) visits = vData;
+            if (pData && pData.length > 0) patients = pData;
         }
     } catch (e) { }
 
-    try {
-        const localVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
-        if (Array.isArray(localVisits)) {
-            const map = new Map();
-            visits.forEach(v => { if (v && (v.visit_id || v.id)) map.set(v.visit_id || v.id, v); });
-            localVisits.forEach(v => {
-                if (v && (v.visit_id || v.id)) {
-                    const k = v.visit_id || v.id;
-                    map.set(k, { ...(map.get(k) || {}), ...v, visit_id: k });
-                }
-            });
-            visits = Array.from(map.values());
-        }
-    } catch (e) { }
+    const localVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
+    if (Array.isArray(localVisits) && localVisits.length > 0) {
+        const map = new Map();
+        visits.forEach(v => { if (v && (v.visit_id || v.id)) map.set(v.visit_id || v.id, v); });
+        localVisits.forEach(v => {
+            if (v && (v.visit_id || v.id)) {
+                const k = v.visit_id || v.id;
+                map.set(k, { ...(map.get(k) || {}), ...v, visit_id: k });
+            }
+        });
+        visits = Array.from(map.values());
+    }
 
-    let patients = window.allPatients || [];
-    try {
-        if (typeof _supabase !== 'undefined' && patients.length === 0) {
-            const { data } = await _supabase.from('patients').select('*');
-            if (data && data.length > 0) patients = data;
-        }
-    } catch (e) { }
-
-    const patReferrersMap = JSON.parse(localStorage.getItem('clinic_patient_referrers') || '{}');
-    const apptReferrersMap = JSON.parse(localStorage.getItem('clinic_appointment_referrers') || '{}');
-
-    const hnReferrerMap = {};
-    const nameReferrerMap = {};
+    const patientMap = {};
     patients.forEach(p => {
-        const rBy = p.referred_by || patReferrersMap[p.hn] || patReferrersMap[p.id];
-        if (rBy) {
-            if (p.hn) hnReferrerMap[p.hn] = rBy;
-            if (p.patient_name || p.FullName) nameReferrerMap[p.patient_name || p.FullName] = rBy;
-        }
-    });
-
-    Object.keys(patReferrersMap).forEach(hnKey => {
-        if (patReferrersMap[hnKey]) hnReferrerMap[hnKey] = patReferrersMap[hnKey];
+        if (p.hn) patientMap[p.hn] = p;
+        if (p.patient_name) patientMap[p.patient_name.trim().toLowerCase()] = p;
+        if (p.name) patientMap[p.name.trim().toLowerCase()] = p;
     });
 
     const existingVisitIds = new Set(window.commissionLogs.map(l => l.visit_id).filter(Boolean));
-    const existingPatientNames = new Set(window.commissionLogs.map(l => l.patient_name).filter(Boolean));
 
     let addedCount = 0;
     for (const v of visits) {
         const vId = v.visit_id || v.id;
-        const pName = v.patient_name || 'ผู้ป่วย';
-        const pHn = v.hn;
-
         if (vId && existingVisitIds.has(vId)) continue;
-        if (existingPatientNames.has(pName)) continue;
 
-        let refBy = v.referred_by || (pHn ? hnReferrerMap[pHn] : null) || nameReferrerMap[pName] || (v.appointment_id ? apptReferrersMap[v.appointment_id] : null);
-
-        if (refBy) {
-            await processPaymentCommission(vId || ('VIS-' + Math.floor(1000 + Math.random() * 9000)));
-            addedCount++;
+        let p = null;
+        if (v.hn && patientMap[v.hn]) {
+            p = patientMap[v.hn];
+        } else if (v.patient_name) {
+            const cleanName = v.patient_name.trim().toLowerCase();
+            p = patientMap[cleanName] || patients.find(pt => (pt.patient_name || pt.name || '').trim().toLowerCase() === cleanName);
         }
-    }
 
-    // Secondary pass: Check patients list for patients with referrers who may not have visit records
-    for (const p of patients) {
-        const pName = p.patient_name || p.FullName;
-        const pHn = p.hn;
-        const rBy = p.referred_by || (pHn ? patReferrersMap[pHn] : null) || (pName ? nameReferrerMap[pName] : null);
+        const refBy = v.referred_by || v.referrer || v.ref_code || v.doctor_ref || p?.referred_by || p?.referrer || p?.ref_code;
 
-        if (rBy && pName && !existingPatientNames.has(pName)) {
-            const tempVisitId = 'VIS-PAT-' + (pHn || Math.floor(1000 + Math.random() * 9000));
-            const dummyVisit = {
-                visit_id: tempVisitId,
-                hn: pHn,
-                patient_name: pName,
-                referred_by: rBy,
-                total_price: 1500,
-                status: 'เสร็จสิ้น'
-            };
-            window.allPaymentQueue = window.allPaymentQueue || [];
-            window.allPaymentQueue.push(dummyVisit);
-            await processPaymentCommission(tempVisitId);
+        if (refBy && refBy !== '-' && refBy !== 'null' && refBy !== 'undefined') {
+            v.referrer = refBy;
+            if (!v.hn && p && p.hn) v.hn = p.hn;
+            await calculateAndRecordCommission(v, v.lab_tests || '');
+            if (vId) existingVisitIds.add(vId);
             addedCount++;
         }
     }
