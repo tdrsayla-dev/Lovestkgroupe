@@ -881,7 +881,8 @@
                 <table class="table table-modern" id="patientsTable">
                     <thead>
                         <tr>
-                            <th class="ps-4" data-i18n="reg_hn">HN</th>
+                            <th class="ps-4 text-center" style="width: 60px;">ลำดับ</th>
+                            <th data-i18n="reg_hn">HN</th>
                             <th data-i18n="reg_name">ชื่อ-นามสกุล</th>
                             <th data-i18n="reg_age">อายุ</th>
                             <th data-i18n="reg_phone">เบอร์โทร</th>
@@ -894,7 +895,7 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="9" class="text-center text-muted py-5">กำลังโหลดข้อมูล...</td>
+                            <td colspan="10" class="text-center text-muted py-5">กำลังโหลดข้อมูล...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -922,14 +923,15 @@
                 <table class="table table-modern align-middle" id="triageTable">
                     <thead>
                         <tr>
-                            <th class="ps-4" data-i18n="triage_th_visit">รหัส VISIT</th>
+                            <th class="ps-4 text-center" style="width: 60px;">ลำดับ</th>
+                            <th data-i18n="triage_th_visit">รหัส VISIT</th>
                             <th data-i18n="triage_th_name">ชื่อ-นามสกุล</th>
                             <th class="text-end pe-4" data-i18n="triage_th_action">จัดการ</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="3" class="text-center text-muted py-5" data-i18n="triage_empty">
+                            <td colspan="4" class="text-center text-muted py-5" data-i18n="triage_empty">
                                 ยังไม่มีผู้ป่วยรอคัดกรอง</td>
                         </tr>
                     </tbody>
@@ -1026,7 +1028,8 @@
                 <table class="table table-modern" id="doctorTable">
                     <thead>
                         <tr>
-                            <th class="ps-4" data-i18n="triage_th_visit">รหัส VISIT</th>
+                            <th class="ps-4 text-center" style="width: 60px;">ลำดับ</th>
+                            <th data-i18n="triage_th_visit">รหัส VISIT</th>
                             <th data-i18n="doctor_th_symptoms">ชื่อ-นามสกุล / อาการเบื้องต้น</th>
                             <th data-i18n="doctor_th_vitals">สัญญาณชีพเบื้องต้น</th>
                             <th class="text-end pe-4" data-i18n="actions">จัดการ</th>
@@ -1034,7 +1037,7 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="4" class="text-center text-muted py-5" data-i18n="doctor_empty">
+                            <td colspan="5" class="text-center text-muted py-5" data-i18n="doctor_empty">
                                 ไม่มีผู้ป่วยรอตรวจ</td>
                         </tr>
                     </tbody>
@@ -1048,7 +1051,7 @@
 
         <!-- 6. จ่ายค่ารักษา (Payment) -->
         <div id="payment" class="page-section">
-            <div class="d-flex justify-content-between align-items-end mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
                             class="bi bi-cash-coin text-primary me-2"></i><span
@@ -1056,12 +1059,57 @@
                     <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="payment_subtitle">
                         รายการรอชำระเงินก่อนส่งตรวจ Lab</p>
                 </div>
+
+                <!-- แถบเครื่องมือ: ช่องค้นหา + เลือกวันที่ -->
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    
+                    <!-- ช่องค้นหา (Search Box) -->
+                    <div class="position-relative shadow-sm rounded-pill" style="min-width: 200px;">
+                        <span class="position-absolute text-muted" style="top: 50%; left: 14px; transform: translateY(-50%);">
+                            <i class="bi bi-search"></i>
+                        </span>
+                        <input type="text" id="searchPaymentInput" class="form-control border-0 bg-white rounded-pill ps-5 pe-3" 
+                            placeholder="ค้นหาชื่อ, HN, VIS-..." 
+                            style="font-size: 0.85rem; height: 36px;" onkeyup="filterPaymentTable()">
+                    </div>
+
+                    <!-- กลุ่มปุ่มเลือกเวลาด่วน -->
+                    <div class="btn-group shadow-sm" role="group" style="height: 36px;">
+                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3" 
+                            style="border-top-left-radius: 50rem; border-bottom-left-radius: 50rem; font-size: 0.85rem;" 
+                            onclick="setPaymentDateFilter('today')">วันนี้</button>
+                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3" 
+                            style="font-size: 0.85rem;" 
+                            onclick="setPaymentDateFilter('month')">เดือนนี้</button>
+                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3" 
+                            style="font-size: 0.85rem;" 
+                            onclick="setPaymentDateFilter('year')">ปีนี้</button>
+                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3" 
+                            style="border-top-right-radius: 50rem; border-bottom-right-radius: 50rem; font-size: 0.85rem;" 
+                            onclick="setPaymentDateFilter('all')">ทั้งหมด</button>
+                    </div>
+
+                    <!-- แคปซูลเลือกช่วงวันที่ -->
+                    <div class="d-flex align-items-center bg-white border rounded-pill px-3 shadow-sm gap-2" style="height: 36px;">
+                        <i class="bi bi-calendar-event text-primary" style="font-size: 0.95rem;"></i>
+                        <input type="date" id="paymentStartDate" class="form-control border-0 p-0 bg-transparent shadow-none text-secondary fw-medium" 
+                            style="width: 110px; font-size: 0.85rem; cursor: pointer; outline: none;" onchange="filterPaymentTable()">
+                        <span class="text-muted small fw-bold" style="opacity: 0.3;">|</span>
+                        <input type="date" id="paymentEndDate" class="form-control border-0 p-0 bg-transparent shadow-none text-secondary fw-medium" 
+                            style="width: 110px; font-size: 0.85rem; cursor: pointer; outline: none;" onchange="filterPaymentTable()">
+                    </div>
+
+                    <button class="btn btn-primary rounded-pill px-3 fw-semibold shadow-sm" style="height: 36px; font-size: 0.85rem;" onclick="loadPaymentQueue()">
+                        <i class="bi bi-arrow-clockwise me-1"></i> รีเฟรช
+                    </button>
+                </div>
             </div>
             <div class="table-responsive table-container">
                 <table class="table table-modern" id="paymentTable">
                     <thead>
                         <tr>
-                            <th class="ps-4" data-i18n="triage_th_visit">รหัส VISIT</th>
+                            <th class="ps-4 text-center" style="width: 60px;">ลำดับ</th>
+                            <th data-i18n="triage_th_visit">รหัส VISIT</th>
                             <th data-i18n="reg_hn">HN</th>
                             <th data-i18n="reg_name">ชื่อ-นามสกุล</th>
                             <th data-i18n="payment_th_tests">รายการส่งตรวจ</th>
@@ -1070,7 +1118,7 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-5" data-i18n="payment_empty">
+                            <td colspan="6" class="text-center text-muted py-5" data-i18n="payment_empty">
                                 ไม่มีรายการรอชำระเงิน</td>
                         </tr>
                     </tbody>
@@ -1081,12 +1129,55 @@
 
         <!-- 7. ห้อง Lab (Lab) -->
         <div id="lab" class="page-section">
-            <div class="d-flex justify-content-between align-items-end mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #09111c; font-family: 'Kanit', sans-serif;"><i
                             class="bi bi-virus text-primary me-2"></i><span data-i18n="lab_title">ห้อง Lab</span></h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="lab_subtitle">อัปโหลดผล Lab (PDF,
-                        PNG, JPG)</p>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="lab_subtitle">อัปโหลดผล Lab (PDF, PNG, JPG)</p>
+                </div>
+                
+                <!-- แถบเครื่องมือ: ช่องค้นหา + เลือกวันที่ -->
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    
+                    <!-- ช่องค้นหา (Search Box) -->
+                    <div class="position-relative shadow-sm rounded-pill" style="min-width: 200px;">
+                        <span class="position-absolute text-muted" style="top: 50%; left: 14px; transform: translateY(-50%);">
+                            <i class="bi bi-search"></i>
+                        </span>
+                        <input type="text" id="searchLabInput" class="form-control border-0 bg-white rounded-pill ps-5 pe-3" 
+                            placeholder="ค้นหาชื่อ, HN, VIS-..." 
+                            style="font-size: 0.85rem; height: 36px;" onkeyup="filterLabTable()">
+                    </div>
+
+                    <!-- กลุ่มปุ่มเลือกเวลาด่วน -->
+                    <div class="btn-group shadow-sm" role="group" style="height: 36px;">
+                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3" 
+                            style="border-top-left-radius: 50rem; border-bottom-left-radius: 50rem; font-size: 0.85rem;" 
+                            onclick="setLabDateFilter('today')">วันนี้</button>
+                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3" 
+                            style="font-size: 0.85rem;" 
+                            onclick="setLabDateFilter('month')">เดือนนี้</button>
+                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3" 
+                            style="font-size: 0.85rem;" 
+                            onclick="setLabDateFilter('year')">ปีนี้</button>
+                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3" 
+                            style="border-top-right-radius: 50rem; border-bottom-right-radius: 50rem; font-size: 0.85rem;" 
+                            onclick="setLabDateFilter('all')">ทั้งหมด</button>
+                    </div>
+
+                    <!-- แคปซูลเลือกช่วงวันที่ -->
+                    <div class="d-flex align-items-center bg-white border rounded-pill px-3 shadow-sm gap-2" style="height: 36px;">
+                        <i class="bi bi-calendar-event text-primary" style="font-size: 0.95rem;"></i>
+                        <input type="date" id="labStartDate" class="form-control border-0 p-0 bg-transparent shadow-none text-secondary fw-medium" 
+                            style="width: 110px; font-size: 0.85rem; cursor: pointer; outline: none;" onchange="filterLabTable()">
+                        <span class="text-muted small fw-bold" style="opacity: 0.3;">|</span>
+                        <input type="date" id="labEndDate" class="form-control border-0 p-0 bg-transparent shadow-none text-secondary fw-medium" 
+                            style="width: 110px; font-size: 0.85rem; cursor: pointer; outline: none;" onchange="filterLabTable()">
+                    </div>
+
+                    <button class="btn btn-primary rounded-pill px-3 fw-semibold shadow-sm" style="height: 36px; font-size: 0.85rem;" onclick="loadLabQueue()">
+                        <i class="bi bi-arrow-clockwise me-1"></i> รีเฟรช
+                    </button>
                 </div>
             </div>
 
@@ -1094,7 +1185,8 @@
                 <table class="table table-modern" id="labTable">
                     <thead>
                         <tr>
-                            <th class="ps-4" data-i18n="triage_th_visit">รหัส VISIT</th>
+                            <th class="ps-4 text-center" style="width: 60px;">ลำดับ</th>
+                            <th data-i18n="triage_th_visit">รหัส VISIT</th>
                             <th data-i18n="reg_hn">HN</th>
                             <th data-i18n="reg_name">ชื่อ-นามสกุล</th>
                             <th data-i18n="payment_th_tests">รายการส่งตรวจ</th>
@@ -1108,12 +1200,15 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="7" class="text-center text-muted py-5" data-i18n="lab_empty">ไม่มีรายการรอตรวจ
+                            <td colspan="8" class="text-center text-muted py-5" data-i18n="lab_empty">ไม่มีรายการรอตรวจ
                                 Lab</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
+
+            <!-- 🌟 เพิ่มบรรทัดนี้ไว้ใต้ตารางเพื่อแสดงปุ่มแบ่งหน้า 1, 2, 3... -->
+            <div id="labPagination" class="mt-3 mb-2"></div>
         </div>
 
         <!-- 8. จัดคิว (Queue) -->
@@ -1142,7 +1237,8 @@
                 <table class="table table-modern" id="queueTable">
                     <thead>
                         <tr>
-                            <th class="ps-4" data-i18n="triage_th_visit">รหัส VISIT</th>
+                            <th class="ps-4 text-center" style="width: 60px;">ลำดับ</th>
+                            <th data-i18n="triage_th_visit">รหัส VISIT</th>
                             <th data-i18n="reg_hn">HN</th>
                             <th data-i18n="reg_name">ชื่อ-นามสกุล</th>
                             <th width="280" data-i18n="queue_th_select_doctor">เลือกคุณหมอที่ต้องการส่งตรวจ</th>
@@ -1151,7 +1247,7 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-5" data-i18n="queue_empty">
+                            <td colspan="6" class="text-center text-muted py-5" data-i18n="queue_empty">
                                 ไม่มีรายการรอจัดคิว</td>
                         </tr>
                     </tbody>
@@ -1196,7 +1292,8 @@
                 <table class="table table-modern" id="prescriptionTable">
                     <thead>
                         <tr>
-                            <th class="ps-4" data-i18n="triage_th_visit">รหัส VISIT</th>
+                            <th class="ps-4 text-center" style="width: 60px;">ลำดับ</th>
+                            <th data-i18n="triage_th_visit">รหัส VISIT</th>
                             <th data-i18n="reg_hn">HN</th>
                             <th data-i18n="reg_name">ชื่อ-นามสกุล</th>
                             <th data-i18n="prescription_th_doctor">ชื่อแพทย์ผู้รับผิดชอบ</th>
@@ -1206,7 +1303,7 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-5" data-i18n="prescription_empty">
+                            <td colspan="7" class="text-center text-muted py-5" data-i18n="prescription_empty">
                                 ไม่มีรายการรออ่านผล</td>
                         </tr>
                     </tbody>
@@ -1244,7 +1341,8 @@
                     <thead>
                         <tr
                             style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; color: #475569; font-size: 0.88rem;">
-                            <th class="ps-4" width="140">VISIT ID</th>
+                            <th class="ps-4 text-center" style="width: 60px;">ลำดับ</th>
+                            <th width="140">VISIT ID</th>
                             <th width="120">เลข HN</th>
                             <th width="160">ชื่อ-นามสกุล</th>
                             <th>รายการจัดสั่งจ่ายยา / จำนวน</th>
@@ -1253,7 +1351,7 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-5">ไม่มีรายการรอจ่ายยา</td>
+                            <td colspan="6" class="text-center text-muted py-5">ไม่มีรายการรอจ่ายยา</td>
                         </tr>
                     </tbody>
                 </table>
@@ -1311,7 +1409,8 @@
                         <thead>
                             <tr
                                 style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; color: #475569; font-size: 0.88rem;">
-                                <th class="ps-4" width="140">VISIT ID</th>
+                                <th class="ps-4 text-center" style="width: 60px;">ลำดับ</th>
+                                <th width="140">VISIT ID</th>
                                 <th width="120">เลข HN</th>
                                 <th width="160">ชื่อ-นามสกุล</th>
                                 <th>รายการยาที่จัดจ่ายเสร็จสิ้น</th>
@@ -1320,7 +1419,7 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td colspan="5" class="text-center text-muted py-5">ไม่มีประวัติการจ่ายยา</td>
+                                <td colspan="6" class="text-center text-muted py-5">ไม่มีประวัติการจ่ายยา</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1672,7 +1771,8 @@
                 <table class="table table-modern align-middle" id="historyTable">
                     <thead>
                         <tr>
-                            <th class="ps-4" width="140" data-i18n="triage_th_visit">รหัส VISIT</th>
+                            <th class="ps-4 text-center" style="width: 60px;">ลำดับ</th>
+                            <th width="140" data-i18n="triage_th_visit">รหัส VISIT</th>
                             <th width="110" data-i18n="reg_hn">HN</th>
                             <th width="180" data-i18n="reg_name">ชื่อ-นามสกุล</th>
                             <th width="150" data-i18n="history_th_date">วันที่ตรวจ</th>
@@ -1682,7 +1782,7 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-5" data-i18n="history_empty">
+                            <td colspan="7" class="text-center text-muted py-5" data-i18n="history_empty">
                                 ไม่มีข้อมูลประวัติผู้ป่วย</td>
                         </tr>
                     </tbody>
@@ -3443,13 +3543,22 @@
                         <input type="hidden" id="labHN" name="hn">
 
                         <!-- Top Metadata -->
-                        <div class="d-flex justify-content-end mb-3 pb-1">
-                            <div class="d-flex text-secondary small gap-4" style="font-size: 0.82rem;">
-                                <div>รหัส VISIT: <strong id="labVisitIdDisplay"
-                                        class="text-primary fw-semibold">-</strong></div>
-                                <div>ชื่อ-นามสกุล: <strong id="labPatientName" class="text-dark fw-bold">-</strong>
+                        <div class="mb-3 pb-3 border-bottom">
+                            <div class="row g-2 text-secondary small" style="font-size: 0.85rem;">
+                                <div class="col-md-4">
+                                    <div class="mb-1">รหัส VISIT: <strong id="labVisitIdDisplay" class="text-primary fw-semibold">-</strong></div>
+                                    <div>HN: <strong id="labHNDisplay" class="text-dark fw-bold">-</strong></div>
                                 </div>
-                                <div>HN: <strong id="labHNDisplay" class="text-dark fw-bold">-</strong></div>
+                                <div class="col-md-4">
+                                    <div class="mb-1">ชื่อ-นามสกุล: <strong id="labPatientName" class="text-dark fw-bold">-</strong></div>
+                                    <div>อายุ: <strong id="labPatientAge" class="text-dark fw-bold">-</strong> | ที่อยู่: <strong id="labPatientAddress" class="text-dark fw-bold">-</strong></div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="p-2 bg-light rounded border border-danger-subtle">
+                                        <div class="text-danger fw-bold mb-1"><i class="bi bi-heart-pulse-fill me-1"></i>สัญญาณชีพ</div>
+                                        <div id="labPatientVitals" class="text-dark" style="font-size: 0.8rem;">ความดัน: -, นน.: - กก., อุณหภูมิ: -°C</div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

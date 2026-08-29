@@ -528,10 +528,35 @@ function initClinicRealtimeHub() {
             })
             .subscribe();
 
-        // 9. Channel สำหรับตาราง REFERRALS (ระบบปันผล & สมาชิก)
-        _supabase.channel('realtime_referrals')
+        // 9. Channel สำหรับตาราง COMMISSION_LOGS (ประวัติค่าคอมมิชชั่น & ปันผล แบบ Real-time)
+        _supabase.channel('realtime_commission_logs')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'commission_logs' }, (payload) => {
+                debounceRealtime('commission_logs', () => {
+                    if (typeof loadReferralData === 'function') loadReferralData();
+                }, 150);
+            })
+            .subscribe();
+
+        // 10. Channel สำหรับตาราง COMMISSION_SETTINGS (การตั้งค่าปันผลแบบ Real-time)
+        _supabase.channel('realtime_commission_settings')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'commission_settings' }, (payload) => {
+                debounceRealtime('commission_settings', () => {
+                    if (typeof loadCommissionToggleStates === 'function') loadCommissionToggleStates();
+                    if (typeof loadItemCommissionSettings === 'function') loadItemCommissionSettings();
+                    if (typeof loadReferralData === 'function') loadReferralData();
+                }, 150);
+            })
+            .subscribe();
+
+        // 11. Channel สำหรับตาราง REFERRERS (ข้อมูลผู้แนะนำ)
+        _supabase.channel('realtime_referrers')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'referrals' }, () => {
                 debounceRealtime('referrals', () => {
+                    if (typeof loadReferralData === 'function') loadReferralData();
+                }, 200);
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'referrers' }, () => {
+                debounceRealtime('referrers', () => {
                     if (typeof loadReferralData === 'function') loadReferralData();
                 }, 200);
             })
@@ -660,7 +685,7 @@ async function loadAppointments() {
     const { data, error } = await _supabase
         .from('appointments')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
 
     if (error) {
         tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
@@ -919,7 +944,7 @@ async function loadPatients() {
     const { data, error } = await _supabase
         .from('patients')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
 
     tbody.innerHTML = '';
     if (error) {
@@ -1053,10 +1078,10 @@ function renderPatientsTable(page = window.patientCurrentPage) {
     // กรณีไม่มีข้อมูล
     if (!window.patientFilteredData || window.patientFilteredData.length === 0) {
         if (startDateStr || endDateStr) {
-            tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-calendar-x text-warning me-2 fs-5"></i>ไม่พบข้อมูลผู้ป่วยลงทะเบียนในช่วงวันที่เลือก <button type="button" class="btn btn-sm btn-link text-primary text-decoration-none fw-semibold p-0 ms-2" onclick="clearPatientDateFilter()">ดูทั้งหมด</button></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted py-4"><i class="bi bi-calendar-x text-warning me-2 fs-5"></i>ไม่พบข้อมูลผู้ป่วยลงทะเบียนในช่วงวันที่เลือก <button type="button" class="btn btn-sm btn-link text-primary text-decoration-none fw-semibold p-0 ms-2" onclick="clearPatientDateFilter()">ดูทั้งหมด</button></td></tr>`;
         } else {
             const noDataText = typeof t === 'function' ? t('reg_no_data', 'ไม่พบข้อมูลผู้ป่วย') : 'ไม่พบข้อมูลผู้ป่วย';
-            tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-5"><i class="bi bi-search fs-3 d-block mb-2 text-secondary"></i>${noDataText}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted py-5"><i class="bi bi-search fs-3 d-block mb-2 text-secondary"></i>${noDataText}</td></tr>`;
         }
         if (paginationContainer) paginationContainer.innerHTML = '';
         return;
@@ -1075,7 +1100,8 @@ function renderPatientsTable(page = window.patientCurrentPage) {
     const currentData = window.patientFilteredData.slice(startIndex, endIndex);
 
     // วาดข้อมูลลงในตาราง
-    currentData.forEach(row => {
+    currentData.forEach((row, idx) => {
+        let no = startIndex + idx + 1; // คำนวณลำดับรวมกับหน้าที่กำลังเปิด
         let allergy = (row.allergies || '').trim();
 
         let allergyBadge = (allergy && allergy !== '-' && allergy !== 'ไม่มี')
@@ -1151,7 +1177,8 @@ function renderPatientsTable(page = window.patientCurrentPage) {
         `;
 
         tbody.innerHTML += `<tr>
-            <td class="ps-4 fw-bold text-nowrap align-middle">${row.hn}</td>
+            <td class="ps-4 text-center align-middle">${no}</td>
+            <td class="fw-bold text-nowrap align-middle">${row.hn}</td>
             <td class="fw-bold text-nowrap align-middle">${row.patient_name}</td>
             <td class="text-nowrap align-middle">${row.age || '-'}</td>
             <td class="text-nowrap align-middle">${row.phone || '-'}</td>
@@ -1347,18 +1374,18 @@ async function loadTriage() {
 
     tbody.innerHTML = '';
     if (error) {
-        tbody.innerHTML = `<tr><td colspan="3" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
         return;
     }
     if (!data || data.length === 0) {
         const emptyText = typeof t === 'function' ? t('triage_empty', 'ยังไม่มีผู้ป่วยรอคัดกรอง') : 'ยังไม่มีผู้ป่วยรอคัดกรอง';
-        tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted py-3">${emptyText}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">${emptyText}</td></tr>`;
         return;
     }
 
     const btnHistoryText = typeof t === 'function' ? t('triage_btn_history', 'ซักประวัติ') : 'ซักประวัติ';
-    data.forEach(row => {
-        tbody.innerHTML += `<tr><td class="ps-4 fw-bold">${row.visit_id}</td><td><div class="fw-bold text-dark">${row.patient_name}</div><div class="text-muted small">HN: ${row.hn}</div></td><td class="text-end pe-4"><button class="btn btn-sm btn-primary px-3" onclick="openTriageModal('${row.visit_id}')">${btnHistoryText}</button></td></tr>`;
+    data.forEach((row, idx) => {
+        tbody.innerHTML += `<tr><td class="ps-4 text-center fw-semibold text-secondary">${idx + 1}</td><td class="fw-bold">${row.visit_id}</td><td><div class="fw-bold text-dark">${row.patient_name}</div><div class="text-muted small">HN: ${row.hn}</div></td><td class="text-end pe-4"><button class="btn btn-sm btn-primary px-3" onclick="openTriageModal('${row.visit_id}')">${btnHistoryText}</button></td></tr>`;
     });
 }
 
@@ -1467,7 +1494,7 @@ window.renderDoctorTable = function(page = window.doctorCurrentPage) {
     // กรณีไม่มีข้อมูล
     if (!window.doctorQueueData || window.doctorQueueData.length === 0) {
         const emptyText = typeof t === 'function' ? t('doctor_empty', 'ไม่มีผู้ป่วยรอตรวจ') : 'ไม่มีผู้ป่วยรอตรวจ';
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-5">${emptyText}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-5">${emptyText}</td></tr>`;
         if (paginationContainer) paginationContainer.innerHTML = '';
         return;
     }
@@ -1490,14 +1517,16 @@ window.renderDoctorTable = function(page = window.doctorCurrentPage) {
     const finishBtnText = typeof t === 'function' ? t('doctor_btn_finish', 'ตรวจเสร็จ') : 'ตรวจเสร็จ';
 
     // นำข้อมูล 15 รายการมาวาดลงตาราง
-    currentData.forEach(row => {
+    currentData.forEach((row, idx) => {
+        let no = startIndex + idx + 1;
         let vitals = `ความดัน: ${row.bp || '-'}, นน.: ${row.weight || '-'} กก., อุณหภูมิ: ${row.temp || '-'}°C`;
         let docBadge = row.doctor_name ? `<span class="badge bg-info-subtle text-info border border-info-subtle ms-2"><i class="bi bi-person me-1"></i>${row.doctor_name}</span>` : '';
         
         // 🌟 เพิ่มคลาส py-2 เพื่อให้แถวแคบและชิดกันมากขึ้น ปรับปุ่มให้โค้งมนดูทันสมัย
         tbody.innerHTML += `
             <tr class="border-bottom">
-                <td class="ps-4 fw-bold text-dark align-middle py-2" style="font-size: 0.92rem;">${row.visit_id}</td>
+                <td class="ps-4 text-center align-middle py-2">${no}</td>
+                <td class="fw-bold text-dark align-middle py-2" style="font-size: 0.92rem;">${row.visit_id}</td>
                 <td class="align-middle py-2">
                     <div class="fw-bold text-dark" style="font-size: 0.92rem;">${row.patient_name}${docBadge}</div>
                     <div class="text-muted small">อาการ: <span class="text-danger">${row.symptom || '-'}</span></div>
@@ -1605,14 +1634,14 @@ async function loadQueueList() {
 
     tbody.innerHTML = '';
     if (queueRes.error) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-5">เกิดข้อผิดพลาด: ${queueRes.error.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-5">เกิดข้อผิดพลาด: ${queueRes.error.message}</td></tr>`;
         return;
     }
 
     const queue = queueRes.data;
 
     if (!queue || queue.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-5">ไม่มีรายการรอจัดคิว</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">ไม่มีรายการรอจัดคิว</td></tr>';
         return;
     }
 
@@ -1654,7 +1683,7 @@ async function loadQueueList() {
     }
 
     // 3. แสดงผลตารางและแบ่งแยกตามสถานะ
-    queue.forEach(row => {
+    queue.forEach((row, idx) => {
         let actionColumnHtml = '';
 
         if (row.status === 'รอจัดคิว') {
@@ -1694,7 +1723,8 @@ async function loadQueueList() {
         }
 
         tbody.innerHTML += `<tr>
-        <td class="ps-4 py-3 fw-bold text-primary">${row.visit_id}</td>
+        <td class="ps-4 py-3 text-center fw-semibold text-secondary">${idx + 1}</td>
+        <td class="py-3 fw-bold text-primary">${row.visit_id}</td>
         <td class="py-3">${row.hn}</td>
         <td class="py-3 fw-bold text-dark">${row.patient_name}</td>
         ${actionColumnHtml}
@@ -1758,7 +1788,7 @@ async function loadPrescriptionList() {
 
     tbody.innerHTML = '';
     if (error) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-5">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-5">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
         return;
     }
 
@@ -1789,11 +1819,11 @@ async function loadPrescriptionList() {
         const emptyMsg = isDoc
             ? `ไม่มีรายการรออ่านผลสำหรับคุณหมอ (${currentUser.full_name || currentUser.name || 'ท่านนี้'})`
             : 'ไม่มีรายการรออ่านผล';
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-5"><i class="bi bi-person-check me-2"></i>${emptyMsg}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-5"><i class="bi bi-person-check me-2"></i>${emptyMsg}</td></tr>`;
         return;
     }
 
-    filtered.forEach(row => {
+    filtered.forEach((row, idx) => {
         let statusBadge = '';
         let actionBtn = '';
 
@@ -1807,7 +1837,8 @@ async function loadPrescriptionList() {
 
         tbody.innerHTML += `
         <tr>
-           <td class="ps-4 py-3 fw-bold text-primary">${row.visit_id}</td>
+           <td class="ps-4 py-3 text-center fw-semibold text-secondary">${idx + 1}</td>
+           <td class="py-3 fw-bold text-primary">${row.visit_id}</td>
            <td class="py-3">${row.hn}</td>
            <td class="py-3 fw-bold text-dark">${row.patient_name}</td>
            <td class="py-3 fw-bold text-info"><i class="bi bi-person-workspace text-primary"></i> ${row.doctor_name || '-'}</td>
@@ -2430,7 +2461,7 @@ async function viewLabDetailsByVisitId(visitId) {
     }
 }
 
-// ฟังก์ชั่นดูรายละเอียดรายการแล็บสำหรับ "ห้อง Lab" (แสดงรายการหลัก + รายการย่อยในแพ็กเกจ ไม่มีราคา)
+//// ฟังก์ชั่นดูรายละเอียดรายการแล็บสำหรับ "ห้อง Lab" (แสดงรายการหลัก + รายการย่อยในแพ็กเกจ ไม่มีราคา)
 async function showLabDetails(visitId, hn, patientName, testsString, labNote = '') {
     if (!hn && (!testsString || testsString === '')) {
         testsString = visitId;
@@ -2444,6 +2475,41 @@ async function showLabDetails(visitId, hn, patientName, testsString, labNote = '
     }
 
     const testsList = (testsString || '').split(',').map(t => t.trim()).filter(Boolean);
+
+    // --- ค้นหาข้อมูล อายุ ที่อยู่ และ อาการเบื้องต้น ---
+    let patientAge = '-';
+    let patientAddress = '-';
+    let patientSymptom = '-'; // ตัวแปรสำหรับเก็บอาการเบื้องต้น
+
+    // 1. ดึงอายุและที่อยู่จากประวัติผู้ป่วย
+    if (window.allPatients) {
+        const pat = window.allPatients.find(p => p.hn === hn || p.patient_name === patientName);
+        if (pat) {
+            patientAge = pat.age ? pat.age + ' ປີ' : '-';
+            
+            let addressParts = [];
+            if (pat.village && pat.village !== '-') addressParts.push('ບ.' + pat.village);
+            if (pat.district && pat.district !== '-') addressParts.push('ມ.' + pat.district);
+            if (pat.province && pat.province !== '-') addressParts.push('ຂ.' + pat.province);
+            
+            if (addressParts.length > 0) {
+                patientAddress = addressParts.join(', ');
+            }
+        }
+    }
+
+    // 2. ดึงอาการเบื้องต้นจากตาราง visits
+    if (visitId !== '-' && typeof _supabase !== 'undefined') {
+        try {
+            const { data } = await _supabase.from('visits').select('symptom').eq('visit_id', visitId).maybeSingle();
+            if (data && data.symptom) {
+                patientSymptom = data.symptom;
+            }
+        } catch (e) {
+            console.warn('Error fetching symptom:', e);
+        }
+    }
+    // -----------------------------------------------------
 
     let rowsHtml = '';
     testsList.forEach((test, idx) => {
@@ -2494,13 +2560,11 @@ async function showLabDetails(visitId, hn, patientName, testsString, labNote = '
         rowsHtml = `<tr><td colspan="2" class="text-center text-muted py-3">ไม่มีรายการแล็บ</td></tr>`;
     }
 
-    // 🌟 ดึงเฉพาะข้อความหมายเหตุที่หมอระบุจากหน้า "บันทึกข้อมูลส่งแล็บ (Lab Order)" ไม่เอาข้อความผลตรวจหลอดเลือด
     let doctorNote = (labNote || '').trim();
     if (doctorNote.includes('[ผลตรวจหลอดเลือด]')) {
         doctorNote = doctorNote.split('[ผลตรวจหลอดเลือด]')[0].trim();
     }
 
-    // 🌟 สร้าง HTML สำหรับกล่องแสดงหมายเหตุ (ถ้ามีข้อความจะแสดงขึ้นมา)
     let noteHtml = '';
     if (doctorNote && doctorNote !== '') {
         noteHtml = `
@@ -2514,20 +2578,22 @@ async function showLabDetails(visitId, hn, patientName, testsString, labNote = '
         `;
     }
 
-    // 🌟 ประกอบร่าง HTML ทั้งหมด
+    // ประกอบร่าง HTML ทั้งหมด โดยเพิ่ม อาการเบื้องต้น ลงไปต่อจาก ที่อยู่
     const modalContentHtml = `
         <div class="text-start mt-2">
-            <div class="p-3 mb-3 rounded-3 bg-light border d-flex justify-content-between align-items-center">
+            <div class="p-3 mb-3 rounded-3 bg-light border d-flex justify-content-between align-items-start">
                 <div>
                     <div class="small text-muted mb-1" style="font-size: 0.85rem;">ชื่อ-นามสกุล : <strong class="text-dark ms-1">${patientName || '-'}</strong></div>
-                    <div class="small text-muted" style="font-size: 0.8rem;">HN: <strong class="text-secondary ms-1">${hn || '-'}</strong></div>
+                    <div class="small text-muted mb-1" style="font-size: 0.8rem;">HN: <strong class="text-secondary ms-1">${hn || '-'}</strong></div>
+                    <div class="small text-muted mb-1" style="font-size: 0.8rem;">อายุ: <strong class="text-dark ms-1">${patientAge}</strong></div>
+                    <div class="small text-muted mb-1" style="font-size: 0.8rem;">ที่อยู่: <strong class="text-dark ms-1">${patientAddress}</strong></div>
+                    <div class="small text-muted" style="font-size: 0.8rem;">อาการเบื้องต้น: <strong class="text-danger ms-1">${patientSymptom}</strong></div>
                 </div>
                 <div class="text-end">
                     <div class="small text-muted mb-1" style="font-size: 0.85rem;">รหัส VISIT : <strong class="text-primary ms-1">${visitId || '-'}</strong></div>
                 </div>
             </div>
 
-            <!-- 🌟 นำกล่องหมายเหตุมาแทรกไว้ตรงนี้ (ก่อนตารางรายการตรวจ) -->
             ${noteHtml}
 
             <div class="table-responsive rounded-3 border mb-3" style="max-height: 420px; overflow-y: auto;">
@@ -2983,11 +3049,32 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
 }
 window.showPaymentDetails = showPaymentDetails;
 
-// ฟังก์ชั่นพิมพ์ใบเสร็จ/ใบแจ้งชำระเงิน (รองรับการพิมพ์รายการย่อยในแพ็กเกจ 100% ตรงตามแบบ)
+//// ฟังก์ชั่นพิมพ์ใบเสร็จ/ใบแจ้งชำระเงิน (รองรับการพิมพ์รายการย่อยในแพ็กเกจ 100% ตรงตามแบบ)
 function printPaymentInvoice(visitId, hn, patientName, testsString, discountVal) {
     const testsList = (testsString || '').split(',').map(t => t.trim()).filter(Boolean);
     let totalPrice = 0;
     const discount = parseFloat(discountVal) || 0;
+
+    // --- ส่วนที่เพิ่มเข้ามาใหม่: ค้นหาข้อมูล อายุ และ ที่อยู่ ของผู้ป่วย ---
+    let patientAge = '-';
+    let patientAddress = '-';
+
+    if (window.allPatients) {
+        const pat = window.allPatients.find(p => p.hn === hn || p.patient_name === patientName);
+        if (pat) {
+            patientAge = pat.age ? pat.age + ' ປີ' : '-';
+            
+            let addressParts = [];
+            if (pat.village && pat.village !== '-') addressParts.push('ບ້ານ: ' + pat.village);
+            if (pat.district && pat.district !== '-') addressParts.push('ເມືອງ: ' + pat.district);
+            if (pat.province && pat.province !== '-') addressParts.push('ແຂວງ: ' + pat.province);
+            
+            if (addressParts.length > 0) {
+                patientAddress = addressParts.join(', ');
+            }
+        }
+    }
+    // -----------------------------------------------------
 
     let rowsHtml = '';
     testsList.forEach((test, idx) => {
@@ -3161,9 +3248,12 @@ function printPaymentInvoice(visitId, hn, patientName, testsString, discountVal)
             </div>
 
             <div class="info-container">
+                <!-- ส่วนที่เพิ่มข้อมูลอายุและที่อยู่ลงใน HTML ตรงนี้ครับ -->
                 <div class="info-left">
                     <div class="info-row"><span class="info-label">ชื่อ-นามสกุล:</span> ${patientName || '-'}</div>
                     <div class="info-row"><span class="info-label">รหัส HN:</span> ${hn || '-'}</div>
+                    <div class="info-row"><span class="info-label">อายุ:</span> ${patientAge}</div>
+                    <div class="info-row"><span class="info-label">ที่อยู่:</span> ${patientAddress}</div>
                 </div>
                 <div class="info-right">
                     <div class="info-row"><span class="info-label">รหัส VISIT:</span> ${visitId || '-'}</div>
@@ -4669,6 +4759,276 @@ function isCategoryMatch(itemCategory, targetCategory) {
     return false;
 }
 
+// =====================================
+// ระบบห้อง Lab - รองรับ Pagination 15 รายการ/หน้า และตัวกรองค้นหา/วันที่
+// =====================================
+window.labQueueData = []; // เก็บข้อมูลทั้งหมด
+window.labFilteredData = []; // เก็บข้อมูลที่ผ่านการกรอง
+window.labCurrentPage = 1; // หน้าปัจจุบัน
+const LAB_PER_PAGE = 15; // จำนวน 15 รายการต่อหน้า
+
+// 1. ดึงข้อมูลจากฐานข้อมูลมาเก็บไว้
+async function loadLabQueue() {
+    const tbody = document.querySelector('#labTable tbody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูล...</td></tr>';
+
+    const { data, error } = await _supabase
+        .from('visits')
+        .select('*')
+        .in('status', ['รอผลแล็บ', 'รอผลตรวจ Lab'])
+        .order('created_at', { ascending: true });
+
+    if (error) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
+        return;
+    }
+
+    // โหลด mapping ชื่อผู้ป่วย -> HN
+    let patientsMap = {};
+    const hasMissingHn = (data || []).some(r => !r.hn || r.hn === 'null' || r.hn === '-' || r.hn === 'undefined');
+    if (hasMissingHn) {
+        try {
+            const { data: pList } = await _supabase.from('patients').select('hn, patient_name');
+            if (pList) {
+                pList.forEach(p => {
+                    const pName = p.patient_name || p.name;
+                    if (pName && p.hn) {
+                        patientsMap[pName.trim().toLowerCase()] = p.hn;
+                    }
+                });
+            }
+        } catch (e) {
+            console.warn('loadLabQueue fetch patientsMap error:', e);
+        }
+    }
+
+    // อัปเดต HN ให้สมบูรณ์ก่อนเก็บลงตัวแปรกลาง
+    let processedData = data || [];
+    processedData.forEach(row => {
+        let rowHn = (row.hn && row.hn !== 'null' && row.hn !== 'undefined' && row.hn !== '-') ? row.hn.trim() : '';
+        if (!rowHn && row.patient_name) {
+            const mappedHn = patientsMap[row.patient_name.trim().toLowerCase()];
+            if (mappedHn) {
+                row.hn = mappedHn;
+                _supabase.from('visits').update({ hn: mappedHn }).eq('visit_id', row.visit_id).then(() => { });
+            }
+        }
+    });
+
+    window.labQueueData = processedData;
+    filterLabTable(); // กรองข้อมูลและแสดงผล
+}
+
+// 2. ฟังก์ชันจัดวันที่ให้ปุ่มกด วันนี้, เดือนนี้, ปีนี้, ทั้งหมด
+window.setLabDateFilter = function(mode) {
+    const startInput = document.getElementById('labStartDate');
+    const endInput = document.getElementById('labEndDate');
+    const now = new Date();
+
+    if (mode === 'today') {
+        const todayStr = now.toISOString().split('T')[0];
+        if (startInput) startInput.value = todayStr;
+        if (endInput) endInput.value = todayStr;
+    } else if (mode === 'month') {
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+        if (startInput) startInput.value = firstDay;
+        if (endInput) endInput.value = lastDay;
+    } else if (mode === 'year') {
+        const firstDay = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
+        const lastDay = new Date(now.getFullYear(), 11, 31).toISOString().split('T')[0];
+        if (startInput) startInput.value = firstDay;
+        if (endInput) endInput.value = lastDay;
+    } else if (mode === 'all') {
+        if (startInput) startInput.value = '';
+        if (endInput) endInput.value = '';
+    }
+    filterLabTable();
+};
+
+// 3. ฟังก์ชันกรองข้อมูลตามวันที่และข้อความที่ค้นหา
+window.filterLabTable = function() {
+    if (!window.labQueueData) return;
+
+    let filtered = window.labQueueData;
+
+    // กรองด้วยวันที่
+    const startDateStr = document.getElementById('labStartDate')?.value;
+    const endDateStr = document.getElementById('labEndDate')?.value;
+
+    if (startDateStr || endDateStr) {
+        filtered = filtered.filter(row => {
+            if (!row.created_at) return true;
+            const rowDate = new Date(row.created_at).toISOString().split('T')[0];
+            let pass = true;
+            if (startDateStr && rowDate < startDateStr) pass = false;
+            if (endDateStr && rowDate > endDateStr) pass = false;
+            return pass;
+        });
+    }
+
+    // กรองด้วยช่องค้นหา (ชื่อ, HN, VIS)
+    const q = (document.getElementById('searchLabInput')?.value || '').toLowerCase().trim();
+    if (q) {
+        filtered = filtered.filter(row => 
+            (row.visit_id && row.visit_id.toLowerCase().includes(q)) ||
+            (row.hn && row.hn.toLowerCase().includes(q)) ||
+            (row.patient_name && row.patient_name.toLowerCase().includes(q))
+        );
+    }
+
+    window.labFilteredData = filtered;
+    window.labCurrentPage = 1; // รีเซ็ตกลับไปหน้า 1 เสมอเมื่อมีการค้นหา
+    renderLabTable();
+};
+
+// 4. ฟังก์ชันตัดข้อมูลทีละ 15 รายการและสร้างปุ่มแบ่งหน้า
+window.renderLabTable = function(page = window.labCurrentPage) {
+    window.labCurrentPage = page;
+    const tbody = document.querySelector('#labTable tbody');
+    const paginationContainer = document.getElementById('labPagination');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    const dataSource = window.labFilteredData || window.labQueueData || [];
+
+    // กรณีไม่มีข้อมูล
+    if (!dataSource || dataSource.length === 0) {
+        const emptyText = typeof t === 'function' ? t('lab_empty', 'ไม่มีรายการรอตรวจ Lab') : 'ไม่มีรายการรอตรวจ Lab';
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-5">${emptyText}</td></tr>`;
+        if (paginationContainer) paginationContainer.innerHTML = '';
+        return;
+    }
+
+    // คำนวณจำนวนหน้า
+    const totalItems = dataSource.length;
+    const totalPages = Math.ceil(totalItems / LAB_PER_PAGE);
+
+    if (window.labCurrentPage > totalPages) window.labCurrentPage = totalPages;
+    if (window.labCurrentPage < 1) window.labCurrentPage = 1;
+
+    // หาจุดเริ่มต้นและจุดสิ้นสุด
+    const startIndex = (window.labCurrentPage - 1) * LAB_PER_PAGE;
+    const endIndex = startIndex + LAB_PER_PAGE;
+    
+    // ตัดข้อมูล (Slice) มา 15 รายการ
+    const currentData = dataSource.slice(startIndex, endIndex);
+
+    const itemsLabel = typeof t === 'function' ? t('lab_btn_items', 'รายการส่งแล็บ') : 'รายการส่งแล็บ';
+    const pendingLabel = typeof t === 'function' ? t('lab_status_pending', 'รอผลแล็บ') : 'รอผลแล็บ';
+    const uploadLabel = typeof t === 'function' ? t('lab_btn_upload', 'อัปโหลดผล') : 'อัปโหลดผล';
+
+    let cachedVascularMap = {};
+    try { cachedVascularMap = JSON.parse(localStorage.getItem('clinic_vascular_results') || '{}'); } catch (e) { }
+
+    currentData.forEach((row, idx) => {
+        let no = startIndex + idx + 1; // ลำดับที่แบบต่อเนื่อง
+        const hnDisplay = row.hn || '-';
+        const testCount = row.lab_tests ? row.lab_tests.split(',').filter(Boolean).length : 0;
+        const safeName = (row.patient_name || '').replace(/'/g, "\\'");
+
+        window.labRowCache = window.labRowCache || {};
+        window.labRowCache[row.visit_id] = {
+            visitId: row.visit_id,
+            hn: row.hn,
+            patientName: row.patient_name || '',
+            labTests: row.lab_tests || '',
+            labNote: row.lab_note || ''
+        };
+
+        let labDetailsHtml = `<button class="btn btn-sm btn-light border" onclick="viewLabDetailsByVisitId('${row.visit_id}')"><i class="ph ph-flask text-primary me-1"></i> ${itemsLabel} (${testCount} รายการ)</button>`;
+
+        const filesList = getLabFilesForVisit(row.visit_id, row.pdf_url);
+        const cachedVasc = cachedVascularMap[row.visit_id];
+        const hasVascNote = (row.lab_note && row.lab_note.includes('[ผลตรวจหลอดเลือด]'));
+        const vascText = hasVascNote ? row.lab_note : (cachedVasc ? cachedVasc.resultText : '');
+
+        let allResultButtons = [];
+
+        filesList.forEach((fileItem) => {
+            const catName = fileItem.category || 'ผลแล็บ';
+            let btnIcon = 'bi-file-earmark-pdf';
+            let btnClass = 'btn-outline-danger';
+
+            if (catName === 'เอโก') { btnIcon = 'bi-activity'; btnClass = 'btn-outline-primary'; } 
+            else if (catName === 'เอ็กซเรย์') { btnIcon = 'bi-file-earmark-medical'; btnClass = 'btn-outline-info'; } 
+            else if (catName === 'ตรวจเลือด') { btnIcon = 'bi-droplet-fill'; btnClass = 'btn-outline-danger'; } 
+            else if (catName === 'ตรวจหลอดเลือด') { btnIcon = 'bi-heart-pulse-fill'; btnClass = 'btn-outline-warning'; } 
+            else { btnIcon = 'bi-file-earmark-text'; btnClass = 'btn-outline-secondary'; }
+
+            const safeCat = catName.replace(/'/g, "\\'");
+            allResultButtons.push(`
+                <button class="btn btn-sm ${btnClass} me-1 mb-1" onclick="viewRealLabFile('', '${row.visit_id}', '${safeName}', '${safeCat}')">
+                    <i class="bi ${btnIcon} me-1"></i> ${catName}
+                </button>
+            `);
+        });
+
+        if (vascText) {
+            allResultButtons.push(`
+                <button class="btn btn-sm btn-outline-primary me-1 mb-1" onclick="viewVascularResult('${row.visit_id}')">
+                    <i class="bi bi-activity me-1"></i> ผลวินิจฉัย
+                </button>
+            `);
+        }
+
+        let allResultDisplay = allResultButtons.length > 0 ? allResultButtons.join(' ') : `<span class="text-muted">-</span>`;
+        let queueBtnHtml = `<button class="btn btn-sm btn-outline-primary ms-1" onclick="sendToReportQueue('${row.visit_id}')">จัดคิวอ่านผลตรวจ</button>`;
+
+        tbody.innerHTML += `
+            <tr>
+                <td class="ps-4 text-center fw-semibold text-secondary">${no}</td>
+                <td class="fw-bold text-primary">${row.visit_id}</td>
+                <td>${hnDisplay}</td>
+                <td class="fw-bold">${row.patient_name}</td>
+                <td>${labDetailsHtml}</td>
+                <td class="text-center">${allResultDisplay}</td>
+                <td><span class="badge-soft-warning">${pendingLabel}</span></td>
+                <td class="text-center text-nowrap">
+                    <button class="btn btn-sm btn-primary px-3" onclick="openLabUploadModal('${row.visit_id}')"><i class="bi bi-upload"></i> ${uploadLabel}</button>
+                    ${queueBtnHtml}
+                </td>
+            </tr>
+        `;
+    });
+
+    // วาดกล่องตัวเลขแบ่งหน้าและข้อความนับจำนวน
+    if (paginationContainer) {
+        let paginationHtml = `<div class="d-flex justify-content-between align-items-center w-100 px-3 flex-wrap gap-2">`;
+        paginationHtml += `<div class="d-none d-md-block" style="min-width: 180px;"></div>`;
+        paginationHtml += `<div class="d-flex justify-content-center align-items-center gap-1 flex-grow-1">`;
+        
+        if (totalPages > 1) {
+            paginationHtml += `<button class="btn btn-sm btn-light border text-muted px-2.5 py-1" onclick="renderLabTable(${window.labCurrentPage - 1})" ${window.labCurrentPage === 1 ? 'disabled' : ''}><i class="bi bi-chevron-left"></i></button>`;
+            
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= window.labCurrentPage - 2 && i <= window.labCurrentPage + 2)) {
+                    const activeClass = i === window.labCurrentPage ? 'btn-primary fw-bold' : 'btn-light border text-dark';
+                    paginationHtml += `<button class="btn btn-sm ${activeClass} px-3 py-1" onclick="renderLabTable(${i})">${i}</button>`;
+                } else if (i === window.labCurrentPage - 3 || i === window.labCurrentPage + 3) {
+                    paginationHtml += `<span class="px-2 text-muted">...</span>`;
+                }
+            }
+
+            paginationHtml += `<button class="btn btn-sm btn-light border text-muted px-2.5 py-1" onclick="renderLabTable(${window.labCurrentPage + 1})" ${window.labCurrentPage === totalPages ? 'disabled' : ''}><i class="bi bi-chevron-right"></i></button>`;
+        }
+        paginationHtml += `</div>`;
+        
+        const startItem = totalItems === 0 ? 0 : startIndex + 1;
+        const endItem = Math.min(startIndex + LAB_PER_PAGE, totalItems);
+        paginationHtml += `
+            <div class="text-end text-muted small fw-semibold" style="min-width: 180px;">
+                แสดง ${startItem}-${endItem} จาก <span class="text-primary fw-bold">${totalItems}</span> รายการ
+            </div>
+        </div>`;
+        
+        paginationContainer.innerHTML = paginationHtml;
+    }
+};
+
 function handleLabCheckboxChange(inputEl, serviceName, price) {
     window.checkedLabState = window.checkedLabState || {};
     if (inputEl.checked) {
@@ -4838,6 +5198,54 @@ async function openLabOrder(visitId, patientName, hn) {
     const hDisp = document.getElementById('labHNDisplay');
     if (hDisp) hDisp.innerText = hn;
 
+    // --- ส่วนที่เพิ่มใหม่: ดึงข้อมูล อายุ, ที่อยู่ และ สัญญาณชีพ ---
+    let age = '-';
+    let address = '-';
+    let vitals = 'ความดัน: -, นน.: - กก., อุณหภูมิ: -°C';
+
+    // 1. ค้นหาข้อมูลผู้ป่วยเพื่อดึง อายุ และ ที่อยู่ (บ้าน, เมือง, แขวง)
+    if (window.allPatients) {
+        const pat = window.allPatients.find(p => p.hn === hn);
+        if (pat) {
+            age = pat.age ? pat.age + ' ປີ' : '-';
+            let addrParts = [];
+            if (pat.village && pat.village !== '-') addrParts.push('ບ.' + pat.village);
+            if (pat.district && pat.district !== '-') addrParts.push('ມ.' + pat.district);
+            if (pat.province && pat.province !== '-') addrParts.push('ຂ.' + pat.province);
+            if (addrParts.length > 0) address = addrParts.join(', ');
+        }
+    }
+
+    // 2. ค้นหาข้อมูล Visit ปัจจุบันเพื่อดึง สัญญาณชีพ
+    let visitInfo = null;
+    if (window.doctorQueueData) {
+        visitInfo = window.doctorQueueData.find(v => v.visit_id === visitId);
+    }
+    // ดึงข้อมูลสำรองจากฐานข้อมูลหากไม่เจอในคิว
+    if (!visitInfo && typeof _supabase !== 'undefined') {
+        try {
+            const { data } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
+            visitInfo = data;
+        } catch (e) { console.warn("Fetch visit info error:", e); }
+    }
+
+    // จัดรูปแบบข้อมูลสัญญาณชีพ
+    if (visitInfo) {
+        const bp = visitInfo.bp || '-';
+        const weight = visitInfo.weight || '-';
+        const temp = visitInfo.temp || '-';
+        vitals = `ความดัน: ${bp}, นน.: ${weight} กก., อุณหภูมิ: ${temp}°C`;
+    }
+
+    // แสดงผลข้อมูลลงใน HTML
+    const ageDisp = document.getElementById('labPatientAge');
+    if (ageDisp) ageDisp.innerText = age;
+    const addrDisp = document.getElementById('labPatientAddress');
+    if (addrDisp) addrDisp.innerText = address;
+    const vitalsDisp = document.getElementById('labPatientVitals');
+    if (vitalsDisp) vitalsDisp.innerText = vitals;
+    // --------------------------------------------------------
+
     const customContainer = document.getElementById('customLabContainer');
     if (customContainer) customContainer.innerHTML = '';
 
@@ -4956,30 +5364,30 @@ async function confirmPayment(visitId) {
     showPaymentDetails(visitId);
 }
 
+window.paymentQueueData = [];
+window.paymentFilteredData = [];
+
+// 1. โหลดข้อมูลก้อนหลักจากฐานข้อมูล
 async function loadPaymentQueue() {
     const tbody = document.querySelector('#paymentTable tbody');
     if (!tbody) return;
 
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูล...</td></tr>';
+
+    // ดึงคนที่มาก่อน (คิวเก่า) ขึ้นก่อน
     const { data, error } = await _supabase
         .from('visits')
         .select('*')
         .eq('status', 'รอชำระเงิน')
         .order('created_at', { ascending: true });
 
-    tbody.innerHTML = '';
     if (error) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
-        return;
-    }
-    if (!data || data.length === 0) {
-        const emptyText = typeof t === 'function' ? t('payment_empty', 'ไม่มีรายการรอชำระเงิน') : 'ไม่มีรายการรอชำระเงิน';
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">${emptyText}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
         return;
     }
 
-    // โหลด mapping ชื่อผู้ป่วย -> HN เพื่อเติม HN อัตโนมัติหากใน visits เป็น null
     let patientsMap = {};
-    const hasMissingHn = data.some(r => !r.hn || r.hn === 'null' || r.hn === '-' || r.hn === 'undefined');
+    const hasMissingHn = (data || []).some(r => !r.hn || r.hn === 'null' || r.hn === '-' || r.hn === 'undefined');
     if (hasMissingHn) {
         try {
             const { data: pList } = await _supabase.from('patients').select('hn, patient_name');
@@ -4996,30 +5404,116 @@ async function loadPaymentQueue() {
         }
     }
 
-    const detailsLabel = typeof t === 'function' ? t('payment_btn_details', 'ดูรายละเอียด') : 'ดูรายละเอียด';
-    const pendingLabel = typeof t === 'function' ? t('payment_status_pending', 'รอชำระเงิน') : 'รอชำระเงิน';
-
-    data.forEach(row => {
+    let processedData = data || [];
+    processedData.forEach(row => {
         let rowHn = (row.hn && row.hn !== 'null' && row.hn !== 'undefined' && row.hn !== '-') ? row.hn.trim() : '';
         if (!rowHn && row.patient_name) {
             const mappedHn = patientsMap[row.patient_name.trim().toLowerCase()];
             if (mappedHn) {
-                rowHn = mappedHn;
-                // บันทึกกลับไปยังตาราง visits ใน DB เพื่อให้ข้อมูลสมบูรณ์
+                row.hn = mappedHn;
                 _supabase.from('visits').update({ hn: mappedHn }).eq('visit_id', row.visit_id).then(() => { });
             }
         }
+    });
 
+    window.paymentQueueData = processedData;
+    filterPaymentTable(); // เรียกใช้ตัวกรองเพื่อวาดตาราง
+}
+
+// 2. ฟังก์ชันจัดวันที่ให้ปุ่มกด วันนี้, เดือนนี้, ปีนี้
+window.setPaymentDateFilter = function(mode) {
+    const startInput = document.getElementById('paymentStartDate');
+    const endInput = document.getElementById('paymentEndDate');
+    const now = new Date();
+
+    if (mode === 'today') {
+        const todayStr = now.toISOString().split('T')[0];
+        if (startInput) startInput.value = todayStr;
+        if (endInput) endInput.value = todayStr;
+    } else if (mode === 'month') {
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+        if (startInput) startInput.value = firstDay;
+        if (endInput) endInput.value = lastDay;
+    } else if (mode === 'year') {
+        const firstDay = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
+        const lastDay = new Date(now.getFullYear(), 11, 31).toISOString().split('T')[0];
+        if (startInput) startInput.value = firstDay;
+        if (endInput) endInput.value = lastDay;
+    } else if (mode === 'all') {
+        if (startInput) startInput.value = '';
+        if (endInput) endInput.value = '';
+    }
+    filterPaymentTable();
+};
+
+// 3. ฟังก์ชันกรองข้อมูลตามวันที่และข้อความที่ค้นหา
+window.filterPaymentTable = function() {
+    if (!window.paymentQueueData) return;
+
+    let filtered = window.paymentQueueData;
+
+    const startDateStr = document.getElementById('paymentStartDate')?.value;
+    const endDateStr = document.getElementById('paymentEndDate')?.value;
+
+    if (startDateStr || endDateStr) {
+        filtered = filtered.filter(row => {
+            if (!row.created_at) return true;
+            const rowDate = new Date(row.created_at).toISOString().split('T')[0];
+            let pass = true;
+            if (startDateStr && rowDate < startDateStr) pass = false;
+            if (endDateStr && rowDate > endDateStr) pass = false;
+            return pass;
+        });
+    }
+
+    const q = (document.getElementById('searchPaymentInput')?.value || '').toLowerCase().trim();
+    if (q) {
+        filtered = filtered.filter(row => 
+            (row.visit_id && row.visit_id.toLowerCase().includes(q)) ||
+            (row.hn && row.hn.toLowerCase().includes(q)) ||
+            (row.patient_name && row.patient_name.toLowerCase().includes(q))
+        );
+    }
+
+    window.paymentFilteredData = filtered;
+    renderPaymentTable();
+};
+
+// 4. ฟังก์ชันวาดตารางแสดงผล
+window.renderPaymentTable = function() {
+    const tbody = document.querySelector('#paymentTable tbody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    if (!window.paymentFilteredData || window.paymentFilteredData.length === 0) {
+        const emptyText = typeof t === 'function' ? t('payment_empty', 'ไม่มีรายการรอชำระเงิน') : 'ไม่มีรายการรอชำระเงิน';
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-5">${emptyText}</td></tr>`;
+        return;
+    }
+
+    const detailsLabel = typeof t === 'function' ? t('payment_btn_details', 'ดูรายละเอียด') : 'ดูรายละเอียด';
+    const pendingLabel = typeof t === 'function' ? t('payment_status_pending', 'รอชำระเงิน') : 'รอชำระเงิน';
+
+    window.paymentFilteredData.forEach((row, idx) => {
+        const hnDisplay = row.hn || '-';
         const testCount = row.lab_tests ? row.lab_tests.split(',').filter(Boolean).length : 0;
         const safeTests = (row.lab_tests || '').replace(/'/g, "\\'");
         const safeName = (row.patient_name || '').replace(/'/g, "\\'");
-        const hnDisplay = rowHn || '-';
 
-        let labDetailsHtml = `<button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1 fw-semibold" onclick="showPaymentDetails('${row.visit_id}', '${rowHn}', '${safeName}', '${safeTests}', ${row.discount || row.lab_discount || 0})"><i class="bi bi-credit-card me-1"></i> ${detailsLabel} (${testCount} รายการ)</button>`;
+        let labDetailsHtml = `<button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1 fw-semibold" onclick="showPaymentDetails('${row.visit_id}', '${hnDisplay}', '${safeName}', '${safeTests}', ${row.discount || row.lab_discount || 0})"><i class="bi bi-credit-card me-1"></i> ${detailsLabel} (${testCount} รายการ)</button>`;
 
-        tbody.innerHTML += `<tr><td class="ps-4 fw-bold text-primary">${row.visit_id}</td><td class="fw-semibold text-secondary">${hnDisplay}</td><td class="fw-bold">${row.patient_name || '-'}</td><td>${labDetailsHtml}</td><td><span class="badge-soft-warning">${pendingLabel}</span></td></tr>`;
+        tbody.innerHTML += `<tr>
+            <td class="ps-4 text-center fw-semibold text-secondary">${idx + 1}</td>
+            <td class="fw-bold text-primary">${row.visit_id}</td>
+            <td class="fw-semibold text-secondary">${hnDisplay}</td>
+            <td class="fw-bold">${row.patient_name || '-'}</td>
+            <td>${labDetailsHtml}</td>
+            <td><span class="badge-soft-warning">${pendingLabel}</span></td>
+        </tr>`;
     });
-}
+};
 
 // ===============================================
 // ระบบจัดเก็บไฟล์แล็บด้วย IndexedDB (ป้องกัน QuotaExceededError)
@@ -5272,155 +5766,6 @@ async function getLabFilesForVisitAsync(visitId, rowPdfUrl) {
     return files;
 }
 
-async function loadLabQueue() {
-    const tbody = document.querySelector('#labTable tbody');
-    if (!tbody) return;
-
-    const { data, error } = await _supabase
-        .from('visits')
-        .select('*')
-        .in('status', ['รอผลแล็บ', 'รอผลตรวจ Lab'])
-        .order('created_at', { ascending: true });
-
-    tbody.innerHTML = '';
-    if (error) {
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
-        return;
-    }
-    if (!data || data.length === 0) {
-        const emptyText = typeof t === 'function' ? t('lab_empty', 'ไม่มีรายการรอตรวจ Lab') : 'ไม่มีรายการรอตรวจ Lab';
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-3">${emptyText}</td></tr>`;
-        return;
-    }
-
-    // โหลด mapping ชื่อผู้ป่วย -> HN เพื่อเติม HN อัตโนมัติหากใน visits เป็น null/ว่าง
-    let patientsMap = {};
-    const hasMissingHn = data.some(r => !r.hn || r.hn === 'null' || r.hn === '-' || r.hn === 'undefined');
-    if (hasMissingHn) {
-        try {
-            const { data: pList } = await _supabase.from('patients').select('hn, patient_name');
-            if (pList) {
-                pList.forEach(p => {
-                    const pName = p.patient_name || p.name;
-                    if (pName && p.hn) {
-                        patientsMap[pName.trim().toLowerCase()] = p.hn;
-                    }
-                });
-            }
-        } catch (e) {
-            console.warn('loadLabQueue fetch patientsMap error:', e);
-        }
-    }
-
-    const itemsLabel = typeof t === 'function' ? t('lab_btn_items', 'รายการส่งแล็บ') : 'รายการส่งแล็บ';
-    const pendingLabel = typeof t === 'function' ? t('lab_status_pending', 'รอผลแล็บ') : 'รอผลแล็บ';
-    const uploadLabel = typeof t === 'function' ? t('lab_btn_upload', 'อัปโหลดผล') : 'อัปโหลดผล';
-
-    // ดึงข้อมูลผลตรวจหลอดเลือดที่ถูกเซฟใน LocalStorage Cache
-    let cachedVascularMap = {};
-    try {
-        cachedVascularMap = JSON.parse(localStorage.getItem('clinic_vascular_results') || '{}');
-    } catch (e) { }
-
-    data.forEach(row => {
-        let rowHn = (row.hn && row.hn !== 'null' && row.hn !== 'undefined' && row.hn !== '-') ? row.hn.trim() : '';
-        if (!rowHn && row.patient_name) {
-            const mappedHn = patientsMap[row.patient_name.trim().toLowerCase()];
-            if (mappedHn) {
-                rowHn = mappedHn;
-                _supabase.from('visits').update({ hn: mappedHn }).eq('visit_id', row.visit_id).then(() => { });
-            }
-        }
-        const hnDisplay = rowHn || '-';
-
-        const testCount = row.lab_tests ? row.lab_tests.split(',').filter(Boolean).length : 0;
-        const safeName = (row.patient_name || '').replace(/'/g, "\\'");
-
-        // Cache row info for safe onclick invocation
-        window.labRowCache = window.labRowCache || {};
-        window.labRowCache[row.visit_id] = {
-            visitId: row.visit_id,
-            hn: rowHn,
-            patientName: row.patient_name || '',
-            labTests: row.lab_tests || '',
-            labNote: row.lab_note || ''
-        };
-
-        let labDetailsHtml = `<button class="btn btn-sm btn-light border" onclick="viewLabDetailsByVisitId('${row.visit_id}')"><i class="ph ph-flask text-primary me-1"></i> ${itemsLabel} (${testCount} รายการ)</button>`;
-
-        // 1. ดึงไฟล์แล็บทั้งหมดที่อัปโหลดไว้สำหรับ Visit นี้
-        const filesList = getLabFilesForVisit(row.visit_id, row.pdf_url);
-
-        // ดึงผลตรวจหลอดเลือด
-        const cachedVasc = cachedVascularMap[row.visit_id];
-        const hasVascNote = (row.lab_note && row.lab_note.includes('[ผลตรวจหลอดเลือด]'));
-        const vascText = hasVascNote ? row.lab_note : (cachedVasc ? cachedVasc.resultText : '');
-
-        let allResultButtons = [];
-
-        // สร้างปุ่มตามแต่ละไฟล์ที่อัปโหลด โดยใช้ชื่อหมวดหมู่ที่เลือก (เอโก, เอ็กซเรย์, ตรวจเลือด ฯลฯ)
-        filesList.forEach((fileItem) => {
-            const catName = fileItem.category || 'ผลแล็บ';
-            let btnIcon = 'bi-file-earmark-pdf';
-            let btnClass = 'btn-outline-danger';
-
-            if (catName === 'เอโก') {
-                btnIcon = 'bi-activity';
-                btnClass = 'btn-outline-primary';
-            } else if (catName === 'เอ็กซเรย์') {
-                btnIcon = 'bi-file-earmark-medical';
-                btnClass = 'btn-outline-info';
-            } else if (catName === 'ตรวจเลือด') {
-                btnIcon = 'bi-droplet-fill';
-                btnClass = 'btn-outline-danger';
-            } else if (catName === 'ตรวจหลอดเลือด') {
-                btnIcon = 'bi-heart-pulse-fill';
-                btnClass = 'btn-outline-warning';
-            } else {
-                btnIcon = 'bi-file-earmark-text';
-                btnClass = 'btn-outline-secondary';
-            }
-
-            const safeCat = catName.replace(/'/g, "\\'");
-
-            allResultButtons.push(`
-                <button class="btn btn-sm ${btnClass} me-1 mb-1" onclick="viewRealLabFile('', '${row.visit_id}', '${safeName}', '${safeCat}')">
-                    <i class="bi ${btnIcon} me-1"></i> ${catName}
-                </button>
-            `);
-        });
-
-        // ถ้ามีผลวินิจฉัยตรวจหลอดเลือด
-        if (vascText) {
-            allResultButtons.push(`
-                <button class="btn btn-sm btn-outline-primary me-1 mb-1" onclick="viewVascularResult('${row.visit_id}')">
-                    <i class="bi bi-activity me-1"></i> ผลวินิจฉัย
-                </button>
-            `);
-        }
-
-        let allResultDisplay = allResultButtons.length > 0 ? allResultButtons.join(' ') : `<span class="text-muted">-</span>`;
-
-        // 2. สร้างปุ่ม "จัดคิวอ่านผลตรวจ"
-        let queueBtnHtml = `<button class="btn btn-sm btn-outline-primary ms-1" onclick="sendToReportQueue('${row.visit_id}')">จัดคิวอ่านผลตรวจ</button>`;
-
-        // 3. ปรับปรุงการวาดตาราง
-        tbody.innerHTML += `
-            <tr>
-                <td class="ps-4 fw-bold text-primary">${row.visit_id}</td>
-                <td>${hnDisplay}</td>
-                <td class="fw-bold">${row.patient_name}</td>
-                <td>${labDetailsHtml}</td>
-                <td class="text-center">${allResultDisplay}</td> <!-- คอลัมน์ผลตรวจทั้งหมด -->
-                <td><span class="badge-soft-warning">${pendingLabel}</span></td>
-                <td class="text-center text-nowrap">
-                    <button class="btn btn-sm btn-primary px-3" onclick="openLabUploadModal('${row.visit_id}')"><i class="bi bi-upload"></i> ${uploadLabel}</button>
-                    ${queueBtnHtml}
-                </td>
-            </tr>
-        `;
-    });
-}
 /**
  * ฟังก์ชันสำหรับเปลี่ยนสถานะและส่งผู้ป่วยไปยังห้องจัดคิวอ่านผล
  */
@@ -5851,22 +6196,34 @@ window.DEFAULT_MLM_PRODUCTS = [
     { product_id: 'P024', name: 'SESAMEEN ACTIVE', category: 'Supplement', current_stock: 821, price_full: 2500, price_member: 2000, price_promo: 1500 }
 ];
 
-// ฟังก์ชันเชื่อมต่อ Real-time Subscription ตาราง stk_products
+//// ฟังก์ชันเชื่อมต่อ Real-time Subscription ตารางใน MLM
 function initMlmRealtimeSubscription() {
     if (!_mlmSupabase) return;
     try {
+        // 1. ดักจับ Realtime ของตาราง stk_products
         _mlmSupabase.channel('realtime_stk_products')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'stk_products' }, (payload) => {
-                console.log('⚡ [Real-time] ตาราง stk_products มีการเปลี่ยนแปลง:', payload.eventType, payload.new || payload.old);
+                console.log('⚡ [Real-time] ตาราง stk_products มีการเปลี่ยนแปลง:', payload.eventType);
                 loadMlmProducts(true);
+            })
+            .subscribe();
+
+        // 2. ดักจับ Realtime ของตาราง stk_members (สำหรับช่อง Referrer)
+        _mlmSupabase.channel('realtime_stk_members')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'stk_members' }, (payload) => {
+                console.log('⚡ [Real-time] ตาราง stk_members มีการเปลี่ยนแปลง:', payload.eventType);
+                // อัปเดต Dropdown ผู้แนะนำใหม่ทันทีที่มีการเพิ่ม/ลบ/แก้ไขพนักงาน
+                if (typeof window.populateReferrerDropdowns === 'function') {
+                    window.populateReferrerDropdowns();
+                }
             })
             .subscribe((status) => {
                 if (status === 'SUBSCRIBED') {
-                    console.log('✅ Realtime Subscribed: เชื่อมต่อตาราง stk_products สำเร็จ');
+                    console.log('✅ Realtime Subscribed: เชื่อมต่อตาราง stk_products และ stk_members สำเร็จ');
                 }
             });
     } catch (err) {
-        console.warn('Realtime subscription error on stk_products:', err);
+        console.warn('Realtime subscription error on MLM Database:', err);
     }
 }
 window.initMlmRealtimeSubscription = initMlmRealtimeSubscription;
@@ -5970,6 +6327,7 @@ function filterMedsByCategory() {
     populateRxMedDropdown();
 }
 
+// ฟังก์ชันสร้างตัวเลือกรายการยา/อาหารเสริมใน Dropdown (พร้อมโชว์ Stock)
 function populateRxMedDropdown() {
     const select = document.getElementById('rxMedSelect');
     const catSelect = document.getElementById('rxCategorySelect');
@@ -6044,20 +6402,23 @@ function populateRxMedDropdown() {
         if (clinicGroup.length > 0) {
             html += '<optgroup label="💊 ยาในคลัง (คลังยาคลินิก)">';
             clinicGroup.forEach(i => {
-                html += `<option value="${i.source}:${i.id}">${i.id} - ${i.name}</option>`;
+                // เพิ่มการแสดงผลจำนวนคงเหลือตรงนี้
+                html += `<option value="${i.source}:${i.id}">${i.id} - ${i.name} (คงเหลือ: ${i.stock})</option>`;
             });
             html += '</optgroup>';
         }
         if (mlmGroup.length > 0) {
             html += '<optgroup label="📦 คลังสินค้า (STK Groupe / MLM)">';
             mlmGroup.forEach(i => {
-                html += `<option value="${i.source}:${i.id}">${i.id} - ${i.name}</option>`;
+                // เพิ่มการแสดงผลจำนวนคงเหลือตรงนี้
+                html += `<option value="${i.source}:${i.id}">${i.id} - ${i.name} (คงเหลือ: ${i.stock})</option>`;
             });
             html += '</optgroup>';
         }
     } else {
         filteredItems.forEach(item => {
-            html += `<option value="${item.source}:${item.id}">${item.id} - ${item.name}</option>`;
+            // เพิ่มการแสดงผลจำนวนคงเหลือตรงนี้
+            html += `<option value="${item.source}:${item.id}">${item.id} - ${item.name} (คงเหลือ: ${item.stock})</option>`;
         });
     }
 
@@ -6620,75 +6981,93 @@ window.rejectPrescriptionMedicine = rejectPrescriptionMedicine;
 
 // 🌟 ฟังก์ชันหลักสำหรับบันทึกลงตาราง `stk_nutrient_orders` ใน Supabase อย่างปลอดภัย
 async function saveNutrientOrderToDatabase(salePayload) {
-    if (!salePayload || !salePayload.order_id) return;
+    if (!salePayload || !salePayload.order_id) {
+        throw new Error('ข้อมูลออเดอร์ไม่สมบูรณ์ (ขาด order_id)');
+    }
 
-    // 1. บันทึกลง Supabase Table `stk_nutrient_orders` (ในฐานข้อมูล MLM)
-    const targetSupabase = _mlmSupabase || _supabase;
-    if (typeof targetSupabase !== 'undefined' && targetSupabase) {
+    // 1. ตรวจสอบ Supabase Client สำหรับฐานข้อมูล MLM (https://mfpkeyrykqnrywyksyqp.supabase.co)
+    let targetSupabase = (typeof _mlmSupabase !== 'undefined' && _mlmSupabase) ? _mlmSupabase : null;
+    if (!targetSupabase && typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
         try {
-            console.log('Syncing to stk_nutrient_orders in MLM Supabase:', salePayload);
+            targetSupabase = supabase.createClient(mlmSupabaseUrl, mlmSupabaseKey);
+            _mlmSupabase = targetSupabase;
+        } catch(e) {
+            console.warn('Init _mlmSupabase fallback error:', e);
+        }
+    }
+    if (!targetSupabase && typeof _supabase !== 'undefined') {
+        targetSupabase = _supabase;
+    }
 
-            // ตรวจสอบว่ามีรายการเดิมอยู่แล้วหรือไม่
-            let query = targetSupabase.from('stk_nutrient_orders').select('id, order_id, visit_id');
-            if (salePayload.order_id && salePayload.visit_id) {
-                query = query.or(`order_id.eq.${salePayload.order_id},visit_id.eq.${salePayload.visit_id}`);
-            } else {
-                query = query.eq('order_id', salePayload.order_id);
-            }
-            const { data: existingRec } = await query.limit(1);
+    if (!targetSupabase) {
+        throw new Error('ไม่สามารถเชื่อมต่อฐานข้อมูล Supabase ได้');
+    }
 
-            const cleanPayload = {
-                order_id: salePayload.order_id,
-                visit_id: salePayload.visit_id || null,
-                hn: salePayload.hn || null,
-                patient_name: salePayload.patient_name || null,
-                items: Array.isArray(salePayload.items) ? salePayload.items : [],
-                total_amount: parseFloat(salePayload.total_amount || 0),
-                currency: salePayload.currency || 'LAK',
-                status: salePayload.status || 'รอจัดส่ง',
-                created_at: typeof salePayload.created_at === 'string' ? salePayload.created_at : new Date().toISOString()
-            };
+    console.log('Syncing to stk_nutrient_orders in MLM Supabase:', salePayload);
 
-            if (existingRec && existingRec.length > 0) {
-                const rowId = existingRec[0].id;
-                const { error: updErr } = await targetSupabase
-                    .from('stk_nutrient_orders')
-                    .update(cleanPayload)
-                    .eq('id', rowId);
+    // 2. จัดรูปแบบ Payload ให้ตรงกับคอลัมน์ในตาราง public.stk_nutrient_orders
+    // Schema: order_id, visit_id, hn, customer_name, recorded_by, date, status, items_json
+    const rawItems = Array.isArray(salePayload.items_json) 
+        ? salePayload.items_json 
+        : (Array.isArray(salePayload.items) ? salePayload.items : []);
 
-                if (updErr) {
-                    console.warn('Update by id error, trying update by order_id:', updErr);
-                    await targetSupabase.from('stk_nutrient_orders').update(cleanPayload).eq('order_id', cleanPayload.order_id);
-                } else {
-                    console.log('Successfully updated existing record in stk_nutrient_orders');
-                }
-            } else {
-                const { error: insErr } = await targetSupabase
-                    .from('stk_nutrient_orders')
-                    .insert([cleanPayload]);
+    const cleanPayload = {
+        order_id: String(salePayload.order_id),
+        visit_id: salePayload.visit_id ? String(salePayload.visit_id) : null,
+        hn: salePayload.hn ? String(salePayload.hn) : null,
+        customer_name: salePayload.customer_name || salePayload.patient_name || null,
+        recorded_by: salePayload.recorded_by || 'Staff',
+        date: salePayload.date || (new Date().toISOString().split('T')[0]),
+        status: salePayload.status || 'รอดำเนินการ',
+        items_json: rawItems
+    };
 
-                if (insErr) {
-                    console.warn('Direct insert error, trying upsert:', insErr);
-                    await targetSupabase.from('stk_nutrient_orders').upsert([cleanPayload]);
-                } else {
-                    console.log('Successfully inserted new record into stk_nutrient_orders');
-                }
-            }
-        } catch (e) {
-            console.warn('Supabase stk_nutrient_orders save error:', e);
+    // 3. บันทึกข้อมูลลงฐานข้อมูล Supabase ด้วย Upsert/Insert
+    let { data: existingRec } = await targetSupabase
+        .from('stk_nutrient_orders')
+        .select('order_id')
+        .eq('order_id', cleanPayload.order_id)
+        .limit(1);
+
+    let dbError = null;
+    if (existingRec && existingRec.length > 0) {
+        const { error: updErr } = await targetSupabase
+            .from('stk_nutrient_orders')
+            .update(cleanPayload)
+            .eq('order_id', cleanPayload.order_id);
+        dbError = updErr;
+    } else {
+        const { error: insErr } = await targetSupabase
+            .from('stk_nutrient_orders')
+            .insert([cleanPayload]);
+        dbError = insErr;
+    }
+
+    if (dbError) {
+        console.warn('stk_nutrient_orders initial insert error, attempting upsert:', dbError);
+        const { error: upsertErr } = await targetSupabase
+            .from('stk_nutrient_orders')
+            .upsert([cleanPayload], { onConflict: 'order_id' });
+        
+        if (upsertErr) {
+            console.error('Supabase stk_nutrient_orders save failed:', upsertErr);
+            throw new Error(`บันทึกลงฐานข้อมูลไม่สำเร็จ: ${upsertErr.message}`);
         }
     }
 
-    // 2. บันทึกลง LocalStorage Cache สำหรับฟังก์ชันสั่งจ่ายสารอาหาร (Nutrients.html)
+    console.log('✅ Successfully saved order to stk_nutrient_orders in Supabase!');
+
+    // 4. บันทึกลง LocalStorage Cache สำหรับฟังก์ชันแสดงผลหน้าเว็บ
     try {
         let cachedNutrients = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
         if (!Array.isArray(cachedNutrients)) cachedNutrients = [];
-        const existIdx = cachedNutrients.findIndex(o => o.order_id === salePayload.order_id || (o.visit_id && o.visit_id === salePayload.visit_id));
+        const existIdx = cachedNutrients.findIndex(o => o.order_id === cleanPayload.order_id || (o.visit_id && o.visit_id === cleanPayload.visit_id));
         if (existIdx !== -1) {
-            cachedNutrients[existIdx] = salePayload;
+            cachedNutrients[existIdx] = { ...cleanPayload, total_amount: salePayload.total_amount || 0 };
         } else {
-            cachedNutrients.unshift(salePayload);
+            cachedNutrients.unshift({ ...cleanPayload, total_amount: salePayload.total_amount || 0 });
         }
+        cachedNutrients = cachedNutrients.slice(0, 50);
         localStorage.setItem('stk_nutrient_orders', JSON.stringify(cachedNutrients));
     } catch (ex) {
         console.warn('LocalStorage save error:', ex);
@@ -7045,7 +7424,7 @@ async function loadPharmacyQueue() {
     const tbody = document.querySelector('#pharmacyTable tbody');
     if (!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูลผู้ป่วยรอจ่ายยา...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูลผู้ป่วยรอจ่ายยา...</td></tr>';
 
     let data = [];
     try {
@@ -7079,11 +7458,11 @@ async function loadPharmacyQueue() {
 
     tbody.innerHTML = '';
     if (!data || data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-5">ไม่มีรายการรอจ่ายยา</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">ไม่มีรายการรอจ่ายยา</td></tr>';
         return;
     }
 
-    data.forEach(row => {
+    data.forEach((row, idx) => {
         let medsHtml = '';
         let clinicDrugs = [];
         let mlmNutrients = [];
@@ -7258,7 +7637,8 @@ async function loadPharmacyQueue() {
 
         tbody.innerHTML += `
             <tr>
-                <td class="ps-4 fw-bold text-dark align-middle" style="font-size: 0.92rem;">${row.visit_id}</td>
+                <td class="ps-4 text-center align-middle fw-semibold text-secondary">${idx + 1}</td>
+                <td class="fw-bold text-dark align-middle" style="font-size: 0.92rem;">${row.visit_id}</td>
                 <td class="text-muted align-middle" style="font-size: 0.88rem;">${row.hn || 'null'}</td>
                 <td class="align-middle">
                     <div class="fw-bold text-dark" style="font-size: 0.92rem;">${row.patient_name || '-'}</div>
@@ -7274,12 +7654,24 @@ async function loadPharmacyQueue() {
 }
 
 // 🌟 ฟังก์ชันแสดงป๊อปอัปรายละเอียดบิลยา/อาหารเสริมในห้องจ่ายยา
-function viewPharmacyBillDetails(visitId, billType) {
+window.viewPharmacyBillDetails = function(visitId, billType) {
     const visit = (window.allPharmacyVisits || []).find(v => v.visit_id === visitId);
     if (!visit) {
         Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลรายการสำหรับเคสนี้', 'error');
         return;
     }
+
+    // --- ส่วนที่เพิ่มใหม่: ค้นหาผู้แนะนำ (Referrer) ---
+    let referrerText = '-';
+    if (visit.hn && window.allPatients) {
+        const pat = window.allPatients.find(p => p.hn === visit.hn);
+        if (pat && pat.referred_by) {
+            referrerText = pat.referred_by;
+        } else if (visit.referred_by) {
+            referrerText = visit.referred_by;
+        }
+    }
+    // ------------------------------------------------
 
     let medsList = [];
     if (visit.meds) {
@@ -7295,7 +7687,7 @@ function viewPharmacyBillDetails(visitId, billType) {
     }
 
     const isMlm = billType === 'nutrient';
-    const targetItems = isMlm ? medsList.filter(m => isNutrientItem(m)) : medsList.filter(m => !isNutrientItem(m));
+    const targetItems = isMlm ? medsList.filter(m => (typeof isNutrientItem === 'function' ? isNutrientItem(m) : m.source === 'mlm')) : medsList.filter(m => !(typeof isNutrientItem === 'function' ? isNutrientItem(m) : m.source === 'mlm'));
 
     if (targetItems.length === 0) {
         Swal.fire('แจ้งเตือน', 'ไม่พบรายการสินค้าในหมวดหมู่นี้', 'info');
@@ -7354,6 +7746,8 @@ function viewPharmacyBillDetails(visitId, billType) {
                     <div><strong>ผู้ป่วย:</strong> ${visit.patient_name || '-'} <span class="text-muted">(${visit.hn || 'ไม่มี HN'})</span></div>
                     <div><strong>รหัส VISIT:</strong> <span class="text-primary fw-bold">${visit.visit_id}</span></div>
                     <div><strong>แพทย์ผู้ตรวจ:</strong> ${visit.doctor_name || '-'}</div>
+                    <!-- ส่วนที่เพิ่มใหม่: แสดงผู้แนะนำ -->
+                    <div class="w-100 mt-1 pt-2 border-top"><strong>ผู้แนะนำ:</strong> <span class="text-primary fw-bold">${referrerText}</span></div>
                 </div>
 
                 <div class="table-responsive border rounded-3 mb-3">
@@ -7393,11 +7787,12 @@ function viewPharmacyBillDetails(visitId, billType) {
         cancelButtonText: 'ปิดหน้าต่าง'
     }).then(result => {
         if (result.isConfirmed) {
-            printPharmacyDispenseSlip(visitId, billType);
+            if(typeof printPharmacyDispenseSlip === 'function') {
+                printPharmacyDispenseSlip(visitId, billType);
+            }
         }
     });
-}
-window.viewPharmacyBillDetails = viewPharmacyBillDetails;
+};
 
 // 🌟 ฟังก์ชันตรวจสอบว่ารายการเป็นอาหารเสริม (MLM) หรือไม่
 function isNutrientItem(item) {
@@ -7410,106 +7805,28 @@ function isNutrientItem(item) {
     }
     return false;
 }
-// 🌟 ฟังก์ชันหลักสำหรับบันทึกลงตาราง `stk_nutrient_orders` ใน Supabase อย่างปลอดภัย
-async function saveNutrientOrderToDatabase(salePayload) {
-    if (!salePayload || !salePayload.order_id) return;
 
-    // 1. บันทึกลง Supabase Table `stk_nutrient_orders` (ในฐานข้อมูล MLM)
-    const targetSupabase = (typeof _mlmSupabase !== 'undefined' && _mlmSupabase) ? _mlmSupabase : (typeof _supabase !== 'undefined' ? _supabase : null);
-    if (targetSupabase) {
-        try {
-            console.log('Syncing to stk_nutrient_orders in MLM Supabase:', salePayload);
-
-            // ตรวจสอบว่ามีรายการเดิมอยู่แล้วหรือไม่
-            let query = targetSupabase.from('stk_nutrient_orders').select('id, order_id, visit_id');
-            if (salePayload.order_id && salePayload.visit_id) {
-                query = query.or(`order_id.eq.${salePayload.order_id},visit_id.eq.${salePayload.visit_id}`);
-            } else {
-                query = query.eq('order_id', salePayload.order_id);
-            }
-            const { data: existingRec } = await query.limit(1);
-
-            // ⚠️ ตัดบรรทัด currency ออก เพื่อแก้ Error PGRST204
-            const cleanPayload = {
-                order_id: salePayload.order_id,
-                visit_id: salePayload.visit_id || null,
-                hn: salePayload.hn || null,
-                patient_name: salePayload.patient_name || null,
-                items: Array.isArray(salePayload.items) ? salePayload.items : (Array.isArray(salePayload.items_json) ? salePayload.items_json : []),
-                total_amount: parseFloat(salePayload.total_amount || 0),
-                status: salePayload.status || 'รอจัดส่ง',
-                created_at: typeof salePayload.created_at === 'string' ? salePayload.created_at : new Date().toISOString()
-            };
-
-            if (existingRec && existingRec.length > 0) {
-                const rowId = existingRec[0].id;
-                const { error: updErr } = await targetSupabase
-                    .from('stk_nutrient_orders')
-                    .update(cleanPayload)
-                    .eq('id', rowId);
-
-                if (updErr) {
-                    console.warn('Update by id error, trying update by order_id:', updErr);
-                    await targetSupabase.from('stk_nutrient_orders').update(cleanPayload).eq('order_id', cleanPayload.order_id);
-                } else {
-                    console.log('Successfully updated existing record in stk_nutrient_orders');
-                }
-            } else {
-                const { error: insErr } = await targetSupabase
-                    .from('stk_nutrient_orders')
-                    .insert([cleanPayload]);
-
-                if (insErr) {
-                    console.warn('Direct insert error, trying upsert:', insErr);
-                    await targetSupabase.from('stk_nutrient_orders').upsert([cleanPayload]);
-                } else {
-                    console.log('Successfully inserted new record into stk_nutrient_orders');
-                }
-            }
-        } catch (e) {
-            console.warn('Supabase stk_nutrient_orders save error:', e);
-        }
-    }
-
-    // 2. บันทึกลง LocalStorage Cache พร้อมป้องกัน QuotaExceededError (เก็บแค่ 50 รายการล่าสุด)
-    try {
-        let cachedNutrients = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
-        if (!Array.isArray(cachedNutrients)) cachedNutrients = [];
-
-        const existIdx = cachedNutrients.findIndex(o => o.order_id === salePayload.order_id || (o.visit_id && o.visit_id === salePayload.visit_id));
-        if (existIdx !== -1) {
-            cachedNutrients[existIdx] = salePayload;
-        } else {
-            cachedNutrients.unshift(salePayload);
-        }
-
-        // ⚠️ บังคับเก็บเฉพาะ 50 รายการล่าสุด เพื่อไม่ให้หน่วยความจำเต็ม
-        cachedNutrients = cachedNutrients.slice(0, 50);
-
-        localStorage.setItem('stk_nutrient_orders', JSON.stringify(cachedNutrients));
-    } catch (ex) {
-        console.warn('LocalStorage save error (clearing cache):', ex);
-        // หากเต็มจริงๆ ให้ล้างค่าเก่าออกแล้วเริ่มใหม่
-        localStorage.removeItem('stk_nutrient_orders');
-        localStorage.setItem('stk_nutrient_orders', JSON.stringify([salePayload]));
-    }
-}
-window.saveNutrientOrderToDatabase = saveNutrientOrderToDatabase;
-
-// 🌟 ฟังก์ชันสำหรับปุ่ม "อาหารเสริม" ในห้องจ่ายยา
-async function sendPharmacyNutrientOrder(visitId) {
+// ==========================================
+// ฟังก์ชันส่งออเดอร์อาหารเสริมจากห้องจ่ายยาไปยังระบบ MLM
+// ==========================================
+window.sendPharmacyNutrientOrder = async function(visitId) {
     const visit = (window.allPharmacyVisits || []).find(v => v.visit_id === visitId);
     if (!visit) {
-        Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลการสั่งจ่ายสำหรับเคสนี้', 'error');
+        Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลรายการสำหรับเคสนี้', 'error');
         return;
     }
 
-    // ป้องกันการกดสั่งซ้ำ
-    const orderedNutrientVisits = JSON.parse(localStorage.getItem('clinic_nutrient_ordered_visits') || '[]');
-    if (visit.nutrient_ordered || (Array.isArray(orderedNutrientVisits) && orderedNutrientVisits.includes(visitId))) {
-        Swal.fire('แจ้งเตือน', 'เคสนี้ได้ทำการส่งคำสั่งซื้อสารอาหาร (STK MLM) ไปแล้ว ไม่สามารถกดสั่งซ้ำได้', 'info');
-        return;
+    // --- ส่วนที่เพิ่มใหม่: ค้นหาผู้แนะนำ (Referrer) ---
+    let referrerText = 'ไม่ระบุผู้แนะนำ'; 
+    if (visit.hn && window.allPatients) {
+        const pat = window.allPatients.find(p => p.hn === visit.hn);
+        if (pat && pat.referred_by) {
+            referrerText = pat.referred_by;
+        } else if (visit.referred_by) {
+            referrerText = visit.referred_by;
+        }
     }
+    // ------------------------------------------------
 
     let medsList = [];
     if (visit.meds) {
@@ -7521,120 +7838,74 @@ async function sendPharmacyNutrientOrder(visitId) {
             } else if (Array.isArray(visit.meds)) {
                 medsList = visit.meds;
             }
-        } catch (e) {
-            console.warn('Parse meds error:', e);
-        }
+        } catch (e) { console.error("Error parsing meds JSON:", e); }
     }
 
-    // กรองรายการสินค้าที่เป็นสารอาหาร / MLM
-    const mlmItems = medsList.filter(i => isNutrientItem(i));
-    const targetItems = mlmItems.length > 0 ? mlmItems : medsList;
-
-    if (targetItems.length === 0) {
-        Swal.fire('แจ้งเตือน', 'เคสนี้ไม่มีรายการยาหรือสารอาหารในระบบ', 'warning');
+    const mlmItems = medsList.filter(m => typeof isNutrientItem === 'function' ? isNutrientItem(m) : m.source === 'mlm');
+    
+    if (mlmItems.length === 0) {
+        Swal.fire('แจ้งเตือน', 'ไม่มีรายการอาหารเสริม (MLM) ในบิลนี้', 'warning');
         return;
     }
 
-    const orderId = `ORD-CLINIC-${visit.visit_id || Date.now()}`;
-    const nowIso = new Date().toISOString();
-    let assistant = visit.referred_by || 'L03709 - MS CHERRY LOUANGPHAN';
-    if (visit.hn) {
-        const pat = (window.allPatients || []).find(p => p.hn === visit.hn);
-        if (pat && pat.referred_by) assistant = pat.referred_by;
-    }
-    const totalAmount = targetItems.reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.qty) || 1)), 0);
-
-    const cleanItems = targetItems.map(i => {
-        let priceTypeName = 'ราคาปกติ';
-        if (i.tier === 'promo' || (i.name && i.name.includes('(โปร)'))) priceTypeName = 'ราคาโปร';
-        else if (i.tier === 'high' || (i.name && i.name.includes('(ส่ง/สมาชิก)'))) priceTypeName = 'ราคาส่ง/สมาชิก';
-        else if (i.tier === 'free' || (i.name && i.name.includes('(แถมฟรี)'))) priceTypeName = 'แถมฟรี';
-        else if (i.type && i.type !== 'ONE') priceTypeName = i.type;
-
-        return {
-            id: i.id,
-            name: i.name || i.title || i.product_name,
-            type: priceTypeName,
-            priceType: priceTypeName,
-            tier: i.tier || 'normal',
-            source: i.sourceLabel || (i.source === 'mlm' ? 'STK MLM' : 'คลังยา'),
-            qty: Number(i.qty || 1),
-            price: Number(i.price || 0),
-            total: Number((i.price || 0) * (i.qty || 1))
-        };
+    const confirmRes = await Swal.fire({
+        title: 'ยืนยันส่งออเดอร์ MLM?',
+        text: `ต้องการส่งออเดอร์อาหารเสริมจำนวน ${mlmItems.length} รายการ ของ ${visit.patient_name || 'ผู้ป่วย'} ไปยังระบบ STK MLM ใช่หรือไม่?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#047857',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ยืนยันส่งข้อมูล',
+        cancelButtonText: 'ยกเลิก'
     });
 
+    if (!confirmRes.isConfirmed) return;
+
+    Swal.fire({ title: 'กำลังบันทึกข้อมูลแบบ Realtime...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    const totalAmount = mlmItems.reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.qty) || 1)), 0);
+    const orderId = `ORD-CLINIC-${visitId}`;
+    const nowIso = new Date().toISOString();
+
+    // สร้าง Payload สำหรับส่งไปยังตาราง stk_nutrient_orders
     const salePayload = {
         order_id: orderId,
-        sale_id: orderId,
-        visit_id: visit.visit_id || '-',
-        rxvisitid: visit.visit_id || '-',
-        hn: visit.hn || 'CLINIC-PATIENT',
-        customer_id: visit.hn || 'CLINIC-PATIENT',
-        customer_name: visit.patient_name || '-',
-        recorded_by: assistant,
+        visit_id: visitId,
+        hn: visit.hn || null,
+        customer_name: visit.patient_name || null,
+        patient_name: visit.patient_name || null,
+        recorded_by: referrerText, // ส่งข้อมูลผู้แนะนำ (เช่น L02626 - Name) ไปด้วย
         date: nowIso.split('T')[0],
         status: 'รอดำเนินการ',
-        items_json: cleanItems,
+        items_json: mlmItems,
+        items: mlmItems,
+        total_amount: totalAmount,
+        currency: 'THB',
         created_at: nowIso
     };
 
-    // บันทึกลง Supabase `stk_nutrient_orders` และ LocalStorage อย่างปลอดภัย
-    await saveNutrientOrderToDatabase(salePayload);
+    try {
+        if (typeof saveNutrientOrderToDatabase === 'function') {
+            await saveNutrientOrderToDatabase(salePayload);
+        }
 
-    let itemsSummaryHtml = cleanItems.map(i =>
-        `<li class="d-flex justify-content-between py-1 border-bottom"><span>${i.name}</span><strong>${i.qty} ชิ้น (${(i.total || 0).toLocaleString()} ฿)</strong></li>`
-    ).join('');
-
-    const swalRes = await Swal.fire({
-        icon: 'success',
-        title: 'ส่งคำสั่งซื้อสารอาหาร (STK MLM)',
-        html: `
-            <div class="text-start p-2" style="font-size: 0.95rem;">
-                <p class="mb-1"><strong>รหัสบิล:</strong> <span class="text-primary fw-bold">${orderId}</span></p>
-                <p class="mb-1"><strong>ผู้ป่วย/คนไข้:</strong> ${visit.patient_name} (${visit.hn})</p>
-                <p class="mb-2"><strong>ผู้บันทึก/ผู้ช่วย:</strong> ${assistant}</p>
-                <div class="bg-light p-2 rounded mb-2 border">
-                    <div class="fw-bold mb-1 text-muted" style="font-size: 0.85rem;">รายการสารอาหาร (${cleanItems.length} รายการ):</div>
-                    <ul class="list-unstyled mb-0" style="font-size: 0.88rem;">${itemsSummaryHtml}</ul>
-                </div>
-                <div class="d-flex justify-content-between align-items-center mt-2">
-                    <span class="fw-bold text-dark">ยอดรวมทั้งหมด:</span>
-                    <span class="fw-bold text-success fs-5">${totalAmount.toLocaleString()} ฿</span>
-                </div>
-                <hr class="my-2">
-                <small class="text-muted"><i class="bi bi-check2-circle text-success me-1"></i>ส่งข้อมูลเปิดบิลสั่งซื้อสารอาหารไประบบ STK GROUPE MLM เรียบร้อยแล้ว</small>
-            </div>
-        `,
-        confirmButtonColor: '#004b93',
-        confirmButtonText: '<i class="bi bi-check-lg me-1"></i> ตกลง'
-    });
-
-    if (swalRes.isConfirmed || swalRes.isDismissed) {
-        // บันทึกสถานะว่าสั่งอาหารเสริมแล้ว
         let orderedVisits = JSON.parse(localStorage.getItem('clinic_nutrient_ordered_visits') || '[]');
-        if (!Array.isArray(orderedVisits)) orderedVisits = [];
-        if (!orderedVisits.includes(visit.visit_id)) {
-            orderedVisits.push(visit.visit_id);
+        if (!orderedVisits.includes(visitId)) {
+            orderedVisits.push(visitId);
             localStorage.setItem('clinic_nutrient_ordered_visits', JSON.stringify(orderedVisits));
         }
 
-        // อัปเดตใน clinic_visits_queue
-        try {
-            let cachedVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
-            if (Array.isArray(cachedVisits)) {
-                const vIdx = cachedVisits.findIndex(v => v.visit_id === visit.visit_id);
-                if (vIdx !== -1) {
-                    cachedVisits[vIdx].nutrient_ordered = true;
-                    localStorage.setItem('clinic_visits_queue', JSON.stringify(cachedVisits));
-                }
-            }
-        } catch (e) { }
+        Swal.fire('สำเร็จ', 'ส่งออเดอร์ไปยังระบบจัดการ MLM (stk_nutrient_orders) เรียบร้อยแล้ว', 'success');
+        
+        if (typeof loadPharmacyQueue === 'function') {
+            loadPharmacyQueue();
+        }
 
-        // รีเฟรชตารางห้องจ่ายยาทันทีเพื่อเปลี่ยนปุ่มเป็น "สั่งแล้ว" (สีเหลือง)
-        loadPharmacyQueue();
+    } catch (error) {
+        console.error("Error sending nutrient order:", error);
+        Swal.fire('ข้อผิดพลาด', 'ไม่สามารถส่งออเดอร์ได้ กรุณาลองใหม่อีกครั้ง', 'error');
     }
-}
+};
 
 // 🌟 ฟังก์ชันสำหรับปุ่ม "Print" ในห้องจ่ายยา (รองรับการพิมพ์แยกบิลยา vs บิลอาหารเสริม)
 function printPharmacyDispenseSlip(visitId, billType) {
@@ -8153,7 +8424,7 @@ window.renderHistoryTable = function(page = window.historyCurrentPage) {
     tbody.innerHTML = '';
 
     if (!window.historyFilteredData || window.historyFilteredData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">ไม่พบข้อมูลประวัติผู้ป่วยที่ค้นหา</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-5">ไม่พบข้อมูลประวัติผู้ป่วยที่ค้นหา</td></tr>';
         if (paginationContainer) paginationContainer.innerHTML = '';
         return;
     }
@@ -8171,7 +8442,8 @@ window.renderHistoryTable = function(page = window.historyCurrentPage) {
     const currentData = window.historyFilteredData.slice(startIndex, endIndex);
 
     // วาดแถวตาราง (10 รายการ)
-    currentData.forEach(row => {
+    currentData.forEach((row, idx) => {
+        let no = startIndex + idx + 1;
         const dateObj = new Date(row.created_at || row.updated_at);
         const dateStr = !isNaN(dateObj) ? dateObj.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' + dateObj.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.' : '-';
         
@@ -8180,7 +8452,8 @@ window.renderHistoryTable = function(page = window.historyCurrentPage) {
 
         tbody.innerHTML += `
             <tr class="border-bottom">
-                <td class="ps-4 fw-bold text-dark align-middle py-2" style="font-size: 0.92rem;">${row.visit_id || '-'}</td>
+                <td class="ps-4 text-center align-middle fw-semibold text-secondary">${no}</td>
+                <td class="fw-bold text-dark align-middle py-2" style="font-size: 0.92rem;">${row.visit_id || '-'}</td>
                 <td class="text-muted align-middle py-2" style="font-size: 0.88rem;">${row.hn || '-'}</td>
                 <td class="align-middle fw-bold text-dark py-2" style="font-size: 0.92rem;">${row.patient_name || '-'}${phoneHtml}</td>
                 <td class="align-middle text-muted py-2" style="font-size: 0.88rem;">${dateStr}</td>
@@ -11211,9 +11484,9 @@ function renderCommissionLogsTable() {
 
             let bonusBadge = l.is_bonus ? '<span class="badge bg-warning text-dark me-1" style="font-size: 0.7rem;"><i class="bi bi-trophy-fill"></i> โบนัสเป้าหมาย</span>' : '';
 
-            let baseVal = l.base_amount !== undefined ? parseFloat(l.base_amount) : (l.item_amount ? (parseFloat(l.amount) - parseFloat(l.item_amount)) : parseFloat(l.amount));
-            let itemVal = parseFloat(l.item_amount || 0);
-            let totalVal = baseVal + itemVal;
+            let baseVal = (l.base_amount !== undefined && l.base_amount !== null) ? parseFloat(l.base_amount) : 0;
+            let itemVal = (l.item_amount !== undefined && l.item_amount !== null) ? parseFloat(l.item_amount) : 0;
+            let totalVal = (l.amount !== undefined && l.amount !== null) ? parseFloat(l.amount) : (baseVal + itemVal);
 
             let invoiceVal = parseFloat(l.total_invoice || 0);
 
@@ -11221,7 +11494,7 @@ function renderCommissionLogsTable() {
             totalBaseSum += baseVal;
             totalItemSum += itemVal;
 
-            let overallText = baseVal > 0 ? formatCommissionAmount(baseVal) : (itemVal > 0 ? formatCommissionAmount(0) : formatCommissionAmount(l.amount));
+            let overallText = formatCommissionAmount(baseVal);
             let itemText = formatCommissionAmount(itemVal);
             let totalText = formatCommissionAmount(totalVal);
 
@@ -12851,9 +13124,9 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '') {
     if (typeof renderCommissionLogsTable === 'function') renderCommissionLogsTable();
 
     try {
-        let { error: comErr } = await _supabase.from('commission_logs').insert([newLog]);
+        let { error: comErr } = await _supabase.from('commission_logs').upsert([newLog], { onConflict: 'id' });
         if (comErr) {
-            // ถ้า column ไม่ตรง ให้ลอง insert เฉพาะ core columns
+            // ถ้า column ไม่ตรง ให้ลอง upsert เฉพาะ core columns
             const coreLog = {
                 id: newLog.id,
                 referrer_id: newLog.referrer_id,
@@ -12869,11 +13142,11 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '') {
             if (!comErr.message?.includes('item_amount')) coreLog.item_amount = newLog.item_amount;
             if (!comErr.message?.includes('item_details')) coreLog.item_details = newLog.item_details;
             if (!comErr.message?.includes('is_bonus')) coreLog.is_bonus = newLog.is_bonus;
-            const { error: comErr2 } = await _supabase.from('commission_logs').insert([coreLog]);
-            if (comErr2) console.warn('Commission log insert fallback failed:', comErr2.message);
+            const { error: comErr2 } = await _supabase.from('commission_logs').upsert([coreLog], { onConflict: 'id' });
+            if (comErr2) console.warn('Commission log upsert fallback failed:', comErr2.message);
         }
     } catch (e) {
-        console.log('Commission log Supabase insert fallback');
+        console.log('Commission log Supabase insert fallback', e);
     }
 }
 window.calculateAndRecordCommission = calculateAndRecordCommission;
@@ -12945,66 +13218,6 @@ async function syncAllVisitsCommissionLogs() {
     }
 }
 window.syncAllVisitsCommissionLogs = syncAllVisitsCommissionLogs;
-
-function openPayoutModal(logId) {
-    const log = window.commissionLogs.find(l => l.id === logId);
-    if (!log) return;
-
-    const ref = window.referrersData.find(r => r.id === log.referrer_id || r.name === log.referrer_name);
-
-    document.getElementById('payoutLogId').value = log.id;
-    document.getElementById('payoutRefName').innerText = log.referrer_name;
-    document.getElementById('payoutRefBank').innerText = ref ? `${ref.bank_name} (${ref.bank_account})` : '-';
-    document.getElementById('payoutPatientName').innerText = log.patient_name;
-    document.getElementById('payoutAmountDisplay').innerText = formatCommissionAmount(log.amount);
-    document.getElementById('payoutRefCode').value = '';
-
-    const breakdownEl = document.getElementById('payoutBreakdownDisplay');
-    if (breakdownEl) {
-        let baseVal = log.base_amount !== undefined ? parseFloat(log.base_amount) : (log.item_amount ? (parseFloat(log.amount) - parseFloat(log.item_amount)) : parseFloat(log.amount));
-        let itemVal = parseFloat(log.item_amount || 0);
-
-        if (itemVal > 0 && baseVal > 0) {
-            breakdownEl.innerHTML = `<span class="badge bg-light text-dark border me-1" style="font-size:0.75rem;">ภาพรวม: ${formatCommissionAmount(baseVal)}</span> <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size:0.75rem;">รายการพิเศษ: +${formatCommissionAmount(itemVal)}</span>`;
-        } else if (itemVal > 0) {
-            breakdownEl.innerHTML = `<span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size:0.75rem;">รายการพิเศษ: ${formatCommissionAmount(itemVal)}</span>`;
-        } else {
-            breakdownEl.innerHTML = `<span class="badge bg-light text-dark border" style="font-size:0.75rem;">ปันผลภาพรวม: ${formatCommissionAmount(baseVal)}</span>`;
-        }
-    }
-
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('payCommissionModal')).show();
-}
-
-async function executePayout() {
-    const logId = document.getElementById('payoutLogId').value;
-    const method = document.getElementById('payoutMethod').value;
-    const refCode = document.getElementById('payoutRefCode').value.trim();
-
-    const log = window.commissionLogs.find(l => l.id === logId);
-    if (log) {
-        log.status = 'paid';
-        log.paid_at = new Date().toISOString();
-        log.payout_method = method;
-        log.payout_ref = refCode || 'อนุมัติจ่ายแล้ว';
-
-        try {
-            if (typeof _supabase !== 'undefined') {
-                await _supabase.from('commission_logs').update({
-                    status: 'paid',
-                    paid_at: log.paid_at,
-                    payout_method: method,
-                    payout_ref: log.payout_ref
-                }).eq('id', logId);
-            }
-        } catch (e) { }
-    }
-
-    saveReferralLocalData();
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('payCommissionModal')).hide();
-    Swal.fire('ชำระเงินสำเร็จ', 'บันทึกการจ่ายเงินปันผลเรียบร้อยแล้ว', 'success');
-    loadReferralData();
-}
 
 // Real-time listener for MLM system updates from Team.html / other tabs
 window.addEventListener('storage', (event) => {
@@ -16997,37 +17210,47 @@ window.setClinicSummaryDateFilter = function (mode) {
         loadDailyClinicReport();
     }
 };
-// ฟังก์ชันสำหรับเปิดหน้าต่างแก้ไขรายการจัดยา (ดึงรายการเดิมมาแสดง)
-window.editPharmacyPrescription = function (visitId) {
-    // 1. ค้นหาข้อมูลการตรวจ (Visit) จากคิวห้องจ่ายยา
+// // ==========================================
+// ฟังก์ชันแก้ไขรายการจัดยา (และปลดล็อกปุ่ม MLM)
+// ==========================================
+window.editPharmacyPrescription = function(visitId) {
+    // 1. ปลดล็อกปุ่ม "สั่งอาหารเสริม (MLM)" โดยลบ Visit ID ออกจาก LocalStorage
+    let orderedVisits = JSON.parse(localStorage.getItem('clinic_nutrient_ordered_visits') || '[]');
+    if (Array.isArray(orderedVisits)) {
+        orderedVisits = orderedVisits.filter(id => id !== visitId);
+        localStorage.setItem('clinic_nutrient_ordered_visits', JSON.stringify(orderedVisits));
+    }
+
+    // 2. รีเฟรชตารางห้องจ่ายยาเพื่อให้ปุ่มกลับมาสถานะเดิม (กดได้) ทันที
+    if (typeof loadPharmacyQueue === 'function') {
+        loadPharmacyQueue();
+    }
+
+    // 3. ค้นหาข้อมูลเคสนี้เพื่อดึงรายการยาเดิมไปแสดงในหน้าแก้ไข
     const visit = (window.allPharmacyVisits || []).find(v => v.visit_id === visitId);
-
-    if (!visit) {
-        Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลรายการสำหรับเคสนี้', 'error');
-        return;
-    }
-
-    // 2. ดึงและแปลงข้อมูลรายการยาเดิมที่เคยสั่งไว้
-    let parsedMeds = [];
-    if (visit.meds) {
-        try {
-            let medsRaw = visit.meds;
-            if (typeof medsRaw === 'string') {
-                // จัดการกรณีข้อมูลถูกซ้อน String ไว้
-                if (medsRaw.startsWith('"[') || medsRaw.startsWith('"\\"')) {
-                    medsRaw = JSON.parse(medsRaw);
+    if (visit) {
+        let medsList = [];
+        if (visit.meds) {
+            try {
+                let medsRaw = visit.meds;
+                if (typeof medsRaw === 'string') {
+                    if (medsRaw.startsWith('"[') || medsRaw.startsWith('"\\"')) medsRaw = JSON.parse(medsRaw);
+                    medsList = typeof medsRaw === 'string' ? JSON.parse(medsRaw) : medsRaw;
+                } else if (Array.isArray(visit.meds)) {
+                    medsList = visit.meds;
                 }
-                parsedMeds = typeof medsRaw === 'string' ? JSON.parse(medsRaw) : medsRaw;
-            } else if (Array.isArray(visit.meds)) {
-                parsedMeds = visit.meds;
+            } catch (e) { 
+                console.error("Error parsing meds:", e); 
             }
-        } catch (e) {
-            console.warn("Error parsing meds for edit:", e);
         }
+        
+        // 4. เปิด Modal จัดยา (อ่านผล/จัดยา) พร้อมส่งข้อมูลยาเก่าเข้าไปแก้ไข
+        if (typeof openPrescribeModal === 'function') {
+            openPrescribeModal(visit.visit_id, visit.hn, visit.patient_name, visit.pdf_url, medsList, visit.refill_batch);
+        }
+    } else {
+        Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลรายการสำหรับเคสนี้', 'error');
     }
-
-    // 3. ส่งข้อมูลทั้งหมด รวมถึงรายการยาเดิม (parsedMeds) ไปเปิด Modal จัดยา
-    openPrescribeModal(visit.visit_id, visit.hn, visit.patient_name, visit.pdf_url, parsedMeds, visit.refill_batch);
 };
 // 🌟 ฟังก์ชันเลือกช่วงเวลาด่วนสำหรับประวัติการจ่ายยา
 window.setPharmacyHistoryDateFilter = function (type) {
@@ -17152,11 +17375,11 @@ window.loadPharmacyHistory = async function () {
     });
 
     if (!validData || validData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-5">ไม่มีประวัติการจ่ายยาตามช่วงวันที่เลือก</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">ไม่มีประวัติการจ่ายยาตามช่วงวันที่เลือก</td></tr>';
         return;
     }
 
-    tbody.innerHTML = validData.map(row => {
+    tbody.innerHTML = validData.map((row, idx) => {
         let medsHtml = '';
         try {
             let medsRaw = row.meds;
@@ -17177,7 +17400,8 @@ window.loadPharmacyHistory = async function () {
 
         return `
             <tr>
-                <td class="ps-4 fw-bold text-dark align-middle" style="font-size: 0.92rem;">${row.visit_id || '-'}</td>
+                <td class="ps-4 text-center align-middle fw-semibold text-secondary">${idx + 1}</td>
+                <td class="fw-bold text-dark align-middle" style="font-size: 0.92rem;">${row.visit_id || '-'}</td>
                 <td class="text-muted align-middle" style="font-size: 0.88rem;">${row.hn || '-'}</td>
                 <td class="align-middle fw-bold text-dark" style="font-size: 0.92rem;">${row.patient_name || '-'}</td>
                 <td class="align-middle py-3">${medsHtml || '-'}</td>
@@ -17483,5 +17707,50 @@ window.renderTriageHistoryTable = function(page = window.triageHistoryCurrentPag
         
         paginationHtml += `</div>`;
         paginationContainer.innerHTML = paginationHtml;
+    }
+};
+
+//// =====================================
+// ดึงข้อมูลผู้แนะนำจากตาราง stk_members (MLM Database)
+// =====================================
+window.allMlmMembers = [];
+
+window.populateReferrerDropdowns = async function() {
+    const datalist = document.getElementById('referrerDatalist');
+    if (!datalist) return;
+
+    try {
+        // ตรวจสอบว่ามีการเชื่อมต่อกับฐานข้อมูล MLM หรือไม่
+        if (typeof _mlmSupabase !== 'undefined' && _mlmSupabase) {
+            const { data, error } = await _mlmSupabase
+                .from('stk_members')
+                .select('user_id, username, name, business_team, status')
+                // .eq('status', 'ทำงานอยู่') // หากต้องการแสดงเฉพาะคนที่ทำงานอยู่ ให้เอาคอมเมนต์บรรทัดนี้ออก
+                .order('name', { ascending: true });
+
+            if (!error && data) {
+                window.allMlmMembers = data;
+            }
+        }
+
+        // สร้างตัวเลือก (Options) สำหรับ Datalist
+        let optionsHtml = '';
+        if (window.allMlmMembers && window.allMlmMembers.length > 0) {
+            window.allMlmMembers.forEach(member => {
+                // รูปแบบการแสดงผล: รหัสพนักงาน - ชื่อ (เช่น L02783 - MS THONGDEANG THONGSAMOUD)
+                const memberId = member.user_id || member.username;
+                const memberName = member.name || '-';
+                const displayValue = `${memberId} - ${memberName}`;
+                
+                optionsHtml += `<option value="${displayValue}"></option>`;
+            });
+        } else {
+            optionsHtml = '<option value="ไม่มีข้อมูลผู้แนะนำในระบบ"></option>';
+        }
+
+        datalist.innerHTML = optionsHtml;
+
+    } catch (err) {
+        console.error('Error loading stk_members for referrers:', err);
     }
 };
