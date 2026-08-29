@@ -167,6 +167,13 @@
                         data-i18n="sidebar_referrals">ระบบปันผล/ผู้แนะนำ</span></a>
             </div>
         </nav>
+
+        <!-- ปุ่มออกจากระบบด้านล่างสุด -->
+        <div class="mt-auto pb-3 px-2">
+            <a href="javascript:void(0);" class="nav-link text-danger d-flex align-items-center gap-2" onclick="logoutUser()" style="border-radius: 8px; font-weight: 500;">
+                <i class="ph ph-sign-out fs-5"></i> <span data-i18n="logout">ออกจากระบบ</span>
+            </a>
+        </div>
     </div>
 
     <!-- MAIN CONTENT -->
@@ -247,16 +254,6 @@
                                         <option value="th">🇹🇭 ภาษาไทย (Thai)</option>
                                         <option value="en">🇬🇧 English</option>
                                     </select>
-                                </li>
-                                <li>
-                                    <hr class="dropdown-divider mb-2">
-                                </li>
-                                <li class="px-1">
-                                    <button
-                                        class="btn btn-outline-danger btn-sm w-100 fw-bold d-flex align-items-center justify-content-center gap-2"
-                                        style="border-radius: 8px; padding: 8px;" onclick="logoutUser()">
-                                        <i class="ph ph-sign-out fs-6"></i> ออกจากระบบ (Logout)
-                                    </button>
                                 </li>
                             </ul>
                         </div>
