@@ -54,11 +54,9 @@
 
   <script type="text/babel">
     const { useState, useMemo, useEffect, useRef, useCallback } = React;
-    // ðŸ›¡ï¸ GLOBAL ICONS DESTRUCTURING: à¸›à¸¥à¸­à¸”à¸ à¸±à¸¢à¸ˆà¸²à¸à¸•à¸±à¸§à¹à¸›à¸£à¸‹à¹‰à¸³à¸‹à¹‰à¸­à¸™ à¹à¸¥à¸°à¸”à¸¶à¸‡à¹‚à¸¡à¸”à¸¹à¸¥à¹à¸¥à¸°à¸„à¸­à¸¡à¹‚à¸žà¹€à¸™à¸™à¸•à¹Œà¸¡à¸²à¸„à¸£à¸šà¸–à¹‰à¸§à¸™
+    // 🛡️ GLOBAL ICONS DESTRUCTURING
     const { LayoutDashboard, ShoppingCart, Users, Contact, Headset, BarChart3, Plus, Edit, Trash2, UserCircle, Menu, X, Save, Info, PackageIcon, Package, Target, Trophy, Activity, Eye, Tags, CheckCircle, GitBranch, Archive, ChevronDown, FileText, SettingsIcon, Coins, ShieldCheck, AlertTriangle, AlertCircle, LoginModal, Toast, Sidebar, Header, ConfirmModal, EditModal, DonutChart, AutoSuggestInput, SearchIcon } = window;
     
-    
-
     const ClosersManagementView = ({ closers, setClosers, businessTeams, isAdmin, showToast }) => {
         const [showForm, setShowForm] = useState(false);
         const [isEditing, setIsEditing] = useState(false);
@@ -90,16 +88,16 @@
                try {
                    const { error } = await window.supabaseClient
                        .from('stk_closers')
-                       .upsert({ closer_id: formData.id, name: formData.name, team: formData.team || 'Center', status: formData.status }, { onConflict: 'closer_id' });
+                       .upsert({ id: formData.id, name: formData.name, team: formData.team || 'Center', status: formData.status }, { onConflict: 'id' });
                    if (!error) savedSuccess = true;
                } catch(err) { console.warn("Supabase SDK upsert error:", err); }
            }
 
            if (!savedSuccess && window.SUPABASE_REST_URL) {
                try {
-                   const supaDataPrimary = { closer_id: formData.id, name: formData.name, team: formData.team || 'Center', status: formData.status };
+                   const supaDataPrimary = { id: formData.id, name: formData.name, team: formData.team || 'Center', status: formData.status };
                    if (isEditing) {
-                       await supabaseUpdate('stk_closers', formData.id, supaDataPrimary, 'closer_id').catch(() => supabaseUpdate('stk_closers', formData.id, { id: formData.id, name: formData.name, team: formData.team, status: formData.status }, 'id'));
+                       await supabaseUpdate('stk_closers', formData.id, supaDataPrimary, 'id').catch(() => supabaseUpdate('stk_closers', formData.id, { id: formData.id, name: formData.name, team: formData.team, status: formData.status }, 'id'));
                    } else {
                        await supabaseInsert('stk_closers', supaDataPrimary).catch(() => supabaseInsert('stk_closers', { id: formData.id, name: formData.name, team: formData.team, status: formData.status }));
                    }
@@ -124,46 +122,84 @@
         const handleSyncMarketing = async () => {
              setIsSubmitting(true);
              try {
+                 // ดึงพนักงานทั้งหมดจาก stk_members
                  let allUsers = [];
-                 if (typeof supabaseSelect === 'function') {
-                     allUsers = await supabaseSelect('stk_members').catch(() => supabaseSelect('members')) || [];
+                 if (window.supabaseClient) {
+                     const { data, error } = await window.supabaseClient.from('stk_members').select('*');
+                     if (!error && data) allUsers = data;
                  }
-                 
-                 const marketingUsers = allUsers.filter(u => {
-                     const bTeam = String(u.business_team || u.businessTeam || '').trim().toUpperCase();
-                     return bTeam === 'T01';
+                 if (allUsers.length === 0 && typeof supabaseSelect === 'function') {
+                     allUsers = await supabaseSelect('stk_members').catch(() => supabaseSelect('members')).catch(() => []) || [];
+                 }
+
+                 // สร้าง map: team_id -> team_name จาก stk_business_teams
+                 // ตัวอย่าง: { 'T01': 'Team Lee', 'T02': 'Team Thailand', ... }
+                 const teamIdToName = {};
+                 (businessTeams || []).forEach(t => {
+                     const tId = String(t.team_id || '').trim().toUpperCase();
+                     const tName = String(t.team_name || t.name || t.team_id || '').trim();
+                     if (tId) teamIdToName[tId] = tName;
                  });
 
-                 if (marketingUsers.length === 0) {
-                     showToast('No marketing team staff found!', 'error');
+                 // กรองเฉพาะพนักงานที่มีสังกัดทีม
+                 const validUsers = allUsers.filter(u => {
+                     const bTeam = String(u.business_team || u.businessTeam || '').trim();
+                     return bTeam !== '' && bTeam.toUpperCase() !== 'NULL' && bTeam.toUpperCase() !== 'UNDEFINED' && bTeam.toUpperCase() !== 'NONE';
+                 });
+
+                 if (validUsers.length === 0) {
+                     showToast('ไม่พบข้อมูลพนักงานที่มีสังกัดทีม', 'error');
                      setIsSubmitting(false);
                      return;
                  }
 
                  let addedCount = 0;
-                 for (const u of marketingUsers) {
-                     const uId = u.id || u.user_id || u.username;
+                 let updatedCount = 0;
+                 let newClosersState = [...(closers || [])];
+
+                 for (const u of validUsers) {
+                     const uId = String(u.id || u.user_id || u.username || '').trim();
                      if (!uId) continue;
 
-                     const exists = (closers || []).some(c => String(c.id).toUpperCase() === String(uId).toUpperCase());
-                     if (!exists) {
-                         const payload = {
-                             id: uId,
-                             name: u.name || uId,
-                             team: 'Marketing',
-                             status: 'ใช้งาน'
-                         };
+                     // แปลง business_team (team_id) -> team_name
+                     const bTeamRaw = String(u.business_team || u.businessTeam || '').trim();
+                     const bTeamUpper = bTeamRaw.toUpperCase();
+                     // ลองหาชื่อทีมจาก map ก่อน ถ้าไม่เจอให้ใช้ค่าดิบ
+                     const teamNameStr = teamIdToName[bTeamUpper] || teamIdToName[bTeamRaw] || bTeamRaw;
 
-                         if (typeof supabaseInsert === 'function') {
-                             await supabaseInsert('stk_closers', payload).catch(() => supabaseInsert('closers', payload));
-                         }
-                         
-                         setClosers(prev => [...prev, { id: uId, name: u.name || uId, team: 'Marketing', status: 'ใช้งาน' }]);
+                     const existsIdx = newClosersState.findIndex(c => String(c.id || '').toUpperCase() === uId.toUpperCase());
+
+                     const payload = {
+                         closer_id: uId,
+                         name: u.name || uId,
+                         team: teamNameStr,
+                         status: 'ใช้งาน'
+                     };
+
+                     // Upsert ไปยัง stk_closers (insert ถ้าไม่มี, update ถ้ามีอยู่แล้ว)
+                     if (window.supabaseClient) {
+                         try {
+                             await window.supabaseClient.from('stk_closers').upsert(payload, { onConflict: 'id' });
+                         } catch(err) { console.warn('upsert error:', err); }
+                     }
+
+                     if (existsIdx === -1) {
+                         newClosersState.push({ id: uId, name: u.name || uId, team: teamNameStr, status: 'ใช้งาน' });
                          addedCount++;
+                     } else {
+                         // อัพเดทชื่อทีมในกรณีที่ย้ายทีม
+                         newClosersState[existsIdx] = { ...newClosersState[existsIdx], team: teamNameStr, name: u.name || uId };
+                         updatedCount++;
                      }
                  }
 
-                 showToast('ซิงค์พนักงานการตลาดสำเร็จ! เพิ่มเข้าทีม ' + addedCount + ' คน', 'success');
+                 setClosers([...newClosersState]);
+                 const msg = addedCount > 0
+                     ? `ซิงค์สำเร็จ! เพิ่มใหม่ ${addedCount} คน${updatedCount > 0 ? `, อัพเดทสังกัด ${updatedCount} คน` : ''}`
+                     : updatedCount > 0
+                     ? `อัพเดทสังกัดทีม ${updatedCount} คนสำเร็จ`
+                     : 'ทุกคนอยู่ในระบบแล้ว ไม่มีรายการใหม่';
+                 showToast(msg, 'success');
              } catch(err) {
                  showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
              } finally {
@@ -174,8 +210,7 @@
         const executeDelete = () => { 
             const id = confirmDelete.id; 
             if (!id) return;
-            supabaseDelete('stk_closers', id, 'closer_id')
-              .catch(() => supabaseDelete('stk_closers', id, 'id'))
+            supabaseDelete('stk_closers', id, 'id')
               .catch(() => supabaseDelete('closers', id, 'id'))
               .then(() => {
                  setClosers((closers || []).filter(p => p && p.id !== id)); 
@@ -232,8 +267,18 @@
                   <div>
                     <label className={labelClassHud}>สังกัด / ทีมการทำงาน</label>
                     <select className={inputClassHud} value={formData.team} onChange={e=>setFormData({...formData,team:e.target.value})}>
-                      <option value="Center">🎧 Center (ทีมผู้เชี่ยวชาญปิดการขาย)</option>
-                      <option value="Marketing">📢 Marketing (ฝ่ายการตลาด)</option>
+                      <optgroup label="📌 ทีมหลัก">
+                        <option value="Center">🎧 Center — ผู้เชี่ยวชาญปิดการขาย</option>
+                        <option value="Marketing">📢 Marketing — ฝ่ายการตลาด (รวม)</option>
+                      </optgroup>
+                      {(businessTeams || []).length > 0 && (
+                        <optgroup label="🏢 ทีมสังกัดย่อย (Marketing)">
+                          {(businessTeams || []).map(t => {
+                              const tName = t.team_name || t.name || t.team_id;
+                              return <option key={t.team_id} value={tName}>{tName}</option>;
+                          })}
+                        </optgroup>
+                      )}
                     </select>
                   </div>
                   <div><label className={labelClassHud}>สถานะ</label><select className={inputClassHud} value={formData.status} onChange={e=>setFormData({...formData,status:e.target.value})}><option value="ใช้งาน">ใช้งาน</option><option value="ไม่ใช้งาน">ไม่ใช้งาน</option></select></div>
@@ -243,53 +288,112 @@
 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                <h2 className="text-2xl font-bold text-slate-800">จัดการข้อมูลผู้ปิดการขาย (Closers)</h2>
-               <div className="flex w-full sm:w-auto items-center gap-3">
+               <div className="flex flex-wrap w-full sm:w-auto items-center gap-2.5">
                  <div className="flex items-center bg-slate-50/30 focus-within:bg-white border border-slate-200 rounded-xl px-3 shadow-sm focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 transition-all duration-300 flex-1 sm:w-72 h-[38px] sm:h-[40px]">
                     <SearchIcon size={18} className="text-slate-400 shrink-0" />
                     <input type="text" placeholder="ค้นหารหัส, ชื่อ, สังกัด..." className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                  </div>
-                  <button onClick={handleSyncMarketing} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[12px] py-1.5 px-3 rounded-xl flex items-center gap-1.5 transition-colors shadow-sm shrink-0" type="button"><Plus size={18}/> ดึงพนักงานการตลาดเข้าทีม</button>
+                  <button onClick={handleSyncMarketing} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[12px] py-1.5 px-3 rounded-xl flex items-center gap-1.5 transition-colors shadow-sm shrink-0" type="button"><Plus size={18}/> ดึงพนักงานเข้าสังกัด</button>
                   <button onClick={handleOpenAdd} className={`${btnClassPrimary} shrink-0`}><Plus size={18}/> เพิ่มผู้ปิดการขาย</button>
                </div>
             </div>
 
-            {/* 📌 Dynamic Filter Cards derived directly from stk_closers table */}
+            {/* 📌 Dynamic Filter Cards - Responsive Grid ไม่แตกเมื่อย่อจอ */}
             {(() => {
-                const teamMap = {};
+                const teamCountMap = {};
                 (closers || []).forEach(c => {
                     const tName = String(c?.team || 'ไม่ระบุทีม').trim();
-                    teamMap[tName] = (teamMap[tName] || 0) + 1;
+                    if (tName) teamCountMap[tName] = (teamCountMap[tName] || 0) + 1;
                 });
-                const distinctTeamsList = Object.keys(teamMap).sort();
+
+                // รวมทีมทั้งหมดจาก stk_business_teams + stk_closers เพื่อให้แสดงครบทุกทีมเสมอ
+                const allTeamNamesSet = new Set();
+                (businessTeams || []).forEach(t => {
+                    const name = String(t.team_name || t.name || t.team_id || '').trim();
+                    if (name) allTeamNamesSet.add(name);
+                });
+                Object.keys(teamCountMap).forEach(tName => allTeamNamesSet.add(tName));
+
+                const distinctTeamsList = Array.from(allTeamNamesSet).sort((a, b) => a.localeCompare(b, 'th'));
+
+                // Palette สีตามทีม
+                const colorPalettes = [
+                    { bg: 'bg-blue-600', border: 'border-blue-600', ring: 'ring-blue-200', badge: 'bg-blue-50 text-blue-700', selBadge: 'bg-white/20 text-white' },
+                    { bg: 'bg-violet-600', border: 'border-violet-600', ring: 'ring-violet-200', badge: 'bg-violet-50 text-violet-700', selBadge: 'bg-white/20 text-white' },
+                    { bg: 'bg-emerald-600', border: 'border-emerald-600', ring: 'ring-emerald-200', badge: 'bg-emerald-50 text-emerald-700', selBadge: 'bg-white/20 text-white' },
+                    { bg: 'bg-rose-600', border: 'border-rose-600', ring: 'ring-rose-200', badge: 'bg-rose-50 text-rose-700', selBadge: 'bg-white/20 text-white' },
+                    { bg: 'bg-amber-600', border: 'border-amber-600', ring: 'ring-amber-200', badge: 'bg-amber-50 text-amber-700', selBadge: 'bg-white/20 text-white' },
+                    { bg: 'bg-cyan-600', border: 'border-cyan-600', ring: 'ring-cyan-200', badge: 'bg-cyan-50 text-cyan-700', selBadge: 'bg-white/20 text-white' },
+                    { bg: 'bg-pink-600', border: 'border-pink-600', ring: 'ring-pink-200', badge: 'bg-pink-50 text-pink-700', selBadge: 'bg-white/20 text-white' },
+                    { bg: 'bg-teal-600', border: 'border-teal-600', ring: 'ring-teal-200', badge: 'bg-teal-50 text-teal-700', selBadge: 'bg-white/20 text-white' },
+                ];
 
                 return (
-                    <div className="flex flex-wrap gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-3">
+                        {/* การ์ด 'ทีมทั้งหมด' */}
                         <button 
                             type="button"
                             onClick={() => setSelectedTeamFilter('ALL')}
-                            className={`p-3.5 rounded-2xl border text-left transition-all flex items-center justify-between shadow-xs min-w-[180px] flex-1 ${selectedTeamFilter === 'ALL' ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-300' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
+                            className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between shadow-xs relative overflow-hidden ${
+                                selectedTeamFilter === 'ALL' 
+                                ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-400' 
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-400 hover:bg-slate-50'
+                            }`}
                         >
-                            <div>
-                                <div className="text-[11px] font-bold opacity-80 uppercase tracking-wider">ทีมทั้งหมด</div>
-                                <div className="text-xl font-black mt-0.5">{(closers || []).length} <span className="text-xs font-normal opacity-90">คน</span></div>
+                            <div className="flex items-center justify-between gap-1 w-full mb-2">
+                                <span className="text-[11px] font-bold tracking-wide truncate">
+                                    👥 ทีมทั้งหมด
+                                </span>
+                                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md shrink-0 uppercase ${
+                                    selectedTeamFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+                                }`}>
+                                    รวม
+                                </span>
                             </div>
-                            <span className={`text-xs font-bold px-2 py-1 rounded-lg ${selectedTeamFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'}`}>ทั้งหมด</span>
+                            <div className="flex items-baseline justify-between w-full mt-auto">
+                                <span className="text-xl font-black tracking-tight">
+                                    {(closers || []).length}
+                                </span>
+                                <span className={`text-xs font-semibold ${selectedTeamFilter === 'ALL' ? 'text-white/80' : 'text-slate-400'}`}>
+                                    คน
+                                </span>
+                            </div>
                         </button>
 
-                        {distinctTeamsList.map(tName => {
+                        {/* การ์ดแต่ละสังกัดทีม */}
+                        {distinctTeamsList.map((tName, idx) => {
                             const isSelected = selectedTeamFilter === tName;
+                            const palette = colorPalettes[idx % colorPalettes.length];
+                            const count = teamCountMap[tName] || 0;
                             return (
                                 <button 
                                     key={tName}
                                     type="button" 
                                     onClick={() => setSelectedTeamFilter(isSelected ? 'ALL' : tName)}
-                                    className={`p-3.5 rounded-2xl border text-left transition-all flex items-center justify-between shadow-xs min-w-[200px] flex-1 ${isSelected ? 'bg-blue-600 text-white border-blue-600 shadow-md ring-2 ring-blue-200' : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50'}`}
+                                    className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between shadow-xs relative overflow-hidden group ${
+                                        isSelected 
+                                        ? `${palette.bg} text-white ${palette.border} shadow-md ring-2 ${palette.ring}` 
+                                        : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50/30'
+                                    }`}
                                 >
-                                    <div>
-                                        <div className="text-[11px] font-bold opacity-80 uppercase tracking-wider truncate max-w-[150px]" title={tName}>🏢 {tName}</div>
-                                        <div className="text-xl font-black mt-0.5">{teamMap[tName]} <span className="text-xs font-normal opacity-90">คน</span></div>
+                                    <div className="flex items-center justify-between gap-1 w-full mb-2">
+                                        <span className="text-[11px] font-bold tracking-wide truncate" title={tName}>
+                                            🏢 {tName}
+                                        </span>
+                                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md shrink-0 uppercase ${
+                                            isSelected ? palette.selBadge : palette.badge
+                                        }`}>
+                                            {isSelected ? 'เลือก' : 'ทีม'}
+                                        </span>
                                     </div>
-                                    <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${isSelected ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-700'}`}>{tName}</span>
+                                    <div className="flex items-baseline justify-between w-full mt-auto">
+                                        <span className="text-xl font-black tracking-tight">
+                                            {count}
+                                        </span>
+                                        <span className={`text-xs font-semibold ${isSelected ? 'text-white/80' : 'text-slate-400'}`}>
+                                            คน
+                                        </span>
+                                    </div>
                                 </button>
                             );
                         })}
@@ -382,26 +486,116 @@
         if (initialLoader) initialLoader.style.display = 'none';
 
         Promise.all([
-          supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
-          supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams'))
+          supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')).catch(() => []),
+          supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams')).catch(() => [])
         ]).then(([cloRes, teamRes]) => {
+             let formattedClosers = [];
              if (Array.isArray(cloRes)) {
-               const formatted = cloRes.map(c => ({
+               formattedClosers = cloRes.map(c => ({
                  id: c.closer_id || c.id,
                  name: c.name,
                  team: c.team || 'ทีมแพทย์/คลินิก',
                  status: c.status || 'ใช้งาน'
                }));
-               setClosers(formatted);
              }
-             if (Array.isArray(teamRes)) setBusinessTeams(teamRes);
+             let teamsData = Array.isArray(teamRes) ? teamRes : [];
+             setBusinessTeams(teamsData);
+             setClosers([...formattedClosers]);
+             setIsAppLoading(false);
+             setTimeout(() => { autoSyncAllMembers(formattedClosers, teamsData); }, 1200);
           }).catch(err => {
-             console.error("Supabase load error:", err);
-          }).finally(() => {
+             console.error("Load error:", err);
              setIsAppLoading(false);
           });
-      }, []);
 
+        async function autoSyncAllMembers(existingClosers, teamsData) {
+          try {
+            const membersRes = await supabaseSelect('stk_members').catch(() => supabaseSelect('members')).catch(() => []);
+            if (!Array.isArray(membersRes) || membersRes.length === 0) return;
+            
+            const teamIdToName = {};
+            teamsData.forEach(t => {
+              const tId = String(t.team_id || '').trim().toUpperCase();
+              const tName = String(t.team_name || t.name || t.team_id || '').trim();
+              if (tId) teamIdToName[tId] = tName;
+            });
+            
+            const validMembers = membersRes.filter(u => {
+              const bTeam = String(u.business_team || u.businessTeam || '').trim();
+              return bTeam && !['NULL','UNDEFINED','NONE'].includes(bTeam.toUpperCase());
+            });
+            if (validMembers.length === 0) return;
+            
+            const closerMap = {};
+            existingClosers.forEach(c => {
+              const cId = String(c.id || c.closer_id || '').toUpperCase();
+              if (cId) closerMap[cId] = { team: c.team, name: c.name };
+            });
+            
+            const toInsert = [];
+            const toUpdate = [];
+
+            for (const u of validMembers) {
+              const uId = String(u.id || u.user_id || u.username || '').trim();
+              if (!uId) continue;
+              
+              const bTeamRaw = String(u.business_team || u.businessTeam || '').trim();
+              const teamNameStr = teamIdToName[bTeamRaw.toUpperCase()] || teamIdToName[bTeamRaw] || bTeamRaw;
+              const existing = closerMap[uId.toUpperCase()];
+
+              if (!existing) {
+                toInsert.push({ id: uId, name: u.name || uId, team: teamNameStr, status: 'ใช้งาน' });
+              } else if (existing.team !== teamNameStr) {
+                toUpdate.push({ id: uId, name: u.name || existing.name, team: teamNameStr });
+              }
+            }
+
+            // Bulk POST in 1 single HTTP call
+            if (toInsert.length > 0) {
+              try {
+                await fetch(window.SUPABASE_REST_URL + '/stk_closers', {
+                  method: 'POST',
+                  headers: { ...window.SUPABASE_HEADERS, 'Prefer': 'resolution=ignore-duplicates,return=minimal' },
+                  body: JSON.stringify(toInsert)
+                });
+              } catch(e) {}
+            }
+
+            // Update team for members who switched teams
+            for (const upd of toUpdate) {
+              try {
+                await fetch(window.SUPABASE_REST_URL + '/stk_closers?id=eq.' + encodeURIComponent(upd.id), {
+                  method: 'PATCH',
+                  headers: { ...window.SUPABASE_HEADERS, 'Prefer': 'return=minimal' },
+                  body: JSON.stringify({ team: upd.team, name: upd.name })
+                });
+              } catch(e) {}
+            }
+
+            if (toInsert.length > 0 || toUpdate.length > 0) {
+              setClosers(prev => {
+                let updated = [...(prev || [])];
+                const idSet = new Set(updated.map(c => String(c.id || c.closer_id || '').toUpperCase()));
+                toInsert.forEach(e => {
+                  if (!idSet.has(String(e.id || '').toUpperCase())) {
+                    updated.push(e);
+                    idSet.add(String(e.id || '').toUpperCase());
+                  }
+                });
+                toUpdate.forEach(upd => {
+                  const idx = updated.findIndex(c => String(c.id || c.closer_id || '').toUpperCase() === String(upd.id || '').toUpperCase());
+                  if (idx !== -1) updated[idx] = { ...updated[idx], team: upd.team, name: upd.name };
+                });
+                if (toInsert.length > 0) console.log('Added ' + toInsert.length + ' new closers');
+                if (toUpdate.length > 0) console.log('Updated ' + toUpdate.length + ' closers team');
+                return updated;
+              });
+            }
+          } catch(err) {
+            console.warn('Auto-sync skipped:', err.message);
+          }
+        }
+      }, []);
       const handleLoginSuccess = (user) => {
         localStorage.setItem('stk_current_user', JSON.stringify(user));
         setCurrentUser(user);

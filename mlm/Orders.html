@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -226,7 +226,16 @@
         const [deletedOrdersLog, setDeletedOrdersLog] = useState(() => {
             try {
                 const saved = localStorage.getItem('stk_deleted_orders_log');
-                return saved ? JSON.parse(saved) : [];
+                if (!saved) return [];
+                const parsed = JSON.parse(saved);
+                const todayPrefix = (typeof getLocalISODate === 'function' ? getLocalISODate() : new Date().toISOString().split('T')[0]);
+                
+                const filtered = parsed.filter(log => String(log.deleted_at || '').startsWith(todayPrefix) || String(log.original_date || '').startsWith(todayPrefix));
+                
+                if (filtered.length !== parsed.length) {
+                    localStorage.setItem('stk_deleted_orders_log', JSON.stringify(filtered));
+                }
+                return filtered;
             } catch(e) { return []; }
         });
         const [showDeletedModal, setShowDeletedModal] = useState(false);
@@ -693,23 +702,23 @@
 
                 let rateHtml = '';
                 
+                const netTotalThb = totalBaseAmount - totalDiscountAmount;
+                const netTotalLak = netTotalThb * exRate;
+
                 // ⚡ FIX: แสดงยอดเงินสุทธิตามชนิดเงินจริงๆ ไม่บังคับโชว์ LAK พร่ำเพรื่อ
                 if (lakAmt > 0 && thbAmt > 0) {
                     rateHtml = `
-                        <tr class="total-row bold"><td style="padding-top: 4px; font-size: 13px;">ยอดรวมสุทธิ (LAK):</td><td class="text-right" style="padding-top: 4px; font-size: 15px; color: #047857; font-family: monospace;">${Math.round(lakAmt).toLocaleString()} ₭</td></tr>
-                        <tr class="total-row bold"><td style="padding-top: 4px; font-size: 13px;">ยอดรวมสุทธิ (THB):</td><td class="text-right" style="padding-top: 4px; font-size: 15px; color: #1e3a8a; font-family: monospace;">฿${(Math.round(thbAmt * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
+                        <tr class="total-row bold"><td style="padding-top: 4px; font-size: 13px;">ยอดรวมสุทธิ (THB):</td><td class="text-right" style="padding-top: 4px; font-size: 15px; color: #1e3a8a; font-family: monospace;">฿${(Math.round(netTotalThb * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
+                        <tr><td style="padding-top: 4px; font-size: 11px; color: #64748b;">(ยอดเต็มเงินกีบ: ${Math.round(netTotalLak).toLocaleString()} ₭)</td><td class="text-right"></td></tr>
                     `;
                 } else if (lakAmt > 0 || isLakMain) {
-                    const finalLakAmt = lakAmt > 0 ? lakAmt : (totalBaseAmount * exRate);
-                    const equivalentThb = finalLakAmt / exRate;
                     rateHtml = `
-                        <tr><td style="padding-top: 4px; font-size: 11px; color: #64748b;">(ยอดเงินบาท: ฿${(Math.round(equivalentThb * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})})</td><td class="text-right"></td></tr>
-                        <tr class="total-row bold"><td style="font-size: 13px;">ยอดรวมสุทธิ (LAK):</td><td class="text-right" style="font-size: 15px; color: #047857; font-family: monospace;">${Math.round(finalLakAmt).toLocaleString()} ₭</td></tr>
+                        <tr><td style="padding-top: 4px; font-size: 11px; color: #64748b;">(ยอดเงินบาท: ฿${(Math.round(netTotalThb * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})})</td><td class="text-right"></td></tr>
+                        <tr class="total-row bold"><td style="font-size: 13px;">ยอดรวมสุทธิ (LAK):</td><td class="text-right" style="font-size: 15px; color: #047857; font-family: monospace;">${Math.round(netTotalLak).toLocaleString()} ₭</td></tr>
                     `;
                 } else {
-                    const finalThbAmt = thbAmt > 0 ? thbAmt : totalBaseAmount;
                     rateHtml = `
-                        <tr class="total-row bold"><td style="padding-top: 4px; font-size: 13px;">ยอดรวมสุทธิ (THB):</td><td class="text-right" style="padding-top: 4px; font-size: 15px; color: #1e3a8a; font-family: monospace;">฿${(Math.round(finalThbAmt * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
+                        <tr class="total-row bold"><td style="padding-top: 4px; font-size: 13px;">ยอดรวมสุทธิ (THB):</td><td class="text-right" style="padding-top: 4px; font-size: 15px; color: #1e3a8a; font-family: monospace;">฿${(Math.round(netTotalThb * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
                     `;
                 }
 
@@ -892,10 +901,10 @@
                             if (qty > 0) {
                                 // ⚡ ตัดวงเล็บทิ้งให้เหมือนตอนบันทึกบิล จะได้ค้นหาสินค้าเจอ
                                 const cleanProdName = (raw) => raw.replace(/\(.*?\)/g, '').trim();
-                                if (key.endsWith('_ราคาเต็ม') && key !== 'รวมชิ้นราคาเต็ม') itemsList.push({prod: cleanProdName(key.replace('_ราคาเต็ม', '')), qty});
-                                else if (key.endsWith('_ราคาสมาชิก') && key !== 'รวมชิ้นราคาสมาชิก') itemsList.push({prod: cleanProdName(key.replace('_ราคาสมาชิก', '')), qty});
-                                else if (key.endsWith('_ราคาโปร') && key !== 'รวมชิ้นราคาโปร') itemsList.push({prod: cleanProdName(key.replace('_ราคาโปร', '')), qty});
-                                else if (key.endsWith('_ราคาศูนย์') && key !== 'รวมชิ้นราคาศูนย์') itemsList.push({prod: cleanProdName(key.replace('_ราคาศูนย์', ''), qty)});
+                                if (key.endsWith('_ราคาเต็ม') && key !== 'รวมชิ้นราคาเต็ม') itemsList.push({prod: cleanProdName(key.replace('_ราคาเต็ม', '')), qty, priceType: 'ราคาเต็ม'});
+                                else if (key.endsWith('_ราคาสมาชิก') && key !== 'รวมชิ้นราคาสมาชิก') itemsList.push({prod: cleanProdName(key.replace('_ราคาสมาชิก', '')), qty, priceType: 'ราคาสมาชิก'});
+                                else if (key.endsWith('_ราคาโปร') && key !== 'รวมชิ้นราคาโปร') itemsList.push({prod: cleanProdName(key.replace('_ราคาโปร', '')), qty, priceType: 'ราคาโปร'});
+                                else if (key.endsWith('_ราคาศูนย์') && key !== 'รวมชิ้นราคาศูนย์') itemsList.push({prod: cleanProdName(key.replace('_ราคาศูนย์', '')), qty, priceType: 'ราคาศูนย์'});
                             }
                         });
                     }
@@ -916,7 +925,7 @@
                         // 3. เริ่มกระบวนการคืนสต็อก
                         let currentProducts = [];
                         if (typeof supabaseSelect === 'function') {
-                            currentProducts = await supabaseSelect('stk_products').catch(() => []) || [];
+                            currentProducts = await supabaseSelect('stk_products').catch(() => supabaseSelect('products')).catch(() => []) || [];
                         }
                         
                         // 4. ⚡ แปลงจาก "เซ็ตโปรโมชั่น" กลับเป็น "สินค้าหลัก"
@@ -1016,10 +1025,66 @@
                     supabaseInsert('stk_deleted_sales', deletedRecord).catch(() => {});
                 }
 
+                // 6. ⚡ FIX: คืนค่า PV ให้สมาชิกเวลายกเลิกบิล
+                const memberIdToDeduct = saleToCancel.memberId || saleToCancel.seller_id || saleToCancel.seller || saleToCancel.recorded_by;
+                if (memberIdToDeduct) {
+                    let totalPVToDeduct = 0;
+                    itemsList.forEach(item => {
+                        const pName = String(item.prod || item.productName || item.name || '').trim();
+                        // currentProducts may not be populated if itemsList was empty initially, so fallback to global products array
+                        const pInfo = (typeof currentProducts !== 'undefined' && currentProducts.length > 0 ? currentProducts : (typeof products !== 'undefined' ? products : [])).find(p => String(p.name || p.product_name || '').trim() === pName);
+                        if (pInfo) {
+                            const pvRate = pInfo.givePv !== undefined ? Number(pInfo.givePv) : 0;
+                            const pType = item.type || item.priceType || 'ราคาเต็ม';
+                            if (pType === 'ราคาเต็ม' || pType === 'ราคาสมาชิก') {
+                                totalPVToDeduct += (Number(item.qty) || 0) * pvRate;
+                            }
+                        }
+                    });
+
+                    if (totalPVToDeduct > 0 && typeof supabaseSelect === 'function' && typeof supabaseUpdate === 'function') {
+                        try {
+                            let pk = 'user_id';
+                            let memRes;
+                            try { memRes = await supabaseSelect('stk_members', `user_id=eq.${encodeURIComponent(memberIdToDeduct)}`); }
+                            catch (err) {
+                                try { memRes = await supabaseSelect('stk_members', `id=eq.${encodeURIComponent(memberIdToDeduct)}`); pk = 'id'; }
+                                catch (err2) { memRes = await supabaseSelect('stk_members', `User_ID=eq.${encodeURIComponent(memberIdToDeduct)}`); pk = 'User_ID'; }
+                            }
+
+                            if (memRes && memRes.length > 0) {
+                                const mem = memRes[0];
+                                let currentPv = Number(mem.accumulated_pv || mem.Accumulated_PV || 0);
+                                let newPv = currentPv - totalPVToDeduct;
+                                if (newPv < 0) newPv = 0;
+                                const updatePayload = mem.Accumulated_PV !== undefined ? { Accumulated_PV: newPv } : { accumulated_pv: newPv };
+                                
+                                await supabaseUpdate('stk_members', mem[pk], updatePayload, pk);
+                            }
+                        } catch (err) {
+                            console.warn('PV deduction failed:', err);
+                        }
+                    }
+                }
+
                 await supabaseDelete('stk_sales', confirmDelete.id, 'order_id').catch(()=>{});
                 await supabaseDelete('sales', confirmDelete.id, 'order_id').catch(() => {});
                 
                 // ⚡ Safe sale deletion: Do not attempt to delete customer record from database when a bill is canceled
+
+                // แจ้งยกเลิกบิลไปยังตารางใบสั่งยา (Nutrients)
+                const paymentNoteStr = saleToCancel ? (saleToCancel.paymentNote || saleToCancel.payment_note || '') : '';
+                const visitMatch = paymentNoteStr.match(/VISIT:\s*([^\)\s]+)/);
+                if (visitMatch && visitMatch[1]) {
+                    const visitId = visitMatch[1];
+                    if (typeof window.supabaseUpdate === 'function') {
+                        try {
+                            await window.supabaseUpdate('stk_nutrient_orders', visitId, { status: 'บิลถูกยกเลิก' }, 'visit_id');
+                        } catch (e) {
+                            console.warn('Failed to update nutrient order status to canceled:', e);
+                        }
+                    }
+                }
 
                 triggerGlobalRefresh();
                 setSales(prev => prev.filter(s => s.id !== confirmDelete.id));
@@ -1164,10 +1229,22 @@
                                 <button 
                                     type="button" 
                                     onClick={() => {
-                                        if (window.confirm('คุณแน่ใจหรือไม่ว่าต้องการล้างประวัติการยกเลิกบิลทั้งหมด?')) {
-                                            saveDeletedLog([]);
-                                            showToast('ล้างประวัติการยกเลิกบิลเรียบร้อยแล้ว', 'success');
-                                        }
+                                        Swal.fire({
+                                            title: 'ยืนยันการล้างประวัติ?',
+                                            text: 'คุณแน่ใจหรือไม่ว่าต้องการล้างประวัติการยกเลิกบิลของวันนี้ทั้งหมด?',
+                                            icon: 'warning',
+                                            showCancelButton: true,
+                                            confirmButtonColor: '#ef4444',
+                                            cancelButtonColor: '#94a3b8',
+                                            confirmButtonText: 'ตกลงล้างประวัติ',
+                                            cancelButtonText: 'ยกเลิก',
+                                            reverseButtons: true
+                                        }).then((result) => {
+                                            if (result.isConfirmed) {
+                                                saveDeletedLog([]);
+                                                showToast('ล้างประวัติการยกเลิกบิลเรียบร้อยแล้ว', 'success');
+                                            }
+                                        });
                                     }}
                                     className="px-3 py-2 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 font-bold text-xs rounded-xl transition-all shrink-0 cursor-pointer"
                                 >
@@ -1859,13 +1936,13 @@
         }
 
         Promise.all([
-          supabaseSelect('stk_members').catch(() => []),
+          supabaseSelect('stk_members').catch(() => supabaseSelect('members')).catch(() => []),
           // ⚡ เรียงลำดับ created_at.desc เพื่อดึงลูกค้าใหม่ล่าสุดก่อนเสมอ
-          supabaseSelect('stk_customers', 'order=created_at.desc&limit=1500').catch(() => []), 
-          supabaseSelect('stk_products').catch(() => []),
-          supabaseSelect('stk_system_settings').catch(() => []),
-          supabaseSelect('stk_closers').catch(() => []),
-          supabaseSelect('stk_sales', salesQuery).catch(() => [])
+          supabaseSelect('stk_customers', 'order=created_at.desc&limit=1500').catch(() => supabaseSelect('customers')).catch(() => []), 
+          supabaseSelect('stk_products').catch(() => supabaseSelect('products')).catch(() => []),
+          supabaseSelect('stk_system_settings').catch(() => supabaseSelect('system_settings')).catch(() => []),
+          supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')).catch(() => []),
+          supabaseSelect('stk_sales', salesQuery).catch(() => supabaseSelect('sales', salesQuery)).catch(() => [])
         ]).then(([memRes, custRes, prodRes, setRes, closerRes, saleRes]) => {
            const settingsObj = { exchange_rate: 700 };
            if (Array.isArray(setRes)) setRes.forEach(s => settingsObj[s.key || s.setting_key] = s.value || s.setting_value);

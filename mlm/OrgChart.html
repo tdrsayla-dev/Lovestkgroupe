@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 
 <head>
@@ -294,7 +294,7 @@
                     if (Array.isArray(itemsList) && itemsList.length > 0) {
                         itemsList.forEach(it => {
                             const typeStr = String(it.type || '').trim();
-                            if (typeStr === 'ราคาเต็ม' || typeStr === 'ราคาสมาชิก') {
+                            const typeLower = typeStr.toLowerCase(); const isNotPromoOrZero = !typeLower.includes('โปร') && !typeLower.includes('ศูนย์') && !typeLower.includes('zero') && !typeLower.includes('promo') && !typeLower.includes('free'); if (typeStr === 'ราคาเต็ม' || typeStr === 'ราคาสมาชิก' || (typeStr !== 'ราคาโปร' && typeStr !== 'โปรโมชั่น' && typeStr !== 'ราคาศูนย์' && typeStr !== 'ราคาฟรี' && isNotPromoOrZero)) {
                                 totalPV += Number(it.qty || it.quantity || 1);
                             }
                         });
@@ -376,7 +376,7 @@
                             else if (typeStr === 'ราคาศูนย์' || typeStr === 'ราคาฟรี') catMap[targetKey].zeroQty += q;
                             else catMap[targetKey].promoQty += q;
 
-                            if (typeStr === 'ราคาเต็ม' || typeStr === 'ราคาสมาชิก') {
+                            const typeLower = typeStr.toLowerCase(); const isNotPromoOrZero = !typeLower.includes('โปร') && !typeLower.includes('ศูนย์') && !typeLower.includes('zero') && !typeLower.includes('promo') && !typeLower.includes('free'); if (typeStr === 'ราคาเต็ม' || typeStr === 'ราคาสมาชิก' || (typeStr !== 'ราคาโปร' && typeStr !== 'โปรโมชั่น' && typeStr !== 'ราคาศูนย์' && typeStr !== 'ราคาฟรี' && isNotPromoOrZero)) {
                                 catMap[targetKey].totalQty += q;
 
                                 let feePerBox = 0;
@@ -458,7 +458,71 @@
             }, [downlinesWithLevels, downlineSalesList, parseSalesIntoCategories, downlinesByLevelCount]);
 
             const personalCategorized = useMemo(() => parseSalesIntoCategories(personalSalesList, false), [personalSalesList, parseSalesIntoCategories]);
-            const downlineCategorized = useMemo(() => parseSalesIntoCategories(downlineSalesList, true), [downlineSalesList, parseSalesIntoCategories]);
+            
+            const personalTotalBoxes = useMemo(() => Object.values(personalCategorized).reduce((acc, c) => acc + c.totalQty, 0), [personalCategorized]);
+            const meetCommCondition = useMemo(() => {
+                // กฎ: Switch ปิด = return true เสมอ (ไม่มีเงื่อนไข แม่ทีมไม่มียอดขายก็รับปันผลได้)
+                //      Switch เปิด = ตรวจเกณฑ์ยกเว้น / ขอบเขต / ยอดขายขั้นต่ำ
+                try {
+                    let rawConfig = null;
+                    const localSaved = localStorage.getItem('stk_system_settings');
+                    if (localSaved) {
+                        const parsedSaved = JSON.parse(localSaved);
+                        if (parsedSaved?.commission_condition_config !== undefined && parsedSaved?.commission_condition_config !== null) {
+                            rawConfig = parsedSaved.commission_condition_config;
+                        }
+                    }
+                    if (rawConfig === null || rawConfig === undefined) {
+                        rawConfig = systemSettings?.commission_condition_config;
+                    }
+                    if (rawConfig !== null && rawConfig !== undefined) {
+                        let parsed = rawConfig;
+                        while (typeof parsed === 'string' && parsed.trim() !== '') parsed = JSON.parse(parsed);
+                        if (parsed && typeof parsed === 'object') {
+                            const isEnabled = parsed.is_enabled === true || parsed.is_enabled === 'true';
+                            if (!isEnabled) return true; // Switch ปิด: ไม่มีเงื่อนไข
+
+                            const safeId = mId ? String(mId).trim().toUpperCase() : '';
+                            const safeTeam = member?.team ? String(member.team).trim().toUpperCase() : '';
+
+                            // 1. ตรวจสอบการยกเว้นทีม (Exclude Teams)
+                            if (Array.isArray(parsed.exclude_teams) && parsed.exclude_teams.length > 0) {
+                                if (parsed.exclude_teams.some(t => String(t).trim().toUpperCase() === safeTeam)) return true;
+                            }
+                            // 2. ตรวจสอบการยกเว้นสมาชิกรายบุคคล (Exclude Members)
+                            if (Array.isArray(parsed.exclude_members) && parsed.exclude_members.length > 0) {
+                                if (parsed.exclude_members.some(id => String(id).trim().toUpperCase() === safeId)) return true;
+                            }
+
+                            // 3. ตรวจสอบขอบเขตการบังคับใช้ (Target Scope)
+                            const scope = parsed.target_scope || 'all';
+                            if (scope === 'specific_teams') {
+                                const teams = (parsed.selected_teams || []).map(t => String(t).trim().toUpperCase());
+                                if (!teams.includes(safeTeam)) return true;
+                            } else if (scope === 'specific_members') {
+                                const ids = (parsed.selected_members || []).map(id => String(id).trim().toUpperCase());
+                                if (!ids.includes(safeId)) return true;
+                            }
+
+                            const minBoxes = !isNaN(Number(parsed.min_boxes)) ? Number(parsed.min_boxes) : 0;
+                            const r = personalTotalBoxes >= minBoxes;
+                            console.log('[OrgChart] meetCommCondition:', { isEnabled, minBoxes, personalTotalBoxes, r, safeTeam, safeId });
+                            return r;
+                        }
+                    }
+                } catch(e) { console.error('[OrgChart] meetCommCondition error:', e); }
+                return true; // default: ไม่มี config = Switch ปิด = อนุญาตเสมอ
+            }, [systemSettings, personalTotalBoxes, mId, member]);
+
+            const downlineCategorized = useMemo(() => {
+                const categorized = parseSalesIntoCategories(downlineSalesList, true);
+                if (meetCommCondition === false) {
+                    Object.keys(categorized).forEach(k => {
+                        categorized[k].totalLAK = 0;
+                    });
+                }
+                return categorized;
+            }, [downlineSalesList, parseSalesIntoCategories, meetCommCondition]);
 
             const totalTeamCategorized = useMemo(() => {
                 const keys = ['Supplement', 'Supplement02', 'Cosmetic', 'Coffee'];
@@ -486,7 +550,6 @@
                 return res;
             }, [personalCategorized, downlineCategorized]);
 
-            const personalTotalBoxes = useMemo(() => Object.values(personalCategorized).reduce((acc, c) => acc + c.totalQty, 0), [personalCategorized]);
             const downlineTotalBoxes = useMemo(() => Object.values(downlineCategorized).reduce((acc, c) => acc + c.totalQty, 0), [downlineCategorized]);
             const groupTotalBoxes = personalTotalBoxes + downlineTotalBoxes;
 
@@ -789,6 +852,11 @@
                                                 รวม {downlineTotalBoxes} กล่อง | ปันผล {downlineTotalLAK.toLocaleString()} LAK
                                             </span>
                                         </div>
+                                        {!meetCommCondition && (
+                                            <div className="bg-rose-50 border border-rose-200 text-rose-600 px-3 py-2 rounded-lg text-xs font-bold mb-2 mt-2 flex items-center gap-2">
+                                                <span>⚠️ ยอดขายของคุณยังไม่ถึงเกณฑ์ได้รับค่าแนะนำจากลูกทีม</span>
+                                            </div>
+                                        )}
                                         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
                                             <table className="w-full text-xs text-left">
                                                 <thead className="bg-pink-50/60 text-slate-600 font-bold border-b border-slate-200">
@@ -1598,13 +1666,56 @@
             const [sales, setSales] = useState(() => initialCache && Array.isArray(initialCache.sales) ? initialCache.sales : []);
             const [businessTeams, setBusinessTeams] = useState(() => initialCache && Array.isArray(initialCache.businessTeams) ? initialCache.businessTeams.map(t => ({ ...t, id: t.id || t.team_id, name: t.name || t.team_name })) : []);
             const [systemUsers, setSystemUsers] = useState([]);
-            const [systemSettings, setSystemSettings] = useState(() => initialCache && initialCache.systemSettings ? initialCache.systemSettings : {});
+            const [systemSettings, setSystemSettings] = useState(() => {
+                // Start with app cache (Supabase data) - handle both array and object formats
+                let base = {};
+                if (initialCache && initialCache.systemSettings) {
+                    const raw = initialCache.systemSettings;
+                    if (Array.isArray(raw)) {
+                        // Supabase format: [{key, setting_key, value, setting_value}]
+                        raw.forEach(s => { if (s.key || s.setting_key) base[s.key || s.setting_key] = s.value || s.setting_value; });
+                    } else if (typeof raw === 'object') {
+                        base = { ...raw };
+                    }
+                }
+                // ALWAYS override commission_condition_config from stk_system_settings (set by Stock.html)
+                try {
+                    const localStr = localStorage.getItem('stk_system_settings');
+                    if (localStr) {
+                        const localObj = JSON.parse(localStr);
+                        if (localObj && localObj.commission_condition_config !== undefined) {
+                            base = { ...base, commission_condition_config: localObj.commission_condition_config };
+                        }
+                    }
+                } catch(e) {}
+                return base;
+            });
             const [isAppLoading, setIsAppLoading] = useState(() => !initialCache);
             const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
                 try { return localStorage.getItem('stk_sidebar_collapsed') === 'true'; } catch (e) { return false; }
             });
 
             const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
+            // Listen for commission_condition_config changes from Stock.html in real-time
+            useEffect(() => {
+                const handleStorageChange = () => {
+                    try {
+                        const localStr = localStorage.getItem('stk_system_settings');
+                        if (localStr) {
+                            const localObj = JSON.parse(localStr);
+                            if (localObj && localObj.commission_condition_config !== undefined) {
+                                setSystemSettings(prev => ({
+                                    ...prev,
+                                    commission_condition_config: localObj.commission_condition_config
+                                }));
+                            }
+                        }
+                    } catch(e) {}
+                };
+                window.addEventListener('storage', handleStorageChange);
+                return () => window.removeEventListener('storage', handleStorageChange);
+            }, []);
 
             const pagePerm = window.getUserPagePermission ? window.getUserPagePermission(currentUser, 'orgchart') : 'none';
             const isAdmin = currentUser && (
@@ -1691,6 +1802,16 @@
                     response.systemSettings.forEach(s => {
                         if (s.key || s.setting_key) settingsObj[s.key || s.setting_key] = s.value || s.setting_value;
                     });
+                    // Always use localStorage commission_condition_config to prevent Supabase stale data from overwriting
+                    try {
+                        const localCommStr = localStorage.getItem('stk_system_settings');
+                        if (localCommStr) {
+                            const localComm = JSON.parse(localCommStr);
+                            if (localComm && localComm.commission_condition_config !== undefined) {
+                                settingsObj.commission_condition_config = localComm.commission_condition_config;
+                            }
+                        }
+                    } catch(eLocalComm) {}
                     setSystemSettings(settingsObj);
                 }
                 if (Array.isArray(response.members)) {

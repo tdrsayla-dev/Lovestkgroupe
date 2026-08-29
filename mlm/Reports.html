@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
   <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
@@ -169,7 +169,7 @@
                             status: log.status || 'PAID',
                             paidAt: log.paid_at || log.created_at,
                             paidBy: log.paid_by || log.member_name || 'แอดมิน',
-                            amount: log.amount
+                            amount: Number(log.amount) || 0
                         };
                     }
                 });
@@ -190,7 +190,8 @@
             const payer = currentUser?.name || 'Administrator';
 
             keysToPay.forEach(key => {
-                updated[key] = { status: 'PAID', paidAt: todayNow, paidBy: payer };
+                const payoutItem = (referralDailyPayoutData || []).find(item => item.key === key);
+                updated[key] = { status: 'PAID', paidAt: todayNow, paidBy: payer, amount: payoutItem?.totalEarn || 0 };
             });
 
             setPaidRecords(updated);
@@ -225,7 +226,14 @@
             }
 
             setSelectedPayoutKeys(new Set());
-            alert(`บันทึกการจ่ายปันผลสำเร็จเรียบร้อย (${keysToPay.size} รายการ)`);
+            setShowPayoutModal(false);
+            Swal.fire({
+                title: 'สำเร็จ!',
+                text: `บันทึกการจ่ายปันผลสำเร็จเรียบร้อย (${keysToPay.size} รายการ)`,
+                icon: 'success',
+                confirmButtonColor: '#3085d6',
+                confirmButtonText: 'ตกลง'
+            });
         };
 
         useEffect(() => {
@@ -449,36 +457,68 @@
         const unfoldedSales = useMemo(() => {
             let items = [];
             const dateFilteredSales = (sales || []).filter(s => {
-                if (!s || (s.date || '') < startDate || (s.date || '') > endDate) return false;
-                if (permittedMemberSet !== null) return permittedMemberSet.has(safeUpper(s.memberId));
+                const sDate = s.date || s.sale_date || '';
+                if (!s || sDate < startDate || sDate > endDate) return false;
+                const sMemId = safeUpper(s.memberId || s.member_id || s.sellerId || s.seller_id || s.seller || s.marketing);
+                if (permittedMemberSet !== null) return permittedMemberSet.has(sMemId);
                 return true;
             });
 
             dateFilteredSales.forEach(record => {
-                const member = (members || []).find(m => m && safeUpper(m.id) === safeUpper(record.memberId));
+                const recMemberId = safeUpper(record.memberId || record.member_id || record.sellerId || record.seller_id || record.seller || record.marketing);
+                const member = (members || []).find(m => m && safeUpper(m.id) === recMemberId);
                 const cust = (customers || []).find(c => c && c.id === record.customerId);
                 const cleanTeam = resolveTeamName(member?.team, businessTeams);
                 const resolvedCustType = record.customerType || record.custType || record.customer_type || (cust ? cust.type : '') || 'ไม่ระบุประเภท';
 
-                Object.entries(record || {}).forEach(([key, value]) => {
-                    if (key.endsWith('_ราคาเต็ม') || key.endsWith('_ราคาสมาชิก') || key.endsWith('_ราคาโปร') || key.endsWith('_ราคาศูนย์')) {
-                        const qty = parseInt(value, 10);
-                        if (!isNaN(qty) && qty > 0) {
-                            const lastUnderscore = key.lastIndexOf('_');
+                let rawItems = [];
+                if (record.items_json) {
+                    try { rawItems = typeof record.items_json === 'string' ? JSON.parse(record.items_json) : record.items_json; } catch(e){}
+                }
+
+                if (!Array.isArray(rawItems) || rawItems.length === 0) {
+                    Object.entries(record || {}).forEach(([key, value]) => {
+                        if (key.endsWith('_ราคาเต็ม') || key.endsWith('_ราคาสมาชิก') || key.endsWith('_ราคาโปร') || key.endsWith('_ราคาศูนย์')) {
+                            const qty = parseInt(value, 10);
+                            if (!isNaN(qty) && qty > 0) {
+                                const lastUnderscore = key.lastIndexOf('_');
+                                rawItems.push({
+                                    prod: key.substring(0, lastUnderscore).replace(/\(.*?\)/g, '').trim(),
+                                    type: key.substring(lastUnderscore + 1),
+                                    qty: qty
+                                });
+                            }
+                        }
+                    });
+                }
+
+                if (Array.isArray(rawItems) && rawItems.length > 0) {
+                    rawItems.forEach(it => {
+                        const q = Number(it.qty || it.quantity || 1);
+                        if (q > 0) {
                             items.push({
                                 billId: record.id,
-                                date: record.date || '',
-                                memberId: record.memberId,
-                                memberName: member?.name || record.memberId || 'UNKNOWN',
+                                date: record.date || record.sale_date || '',
+                                memberId: recMemberId,
+                                memberName: member?.name || recMemberId || 'UNKNOWN',
                                 team: cleanTeam,
                                 custType: resolvedCustType,
-                                product: key.substring(0, lastUnderscore).replace(/\(.*?\)/g, '').trim(),
-                                priceType: key.substring(lastUnderscore + 1),
-                                qty: qty
+                                product: String(it.prod || it.productName || it.name || 'สินค้าอื่นๆ').trim(),
+                                priceType: String(it.type || 'ราคาเต็ม').trim(),
+                                qty: q
                             });
                         }
-                    }
-                });
+                    });
+                } else {
+                    const f = Number(record['รวมชิ้นราคาเต็ม'] || 0);
+                    const m = Number(record['รวมชิ้นราคาสมาชิก'] || 0);
+                    const p = Number(record['รวมชิ้นราคาโปร'] || 0);
+                    const z = Number(record['รวมชิ้นราคาศูนย์'] || 0);
+                    if (f > 0) items.push({ billId: record.id, date: record.date || record.sale_date || '', memberId: recMemberId, memberName: member?.name || recMemberId, team: cleanTeam, custType: resolvedCustType, product: 'สินค้าทั่วไป', priceType: 'ราคาเต็ม', qty: f });
+                    if (m > 0) items.push({ billId: record.id, date: record.date || record.sale_date || '', memberId: recMemberId, memberName: member?.name || recMemberId, team: cleanTeam, custType: resolvedCustType, product: 'สินค้าทั่วไป', priceType: 'ราคาสมาชิก', qty: m });
+                    if (p > 0) items.push({ billId: record.id, date: record.date || record.sale_date || '', memberId: recMemberId, memberName: member?.name || recMemberId, team: cleanTeam, custType: resolvedCustType, product: 'สินค้าทั่วไป', priceType: 'ราคาโปร', qty: p });
+                    if (z > 0) items.push({ billId: record.id, date: record.date || record.sale_date || '', memberId: recMemberId, memberName: member?.name || record.memberId, team: cleanTeam, custType: resolvedCustType, product: 'สินค้าทั่วไป', priceType: 'ราคาศูนย์', qty: z });
+                }
             });
             return items;
         }, [sales, members, customers, startDate, endDate, permittedMemberSet, businessTeams]);
@@ -499,6 +539,85 @@
         const referralReportData = useMemo(() => {
             if (activeGroup !== 'referral') return [];
             let memberMap = {};
+            let commConfig = { is_enabled: false, min_boxes: 0 };
+            try {
+                let rawCfg = null;
+                // อ่านจาก localStorage เป็นหลัก (Stock.html บันทึกที่นี่)
+                const localSaved = localStorage.getItem('stk_system_settings');
+                if (localSaved) {
+                    const parsedSaved = JSON.parse(localSaved);
+                    if (parsedSaved && parsedSaved.commission_condition_config !== undefined) {
+                        rawCfg = parsedSaved.commission_condition_config;
+                    }
+                }
+                // Fallback ไป systemSettings เฉพาะเมื่อ localStorage ไม่มีค่า
+                if (rawCfg === null || rawCfg === undefined) {
+                    if (systemSettings && systemSettings.commission_condition_config) {
+                        rawCfg = systemSettings.commission_condition_config;
+                    }
+                }
+                if (rawCfg !== null && rawCfg !== undefined) {
+                    let parsed = rawCfg;
+                    while (typeof parsed === 'string' && parsed.trim() !== '') parsed = JSON.parse(parsed);
+                    if (parsed && typeof parsed === 'object') {
+                        commConfig = {
+                            is_enabled: parsed.is_enabled === true || parsed.is_enabled === 'true',
+                            min_boxes: (!isNaN(Number(parsed.min_boxes)) && parsed.min_boxes !== null) ? Number(parsed.min_boxes) : 0,
+                            target_scope: parsed.target_scope || 'all',
+                            selected_teams: Array.isArray(parsed.selected_teams) ? parsed.selected_teams : [],
+                            selected_members: Array.isArray(parsed.selected_members) ? parsed.selected_members : [],
+                            exclude_teams: Array.isArray(parsed.exclude_teams) ? parsed.exclude_teams : [],
+                            exclude_members: Array.isArray(parsed.exclude_members) ? parsed.exclude_members : []
+                        };
+                    }
+                }
+            } catch(e) {}
+
+            // นับยอดขายส่วนตัวของสมาชิก เฟ้นเฉพาะราคาเต็ม+ราคาสมาชิก (ตรงกับ OrgChart)
+            let periodSelfBoxesMap = {};
+            (unfoldedSales || []).forEach(s => {
+                const pType = String(s.priceType || '').trim().toLowerCase();
+                const isPromoOrZero = pType.includes('โปร') || pType.includes('ศูนย์') || pType.includes('zero') || pType.includes('promo') || pType.includes('free');
+                if (!isPromoOrZero) {
+                    const mId = safeUpper(s.memberId || s.member_id || s.sellerId || s.seller_id);
+                    if (mId) periodSelfBoxesMap[mId] = (periodSelfBoxesMap[mId] || 0) + s.qty;
+                }
+            });
+
+            const meetCommCondition = (mId) => {
+                // Switch ปิด (is_enabled=false) = อนุญาตเสมอ ไม่ตรวจกล่อง
+                if (!commConfig.is_enabled) return true;
+
+                const safeKey = safeUpper(mId);
+                const mObj = (members || []).find(m => safeUpper(m.id) === safeKey);
+                const safeTeam = mObj ? safeUpper(resolveTeamName(mObj.team, businessTeams)) : '';
+
+                // 1. ตรวจสอบการยกเว้นทีม (Exclude Teams)
+                if (Array.isArray(commConfig.exclude_teams) && commConfig.exclude_teams.length > 0) {
+                    if (commConfig.exclude_teams.some(t => safeUpper(t) === safeTeam)) return true;
+                }
+                // 2. ตรวจสอบการยกเว้นสมาชิกรายบุคคล (Exclude Members)
+                if (Array.isArray(commConfig.exclude_members) && commConfig.exclude_members.length > 0) {
+                    if (commConfig.exclude_members.some(id => safeUpper(id) === safeKey)) return true;
+                }
+
+                // 3. ตรวจสอบขอบเขตการบังคับใช้ (Target Scope)
+                const scope = commConfig.target_scope || 'all';
+                if (scope === 'specific_teams') {
+                    const teams = (commConfig.selected_teams || []).map(t => safeUpper(t));
+                    if (!teams.includes(safeTeam)) return true;
+                } else if (scope === 'specific_members') {
+                    const ids = (commConfig.selected_members || []).map(id => safeUpper(id));
+                    if (!ids.includes(safeKey)) return true;
+                }
+
+                // 4. ตรวจสอบจำนวนกล่องขั้นต่ำ
+                const boxesFromMap = periodSelfBoxesMap[safeKey] || 0;
+                const boxesFromMember = memberMap[safeKey] ? memberMap[safeKey].selfBoxes || 0 : 0;
+                const totalBoxes = Math.max(boxesFromMap, boxesFromMember);
+                const minBoxesNeeded = (!isNaN(Number(commConfig.min_boxes)) && commConfig.min_boxes !== null) ? Number(commConfig.min_boxes) : 0;
+                return totalBoxes >= minBoxesNeeded;
+            };
 
             (members || []).forEach(m => {
                 if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(m.id))) return;
@@ -520,7 +639,11 @@
             });
 
             unfoldedSales.forEach(s => {
-                if (s.priceType !== 'ราคาเต็ม' && s.priceType !== 'ราคาสมาชิก') return;
+                const pTypeStr = String(s.priceType || '').trim();
+                const pTypeLower = pTypeStr.toLowerCase();
+                const isPromoOrZero = pTypeStr.includes('โปร') || pTypeStr.includes('ศูนย์') || pTypeLower.includes('promo') || pTypeLower.includes('zero') || pTypeLower.includes('free');
+                if (isPromoOrZero) return; // คำนวณเฉพาะราคาเต็ม และ ราคาสมาชิก เท่านั้น (ไม่รวมราคาโปรโมชั่น และ ราคาศูนย์)
+
                 const cleanProdName = (name) => String(name || '').replace(/\(.*?\)/g, '').trim().toUpperCase();
                 const target = cleanProdName(s.product);
                 const prodConfig = (products || []).find(p => {
@@ -536,19 +659,23 @@
                 else if (target.includes('SERUM') || target.includes('SUNCREAM') || target.includes('TONER') || target.includes('CREAM') || target.includes('APPLE') || target.includes('ZINC')) { fallbackSelfFee = 70000; fallbackL1Fee = 30000; }
                 else if (target.includes('GLUTA') || target.includes('COLLAGEN') || target.includes('BALANCE') || target.includes('KUT-SO') || target.includes('LIPO') || target.includes('LUTEIN') || target.includes('ORYZA')) { fallbackSelfFee = 150000; fallbackL1Fee = 50000; }
 
+                const isMemberPrice = pTypeStr.includes('สมาชิก') || pTypeStr.toLowerCase().includes('member');
+
                 const computePayout = (levelIdx) => {
                     let feePerBox = 0; let feePercent = 0;
                     if (levelIdx === 0) {
-                        feePerBox = Number(prodConfig.selfFee ?? prodConfig.directFee ?? prodConfig.self_fee ?? prodConfig.level0Fee ?? fallbackSelfFee);
-                        feePercent = s.priceType === 'ราคาสมาชิก' ? Number(prodConfig.selfPercentMember || prodConfig.self_percent_member || 0) : Number(prodConfig.selfPercentFull || prodConfig.self_percent_full || prodConfig.selfPercent || 0);
+                        feePerBox = Number(prodConfig.selfFee || prodConfig.directFee || prodConfig.self_fee || prodConfig.level0Fee || 0);
+                        if (feePerBox <= 0 || isNaN(feePerBox)) feePerBox = fallbackSelfFee;
+                        feePercent = isMemberPrice ? Number(prodConfig.selfPercentMember || prodConfig.self_percent_member || 0) : Number(prodConfig.selfPercentFull || prodConfig.self_percent_full || prodConfig.selfPercent || 0);
                     } else if (levelIdx === 1) {
-                        feePerBox = Number(prodConfig.level1Fee ?? prodConfig.uplineFee ?? prodConfig.level_1_fee ?? fallbackL1Fee);
-                        feePercent = s.priceType === 'ราคาสมาชิก' ? Number(prodConfig.level1PercentMember || prodConfig.level_1_percent_member || 0) : Number(prodConfig.level1PercentFull || prodConfig.level_1_percent_full || prodConfig.level1Percent || 0);
+                        feePerBox = Number(prodConfig.level1Fee || prodConfig.uplineFee || prodConfig.level_1_fee || prodConfig.l1Rate || 0);
+                        if (feePerBox <= 0 || isNaN(feePerBox)) feePerBox = fallbackL1Fee;
+                        feePercent = isMemberPrice ? Number(prodConfig.level1PercentMember || prodConfig.level_1_percent_member || 0) : Number(prodConfig.level1PercentFull || prodConfig.level_1_percent_full || prodConfig.level1Percent || 0);
                     } else {
                         feePerBox = Number(prodConfig[`level${levelIdx}Fee`] || prodConfig[`level_${levelIdx}_fee`] || 0);
-                        feePercent = s.priceType === 'ราคาสมาชิก' ? Number(prodConfig[`level${levelIdx}PercentMember`] || prodConfig[`level_${levelIdx}_percent_member`] || 0) : Number(prodConfig[`level${levelIdx}PercentFull`] || prodConfig[`level_${levelIdx}_percent_full`] || prodConfig[`level${levelIdx}Percent`] || 0);
+                        feePercent = isMemberPrice ? Number(prodConfig[`level${levelIdx}PercentMember`] || prodConfig[`level_${levelIdx}_percent_member`] || 0) : Number(prodConfig[`level${levelIdx}PercentFull`] || prodConfig[`level_${levelIdx}_percent_full`] || prodConfig[`level${levelIdx}Percent`] || 0);
                     }
-                    const itemPrice = s.priceType === 'ราคาสมาชิก' ? Number(prodConfig.priceMember || prodConfig.priceFull || 0) : Number(prodConfig.priceFull || prodConfig.priceMember || 0);
+                    const itemPrice = isMemberPrice ? Number(prodConfig.priceMember || prodConfig.priceFull || 0) : Number(prodConfig.priceFull || prodConfig.priceMember || 0);
                     const boxEarn = feePerBox * s.qty;
                     const percentEarn = (itemPrice * s.qty) * (feePercent / 100);
                     if (referralCalcMode === 'percent') return percentEarn;
@@ -556,40 +683,73 @@
                     return boxEarn;
                 };
 
-                const sellerKey = safeUpper(s.memberId);
+                const sellerKey = safeUpper(s.memberId || s.member_id || s.sellerId || s.seller_id || s.seller || s.marketing);
                 if (memberMap[sellerKey]) {
+                    const payAmt = computePayout(0);
                     memberMap[sellerKey].selfBoxes += s.qty;
-                    memberMap[sellerKey].selfEarn += computePayout(0);
+                    memberMap[sellerKey].selfEarn += payAmt;
                     memberMap[sellerKey].details[s.product] = (memberMap[sellerKey].details[s.product] || 0) + s.qty;
+                    if (payAmt > 0) {
+                        const sDate = s.date ? (typeof s.date === 'string' ? s.date.substring(0, 10) : s.date) : '';
+                        if (!memberMap[sellerKey].dailyEarn) memberMap[sellerKey].dailyEarn = {};
+                        memberMap[sellerKey].dailyEarn[sDate] = (memberMap[sellerKey].dailyEarn[sDate] || 0) + payAmt;
+                    }
                 }
 
                 let currentMemInfo = (members || []).find(m => safeUpper(m.id) === sellerKey);
-                let currentMemberId = currentMemInfo ? (currentMemInfo.referrer || currentMemInfo.sponsorId) : null;
+                let currentMemberId = currentMemInfo ? (currentMemInfo.referrer || currentMemInfo.sponsor_id || currentMemInfo.sponsorId || currentMemInfo.Sponsor_ID || currentMemInfo.upline || currentMemInfo.uplineId) : null;
                 let currentLevel = 1;
                 const maxCommLevels = Math.max(2, Number(systemSettings?.commission_levels ?? 6));
                 const maxDownlines = Math.max(1, maxCommLevels - 1);
 
                 while (currentMemberId && currentLevel <= maxDownlines) {
                     let targetKey = safeUpper(currentMemberId);
+                    const targetMemObj = (members || []).find(m => m && safeUpper(m.id) === targetKey);
+                    if (!targetMemObj) break; // Break if member does not exist (phantom upline)
+
                     let payAmt = computePayout(currentLevel);
+                    if (!memberMap[targetKey]) {
+                        const targetTeamName = resolveTeamName(targetMemObj.team, businessTeams);
+                        let levelEarns = {};
+                        for (let l = 1; l <= 10; l++) levelEarns[`level${l}Earn`] = 0;
+                        memberMap[targetKey] = {
+                            id: targetMemObj.id,
+                            name: targetMemObj.name,
+                            team: targetTeamName || 'N/A',
+                            profileUrl: targetMemObj.profileUrl || '',
+                            details: {},
+                            selfBoxes: 0, selfEarn: 0, selfPv: 0, teamBoxes: 0, teamPv: 0, totalPaid: 0, ...levelEarns
+                        };
+                    }
                     if (memberMap[targetKey]) {
-                        if (payAmt > 0) memberMap[targetKey][`level${currentLevel}Earn`] += payAmt;
+                        if (payAmt > 0 && meetCommCondition(targetKey)) {
+                            memberMap[targetKey][`level${currentLevel}Earn`] += payAmt;
+                            const sDate = s.date ? (typeof s.date === 'string' ? s.date.substring(0, 10) : s.date) : '';
+                            if (!memberMap[targetKey].dailyEarn) memberMap[targetKey].dailyEarn = {};
+                            memberMap[targetKey].dailyEarn[sDate] = (memberMap[targetKey].dailyEarn[sDate] || 0) + payAmt;
+                        }
                         memberMap[targetKey].teamBoxes += s.qty;
                     }
                     const memInfo = (members || []).find(m => safeUpper(m.id) === targetKey);
-                    currentMemberId = memInfo ? (memInfo.referrer || memInfo.sponsorId) : null;
+                    currentMemberId = memInfo ? (memInfo.referrer || memInfo.sponsor_id || memInfo.sponsorId || memInfo.Sponsor_ID || memInfo.upline || memInfo.uplineId) : null;
                     currentLevel++;
                 }
             });
 
-            (payoutLogs || []).forEach(log => {
-                if (log.status === 'จ่ายปันผลแล้ว' || log.status === 'สำเร็จ' || log.status === 'PAID') {
-                    if (log.period_start >= startDate && log.period_end <= endDate) {
-                        const mId = safeUpper(log.member_id);
-                        if (memberMap[mId]) {
-                            memberMap[mId].totalPaid = (memberMap[mId].totalPaid || 0) + Number(log.amount);
-                        }
-                    }
+            Object.values(memberMap).forEach(m => {
+                m.totalPaid = 0;
+                if (m.dailyEarn) {
+                    Object.keys(m.dailyEarn).forEach(date => {
+                        const payoutKey = `${safeUpper(m.id)}_${date}`;
+                        const record = paidRecords && paidRecords[payoutKey];
+                        const log = (payoutLogs || []).find(l => l.payout_id === payoutKey || (safeUpper(l.member_id) === safeUpper(m.id) && l.payout_date === date));
+                        
+                        let amt = 0;
+                        if (record && record.status === 'PAID') amt = Math.max(amt, Number(record.amount) || 0);
+                        if (log && (log.status === 'PAID' || log.status === 'สำเร็จ' || log.status === 'จ่ายปันผลแล้ว')) amt = Math.max(amt, Number(log.amount) || 0);
+                        
+                        m.totalPaid += amt;
+                    });
                 }
             });
 
@@ -612,10 +772,81 @@
                 })
                 .filter(m => query === '' || m.id.toUpperCase().includes(query) || m.name.toUpperCase().includes(query))
                 .sort((a, b) => b.grandTotal - a.grandTotal);
-        }, [unfoldedSales, activeGroup, referralCalcMode, selectedTeamFilter, selectedSponsorFilter, members, products, debouncedSearchQuery, permittedMemberSet, businessTeams, payoutLogs, startDate, endDate, systemSettings]);
+        }, [unfoldedSales, activeGroup, referralCalcMode, selectedTeamFilter, selectedSponsorFilter, members, products, debouncedSearchQuery, permittedMemberSet, businessTeams, payoutLogs, paidRecords, startDate, endDate, systemSettings]);
 
         const referralDailyPayoutData = useMemo(() => {
             if (activeGroup !== 'referral') return [];
+            let commConfig = { is_enabled: false, min_boxes: 0 };
+            try {
+                let rawConfig = null;
+                const localSaved = localStorage.getItem('stk_system_settings');
+                if (localSaved) {
+                    const parsedSaved = JSON.parse(localSaved);
+                    if (parsedSaved && parsedSaved.commission_condition_config !== undefined) {
+                        rawConfig = parsedSaved.commission_condition_config;
+                    }
+                }
+                if (rawConfig === null || rawConfig === undefined) {
+                    if (systemSettings && systemSettings.commission_condition_config) {
+                        rawConfig = systemSettings.commission_condition_config;
+                    }
+                }
+                if (rawConfig !== null && rawConfig !== undefined) {
+                    let parsed = rawConfig;
+                    while (typeof parsed === 'string' && parsed.trim() !== '') parsed = JSON.parse(parsed);
+                    if (parsed && typeof parsed === 'object') {
+                        commConfig = {
+                            is_enabled: parsed.is_enabled === true || parsed.is_enabled === 'true',
+                            min_boxes: (!isNaN(Number(parsed.min_boxes)) && parsed.min_boxes !== null) ? Number(parsed.min_boxes) : 0,
+                            target_scope: parsed.target_scope || 'all',
+                            selected_teams: Array.isArray(parsed.selected_teams) ? parsed.selected_teams : [],
+                            selected_members: Array.isArray(parsed.selected_members) ? parsed.selected_members : [],
+                            exclude_teams: Array.isArray(parsed.exclude_teams) ? parsed.exclude_teams : [],
+                            exclude_members: Array.isArray(parsed.exclude_members) ? parsed.exclude_members : []
+                        };
+                    }
+                }
+            } catch(e) {}
+            
+            let periodSelfBoxesMap = {};
+            (unfoldedSales || []).forEach(s => {
+                const pType = String(s.priceType || '').trim().toLowerCase();
+                const isPromoOrZero = pType.includes('โปร') || pType.includes('ศูนย์') || pType.includes('zero') || pType.includes('promo') || pType.includes('free');
+                if (!isPromoOrZero) {
+                    const mId = safeUpper(s.memberId || s.member_id || s.sellerId || s.seller_id);
+                    if (mId) periodSelfBoxesMap[mId] = (periodSelfBoxesMap[mId] || 0) + s.qty;
+                }
+            });
+
+            const meetCommCondition = (mId) => {
+                if (!commConfig.is_enabled) return true;
+
+                const safeKey = safeUpper(mId);
+                const mObj = (members || []).find(m => safeUpper(m.id) === safeKey);
+                const safeTeam = mObj ? safeUpper(resolveTeamName(mObj.team, businessTeams)) : '';
+
+                if (Array.isArray(commConfig.exclude_teams) && commConfig.exclude_teams.length > 0) {
+                    if (commConfig.exclude_teams.some(t => safeUpper(t) === safeTeam)) return true;
+                }
+                if (Array.isArray(commConfig.exclude_members) && commConfig.exclude_members.length > 0) {
+                    if (commConfig.exclude_members.some(id => safeUpper(id) === safeKey)) return true;
+                }
+
+                const scope = commConfig.target_scope || 'all';
+                if (scope === 'specific_teams') {
+                    const teams = (commConfig.selected_teams || []).map(t => safeUpper(t));
+                    if (!teams.includes(safeTeam)) return true;
+                } else if (scope === 'specific_members') {
+                    const ids = (commConfig.selected_members || []).map(id => safeUpper(id));
+                    if (!ids.includes(safeKey)) return true;
+                }
+
+                const totalBoxes = periodSelfBoxesMap[safeKey] || 0;
+                const minBoxesNeeded = (commConfig.min_boxes !== undefined && commConfig.min_boxes !== null && !isNaN(Number(commConfig.min_boxes))) ? Number(commConfig.min_boxes) : 0;
+                return totalBoxes >= minBoxesNeeded;
+            };
+            
+
             let dailyMap = {};
 
             (members || []).forEach(m => {
@@ -649,10 +880,12 @@
                 const computePayout = (levelIdx) => {
                     let feePerBox = 0; let feePercent = 0;
                     if (levelIdx === 0) {
-                        feePerBox = Number(prodConfig.selfFee ?? prodConfig.directFee ?? prodConfig.self_fee ?? prodConfig.level0Fee ?? fallbackSelfFee);
+                        feePerBox = Number(prodConfig.selfFee || prodConfig.directFee || prodConfig.self_fee || prodConfig.level0Fee || 0);
+                        if (feePerBox <= 0 || isNaN(feePerBox)) feePerBox = fallbackSelfFee;
                         feePercent = s.priceType === 'ราคาสมาชิก' ? Number(prodConfig.selfPercentMember || prodConfig.self_percent_member || 0) : Number(prodConfig.selfPercentFull || prodConfig.self_percent_full || prodConfig.selfPercent || 0);
                     } else if (levelIdx === 1) {
-                        feePerBox = Number(prodConfig.level1Fee ?? prodConfig.uplineFee ?? prodConfig.level_1_fee ?? fallbackL1Fee);
+                        feePerBox = Number(prodConfig.level1Fee || prodConfig.uplineFee || prodConfig.level_1_fee || prodConfig.l1Rate || 0);
+                        if (feePerBox <= 0 || isNaN(feePerBox)) feePerBox = fallbackL1Fee;
                         feePercent = s.priceType === 'ราคาสมาชิก' ? Number(prodConfig.level1PercentMember || prodConfig.level_1_percent_member || 0) : Number(prodConfig.level1PercentFull || prodConfig.level_1_percent_full || prodConfig.level1Percent || 0);
                     } else {
                         feePerBox = Number(prodConfig[`level${levelIdx}Fee`] || prodConfig[`level_${levelIdx}_fee`] || 0);
@@ -689,22 +922,26 @@
                 }
 
                 let currentMemInfo = sellerMem;
-                let currentMemberId = currentMemInfo ? (currentMemInfo.referrer || currentMemInfo.sponsorId) : null;
+                let currentMemberId = currentMemInfo ? (currentMemInfo.referrer || currentMemInfo.sponsor_id || currentMemInfo.sponsorId || currentMemInfo.Sponsor_ID || currentMemInfo.upline || currentMemInfo.uplineId) : null;
                 let currentLevel = 1;
                 const maxCommLevels = Math.max(2, Number(systemSettings?.commission_levels ?? 6));
                 const maxDownlines = Math.max(1, maxCommLevels - 1);
 
                 while (currentMemberId && currentLevel <= maxDownlines) {
                     let targetKey = safeUpper(currentMemberId);
-                    let payAmt = computePayout(currentLevel);
                     let targetMem = (members || []).find(m => safeUpper(m.id) === targetKey);
-                    if (payAmt > 0 && targetMem) {
+                    if (!targetMem) break; // Break if member does not exist (phantom upline)
+
+                    let payAmt = computePayout(currentLevel);
+                    if (payAmt > 0) {
+                        if (meetCommCondition(targetKey)) {
                         const targetTeam = resolveTeamName(targetMem.team, businessTeams);
                         const item = getOrCreateDaily(targetMem.id, targetMem.name, targetTeam, sDate);
                         item.teamEarn += payAmt;
                         item.totalEarn += payAmt;
+                        }
                     }
-                    currentMemberId = targetMem ? (targetMem.referrer || targetMem.sponsorId) : null;
+                    currentMemberId = targetMem ? (targetMem.referrer || targetMem.sponsor_id || targetMem.sponsorId || targetMem.Sponsor_ID || targetMem.upline || targetMem.uplineId) : null;
                     currentLevel++;
                 }
             });
@@ -714,9 +951,9 @@
                 if (log.status === 'จ่ายปันผลแล้ว' || log.status === 'สำเร็จ' || log.status === 'PAID') {
                     const key = log.payout_id || `${safeUpper(log.member_id)}_${log.payout_date}`;
                     if (dailyMap[key]) {
-                        dailyMap[key].status = 'PAID';
                         dailyMap[key].paidAt = log.paid_at || log.created_at;
                         dailyMap[key].paidBy = log.paid_by || log.member_name || 'แอดมิน';
+                        dailyMap[key].paidAmount = Number(log.amount) || 0;
                     }
                 }
             });
@@ -726,8 +963,11 @@
             return Object.values(dailyMap)
                 .map(item => {
                     const record = paidRecords[item.key];
-                    const isPaid = item.status === 'PAID' || (record && record.status === 'PAID');
-                    return { ...item, status: isPaid ? 'PAID' : 'PENDING', paidAt: item.paidAt || record?.paidAt || null, paidBy: item.paidBy || record?.paidBy || null };
+                    let amt = item.paidAmount || 0;
+                    if (record && record.status === 'PAID') amt = Math.max(amt, Number(record.amount) || 0);
+                    
+                    const isPaid = amt >= item.totalEarn && item.totalEarn > 0;
+                    return { ...item, status: isPaid ? 'PAID' : 'PENDING', paidAt: item.paidAt || record?.paidAt || null, paidBy: item.paidBy || record?.paidBy || null, paidAmount: amt };
                 })
                 .filter(item => {
                     if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(item.memberId))) return false;
@@ -773,7 +1013,11 @@
             (members || []).forEach(m => { memberMap[safeUpper(m.id)] = { ...m }; });
 
             unfoldedSales.forEach(s => {
-                if (s.priceType !== 'ราคาเต็ม' && s.priceType !== 'ราคาสมาชิก') return;
+                const pTypeStr = String(s.priceType || '').trim();
+                const pTypeLower = pTypeStr.toLowerCase();
+                const isPromoOrZero = pTypeStr.includes('โปร') || pTypeStr.includes('ศูนย์') || pTypeLower.includes('promo') || pTypeLower.includes('zero') || pTypeLower.includes('free');
+                if (isPromoOrZero) return; // คำนวณเฉพาะราคาเต็ม และ ราคาสมาชิก เท่านั้น (ไม่รวมราคาโปรโมชั่น และ ราคาศูนย์)
+
                 const cleanProdName = (name) => String(name || '').replace(/\(.*?\)/g, '').trim().toUpperCase();
                 const target = cleanProdName(s.product);
                 const prodConfig = (products || []).find(p => {
@@ -789,28 +1033,32 @@
                 else if (target.includes('SERUM') || target.includes('SUNCREAM') || target.includes('TONER') || target.includes('CREAM') || target.includes('APPLE') || target.includes('ZINC')) { fallbackSelfFee = 70000; fallbackL1Fee = 30000; }
                 else if (target.includes('GLUTA') || target.includes('COLLAGEN') || target.includes('BALANCE') || target.includes('KUT-SO') || target.includes('LIPO') || target.includes('LUTEIN') || target.includes('ORYZA')) { fallbackSelfFee = 150000; fallbackL1Fee = 50000; }
 
+                const isMemberPrice = pTypeStr.includes('สมาชิก') || pTypeStr.toLowerCase().includes('member');
+
                 const computePayout = (levelIdx) => {
                     let feePerBox = 0;
                     let feePercent = 0;
 
                     if (levelIdx === 0) {
-                        feePerBox = Number(prodConfig.selfFee ?? prodConfig.directFee ?? prodConfig.self_fee ?? prodConfig.level0Fee ?? fallbackSelfFee);
-                        feePercent = s.priceType === 'ราคาสมาชิก' 
+                        feePerBox = Number(prodConfig.selfFee || prodConfig.directFee || prodConfig.self_fee || prodConfig.level0Fee || 0);
+                        if (feePerBox <= 0 || isNaN(feePerBox)) feePerBox = fallbackSelfFee;
+                        feePercent = isMemberPrice 
                             ? Number(prodConfig.selfPercentMember || prodConfig.self_percent_member || 0)
                             : Number(prodConfig.selfPercentFull || prodConfig.self_percent_full || prodConfig.selfPercent || 0);
                     } else if (levelIdx === 1) {
-                        feePerBox = Number(prodConfig.level1Fee ?? prodConfig.uplineFee ?? prodConfig.level_1_fee ?? fallbackL1Fee);
-                        feePercent = s.priceType === 'ราคาสมาชิก'
+                        feePerBox = Number(prodConfig.level1Fee || prodConfig.uplineFee || prodConfig.level_1_fee || prodConfig.l1Rate || 0);
+                        if (feePerBox <= 0 || isNaN(feePerBox)) feePerBox = fallbackL1Fee;
+                        feePercent = isMemberPrice
                             ? Number(prodConfig.level1PercentMember || prodConfig.level_1_percent_member || 0)
                             : Number(prodConfig.level1PercentFull || prodConfig.level_1_percent_full || prodConfig.level1Percent || 0);
                     } else {
                         feePerBox = Number(prodConfig[`level${levelIdx}Fee`] || prodConfig[`level_${levelIdx}_fee`] || 0);
-                        feePercent = s.priceType === 'ราคาสมาชิก'
+                        feePercent = isMemberPrice
                             ? Number(prodConfig[`level${levelIdx}PercentMember`] || prodConfig[`level_${levelIdx}_percent_member`] || 0)
                             : Number(prodConfig[`level${levelIdx}PercentFull`] || prodConfig[`level_${levelIdx}_percent_full`] || prodConfig[`level${levelIdx}Percent`] || 0);
                     }
 
-                    const itemPrice = s.priceType === 'ราคาสมาชิก' 
+                    const itemPrice = isMemberPrice 
                         ? Number(prodConfig.priceMember || prodConfig.priceFull || 0) 
                         : Number(prodConfig.priceFull || prodConfig.priceMember || 0);
                     const boxEarn = feePerBox * s.qty;
@@ -822,18 +1070,19 @@
                 };
 
                 const earnerId = safeUpper(detailModalEarner.id);
+                const sellerKey = safeUpper(s.memberId || s.member_id || s.sellerId || s.seller_id || s.seller || s.marketing);
 
-                if (safeUpper(s.memberId) === earnerId) {
+                if (sellerKey === earnerId) {
                     const res = computePayout(0);
                     if (res.earn > 0) {
                         details.push({
-                            date: s.date, billId: s.billId, sellerId: s.memberId, sellerName: s.memberName, product: s.product, qty: s.qty, level: 'ขายเอง (ข้างกล่อง)', feeRateStr: res.rateStr, totalEarned: res.earn
+                            date: s.date, billId: s.billId || s.orderId || s.order_id, sellerId: sellerKey, sellerName: s.memberName || s.name || sellerKey, product: s.product, qty: s.qty, level: 'ขายเอง (ข้างกล่อง)', feeRateStr: res.rateStr, totalEarned: res.earn
                         });
                     }
                 }
 
-                let currentMemInfo = memberMap[safeUpper(s.memberId)];
-                let currentMemberId = currentMemInfo ? (currentMemInfo.referrer || currentMemInfo.sponsorId) : null;
+                let currentMemInfo = (members || []).find(m => m && safeUpper(m.id) === sellerKey);
+                let currentMemberId = currentMemInfo ? (currentMemInfo.referrer || currentMemInfo.sponsor_id || currentMemInfo.sponsorId || currentMemInfo.Sponsor_ID || currentMemInfo.upline || currentMemInfo.uplineId) : null;
                 let currentLevel = 1;
 
                 const maxCommLevels = Math.max(2, Number(systemSettings?.commission_levels ?? 6));
@@ -844,11 +1093,11 @@
 
                     if (res.earn > 0 && targetKey === earnerId) {
                         details.push({
-                            date: s.date, billId: s.billId, sellerId: s.memberId, sellerName: s.memberName, product: s.product, qty: s.qty, level: `ชั้นที่ ${currentLevel}`, feeRateStr: res.rateStr, totalEarned: res.earn
+                            date: s.date, billId: s.billId || s.orderId || s.order_id, sellerId: sellerKey, sellerName: s.memberName || s.name || sellerKey, product: s.product, qty: s.qty, level: `ชั้นที่ ${currentLevel}`, feeRateStr: res.rateStr, totalEarned: res.earn
                         });
                     }
-                    const memInfo = memberMap[targetKey];
-                    currentMemberId = memInfo ? (memInfo.referrer || memInfo.sponsorId) : null;
+                    const memInfo = (members || []).find(m => m && safeUpper(m.id) === targetKey);
+                    currentMemberId = memInfo ? (memInfo.referrer || memInfo.sponsor_id || memInfo.sponsorId || memInfo.Sponsor_ID || memInfo.upline || memInfo.uplineId) : null;
                     currentLevel++;
                 }
             });
@@ -2283,10 +2532,10 @@
                 <EditModal isOpen={showPayoutModal} onClose={() => setShowPayoutModal(false)} title="✔️ ยืนยันการสั่งจ่ายเงินปันผล" maxWidthClass="max-w-3xl">
                     <div className="space-y-4">
                         <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl">
-                            <h3 className="text-amber-800 font-bold mb-2">รายการที่เลือกจ่าย ({selectedPayouts.length} รายการ)</h3>
+                            <h3 className="text-amber-800 font-bold mb-2">รายการที่เลือกจ่าย ({Array.from(selectedPayoutKeys).length} รายการ)</h3>
                             <div className="max-h-48 overflow-y-auto pr-2">
                                 <ul className="space-y-2">
-                                    {selectedPayouts.map(key => {
+                                    {Array.from(selectedPayoutKeys).map(key => {
                                         const r = referralDailyPayoutData.find(x => x.key === key);
                                         return (
                                             <li key={key} className="flex justify-between items-center bg-white p-2 rounded-lg border border-amber-100 text-sm">
@@ -2300,7 +2549,7 @@
                             <div className="mt-3 pt-3 border-t border-amber-200 flex justify-between items-center">
                                 <span className="font-bold text-amber-900">ยอดจ่ายรวมทั้งหมด:</span>
                                 <span className="text-xl font-black text-amber-600">
-                                    {formatValDisplay(selectedPayouts.reduce((sum, key) => sum + (referralDailyPayoutData.find(r => r.key === key)?.totalEarn || 0), 0))} {getCurrencySuffix()}
+                                    {formatValDisplay(Array.from(selectedPayoutKeys).reduce((sum, key) => sum + (referralDailyPayoutData.find(r => r.key === key)?.totalEarn || 0), 0))} {getCurrencySuffix()}
                                 </span>
                             </div>
                         </div>
@@ -2383,7 +2632,7 @@
             } catch(err) {}
 
             try {
-                const [pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes, settingsRes, movRes, payRes] = await Promise.all([
+                const [pRes, typeRes, cloRes, memRes, custRes, saleRes, movRes, teamRes, settingsRes, payRes] = await Promise.all([
                     supabaseSelect('stk_products').catch(() => []),
                     supabaseSelect('stk_customer_types').catch(() => fallbackCustomerTypes),
                     supabaseSelect('stk_closers').catch(() => []),
@@ -2402,23 +2651,37 @@
                     const localSaved = localStorage.getItem('stk_system_settings');
                     if (localSaved) {
                         const parsed = JSON.parse(localSaved);
-                        if (parsed.commission_levels != null) loadedSettings.commission_levels = Number(parsed.commission_levels);
+                        if (parsed && typeof parsed === 'object') loadedSettings = { ...loadedSettings, ...parsed };
                     }
                 } catch(e) {}
                 if (Array.isArray(settingsRes) && settingsRes.length > 0) {
-                    const mainRow = settingsRes.find(s => s && (s.key === 'MAIN' || s.setting_key === 'MAIN' || s.setting_id === 'MAIN' || s.id === 'MAIN'));
-                    if (mainRow) {
+                    const settingsObj = {};
+                    settingsRes.forEach(s => {
+                        if (s && (s.key || s.setting_key)) {
+                            const k = s.key || s.setting_key;
+                            const v = s.value !== undefined ? s.value : s.setting_value;
+                            settingsObj[k] = typeof v === 'string' ? v : JSON.stringify(v);
+                        }
+                    });
+                    if (settingsObj.MAIN) {
                         try {
-                            if (mainRow.value && typeof mainRow.value === 'string') {
-                                const parsedVal = JSON.parse(mainRow.value);
-                                loadedSettings.commission_levels = parsedVal.commission_levels != null ? Number(parsedVal.commission_levels) : (parsedVal.commissionLevels != null ? Number(parsedVal.commissionLevels) : 6);
-                            } else {
-                                loadedSettings.commission_levels = mainRow.commission_levels != null ? Number(mainRow.commission_levels) : (mainRow.commissionLevels != null ? Number(mainRow.commissionLevels) : 6);
-                            }
-                        } catch(e) {}
+                            const parsedMain = typeof settingsObj.MAIN === 'string' ? JSON.parse(settingsObj.MAIN) : settingsObj.MAIN;
+                            if (parsedMain.commission_levels != null) settingsObj.commission_levels = Number(parsedMain.commission_levels);
+                        } catch(e){}
                     }
+                    loadedSettings = { ...loadedSettings, ...settingsObj };
+                    try {
+                        const localSaved = localStorage.getItem('stk_system_settings');
+                        if (localSaved) {
+                            const parsedLocal = JSON.parse(localSaved);
+                            if (parsedLocal?.commission_condition_config) {
+                                loadedSettings.commission_condition_config = parsedLocal.commission_condition_config;
+                            }
+                        }
+                    } catch(e){}
                 }
                 setSystemSettings(loadedSettings);
+                try { localStorage.setItem('stk_system_settings', JSON.stringify(loadedSettings)); } catch(e){}
                 
                 const formattedProducts = (pRes || []).map(p => ({
                     ...p,

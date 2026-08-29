@@ -104,20 +104,6 @@
         setLoading(true);
         let dbList = [];
         let localList = [];
-        let dbSalesList = [];
-
-        // ─── 0. ดึงประวัติการขายล่าสุดจาก stk_sales เพื่อวิเคราะห์สถานะการจ่ายยา ───
-        try {
-          if (typeof window.supabaseSelect === 'function') {
-            const data = await window.supabaseSelect('stk_sales', 'order=order_id.desc&limit=10000');
-            if (Array.isArray(data)) {
-              dbSalesList = data;
-            }
-          }
-        } catch (err) {
-          console.warn('Supabase fetch sales error:', err);
-        }
-
         // ─── 1. ดึงจาก Supabase (ข้อมูลถาวร) ────────────────────────────────
         try {
           if (typeof window.supabaseSelect === 'function') {
@@ -215,23 +201,10 @@
           console.warn('LocalStorage parse error:', ex);
         }
 
-        // ─── 3. รวมและ deduplicate + วิเคราะห์สถานะจากประวัติการขายจริง ────────────────
+        // ─── 3. รวมและ deduplicate ────────────────
         const idMap = new Map();
         [...dbList, ...localList].forEach(o => {
           if (o.visit_id && o.visit_id !== '-' && !idMap.has(o.id)) {
-            // ค้นหาบิลขายใน stk_sales ที่มีรหัส VISIT นี้อยู่ในบันทึกการชำระเงิน
-            const matched = dbSalesList.find(s => {
-              const note = (s.payment_note || '').toUpperCase();
-              const vIdStr = (o.visit_id || '').trim().toUpperCase();
-              if (!vIdStr || vIdStr === '-') return false;
-              if (s.sale_type === 'สั่งซื้อสารอาหาร (Clinic System)') return false;
-              return note.includes(`VISIT: ${vIdStr}`);
-            });
-            if (matched) {
-              o.status = 'ขายสำเร็จแล้ว';
-              o.sale_order_id = matched.order_id;
-              o.sale_date = matched.date;
-            }
             idMap.set(o.id, o);
           }
         });
@@ -284,15 +257,68 @@
       }, [orders, searchTerm, startDate, endDate]);
 
       const pendingOrders = useMemo(() => {
-        return filteredOrders.filter(ord => ord.status !== 'ขายสำเร็จแล้ว');
+        return filteredOrders.filter(ord => ord.status !== 'ขายสำเร็จแล้ว' && ord.status !== 'บิลถูกยกเลิก');
       }, [filteredOrders]);
 
       const completedOrders = useMemo(() => {
-        return filteredOrders.filter(ord => ord.status === 'ขายสำเร็จแล้ว');
+        return filteredOrders.filter(ord => ord.status === 'ขายสำเร็จแล้ว' || ord.status === 'บิลถูกยกเลิก');
       }, [filteredOrders]);
 
       // ฟังก์ชันดำเนินการสร้าง "ร่างใบสั่งซื้อ" / "จ่ายยาเสร็จสิ้น"
-      const handleCreateDraftOrder = (order) => {
+      const handleCreateDraftOrder = async (order) => {
+        // --- ⚡ เพิ่มการตรวจสอบสต็อกแบบ Real-time ก่อนร่างใบสั่งซื้อ ---
+        try {
+          if (typeof window.supabaseSelect === 'function') {
+            const outOfStockItems = [];
+            
+            // แสดง Loading ขณะเช็คสต็อก
+            Swal.fire({
+              title: 'กำลังตรวจสอบสต็อก...',
+              allowOutsideClick: false,
+              didOpen: () => { Swal.showLoading(); }
+            });
+
+            for (const item of order.items) {
+              const pName = (item.name || '').trim();
+              let currentStock = null;
+              
+              // 1. ลองค้นหาใน stk_products
+              const pData = await window.supabaseSelect('stk_products', `product_name=eq.${encodeURIComponent(pName)}&select=current_stock`);
+              if (pData && pData.length > 0) {
+                currentStock = parseInt(pData[0].current_stock) || 0;
+              } else {
+                // 2. ถ้าไม่พบ ลองหาใน products (เผื่อเป็นตารางเก่า)
+                const pData2 = await window.supabaseSelect('products', `name=eq.${encodeURIComponent(pName)}&select=stock`);
+                if (pData2 && pData2.length > 0) {
+                  currentStock = parseInt(pData2[0].stock) || 0;
+                }
+              }
+
+              const qtyNeeded = parseInt(item.qty) || 1;
+              if (currentStock !== null && currentStock < qtyNeeded) {
+                outOfStockItems.push(`${pName} (มี ${currentStock} ชิ้น, ต้องการ ${qtyNeeded} ชิ้น)`);
+              }
+            }
+
+            if (outOfStockItems.length > 0) {
+              Swal.fire({
+                icon: 'error',
+                title: 'สินค้าหมดสต็อก!',
+                html: `ไม่สามารถร่างใบสั่งซื้อได้เนื่องจากสินค้าดังต่อไปนี้มีสต็อกไม่เพียงพอ:<br/><br/><ul class="text-left text-sm text-rose-600 list-disc pl-6">${outOfStockItems.map(i => `<li>${i}</li>`).join('')}</ul>`,
+                confirmButtonColor: '#047857',
+                confirmButtonText: 'ตกลง'
+              });
+              return; // หยุดการทำงาน ไม่ให้ร่างบิล
+            } else {
+              Swal.close(); // ปิด loading ถ้าสต็อกพอ
+            }
+          }
+        } catch (e) {
+          console.warn('Stock check error:', e);
+          Swal.close();
+        }
+        // -------------------------------------------
+
         Swal.fire({
           title: 'ยืนยันสร้างร่างใบสั่งซื้อ',
           html: `
@@ -636,9 +662,15 @@
                           </td>
                           <td class="py-4 px-4 text-center align-middle whitespace-nowrap">
                             <span class="inline-flex flex-col items-center gap-1">
-                              <span class="px-3 py-1 bg-emerald-100 text-emerald-800 font-bold rounded-xl text-xs border border-emerald-200">
-                                ขายสำเร็จแล้ว
-                              </span>
+                              {ord.status === 'บิลถูกยกเลิก' ? (
+                                <span class="px-3 py-1 bg-rose-100 text-rose-800 font-bold rounded-xl text-xs border border-rose-200 shadow-xs">
+                                  บิลถูกยกเลิก
+                                </span>
+                              ) : (
+                                <span class="px-3 py-1 bg-emerald-100 text-emerald-800 font-bold rounded-xl text-xs border border-emerald-200 shadow-xs">
+                                  ขายสำเร็จแล้ว
+                                </span>
+                              )}
                               {ord.sale_order_id && (
                                 <a 
                                   href={window.resolvePageUrl ? window.resolvePageUrl(`Sales.html?editId=${encodeURIComponent(ord.sale_order_id)}`) : `Sales.html?editId=${encodeURIComponent(ord.sale_order_id)}`}

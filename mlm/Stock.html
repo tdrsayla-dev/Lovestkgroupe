@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
   <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
@@ -2017,10 +2017,151 @@
       );
     };
 
-    const CommissionSettingsTab = ({ products, setProducts, systemSettings, setSystemSettings, productCategories, setProductCategories, showToast }) => {
+    const CommissionSettingsTab = ({ products, setProducts, systemSettings, setSystemSettings, productCategories, setProductCategories, showToast, currentUser, members, businessTeams }) => {
         const [editableProducts, setEditableProducts] = useState([]);
         const [levelsInput, setLevelsInput] = useState(Number(systemSettings?.commission_levels || 6));
         const [minDivPvInput, setMinDivPvInput] = useState(Number(systemSettings?.min_dividend_pv || 100));
+        const history = useMemo(() => {
+            try {
+                return systemSettings.commission_condition_history ? (typeof systemSettings.commission_condition_history === 'string' ? JSON.parse(systemSettings.commission_condition_history) : systemSettings.commission_condition_history) : [];
+            } catch(e) {
+                return [];
+            }
+        }, [systemSettings.commission_condition_history]);
+        const [commConditionConfig, setCommConditionConfig] = useState(() => {
+            if (systemSettings?.commission_condition_config) {
+                try {
+                    const parsed = typeof systemSettings.commission_condition_config === 'string' ? JSON.parse(systemSettings.commission_condition_config) : systemSettings.commission_condition_config;
+                    if (parsed && typeof parsed === 'object') {
+                        return {
+                            is_enabled: parsed.is_enabled === true || parsed.is_enabled === 'true',
+                            min_boxes: (!isNaN(Number(parsed.min_boxes)) && parsed.min_boxes !== null) ? Number(parsed.min_boxes) : 0,
+                            target_scope: parsed.target_scope || 'all',
+                            selected_teams: Array.isArray(parsed.selected_teams) ? parsed.selected_teams : [],
+                            selected_members: Array.isArray(parsed.selected_members) ? parsed.selected_members : [],
+                            exclude_teams: Array.isArray(parsed.exclude_teams) ? parsed.exclude_teams : [],
+                            exclude_members: Array.isArray(parsed.exclude_members) ? parsed.exclude_members : []
+                        };
+                    }
+                } catch(e) {}
+            }
+            return {
+                is_enabled: false,
+                min_boxes: 0,
+                target_scope: 'all',
+                selected_teams: [],
+                selected_members: [],
+                exclude_teams: [],
+                exclude_members: []
+            };
+        });
+
+        useEffect(() => {
+            if (systemSettings?.commission_condition_config) {
+                try {
+                    const parsed = typeof systemSettings.commission_condition_config === 'string' ? JSON.parse(systemSettings.commission_condition_config) : systemSettings.commission_condition_config;
+                    if (parsed && typeof parsed === 'object') {
+                        setCommConditionConfig(prev => ({
+                            ...prev,
+                            is_enabled: parsed.is_enabled === true || parsed.is_enabled === 'true',
+                            min_boxes: (!isNaN(Number(parsed.min_boxes)) && parsed.min_boxes !== null) ? Number(parsed.min_boxes) : 0,
+                            target_scope: parsed.target_scope || 'all',
+                            selected_teams: Array.isArray(parsed.selected_teams) ? parsed.selected_teams : [],
+                            selected_members: Array.isArray(parsed.selected_members) ? parsed.selected_members : [],
+                            exclude_teams: Array.isArray(parsed.exclude_teams) ? parsed.exclude_teams : [],
+                            exclude_members: Array.isArray(parsed.exclude_members) ? parsed.exclude_members : []
+                        }));
+                    }
+                } catch(e) {}
+            }
+        }, [systemSettings.commission_condition_config]);
+
+        const [memberSearchQuery, setMemberSearchQuery] = useState('');
+
+        const formattedMembersList = useMemo(() => {
+            return (members || []).map(m => {
+                const id = String(m.id || m.member_id || m.user_id || m.code || m.memberId || m.sellerId || '').trim();
+                const name = String(m.name || m.member_name || m.full_name || m.memberName || id).trim();
+                const team = String(m.team || m.team_name || '').trim();
+                return { id, name, team };
+            }).filter(m => m.id !== '' && m.id !== 'undefined');
+        }, [members]);
+
+        const filteredMembers = useMemo(() => {
+            if (!memberSearchQuery.trim()) return [];
+            const q = memberSearchQuery.trim().toLowerCase();
+            return formattedMembersList.filter(m => 
+                m.id.toLowerCase().includes(q) || 
+                m.name.toLowerCase().includes(q) ||
+                m.team.toLowerCase().includes(q)
+            ).slice(0, 10);
+        }, [formattedMembersList, memberSearchQuery]);
+
+        const availableTeamsList = useMemo(() => {
+            let list = [];
+            if (Array.isArray(businessTeams) && businessTeams.length > 0) {
+                businessTeams.forEach(bt => {
+                    const name = typeof bt === 'string' ? bt : (bt.name || bt.team_name || bt.team || bt.id);
+                    if (name && typeof name === 'string' && name.trim() !== '') {
+                        list.push(name.trim());
+                    }
+                });
+            }
+            if (Array.isArray(members) && members.length > 0) {
+                members.forEach(m => {
+                    const t = String(m.team || m.team_name || '').trim();
+                    if (t && t !== 'undefined' && t !== 'null' && t !== '' && !list.includes(t)) {
+                        list.push(t);
+                    }
+                });
+            }
+            if (list.length === 0) {
+                list = ['TEAM LEE', 'Marketing', 'TEAM THAILAND', 'Center'];
+            }
+            return [...new Set(list)];
+        }, [businessTeams, members]);
+
+        const saveCommConditionDirectly = (configToSave) => {
+            const newHistoryEntry = {
+                id: Date.now().toString(),
+                date: new Date().toLocaleString('th-TH'),
+                user: currentUser?.name || 'Administrator',
+                is_enabled: configToSave.is_enabled,
+                min_boxes: configToSave.min_boxes,
+                target_scope: configToSave.target_scope || 'all',
+                exclude_teams_count: (configToSave.exclude_teams || []).length,
+                exclude_members_count: (configToSave.exclude_members || []).length
+            };
+            const updatedHistory = [newHistoryEntry, ...(Array.isArray(history) ? history : [])].slice(0, 50);
+
+            const updatedSettings = {
+                ...systemSettings,
+                commission_condition_config: JSON.stringify(configToSave),
+                commission_condition_history: JSON.stringify(updatedHistory)
+            };
+            setSystemSettings(updatedSettings);
+            try {
+                localStorage.setItem('stk_system_settings', JSON.stringify(updatedSettings));
+                window.dispatchEvent(new Event('storage'));
+            } catch(e){}
+            if (typeof window.saveSystemSettingToSupabase === 'function') {
+                window.saveSystemSettingToSupabase('commission_condition_config', configToSave);
+                window.saveSystemSettingToSupabase('commission_condition_history', updatedHistory);
+            } else if (typeof supabaseUpsert === 'function') {
+                supabaseUpsert('stk_system_settings', {
+                    key: 'commission_condition_config',
+                    value: JSON.stringify(configToSave)
+                }).catch(() => {});
+                supabaseUpsert('stk_system_settings', {
+                    key: 'commission_condition_history',
+                    value: JSON.stringify(updatedHistory)
+                }).catch(() => {});
+            }
+            if (typeof showToast === 'function') {
+                showToast('บันทึกตั้งค่าเงื่อนไขยอดขายส่วนตัวเรียบร้อยแล้ว', 'success');
+            }
+        };
+
         const [isSaving, setIsSaving] = useState(false);
 
         const [selectedProdIds, setSelectedProdIds] = useState([]);
@@ -2114,10 +2255,20 @@
             const numLevels = Number(levelsInput) >= 2 ? Number(levelsInput) : 6;
             const numMinPv = Number(minDivPvInput) > 0 ? Number(minDivPvInput) : 100;
 
+            const newHistoryEntry = {
+                id: Date.now().toString(),
+                date: new Date().toLocaleString('th-TH'),
+                user: currentUser?.name || 'Administrator',
+                is_enabled: commConditionConfig.is_enabled,
+                min_boxes: commConditionConfig.min_boxes
+            };
+            const updatedHistory = [newHistoryEntry, ...history].slice(0, 50);
             const updatedSettings = {
                 ...systemSettings,
                 commission_levels: numLevels,
-                min_dividend_pv: numMinPv
+                min_dividend_pv: numMinPv,
+                commission_condition_config: JSON.stringify(commConditionConfig),
+                commission_condition_history: JSON.stringify(updatedHistory)
             };
 
             setSystemSettings(updatedSettings);
@@ -2126,13 +2277,25 @@
             } catch(e){}
 
             // Try to save system settings to Supabase safely using Key-Value format
-            if (typeof supabaseUpsert === 'function') {
+            if (typeof window.saveSystemSettingToSupabase === 'function') {
+                window.saveSystemSettingToSupabase('MAIN', { commission_levels: numLevels, min_dividend_pv: numMinPv });
+                window.saveSystemSettingToSupabase('commission_condition_config', commConditionConfig);
+                window.saveSystemSettingToSupabase('commission_condition_history', updatedHistory);
+            } else if (typeof supabaseUpsert === 'function') {
                 supabaseUpsert('stk_system_settings', {
                     key: 'MAIN',
                     value: JSON.stringify({
                         commission_levels: numLevels,
                         min_dividend_pv: numMinPv
                     })
+                }).catch(() => {});
+                supabaseUpsert('stk_system_settings', {
+                    key: 'commission_condition_config',
+                    value: JSON.stringify(commConditionConfig)
+                }).catch(() => {});
+                supabaseUpsert('stk_system_settings', {
+                    key: 'commission_condition_history',
+                    value: JSON.stringify(updatedHistory)
                 }).catch(() => {});
             }
 
@@ -2159,6 +2322,11 @@
 
             setProducts(editableProducts);
             setIsSaving(false);
+            if (typeof window.clearDbCache === 'function') {
+                window.clearDbCache();
+            } else {
+                try { sessionStorage.removeItem('stkDbCache'); } catch(e){}
+            }
             showToast('บันทึกการตั้งค่าระดับชั้น คอมมิชชั่น และปันผลเรียบร้อย!', 'success');
         };
 
@@ -2203,6 +2371,173 @@
                         </div>
                     </div>
                 </div>
+                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 mt-4 space-y-4">
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
+                            <div>
+                                <h4 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                                    <span>🎯</span> ตั้งค่าเงื่อนไขยอดขายส่วนตัวขั้นต่ำ (ต่อเดือน)
+                                </h4>
+                                <p className="text-xs text-slate-500 font-medium mt-1">
+                                    ปรับเปลี่ยนและตั้งค่าเงื่อนไขยอดขายขั้นต่ำ จากนั้นกดปุ่ม <span className="font-bold text-indigo-600">"บันทึกตั้งค่าเงื่อนไข"</span> เพื่อยืนยันใช้งาน (นับเฉพาะราคาเต็มและราคาสมาชิก)
+                                </p>
+                            </div>
+                            
+                            <div className="flex items-center gap-3 shrink-0">
+                                <div className="flex items-center gap-3 bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm">
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" className="sr-only peer" checked={commConditionConfig.is_enabled} onChange={e => setCommConditionConfig(prev => ({ ...prev, is_enabled: e.target.checked }))} />
+                                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                        <span className="ml-2.5 text-xs font-bold text-slate-700 whitespace-nowrap">เปิดใช้งานเงื่อนไข</span>
+                                    </label>
+                                    
+                                    <div className={`flex items-center gap-2 transition-opacity ${!commConditionConfig.is_enabled ? 'opacity-40 pointer-events-none' : ''}`}>
+                                        <div className="h-6 w-px bg-slate-200"></div>
+                                        <span className="text-xs font-bold text-slate-600 whitespace-nowrap">จำนวนขั้นต่ำ:</span>
+                                        <input 
+                                            type="number"
+                                            className="w-20 px-2.5 py-1 border border-slate-300 rounded-lg text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            value={commConditionConfig.min_boxes}
+                                            onChange={e => setCommConditionConfig(prev => ({ ...prev, min_boxes: e.target.value }))}
+                                        />
+                                        <span className="text-xs font-bold text-slate-600 whitespace-nowrap">กล่อง/เดือน</span>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => saveCommConditionDirectly(commConditionConfig)}
+                                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 shrink-0 active:scale-95"
+                                >
+                                    💾 บันทึกตั้งค่าเงื่อนไข
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* ขอบเขตการยกเว้นเงื่อนไข */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-bold text-slate-700">
+                            {/* การยกเว้นทีม */}
+                            <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm space-y-2.5">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-slate-800 font-black flex items-center gap-1.5">
+                                        <span className="text-rose-500">🚫</span> ยกเว้นทีม (ทีมที่ไม่ต้องมีเงื่อนไขยอดขาย)
+                                    </label>
+                                    <span className="text-[11px] font-bold text-slate-400">
+                                        ยกเว้นแล้ว {(commConditionConfig.exclude_teams || []).length} ทีม
+                                    </span>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5 min-h-[44px] max-h-36 overflow-y-auto p-2 border border-slate-100 rounded-xl bg-slate-50">
+                                    {availableTeamsList.map(tName => {
+                                        const isExcluded = (commConditionConfig.exclude_teams || []).includes(tName);
+                                        return (
+                                            <button
+                                                key={tName}
+                                                type="button"
+                                                onClick={() => {
+                                                    const cur = commConditionConfig.exclude_teams || [];
+                                                    const updated = isExcluded ? cur.filter(x => x !== tName) : [...cur, tName];
+                                                    setCommConditionConfig(prev => ({ ...prev, exclude_teams: updated }));
+                                                }}
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1 cursor-pointer active:scale-95 ${isExcluded ? 'bg-rose-50 text-rose-700 border-rose-300 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'}`}
+                                            >
+                                                {isExcluded ? '✓ ยกเว้นทีม: ' : '+ ยกเว้นทีม '} {tName}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* การยกเว้นสมาชิกรายบุคคล - ระบบค้นหาและกดเพิ่ม */}
+                            <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-slate-800 font-black flex items-center gap-1.5 text-xs">
+                                        <span className="text-amber-500">👤</span> ยกเว้นสมาชิกรายบุคคล (ไม่ต้องมีเงื่อนไขยอดขาย)
+                                    </label>
+                                    <span className="text-[11px] font-bold text-slate-400">
+                                        ยกเว้นแล้ว {(commConditionConfig.exclude_members || []).length} คน
+                                    </span>
+                                </div>
+
+                                {/* ช่องพิมพ์ค้นหาเพื่อกดเพิ่ม */}
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-amber-50/20"
+                                        placeholder="🔍 พิมพ์รหัส หรือ ชื่อสมาชิก เพื่อค้นหาและกดเพิ่มยกเว้น..."
+                                        value={memberSearchQuery}
+                                        onChange={e => setMemberSearchQuery(e.target.value)}
+                                    />
+
+                                    {/* Dropdown แสดงผลค้นหา */}
+                                    {memberSearchQuery.trim() !== '' && (
+                                        <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-2xl border border-slate-200 max-h-48 overflow-y-auto divide-y divide-slate-100">
+                                            {filteredMembers.map(m => {
+                                                const isAdded = (commConditionConfig.exclude_members || []).includes(m.id);
+                                                return (
+                                                    <div key={m.id} className="p-2 flex items-center justify-between hover:bg-amber-50/60 transition-colors">
+                                                        <div className="flex flex-col">
+                                                            <span className="font-bold text-slate-800 text-xs">{m.name}</span>
+                                                            <span className="text-[10px] font-bold text-slate-400 font-mono">รหัส: {m.id} {m.team ? `| ทีม: ${m.team}` : ''}</span>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            disabled={isAdded}
+                                                            onClick={() => {
+                                                                const cur = commConditionConfig.exclude_members || [];
+                                                                if (!cur.includes(m.id)) {
+                                                                    setCommConditionConfig(prev => ({ ...prev, exclude_members: [...cur, m.id] }));
+                                                                }
+                                                                setMemberSearchQuery('');
+                                                            }}
+                                                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${isAdded ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-amber-500 hover:bg-amber-600 text-white shadow-sm'}`}
+                                                        >
+                                                            {isAdded ? '✓ เพิ่มแล้ว' : '+ ยกเว้นคนนี้'}
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })}
+                                            {filteredMembers.length === 0 && (
+                                                <div className="p-3 text-center text-xs font-bold text-slate-400">
+                                                    ไม่พบสมาชิกที่ตรงตามคำค้นหา "{memberSearchQuery}"
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* รายการสมาชิกที่ได้รับการยกเว้น (Chips) */}
+                                <div className="flex flex-wrap gap-1.5 min-h-[44px] max-h-36 overflow-y-auto p-2 border border-slate-100 rounded-xl bg-slate-50">
+                                    {(commConditionConfig.exclude_members || []).map(mId => {
+                                        const memObj = formattedMembersList.find(m => m.id === mId);
+                                        const displayTitle = memObj ? `${memObj.name} (${memObj.id})` : mId;
+                                        return (
+                                            <span
+                                                key={mId}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold shadow-sm"
+                                            >
+                                                <span>✓ {displayTitle}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const cur = commConditionConfig.exclude_members || [];
+                                                        setCommConditionConfig(prev => ({ ...prev, exclude_members: cur.filter(x => x !== mId) }));
+                                                    }}
+                                                    className="hover:bg-amber-200 text-amber-700 rounded-full p-0.5 transition-colors font-bold"
+                                                    title="ลบออกจากรายการยกเว้น"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </span>
+                                        );
+                                    })}
+                                    {(commConditionConfig.exclude_members || []).length === 0 && (
+                                        <span className="text-slate-400 text-xs font-medium p-1">
+                                            ยังไม่มีการยกเว้นสมาชิกรายบุคคล (พิมพ์ค้นหารหัส/ชื่อด้านบนเพื่อเลือกเพิ่ม)
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                                                 {/* 🚀 เครื่องมือตั้งค่าคอมมิชชั่นแบบกลุ่ม (Batch Configurator) - Ultra Clean Light Theme UI */}
                 <div className="bg-white rounded-3xl p-6 text-slate-800 shadow-xl space-y-6 border border-slate-200/80">
@@ -2573,322 +2908,38 @@
                             </table>
                         </div>
                     </div>
-                </div>
-            </div>
-        );
-    };
-    // 💰 TAB: ตั้งค่าจ่ายส่วนต่าง (Retail Profit/Margin Payout Settings)
-    const MarginSettingsTab = ({ members, businessTeams, systemSettings, setSystemSettings, showToast, currentUser }) => {
-        const config = useMemo(() => {
-            try {
-                return systemSettings.retail_margin_config ? (typeof systemSettings.retail_margin_config === 'string' ? JSON.parse(systemSettings.retail_margin_config) : systemSettings.retail_margin_config) : { min_boxes: 10, target_scope: 'all', selected_members: [], selected_teams: [], exclude_members: [], exclude_teams: [] };
-            } catch(e) {
-                return { min_boxes: 10, target_scope: 'all', selected_members: [], selected_teams: [], exclude_members: [], exclude_teams: [] };
-            }
-        }, [systemSettings.retail_margin_config]);
-
-        const history = useMemo(() => {
-            try {
-                return systemSettings.retail_margin_history ? (typeof systemSettings.retail_margin_history === 'string' ? JSON.parse(systemSettings.retail_margin_history) : systemSettings.retail_margin_history) : [];
-            } catch(e) {
-                return [];
-            }
-        }, [systemSettings.retail_margin_history]);
-
-        const [minBoxes, setMinBoxes] = useState(Number(config.min_boxes ?? 10));
-        const [targetScope, setTargetScope] = useState(config.target_scope || 'all');
-        const [selectedMembers, setSelectedMembers] = useState(config.selected_members || []);
-        const [selectedTeams, setSelectedTeams] = useState(config.selected_teams || []);
-        const [excludeMembers, setExcludeMembers] = useState(config.exclude_members || []);
-        const [excludeTeams, setExcludeTeams] = useState(config.exclude_teams || []);
-        const [isSaving, setIsSaving] = useState(false);
-
-        // Autocomplete search states
-        const [memberSearch, setMemberSearch] = useState('');
-        const [excludeSearch, setExcludeSearch] = useState('');
-
-        const allTeams = useMemo(() => {
-            return Array.from(new Set([
-                ...(businessTeams || []).map(t => t.name || t.team_name || t.id || ''),
-                ...(members || []).map(m => m.team || 'Marketing')
-            ])).filter(Boolean);
-        }, [businessTeams, members]);
-
-        const handleSave = async () => {
-            setIsSaving(true);
-            const newConfig = {
-                min_boxes: minBoxes,
-                target_scope: targetScope,
-                selected_members: selectedMembers,
-                selected_teams: selectedTeams,
-                exclude_members: excludeMembers,
-                exclude_teams: excludeTeams
-            };
-
-            const newHistoryEntry = {
-                id: 'HIST_' + Date.now(),
-                date: new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString('th-TH'),
-                user: currentUser?.name || currentUser?.username || 'Admin',
-                min_boxes: minBoxes,
-                scope: targetScope === 'all' ? 'ทุกคน' : targetScope === 'specific_members' ? 'เฉพาะบุคคล' : 'เฉพาะทีม',
-                details: `เป้าหมาย: ${targetScope === 'all' ? 'ทุกคน' : targetScope === 'specific_members' ? selectedMembers.length + ' คน' : selectedTeams.length + ' ทีม'}, ยกเว้น: ${excludeMembers.length} คน, ${excludeTeams.length} ทีม`
-            };
-
-            const updatedHistory = [newHistoryEntry, ...history].slice(0, 50); // Keep last 50 entries
-
-            try {
-                if (typeof supabaseUpsert === 'function') {
-                    await supabaseUpsert('stk_system_settings', {
-                        key: 'retail_margin_config',
-                        value: JSON.stringify(newConfig)
-                    });
-                    await supabaseUpsert('stk_system_settings', {
-                        key: 'retail_margin_history',
-                        value: JSON.stringify(updatedHistory)
-                    });
-                    // Also sync min_boxes to global setting key
-                    await supabaseUpsert('stk_system_settings', {
-                        key: 'margin_min_boxes',
-                        value: String(minBoxes)
-                    });
-                }
-
-                setSystemSettings(prev => ({
-                    ...prev,
-                    retail_margin_config: newConfig,
-                    retail_margin_history: updatedHistory,
-                    margin_min_boxes: minBoxes
-                }));
-
-                // Save to localStorage for quick restore
-                localStorage.setItem('stk_system_settings', JSON.stringify({
-                    ...systemSettings,
-                    retail_margin_config: newConfig,
-                    retail_margin_history: updatedHistory,
-                    margin_min_boxes: minBoxes
-                }));
-
-                showToast('บันทึกการตั้งค่าส่วนต่างราคาเต็มและประวัติเรียบร้อยแล้ว!', 'success');
-            } catch(err) {
-                console.error("Save error:", err);
-                showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
-            } finally {
-                setIsSaving(false);
-            }
-        };
-
-        return (
-            <div className="space-y-6 animation-fade-in text-slate-800">
-                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
-                    <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">💰 ตั้งค่าเกณฑ์และผู้ได้รับสิทธิ์ปันผลส่วนต่างราคาเต็ม</h3>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {/* Minimum Boxes input */}
-                        <div className="bg-slate-50 p-4.5 rounded-2xl border border-slate-200">
-                            <label className="text-xs font-bold text-slate-600 block mb-1.5">📦 ยอดขายราคาเต็มขั้นต่ำ (กล่องต่อเดือน)</label>
-                            <input 
-                                type="number" 
-                                min="1" 
-                                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 font-black text-slate-800 focus:outline-none focus:border-blue-600" 
-                                value={minBoxes} 
-                                onChange={e => setMinBoxes(Number(e.target.value))}
-                            />
-                            <p className="text-[10px] text-slate-400 font-bold mt-1.5">ระบุจำนวนกล่องที่สมาชิกต้องขายในราคาเต็มขั้นต่ำ เพื่อจะมีสิทธิ์รับค่าส่วนต่าง</p>
-                        </div>
-
-                        {/* Target Scope select */}
-                        <div className="bg-slate-50 p-4.5 rounded-2xl border border-slate-200 col-span-2">
-                            <label className="text-xs font-bold text-slate-600 block mb-1.5">👥 กำหนดกลุ่มผู้ได้รับสิทธิ์ปันผลส่วนต่าง</label>
-                            <div className="flex flex-wrap gap-3 mt-2">
-                                <label className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-300 font-bold text-xs cursor-pointer hover:border-slate-400">
-                                    <input type="radio" checked={targetScope === 'all'} onChange={() => setTargetScope('all')} />
-                                    <span>ทุกคน (All Members)</span>
-                                </label>
-                                <label className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-300 font-bold text-xs cursor-pointer hover:border-slate-400">
-                                    <input type="radio" checked={targetScope === 'specific_members'} onChange={() => setTargetScope('specific_members')} />
-                                    <span>เฉพาะบุคคล (Specific Members)</span>
-                                </label>
-                                <label className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-300 font-bold text-xs cursor-pointer hover:border-slate-400">
-                                    <input type="radio" checked={targetScope === 'specific_teams'} onChange={() => setTargetScope('specific_teams')} />
-                                    <span>เฉพาะทีมบริหาร (Specific Teams)</span>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Scope details depending on targetScope */}
-                    {targetScope === 'specific_members' && (
-                        <div className="bg-slate-50 p-4.5 rounded-2xl border border-slate-200 space-y-3">
-                            <label className="text-xs font-bold text-slate-700 block">👤 ค้นหาและเพิ่มสมาชิกที่ได้รับสิทธิ์</label>
-                            <div className="flex gap-2">
-                                <input 
-                                    type="text" 
-                                    placeholder="ใส่ชื่อ หรือ รหัสสมาชิก..." 
-                                    className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold focus:outline-none"
-                                    value={memberSearch}
-                                    onChange={e => setMemberSearch(e.target.value)}
-                                />
-                            </div>
-                            {memberSearch.trim() && (
-                                <div className="bg-white border border-slate-200 rounded-xl max-h-40 overflow-y-auto p-1 divide-y divide-slate-100 shadow-sm">
-                                    {members.filter(m => String(m.name || '').toLowerCase().includes(memberSearch.toLowerCase()) || String(m.id || '').toLowerCase().includes(memberSearch.toLowerCase())).map(m => (
-                                        <button 
-                                            key={m.id} 
-                                            onClick={() => {
-                                                if (!selectedMembers.includes(m.id)) setSelectedMembers([...selectedMembers, m.id]);
-                                                setMemberSearch('');
-                                            }}
-                                            className="w-full text-left p-2 hover:bg-slate-50 font-bold text-xs text-slate-700 flex justify-between"
-                                        >
-                                            <span>{m.name}</span> <span className="text-slate-400">{m.id}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                            <div className="flex flex-wrap gap-2 pt-2">
-                                {selectedMembers.map(id => {
-                                    const mObj = members.find(m => m.id === id) || { name: id };
-                                    return (
-                                        <span key={id} className="bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-lg text-xs font-black flex items-center gap-1.5">
-                                            {mObj.name} ({id})
-                                            <button onClick={() => setSelectedMembers(selectedMembers.filter(x => x !== id))} className="text-blue-500 hover:text-blue-700 font-bold">&times;</button>
-                                        </span>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-
-                    {targetScope === 'specific_teams' && (
-                        <div className="bg-slate-50 p-4.5 rounded-2xl border border-slate-200 space-y-3">
-                            <label className="text-xs font-bold text-slate-700 block">👑 เลือกทีมบริหารที่ได้รับสิทธิ์</label>
-                            <div className="flex flex-wrap gap-3">
-                                {allTeams.map(teamName => (
-                                    <label key={teamName} className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-300 font-bold text-xs cursor-pointer">
-                                        <input 
-                                            type="checkbox" 
-                                            checked={selectedTeams.includes(teamName)} 
-                                            onChange={e => {
-                                                if (e.target.checked) setSelectedTeams([...selectedTeams, teamName]);
-                                                else setSelectedTeams(selectedTeams.filter(t => t !== teamName));
-                                            }}
-                                        />
-                                        <span>{teamName}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Exclusions Section */}
-                    <div className="bg-rose-50/50 p-4.5 rounded-2xl border border-rose-200/60 space-y-4">
-                        <h4 className="text-xs font-black text-rose-800 flex items-center gap-1.5">🚫 รายการยกเว้นสิทธิ์การจ่าย (Exclusions)</h4>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Member Exclusions */}
-                            <div className="space-y-2">
-                                <label className="text-[11px] font-bold text-slate-600 block">ยกเว้นสิทธิ์รายบุคคล (Exclude Members)</label>
-                                <input 
-                                    type="text" 
-                                    placeholder="พิมพ์ชื่อ หรือ รหัสสมาชิก เพื่อยกเว้น..." 
-                                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold focus:outline-none"
-                                    value={excludeSearch}
-                                    onChange={e => setExcludeSearch(e.target.value)}
-                                />
-                                {excludeSearch.trim() && (
-                                    <div className="bg-white border border-slate-200 rounded-xl max-h-40 overflow-y-auto p-1 divide-y divide-slate-100 shadow-sm">
-                                        {members.filter(m => String(m.name || '').toLowerCase().includes(excludeSearch.toLowerCase()) || String(m.id || '').toLowerCase().includes(excludeSearch.toLowerCase())).map(m => (
-                                            <button 
-                                                key={m.id} 
-                                                onClick={() => {
-                                                    if (!excludeMembers.includes(m.id)) setExcludeMembers([...excludeMembers, m.id]);
-                                                    setExcludeSearch('');
-                                                }}
-                                                className="w-full text-left p-2 hover:bg-slate-50 font-bold text-xs text-rose-700 flex justify-between"
-                                            >
-                                                <span>{m.name}</span> <span className="text-slate-400">{m.id}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                                <div className="flex flex-wrap gap-2 pt-1">
-                                    {excludeMembers.map(id => {
-                                        const mObj = members.find(m => m.id === id) || { name: id };
-                                        return (
-                                            <span key={id} className="bg-red-50 text-red-700 border border-red-200 px-2.5 py-1 rounded-lg text-xs font-black flex items-center gap-1.5">
-                                                {mObj.name} ({id})
-                                                <button onClick={() => setExcludeMembers(excludeMembers.filter(x => x !== id))} className="text-red-500 hover:text-red-700 font-bold">&times;</button>
-                                            </span>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            {/* Team Exclusions */}
-                            <div className="space-y-2">
-                                <label className="text-[11px] font-bold text-slate-600 block">ยกเว้นสิทธิ์ทั้งทีม (Exclude Teams)</label>
-                                <div className="flex flex-wrap gap-2 pt-1">
-                                    {allTeams.map(teamName => (
-                                        <label key={teamName} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-300 font-bold text-[11px] cursor-pointer">
-                                            <input 
-                                                type="checkbox" 
-                                                checked={excludeTeams.includes(teamName)} 
-                                                onChange={e => {
-                                                    if (e.target.checked) setExcludeTeams([...excludeTeams, teamName]);
-                                                    else setExcludeTeams(excludeTeams.filter(t => t !== teamName));
-                                                }}
-                                            />
-                                            <span>{teamName}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Action buttons */}
-                    <div className="flex justify-end pt-3">
-                        <button 
-                            onClick={handleSave} 
-                            disabled={isSaving}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2 disabled:opacity-50"
-                        >
-                            {isSaving ? '正在บันทึก...' : '💾 บันทึกการตั้งค่า'}
-                        </button>
-                    </div>
-                </div>
-
-                {/* History Log Section */}
-                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-                    <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">📜 ประวัติบันทึกการตั้งค่าจ่ายส่วนต่าง (Audit Log)</h3>
-                    <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                        <table className="w-full text-xs text-left">
-                            <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
-                                <tr>
-                                    <th className="p-3 text-center">ลำดับ</th>
-                                    <th className="p-3">วันเวลาที่แก้ไข</th>
-                                    <th className="p-3">ผู้แก้ไข</th>
-                                    <th className="p-3 text-center">เป้าขั้นต่ำ (กล่อง)</th>
-                                    <th className="p-3">เกณฑ์สิทธิ์ที่เลือก</th>
-                                    <th className="p-3">รายละเอียดเชิงลึก</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 font-bold text-slate-700">
-                                {history.map((h, idx) => (
-                                    <tr key={h.id || idx} className="hover:bg-slate-50/50">
-                                        <td className="p-3 text-center text-slate-400">{idx + 1}</td>
-                                        <td className="p-3 text-slate-600">{h.date}</td>
-                                        <td className="p-3 text-blue-700">{h.user}</td>
-                                        <td className="p-3 text-center text-slate-800 font-black">{h.min_boxes}</td>
-                                        <td className="p-3 text-emerald-700">{h.scope}</td>
-                                        <td className="p-3 text-[11px] text-slate-500 font-medium">{h.details}</td>
+                    {/* History Log Section */}
+                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+                        <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">📜 ประวัติการตั้งค่าเงื่อนไขคอมมิชชั่น (Audit Log)</h3>
+                        <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                            <table className="w-full text-xs text-left">
+                                <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                                    <tr>
+                                        <th className="p-3 text-center">ลำดับ</th>
+                                        <th className="p-3">วันเวลาที่แก้ไข</th>
+                                        <th className="p-3">ผู้แก้ไข</th>
+                                        <th className="p-3 text-center">สถานะ</th>
+                                        <th className="p-3 text-center">ขั้นต่ำ (กล่อง)</th>
                                     </tr>
-                                ))}
-                                {history.length === 0 && (
-                                    <tr><td colSpan="6" className="p-4 text-center text-slate-400 font-bold">ยังไม่พบประวัติการแก้ไขตั้งค่าส่วนต่าง</td></tr>
-                                )}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 font-bold text-slate-700">
+                                    {history.map((h, idx) => (
+                                        <tr key={h.id || idx} className="hover:bg-slate-50/50">
+                                            <td className="p-3 text-center text-slate-400">{idx + 1}</td>
+                                            <td className="p-3 text-slate-600">{h.date}</td>
+                                            <td className="p-3 text-blue-700">{h.user}</td>
+                                            <td className="p-3 text-center">
+                                                {h.is_enabled ? <span className="text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">เปิดใช้งาน</span> : <span className="text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">ปิด</span>}
+                                            </td>
+                                            <td className="p-3 text-center text-slate-800 font-black">{h.min_boxes}</td>
+                                        </tr>
+                                    ))}
+                                    {history.length === 0 && (
+                                        <tr><td colSpan="5" className="p-4 text-center text-slate-400 font-bold">ยังไม่มีประวัติการตั้งค่า</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2989,6 +3040,9 @@
               productCategories={productCategories}
               setProductCategories={setProductCategories}
               showToast={showToast}
+              currentUser={currentUser}
+              members={members}
+              businessTeams={businessTeams}
             />
           )}
           {activeTab === 'margin_settings' && isAdmin && (
@@ -3163,27 +3217,31 @@
           supabaseSelect('stk_system_settings').catch(() => supabaseSelect('system_settings')).catch(() => []),
           supabaseSelect('stk_business_teams').catch(() => [])
         ]).then(([pRes, catRes, movRes, memRes, cloRes, typeRes, settingsRes, teamRes]) => {
-          let loadedSettings = null;
+          let loadedSettings = {};
+          try {
+            const localSaved = localStorage.getItem('stk_system_settings');
+            if (localSaved) loadedSettings = JSON.parse(localSaved) || {};
+          } catch(e){}
           if (Array.isArray(settingsRes) && settingsRes.length > 0) {
+            settingsRes.forEach(s => {
+              if (s && (s.key || s.setting_key)) {
+                const k = s.key || s.setting_key;
+                const v = s.value !== undefined ? s.value : s.setting_value;
+                loadedSettings[k] = typeof v === 'string' ? v : JSON.stringify(v);
+              }
+            });
             const mainRow = settingsRes.find(s => s && (s.key === 'MAIN' || s.setting_key === 'MAIN' || s.setting_id === 'MAIN' || s.id === 'MAIN'));
             if (mainRow) {
               try {
                 const rawVal = mainRow.value || mainRow.setting_value || '';
                 const parsedVal = typeof rawVal === 'string' && rawVal.trim() !== '' ? JSON.parse(rawVal) : rawVal;
-                loadedSettings = {
-                  commission_levels: parsedVal.commission_levels != null ? Number(parsedVal.commission_levels) : (parsedVal.commissionLevels != null ? Number(parsedVal.commissionLevels) : 6),
-                  min_dividend_pv: parsedVal.min_dividend_pv != null ? Number(parsedVal.min_dividend_pv) : (parsedVal.minDividendPv != null ? Number(parsedVal.minDividendPv) : 100)
-                };
-              } catch(e) {
-                loadedSettings = {
-                  commission_levels: mainRow.commission_levels != null ? Number(mainRow.commission_levels) : (mainRow.commissionLevels != null ? Number(mainRow.commissionLevels) : 6),
-                  min_dividend_pv: mainRow.min_dividend_pv != null ? Number(mainRow.min_dividend_pv) : (mainRow.minDividendPv != null ? Number(mainRow.minDividendPv) : 100)
-                };
-              }
-              if (loadedSettings) {
-                try { localStorage.setItem('stk_system_settings', JSON.stringify(loadedSettings)); } catch(e){}
-              }
+                if (parsedVal.commission_levels != null) loadedSettings.commission_levels = Number(parsedVal.commission_levels);
+                if (parsedVal.min_dividend_pv != null) loadedSettings.min_dividend_pv = Number(parsedVal.min_dividend_pv);
+              } catch(e){}
             }
+          }
+          if (Object.keys(loadedSettings).length > 0) {
+            try { localStorage.setItem('stk_system_settings', JSON.stringify(loadedSettings)); } catch(e){}
           }
 
           const freshData = {

@@ -1170,14 +1170,18 @@
         
         const cacheKey = table + (cleanQuery ? '?' + cleanQuery : '');
         const currentCache = loadCache();
-        if (!bypassCache && currentCache[cacheKey]) {
+        const now = Date.now();
+        const CACHE_TTL = 15000; // 15s TTL for real-time freshness
+
+        if (!bypassCache && currentCache[cacheKey] && currentCache[cacheKey]._cachedAt && (now - currentCache[cacheKey]._cachedAt < CACHE_TTL)) {
           console.log(`%c⚡ [Cache Hit] Serving ${cacheKey} from sessionStorage`, "color:green;font-weight:bold");
           window.top.stkDbCache = currentCache;
-          return JSON.parse(JSON.stringify(currentCache[cacheKey]));
+          return JSON.parse(JSON.stringify(currentCache[cacheKey].data));
         }
+
         const result = await originalSelect(table, cleanQuery);
         if (!bypassCache) {
-          currentCache[cacheKey] = result;
+          currentCache[cacheKey] = { data: result, _cachedAt: now };
           saveCache(currentCache);
           window.top.stkDbCache = currentCache;
         }
@@ -1255,7 +1259,73 @@
       }
       return res.json();
     };
-  }
+
+    window.saveSystemSettingToSupabase = async function(key, value) {
+      invalidateCache('stk_system_settings');
+      const valStr = typeof value === 'string' ? value : JSON.stringify(value);
+      try {
+        let settingsObj = {};
+        const localSaved = localStorage.getItem('stk_system_settings');
+        if (localSaved) {
+          try { settingsObj = JSON.parse(localSaved); } catch(e){}
+        }
+        settingsObj[key] = valStr;
+        localStorage.setItem('stk_system_settings', JSON.stringify(settingsObj));
+        window.dispatchEvent(new Event('storage'));
+      } catch(e){}
+
+      if (!window.SUPABASE_REST_URL || !window.SUPABASE_HEADERS) return;
+      try {
+        const attempts = [
+          { ep: '/stk_system_settings?on_conflict=key', body: { key: key, value: valStr } },
+          { ep: '/stk_system_settings?on_conflict=setting_key', body: { setting_key: key, setting_value: valStr } },
+          { ep: '/stk_system_settings?on_conflict=id', body: { id: key, value: valStr } },
+          { ep: '/stk_system_settings', body: { key: key, value: valStr } },
+          { ep: '/stk_system_settings', body: { setting_key: key, setting_value: valStr } }
+        ];
+
+        let success = false;
+        for (const item of attempts) {
+          try {
+            const res = await fetch(window.SUPABASE_REST_URL + item.ep, {
+              method: 'POST',
+              headers: Object.assign({}, window.SUPABASE_HEADERS, {
+                'Content-Type': 'application/json',
+                'Prefer': 'resolution=merge-duplicates,return=representation'
+              }),
+              body: JSON.stringify(item.body)
+            });
+            if (res.ok) { success = true; break; }
+          } catch(e){}
+        }
+
+        if (!success) {
+          const patches = [
+            { query: '/stk_system_settings?key=eq.' + encodeURIComponent(key), body: { value: valStr } },
+            { query: '/stk_system_settings?setting_key=eq.' + encodeURIComponent(key), body: { setting_value: valStr } },
+            { query: '/stk_system_settings?id=eq.' + encodeURIComponent(key), body: { value: valStr } }
+          ];
+          for (const p of patches) {
+            try {
+              const patchRes = await fetch(window.SUPABASE_REST_URL + p.query, {
+                method: 'PATCH',
+                headers: Object.assign({}, window.SUPABASE_HEADERS, {
+                  'Content-Type': 'application/json',
+                  'Prefer': 'return=representation'
+                }),
+                body: JSON.stringify(p.body)
+              });
+              if (patchRes.ok) {
+                const updated = await patchRes.json();
+                if (Array.isArray(updated) && updated.length > 0) { success = true; break; }
+              }
+            } catch(e){}
+          }
+        }
+      } catch(e) {
+        console.error("saveSystemSettingToSupabase error:", e);
+      }
+    };
   }
 
   // 🔄 Supabase Cloud Permission Sync Listener: ซิงค์สิทธิ์ผู้ใช้งานจาก Supabase ลงเครื่องผู้ใช้อัตโนมัติทุกครั้งที่เปิดเว็บ
@@ -1296,5 +1366,6 @@
         if (loader) loader.style.display = 'none';
       });
     }
+  }
   }
 })();
