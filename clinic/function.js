@@ -10816,8 +10816,8 @@ async function loadReferralData(isManualClick = false) {
     const valInput = document.getElementById('commValueInput');
     if (valInput) {
         valInput.value = window.commissionSettings.value !== undefined ? window.commissionSettings.value : 0;
-        // เรียกใช้ฟังก์ชันเติมลูกน้ำทันทีที่โหลดข้อมูลเสร็จ
-        if (typeof formatNumberInput === 'function') {
+        // เรียกใช้ฟังก์ชันเติมลูกน้ำเฉพาะเมื่อเป็น text input
+        if (valInput.type !== 'hidden' && typeof formatNumberInput === 'function') {
             formatNumberInput(valInput);
         }
     }
