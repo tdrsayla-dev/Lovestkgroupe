@@ -1996,14 +1996,21 @@ async function getClinicExchangeRate() {
             window.clinicExchangeRate = parseFloat(window.stkExchangeRate);
             return window.clinicExchangeRate;
         }
-        if (typeof _supabase !== 'undefined') {
+
+        // 1. ดึงจาก MLM Supabase ที่มีตาราง stk_system_settings
+        const mlmClient = (typeof _mlmSupabase !== 'undefined' && _mlmSupabase) ? _mlmSupabase : null;
+        if (mlmClient) {
             try {
-                const { data } = await _supabase.from('stk_system_settings').select('value').eq('key', 'exchange_rate').maybeSingle();
+                const { data } = await mlmClient.from('stk_system_settings').select('value').eq('key', 'exchange_rate').maybeSingle();
                 if (data && data.value) {
                     window.clinicExchangeRate = parseFloat(data.value) || 700;
                     return window.clinicExchangeRate;
                 }
             } catch (e) { }
+        }
+
+        // 2. ดึงจาก Clinic Supabase (Fallback ถ้ามีตาราง)
+        if (typeof _supabase !== 'undefined' && _supabase) {
             try {
                 const { data: sysData } = await _supabase.from('system_settings').select('value').eq('key', 'exchange_rate').maybeSingle();
                 if (sysData && sysData.value) {
@@ -2074,15 +2081,22 @@ async function saveClinicGlobalExchangeRate(newRate) {
     const rateInput = document.getElementById('clinicExchangeRateInput');
     if (rateInput) rateInput.value = rate;
 
-    // บันทึกลง Supabase
+    // บันทึกลง MLM Supabase
     try {
-        if (typeof _supabase !== 'undefined') {
-            await _supabase.from('stk_system_settings').upsert([{ key: 'exchange_rate', value: rate.toString() }], { onConflict: 'key' });
-            await _supabase.from('system_settings').upsert([{ key: 'exchange_rate', value: rate.toString() }], { onConflict: 'key' });
+        const mlmClient = (typeof _mlmSupabase !== 'undefined' && _mlmSupabase) ? _mlmSupabase : null;
+        if (mlmClient) {
+            await mlmClient.from('stk_system_settings').upsert([{ key: 'exchange_rate', value: rate.toString() }], { onConflict: 'key' });
         }
     } catch (e) {
-        console.warn('saveClinicGlobalExchangeRate db update error:', e);
+        console.warn('saveClinicGlobalExchangeRate mlm db update error:', e);
     }
+
+    // บันทึกลง Clinic Supabase
+    try {
+        if (typeof _supabase !== 'undefined' && _supabase) {
+            await _supabase.from('system_settings').upsert([{ key: 'exchange_rate', value: rate.toString() }], { onConflict: 'key' });
+        }
+    } catch (e) { }
 
     recalcClinicPayment();
     Swal.fire({
