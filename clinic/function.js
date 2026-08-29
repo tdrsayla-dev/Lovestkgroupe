@@ -6806,6 +6806,12 @@ async function submitPrescription() {
             const assistant = document.getElementById('rxAssistantDisplay')?.innerText || 'L03709 - MS CHERRY LOUANGPHAN';
             const orderId = `ORD-CLINIC-${visitId || Date.now()}`;
 
+            let patientPhone = '-';
+            if (window.allPatients && hn) {
+                const p = window.allPatients.find(pat => pat.hn === hn);
+                if (p && p.phone) patientPhone = p.phone;
+            }
+
             const nutrientPayload = {
                 order_id: orderId,
                 sale_id: orderId,
@@ -6814,6 +6820,7 @@ async function submitPrescription() {
                 hn: hn || 'CLINIC-PATIENT',
                 customer_id: hn || 'CLINIC-PATIENT',
                 customer_name: patientName || '-',
+                customer_phone: patientPhone,
                 recorded_by: assistant,
                 date: nowIso.split('T')[0],
                 status: 'รอดำเนินการ',
@@ -7016,6 +7023,7 @@ async function saveNutrientOrderToDatabase(salePayload) {
         visit_id: salePayload.visit_id ? String(salePayload.visit_id) : null,
         hn: salePayload.hn ? String(salePayload.hn) : null,
         customer_name: salePayload.customer_name || salePayload.patient_name || null,
+        customer_phone: salePayload.customer_phone || null,
         recorded_by: salePayload.recorded_by || 'Staff',
         date: salePayload.date || (new Date().toISOString().split('T')[0]),
         status: salePayload.status || 'รอดำเนินการ',
@@ -7044,14 +7052,32 @@ async function saveNutrientOrderToDatabase(salePayload) {
     }
 
     if (dbError) {
-        console.warn('stk_nutrient_orders initial insert error, attempting upsert:', dbError);
+        console.warn('stk_nutrient_orders initial insert error, attempting upsert/fallback:', dbError);
+        
+        // หากเกิดปัญหาเนื่องจากยังไม่ได้สร้างคอลัมน์ customer_phone ในตาราง Supabase
+        if (dbError.message && (dbError.message.includes('customer_phone') || dbError.message.includes('schema cache'))) {
+            console.warn('⚠️ Supabase schema missing customer_phone column, retrying payload without customer_phone...');
+            delete cleanPayload.customer_phone;
+        }
+
         const { error: upsertErr } = await targetSupabase
             .from('stk_nutrient_orders')
             .upsert([cleanPayload], { onConflict: 'order_id' });
         
         if (upsertErr) {
-            console.error('Supabase stk_nutrient_orders save failed:', upsertErr);
-            throw new Error(`บันทึกลงฐานข้อมูลไม่สำเร็จ: ${upsertErr.message}`);
+            if (upsertErr.message && (upsertErr.message.includes('customer_phone') || upsertErr.message.includes('schema cache'))) {
+                delete cleanPayload.customer_phone;
+                const { error: retryErr } = await targetSupabase
+                    .from('stk_nutrient_orders')
+                    .upsert([cleanPayload], { onConflict: 'order_id' });
+                if (retryErr) {
+                    console.error('Supabase stk_nutrient_orders retry failed:', retryErr);
+                    throw new Error(`บันทึกลงฐานข้อมูลไม่สำเร็จ: ${retryErr.message}`);
+                }
+            } else {
+                console.error('Supabase stk_nutrient_orders save failed:', upsertErr);
+                throw new Error(`บันทึกลงฐานข้อมูลไม่สำเร็จ: ${upsertErr.message}`);
+            }
         }
     }
 
@@ -7118,6 +7144,15 @@ async function submitPrescriptionToMlm() {
         };
     });
 
+    // 🌟 ดึงเบอร์โทรศัพท์จาก HN
+    let patientPhone = '-';
+    if (window.allPatients && hn) {
+        const p = window.allPatients.find(pat => pat.hn === hn);
+        if (p && p.phone) {
+            patientPhone = p.phone;
+        }
+    }
+
     // Payload ที่ตรงตาม Schema ของตาราง public.stk_nutrient_orders
     const salePayload = {
         order_id: orderId,
@@ -7127,6 +7162,7 @@ async function submitPrescriptionToMlm() {
         hn: hn || 'CLINIC-PATIENT',
         customer_id: hn || 'CLINIC-PATIENT',
         customer_name: patientName || '-',
+        customer_phone: patientPhone,
         recorded_by: assistant || '-',
         date: nowIso.split('T')[0],
         status: 'รอดำเนินการ',
@@ -7661,15 +7697,18 @@ window.viewPharmacyBillDetails = function(visitId, billType) {
         return;
     }
 
-    // --- ส่วนที่เพิ่มใหม่: ค้นหาผู้แนะนำ (Referrer) ---
+    // --- ส่วนที่เพิ่มใหม่: ค้นหาผู้แนะนำ (Referrer) และเบอร์โทรศัพท์ ---
     let referrerText = '-';
+    let patientPhone = '-';
     if (visit.hn && window.allPatients) {
         const pat = window.allPatients.find(p => p.hn === visit.hn);
-        if (pat && pat.referred_by) {
-            referrerText = pat.referred_by;
-        } else if (visit.referred_by) {
-            referrerText = visit.referred_by;
+        if (pat) {
+            if (pat.referred_by) referrerText = pat.referred_by;
+            if (pat.phone) patientPhone = pat.phone;
         }
+    }
+    if (referrerText === '-' && visit.referred_by) {
+        referrerText = visit.referred_by;
     }
     // ------------------------------------------------
 
@@ -7743,7 +7782,10 @@ window.viewPharmacyBillDetails = function(visitId, billType) {
         html: `
             <div class="text-start" style="font-size: 0.9rem;">
                 <div class="bg-light p-2.5 rounded-3 mb-3 border d-flex flex-wrap justify-content-between gap-2" style="font-size: 0.88rem;">
-                    <div><strong>ผู้ป่วย:</strong> ${visit.patient_name || '-'} <span class="text-muted">(${visit.hn || 'ไม่มี HN'})</span></div>
+                    <div>
+                        <strong>ผู้ป่วย:</strong> ${visit.patient_name || '-'} <span class="text-muted">(${visit.hn || 'ไม่มี HN'})</span>
+                        <span class="ms-3 text-primary"><i class="bi bi-telephone-fill me-1"></i>${patientPhone}</span>
+                    </div>
                     <div><strong>รหัส VISIT:</strong> <span class="text-primary fw-bold">${visit.visit_id}</span></div>
                     <div><strong>แพทย์ผู้ตรวจ:</strong> ${visit.doctor_name || '-'}</div>
                     <!-- ส่วนที่เพิ่มใหม่: แสดงผู้แนะนำ -->
@@ -7867,12 +7909,22 @@ window.sendPharmacyNutrientOrder = async function(visitId) {
     const orderId = `ORD-CLINIC-${visitId}`;
     const nowIso = new Date().toISOString();
 
+    // ค้นหาเบอร์โทรศัพท์จาก HN
+    let patientPhone = '-';
+    if (window.allPatients && visit.hn) {
+        const p = window.allPatients.find(pat => pat.hn === visit.hn);
+        if (p && p.phone) {
+            patientPhone = p.phone;
+        }
+    }
+
     // สร้าง Payload สำหรับส่งไปยังตาราง stk_nutrient_orders
     const salePayload = {
         order_id: orderId,
         visit_id: visitId,
         hn: visit.hn || null,
         customer_name: visit.patient_name || null,
+        customer_phone: patientPhone,
         patient_name: visit.patient_name || null,
         recorded_by: referrerText, // ส่งข้อมูลผู้แนะนำ (เช่น L02626 - Name) ไปด้วย
         date: nowIso.split('T')[0],
@@ -15803,62 +15855,48 @@ function updateRxTotals() {
 }
 // ฟังก์ชันจัดรูปแบบตัวเลขให้มีลูกน้ำ (Comma) อัตโนมัติเวลาพิมพ์
 function formatNumberInput(input) {
-    // จดจำตำแหน่งเคอร์เซอร์เดิม
-    let cursorPostion = input.selectionStart;
-    let originalLength = input.value.length;
+    if (!input || typeof input.value === 'undefined') return;
 
-    // ลบอักขระที่ไม่ใช่ตัวเลข (และจุดทศนิยม) ออก เพื่อเตรียมคำนวณ
-    let value = input.value.replace(/[^0-9]/g, '');
-    if (value !== '') {
-        // แยกส่วนจำนวนเต็มและทศนิยม (ป้องกันการพิมพ์จุดหลายตัว)
-        let parts = value.split('.');
+    const isSelectable = input.type === 'text' || input.type === 'search' || input.type === 'tel' || input.type === 'url' || input.type === 'password';
+    
+    // จดจำตำแหน่งเคอร์เซอร์เดิม (เฉพาะกรณี input รองรับ selection)
+    let cursorPosition = 0;
+    let originalLength = (input.value || '').length;
+    let canSetCursor = false;
 
-        // ใส่ลูกน้ำเฉพาะส่วนจำนวนเต็ม
-        if (parts[0] !== '') {
-            parts[0] = parseInt(parts[0], 10).toLocaleString('en-US');
+    if (isSelectable) {
+        try {
+            cursorPosition = input.selectionStart || 0;
+            canSetCursor = true;
+        } catch (e) {
+            canSetCursor = false;
         }
-
-        input.value = parts.join('.');
-    } else {
-        input.value = '';
     }
 
-    // ปรับตำแหน่งเคอร์เซอร์ให้ไม่กระโดดไปด้านหลังสุดเวลาเติมลูกน้ำ
-    let newLength = input.value.length;
-    cursorPostion = cursorPostion + (newLength - originalLength);
-    input.setSelectionRange(cursorPostion, cursorPostion);
-}
-// ฟังก์ชันจัดรูปแบบตัวเลขให้มีลูกน้ำ (Comma) อัตโนมัติเวลาพิมพ์
-function formatNumberInput(input) {
-    // จดจำตำแหน่งเคอร์เซอร์เดิม
-    let cursorPosition = input.selectionStart;
-    let originalLength = input.value.length;
-
     // ลบอักขระที่ไม่ใช่ตัวเลขและจุดทศนิยมออก
-    let value = input.value.replace(/[^0-9.]/g, '');
+    let value = String(input.value || '').replace(/[^0-9.]/g, '');
 
     if (value !== '') {
-        // แยกส่วนจำนวนเต็มและทศนิยม
+        // แยกส่วนจำนวนเต็มและทศนิยม (จำกัดให้มีจุดทศนิยมได้แค่ตัวเดียว)
         let parts = value.split('.');
-
-        // ใส่ลูกน้ำเฉพาะส่วนจำนวนเต็ม
         if (parts[0] !== '') {
             parts[0] = parseInt(parts[0], 10).toLocaleString('en-US');
         }
-
-        // ประกอบกลับเข้าด้วยกัน (จำกัดให้มีจุดทศนิยมได้แค่ตัวเดียว)
         input.value = parts.slice(0, 2).join('.');
     } else {
         input.value = '';
     }
 
-    // ปรับตำแหน่งเคอร์เซอร์ให้ไม่กระโดดไปด้านหลังสุดเวลาเติม/ลบลูกน้ำ
-    let newLength = input.value.length;
-    cursorPosition = cursorPosition + (newLength - originalLength);
-
-    // ตั้งค่าเคอร์เซอร์กลับไปที่เดิม
-    input.setSelectionRange(cursorPosition, cursorPosition);
+    // ปรับตำแหน่งเคอร์เซอร์คืนค่าเดิมถ้าทำได้
+    if (canSetCursor && typeof input.setSelectionRange === 'function') {
+        try {
+            let newLength = input.value.length;
+            cursorPosition = cursorPosition + (newLength - originalLength);
+            input.setSelectionRange(cursorPosition, cursorPosition);
+        } catch (e) {}
+    }
 }
+window.formatNumberInput = formatNumberInput;
 // ฟังก์ชันสำหรับแสดงภาพตัวอย่างไฟล์ (Preview) ก่อนอัปโหลด
 function previewLabFile(input) {
     const previewContainer = document.getElementById('labFilePreviewContainer');
