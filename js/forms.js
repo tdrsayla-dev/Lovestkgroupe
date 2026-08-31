@@ -615,14 +615,18 @@ function openFormModal(rowDataStr = null) {
         document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-plus text-brandindigo mr-3"></i> <span data-i18n="add_record">${t('add_record')}</span>`;
     }
 
+    const isSuperAdmin = String(role).trim().toLowerCase() === 'super admin' || String(role).trim().toLowerCase() === 'superadmin';
+    const isAttendanceLogs = (currentSheet === 'Fingerprint_Logs' || currentSheet === 'fingerprint_logs' || String(currentSheet).toLowerCase().includes('fingerprint') || String(currentSheet).toLowerCase().includes('attendance'));
+
+    const isAdminUser = String(role).toLowerCase().includes('admin') || String(role).toLowerCase().includes('super');
     if (editingRecordId) {
-        const canEditCurrentSheet = role === 'Admin' || (typeof hasActionPermission === 'function' ? hasActionPermission(currentSheet, 'edit', userPerms) : (role !== 'Staff'));
+        const canEditCurrentSheet = isAttendanceLogs ? isSuperAdmin : (isAdminUser || (typeof hasActionPermission === 'function' ? hasActionPermission(currentSheet, 'edit', userPerms) : (role !== 'Staff')));
         if (!canEditCurrentSheet) {
-            showToast('คุณไม่มีสิทธิ์แก้ไขข้อมูลในหน้านี้', 'error');
+            showToast('คุณไม่มีสิทธิ์แก้ไขข้อมูลในหน้านี้ (เฉพาะ Super Admin)', 'error');
             return;
         }
     } else {
-        const canAddCurrentSheet = role === 'Admin' || (typeof hasActionPermission === 'function' ? (hasActionPermission(currentSheet, 'add', userPerms) || hasActionPermission(currentSheet, 'edit', userPerms)) : (role !== 'Staff' || currentSheet === 'Leave application' || currentSheet.includes('Budget')));
+        const canAddCurrentSheet = isAdminUser || (typeof hasActionPermission === 'function' ? (hasActionPermission(currentSheet, 'add', userPerms) || hasActionPermission(currentSheet, 'edit', userPerms)) : (role !== 'Staff' || currentSheet === 'Leave application' || currentSheet.includes('Budget')));
         if (!canAddCurrentSheet) {
             showToast('คุณไม่มีสิทธิ์เพิ่มข้อมูลในหน้านี้', 'error');
             return;
@@ -678,11 +682,6 @@ function openFormModal(rowDataStr = null) {
                 { id: 'FB_Budget_Report', name: 'FB Budget Report (รายงานเบิกงบ)' },
                 { id: 'Leave application', name: 'Leave Requests (คำขอลา)' },
                 { id: 'Budget Request', name: 'Budget Requests (ขออนุมัติงบ)' },
-                { id: 'chart-of-accounts', name: 'Chart of Accounts (ผังบัญชี)' },
-                { id: 'expense-vouchers', name: 'Expense Vouchers (บันทึกค่าใช้จ่าย)' },
-                { id: 'general-ledger', name: 'General Ledger (สมุดบัญชีทั่วไป)' },
-                { id: 'invoices', name: 'Invoices & AR (ใบแจ้งหนี้)' },
-                { id: 'financial-reports', name: 'Financial Reports (รายงานการเงิน)' },
                 {
                     id: 'Fingerprint_Logs', name: 'Attendance Logs (ประวัติลงเวลา)', subFeatures: [
                         { id: 'shift_settings', name: 'ตั้งค่ากะเวลาเข้างาน (Shift Settings / +)' },
@@ -698,7 +697,6 @@ function openFormModal(rowDataStr = null) {
                     ]
                 },
                 { id: 'digital-card', name: 'Digital Card (บัตรพนักงาน)' },
-                { id: 'Organization ', name: 'Organization (ข้อมูลองค์กร)' },
                 { id: 'Employees Ranting', name: 'Employee Rating (ประเมินพนักงาน / STK WOW)' },
                 { id: 'KPI Records ', name: 'KPI Records (บันทึก KPI)' },
                 { id: 'Organization Structure ', name: 'Org Structure (แผนผัง)' },
@@ -708,7 +706,6 @@ function openFormModal(rowDataStr = null) {
                 { id: 'News', name: 'News & PR (ข่าวสาร)' },
                 { id: 'Documents ', name: 'Documents (เอกสาร)' },
                 { id: 'Training', name: 'Training (การฝึกอบรม)' },
-                { id: 'orientation', name: 'Orientation (ปฐมนิเทศ)' },
                 { id: 'Policy ', name: 'Policy (นโยบาย)' },
                 {
                     id: 'user', name: 'Users Management (จัดการผู้ใช้งาน)', subFeatures: [
@@ -819,12 +816,13 @@ function openFormModal(rowDataStr = null) {
             return;
         }
 
-        if (lw === 'role' && currentSheet.toLowerCase() === 'user') {
+        if (lw === 'role' && (currentSheet.toLowerCase() === 'user' || currentSheet.toLowerCase() === 'users')) {
             formFields.insertAdjacentHTML('beforeend', `
                         <div><label class="block mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider">${h} <span class="text-brandindigo">*</span></label>
                         <select name="${h}" required class="bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm">
                             <option value="" disabled ${!val ? 'selected' : ''}>Select Role...</option>
-                            <option value="Admin" ${val === 'Admin' ? 'selected' : ''}>Admin (ผู้ดูแลระบบสูงสุด)</option>
+                            <option value="Super Admin" ${val === 'Super Admin' || val === 'superadmin' ? 'selected' : ''}>Super Admin (ผู้ดูแลระบบสูงสุด - เข้าถึงได้ทุกระบบ)</option>
+                            <option value="Admin" ${val === 'Admin' ? 'selected' : ''}>Admin (ผู้ดูแลระบบ)</option>
                             <option value="HR Manager" ${val === 'HR Manager' ? 'selected' : ''}>HR Manager (ผู้จัดการ)</option>
                             <option value="Staff" ${val === 'Staff' ? 'selected' : ''}>Staff (พนักงานทั่วไป)</option>
                         </select></div>
@@ -1398,6 +1396,24 @@ function openFormModal(rowDataStr = null) {
                                 </div>
                             `);
         }
+        else if ((currentSheet.toLowerCase() === 'user' || currentSheet.toLowerCase() === 'users') && (lw === 'device_id' || lw === 'device id' || lw === 'device')) {
+            const uniqueDevInputId = 'input-dev-id-' + Date.now();
+            formFields.insertAdjacentHTML('beforeend', `
+                                <div class="col-span-1 sm:col-span-2 bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm">
+                                    <label class="block mb-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center justify-between">
+                                        <span><i class="fa-solid fa-mobile-screen mr-1.5 text-indigo-500"></i> DEVICE ID (อุปกรณ์ที่ลงทะเบียน)</span>
+                                        <span class="text-[11px] text-gray-400 font-normal">1 บัญชีพนักงาน ต่อ 1 เครื่อง</span>
+                                    </label>
+                                    <div class="flex gap-2">
+                                        <input type="text" id="${uniqueDevInputId}" name="${h}" value="${safeVal}" class="bg-white border border-gray-300 text-gray-900 text-sm font-mono rounded-xl focus:ring-brandindigo focus:border-brandindigo block w-full p-3 transition-colors shadow-sm" placeholder="ยังไม่มีการผูกอุปกรณ์ (จะผูกอัตโนมัติเมื่อเข้าสู่ระบบครั้งแรก)">
+                                        <button type="button" onclick="document.getElementById('${uniqueDevInputId}').value=''; showToast('รีเซ็ตอุปกรณ์เรียบร้อยแล้ว (กดบันทึกเพื่อยืนยัน)', 'success');" class="px-4 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-xs rounded-xl border border-amber-200 transition-colors flex-shrink-0 flex items-center gap-1.5" title="ล้างค่าเพื่อให้พนักงานล็อกอินเครื่องใหม่ได้">
+                                            <i class="fa-solid fa-rotate-left"></i> รีเซ็ตอุปกรณ์
+                                        </button>
+                                    </div>
+                                    <p class="text-[11px] text-gray-500 mt-2"><i class="fa-solid fa-circle-info text-indigo-500 mr-1"></i> หากพนักงานเปลี่ยนมือถือ/คอมพิวเตอร์ ให้กดปุ่ม <b>รีเซ็ตอุปกรณ์</b> แล้วกดบันทึก</p>
+                                </div>
+                            `);
+        }
         else if (lw === 'category' || lw === 'หมวดหมู่') {
             const uniqueInputId = 'gen-category-input-' + Date.now();
             const allCats = ['ตรงต่อเวลา', 'ทำยอดขายได้ดี', 'ช่วยเหลือเพื่อนร่วมงาน', 'บริการลูกค้าดี', 'ทำงานเป็นทีม', 'แก้ปัญหาได้ดี', 'ทำงานเกินเป้าหมาย', 'สร้างไอเดียใหม่', 'ไม่ขาดงาน', 'พนักงานดีเด่นประจำเดือน'];
@@ -1588,10 +1604,14 @@ function submitData(e) {
 
     const isEditMode = Boolean(editingRecordId);
     const requiredAction = isEditMode ? 'edit' : 'add';
-    const canSubmit = userRole === 'Admin' || (typeof hasActionPermission === 'function' ? (hasActionPermission(currentSheet, requiredAction, userPerms) || (requiredAction === 'add' && hasActionPermission(currentSheet, 'edit', userPerms))) : (userRole !== 'Staff' || (requiredAction === 'add' && (currentSheet === 'Leave application' || currentSheet.includes('Budget')))));
+    const isSuperAdminUser = String(userRole).trim().toLowerCase() === 'super admin' || String(userRole).trim().toLowerCase() === 'superadmin';
+    const isAttendanceLogs = (currentSheet === 'Fingerprint_Logs' || currentSheet === 'fingerprint_logs' || String(currentSheet).toLowerCase().includes('fingerprint') || String(currentSheet).toLowerCase().includes('attendance'));
+
+    const isRoleAdmin = String(userRole).toLowerCase().includes('admin') || String(userRole).toLowerCase().includes('super');
+    const canSubmit = (isAttendanceLogs && isEditMode) ? isSuperAdminUser : (isRoleAdmin || (typeof hasActionPermission === 'function' ? (hasActionPermission(currentSheet, requiredAction, userPerms) || (requiredAction === 'add' && hasActionPermission(currentSheet, 'edit', userPerms))) : (userRole !== 'Staff' || (requiredAction === 'add' && (currentSheet === 'Leave application' || currentSheet.includes('Budget'))))));
 
     if (!canSubmit) {
-        showToast(`คุณไม่มีสิทธิ์${isEditMode ? 'แก้ไข' : 'เพิ่ม'}ข้อมูลในหน้านี้`, 'error');
+        showToast(`คุณไม่มีสิทธิ์${isEditMode ? 'แก้ไข' : 'เพิ่ม'}ข้อมูลในหน้านี้ (เฉพาะ Super Admin)`, 'error');
         return;
     }
 
@@ -1979,9 +1999,13 @@ function deleteRecord(id) {
             if (s.permissions) userPerms = parsePermissionsList(s.permissions);
         } catch (e) { }
     }
-    const canDelete = role === 'Admin' || (typeof hasActionPermission === 'function' ? hasActionPermission(currentSheet, 'delete', userPerms) : (role !== 'Staff'));
+    const isSuperAdmin = String(role).trim().toLowerCase() === 'super admin' || String(role).trim().toLowerCase() === 'superadmin';
+    const isAttendanceLogs = (currentSheet === 'Fingerprint_Logs' || currentSheet === 'fingerprint_logs' || String(currentSheet).toLowerCase().includes('fingerprint') || String(currentSheet).toLowerCase().includes('attendance'));
+
+    const isRoleAdmin = String(role).toLowerCase().includes('admin') || String(role).toLowerCase().includes('super');
+    const canDelete = isAttendanceLogs ? isSuperAdmin : (isRoleAdmin || (typeof hasActionPermission === 'function' ? hasActionPermission(currentSheet, 'delete', userPerms) : (role !== 'Staff')));
     if (!canDelete) {
-        showToast('คุณไม่มีสิทธิ์ลบข้อมูลในหน้านี้', 'error');
+        showToast('คุณไม่มีสิทธิ์ลบข้อมูลในหน้านี้ (เฉพาะ Super Admin)', 'error');
         return;
     }
 

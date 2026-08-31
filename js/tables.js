@@ -60,9 +60,13 @@ function renderTable(data) {
         } catch (e) { }
     }
 
-    const canEdit = role === 'Admin' || (typeof hasActionPermission === 'function' ? hasActionPermission(currentSheet, 'edit', userPerms) : (role !== 'Staff'));
-    const canDelete = role === 'Admin' || (typeof hasActionPermission === 'function' ? hasActionPermission(currentSheet, 'delete', userPerms) : (role !== 'Staff'));
-    const canAdd = role === 'Admin' || (typeof hasActionPermission === 'function' ? (hasActionPermission(currentSheet, 'add', userPerms) || hasActionPermission(currentSheet, 'edit', userPerms)) : (role !== 'Staff' || currentSheet === 'Leave application' || currentSheet.includes('Budget')));
+    const isSuperAdmin = String(role).trim().toLowerCase() === 'super admin' || String(role).trim().toLowerCase() === 'superadmin';
+    const isAttendanceLogs = (currentSheet === 'Fingerprint_Logs' || currentSheet === 'fingerprint_logs' || String(currentSheet).toLowerCase().includes('fingerprint') || String(currentSheet).toLowerCase().includes('attendance'));
+
+    const isAdminUser = String(role).toLowerCase().includes('admin') || String(role).toLowerCase().includes('super');
+    const canEdit = isAttendanceLogs ? isSuperAdmin : (isAdminUser || (typeof hasActionPermission === 'function' ? hasActionPermission(currentSheet, 'edit', userPerms) : (role !== 'Staff')));
+    const canDelete = isAttendanceLogs ? isSuperAdmin : (isAdminUser || (typeof hasActionPermission === 'function' ? hasActionPermission(currentSheet, 'delete', userPerms) : (role !== 'Staff')));
+    const canAdd = isAdminUser || (typeof hasActionPermission === 'function' ? (hasActionPermission(currentSheet, 'add', userPerms) || hasActionPermission(currentSheet, 'edit', userPerms)) : (role !== 'Staff' || currentSheet === 'Leave application' || currentSheet.includes('Budget')));
 
     const tHead = document.getElementById('table-head'), tBody = document.getElementById('table-body');
     const summaryDiv = document.getElementById('table-summary');
@@ -1516,7 +1520,8 @@ function renderTable(data) {
                         let color = isAct ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-red-50 text-red-600 border border-red-200';
                         let displayText = isAct ? 'Active' : 'Disabled';
 
-                        if (role === 'Admin') {
+                        const canManageStatus = role === 'Admin' || role === 'Super Admin' || String(role).toLowerCase().includes('admin') || String(role).toLowerCase().includes('super');
+                        if (canManageStatus) {
                             val = `
                                 <div class="flex items-center space-x-2">
                                     <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${color}">${displayText}</span>
@@ -1527,6 +1532,12 @@ function renderTable(data) {
                                 </div>`;
                         } else {
                             val = `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${color}">${displayText}</span>`;
+                        }
+                    } else if ((currentSheet.toLowerCase() === 'user' || currentSheet.toLowerCase() === 'users') && (lw === 'device_id' || lw === 'device id' || lw === 'device')) {
+                        if (val && val !== '-' && val !== 'null' && val !== 'undefined') {
+                            val = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200" title="${val}"><i class="fa-solid fa-mobile-screen text-indigo-500"></i> ${String(val).substring(0, 15)}...</span>`;
+                        } else {
+                            val = `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-200"><i class="fa-solid fa-triangle-exclamation"></i> ยังไม่ผูกเครื่อง</span>`;
                         }
                     } else if (currentSheet === 'Leave application' && lw === 'signature') {
                         const rowId = getRecordId(row);
@@ -1666,8 +1677,9 @@ function renderEmployeeRatingPageFromScratch(ratingRows) {
     }
 
     const sheetName = typeof currentSheet !== 'undefined' && currentSheet ? currentSheet : 'Employees Ranting';
-    const canEdit = role === 'Admin' || (typeof hasActionPermission === 'function' ? hasActionPermission(sheetName, 'edit', userPerms) : (role !== 'Staff'));
-    const canDelete = role === 'Admin' || (typeof hasActionPermission === 'function' ? hasActionPermission(sheetName, 'delete', userPerms) : (role !== 'Staff'));
+    const isAdminUser = String(role).toLowerCase().includes('admin') || String(role).toLowerCase().includes('super');
+    const canEdit = isAdminUser || (typeof hasActionPermission === 'function' ? hasActionPermission(sheetName, 'edit', userPerms) : (role !== 'Staff'));
+    const canDelete = isAdminUser || (typeof hasActionPermission === 'function' ? hasActionPermission(sheetName, 'delete', userPerms) : (role !== 'Staff'));
 
     const cardWrapper = document.getElementById('card-wrapper');
     if (!cardWrapper) return;

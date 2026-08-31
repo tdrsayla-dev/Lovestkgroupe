@@ -178,14 +178,15 @@ function hasSubFeaturePermission(parentMenu, subFeatureKey, action, checkedList,
     if (!action) action = 'view';
 
     const roleStr = String(userRole || '').toLowerCase();
-    if (roleStr === 'admin') return true;
+    if (roleStr.includes('admin') || roleStr.includes('super')) return true;
 
     if (!checkedList) {
         let sessionStr = sessionStorage.getItem('hr_user_session') || localStorage.getItem('hr_user_session');
         if (sessionStr) {
             try {
                 let s = JSON.parse(sessionStr);
-                if (String(s.role || '').toLowerCase() === 'admin') return true;
+                const sRole = String(s.role || '').toLowerCase();
+                if (sRole.includes('admin') || sRole.includes('super')) return true;
                 checkedList = typeof parsePermissionsList === 'function' ? parsePermissionsList(s.permissions) : [];
             } catch (e) { }
         }

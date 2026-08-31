@@ -39,13 +39,8 @@ function applyRolePermissions(role, permissions = '') {
             }
         });
 
-        const empInput = document.getElementById('manualEmpId');
-        if (empInput) {
-            if (roleStr === 'staff') {
-                empInput.readOnly = true; empInput.classList.add('bg-gray-100', 'cursor-not-allowed', 'text-gray-500'); empInput.classList.remove('bg-white', 'text-gray-900', 'focus:ring-brandindigo');
-            } else {
-                empInput.readOnly = false; empInput.classList.remove('bg-gray-100', 'cursor-not-allowed', 'text-gray-500'); empInput.classList.add('bg-white', 'text-gray-900', 'focus:ring-brandindigo');
-            }
+        if (typeof updateScanEmployeeDisplay === 'function') {
+            updateScanEmployeeDisplay();
         }
     } catch (error) {
         console.error("Error in applyRolePermissions:", error);

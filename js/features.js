@@ -21,6 +21,10 @@ function loadTodayAttendance() {
         } catch (e) { }
     }
 
+    if (typeof updateScanEmployeeDisplay === 'function') {
+        updateScanEmployeeDisplay();
+    }
+
     const checkInEl = document.getElementById('display-checkin');
     const checkOutEl = document.getElementById('display-checkout');
     const statusEl = document.getElementById('display-status');
@@ -155,34 +159,72 @@ function initScanner() {
             );
         }
 
+        updateScanEmployeeDisplay();
+    } catch (error) {
+        console.error("Error in initScanner:", error);
+        window.dispatchEvent(new ErrorEvent('error', { error: error, message: "initScanner: " + error.message }));
+    }
+}
+
+function updateScanEmployeeDisplay() {
+    try {
         const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
         let role = 'Staff';
         let loggedInEmpId = '';
+        let loggedInUser = '';
         if (sessionStr) {
             try {
                 const sessionData = JSON.parse(sessionStr);
                 role = sessionData.role || 'Staff';
-                loggedInEmpId = sessionData.empId || sessionData.username || '';
+                loggedInEmpId = String(sessionData.empId || sessionData.employeeId || '').trim().toUpperCase();
+                loggedInUser = sessionData.username || '';
             } catch (e) { }
         }
 
+        const isSuperAdmin = String(role).trim().toLowerCase() === 'super admin' || String(role).trim().toLowerCase() === 'superadmin';
         const empInput = document.getElementById('manualEmpId');
-        if (empInput) {
-            if (role === 'Staff') {
-                empInput.value = loggedInEmpId;
-                empInput.readOnly = true;
-                empInput.classList.add('bg-gray-100', 'cursor-not-allowed', 'text-gray-500');
-                empInput.classList.remove('bg-white', 'text-gray-900');
-            } else {
-                empInput.readOnly = false;
-                empInput.classList.remove('bg-gray-100', 'cursor-not-allowed', 'text-gray-500');
-                empInput.classList.add('bg-white', 'text-gray-900');
-                setTimeout(() => { empInput.focus(); }, 300);
+        const textDisplay = document.getElementById('scan-emp-text-display');
+        const idLabel = document.getElementById('scan-emp-id-label');
+        const nameLabel = document.getElementById('scan-emp-name-label');
+
+        if (!empInput) return;
+
+        if (isSuperAdmin) {
+            // Super Admin: สามารถพิมพ์/ค้นหา Employee ID ของใครก็ได้
+            if (textDisplay) textDisplay.classList.add('hidden');
+            empInput.classList.remove('hidden');
+            empInput.readOnly = false;
+            empInput.classList.remove('cursor-not-allowed', 'text-gray-500', 'bg-gray-100');
+            empInput.classList.add('bg-transparent', 'text-gray-900');
+            if (!empInput.value && loggedInEmpId) empInput.value = loggedInEmpId;
+        } else {
+            // Non-Super Admin: โชว์เป็น Text ธรรมดากดไม่ได้ ล็อคเฉพาะ ID ของตนเอง
+            empInput.value = loggedInEmpId || loggedInUser;
+            empInput.readOnly = true;
+            empInput.classList.add('hidden');
+            if (textDisplay) {
+                textDisplay.classList.remove('hidden');
+                if (idLabel) idLabel.textContent = loggedInEmpId || loggedInUser || '-';
+
+                // ดึงชื่อเต็มของพนักงานจาก staff cache หรือ session
+                let fullName = '';
+                if (typeof tableCache !== 'undefined' && tableCache['staff'] && Array.isArray(tableCache['staff'].data)) {
+                    const staffRow = tableCache['staff'].data.find(s => String(s.Employee_ID || s.employee_id || '').trim().toUpperCase() === loggedInEmpId);
+                    if (staffRow) {
+                        fullName = ((staffRow.First_Name || staffRow.first_name || '') + ' ' + (staffRow.Last_Name || staffRow.last_name || '')).trim();
+                    }
+                }
+                if (!fullName && typeof getEmployeeFullName === 'function') {
+                    fullName = getEmployeeFullName(loggedInEmpId);
+                }
+                if (!fullName && loggedInUser) {
+                    fullName = loggedInUser.split('@')[0];
+                }
+                if (nameLabel) nameLabel.textContent = fullName ? ` - ${fullName}` : '';
             }
         }
-    } catch (error) {
-        console.error("Error in initScanner:", error);
-        window.dispatchEvent(new ErrorEvent('error', { error: error, message: "initScanner: " + error.message }));
+    } catch (e) {
+        console.warn('updateScanEmployeeDisplay error:', e);
     }
 }
 
