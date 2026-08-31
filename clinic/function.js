@@ -340,6 +340,7 @@ function showPage(pageId, element) {
             if (typeof loadReferralData === 'function') loadReferralData();
         } else if (pageId === 'daily-reports') {
             if (typeof loadDailyReport === 'function') loadDailyReport();
+            if (typeof loadDailyClinicReport === 'function') loadDailyClinicReport();
         } else if (pageId === 'appointments') {
             if (typeof loadAppointments === 'function') loadAppointments();
         } else if (pageId === 'services') {
@@ -361,6 +362,7 @@ function showPage(pageId, element) {
             if (typeof loadLabQueue === 'function') loadLabQueue();
         } else if (pageId === 'billing') {
             if (typeof loadBills === 'function') loadBills();
+            if (typeof loadDailyClinicReport === 'function') loadDailyClinicReport();
         } else if (pageId === 'expenses') {
             if (typeof loadExpenses === 'function') loadExpenses();
         }
@@ -424,13 +426,18 @@ function initClinicRealtimeHub() {
                 console.log('⚡ [Realtime: Visits Update]', payload.eventType, payload.new || payload.old);
                 debounceRealtime('visits', () => {
                     if (typeof loadTriage === 'function') loadTriage();
+                    if (typeof loadTriageHistory === 'function') loadTriageHistory();
                     if (typeof loadDoctorQueue === 'function') loadDoctorQueue();
                     if (typeof loadLabQueue === 'function') loadLabQueue();
                     if (typeof loadQueueList === 'function') loadQueueList();
                     if (typeof loadPrescriptionList === 'function') loadPrescriptionList();
                     if (typeof loadPharmacyQueue === 'function') loadPharmacyQueue();
+                    if (typeof loadPharmacyHistory === 'function') loadPharmacyHistory();
                     if (typeof loadPaymentQueue === 'function') loadPaymentQueue();
                     if (typeof loadPatientHistory === 'function') loadPatientHistory();
+                    if (typeof loadPatients === 'function') loadPatients();
+                    if (typeof loadBills === 'function') loadBills();
+                    if (typeof loadDailyClinicReport === 'function') loadDailyClinicReport();
                     if (typeof updateDashboardStats === 'function') updateDashboardStats();
                 }, 200);
             })
@@ -458,6 +465,9 @@ function initClinicRealtimeHub() {
                 console.log('⚡ [Realtime: Patients Update]', payload.eventType);
                 debounceRealtime('patients', () => {
                     if (typeof loadPatients === 'function') loadPatients();
+                    if (typeof loadPaymentQueue === 'function') loadPaymentQueue();
+                    if (typeof loadLabQueue === 'function') loadLabQueue();
+                    if (typeof loadDoctorQueue === 'function') loadDoctorQueue();
                     if (typeof updateDashboardStats === 'function') updateDashboardStats();
                 }, 200);
             })
@@ -495,19 +505,40 @@ function initClinicRealtimeHub() {
 
         // 6. Channel สำหรับตาราง BILLS & EXPENSES (ระบบบิล & รายจ่ายประจำวัน)
         _supabase.channel('realtime_finance')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'clinic_bills' }, () => {
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'bills' }, (payload) => {
+                console.log('⚡ [Realtime: Bills Update]', payload.eventType);
                 debounceRealtime('bills', () => {
                     if (typeof loadBills === 'function') loadBills();
+                    if (typeof loadDailyClinicReport === 'function') loadDailyClinicReport();
+                    if (typeof loadPaymentQueue === 'function') loadPaymentQueue();
                     if (typeof updateDashboardStats === 'function') updateDashboardStats();
                 }, 200);
             })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'clinic_expenses' }, () => {
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'clinic_bills' }, (payload) => {
+                debounceRealtime('bills', () => {
+                    if (typeof loadBills === 'function') loadBills();
+                    if (typeof loadDailyClinicReport === 'function') loadDailyClinicReport();
+                    if (typeof updateDashboardStats === 'function') updateDashboardStats();
+                }, 200);
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, (payload) => {
+                console.log('⚡ [Realtime: Expenses Update]', payload.eventType);
                 debounceRealtime('expenses', () => {
                     if (typeof loadExpenses === 'function') loadExpenses();
+                    if (typeof loadDailyClinicReport === 'function') loadDailyClinicReport();
                     if (typeof updateDashboardStats === 'function') updateDashboardStats();
                 }, 200);
             })
-            .subscribe();
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'clinic_expenses' }, (payload) => {
+                debounceRealtime('expenses', () => {
+                    if (typeof loadExpenses === 'function') loadExpenses();
+                    if (typeof loadDailyClinicReport === 'function') loadDailyClinicReport();
+                    if (typeof updateDashboardStats === 'function') updateDashboardStats();
+                }, 200);
+            })
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') console.log('✅ Realtime Active: bills and expenses tables');
+            });
 
         // 7. Channel สำหรับตาราง STAFF_USERS & STAFF (พนักงาน & สิทธิ์ผู้ใช้)
         _supabase.channel('realtime_staff')
@@ -533,6 +564,7 @@ function initClinicRealtimeHub() {
             .on('postgres_changes', { event: '*', schema: 'public', table: 'commission_logs' }, (payload) => {
                 debounceRealtime('commission_logs', () => {
                     if (typeof loadReferralData === 'function') loadReferralData();
+                    if (typeof loadDailyClinicReport === 'function') loadDailyClinicReport();
                 }, 150);
             })
             .subscribe();
@@ -967,18 +999,6 @@ async function loadPatients() {
         if (visitsData) {
             visitsData.forEach(v => {
                 if (v.hn && !latestVisitMap[v.hn]) {
-                    latestVisitMap[v.hn] = v;
-                }
-            });
-        }
-    } catch (e) { }
-
-    // Merge fallback จาก LocalStorage
-    try {
-        const cachedVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
-        if (Array.isArray(cachedVisits)) {
-            cachedVisits.forEach(v => {
-                if (v && v.hn && !latestVisitMap[v.hn]) {
                     latestVisitMap[v.hn] = v;
                 }
             });
@@ -2702,11 +2722,11 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
     // ตรวจสอบและดึงรหัส HN ที่แท้จริง (กรณี hn เป็น null, 'null', '-' หรือว่าง)
     if ((!hn || hn === '-' || hn === 'null' || hn === 'undefined' || hn.trim() === '') && patientName && patientName !== '-' && patientName !== 'ผู้ป่วย') {
         try {
-            const { data: pData } = await _supabase.from('patients').select('hn, patient_name').eq('patient_name', patientName.trim()).limit(1).maybeSingle();
-            if (pData && pData.hn) {
-                hn = pData.hn;
+            const resolvedHn = await resolvePatientHn(patientName, visitId);
+            if (resolvedHn) {
+                hn = resolvedHn;
                 if (visitId && visitId !== '-') {
-                    _supabase.from('visits').update({ hn: pData.hn }).eq('visit_id', visitId).then(() => { });
+                    _supabase.from('visits').update({ hn: resolvedHn }).eq('visit_id', visitId).then(() => { });
                 }
             }
         } catch (e) {
@@ -2812,6 +2832,24 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
         `;
     }
 
+    // ดึงเบอร์โทรและอาการเบื้องต้นสำหรับแสดงใน modal
+    let patientPhone = '-';
+    let patientSymptom = '-';
+
+    if (hn || patientName) {
+        const pat = (window.allPatients || []).find(p => (hn && p.hn === hn) || (patientName && p.patient_name === patientName));
+        if (pat) {
+            patientPhone = pat.phone || pat.emergency_tel || '-';
+        }
+    }
+    if (visitRecord) {
+        if (patientPhone === '-' && (visitRecord.phone || visitRecord.patient_phone || visitRecord.tel)) {
+            patientPhone = visitRecord.phone || visitRecord.patient_phone || visitRecord.tel;
+        }
+        if (visitRecord.symptom && visitRecord.symptom.trim() !== '') patientSymptom = visitRecord.symptom.trim();
+        else if (visitRecord.initial_symptom && visitRecord.initial_symptom.trim() !== '') patientSymptom = visitRecord.initial_symptom.trim();
+    }
+
     window.clinicCurrentPayMode = 'สด';
 
     const modalContentHtml = `
@@ -2822,28 +2860,33 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
                 <!-- ฝั่งซ้าย: ข้อมูลผู้ป่วย + รายการตรวจ + สรุปยอดเงิน -->
                 <div class="clinic-pay-left-col">
                     <!-- ข้อมูลผู้ป่วย -->
-                    <div class="p-3 mb-2 rounded-3 bg-light border d-flex justify-content-between align-items-center">
-                        <div>
-                            <div class="small text-muted mb-1" style="font-size: 0.85rem;">ชื่อ-นามสกุล : <strong class="text-dark ms-1">${patientName || '-'}</strong></div>
-                            <div class="small text-muted" style="font-size: 0.8rem;">HN: <strong class="text-secondary ms-1">${hn || '-'}</strong></div>
+                    <div class="p-3 mb-2 rounded-3 bg-light border">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <div>
+                                <div class="small text-muted" style="font-size: 0.88rem;">ชื่อ-นามสกุล : <strong class="text-dark ms-1">${patientName || '-'}</strong> (HN: ${hn || '-'})</div>
+                            </div>
+                            <div class="text-end">
+                                <div class="small text-muted" style="font-size: 0.85rem;">รหัส VISIT : <strong class="text-primary ms-1">${visitId || '-'}</strong></div>
+                            </div>
                         </div>
-                        <div class="text-end">
-                            <div class="small text-muted mb-1" style="font-size: 0.85rem;">รหัส VISIT : <strong class="text-primary ms-1">${visitId || '-'}</strong></div>
-                            <div class="d-flex align-items-center justify-content-end gap-1 mt-1">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 pt-2 border-top mt-1" style="font-size: 0.82rem;">
+                            <div class="text-muted"><i class="bi bi-telephone-fill text-success me-1"></i>เบอร์โทร: <strong class="text-dark">${patientPhone}</strong></div>
+                            <div class="text-muted"><i class="bi bi-heart-pulse-fill text-danger me-1"></i>อาการ: <strong class="text-dark">${patientSymptom}</strong></div>
+                            <div class="d-flex align-items-center gap-1 ms-auto">
                                 <span class="text-muted extra-small" style="font-size: 0.78rem;">1 ฿ =</span>
-                                <div class="input-group input-group-sm" style="width: 100px;">
-                                    <input type="number" id="clinicExchangeRateInput" class="form-control form-control-sm text-end fw-bold text-primary px-1.5 py-0" 
+                                <div class="input-group input-group-sm" style="width: 95px;">
+                                    <input type="number" id="clinicExchangeRateInput" class="form-control form-control-sm text-end fw-bold text-primary px-1 py-0" 
                                         value="${exRate}" min="1" step="1" 
                                         oninput="handleClinicExchangeRateChange(this.value)"
                                         title="พิมพ์เปลี่ยนเรทเงินได้ทันที (ระบบคำนวณเรียลไทม์)" 
-                                        style="font-size: 0.82rem; height: 26px; border-radius: 6px 0 0 6px; border-color: #cbd5e1;">
-                                    <span class="input-group-text px-1 text-muted small fw-semibold" style="font-size: 0.75rem; height: 26px; border-radius: 0 6px 6px 0;">₭</span>
+                                        style="font-size: 0.82rem; height: 25px; border-radius: 6px 0 0 6px; border-color: #cbd5e1;">
+                                    <span class="input-group-text px-1 text-muted small fw-semibold" style="font-size: 0.75rem; height: 25px; border-radius: 0 6px 6px 0;">₭</span>
                                 </div>
                                 <button type="button" class="btn btn-sm btn-white border px-1.5 py-0 text-secondary shadow-none d-flex align-items-center justify-content-center" 
                                     title="ตั้งค่าเรทเงินและบันทึกเป็นค่าเริ่มต้นของระบบ" 
                                     onclick="openSetExchangeRateModal()" 
-                                    style="height: 26px; width: 28px; border-radius: 6px; background: #ffffff;">
-                                    <i class="bi bi-gear text-primary" style="font-size: 0.85rem;"></i>
+                                    style="height: 25px; width: 26px; border-radius: 6px; background: #ffffff;">
+                                    <i class="bi bi-gear text-primary" style="font-size: 0.82rem;"></i>
                                 </button>
                             </div>
                         </div>
@@ -3069,14 +3112,17 @@ function printPaymentInvoice(visitId, hn, patientName, testsString, discountVal)
     let totalPrice = 0;
     const discount = parseFloat(discountVal) || 0;
 
-    // --- ส่วนที่เพิ่มเข้ามาใหม่: ค้นหาข้อมูล อายุ และ ที่อยู่ ของผู้ป่วย ---
+    // --- ส่วนที่ค้นหาข้อมูล อายุ ที่อยู่ เบอร์โทรศัพท์ และ อาการเบื้องต้น ของผู้ป่วย ---
     let patientAge = '-';
     let patientAddress = '-';
+    let patientPhone = '-';
+    let patientSymptom = '-';
 
     if (window.allPatients) {
-        const pat = window.allPatients.find(p => p.hn === hn || p.patient_name === patientName);
+        const pat = window.allPatients.find(p => (hn && p.hn === hn) || (patientName && p.patient_name === patientName));
         if (pat) {
             patientAge = pat.age ? pat.age + ' ປີ' : '-';
+            patientPhone = pat.phone || pat.emergency_tel || '-';
             
             let addressParts = [];
             if (pat.village && pat.village !== '-') addressParts.push('ບ້ານ: ' + pat.village);
@@ -3086,6 +3132,27 @@ function printPaymentInvoice(visitId, hn, patientName, testsString, discountVal)
             if (addressParts.length > 0) {
                 patientAddress = addressParts.join(', ');
             }
+        }
+    }
+
+    let vMatch = null;
+    if (Array.isArray(window.clinicVisits)) {
+        vMatch = window.clinicVisits.find(v => v.visit_id === visitId || (hn && v.hn === hn));
+    }
+    if (!vMatch && window.allQueueData) {
+        vMatch = window.allQueueData.find(v => v.visit_id === visitId);
+    }
+    if (!vMatch && window.allHistoryVisits) {
+        vMatch = window.allHistoryVisits.find(v => v.visit_id === visitId);
+    }
+    if (vMatch) {
+        if (vMatch.symptom && vMatch.symptom.trim() !== '') {
+            patientSymptom = vMatch.symptom.trim();
+        } else if (vMatch.initial_symptom && vMatch.initial_symptom.trim() !== '') {
+            patientSymptom = vMatch.initial_symptom.trim();
+        }
+        if (patientPhone === '-' && (vMatch.phone || vMatch.patient_phone || vMatch.tel)) {
+            patientPhone = vMatch.phone || vMatch.patient_phone || vMatch.tel;
         }
     }
     // -----------------------------------------------------
@@ -3262,7 +3329,6 @@ function printPaymentInvoice(visitId, hn, patientName, testsString, discountVal)
             </div>
 
             <div class="info-container">
-                <!-- ส่วนที่เพิ่มข้อมูลอายุและที่อยู่ลงใน HTML ตรงนี้ครับ -->
                 <div class="info-left">
                     <div class="info-row"><span class="info-label">ชื่อ-นามสกุล:</span> ${patientName || '-'}</div>
                     <div class="info-row"><span class="info-label">รหัส HN:</span> ${hn || '-'}</div>
@@ -3271,6 +3337,8 @@ function printPaymentInvoice(visitId, hn, patientName, testsString, discountVal)
                 </div>
                 <div class="info-right">
                     <div class="info-row"><span class="info-label">รหัส VISIT:</span> ${visitId || '-'}</div>
+                    <div class="info-row"><span class="info-label">เบอร์โทร:</span> ${patientPhone}</div>
+                    <div class="info-row"><span class="info-label">อาการเบื้องต้น:</span> ${patientSymptom}</div>
                     <div class="info-row"><span class="info-label">วันที่พิมพ์:</span> ${currentDateStr}</div>
                 </div>
             </div>
@@ -3455,6 +3523,37 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
         return;
     }
 
+    // คำนวณยอดเงินที่รับมาจริง (Received) และเงินทอน (Change)
+    const rawReceivedCashLAK = showCash ? Math.round(paidCashLAK) : 0;
+    const rawReceivedTransferLAK = showTransfer ? Math.round(paidTransferLAK) : 0;
+    const totalReceivedLAK = rawReceivedCashLAK + rawReceivedTransferLAK;
+
+    // คำนวณเงินทอน
+    const changeLAK = Math.max(0, totalReceivedLAK - netPayable);
+    const changeTHB = Math.round((changeLAK / exRate) * 100) / 100;
+
+    // คำนวณยอดเงินสดและเงินโอนสุทธิที่คลินิกรับจริง (หักเงินทอนออกแล้ว เพื่อไม่ให้ยอดเงินในบัญชีเกินจริง)
+    let netCashLAK = 0;
+    let netTransferLAK = 0;
+
+    if (payMode === 'สด') {
+        netCashLAK = netPayable;
+        netTransferLAK = 0;
+    } else if (payMode === 'โอน') {
+        netCashLAK = 0;
+        netTransferLAK = netPayable;
+    } else { // สด+โอน
+        netTransferLAK = Math.min(netPayable, rawReceivedTransferLAK);
+        netCashLAK = Math.max(0, netPayable - netTransferLAK);
+    }
+
+    const netCashTHB = Math.round((netCashLAK / exRate) * 100) / 100;
+    const netTransferTHB = Math.round((netTransferLAK / exRate) * 100) / 100;
+
+    const billNote = (paymentNote ? paymentNote + ' | ' : '') +
+        `[PAY_SPLIT: CASH=${netCashLAK}, TRANSFER=${netTransferLAK}, MODE=${payMode}]` +
+        (changeLAK > 0 ? ` [รับเงิน: ${rawReceivedCashLAK.toLocaleString()} ₭ | ทอน: ${changeLAK.toLocaleString()} ₭]` : '');
+
     const billPayload = {
         bill_id: billId,
         visit_id: visitId,
@@ -3467,14 +3566,18 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
         currency: 'LAK',
         payment_method: paymentMethodSummary,
         pay_mode: payMode,
-        cash_lak: paidCashLAK,
-        transfer_lak: paidTransferLAK,
-        cash_thb: paidCashTHB,
-        transfer_thb: paidTransferTHB,
+        cash_lak: netCashLAK,
+        transfer_lak: netTransferLAK,
+        cash_thb: netCashTHB,
+        transfer_thb: netTransferTHB,
+        received_amount: totalReceivedLAK,
+        received_cash: rawReceivedCashLAK,
+        received_transfer: rawReceivedTransferLAK,
+        change_amount: changeLAK,
         status: 'ชำระแล้ว',
         created_by: staffName,
         created_at: now.toISOString(),
-        note: (paymentNote ? paymentNote + ' | ' : '') + `[PAY_SPLIT: CASH=${paidCashLAK}, TRANSFER=${paidTransferLAK}, MODE=${payMode}]`
+        note: billNote
     };
 
     Swal.fire({
@@ -3496,10 +3599,12 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
             payable_amount: netPayable,
             currency: 'LAK',
             payment_method: paymentMethodSummary,
+            cash_lak: netCashLAK,
+            transfer_lak: netTransferLAK,
             status: 'ชำระแล้ว',
             created_by: staffName,
             created_at: now.toISOString(),
-            note: (paymentNote ? paymentNote + ' | ' : '') + `[PAY_SPLIT: CASH=${paidCashLAK}, TRANSFER=${paidTransferLAK}, MODE=${payMode}] [ช่องทาง: ${paymentMethodSummary}]`
+            note: billNote + ` [ช่องทาง: ${paymentMethodSummary}]`
         };
 
         try {
@@ -3551,8 +3656,8 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
             discount: discountVal,
             payment_method: paymentMethodSummary,
             pay_mode: payMode,
-            cash_lak: paidCashLAK,
-            transfer_lak: paidTransferLAK
+            cash_lak: netCashLAK,
+            transfer_lak: netTransferLAK
         };
 
         try {
@@ -4033,7 +4138,7 @@ window.switchBillsView = switchBillsView;
 
 // (loadDailyClinicReport is defined in Section 3 with full expenses & marketing integration)
 
-// ดูรายละเอียดใบเสร็จใน Modal
+// ดูรายละเอียดใบเสร็จใน Modal (อัปเดตใหม่ ให้แสดงเป็น LAK และมี 5 คอลัมน์)
 function showBillDetail(billId) {
     const bill = (window.clinicBills || []).find(b => b.bill_id === billId);
     if (!bill) {
@@ -4042,46 +4147,53 @@ function showBillDetail(billId) {
     }
 
     window.currentSelectedBillId = billId;
-    document.getElementById('billDetailModalTitle').textContent = 'รายละเอียดใบเสร็จรับเงิน';
-    document.getElementById('billDetailModalSubtitle').textContent = `Bill ID: ${bill.bill_id} | Visit: ${bill.visit_id || '-'}`;
+    
+    // ตั้งค่าหัวข้อ Modal
+    const titleEl = document.getElementById('billDetailModalTitle');
+    const subtitleEl = document.getElementById('billDetailModalSubtitle') || document.getElementById('billDetailSubtitle');
+    if(titleEl) titleEl.innerHTML = '<i class="ph ph-receipt me-2"></i>รายละเอียดใบเสร็จ';
+    if(subtitleEl) subtitleEl.textContent = `Bill ID: ${bill.bill_id} | Visit: ${bill.visit_id || '-'} | วันที่: ${new Date(bill.created_at).toLocaleDateString('th-TH')}`;
 
     const dateObj = new Date(bill.created_at);
     const dateStr = !isNaN(dateObj) ? dateObj.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
 
     let itemsHtml = '';
     const items = Array.isArray(bill.items) ? bill.items : [];
+    
+    // วนลูปสร้างแถวรายการ
     items.forEach((item, i) => {
         const price = parseFloat(item.price || 0);
+        const qty = item.qty || 1; // ถ้าไม่มีจำนวนให้ถือเป็น 1
+        const total = price * qty;
+        
         itemsHtml += `
             <tr>
                 <td class="text-center">${i + 1}</td>
                 <td class="fw-semibold">${item.name || item}</td>
-                <td class="text-end fw-bold text-dark">${price > 0 ? price.toLocaleString() + ' ₭' : '-'}</td>
+                <td class="text-center text-muted">${qty}</td>
+                <td class="text-end text-primary">${price > 0 ? price.toLocaleString() + ' LAK' : '-'}</td>
+                <td class="text-end fw-bold text-dark">${total > 0 ? total.toLocaleString() + ' LAK' : '-'}</td>
             </tr>
         `;
     });
 
     if (items.length === 0) {
-        itemsHtml = `<tr><td colspan="3" class="text-center text-muted py-3">ไม่มีรายการแยกย่อย</td></tr>`;
+        itemsHtml = `<tr><td colspan="5" class="text-center text-muted py-3">ไม่มีรายการแยกย่อย</td></tr>`;
     }
 
-    const modalBody = document.getElementById('billDetailModalContent');
+    const modalBody = document.getElementById('billDetailBody') || document.getElementById('billDetailModalContent');
     if (modalBody) {
         modalBody.innerHTML = `
             <div class="row g-3 mb-3">
                 <div class="col-sm-6">
-                    <div class="p-3 bg-light rounded-3">
-                        <div class="text-muted extra-small">ผู้ป่วย / คนไข้</div>
-                        <div class="fw-bold text-dark fs-6">${bill.patient_name || '-'}</div>
-                        <div class="text-muted small">รหัส HN: <strong>${bill.hn || '-'}</strong></div>
-                    </div>
+                    <div class="text-muted small mb-1">ชื่อ-นามสกุล: <strong class="text-dark">${bill.patient_name || '-'}</strong></div>
+                    <div class="text-muted small mb-1">HN: <strong class="text-dark">${bill.hn || '-'}</strong></div>
+                    <div class="text-muted small">ช่องทางชำระ: <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">${bill.payment_method || 'เงินสด'}</span></div>
                 </div>
-                <div class="col-sm-6">
-                    <div class="p-3 bg-light rounded-3">
-                        <div class="text-muted extra-small">วันที่ออกใบเสร็จ</div>
-                        <div class="fw-bold text-dark">${dateStr}</div>
-                        <div class="text-muted small">ผู้ออกบิล: <strong>${bill.created_by || 'Staff'}</strong></div>
-                    </div>
+                <div class="col-sm-6 text-sm-end">
+                    <div class="text-muted small mb-1">Bill ID: <strong class="text-primary">${bill.bill_id}</strong></div>
+                    <div class="text-muted small mb-1">Visit: <strong class="text-dark">${bill.visit_id || '-'}</strong></div>
+                    <div class="text-muted small">วันที่: <strong class="text-dark">${dateStr}</strong></div>
                 </div>
             </div>
 
@@ -4090,8 +4202,10 @@ function showBillDetail(billId) {
                     <thead class="table-light">
                         <tr>
                             <th style="width: 50px;" class="text-center">#</th>
-                            <th>รายการตรวจ / บริการ</th>
-                            <th style="width: 140px;" class="text-end">ราคา</th>
+                            <th>รายการตรวจ</th>
+                            <th style="width: 80px;" class="text-center">จำนวน</th>
+                            <th style="width: 140px;" class="text-end">ราคา/หน่วย</th>
+                            <th style="width: 140px;" class="text-end">รวม</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -4100,26 +4214,29 @@ function showBillDetail(billId) {
                 </table>
             </div>
 
-            <div class="p-3 bg-light rounded-3">
-                <div class="d-flex justify-content-between py-1">
-                    <span class="text-muted">ยอดรวมค่าบริการ:</span>
-                    <span class="fw-semibold text-dark">${(parseFloat(bill.subtotal) || 0).toLocaleString()} ₭</span>
+            <div class="d-flex justify-content-end mb-2">
+                <div style="width: 280px;">
+                    <div class="d-flex justify-content-between py-1">
+                        <span class="text-muted small">ยอดรวมค่าตรวจ</span>
+                        <span class="fw-semibold text-dark">${(parseFloat(bill.subtotal) || 0).toLocaleString()} LAK</span>
+                    </div>
+                    <div class="d-flex justify-content-between py-1 text-danger">
+                        <span class="text-muted small">ส่วนลด</span>
+                        <span class="fw-semibold">-${(parseFloat(bill.discount) || 0).toLocaleString()} LAK</span>
+                    </div>
+                    <div class="d-flex justify-content-between py-2 border-top border-secondary border-opacity-25 mt-1 fs-6 fw-bold text-primary">
+                        <span>ยอดสุทธิ</span>
+                        <span>${(parseFloat(bill.payable_amount) || 0).toLocaleString()} LAK</span>
+                    </div>
                 </div>
-                <div class="d-flex justify-content-between py-1 text-danger">
-                    <span>ส่วนลด:</span>
-                    <span class="fw-semibold">-${(parseFloat(bill.discount) || 0).toLocaleString()} ₭</span>
-                </div>
-                <div class="d-flex justify-content-between py-2 border-top border-secondary border-opacity-25 mt-1 fs-5 fw-bold text-success">
-                    <span>ยอดรับชำระสุทธิ:</span>
-                    <span>${(parseFloat(bill.payable_amount) || 0).toLocaleString()} ₭</span>
-                </div>
-                <div class="d-flex justify-content-between pt-1 border-top small text-muted">
-                    <span>ช่องทางชำระเงิน:</span>
-                    <span class="fw-semibold text-dark">${bill.payment_method || 'เงินสด'}</span>
-                </div>
-                ${bill.note ? `<div class="mt-2 text-muted small"><strong>หมายเหตุ:</strong> ${bill.note}</div>` : ''}
             </div>
+            ${bill.note ? `<div class="p-2 mt-2 bg-warning-subtle text-warning-emphasis border border-warning rounded-3 small"><i class="bi bi-info-circle me-1"></i>${bill.note}</div>` : ''}
         `;
+    }
+
+    const printBtn = document.getElementById('billPrintBtn');
+    if (printBtn) {
+        printBtn.onclick = function() { printBillDetail(billId); };
     }
 
     const modal = new bootstrap.Modal(document.getElementById('billDetailModal'));
@@ -4127,17 +4244,220 @@ function showBillDetail(billId) {
 }
 window.showBillDetail = showBillDetail;
 
-// พิมพ์ใบเสร็จจาก Bill ID
+// =========================================================
+// ฟังก์ชันพิมพ์ใบเสร็จ (รูปแบบ A4 มาตรฐาน - สกุลเงิน LAK)
+// =========================================================
 function printBillDetail(billId) {
+    // 1. ค้นหาข้อมูลบิลจากฐานข้อมูลที่โหลดมาแล้ว
     const bill = (window.clinicBills || []).find(b => b.bill_id === billId);
-    if (!bill) return;
+    if (!bill) {
+        console.warn("ไม่พบบิลรหัส: ", billId);
+        Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลใบเสร็จ', 'error');
+        return;
+    }
 
-    const testsStr = Array.isArray(bill.items) ? bill.items.map(i => i.name || i).join(',') : '';
-    printPaymentInvoice(bill.visit_id, bill.hn, bill.patient_name, testsStr, bill.discount || 0);
+    let rowsHtml = '';
+    const items = Array.isArray(bill.items) ? bill.items : [];
+    
+    // 2. วนลูปสร้างแถวตารางรายการตรวจ/บริการ (บังคับหน่วย LAK)
+    items.forEach((item, idx) => {
+        const price = parseFloat(item.price || 0);
+        const qty = item.qty || 1;
+        const total = price * qty;
+
+        const totalDisplay = total > 0 ? total.toLocaleString() + ' LAK' : '0 LAK';
+
+        rowsHtml += `
+            <tr>
+                <td style="text-align: center;">${idx + 1}</td>
+                <td style="font-weight: 500;">${item.name || item}</td>
+                <td style="text-align: right; font-weight: 700; color: #0f172a;">${totalDisplay}</td>
+            </tr>
+        `;
+    });
+
+    if (items.length === 0) {
+        rowsHtml = `<tr><td colspan="3" style="text-align: center; color: #64748b; padding: 15px;">ไม่มีรายการตรวจ / บริการ</td></tr>`;
+    }
+
+    // 3. เตรียมข้อมูลราคารวม ส่วนลด และยอดสุทธิ (บังคับหน่วย LAK)
+    const subtotal = parseFloat(bill.subtotal || 0);
+    const discount = parseFloat(bill.discount || 0);
+    const netPrice = parseFloat(bill.payable_amount || Math.max(0, subtotal - discount));
+
+    // ดึงข้อมูลยอดรับเงินและเงินทอน
+    let receivedAmt = bill.received_amount || bill.received_cash || 0;
+    let changeAmt = bill.change_amount || 0;
+
+    if (!receivedAmt && bill.note) {
+        const rMatch = bill.note.match(/รับเงิน:\s*([\d,]+)/i);
+        const cMatch = bill.note.match(/ทอน:\s*([\d,]+)/i);
+        if (rMatch) receivedAmt = parseFloat(rMatch[1].replace(/,/g, '')) || 0;
+        if (cMatch) changeAmt = parseFloat(cMatch[1].replace(/,/g, '')) || 0;
+    }
+
+    const dateObj = new Date(bill.created_at);
+    const currentDateStr = !isNaN(dateObj) ? 
+        dateObj.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) + ' เวลา ' + dateObj.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.' : '-';
+
+    const patientName = bill.patient_name || '-';
+    const hn = bill.hn || '-';
+    const visitId = bill.visit_id || '-';
+
+    let patientAge = '-';
+    let patientAddress = '-';
+    let patientPhone = '-';
+    let patientSymptom = '-';
+
+    if (window.allPatients) {
+        const pat = window.allPatients.find(p => (hn && p.hn === hn) || (patientName && p.patient_name === patientName));
+        if (pat) {
+            patientAge = pat.age ? pat.age + ' ປີ' : '-';
+            patientPhone = pat.phone || pat.emergency_tel || '-';
+            
+            let addressParts = [];
+            if (pat.village && pat.village !== '-') addressParts.push('ບ້ານ: ' + pat.village);
+            if (pat.district && pat.district !== '-') addressParts.push('ເມືອງ: ' + pat.district);
+            if (pat.province && pat.province !== '-') addressParts.push('ແຂວງ: ' + pat.province);
+            if (addressParts.length > 0) patientAddress = addressParts.join(', ');
+        }
+    }
+
+    let vMatch = null;
+    if (Array.isArray(window.clinicVisits)) {
+        vMatch = window.clinicVisits.find(v => v.visit_id === visitId || (hn && v.hn === hn));
+    }
+    if (!vMatch && window.allQueueData) vMatch = window.allQueueData.find(v => v.visit_id === visitId);
+    if (!vMatch && window.allHistoryVisits) vMatch = window.allHistoryVisits.find(v => v.visit_id === visitId);
+    if (vMatch) {
+        if (vMatch.symptom && vMatch.symptom.trim() !== '') patientSymptom = vMatch.symptom.trim();
+        else if (vMatch.initial_symptom && vMatch.initial_symptom.trim() !== '') patientSymptom = vMatch.initial_symptom.trim();
+        if (patientPhone === '-' && (vMatch.phone || vMatch.patient_phone || vMatch.tel)) {
+            patientPhone = vMatch.phone || vMatch.patient_phone || vMatch.tel;
+        }
+    }
+
+    // 4. สร้างโครงสร้าง HTML สำหรับใบเสร็จขนาด A4
+    const printContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>ใบเสร็จรับเงิน / ใบแจ้งชำระเงิน - ${visitId}</title>
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap');
+                body { font-family: 'Sarabun', sans-serif; padding: 24px; color: #1e293b; max-width: 720px; margin: 0 auto; background: #ffffff;}
+                .header { text-align: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #cbd5e1;}
+                .header h1 { margin: 0; color: #0b3c73; font-size: 34px; font-weight: 700;}
+                .header p { margin: 6px 0 0 0; color: #64748b; font-size: 14px; }
+                .info-container { display: flex; justify-content: space-between; margin-bottom: 24px; font-size: 14px; line-height: 1.6;}
+                .info-left, .info-right { flex: 1; }
+                .info-right { text-align: right; }
+                .info-label { font-weight: 700; color: #0f172a; }
+                .table-inv { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 14px; }
+                .table-inv th { background: #f8fafc; padding: 10px; text-align: left; border-top: 1px solid #cbd5e1; border-bottom: 2px solid #cbd5e1; font-weight: 700; color: #334155;}
+                .table-inv td { padding: 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top;}
+                .summary-container { width: 300px; margin-left: auto; font-size: 14px; margin-bottom: 30px;}
+                .summary-row { display: flex; justify-content: space-between; padding: 5px 0; color: #475569;}
+                .summary-row.discount { color: #dc2626; font-weight: 500;}
+                .summary-row.total { font-size: 16px; font-weight: 700; color: #0b3c73; border-top: 2px solid #0b3c73; padding-top: 8px; margin-top: 4px; }
+                .footer-sig { margin-top: 60px; display: flex; justify-content: space-between; text-align: center; font-size: 14px; color: #475569; }
+                .sig-box { width: 220px; }
+                .sig-line { border-top: 1px dashed #94a3b8; padding-top: 8px; margin-bottom: 5px; }
+                @media print { body { padding: 0; } }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Clinic</h1>
+                <p>ใบเสร็จรับเงิน / ใบแจ้งชำระเงิน (Invoice & Receipt)</p>
+            </div>
+
+            <div class="info-container">
+                <div class="info-left">
+                    <div class="info-row"><span class="info-label">ชื่อ-นามสกุล:</span> ${patientName}</div>
+                    <div class="info-row"><span class="info-label">รหัส HN:</span> ${hn}</div>
+                    <div class="info-row"><span class="info-label">อายุ:</span> ${patientAge}</div>
+                    <div class="info-row"><span class="info-label">ที่อยู่:</span> ${patientAddress}</div>
+                    <div class="info-row"><span class="info-label">ช่องทางชำระ:</span> ${bill.payment_method || 'เงินสด'}</div>
+                </div>
+                <div class="info-right">
+                    <div class="info-row"><span class="info-label">รหัส VISIT:</span> ${visitId}</div>
+                    <div class="info-row"><span class="info-label">เลขที่บิล:</span> ${bill.bill_id}</div>
+                    <div class="info-row"><span class="info-label">เบอร์โทร:</span> ${patientPhone}</div>
+                    <div class="info-row"><span class="info-label">อาการเบื้องต้น:</span> ${patientSymptom}</div>
+                    <div class="info-row"><span class="info-label">วันที่พิมพ์:</span> ${currentDateStr}</div>
+                </div>
+            </div>
+
+            <table class="table-inv">
+                <thead>
+                    <tr>
+                        <th style="width: 50px; text-align: center;">ลำดับ</th>
+                        <th>รายการตรวจ / บริการ</th>
+                        <th style="text-align: right; width: 160px;">ราคา</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml}
+                </tbody>
+            </table>
+
+            <div class="summary-container">
+                <div class="summary-row">
+                    <span>รวมค่าบริการทั้งหมด:</span>
+                    <span>${subtotal.toLocaleString()} LAK</span>
+                </div>
+                <div class="summary-row discount">
+                    <span>ส่วนลด:</span>
+                    <span>${discount > 0 ? '-' + discount.toLocaleString() : '0'} LAK</span>
+                </div>
+                <div class="summary-row total">
+                    <span>ยอดชำระสุทธิ:</span>
+                    <span>${netPrice.toLocaleString()} LAK</span>
+                </div>
+                ${receivedAmt > netPrice ? `
+                <div class="summary-row" style="color: #16a34a; font-weight: 600; font-size: 13.5px; margin-top: 6px; padding-top: 4px; border-top: 1px dashed #cbd5e1;">
+                    <span>รับเงินสดมา:</span>
+                    <span>${receivedAmt.toLocaleString()} LAK</span>
+                </div>
+                <div class="summary-row" style="color: #ea580c; font-weight: 600; font-size: 13.5px;">
+                    <span>เงินทอน:</span>
+                    <span>${changeAmt.toLocaleString()} LAK</span>
+                </div>
+                ` : ''}
+            </div>
+
+            <div class="footer-sig">
+                <div class="sig-box">
+                    <div class="sig-line"></div>
+                    ( ผู้ป่วย / ผู้ชำระเงิน )
+                </div>
+                <div class="sig-box">
+                    <div class="sig-line"></div>
+                    ( เจ้าหน้าที่การเงิน / คลินิก )
+                </div>
+            </div>
+
+            <script>
+                // 5. สั่งพิมพ์อัตโนมัติเมื่อหน้าต่างโหลดเสร็จ
+                window.onload = function() {
+                    window.print();
+                };
+            </script>
+        </body>
+        </html>
+    `;
+
+    // 6. เปิดหน้าต่างใหม่เพื่อพิมพ์
+    const printWin = window.open('', '_blank', 'width=800,height=900');
+    if (printWin) {
+        printWin.document.write(printContent);
+        printWin.document.close();
+    }
 }
 window.printBillDetail = printBillDetail;
 
-// พิมพ์จาก Modal
 function printCurrentBillModal() {
     if (window.currentSelectedBillId) {
         printBillDetail(window.currentSelectedBillId);
@@ -4799,34 +5119,58 @@ async function loadLabQueue() {
         return;
     }
 
-    // โหลด mapping ชื่อผู้ป่วย -> HN
-    let patientsMap = {};
-    const hasMissingHn = (data || []).some(r => !r.hn || r.hn === 'null' || r.hn === '-' || r.hn === 'undefined');
-    if (hasMissingHn) {
-        try {
-            const { data: pList } = await _supabase.from('patients').select('hn, patient_name');
-            if (pList) {
-                pList.forEach(p => {
-                    const pName = p.patient_name || p.name;
-                    if (pName && p.hn) {
-                        patientsMap[pName.trim().toLowerCase()] = p.hn;
-                    }
-                });
-            }
-        } catch (e) {
-            console.warn('loadLabQueue fetch patientsMap error:', e);
+    let processedData = data || [];
+
+    // ดึงข้อมูลทะเบียนผู้ป่วยทั้งหมดมาเตรียมไว้สำหรับการจับคู่ HN
+    let allPatientsList = window.allPatients || [];
+    try {
+        const { data: pList } = await _supabase.from('patients').select('hn, patient_name, phone, emergency_tel');
+        if (pList && pList.length > 0) {
+            allPatientsList = pList;
+            window.allPatients = pList;
         }
+    } catch (e) {
+        console.warn('loadLabQueue fetch patients error:', e);
     }
 
-    // อัปเดต HN ให้สมบูรณ์ก่อนเก็บลงตัวแปรกลาง
-    let processedData = data || [];
+    // สร้าง Map จากรายชื่อผู้ป่วย
+    const exactNameMap = {};
+    const normNameMap = {};
+
+    allPatientsList.forEach(p => {
+        const pName = (p.patient_name || p.name || '').trim();
+        const pHn = (p.hn && p.hn !== 'null' && p.hn !== 'undefined' && p.hn !== '-') ? p.hn.trim() : '';
+        if (pHn && pName) {
+            exactNameMap[pName.toLowerCase()] = pHn;
+            const normP = typeof normalizeClinicPatientName === 'function' ? normalizeClinicPatientName(pName) : pName.toLowerCase();
+            if (normP) normNameMap[normP] = pHn;
+        }
+    });
+
     processedData.forEach(row => {
         let rowHn = (row.hn && row.hn !== 'null' && row.hn !== 'undefined' && row.hn !== '-') ? row.hn.trim() : '';
-        if (!rowHn && row.patient_name) {
-            const mappedHn = patientsMap[row.patient_name.trim().toLowerCase()];
-            if (mappedHn) {
-                row.hn = mappedHn;
-                _supabase.from('visits').update({ hn: mappedHn }).eq('visit_id', row.visit_id).then(() => { });
+        if (!rowHn) {
+            const rawName = (row.patient_name || '').trim();
+            const lowerName = rawName.toLowerCase();
+            const normName = typeof normalizeClinicPatientName === 'function' ? normalizeClinicPatientName(rawName) : lowerName;
+
+            let matchedHn = exactNameMap[lowerName] || normNameMap[normName];
+
+            if (!matchedHn && normName && normName.length >= 2) {
+                for (const p of allPatientsList) {
+                    const pName = (p.patient_name || p.name || '').trim();
+                    const pHn = (p.hn && p.hn !== 'null' && p.hn !== 'undefined' && p.hn !== '-') ? p.hn.trim() : '';
+                    const pNorm = typeof normalizeClinicPatientName === 'function' ? normalizeClinicPatientName(pName) : pName.toLowerCase();
+                    if (pHn && pNorm && (pNorm.includes(normName) || normName.includes(pNorm))) {
+                        matchedHn = pHn;
+                        break;
+                    }
+                }
+            }
+
+            if (matchedHn) {
+                row.hn = matchedHn;
+                _supabase.from('visits').update({ hn: matchedHn }).eq('visit_id', row.visit_id).then(() => { });
             }
         }
     });
@@ -5381,7 +5725,117 @@ async function confirmPayment(visitId) {
 window.paymentQueueData = [];
 window.paymentFilteredData = [];
 
-// 1. โหลดข้อมูลก้อนหลักจากฐานข้อมูล
+// ฟังก์ชันปรับแต่งชื่อผู้ป่วยเพื่อใช้เทียบเคียง (Normalizer สำหรับภาษาลาว/ไทย)
+function normalizeClinicPatientName(name) {
+    if (!name || typeof name !== 'string') return '';
+    return name
+        .trim()
+        .toLowerCase()
+        .replace(/^(ນາງ|ນ\.|ນ|ທ້າວ|ທ\.|ທ|นาย|นาง|นางสาว|น\.ส\.|ด\.ช\.|ด\.ญ\.|คุณ|ท่าน)\s*/i, '')
+        .replace(/[\s\-_.\u00a0]+/g, '')
+        .replace(/ໍ้า/g, '້ຳ')
+        .replace(/ຳ/g, 'ำ');
+}
+window.normalizeClinicPatientName = normalizeClinicPatientName;
+
+async function resolvePatientHn(patientName, visitId, phone, autoGenerateIfNotFound = true) {
+    if (!patientName || patientName === '-' || patientName === 'ผู้ป่วย') return '';
+
+    const rawName = (patientName || '').trim();
+    const lowerName = rawName.toLowerCase();
+    const normName = normalizeClinicPatientName(rawName);
+
+    // 1. ตรวจสอบใน window.allPatients ก่อน
+    let allPatientsList = window.allPatients || [];
+    if (allPatientsList.length === 0) {
+        try {
+            const { data: pList } = await _supabase.from('patients').select('hn, patient_name, phone, emergency_tel');
+            if (pList && pList.length > 0) {
+                allPatientsList = pList;
+                window.allPatients = pList;
+            }
+        } catch (e) { }
+    }
+
+    // Direct Exact
+    for (const p of allPatientsList) {
+        const pName = (p.patient_name || p.name || '').trim();
+        const pHn = (p.hn && p.hn !== 'null' && p.hn !== 'undefined' && p.hn !== '-') ? p.hn.trim() : '';
+        if (pHn && pName.toLowerCase() === lowerName) {
+            return pHn;
+        }
+    }
+
+    // Normalized
+    for (const p of allPatientsList) {
+        const pName = (p.patient_name || p.name || '').trim();
+        const pHn = (p.hn && p.hn !== 'null' && p.hn !== 'undefined' && p.hn !== '-') ? p.hn.trim() : '';
+        if (pHn && normalizeClinicPatientName(pName) === normName) {
+            return pHn;
+        }
+    }
+
+    // Substring
+    if (normName.length >= 2) {
+        for (const p of allPatientsList) {
+            const pName = (p.patient_name || p.name || '').trim();
+            const pHn = (p.hn && p.hn !== 'null' && p.hn !== 'undefined' && p.hn !== '-') ? p.hn.trim() : '';
+            const pNorm = normalizeClinicPatientName(pName);
+            if (pHn && pNorm && (pNorm.includes(normName) || normName.includes(pNorm))) {
+                return pHn;
+            }
+        }
+    }
+
+    // Phone match
+    if (phone) {
+        const cleanPhone = String(phone).replace(/\D/g, '');
+        if (cleanPhone.length >= 6) {
+            for (const p of allPatientsList) {
+                const pPhone = String(p.phone || p.emergency_tel || '').replace(/\D/g, '');
+                const pHn = (p.hn && p.hn !== 'null' && p.hn !== 'undefined' && p.hn !== '-') ? p.hn.trim() : '';
+                if (pHn && pPhone && (pPhone === cleanPhone || pPhone.includes(cleanPhone) || cleanPhone.includes(pPhone))) {
+                    return pHn;
+                }
+            }
+        }
+    }
+
+    // 2. ตรวจสอบจากตาราง visits และ bills ที่มี HN อยู่แล้ว
+    try {
+        const { data: vData } = await _supabase.from('visits').select('hn').eq('patient_name', rawName).not('hn', 'is', null).limit(1).maybeSingle();
+        if (vData && vData.hn && vData.hn !== '-' && vData.hn !== 'null') return vData.hn.trim();
+    } catch (e) { }
+
+    try {
+        const { data: bData } = await _supabase.from('bills').select('hn').eq('patient_name', rawName).not('hn', 'is', null).limit(1).maybeSingle();
+        if (bData && bData.hn && bData.hn !== '-' && bData.hn !== 'null') return bData.hn.trim();
+    } catch (e) { }
+
+    // 3. หากยังไม่พบ HN (เคสตรวจที่ไม่ได้ลงทะเบียนล่วงหน้า) ให้สร้าง HN ใหม่อัตโนมัติและบันทึกลงฐานข้อมูล
+    if (autoGenerateIfNotFound && rawName && rawName !== '-' && rawName !== 'ผู้ป่วย') {
+        const autoHn = 'HN-' + Math.floor(100000 + Math.random() * 900000);
+        const newPatient = {
+            hn: autoHn,
+            patient_name: rawName,
+            phone: phone || null,
+            created_at: new Date().toISOString()
+        };
+        (window.allPatients = window.allPatients || []).push(newPatient);
+        try {
+            _supabase.from('patients').insert([newPatient]).then(() => { });
+            if (visitId && visitId !== '-') {
+                _supabase.from('visits').update({ hn: autoHn }).eq('visit_id', visitId).then(() => { });
+            }
+        } catch (e) { }
+        return autoHn;
+    }
+
+    return '';
+}
+window.resolvePatientHn = resolvePatientHn;
+
+// 1. โหลดข้อมูลก้อนหลักจากฐานข้อมูลห้องการเงิน / จ่ายค่ารักษา
 async function loadPaymentQueue() {
     const tbody = document.querySelector('#paymentTable tbody');
     if (!tbody) return;
@@ -5400,32 +5854,106 @@ async function loadPaymentQueue() {
         return;
     }
 
-    let patientsMap = {};
-    const hasMissingHn = (data || []).some(r => !r.hn || r.hn === 'null' || r.hn === '-' || r.hn === 'undefined');
-    if (hasMissingHn) {
-        try {
-            const { data: pList } = await _supabase.from('patients').select('hn, patient_name');
-            if (pList) {
-                pList.forEach(p => {
-                    const pName = p.patient_name || p.name;
-                    if (pName && p.hn) {
-                        patientsMap[pName.trim().toLowerCase()] = p.hn;
-                    }
-                });
-            }
-        } catch (e) {
-            console.warn('loadPaymentQueue fetch patientsMap error:', e);
+    let processedData = data || [];
+
+    // ดึงข้อมูลทะเบียนผู้ป่วยทั้งหมดมาเตรียมไว้สำหรับการจับคู่ HN
+    let allPatientsList = window.allPatients || [];
+    try {
+        const { data: pList } = await _supabase.from('patients').select('hn, patient_name, phone, emergency_tel');
+        if (pList && pList.length > 0) {
+            allPatientsList = pList;
+            window.allPatients = pList;
         }
+    } catch (e) {
+        console.warn('loadPaymentQueue fetch patients error:', e);
     }
 
-    let processedData = data || [];
+    // ดึงประวัติ visits อื่นๆ ที่มี HN อยู่แล้ว
+    let visitHnMap = {};
+    let visitNameHnMap = {};
+    try {
+        const { data: vList } = await _supabase.from('visits').select('visit_id, hn, patient_name').not('hn', 'is', null);
+        if (vList) {
+            vList.forEach(v => {
+                const cleanHn = (v.hn && v.hn !== 'null' && v.hn !== 'undefined' && v.hn !== '-') ? v.hn.trim() : '';
+                if (cleanHn) {
+                    if (v.visit_id) visitHnMap[v.visit_id] = cleanHn;
+                    if (v.patient_name) {
+                        visitNameHnMap[v.patient_name.trim().toLowerCase()] = cleanHn;
+                        const pNorm = normalizeClinicPatientName(v.patient_name);
+                        if (pNorm) visitNameHnMap[pNorm] = cleanHn;
+                    }
+                }
+            });
+        }
+    } catch (e) { }
+
+    // สร้าง Map จากรายชื่อผู้ป่วย
+    const exactNameMap = {};
+    const normNameMap = {};
+    const phoneMap = {};
+
+    allPatientsList.forEach(p => {
+        const pName = (p.patient_name || p.name || '').trim();
+        const pHn = (p.hn && p.hn !== 'null' && p.hn !== 'undefined' && p.hn !== '-') ? p.hn.trim() : '';
+        if (pHn) {
+            if (pName) {
+                exactNameMap[pName.toLowerCase()] = pHn;
+                const normP = normalizeClinicPatientName(pName);
+                if (normP) normNameMap[normP] = pHn;
+            }
+            if (p.phone) phoneMap[String(p.phone).replace(/\D/g, '')] = pHn;
+            if (p.emergency_tel) phoneMap[String(p.emergency_tel).replace(/\D/g, '')] = pHn;
+        }
+    });
+
     processedData.forEach(row => {
         let rowHn = (row.hn && row.hn !== 'null' && row.hn !== 'undefined' && row.hn !== '-') ? row.hn.trim() : '';
-        if (!rowHn && row.patient_name) {
-            const mappedHn = patientsMap[row.patient_name.trim().toLowerCase()];
-            if (mappedHn) {
-                row.hn = mappedHn;
-                _supabase.from('visits').update({ hn: mappedHn }).eq('visit_id', row.visit_id).then(() => { });
+        
+        if (!rowHn) {
+            const rawName = (row.patient_name || '').trim();
+            const lowerName = rawName.toLowerCase();
+            const normName = normalizeClinicPatientName(rawName);
+
+            let matchedHn = visitHnMap[row.visit_id] ||
+                            exactNameMap[lowerName] ||
+                            normNameMap[normName] ||
+                            visitNameHnMap[lowerName] ||
+                            visitNameHnMap[normName];
+
+            // ลอง Partial/Substring search ถ้ายังไม่เจอ
+            if (!matchedHn && normName && normName.length >= 2) {
+                for (const p of allPatientsList) {
+                    const pName = (p.patient_name || p.name || '').trim();
+                    const pHn = (p.hn && p.hn !== 'null' && p.hn !== 'undefined' && p.hn !== '-') ? p.hn.trim() : '';
+                    const pNorm = normalizeClinicPatientName(pName);
+                    if (pHn && pNorm && (pNorm.includes(normName) || normName.includes(pNorm))) {
+                        matchedHn = pHn;
+                        break;
+                    }
+                }
+            }
+
+            // หากไม่พบในระบบเลย ให้สร้างรหัส HN ให้อัตโนมัติและบันทึกเข้าทะเบียนผู้ป่วยทันที
+            if (!matchedHn && rawName && rawName !== '-' && rawName !== 'ผู้ป่วย') {
+                matchedHn = 'HN-' + Math.floor(100000 + Math.random() * 900000);
+                const newPatient = {
+                    hn: matchedHn,
+                    patient_name: rawName,
+                    phone: row.phone || null,
+                    created_at: row.created_at || new Date().toISOString()
+                };
+                allPatientsList.push(newPatient);
+                exactNameMap[lowerName] = matchedHn;
+                if (normName) normNameMap[normName] = matchedHn;
+                try {
+                    _supabase.from('patients').insert([newPatient]).then(() => { });
+                } catch (e) { }
+            }
+
+            if (matchedHn) {
+                row.hn = matchedHn;
+                _supabase.from('visits').update({ hn: matchedHn }).eq('visit_id', row.visit_id).then(() => { });
             }
         }
     });
@@ -6472,7 +7000,56 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
     document.getElementById('rxVisitIdDisplay').innerHTML = (visitId || '-') + batchBadge;
     document.getElementById('rxPatientNameDisplay').innerText = patientName || '-';
 
-    // 1. โหลดข้อมูลตะกร้ายาทันที (Instant Cart Pre-fill)
+    // 1. ดึงข้อมูลเบอร์โทรศัพท์ และ อาการเบื้องต้น (Symptom & Vitals)
+    let patientPhone = '-';
+    let patientSymptom = '-';
+
+    if (hn || patientName) {
+        const pat = (window.allPatients || []).find(p => (hn && p.hn === hn) || (patientName && p.patient_name === patientName));
+        if (pat) {
+            patientPhone = pat.phone || pat.emergency_tel || '-';
+        }
+    }
+    if (patientPhone === '-' && visitRow && (visitRow.phone || visitRow.patient_phone || visitRow.tel)) {
+        patientPhone = visitRow.phone || visitRow.patient_phone || visitRow.tel;
+    }
+
+    if (visitRow) {
+        if (visitRow.symptom && visitRow.symptom.trim() !== '') {
+            patientSymptom = visitRow.symptom.trim();
+        } else if (visitRow.initial_symptom && visitRow.initial_symptom.trim() !== '') {
+            patientSymptom = visitRow.initial_symptom.trim();
+        }
+
+        let vitalsList = [];
+        if (visitRow.bp && visitRow.bp !== '-') vitalsList.push(`ความดัน: ${visitRow.bp}`);
+        if (visitRow.pulse) vitalsList.push(`ชีพจร: ${visitRow.pulse}`);
+        if (visitRow.temp) vitalsList.push(`อุณหภูมิ: ${visitRow.temp}°C`);
+        if (visitRow.weight) vitalsList.push(`นน.: ${visitRow.weight} กก.`);
+        if (vitalsList.length > 0) {
+            patientSymptom = (patientSymptom !== '-' ? patientSymptom + ' | ' : '') + vitalsList.join(', ');
+        }
+    }
+
+    const phoneEl = document.getElementById('rxPatientPhoneDisplay');
+    if (phoneEl) phoneEl.innerText = patientPhone || '-';
+
+    const symptomEl = document.getElementById('rxPatientSymptomDisplay');
+    if (symptomEl) symptomEl.innerText = patientSymptom || '-';
+
+    // Query เบอร์โทรจาก Supabase เสริมกรณีไม่มีใน memory
+    if (patientPhone === '-' && (hn || patientName) && typeof _supabase !== 'undefined') {
+        let pQuery = _supabase.from('patients').select('phone, emergency_tel');
+        if (hn) pQuery = pQuery.eq('hn', hn);
+        else pQuery = pQuery.eq('patient_name', patientName);
+        pQuery.limit(1).maybeSingle().then(({ data: pData }) => {
+            if (pData && (pData.phone || pData.emergency_tel)) {
+                if (phoneEl) phoneEl.innerText = pData.phone || pData.emergency_tel;
+            }
+        }).catch(() => { });
+    }
+
+    // 2. โหลดข้อมูลตะกร้ายาทันที (Instant Cart Pre-fill)
     if (Array.isArray(initialMeds) && initialMeds.length > 0) {
         window.currentRxMeds = initialMeds.map(i => ({
             id: i.id || ('MED-' + Math.random().toString(36).substr(2, 6)),
@@ -6492,12 +7069,12 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
     const btnClinic = document.getElementById('btnSourceClinic');
     if (btnClinic) setRxStockSource('clinic', btnClinic);
 
-    // 2. เรนเดอร์ตารางและเปิด Modal ทันที 0ms
+    // 3. เรนเดอร์ตารางและเปิด Modal ทันที 0ms
     renderRxMedsTable();
     populateRxMedDropdown();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('prescribeModal')).show();
 
-    // 3. ดึงข้อมูลผู้ช่วย (Assistant / ReferredBy)
+    // 4. ดึงข้อมูลผู้ช่วย (Assistant / ReferredBy)
     let assistantText = 'L03709 - MS CHERRY LOUANGPHAN';
     if (hn) {
         const pat = (window.allPatients || []).find(p => p.hn === hn);
@@ -6510,7 +7087,7 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
     const assistantEl = document.getElementById('rxAssistantDisplay');
     if (assistantEl) assistantEl.innerText = assistantText;
 
-    // 4. ดึงไฟล์ผลแล็บจริง
+    // 5. ดึงไฟล์ผลแล็บจริง
     let realFileUrl = (pdfUrl && !pdfUrl.includes('sample.pdf')) ? pdfUrl : '';
     try {
         const cachedRealFiles = JSON.parse(localStorage.getItem('clinic_real_lab_files') || '{}');
@@ -14613,98 +15190,26 @@ async function loadBills() {
     const tbody = document.getElementById('billsTableBody');
     if (tbody) tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูลใบเสร็จ...</td></tr>';
 
-    if (!window.servicesData || window.servicesData.length === 0) {
-        try { if (typeof loadServicesData === 'function') await loadServicesData(); } catch (e) { }
-    }
-
     let billsList = [];
     try {
         const { data, error } = await _supabase.from('bills').select('*').order('created_at', { ascending: false });
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
             billsList = data.map(b => {
                 const labItems = (Array.isArray(b.items) ? b.items : []).filter(i => i.type !== 'med');
                 return { ...b, items: labItems };
             });
+        } else if (error) {
+            console.warn('Load bills Supabase error:', error);
         }
     } catch (e) {
-        console.warn('Load bills Supabase error:', e);
-    }
-
-    // Fallback: ดึงข้อมูลจาก visits (เคสที่ชำระเงินแล้ว) มาแปลงเป็น bill เพิ่มเติมหากยังไม่มีใน bills
-    try {
-        const { data: visitData, error: vErr } = await _supabase
-            .from('visits')
-            .select('*')
-            .in('status', ['รอผลแล็บ', 'อ่านผลแล้ว', 'รอจ่ายยา', 'สำเร็จ', 'เสร็จสิ้น'])
-            .order('created_at', { ascending: false });
-
-        if (!vErr && visitData && visitData.length > 0) {
-            visitData.forEach(function (v) {
-                const existingIndex = billsList.findIndex(b => b.visit_id === v.visit_id);
-                if (existingIndex === -1) {
-                    const items = [];
-                    let itemsTotal = 0;
-                    if (v.lab_tests) {
-                        const labList = v.lab_tests.split(',').map(s => s.trim()).filter(Boolean);
-                        labList.forEach(labName => {
-                            let itemPrice = 0;
-                            let displayName = labName;
-                            if (typeof getTestItemDetails === 'function') {
-                                const details = getTestItemDetails(labName);
-                                itemPrice = details.price || 0;
-                                displayName = details.name || labName;
-                            } else {
-                                const svcMatch = (window.servicesData || []).find(s =>
-                                    s.name && (s.name.trim().toLowerCase() === labName.toLowerCase() ||
-                                        s.name.toLowerCase().includes(labName.toLowerCase()) ||
-                                        labName.toLowerCase().includes(s.name.toLowerCase()))
-                                );
-                                if (svcMatch) {
-                                    itemPrice = parseFloat(svcMatch.price || 0);
-                                    displayName = svcMatch.name;
-                                }
-                            }
-                            items.push({ type: 'lab', name: displayName, price: itemPrice, qty: 1 });
-                            itemsTotal += itemPrice;
-                        });
-                    }
-
-                    const subtotal = itemsTotal;
-                    const discount = parseFloat(v.discount || v.lab_discount || 0);
-                    const payable = Math.max(0, subtotal - discount);
-
-                    const vPayMethod = v.payment_method || 'เงินสด';
-                    const vPayMode = v.pay_mode || ((vPayMethod.includes('โอน') || vPayMethod.includes('ໂອນ')) ? 'โอน' : 'สด');
-                    const isVTransfer = vPayMode === 'โอน' || vPayMode === 'ໂອນ' || (vPayMethod.includes('โอน') || vPayMethod.includes('ໂອນ'));
-
-                    billsList.push({
-                        bill_id: 'BILL-' + (v.visit_id || Math.floor(100000 + Math.random() * 900000)),
-                        visit_id: v.visit_id,
-                        hn: v.hn || '-',
-                        patient_name: v.patient_name || '-',
-                        items: items,
-                        subtotal: subtotal,
-                        discount: discount,
-                        payable_amount: payable,
-                        currency: v.currency || 'LAK',
-                        payment_method: vPayMethod,
-                        pay_mode: vPayMode,
-                        cash_lak: v.cash_lak !== undefined ? v.cash_lak : (isVTransfer ? 0 : payable),
-                        transfer_lak: v.transfer_lak !== undefined ? v.transfer_lak : (isVTransfer ? payable : 0),
-                        status: 'ชำระแล้ว',
-                        created_by: v.doctor_name || 'ระบบ',
-                        created_at: v.created_at || new Date().toISOString(),
-                        note: ''
-                    });
-                }
-            });
-        }
-    } catch (err) {
-        console.warn('Fallback visits fetch warning:', err);
+        console.warn('Load bills Supabase exception:', e);
     }
 
     window.allBillsData = billsList;
     window.clinicBills = billsList;
+    try {
+        localStorage.setItem('clinic_bills_cache', JSON.stringify((billsList || []).slice(0, 50)));
+    } catch (e) { }
     renderBillsTable();
 }
 window.loadBills = loadBills;
@@ -15172,6 +15677,9 @@ function renderBillsTable() {
             transferAmount = expTransfer || 0;
             if (cashAmount + transferAmount === 0 && payable > 0) {
                 cashAmount = payable;
+            } else if (cashAmount + transferAmount > payable) {
+                transferAmount = Math.min(payable, transferAmount);
+                cashAmount = Math.max(0, payable - transferAmount);
             }
         } else {
             const fullHint = `${pMethod} ${pMode} ${pNote} ${vMethod} ${vNote}`.toLowerCase();
@@ -15305,306 +15813,161 @@ function showBillDetails(billId) {
 window.showBillDetails = showBillDetails;
 
 function printBill(billId) {
-    const bill = (window.allBillsData || []).find(function (b) { return b.bill_id === billId; });
-    if (!bill) return;
-
-    const items = Array.isArray(bill.items) ? bill.items : [];
-    const subtotal = parseFloat(bill.subtotal || 0);
-    const discount = parseFloat(bill.discount || 0);
-    const payable = parseFloat(bill.payable_amount || 0);
-
-    // 1. วันที่และเวลา
-    let dateObj = bill.created_at ? new Date(bill.created_at) : new Date();
-    if (isNaN(dateObj.getTime())) dateObj = new Date();
-    const formattedDateTime = dateObj.toLocaleDateString('th-TH', {
-        year: 'numeric',
-        month: 'numeric',
-        day: 'numeric'
-    }) + ' ' + dateObj.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
-
-    // 2. ดึงข้อมูลบุคคลที่เกี่ยวข้อง (หมอ, ผู้ปิดการขาย/ผู้แนะนำ, พนักงานบันทึก)
-    let doctorName = bill.doctor_name || bill.doctor || '-';
-    let referredBy = bill.referred_by || '-';
-    let recordedBy = bill.recorded_by || bill.created_by || 'Cashier';
-
-    if ((doctorName === '-' || referredBy === '-') && window.allPatients && bill.hn) {
-        const pat = window.allPatients.find(p => p.hn === bill.hn);
-        if (pat) {
-            if (referredBy === '-' && pat.referred_by) referredBy = pat.referred_by;
-            if (doctorName === '-' && pat.doctor) doctorName = pat.doctor;
+    const bill = (window.allBillsData || []).find(b => b.bill_id === billId) || (window.clinicBills || []).find(b => b.bill_id === billId);
+    if (!bill) {
+        console.warn("ไม่พบบิลรหัส: ", billId);
+        if (typeof Swal !== 'undefined') {
+            Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลใบเสร็จ', 'error');
         }
-    }
-    if (doctorName === '-' && window.allHistoryVisits) {
-        const pastDoc = window.allHistoryVisits.find(v => (v.hn === bill.hn || v.patient_name === bill.patient_name) && v.doctor_name && v.doctor_name !== '-');
-        if (pastDoc) doctorName = pastDoc.doctor_name;
+        return;
     }
 
-    let totalItemCount = 0;
-    const itemsRows = items.map(function (item) {
+    let rowsHtml = '';
+    const items = Array.isArray(bill.items) ? bill.items : [];
+    
+    // 2. วนลูปสร้างแถวตารางรายการตรวจ/บริการ (บังคับหน่วย LAK)
+    items.forEach((item, idx) => {
         const price = parseFloat(item.price || 0);
-        const qty = parseInt(item.qty || 1);
+        const qty = item.qty || 1;
         const total = price * qty;
-        totalItemCount += qty;
 
-        let cleanName = item.name || '-';
-        if (cleanName.endsWith(' (โปร)')) cleanName = cleanName.replace(' (โปร)', '');
-        else if (cleanName.endsWith(' (ส่ง/สมาชิก)')) cleanName = cleanName.replace(' (ส่ง/สมาชิก)', '');
-        else if (cleanName.endsWith(' (แถมฟรี)')) cleanName = cleanName.replace(' (แถมฟรี)', '');
+        const totalDisplay = total > 0 ? total.toLocaleString() + ' LAK' : '0 LAK';
 
-        const typeBadge = item.type === 'med' ? '<span style="font-size:10px;color:#64748b;">(ยา)</span>' : (item.type === 'lab' ? '<span style="font-size:10px;color:#64748b;">(ตรวจ)</span>' : '');
+        let cleanName = item.name || item;
+        if (typeof cleanName === 'string') {
+            cleanName = cleanName.replace(/ \((โปร|ส่ง\/สมาชิก|แถมฟรี)\)$/g, '');
+        }
 
-        return `
-            <tr style="border-bottom: 1px dashed #e2e8f0;">
-                <td style="padding: 5px 0; vertical-align: top; text-align: left;">
-                    <div style="font-weight: 600; color: #0f172a; font-size: 11.5px; line-height: 1.25;">${cleanName} ${typeBadge}</div>
-                </td>
-                <td style="padding: 5px 2px; text-align: right; vertical-align: top; font-size: 11.5px; white-space: nowrap;">
-                    ${price > 0 ? price.toLocaleString() : '-'}
-                </td>
-                <td style="padding: 5px 2px; text-align: center; vertical-align: top; font-weight: bold; font-size: 11.5px;">
-                    ${qty}
-                </td>
-                <td style="padding: 5px 0; text-align: right; vertical-align: top; font-weight: 700; font-size: 11.5px; color: #0f172a; white-space: nowrap;">
-                    ${total > 0 ? total.toLocaleString() : '-'}
-                </td>
+        rowsHtml += `
+            <tr>
+                <td style="text-align: center;">${idx + 1}</td>
+                <td style="font-weight: 500;">${cleanName}</td>
+                <td style="text-align: right; font-weight: 700; color: #0f172a;">${totalDisplay}</td>
             </tr>
         `;
-    }).join('');
+    });
 
-    const html = `
-<!DOCTYPE html>
-<html lang="th">
-<head>
-    <meta charset="UTF-8">
-    <title>Receipt - ${bill.bill_id}</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap');
-        @page {
-            size: 80mm 297mm;
-            margin: 0;
-        }
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Sarabun', 'Segoe UI', Tahoma, sans-serif;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-        }
-        body {
-            width: 80mm;
-            max-width: 80mm;
-            margin: 0 auto;
-            padding: 6mm 4mm 8mm 4mm;
-            background: #ffffff;
-            color: #0f172a;
-            font-size: 12px;
-            line-height: 1.3;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 6px;
-        }
-        .clinic-name {
-            font-size: 24px;
-            font-weight: 800;
-            color: #000;
-            letter-spacing: -0.5px;
-            line-height: 1.1;
-        }
-        .doc-type {
-            font-size: 13px;
-            font-weight: 600;
-            color: #475569;
-            margin-top: 2px;
-        }
-        .divider-dashed {
-            border-top: 1px dashed #94a3b8;
-            margin: 6px 0;
-        }
-        .divider-solid {
-            border-top: 1.5px solid #000;
-            margin: 6px 0;
-        }
-        .info-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 11.5px;
-            margin: 4px 0;
-        }
-        .info-table td {
-            padding: 2px 0;
-            vertical-align: top;
-        }
-        .info-label {
-            font-weight: 600;
-            color: #1e293b;
-            width: 88px;
-            white-space: nowrap;
-        }
-        .info-value {
-            font-weight: 500;
-            color: #0f172a;
-        }
-        .items-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 4px 0;
-            font-size: 11.5px;
-        }
-        .items-table th {
-            padding: 4px 0;
-            font-weight: 700;
-            color: #000;
-            border-bottom: 2px solid #000;
-        }
-        .summary-box {
-            margin-top: 6px;
-            font-size: 12px;
-        }
-        .summary-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 2px 0;
-        }
-        .summary-row.grand-total {
-            font-size: 14px;
-            font-weight: 800;
-            color: #000;
-            border-top: 1.5px solid #000;
-            padding-top: 4px;
-            margin-top: 3px;
-        }
-        .signatures {
-            display: flex;
-            justify-content: space-between;
-            text-align: center;
-            margin-top: 28px;
-            margin-bottom: 12px;
-            font-size: 10px;
-        }
-        .sig-item {
-            flex: 1;
-            padding: 0 2px;
-        }
-        .sig-line {
-            border-bottom: 1px dotted #64748b;
-            height: 24px;
-            margin-bottom: 4px;
-        }
-        .footer-note {
-            font-size: 10.5px;
-            color: #b45309;
-            margin-top: 4px;
-            line-height: 1.3;
-        }
-        @media print {
-            body {
-                width: 80mm;
-                padding: 4mm 3mm;
-            }
-            .no-print {
-                display: none;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <div class="clinic-name">Clinic</div>
-        <div class="doc-type">ใบเสร็จรับเงิน / Receipt</div>
-    </div>
+    if (items.length === 0) {
+        rowsHtml = `<tr><td colspan="3" style="text-align: center; color: #64748b; padding: 15px;">ไม่มีรายการตรวจ / บริการ</td></tr>`;
+    }
 
-    <div class="divider-dashed"></div>
+    // 3. เตรียมข้อมูลราคารวม ส่วนลด และยอดสุทธิ (บังคับหน่วย LAK)
+    const subtotal = parseFloat(bill.subtotal || 0);
+    const discount = parseFloat(bill.discount || 0);
+    const netPrice = parseFloat(bill.payable_amount || Math.max(0, subtotal - discount));
 
-    <table class="info-table">
-        <tr>
-            <td class="info-label">เลขที่บิล:</td>
-            <td class="info-value"><strong>${bill.bill_id}</strong></td>
-        </tr>
-        <tr>
-            <td class="info-label">วันที่:</td>
-            <td class="info-value">${formattedDateTime}</td>
-        </tr>
-        <tr>
-            <td class="info-label">ลูกค้า:</td>
-            <td class="info-value">${bill.patient_name || '-'} ${bill.hn ? '(' + bill.hn + ')' : ''}</td>
-        </tr>
-    </table>
+    const dateObj = new Date(bill.created_at);
+    const currentDateStr = !isNaN(dateObj) ? 
+        dateObj.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) + ' เวลา ' + dateObj.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.' : '-';
 
-    <div class="divider-dashed"></div>
+    const patientName = bill.patient_name || '-';
+    const hn = bill.hn || '-';
+    const visitId = bill.visit_id || '-';
 
-    <table class="items-table">
-        <thead>
-            <tr>
-                <th style="text-align: left; padding: 4px 0;">รายการสินค้า</th>
-                <th style="text-align: right; width: 62px; padding: 4px 4px;">ราคา/หน่วย</th>
-                <th style="text-align: center; width: 34px; padding: 4px 4px;">จำนวน</th>
-                <th style="text-align: right; width: 62px; padding: 4px 0;">รวมเงิน</th>
-            </tr>
-        </thead>
-        <tbody>
-            ${itemsRows || '<tr><td colspan="4" style="text-align:center; padding: 10px; color:#94a3b8;">ไม่มีรายการสินค้า</td></tr>'}
-        </tbody>
-    </table>
+    // 4. สร้างโครงสร้าง HTML สำหรับใบเสร็จขนาด A4
+    const printContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>ใบเสร็จรับเงิน / ใบแจ้งชำระเงิน - ${visitId}</title>
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap');
+                body { font-family: 'Sarabun', sans-serif; padding: 24px; color: #1e293b; max-width: 720px; margin: 0 auto; background: #ffffff;}
+                .header { text-align: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #cbd5e1;}
+                .header h1 { margin: 0; color: #0b3c73; font-size: 34px; font-weight: 700;}
+                .header p { margin: 6px 0 0 0; color: #64748b; font-size: 14px; }
+                .info-container { display: flex; justify-content: space-between; margin-bottom: 24px; font-size: 14px; line-height: 1.6;}
+                .info-left, .info-right { flex: 1; }
+                .info-right { text-align: right; }
+                .info-label { font-weight: 700; color: #0f172a; }
+                .table-inv { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 14px; }
+                .table-inv th { background: #f8fafc; padding: 10px; text-align: left; border-top: 1px solid #cbd5e1; border-bottom: 2px solid #cbd5e1; font-weight: 700; color: #334155;}
+                .table-inv td { padding: 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top;}
+                .summary-container { width: 300px; margin-left: auto; font-size: 14px; margin-bottom: 30px;}
+                .summary-row { display: flex; justify-content: space-between; padding: 5px 0; color: #475569;}
+                .summary-row.discount { color: #dc2626; font-weight: 500;}
+                .summary-row.total { font-size: 16px; font-weight: 700; color: #0b3c73; border-top: 2px solid #0b3c73; padding-top: 8px; margin-top: 4px; }
+                .footer-sig { margin-top: 60px; display: flex; justify-content: space-between; text-align: center; font-size: 14px; color: #475569; }
+                .sig-box { width: 220px; }
+                .sig-line { border-top: 1px dashed #94a3b8; padding-top: 8px; margin-bottom: 5px; }
+                @media print { body { padding: 0; } }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Clinic</h1>
+                <p>ใบเสร็จรับเงิน / ใบแจ้งชำระเงิน (Invoice & Receipt)</p>
+            </div>
 
-    <div class="divider-solid"></div>
+            <div class="info-container">
+                <div class="info-left">
+                    <div class="info-row"><span class="info-label">ชื่อ-นามสกุล:</span> ${patientName}</div>
+                    <div class="info-row"><span class="info-label">รหัส HN:</span> ${hn}</div>
+                    <div class="info-row"><span class="info-label">ช่องทางชำระ:</span> ${bill.payment_method || 'เงินสด'}</div>
+                </div>
+                <div class="info-right">
+                    <div class="info-row"><span class="info-label">รหัส VISIT:</span> ${visitId}</div>
+                    <div class="info-row"><span class="info-label">เลขที่บิล:</span> ${bill.bill_id}</div>
+                    <div class="info-row"><span class="info-label">วันที่พิมพ์:</span> ${currentDateStr}</div>
+                </div>
+            </div>
 
-    <div class="summary-box">
-        <div class="summary-row">
-            <span style="font-weight: 600;">รวมจำนวนทั้งหมด:</span>
-            <span style="font-weight: 700;">${items.length} รายการ (${totalItemCount} ชิ้น)</span>
-        </div>
-        <div class="summary-row">
-            <span>รวมเงิน:</span>
-            <span>${subtotal.toLocaleString()} ฿</span>
-        </div>
-        ${discount > 0 ? `
-        <div class="summary-row" style="color: #dc2626;">
-            <span>ส่วนลด:</span>
-            <span>-${discount.toLocaleString()} ฿</span>
-        </div>` : ''}
-        <div class="summary-row grand-total">
-            <span>ยอดรวมสุทธิ:</span>
-            <span>${payable.toLocaleString()} ฿</span>
-        </div>
-    </div>
+            <table class="table-inv">
+                <thead>
+                    <tr>
+                        <th style="width: 50px; text-align: center;">ลำดับ</th>
+                        <th>รายการตรวจ / บริการ</th>
+                        <th style="text-align: right; width: 160px;">ราคา</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml}
+                </tbody>
+            </table>
 
-    <div class="signatures">
-        <div class="sig-item">
-            <div class="sig-line"></div>
-            <div style="font-weight: 600;">ลายเซ็นลูกค้า</div>
-        </div>
-        <div class="sig-item">
-            <div class="sig-line"></div>
-            <div style="font-weight: 600;">ผู้จ่ายสินค้า/ยา</div>
-        </div>
-        <div class="sig-item">
-            <div class="sig-line"></div>
-            <div style="font-weight: 600;">พนักงานแคชเชียร์</div>
-        </div>
-    </div>
+            <div class="summary-container">
+                <div class="summary-row">
+                    <span>รวมค่าบริการทั้งหมด:</span>
+                    <span>${subtotal.toLocaleString()} LAK</span>
+                </div>
+                <div class="summary-row discount">
+                    <span>ส่วนลด:</span>
+                    <span>${discount > 0 ? '-' + discount.toLocaleString() : '0'} LAK</span>
+                </div>
+                <div class="summary-row total">
+                    <span>ยอดชำระสุทธิ:</span>
+                    <span>${netPrice.toLocaleString()} LAK</span>
+                </div>
+            </div>
 
-    <div class="divider-dashed"></div>
+            <div class="footer-sig">
+                <div class="sig-box">
+                    <div class="sig-line"></div>
+                    ( ผู้ป่วย / ผู้ชำระเงิน )
+                </div>
+                <div class="sig-box">
+                    <div class="sig-line"></div>
+                    ( เจ้าหน้าที่การเงิน / คลินิก )
+                </div>
+            </div>
 
-    <div class="footer-note">
-        🔖 <strong>หมายเหตุ:</strong> กรุณาตรวจสอบรายการและจำนวนเงินทอนให้เรียบร้อย / ขอขอบพระคุณที่ไว้วางใจใช้บริการ
-    </div>
-
-    <script>
-        window.onload = function() {
-            setTimeout(function() {
-                window.print();
-            }, 250);
-        };
-    </script>
-</body>
-</html>
+            <script>
+                // 5. สั่งพิมพ์อัตโนมัติเมื่อหน้าต่างโหลดเสร็จ
+                window.onload = function() {
+                    window.print();
+                };
+            </script>
+        </body>
+        </html>
     `;
 
-    const win = window.open('', '_blank', 'width=450,height=750');
-    if (win) { win.document.write(html); win.document.close(); }
+    // 6. เปิดหน้าต่างใหม่เพื่อพิมพ์
+    const printWin = window.open('', '_blank', 'width=800,height=900');
+    if (printWin) {
+        printWin.document.write(printContent);
+        printWin.document.close();
+    }
 }
 window.printBill = printBill;
 
@@ -16275,12 +16638,16 @@ async function loadExpenses() {
         let expenses = [];
         if (typeof _supabase !== 'undefined') {
             try {
-                const { data } = await _supabase.from('clinic_expenses').select('*').order('created_at', { ascending: false });
-                if (data && data.length > 0) expenses = data;
-            } catch (e) { }
-        }
-        if (expenses.length === 0) {
-            expenses = JSON.parse(localStorage.getItem('clinic_expenses_data') || '[]');
+                const { data, error } = await _supabase.from('expenses').select('*').order('created_at', { ascending: false });
+                if (!error && data) {
+                    expenses = data;
+                } else {
+                    const { data: d2 } = await _supabase.from('clinic_expenses').select('*').order('created_at', { ascending: false });
+                    if (d2) expenses = d2;
+                }
+            } catch (e) {
+                console.warn('loadExpenses fetch error:', e);
+            }
         }
         window.clinicExpensesData = expenses;
 
@@ -16920,6 +17287,9 @@ async function loadDailyClinicReport(customDate) {
             transferAmount = expTransfer || 0;
             if (cashAmount + transferAmount === 0 && payable > 0) {
                 cashAmount = payable;
+            } else if (cashAmount + transferAmount > payable) {
+                transferAmount = Math.min(payable, transferAmount);
+                cashAmount = Math.max(0, payable - transferAmount);
             }
         } else {
             // 4. Fallback จากคีย์เวิร์ดทั่วไป
@@ -16975,9 +17345,10 @@ async function loadDailyClinicReport(customDate) {
         rowsHtml += `
             <tr>
                 <td class="text-center fw-bold">${idx + 1}</td>
-                <td class="text-center text-secondary">${matchCom ? matchCom.referrer_id : (b.hn || '-')}</td>
-                <td>${matchCom ? matchCom.referrer_name : (b.referrer_name || (vMatch ? vMatch.referrer_name : '-'))}</td>
-                <td class="fw-bold text-dark">${b.patient_name || '-'}</td>
+                <!-- เปลี่ยนให้ดึงรหัสผู้ป่วย (HN) มาแสดงแทน -->
+                <td class="fw-semibold text-center">${b.hn || (vMatch ? vMatch.hn : '') || '-'}</td>
+                <td>${matchCom ? matchCom.referrer_name : (b.referred_by || b.referrer_name || (vMatch ? (vMatch.referred_by || vMatch.referrer_name) : '-'))}</td>
+                <td class="fw-bold text-dark">${b.patient_name || (vMatch ? vMatch.patient_name : '-')}</td>
                 <td style="max-width: 250px; white-space: normal;">${testsStr}</td>
                 <td class="text-end fw-semibold text-primary" style="background-color: #f0f9ff;">${cashAmount > 0 ? cashAmount.toLocaleString() : '-'}</td>
                 <td class="text-end fw-semibold text-info" style="background-color: #f0f9ff;">${transferAmount > 0 ? transferAmount.toLocaleString() : '-'}</td>

@@ -3728,16 +3728,22 @@
                     <input type="hidden" id="rxVisitId"><input type="hidden" id="rxHN"><input type="hidden"
                         id="rxPatientName">
                     <div
-                        class="d-flex justify-content-between align-items-center mb-3 p-3 rounded-3 border bg-light flex-wrap gap-2">
-                        <div>
-                            <div class="small text-muted mb-1">
-                                รหัส VISIT: <strong id="rxVisitIdDisplay" class="text-dark ms-1">-</strong> |
-                                คนไข้: <strong id="rxPatientNameDisplay" class="text-dark ms-1">-</strong>
+                        class="d-flex justify-content-between align-items-center mb-3 p-3 rounded-3 border bg-light flex-wrap gap-2 shadow-xs">
+                        <div class="d-flex flex-column gap-1">
+                            <div class="small text-muted d-flex align-items-center flex-wrap gap-2">
+                                <span>รหัส VISIT: <strong id="rxVisitIdDisplay" class="text-dark ms-1">-</strong></span>
+                                <span class="text-secondary opacity-50">|</span>
+                                <span>คนไข้: <strong id="rxPatientNameDisplay" class="text-dark ms-1">-</strong></span>
+                                <span class="text-secondary opacity-50">|</span>
+                                <span><i class="bi bi-telephone-fill text-success me-1"></i>เบอร์โทร: <strong id="rxPatientPhoneDisplay" class="text-dark ms-1">-</strong></span>
                             </div>
-                            <div class="small text-muted">
-                                <i class="ph ph-user-gear text-primary me-1"></i>ผู้ช่วย: <strong
-                                    id="rxAssistantDisplay" class="text-primary fw-bold ms-1">L03709 - MS CHERRY
-                                    LOUANGPHAN</strong>
+                            <div class="small text-muted d-flex align-items-center flex-wrap gap-2 mt-0.5">
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2.5 py-1 fw-semibold" style="font-size: 0.82rem;">
+                                    <i class="bi bi-heart-pulse-fill me-1"></i>อาการเบื้องต้น: <span id="rxPatientSymptomDisplay" class="fw-bold ms-1">-</span>
+                                </span>
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1 fw-medium" style="font-size: 0.82rem;">
+                                    <i class="ph ph-user-gear me-1"></i>ผู้ดูแล: <strong id="rxAssistantDisplay" class="fw-bold ms-1">L03709 - MS CHERRY LOUANGPHAN</strong>
+                                </span>
                             </div>
                         </div>
                         <div><button type="button" id="rxPdfBtn" class="btn btn-sm btn-danger px-3"><i
