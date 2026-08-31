@@ -1896,51 +1896,6 @@
                         data-i18n="menu_budget_requests">Budget
                         Requests</span>
                 </button>
-                <button onclick="navigate('chart-of-accounts', 'Chart of Accounts')" title="Chart of Accounts"
-                    class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all admin-only hidden overflow-hidden group"
-                    data-page="chart-of-accounts">
-                    <i
-                        class="fa-solid fa-book-bookmark w-5 text-[15px] flex-shrink-0 text-center transition-colors group-hover:text-brandindigo"></i>
-                    <span
-                        class="sidebar-text ml-3 text-sm whitespace-nowrap transition-opacity duration-200 font-medium"
-                        data-i18n="menu_chart_of_accounts">Chart of Accounts</span>
-                </button>
-                <button onclick="navigate('expense-vouchers', 'Expense Vouchers')" title="Expense Vouchers"
-                    class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all admin-only hidden overflow-hidden group"
-                    data-page="expense-vouchers">
-                    <i
-                        class="fa-solid fa-receipt w-5 text-[15px] flex-shrink-0 text-center transition-colors group-hover:text-brandindigo"></i>
-                    <span
-                        class="sidebar-text ml-3 text-sm whitespace-nowrap transition-opacity duration-200 font-medium"
-                        data-i18n="menu_expense_vouchers">Expense Vouchers</span>
-                </button>
-                <button onclick="navigate('general-ledger', 'General Ledger')" title="General Ledger"
-                    class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all admin-only hidden overflow-hidden group"
-                    data-page="general-ledger">
-                    <i
-                        class="fa-solid fa-book-open w-5 text-[15px] flex-shrink-0 text-center transition-colors group-hover:text-brandindigo"></i>
-                    <span
-                        class="sidebar-text ml-3 text-sm whitespace-nowrap transition-opacity duration-200 font-medium"
-                        data-i18n="menu_general_ledger">General Ledger</span>
-                </button>
-                <button onclick="navigate('invoices', 'Invoices & Revenue')" title="Invoices & Revenue"
-                    class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all admin-only hidden overflow-hidden group"
-                    data-page="invoices">
-                    <i
-                        class="fa-solid fa-file-invoice w-5 text-[15px] flex-shrink-0 text-center transition-colors group-hover:text-brandindigo"></i>
-                    <span
-                        class="sidebar-text ml-3 text-sm whitespace-nowrap transition-opacity duration-200 font-medium"
-                        data-i18n="menu_invoices">Invoices & Revenue</span>
-                </button>
-                <button onclick="navigate('financial-reports', 'Financial Reports')" title="Financial Reports"
-                    class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all admin-only hidden overflow-hidden group"
-                    data-page="financial-reports">
-                    <i
-                        class="fa-solid fa-chart-line w-5 text-[15px] flex-shrink-0 text-center transition-colors group-hover:text-brandindigo"></i>
-                    <span
-                        class="sidebar-text ml-3 text-sm whitespace-nowrap transition-opacity duration-200 font-medium"
-                        data-i18n="menu_financial_reports">Financial Reports</span>
-                </button>
                 <button onclick="navigate('table', 'Attendance Logs', 'Fingerprint_Logs')" title="Attendance Logs"
                     class="nav-btn w-full flex items-center px-4 py-3 rounded-xl transition-all overflow-hidden group"
                     data-page="Fingerprint_Logs">
@@ -1991,14 +1946,6 @@
                     <div id="menu-more"
                         class="submenu-container hidden flex-col pl-3 pr-1 space-y-1 mt-1 transition-all overflow-hidden">
                         <div class="border-l border-gray-200 ml-3 pl-2 py-1 space-y-1">
-                            <button onclick="navigate('table', 'Organization', 'Organization ')"
-                                class="nav-btn w-full flex items-center px-3 py-2 rounded-lg transition-all text-sm hover:text-brandindigo hover:bg-indigo-50 group font-medium"
-                                data-page="Organization ">
-                                <span
-                                    class="w-1.5 h-1.5 rounded-full bg-gray-300 mr-3 group-hover:bg-brandindigo transition-colors"></span><span
-                                    class="sidebar-text whitespace-nowrap"
-                                    data-i18n="menu_organization">Organization</span>
-                            </button>
                             <button onclick="navigate('table', 'Employee Rating', 'Employees Ranting')"
                                 class="nav-btn w-full flex items-center px-3 py-2 rounded-lg transition-all text-sm hover:text-brandindigo hover:bg-indigo-50 group font-medium"
                                 data-page="Employees Ranting">
@@ -2064,14 +2011,6 @@
                                 <span
                                     class="w-1.5 h-1.5 rounded-full bg-gray-300 mr-3 group-hover:bg-brandindigo transition-colors"></span><span
                                     class="sidebar-text whitespace-nowrap" data-i18n="menu_training">Training</span>
-                            </button>
-                            <button onclick="navigate('table', 'Orientation', 'orientation')"
-                                class="nav-btn w-full flex items-center px-3 py-2 rounded-lg transition-all text-sm hover:text-brandindigo hover:bg-indigo-50 group font-medium"
-                                data-page="orientation">
-                                <span
-                                    class="w-1.5 h-1.5 rounded-full bg-gray-300 mr-3 group-hover:bg-brandindigo transition-colors"></span><span
-                                    class="sidebar-text whitespace-nowrap"
-                                    data-i18n="menu_orientation">Orientation</span>
                             </button>
                             <button onclick="navigate('table', 'Policy', 'Policy ')"
                                 class="nav-btn w-full flex items-center px-3 py-2 rounded-lg transition-all text-sm hover:text-brandindigo hover:bg-indigo-50 group font-medium"
@@ -4763,13 +4702,21 @@
 
                                 <!-- Manual ID input & Record Button (ย้ายมาไว้บนสุด) -->
                                 <form onsubmit="handleManualScan(event)"
-                                    class="flex w-full rounded-2xl overflow-hidden border border-gray-200 focus-within:border-brandindigo focus-within:ring-4 focus-within:ring-indigo-50 transition-all bg-white p-1.5 shadow-sm mb-6">
-                                    <div class="pl-4 pr-3 flex items-center text-gray-400">
+                                    class="flex items-center w-full rounded-2xl overflow-hidden border border-gray-200 focus-within:border-brandindigo focus-within:ring-4 focus-within:ring-indigo-50 transition-all bg-white p-1.5 shadow-sm mb-6">
+                                    <div class="pl-4 pr-3 flex items-center text-brandindigo">
                                         <i class="fa-regular fa-id-card text-lg"></i>
                                     </div>
-                                    <input type="text" id="manualEmpId" placeholder="EMPLOYEE ID (E.G. EMP001)" required
-                                        oninput="loadTodayAttendance()" onchange="loadTodayAttendance()"
-                                        class="border-0 bg-transparent text-gray-900 focus:ring-0 block w-full p-2 uppercase text-xs md:text-sm font-bold tracking-widest placeholder-gray-400">
+                                    <div id="scan-emp-display-wrapper" class="flex-1 flex items-center px-1 overflow-hidden min-w-0">
+                                        <!-- Non-Super Admin: Plain Text Display (Not Editable) -->
+                                        <div id="scan-emp-text-display" class="font-bold text-gray-800 text-xs md:text-sm tracking-wide select-none truncate py-2">
+                                            <span id="scan-emp-id-label" class="text-brandindigo mr-1.5 font-black uppercase">ID</span>
+                                            <span id="scan-emp-name-label" class="text-gray-700 font-semibold"></span>
+                                        </div>
+                                        <!-- Super Admin: Editable Input Box -->
+                                        <input type="text" id="manualEmpId" placeholder="EMPLOYEE ID (E.G. EMP001)" required
+                                            oninput="loadTodayAttendance()" onchange="loadTodayAttendance()"
+                                            class="hidden border-0 bg-transparent text-gray-900 focus:ring-0 w-full p-2 uppercase text-xs md:text-sm font-bold tracking-widest placeholder-gray-400">
+                                    </div>
                                     <button type="submit" id="scan-submit-btn"
                                         class="bg-brandpurple hover:bg-purple-700 text-white px-6 md:px-8 py-2.5 rounded-xl font-bold text-xs md:text-sm whitespace-nowrap transition-all flex items-center gap-2 shadow-md">
                                         Record <i class="fa-solid fa-check-circle text-white/80"></i>
