@@ -236,15 +236,15 @@
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
   };
 
-  const inputClassHud = "w-full border border-slate-200 bg-slate-50/70 focus:bg-white px-3.5 py-2.5 rounded-xl outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-400 transition-all duration-150 shadow-xs";
-  const labelClassHud = "block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 pl-0.5";
+  const inputClassHud = "w-full border border-slate-200/80 bg-white/60 backdrop-blur-sm focus:bg-white px-4 py-3 rounded-xl outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 focus:border-blue-500/80 focus:ring-4 focus:ring-blue-500/15 disabled:bg-slate-50 disabled:text-slate-400 transition-all duration-200 shadow-sm hover:border-slate-300 hover:shadow-md";
+  const labelClassHud = "block text-[12px] font-bold text-slate-500/90 uppercase tracking-widest mb-2 pl-1";
   const btnClassPrimary = "bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl text-[13px] font-semibold transition-all duration-150 shadow-xs hover:shadow flex items-center justify-center gap-2 h-[38px] sm:h-[40px] cursor-pointer active:scale-[0.98]";
   const btnClassSecondary = "bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all duration-150 shadow-xs flex items-center justify-center gap-2 h-[38px] sm:h-[40px] cursor-pointer active:scale-[0.98]";
-  const boxWrapper = "bg-white p-5 sm:p-6 rounded-2xl shadow-xs border border-slate-200/80 w-full mb-5 transition-all duration-150";
-  const tableHeaderClass = "bg-slate-50/90 border-b border-slate-200 px-3.5 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap";
-  const tableCellClass = "px-3.5 py-3 text-[13px] font-medium text-slate-700 border-b border-slate-100 whitespace-nowrap transition-colors";
+  const boxWrapper = "bg-white/90 backdrop-blur-md p-6 sm:p-8 rounded-[1.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/60 w-full mb-6 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]";
+  const tableHeaderClass = "bg-gradient-to-r from-slate-50/90 to-slate-100/90 backdrop-blur-sm border-b-2 border-slate-200/80 px-4 py-3.5 text-[12px] font-extrabold text-slate-600 uppercase tracking-widest whitespace-nowrap";
+  const tableCellClass = "px-4 py-3.5 text-[13.5px] font-medium text-slate-700 border-b border-slate-100/80 whitespace-nowrap transition-colors";
   const titleClass = "text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-3 tracking-tight";
-  const thBase = "p-3.5 text-[11px] font-bold border-b border-slate-200 bg-slate-50/90 text-slate-600 whitespace-nowrap uppercase tracking-wider";
+  const thBase = "p-4 text-[12px] font-extrabold border-b-2 border-slate-200/80 bg-gradient-to-r from-slate-50/90 to-slate-100/90 backdrop-blur-sm text-slate-600 whitespace-nowrap uppercase tracking-widest";
 
   function useDebounce(value, delay) {
     const [debouncedValue, setDebouncedValue] = React.useState(value);
@@ -513,7 +513,7 @@
     return href;
   };
 
-  const SidebarItem = ({ icon: Icon, label, id, activeTab, href, onTabClick, isSidebarCollapsed }) => {
+  const SidebarItem = ({ icon: Icon, label, id, activeTab, href, onTabClick, isSidebarCollapsed, badgeCount }) => {
     const targetUrl = resolvePageUrl(href);
     const currentPath = (typeof window !== 'undefined' && window.location) ? window.location.pathname.toLowerCase() : '';
     const cleanTarget = targetUrl.split('?')[0].replace(/\.html$/i, '').toLowerCase();
@@ -539,7 +539,8 @@
       title: isSidebarCollapsed ? label : ''
     },
       React.createElement('div', { className: "shrink-0 animate-icon-wiggle transition-colors" }, React.createElement(Icon, { size: 22 })),
-      !isSidebarCollapsed ? React.createElement('span', { className: "font-bold whitespace-nowrap truncate transition-transform duration-300 group-hover:translate-x-1" }, label) : null
+      !isSidebarCollapsed ? React.createElement('span', { className: "font-bold whitespace-nowrap truncate transition-transform duration-300 group-hover:translate-x-1 flex-1" }, label) : null,
+      (badgeCount && badgeCount > 0) ? React.createElement('div', { className: `flex items-center justify-center rounded-full bg-red-500 text-white font-bold shadow-sm ${isSidebarCollapsed ? 'absolute top-1 right-1 w-4 h-4 text-[9px]' : 'ml-auto w-6 h-6 text-[11px]'}` }, badgeCount) : null
     );
   };
 
@@ -693,6 +694,37 @@
     isSidebarCollapsed: propCollapsed,
     setIsSidebarCollapsed: propSetCollapsed
   }) => {
+    const [pendingNutrientCount, setPendingNutrientCount] = React.useState(0);
+
+    React.useEffect(() => {
+      let isChecking = false;
+      const checkPendingOrders = async () => {
+        if (isChecking) return;
+        isChecking = true;
+        try {
+          let count = 0;
+          let hasDb = false;
+          if (typeof window.supabaseSelect === 'function') {
+            const data = await window.supabaseSelect('stk_nutrient_orders', 'status=eq.รอดำเนินการ&select=id');
+            if (Array.isArray(data)) {
+               count = data.length;
+               hasDb = true;
+            }
+          }
+          if (!hasDb) {
+            const localNutrient = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
+            const localClinicMlm = JSON.parse(localStorage.getItem('clinic_mlm_orders') || '[]');
+            count = [...localNutrient, ...localClinicMlm].filter(o => o.status === 'รอดำเนินการ' || o.status === 'รอจ่ายยา' || !o.status).length;
+          }
+          setPendingNutrientCount(count);
+        } catch(e) { }
+        isChecking = false;
+      };
+      
+      checkPendingOrders();
+      const intervalId = setInterval(checkPendingOrders, 5000);
+      return () => clearInterval(intervalId);
+    }, []);
     const [permUpdateTick, setPermUpdateTick] = React.useState(0);
     React.useEffect(() => {
       const handleStorage = () => setPermUpdateTick(t => t + 1);
@@ -772,7 +804,7 @@
             canOrgChart ? React.createElement(SidebarItem, { icon: GitBranch, label: "ผังองค์กรสายงาน", id: "org_chart", activeTab: activePage, href: SCRIPT_URL + '?page=org_chart', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
             (canSales || canCustomers || canOrders) ? React.createElement('div', { className: "pt-3 pb-1.5" }, React.createElement('p', { className: `text-[10px] font-black text-slate-500 uppercase tracking-widest ${isSidebarCollapsed ? 'text-center' : 'px-4'}` }, "ธุรกรรมประจำวัน")) : null,
             canSales ? React.createElement(SidebarItem, { icon: ShoppingCart, label: "ป้อนข้อมูลขาย", id: "sales", activeTab: activePage, href: SCRIPT_URL + '?page=sales', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
-            canNutrients ? React.createElement(SidebarItem, { icon: PillIcon, label: "จ่ายยา", id: "nutrients", activeTab: activePage, href: SCRIPT_URL + '?page=nutrients', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
+            canNutrients ? React.createElement(SidebarItem, { icon: PillIcon, label: "จ่ายยา", id: "nutrients", activeTab: activePage, href: SCRIPT_URL + '?page=nutrients', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed, badgeCount: pendingNutrientCount }) : null,
             canOrders ? React.createElement(SidebarItem, { icon: FileText, label: "จัดการบิล", id: "orders", activeTab: activePage, href: SCRIPT_URL + '?page=orders', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
             canCustomers ? React.createElement(SidebarItem, { icon: Contact, label: "ข้อมูลลูกค้า", id: "customers", activeTab: activePage, href: SCRIPT_URL + '?page=customers', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
             React.createElement(SidebarSettingsGroup, { activeTab: activePage, isSidebarCollapsed: isSidebarCollapsed, isAdmin: isAdmin, handleTabClick: handleTabClick, SCRIPT_URL: SCRIPT_URL, currentUser: currentUser })
@@ -827,7 +859,7 @@
             ) : null
           ) : null,
           (isLoggedIn && canSales) ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=sales'), onClick: handleTabClick, title: "การขาย", className: `flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all ${activePage === 'sales' ? 'text-blue-400' : 'text-slate-500 hover:text-white'}` }, React.createElement(ShoppingCart, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, 'ขาย')) : null,
-          (isLoggedIn && canNutrients) ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=nutrients'), onClick: handleTabClick, title: "จ่ายยา", className: `flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all ${activePage === 'nutrients' ? 'text-blue-400' : 'text-slate-500 hover:text-white'}` }, React.createElement(PillIcon, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, 'จ่ายยา')) : null,
+          (isLoggedIn && canNutrients) ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=nutrients'), onClick: handleTabClick, title: "จ่ายยา", className: `flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all relative ${activePage === 'nutrients' ? 'text-blue-400' : 'text-slate-500 hover:text-white'}` }, React.createElement(PillIcon, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, 'จ่ายยา'), (pendingNutrientCount > 0) ? React.createElement('div', { className: 'absolute top-1 right-2 flex items-center justify-center rounded-full bg-red-500 text-white font-bold w-4 h-4 text-[9px] shadow-sm' }, pendingNutrientCount) : null) : null,
           (isLoggedIn && canOrders) ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=orders'), onClick: handleTabClick, title: "จัดการบิล", className: `flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all ${activePage === 'orders' ? 'text-blue-400' : 'text-slate-500 hover:text-white'}` }, React.createElement(FileText, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, 'บิล')) : null,
           (isLoggedIn && canCustomers) ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=customers'), onClick: handleTabClick, title: "ข้อมูลลูกค้า", className: `flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all ${activePage === 'customers' ? 'text-blue-400' : 'text-slate-500 hover:text-white'}` }, React.createElement(Contact, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, 'ลูกค้า')) : null,
           (isLoggedIn && canOrgChart) ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=org_chart'), onClick: handleTabClick, title: "ผังสายงาน", className: `flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all ${activePage === 'org_chart' ? 'text-blue-400' : 'text-slate-500 hover:text-white'}` }, React.createElement(GitBranch, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, 'ทีม')) : null,
@@ -864,7 +896,7 @@
             canOrgChart ? React.createElement(SidebarItem, { icon: GitBranch, label: "ผังองค์กรสายงาน", id: "org_chart", activeTab: activePage, href: SCRIPT_URL + '?page=org_chart', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
             (canSales || canCustomers || canOrders) ? React.createElement('div', { className: "pt-3 pb-1.5" }, React.createElement('p', { className: "text-[10px] font-black text-slate-500 uppercase tracking-widest px-4" }, "ธุรกรรมประจำวัน")) : null,
             canSales ? React.createElement(SidebarItem, { icon: ShoppingCart, label: "ป้อนข้อมูลขาย (Sales)", id: "sales", activeTab: activePage, href: SCRIPT_URL + '?page=sales', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
-            canNutrients ? React.createElement(SidebarItem, { icon: PillIcon, label: "จ่ายยา", id: "nutrients", activeTab: activePage, href: SCRIPT_URL + '?page=nutrients', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
+            canNutrients ? React.createElement(SidebarItem, { icon: PillIcon, label: "จ่ายยา", id: "nutrients", activeTab: activePage, href: SCRIPT_URL + '?page=nutrients', onTabClick: handleTabClick, isSidebarCollapsed: false, badgeCount: pendingNutrientCount }) : null,
             canOrders ? React.createElement(SidebarItem, { icon: FileText, label: "จัดการบิล (Orders)", id: "orders", activeTab: activePage, href: SCRIPT_URL + '?page=orders', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
             canCustomers ? React.createElement(SidebarItem, { icon: Contact, label: "ข้อมูลลูกค้า (Customers)", id: "customers", activeTab: activePage, href: SCRIPT_URL + '?page=customers', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
             React.createElement(SidebarSettingsGroup, { activeTab: activePage, isSidebarCollapsed: false, isAdmin: isAdmin, handleTabClick: handleTabClick, SCRIPT_URL: SCRIPT_URL, currentUser: currentUser })

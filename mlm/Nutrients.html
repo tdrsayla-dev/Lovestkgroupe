@@ -100,8 +100,8 @@
       const [loading, setLoading] = useState(true);
 
       // โหลดข้อมูลจาก Supabase เป็นหลัก + sync LocalStorage → Supabase อัตโนมัติ
-      const fetchOrders = async () => {
-        setLoading(true);
+      const fetchOrders = async (showLoading = true) => {
+        if (showLoading) setLoading(true);
         let dbList = [];
         let localList = [];
         // ─── 1. ดึงจาก Supabase (ข้อมูลถาวร) ────────────────────────────────
@@ -114,6 +114,8 @@
                 visit_id: item.visit_id || '-',
                 hn: item.hn || '-',
                 customer_name: item.customer_name || '-',
+                phone: item.phone || item.customer_phone || item.tel || '-',
+                disease: item.disease || item.disease_name || item.symptoms || '-',
                 recorded_by: item.recorded_by || '-',
                 date: item.date || item.created_at || new Date().toISOString(),
                 status: item.status || 'รอดำเนินการ',
@@ -166,6 +168,8 @@
               visit_id: vId,
               hn: item.hn || item.customer_id || '-',
               customer_name: item.customer_name || item.patientName || item.patient_name || '-',
+              phone: item.phone || item.customer_phone || item.tel || item.patientPhone || '-',
+              disease: item.disease || item.disease_name || item.symptoms || item.chief_complaint || '-',
               recorded_by: item.recorded_by || item.seller_id || '-',
               date: item.created_at || item.date || new Date().toISOString(),
               status: item.status || 'รอดำเนินการ',
@@ -214,10 +218,10 @@
       };
 
       useEffect(() => {
-        fetchOrders();
+        fetchOrders(true);
         const handleStorageChange = (e) => {
           if (!e || !e.key || e.key === 'stk_nutrient_orders' || e.key === 'clinic_mlm_orders' || e.key === 'stk_refresh_trigger') {
-            fetchOrders();
+            fetchOrders(false);
           }
         };
         window.addEventListener('storage', handleStorageChange);
@@ -227,14 +231,19 @@
           try {
             bc = new BroadcastChannel('stk_mlm_channel');
             bc.onmessage = (msg) => {
-              if (msg && msg.data) fetchOrders();
+              if (msg && msg.data) fetchOrders(false);
             };
           } catch(ex) {}
         }
 
+        const intervalId = setInterval(() => {
+          fetchOrders(false);
+        }, 5000);
+
         return () => {
           window.removeEventListener('storage', handleStorageChange);
           if (bc) bc.close();
+          clearInterval(intervalId);
         };
       }, []);
 
@@ -326,7 +335,9 @@
               <p><strong>รหัส VISIT:</strong> <span class="text-blue-600 font-bold">${order.visit_id}</span></p>
               <p><strong>HN:</strong> ${order.hn}</p>
               <p><strong>ชื่อคนไข้:</strong> ${order.customer_name}</p>
-              <p><strong>ผู้บันทึก:</strong> ${order.recorded_by}</p>
+              <p><strong>เบอร์โทร:</strong> ${order.phone || '-'}</p>
+              <p><strong>โรค/อาการ:</strong> ${order.disease || '-'}</p>
+              <p><strong>ผู้แนะนำ:</strong> ${order.recorded_by}</p>
               <hr/>
               <p class="font-bold text-slate-700">รายการยา:</p>
               <ul class="list-disc pl-5 text-xs text-slate-600 space-y-1">
@@ -351,6 +362,8 @@
                 visit_id: order.visit_id,
                 hn: order.hn,
                 customer_name: order.customer_name,
+                phone: order.phone,
+                disease: order.disease,
                 recorded_by: order.recorded_by,
                 items: order.items
               };
@@ -453,6 +466,7 @@
                       <th class="py-4 px-4 w-32 border-r border-slate-200/60">รหัส VISIT</th>
                       <th class="py-4 px-4 w-28 border-r border-slate-200/60">HN</th>
                       <th class="py-4 px-4 w-36 border-r border-slate-200/60">ชื่อ-นามสกุล</th>
+                      <th class="py-4 px-4 w-36 border-r border-slate-200/60">ผู้แนะนำ</th>
                       <th class="py-4 px-4 border-r border-slate-200/60">รายการจัดสั่งจ่ายยา / จำนวน</th>
                       <th class="py-4 px-4 text-center w-36">ดำเนินการ</th>
                     </tr>
@@ -460,14 +474,14 @@
                   <tbody class="divide-y divide-slate-200 text-xs font-medium text-slate-800">
                     {loading ? (
                       <tr>
-                        <td colSpan="5" class="py-12 text-center text-slate-400 font-semibold">
+                        <td colSpan="6" class="py-12 text-center text-slate-400 font-semibold">
                           <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-emerald-500 border-t-transparent mb-2"></div>
                           <p>กำลังดึงข้อมูลใบสั่งจ่ายยาจากระบบ...</p>
                         </td>
                       </tr>
                     ) : pendingOrders.length === 0 ? (
                       <tr>
-                        <td colSpan="5" class="py-16 text-center text-slate-400 font-semibold">
+                        <td colSpan="6" class="py-16 text-center text-slate-400 font-semibold">
                           <div class="flex flex-col items-center justify-center gap-2">
                             <div class="p-3 bg-slate-100 text-slate-400 rounded-full mb-1">
                               <InboxIcon size={36} />
@@ -487,6 +501,9 @@
                           </td>
                           <td class="py-4 px-4 font-bold text-slate-900 align-middle whitespace-nowrap border-r border-slate-100">
                             {ord.customer_name}
+                          </td>
+                          <td class="py-4 px-4 font-bold text-slate-700 align-middle whitespace-nowrap border-r border-slate-100">
+                            {ord.recorded_by || '-'}
                           </td>
                           <td class="p-2 align-middle border-r border-slate-100">
                             <div class="rounded-xl border border-slate-200/80 overflow-hidden bg-white shadow-xs">
@@ -575,6 +592,7 @@
                       <th class="py-4 px-4 w-32 border-r border-slate-200/60">รหัส VISIT</th>
                       <th class="py-4 px-4 w-28 border-r border-slate-200/60">HN</th>
                       <th class="py-4 px-4 w-36 border-r border-slate-200/60">ชื่อ-นามสกุล</th>
+                      <th class="py-4 px-4 w-36 border-r border-slate-200/60">ผู้แนะนำ</th>
                       <th class="py-4 px-4 border-r border-slate-200/60">รายการที่ทำจ่ายแล้ว / จำนวน</th>
                       <th class="py-4 px-4 text-center w-36">สถานะการขาย</th>
                     </tr>
@@ -582,14 +600,14 @@
                   <tbody class="divide-y divide-slate-200 text-xs font-medium text-slate-800">
                     {loading ? (
                       <tr>
-                        <td colSpan="5" class="py-12 text-center text-slate-400 font-semibold">
+                        <td colSpan="6" class="py-12 text-center text-slate-400 font-semibold">
                           <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-emerald-500 border-t-transparent mb-2"></div>
                           <p>กำลังดึงข้อมูล...</p>
                         </td>
                       </tr>
                     ) : completedOrders.length === 0 ? (
                       <tr>
-                        <td colSpan="5" class="py-16 text-center text-slate-400 font-semibold">
+                        <td colSpan="6" class="py-16 text-center text-slate-400 font-semibold">
                           <div class="flex flex-col items-center justify-center gap-2">
                             <div class="p-3 bg-slate-100 text-slate-400 rounded-full mb-1">
                               <InboxIcon size={36} />
@@ -609,6 +627,9 @@
                           </td>
                           <td class="py-4 px-4 font-bold text-slate-900 align-middle whitespace-nowrap border-r border-slate-100">
                             {ord.customer_name}
+                          </td>
+                          <td class="py-4 px-4 font-bold text-slate-700 align-middle whitespace-nowrap border-r border-slate-100">
+                            {ord.recorded_by || '-'}
                           </td>
                           <td class="p-2 align-middle border-r border-slate-100">
                             <div class="rounded-xl border border-slate-200/80 overflow-hidden bg-white shadow-xs opacity-75">

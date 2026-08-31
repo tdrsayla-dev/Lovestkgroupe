@@ -977,7 +977,9 @@
                             setCustData(prev => ({
                                 ...prev,
                                 id: pending.hn || prev.id || '',
-                                name: pending.customer_name || prev.name || ''
+                                name: pending.customer_name || prev.name || '',
+                                phone: pending.phone || prev.phone || '',
+                                symptom: pending.disease || prev.symptom || ''
                             }));
                             setCustMode('ลูกค้าใหม่');
                         }
