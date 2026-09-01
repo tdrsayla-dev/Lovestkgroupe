@@ -1,3 +1,62 @@
+// Safe LocalStorage setter to prevent QuotaExceededError
+window.safeSetLocalStorage = function (key, value) {
+    try {
+        const strVal = typeof value === 'string' ? value : JSON.stringify(value);
+        localStorage.setItem(key, strVal);
+    } catch (e) {
+        try {
+            // Clean up oversized or bloated storage keys
+            ['clinic_lab_files_meta', 'clinic_commission_logs', 'clinic_bills_cache', 'clinic_visits_queue', 'mlm_stk_products_cache'].forEach(k => {
+                if (k !== key) {
+                    const raw = localStorage.getItem(k);
+                    if (raw && raw.length > 30000) {
+                        try {
+                            const parsed = JSON.parse(raw);
+                            if (Array.isArray(parsed)) {
+                                localStorage.setItem(k, JSON.stringify(parsed.slice(0, 20)));
+                            } else if (k === 'clinic_lab_files_meta') {
+                                localStorage.removeItem(k);
+                            }
+                        } catch (err) {
+                            localStorage.removeItem(k);
+                        }
+                    }
+                }
+            });
+            if (Array.isArray(value)) {
+                localStorage.setItem(key, JSON.stringify(value.slice(0, 25)));
+            } else {
+                localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
+            }
+        } catch (retryErr) {
+            // Suppress unhandled quota exceeded exception
+        }
+    }
+};
+
+// Immediate cleanup of bloated base64 entries in localStorage on script load
+(function cleanupBloatedLocalStorage() {
+    try {
+        const metaRaw = localStorage.getItem('clinic_lab_files_meta');
+        if (metaRaw && metaRaw.includes('data:')) {
+            try {
+                const metaMap = JSON.parse(metaRaw);
+                for (let k in metaMap) {
+                    if (Array.isArray(metaMap[k])) {
+                        metaMap[k].forEach(item => {
+                            if (item.url && item.url.startsWith('data:')) item.url = '';
+                            if (item.publicUrl && item.publicUrl.startsWith('data:')) item.publicUrl = '';
+                        });
+                    }
+                }
+                localStorage.setItem('clinic_lab_files_meta', JSON.stringify(metaMap));
+            } catch (e) {
+                localStorage.removeItem('clinic_lab_files_meta');
+            }
+        }
+    } catch (e) { }
+})();
+
 // Initialize Current User Session Immediately
 try { window.currentUser = JSON.parse(localStorage.getItem('clinicUser') || 'null'); } catch (e) { }
 
@@ -521,14 +580,6 @@ function initClinicRealtimeHub() {
                     if (typeof updateDashboardStats === 'function') updateDashboardStats();
                 }, 200);
             })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, (payload) => {
-                console.log('⚡ [Realtime: Expenses Update]', payload.eventType);
-                debounceRealtime('expenses', () => {
-                    if (typeof loadExpenses === 'function') loadExpenses();
-                    if (typeof loadDailyClinicReport === 'function') loadDailyClinicReport();
-                    if (typeof updateDashboardStats === 'function') updateDashboardStats();
-                }, 200);
-            })
             .on('postgres_changes', { event: '*', schema: 'public', table: 'clinic_expenses' }, (payload) => {
                 debounceRealtime('expenses', () => {
                     if (typeof loadExpenses === 'function') loadExpenses();
@@ -595,10 +646,24 @@ function initClinicRealtimeHub() {
             .subscribe();
 
     } catch (err) {
-        console.warn('Real-time Hub initialization error:', err);
+        console.warn('Real-time Hub initialization notice:', err);
     }
 }
 window.initClinicRealtimeHub = initClinicRealtimeHub;
+
+// Network Status Listeners for seamless auto-reconnect
+window.addEventListener('online', () => {
+    console.log('🌐 Internet Reconnected: Re-syncing clinic data and real-time channels...');
+    try {
+        if (typeof initClinicRealtimeHub === 'function') initClinicRealtimeHub();
+        if (typeof loadBills === 'function') loadBills();
+        if (typeof updateDashboardStats === 'function') updateDashboardStats();
+    } catch (e) { }
+});
+
+window.addEventListener('offline', () => {
+    console.warn('⚠️ Internet Disconnected: Clinic is currently operating in offline-safe cache mode.');
+});
 
 function generateId(prefix) {
     return prefix + '-' + Math.floor(100000 + Math.random() * 900000);
@@ -3867,242 +3932,71 @@ function parseBillPaymentSplit(b) {
 }
 window.parseBillPaymentSplit = parseBillPaymentSplit;
 
-// โหลดรายการใบเสร็จทั้งหมด
-async function loadBills(forceReload = false) {
-    const tbody = document.getElementById('billsTableBody');
-    if (!tbody) return;
-
-    if (!window.clinicBills.length || forceReload) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="11" class="text-center text-muted py-5">
-                    <div class="spinner-border spinner-border-sm text-primary me-2"></div>
-                    กำลังโหลดข้อมูลใบเสร็จ...
-                </td>
-            </tr>
-        `;
+// Bill / Invoice helper functions (Unified with core billing system)
+window.printBillDetail = function (billId) {
+    if (typeof printBill === 'function') {
+        printBill(billId);
+    } else if (typeof showBillDetails === 'function') {
+        showBillDetails(billId);
     }
+};
+
+window.deleteBill = async function (billId) {
+    if (!billId) return;
+    const confirmRes = await Swal.fire({
+        title: 'ຢືນຢັນການລຶບ?',
+        text: 'ທ່ານຕ້ອງການລຶບໃບບິນ ' + billId + ' ຫຼືບໍ່?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'ລຶບ',
+        cancelButtonText: 'ຍົກເລີກ'
+    });
+    if (!confirmRes.isConfirmed) return;
 
     try {
-        let billsData = [];
-
-        // 1. ดึงข้อมูลจากตาราง bills ใน Supabase
-        try {
-            const { data, error } = await _supabase
-                .from('bills')
-                .select('*')
-                .order('created_at', { ascending: false });
-
-            if (data && !error && data.length > 0) {
-                billsData = data;
-            }
-        } catch (dbErr) {
-            console.warn('Supabase bills query warning:', dbErr);
+        if (typeof _supabase !== 'undefined') {
+            await _supabase.from('bills').delete().eq('bill_id', billId);
         }
-
-        // 2. Fallback: ถ้ายังไม่มีตาราง bills หรือไม่มีข้อมูล ให้ดึงจาก visits ที่ชำระแล้ว
-        if (billsData.length === 0) {
-            const cachedBills = JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]');
-            if (cachedBills.length > 0) {
-                billsData = cachedBills;
-            } else if (Array.isArray(window.clinicVisits) && window.clinicVisits.length > 0) {
-                const paidVisits = window.clinicVisits.filter(v => v.status === 'ชำระเงินแล้ว' || v.status === 'รอผลแล็บ' || v.status === 'รอผลตรวจ Lab' || v.status === 'เสร็จสิ้น' || v.payment_status === 'paid');
-                billsData = paidVisits.map((v, idx) => {
-                    const subtotal = parseFloat(v.total_price || v.price || v.payable_amount || 0);
-                    const discount = parseFloat(v.discount || 0);
-                    const payable = Math.max(0, subtotal - discount);
-                    return {
-                        bill_id: `BILL-GEN-${String(idx + 1001)}`,
-                        visit_id: v.visit_id || '-',
-                        hn: v.hn || '-',
-                        patient_name: v.patient_name || v.name || 'ผู้ป่วย',
-                        items: (v.tests || '').split(',').map(t => ({ name: t.trim(), price: 0 })),
-                        subtotal: subtotal || payable,
-                        discount: discount,
-                        payable_amount: payable,
-                        currency: 'LAK',
-                        payment_method: v.payment_method || 'เงินสด',
-                        status: 'ชำระแล้ว',
-                        created_by: v.doctor_name || 'Staff',
-                        created_at: v.created_at || new Date().toISOString(),
-                        note: v.notes || ''
-                    };
-                });
-            }
-        }
-
-        window.clinicBills = billsData;
-        try {
-            localStorage.setItem('clinic_bills_cache', JSON.stringify((billsData || []).slice(0, 50)));
-        } catch (e) {
-            console.warn('LocalStorage clinic_bills_cache quota exceeded in loadBills:', e);
-        }
-        renderBillsTable();
-
-    } catch (err) {
-        console.error('Error loading bills:', err);
-        if (tbody) {
-            tbody.innerHTML = `<tr><td colspan="11" class="text-center text-danger py-4">เกิดข้อผิดพลาดในการโหลดข้อมูล: ${err.message}</td></tr>`;
-        }
+        window.allBillsData = (window.allBillsData || []).filter(b => b.bill_id !== billId);
+        window.clinicBills = (window.clinicBills || []).filter(b => b.bill_id !== billId);
+        if (typeof renderBillsTable === 'function') renderBillsTable();
+        Swal.fire('ສຳເລັດ', 'ລຶບໃບບິນຮຽບຮ້ອຍແລ້ວ', 'success');
+    } catch (e) {
+        Swal.fire('ຜິດພາດ', 'ບໍ່ສາມາດລຶບໃບບິນໄດ້', 'error');
     }
-}
-window.loadBills = loadBills;
+};
 
-// กรองและแสดงผลตารางใบเสร็จ
-function renderBillsTable() {
-    const tbody = document.getElementById('billsTableBody');
-    if (!tbody) return;
-
-    const searchInput = document.getElementById('billSearchInput')?.value?.toLowerCase().trim() || '';
-    const startDate = document.getElementById('billStartDate')?.value || '';
-    const endDate = document.getElementById('billEndDate')?.value || '';
-
-    let filtered = [...window.clinicBills];
-
-    // ค้นหาข้อความ
-    if (searchInput) {
-        filtered = filtered.filter(b =>
-            (b.bill_id && b.bill_id.toLowerCase().includes(searchInput)) ||
-            (b.visit_id && b.visit_id.toLowerCase().includes(searchInput)) ||
-            (b.hn && b.hn.toLowerCase().includes(searchInput)) ||
-            (b.patient_name && b.patient_name.toLowerCase().includes(searchInput)) ||
-            (b.payment_method && b.payment_method.toLowerCase().includes(searchInput))
-        );
-    }
-
-    // กรองตามช่วงวันที่
-    if (startDate) {
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
-        filtered = filtered.filter(b => new Date(b.created_at) >= start);
-    }
-    if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        filtered = filtered.filter(b => new Date(b.created_at) <= end);
-    }
-
-    // คำนวณยอดรวมสถิติ
-    let totalSubtotal = 0;
-    let totalDiscount = 0;
-    let totalPayable = 0;
-
-    filtered.forEach(b => {
-        totalSubtotal += parseFloat(b.subtotal || 0);
-        totalDiscount += parseFloat(b.discount || 0);
-        totalPayable += parseFloat(b.payable_amount || 0);
-    });
-
-    if (document.getElementById('billStatCount')) document.getElementById('billStatCount').textContent = filtered.length.toLocaleString();
-    if (document.getElementById('billStatSubtotal')) document.getElementById('billStatSubtotal').textContent = totalSubtotal.toLocaleString() + ' ₭';
-    if (document.getElementById('billStatDiscount')) document.getElementById('billStatDiscount').textContent = totalDiscount.toLocaleString() + ' ₭';
-    if (document.getElementById('billStatPayable')) document.getElementById('billStatPayable').textContent = totalPayable.toLocaleString() + ' ₭';
-
-    if (document.getElementById('billFooterCount')) document.getElementById('billFooterCount').textContent = filtered.length.toLocaleString();
-    if (document.getElementById('billFooterTotal')) document.getElementById('billFooterTotal').textContent = totalPayable.toLocaleString() + ' ₭';
-
-    if (filtered.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="11" class="text-center text-muted py-5">
-                    <i class="ph ph-receipt fs-1 text-secondary opacity-50 mb-2"></i>
-                    <div>ไม่พบรายการใบเสร็จรับเงิน</div>
-                </td>
-            </tr>
-        `;
-        return;
-    }
-
-    let rowsHtml = '';
-    filtered.forEach((b, idx) => {
-        const dateObj = new Date(b.created_at);
-        const dateStr = !isNaN(dateObj) ?
-            dateObj.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' }) + ' ' +
-            dateObj.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
-
-        const itemCount = Array.isArray(b.items) ? b.items.length : (b.items_count || 1);
-        const safeBillId = (b.bill_id || '-').replace(/'/g, "\\'");
-
-        rowsHtml += `
-            <tr>
-                <td class="ps-4 text-secondary text-center">${idx + 1}</td>
-                <td>
-                    <span class="fw-bold text-primary">${b.bill_id}</span>
-                </td>
-                <td>
-                    <span class="badge bg-light text-dark border px-2 py-1">${b.visit_id || '-'}</span>
-                </td>
-                <td>
-                    <div class="fw-semibold text-dark">${b.patient_name || '-'}</div>
-                    <div class="text-muted small">HN: ${b.hn || '-'}</div>
-                </td>
-                <td class="text-center">
-                    <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 rounded-pill px-2.5 py-1">
-                        ${itemCount} รายการ
-                    </span>
-                </td>
-                <td class="text-end fw-semibold text-secondary">
-                    ${(parseFloat(b.subtotal) || 0).toLocaleString()} ₭
-                </td>
-                <td class="text-end text-danger fw-semibold">
-                    ${parseFloat(b.discount) > 0 ? '-' + parseFloat(b.discount).toLocaleString() + ' ₭' : '0 ₭'}
-                </td>
-                <td class="text-end fw-bold text-success fs-6">
-                    ${(parseFloat(b.payable_amount) || 0).toLocaleString()} ₭
-                </td>
-                <td class="text-center">
-                    <span class="badge bg-success bg-opacity-15 text-success border border-success border-opacity-25 rounded-pill px-2.5 py-1 fw-semibold">
-                        <i class="bi bi-check-circle-fill me-1"></i> ${b.status || 'ชำระแล้ว'}
-                    </span>
-                    <div class="text-muted extra-small mt-0.5" style="font-size: 0.75rem;">${b.payment_method || 'เงินสด'}</div>
-                </td>
-                <td class="text-center text-muted small">
-                    ${dateStr}
-                </td>
-                <td class="text-center pe-4">
-                    <div class="d-flex justify-content-center gap-1">
-                        <button type="button" class="btn btn-sm btn-outline-primary rounded-3 px-2 py-1 shadow-xs" title="พิมพ์ใบเสร็จ" onclick="printBillDetail('${safeBillId}')">
-                            <i class="bi bi-printer"></i>
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-3 px-2 py-1 shadow-xs" title="ดูรายละเอียด" onclick="showBillDetail('${safeBillId}')">
-                            <i class="bi bi-eye"></i>
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-danger rounded-3 px-2 py-1 shadow-xs" title="ลบใบเสร็จ" onclick="deleteBill('${safeBillId}')">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `;
-    });
-
-    tbody.innerHTML = rowsHtml;
-}
-window.renderBillsTable = renderBillsTable;
-
-// ตัวกรองช่วงวันที่ด่วน
-function setBillDateFilter(mode) {
+window.setBillDateFilter = function (mode) {
     const startInput = document.getElementById('billStartDate');
     const endInput = document.getElementById('billEndDate');
     const now = new Date();
 
+    const formatDate = function (d) {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
     if (mode === 'today') {
-        const todayStr = now.toISOString().slice(0, 10);
+        const todayStr = formatDate(now);
         if (startInput) startInput.value = todayStr;
         if (endInput) endInput.value = todayStr;
     } else if (mode === 'month') {
-        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
-        if (startInput) startInput.value = firstDay;
-        if (endInput) endInput.value = lastDay;
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+        startInput.value = formatDate(firstDay);
+        endInput.value = formatDate(now);
     } else if (mode === 'all') {
         if (startInput) startInput.value = '';
         if (endInput) endInput.value = '';
     }
 
-    renderBillsTable();
-}
-window.setBillDateFilter = setBillDateFilter;
+    if (typeof renderBillsTable === 'function') {
+        renderBillsTable();
+    }
+};
 
 // สลับมุมมองในหน้า Bills
 function switchBillsView(view) {
@@ -5812,22 +5706,9 @@ async function resolvePatientHn(patientName, visitId, phone, autoGenerateIfNotFo
         if (bData && bData.hn && bData.hn !== '-' && bData.hn !== 'null') return bData.hn.trim();
     } catch (e) { }
 
-    // 3. หากยังไม่พบ HN (เคสตรวจที่ไม่ได้ลงทะเบียนล่วงหน้า) ให้สร้าง HN ใหม่อัตโนมัติและบันทึกลงฐานข้อมูล
+    // 3. หากยังไม่พบ HN (เคสตรวจที่ไม่ได้ลงทะเบียนล่วงหน้า) ให้สร้างรหัสแสดงผลจำลอง
     if (autoGenerateIfNotFound && rawName && rawName !== '-' && rawName !== 'ผู้ป่วย') {
         const autoHn = 'HN-' + Math.floor(100000 + Math.random() * 900000);
-        const newPatient = {
-            hn: autoHn,
-            patient_name: rawName,
-            phone: phone || null,
-            created_at: new Date().toISOString()
-        };
-        (window.allPatients = window.allPatients || []).push(newPatient);
-        try {
-            _supabase.from('patients').insert([newPatient]).then(() => { });
-            if (visitId && visitId !== '-') {
-                _supabase.from('visits').update({ hn: autoHn }).eq('visit_id', visitId).then(() => { });
-            }
-        } catch (e) { }
         return autoHn;
     }
 
@@ -5865,7 +5746,7 @@ async function loadPaymentQueue() {
             window.allPatients = pList;
         }
     } catch (e) {
-        console.warn('loadPaymentQueue fetch patients error:', e);
+        console.warn('loadPaymentQueue fetch patients notice:', e);
     }
 
     // ดึงประวัติ visits อื่นๆ ที่มี HN อยู่แล้ว
@@ -5934,26 +5815,8 @@ async function loadPaymentQueue() {
                 }
             }
 
-            // หากไม่พบในระบบเลย ให้สร้างรหัส HN ให้อัตโนมัติและบันทึกเข้าทะเบียนผู้ป่วยทันที
-            if (!matchedHn && rawName && rawName !== '-' && rawName !== 'ผู้ป่วย') {
-                matchedHn = 'HN-' + Math.floor(100000 + Math.random() * 900000);
-                const newPatient = {
-                    hn: matchedHn,
-                    patient_name: rawName,
-                    phone: row.phone || null,
-                    created_at: row.created_at || new Date().toISOString()
-                };
-                allPatientsList.push(newPatient);
-                exactNameMap[lowerName] = matchedHn;
-                if (normName) normNameMap[normName] = matchedHn;
-                try {
-                    _supabase.from('patients').insert([newPatient]).then(() => { });
-                } catch (e) { }
-            }
-
             if (matchedHn) {
                 row.hn = matchedHn;
-                _supabase.from('visits').update({ hn: matchedHn }).eq('visit_id', row.visit_id).then(() => { });
             }
         }
     });
@@ -6429,21 +6292,29 @@ async function submitLabUpload() {
                 visitMetaList = [];
             }
 
+            // เฉพาะ URL ภายนอกที่ไม่ใช่ Data URL ขนาดใหญ่
+            const safePublicUrl = (newFileItem.publicUrl && !newFileItem.publicUrl.startsWith('data:')) ? newFileItem.publicUrl : '';
+            const safeUrl = (newFileItem.url && !newFileItem.url.startsWith('data:')) ? newFileItem.url : '';
+
             visitMetaList.push({
                 id: fileId,
                 visitId: visitId,
                 fileName: file.name,
                 fileType: file.type,
                 category: category || 'ผลแล็บ',
-                publicUrl: newFileItem.publicUrl,
-                url: newFileItem.url,
+                publicUrl: safePublicUrl,
+                url: safeUrl,
                 updatedAt: new Date().toISOString()
             });
 
             metaMap[visitId] = visitMetaList;
-            localStorage.setItem('clinic_lab_files_meta', JSON.stringify(metaMap));
+            if (typeof window.safeSetLocalStorage === 'function') {
+                window.safeSetLocalStorage('clinic_lab_files_meta', metaMap);
+            } else {
+                localStorage.setItem('clinic_lab_files_meta', JSON.stringify(metaMap));
+            }
         } catch (ex) {
-            console.warn('LocalStorage meta save warning:', ex);
+            console.warn('LocalStorage meta save notice:', ex);
         }
 
         // 4. 🌟 บันทึกไฟล์ทั้งหมดลงใน Supabase DB (visits.pdf_url) เพื่อให้ทุกเครื่องในระบบและเครือข่ายเปิดดูได้ 100%
@@ -6970,12 +6841,13 @@ function populateRxMedDropdown() {
 async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds = null, refillBatchTag = null) {
     if (!visitId) return;
 
-    // ถ้าไม่มี hn หรือ patientName หรือ pdfUrl ให้ค้นหาจาก cache หรือ Supabase
+    // ถ้าไม่มี hn หรือ patientName หรือ pdfUrl หรือ lab_note ให้ค้นหาจาก cache หรือ Supabase
     let visitRow = null;
     if (window.allHistoryVisits) visitRow = window.allHistoryVisits.find(v => v.visit_id === visitId);
     if (!visitRow && window.allQueueData) visitRow = window.allQueueData.find(v => v.visit_id === visitId);
+    if (!visitRow && window.clinicVisits) visitRow = window.clinicVisits.find(v => v.visit_id === visitId);
 
-    if ((!visitRow || !patientName) && typeof _supabase !== 'undefined') {
+    if ((!visitRow || visitRow.lab_note === undefined) && typeof _supabase !== 'undefined') {
         try {
             const { data } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
             if (data) visitRow = data;
@@ -7164,7 +7036,38 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
         }
     }
 
-    // 6. โหลด/อัปเดตสต็อกใน background หากจำเป็น
+    // 6. ดึงข้อมูลหมายเหตุ / ข้อเน้นย้ำจากแพทย์ (Lab Note) ที่บันทึกไว้ตอนสั่งตรวจ Lab
+    let doctorLabNote = '';
+    if (visitRow) {
+        if (visitRow.lab_note) doctorLabNote = visitRow.lab_note;
+        else if (visitRow.doctor_note) doctorLabNote = visitRow.doctor_note;
+        else if (visitRow.notes) doctorLabNote = visitRow.notes;
+    }
+
+    // กรองส่วนหัวแท็กไฟล์/ผลตรวจหลอดเลือดออก เพื่อแสดงเฉพาะข้อความเน้นย้ำจากแพทย์
+    let cleanLabNote = (doctorLabNote || '')
+        .replace(/\[เอกสารผลตรวจ[^\]]*\]/gi, '')
+        .replace(/\[เอกสารแนบ[^\]]*\]/gi, '')
+        .replace(/\[ไฟล์แนบ[^\]]*\]/gi, '');
+
+    if (cleanLabNote.includes('[ผลตรวจหลอดเลือด]')) {
+        cleanLabNote = cleanLabNote.split('[ผลตรวจหลอดเลือด]')[0].trim();
+    } else {
+        cleanLabNote = cleanLabNote.trim();
+    }
+
+    const labNoteBox = document.getElementById('rxDoctorLabNoteBox');
+    const labNoteText = document.getElementById('rxDoctorLabNoteText');
+    if (labNoteBox && labNoteText) {
+        if (cleanLabNote && cleanLabNote !== '' && cleanLabNote !== '-') {
+            labNoteText.innerText = cleanLabNote;
+            labNoteBox.style.display = 'flex';
+        } else {
+            labNoteBox.style.display = 'none';
+        }
+    }
+
+    // 7. โหลด/อัปเดตสต็อกใน background หากจำเป็น
     if (!window.allStockMedicines || window.allStockMedicines.length === 0 || !window.allMlmProducts || window.allMlmProducts.length === 0) {
         Promise.all([
             typeof loadStockList === 'function' ? loadStockList() : Promise.resolve(),
@@ -11145,68 +11048,76 @@ function getMonthlyReferredCount(referrerId, referrerName) {
     }).length;
 }
 
+let _syncReferralDebounce = null;
 window.saveReferralLocalData = function (data) {
     if (window.referrersData) {
-        localStorage.setItem('clinic_referrers', JSON.stringify(window.referrersData));
+        if (typeof window.safeSetLocalStorage === 'function') {
+            window.safeSetLocalStorage('clinic_referrers', window.referrersData);
+        } else {
+            try { localStorage.setItem('clinic_referrers', JSON.stringify(window.referrersData)); } catch (e) { }
+        }
     }
     if (window.commissionSettings) {
-        localStorage.setItem('clinic_commission_settings', JSON.stringify(window.commissionSettings));
+        if (typeof window.safeSetLocalStorage === 'function') {
+            window.safeSetLocalStorage('clinic_commission_settings', window.commissionSettings);
+        } else {
+            try { localStorage.setItem('clinic_commission_settings', JSON.stringify(window.commissionSettings)); } catch (e) { }
+        }
     }
 
-    try {
-        // ตรวจสอบว่าข้อมูลเป็น Array หรือไม่ ถ้าใช่ให้หั่นเก็บแค่ 50 รายการล่าสุด
-        let safeData = data || window.commissionLogs;
-        if (Array.isArray(safeData)) {
-            safeData = safeData.slice(0, 50);
-        }
-
-        // เซฟข้อมูลที่ถูกจำกัดขนาดแล้วลง LocalStorage
-        localStorage.setItem('clinic_commission_logs', JSON.stringify(safeData));
-    } catch (error) {
-        console.warn('ล้างแคช clinic_commission_logs เนื่องจากพื้นที่เต็ม:', error);
-        localStorage.removeItem('clinic_commission_logs');
+    let safeData = data || window.commissionLogs;
+    if (Array.isArray(safeData)) {
+        safeData = safeData.slice(0, 30);
+    }
+    if (typeof window.safeSetLocalStorage === 'function') {
+        window.safeSetLocalStorage('clinic_commission_logs', safeData);
+    } else {
+        try { localStorage.setItem('clinic_commission_logs', JSON.stringify(safeData)); } catch (e) { }
     }
 
-    // Sync directly to Supabase Cloud DB with field sanitization for 100% cloud DB alignment
-    try {
-        if (typeof _supabase !== 'undefined') {
-            const logsToSync = data || window.commissionLogs;
-            if (Array.isArray(logsToSync) && logsToSync.length > 0) {
-                const sanitizedLogs = logsToSync.map(l => ({
-                    id: String(l.id),
-                    referrer_id: l.referrer_id ? String(l.referrer_id) : null,
-                    referrer_name: l.referrer_name || null,
-                    patient_name: l.patient_name || null,
-                    visit_id: l.visit_id ? String(l.visit_id) : null,
-                    total_invoice: l.total_invoice ? parseFloat(l.total_invoice) : 0,
-                    amount: l.amount ? parseFloat(l.amount) : 0,
-                    base_amount: l.base_amount !== undefined ? parseFloat(l.base_amount) : (l.item_amount ? (parseFloat(l.amount) - parseFloat(l.item_amount)) : parseFloat(l.amount)),
-                    item_amount: l.item_amount ? parseFloat(l.item_amount) : 0,
-                    status: l.status || 'pending',
-                    paid_at: l.paid_at || null,
-                    payout_method: l.payout_method || null,
-                    payout_ref: l.payout_ref || null,
-                    is_bonus: !!l.is_bonus,
-                    created_at: l.created_at || new Date().toISOString()
-                }));
-                _supabase.from('commission_logs').upsert(sanitizedLogs).then(() => { }).catch(() => { });
+    // Debounce cloud sync to avoid spamming Supabase concurrently
+    if (_syncReferralDebounce) clearTimeout(_syncReferralDebounce);
+    _syncReferralDebounce = setTimeout(() => {
+        try {
+            if (typeof _supabase !== 'undefined') {
+                const logsToSync = data || window.commissionLogs;
+                if (Array.isArray(logsToSync) && logsToSync.length > 0) {
+                    const sanitizedLogs = logsToSync.slice(0, 30).map(l => ({
+                        id: String(l.id),
+                        referrer_id: l.referrer_id ? String(l.referrer_id) : null,
+                        referrer_name: l.referrer_name || null,
+                        patient_name: l.patient_name || null,
+                        visit_id: l.visit_id ? String(l.visit_id) : null,
+                        total_invoice: l.total_invoice ? parseFloat(l.total_invoice) : 0,
+                        amount: l.amount ? parseFloat(l.amount) : 0,
+                        base_amount: l.base_amount !== undefined ? parseFloat(l.base_amount) : (l.item_amount ? (parseFloat(l.amount) - parseFloat(l.item_amount)) : parseFloat(l.amount)),
+                        item_amount: l.item_amount ? parseFloat(l.item_amount) : 0,
+                        status: l.status || 'pending',
+                        paid_at: l.paid_at || null,
+                        payout_method: l.payout_method || null,
+                        payout_ref: l.payout_ref || null,
+                        is_bonus: !!l.is_bonus,
+                        created_at: l.created_at || new Date().toISOString()
+                    }));
+                    _supabase.from('commission_logs').upsert(sanitizedLogs, { onConflict: 'id' }).then(() => { }).catch(() => { });
+                }
+                if (Array.isArray(window.referrersData) && window.referrersData.length > 0) {
+                    const sanitizedRef = window.referrersData.map(r => ({
+                        id: String(r.id),
+                        code: r.code ? String(r.code) : String(r.id),
+                        name: r.name || '',
+                        phone: r.phone || null,
+                        bank_name: r.bank_name || null,
+                        bank_account: r.bank_account || null,
+                        bank_account_name: r.bank_account_name || null,
+                        notes: r.notes || null,
+                        created_at: r.created_at || new Date().toISOString()
+                    }));
+                    _supabase.from('referrers').upsert(sanitizedRef, { onConflict: 'id' }).then(() => { }).catch(() => { });
+                }
             }
-            if (Array.isArray(window.referrersData) && window.referrersData.length > 0) {
-                const sanitizedRef = window.referrersData.map(r => ({
-                    id: String(r.id),
-                    code: r.code ? String(r.code) : String(r.id),
-                    name: r.name || '',
-                    phone: r.phone || null,
-                    bank_name: r.bank_name || null,
-                    bank_account: r.bank_account || null,
-                    bank_account_name: r.bank_account_name || null,
-                    notes: r.notes || null,
-                    created_at: r.created_at || new Date().toISOString()
-                }));
-                _supabase.from('referrers').upsert(sanitizedRef).then(() => { }).catch(() => { });
-            }
-        }
-    } catch (e) { }
+        } catch (e) { }
+    }, 600);
 };
 
 async function loadReferralData(isManualClick = false) {
@@ -11265,7 +11176,7 @@ async function loadReferralData(isManualClick = false) {
             const resRef = await _supabase.from('referrers').select('*');
             if (resRef && resRef.data) {
                 window.referrersData = resRef.data;
-                localStorage.setItem('clinic_referrers', JSON.stringify(window.referrersData));
+                window.safeSetLocalStorage('clinic_referrers', window.referrersData);
             }
         }
     } catch (e) { }
@@ -11275,14 +11186,7 @@ async function loadReferralData(isManualClick = false) {
             const resLogs = await _supabase.from('commission_logs').select('*').order('created_at', { ascending: false });
             if (resLogs && resLogs.data) {
                 window.commissionLogs = resLogs.data;
-                try {
-                    let logsToSave = window.commissionLogs;
-                    if (Array.isArray(logsToSave)) logsToSave = logsToSave.slice(0, 50);
-                    localStorage.setItem('clinic_commission_logs', JSON.stringify(logsToSave));
-                } catch (ex) {
-                    console.warn('LocalStorage save error (clearing clinic_commission_logs cache):', ex);
-                    localStorage.removeItem('clinic_commission_logs');
-                }
+                window.safeSetLocalStorage('clinic_commission_logs', (window.commissionLogs || []).slice(0, 30));
             }
         }
     } catch (e) { }
@@ -13504,16 +13408,16 @@ async function saveItemCommissionSettings() {
 }
 window.saveItemCommissionSettings = saveItemCommissionSettings;
 
-async function calculateAndRecordCommission(visitRecordOrId, testsString = '') {
+async function calculateAndRecordCommission(visitRecordOrId, testsString = '', isBatch = false) {
     let visitRecord = null;
     let visitId = null;
 
     if (typeof visitRecordOrId === 'string') {
         visitId = visitRecordOrId;
         try {
-            const { data } = await _supabase.from('visits').select('*').eq('visit_id', visitId).single();
+            const { data } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
             visitRecord = data;
-        } catch (e) { console.log('visit fetch error', e); }
+        } catch (e) { }
 
         if (!visitRecord && window.allPaymentQueue) {
             visitRecord = window.allPaymentQueue.find(v => v.visit_id === visitId || v.id === visitId);
@@ -13547,7 +13451,7 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '') {
                 const { data: pData } = await _supabase.from('patients').select('referrer, ref_code, referred_by').eq('hn', patientHn).maybeSingle();
                 referrerCode = pData?.referrer || pData?.ref_code || pData?.referred_by || '';
             } catch (e) {
-                console.warn('Patient referrer fetch by HN error:', e);
+                console.warn('Patient referrer fetch by HN notice:', e);
             }
         }
         if (!referrerCode && patientName) {
@@ -13555,7 +13459,7 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '') {
                 const { data: pData } = await _supabase.from('patients').select('referrer, ref_code, referred_by').eq('patient_name', patientName).maybeSingle();
                 referrerCode = pData?.referrer || pData?.ref_code || pData?.referred_by || '';
             } catch (e) {
-                console.warn('Patient referrer fetch by Name error:', e);
+                console.warn('Patient referrer fetch by Name notice:', e);
             }
         }
     }
@@ -13586,7 +13490,6 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '') {
     }
 
     if (!referrerId) {
-        console.warn('No referrer found for visit', visitId);
         return;
     }
 
@@ -13740,7 +13643,6 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '') {
 
     // 🌟 หากปิดทั้ง 2 สวิตช์ หรือยอดปันผลรวมเป็น 0 ให้ข้ามการบันทึก Log ปันผล
     if ((!isOverallActive && !itemModeEnabled) || commAmount <= 0) {
-        console.log('Commission calculation skipped: both modes are OFF or amount is 0');
         return;
     }
 
@@ -13761,35 +13663,31 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '') {
     };
 
     window.commissionLogs.unshift(newLog);
-    saveReferralLocalData();
-    updateReferralSummaryCards();
-    if (typeof renderReferrersTable === 'function') renderReferrersTable();
-    if (typeof renderCommissionLogsTable === 'function') renderCommissionLogsTable();
 
-    try {
-        let { error: comErr } = await _supabase.from('commission_logs').upsert([newLog], { onConflict: 'id' });
-        if (comErr) {
-            // ถ้า column ไม่ตรง ให้ลอง upsert เฉพาะ core columns
-            const coreLog = {
-                id: newLog.id,
-                referrer_id: newLog.referrer_id,
-                referrer_name: newLog.referrer_name,
-                patient_name: newLog.patient_name,
-                visit_id: newLog.visit_id,
-                amount: newLog.amount,
-                status: newLog.status,
-                created_at: newLog.created_at
-            };
-            if (!comErr.message?.includes('total_invoice')) coreLog.total_invoice = newLog.total_invoice;
-            if (!comErr.message?.includes('base_amount')) coreLog.base_amount = newLog.base_amount;
-            if (!comErr.message?.includes('item_amount')) coreLog.item_amount = newLog.item_amount;
-            if (!comErr.message?.includes('item_details')) coreLog.item_details = newLog.item_details;
-            if (!comErr.message?.includes('is_bonus')) coreLog.is_bonus = newLog.is_bonus;
-            const { error: comErr2 } = await _supabase.from('commission_logs').upsert([coreLog], { onConflict: 'id' });
-            if (comErr2) console.warn('Commission log upsert fallback failed:', comErr2.message);
-        }
-    } catch (e) {
-        console.log('Commission log Supabase insert fallback', e);
+    if (!isBatch) {
+        saveReferralLocalData();
+        updateReferralSummaryCards();
+        if (typeof renderReferrersTable === 'function') renderReferrersTable();
+        if (typeof renderCommissionLogsTable === 'function') renderCommissionLogsTable();
+
+        try {
+            if (typeof _supabase !== 'undefined') {
+                const { error: comErr } = await _supabase.from('commission_logs').upsert([newLog], { onConflict: 'id' });
+                if (comErr) {
+                    const coreLog = {
+                        id: newLog.id,
+                        referrer_id: newLog.referrer_id,
+                        referrer_name: newLog.referrer_name,
+                        patient_name: newLog.patient_name,
+                        visit_id: newLog.visit_id,
+                        amount: newLog.amount,
+                        status: newLog.status,
+                        created_at: newLog.created_at
+                    };
+                    await _supabase.from('commission_logs').upsert([coreLog], { onConflict: 'id' });
+                }
+            }
+        } catch (e) { }
     }
 }
 window.calculateAndRecordCommission = calculateAndRecordCommission;
@@ -13850,7 +13748,7 @@ async function syncAllVisitsCommissionLogs() {
         if (refBy && refBy !== '-' && refBy !== 'null' && refBy !== 'undefined') {
             v.referrer = refBy;
             if (!v.hn && p && p.hn) v.hn = p.hn;
-            await calculateAndRecordCommission(v, v.lab_tests || '');
+            await calculateAndRecordCommission(v, v.lab_tests || '', true);
             if (vId) existingVisitIds.add(vId);
             addedCount++;
         }
@@ -13858,6 +13756,9 @@ async function syncAllVisitsCommissionLogs() {
 
     if (addedCount > 0) {
         saveReferralLocalData();
+        updateReferralSummaryCards();
+        if (typeof renderReferrersTable === 'function') renderReferrersTable();
+        if (typeof renderCommissionLogsTable === 'function') renderCommissionLogsTable();
     }
 }
 window.syncAllVisitsCommissionLogs = syncAllVisitsCommissionLogs;
@@ -15186,30 +15087,101 @@ async function saveBill(visitId, opts) {
 }
 window.saveBill = saveBill;
 
-async function loadBills() {
+async function loadBills(forceReload = false) {
     const tbody = document.getElementById('billsTableBody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูลใบเสร็จ...</td></tr>';
+    if (tbody && (!window.allBillsData || window.allBillsData.length === 0 || forceReload)) {
+        tbody.innerHTML = '<tr><td colspan="13" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูลใบเสร็จ...</td></tr>';
+    }
 
     let billsList = [];
+    let visitList = [];
+
+    // 1. ดึงข้อมูลจากตาราง bills และ visits ใน Supabase พร้อมกัน
     try {
-        const { data, error } = await _supabase.from('bills').select('*').order('created_at', { ascending: false });
-        if (!error && data) {
-            billsList = data.map(b => {
-                const labItems = (Array.isArray(b.items) ? b.items : []).filter(i => i.type !== 'med');
-                return { ...b, items: labItems };
-            });
-        } else if (error) {
-            console.warn('Load bills Supabase error:', error);
+        if (typeof _supabase !== 'undefined') {
+            const [ { data: bData }, { data: vData } ] = await Promise.all([
+                _supabase.from('bills').select('*').order('created_at', { ascending: false }),
+                _supabase.from('visits').select('*').order('created_at', { ascending: false })
+            ]);
+            if (bData && Array.isArray(bData)) {
+                billsList = bData.map(b => {
+                    const labItems = (Array.isArray(b.items) ? b.items : []).filter(i => i && i.type !== 'med');
+                    return { ...b, items: labItems };
+                });
+            }
+            if (vData && Array.isArray(vData)) {
+                visitList = vData;
+                window.clinicVisits = vData;
+            }
         }
     } catch (e) {
-        console.warn('Load bills Supabase exception:', e);
+        console.warn('Load bills Supabase notice:', e);
     }
+
+    // 2. ดึงจาก Local Storage เพิ่มเติม
+    try {
+        const localBills = JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]');
+        if (Array.isArray(localBills) && localBills.length > 0) {
+            localBills.forEach(lb => {
+                if (lb && (lb.bill_id || lb.visit_id)) {
+                    const exists = billsList.some(b => b.bill_id === lb.bill_id || (lb.visit_id && b.visit_id === lb.visit_id));
+                    if (!exists) billsList.push(lb);
+                }
+            });
+        }
+    } catch (e) { }
+
+    // 3. รวมเคสคนไข้ที่ชำระเงินแล้วจาก visits เข้าสู่รายการบิลอัตโนมัติ (Fallback Paid Visits 100%)
+    const allVisits = (visitList.length > 0 ? visitList : (window.clinicVisits || []));
+    const paidVisits = allVisits.filter(v => {
+        if (!v) return false;
+        const st = (v.status || '').trim();
+        const pSt = (v.payment_status || '').trim();
+        const isPaidStatus = st === 'ชำระแล้ว' || st === 'ชำระเงินแล้ว' || st === 'รอผลแล็บ' || st === 'รอผลตรวจ Lab' || st === 'รออ่านผล' || st === 'รอจัดยา' || st === 'เสร็จสิ้น' || pSt === 'paid';
+        const hasPayment = (parseFloat(v.payable_amount || 0) > 0 || parseFloat(v.cash_lak || 0) > 0 || parseFloat(v.transfer_lak || 0) > 0);
+        return isPaidStatus || hasPayment;
+    });
+
+    paidVisits.forEach((v, idx) => {
+        const vId = v.visit_id || v.id;
+        const alreadyInBills = billsList.some(b => (vId && (b.visit_id === vId || b.bill_id === vId)));
+        if (!alreadyInBills && vId) {
+            const rawTests = v.lab_tests || v.tests || '';
+            const testItems = rawTests ? rawTests.split(/[,;\n]/).map(t => ({ name: t.trim(), price: 0, type: 'lab' })).filter(x => x.name) : [{ name: 'ກວດ Lab / ບໍລິການ', price: 0, type: 'lab' }];
+            const subtotal = parseFloat(v.total_price || v.price || v.payable_amount || 0);
+            const discount = parseFloat(v.discount || v.lab_discount || 0);
+            const payable = parseFloat(v.payable_amount !== undefined ? v.payable_amount : Math.max(0, subtotal - discount));
+
+            billsList.push({
+                bill_id: `BILL-${vId.replace(/^VIS-/, '') || String(idx + 1001)}`,
+                visit_id: vId,
+                hn: v.hn || '-',
+                patient_name: v.patient_name || v.name || 'ຜູ້ປ່ວຍ',
+                items: testItems,
+                subtotal: subtotal || payable,
+                discount: discount,
+                payable_amount: payable,
+                currency: v.currency || 'LAK',
+                payment_method: v.payment_method || v.pay_mode || 'ເງິນສົດ',
+                pay_mode: v.pay_mode || v.payment_method || 'ເງິນສົດ',
+                cash_lak: v.cash_lak,
+                transfer_lak: v.transfer_lak,
+                status: 'ชำระแล้ว',
+                created_by: v.doctor_name || v.created_by || 'Staff',
+                created_at: v.payment_date || v.created_at || new Date().toISOString(),
+                note: v.note || v.payment_note || ''
+            });
+        }
+    });
+
+    // เรียงลำดับจากใหม่สุดไปเก่าสุด
+    billsList.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 
     window.allBillsData = billsList;
     window.clinicBills = billsList;
-    try {
-        localStorage.setItem('clinic_bills_cache', JSON.stringify((billsList || []).slice(0, 50)));
-    } catch (e) { }
+    if (typeof window.safeSetLocalStorage === 'function') {
+        window.safeSetLocalStorage('clinic_bills_cache', (billsList || []).slice(0, 50));
+    }
     renderBillsTable();
 }
 window.loadBills = loadBills;
@@ -15539,17 +15511,30 @@ function renderBillsTable() {
     const searchQ = ((document.getElementById('billSearchInput') || {}).value || '').toLowerCase().trim();
     const startVal = (document.getElementById('billStartDate') || {}).value || '';
     const endVal = (document.getElementById('billEndDate') || {}).value || '';
-    const startDate = startVal ? new Date(startVal + 'T00:00:00') : null;
-    const endDate = endVal ? new Date(endVal + 'T23:59:59') : null;
 
-    let bills = (window.allBillsData || []).slice();
+    const getCleanDate = (raw) => {
+        if (!raw) return '';
+        if (typeof raw === 'string' && raw.length >= 10 && raw[4] === '-' && raw[7] === '-') return raw.slice(0, 10);
+        try {
+            const d = new Date(raw);
+            if (!isNaN(d.getTime())) {
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${y}-${m}-${day}`;
+            }
+        } catch (e) { }
+        return String(raw).slice(0, 10);
+    };
 
-    if (startDate || endDate) {
+    let bills = (window.allBillsData || window.clinicBills || []).slice();
+
+    if (startVal || endVal) {
         bills = bills.filter(function (b) {
-            const d = b.created_at ? new Date(b.created_at) : null;
-            if (!d) return true;
-            if (startDate && d < startDate) return false;
-            if (endDate && d > endDate) return false;
+            const rowDate = getCleanDate(b.created_at || b.date || b.payment_date);
+            if (!rowDate) return true;
+            if (startVal && rowDate < startVal) return false;
+            if (endVal && rowDate > endVal) return false;
             return true;
         });
     }
@@ -16638,15 +16623,10 @@ async function loadExpenses() {
         let expenses = [];
         if (typeof _supabase !== 'undefined') {
             try {
-                const { data, error } = await _supabase.from('expenses').select('*').order('created_at', { ascending: false });
-                if (!error && data) {
-                    expenses = data;
-                } else {
-                    const { data: d2 } = await _supabase.from('clinic_expenses').select('*').order('created_at', { ascending: false });
-                    if (d2) expenses = d2;
-                }
+                const { data: d2 } = await _supabase.from('clinic_expenses').select('*').order('created_at', { ascending: false });
+                if (d2) expenses = d2;
             } catch (e) {
-                console.warn('loadExpenses fetch error:', e);
+                console.warn('loadExpenses fetch notice:', e);
             }
         }
         window.clinicExpensesData = expenses;
@@ -16882,10 +16862,10 @@ async function saveExpense(e) {
     };
 
     try {
-        // 1. บันทึกลงตาราง clinic_expenses ใน Supabase (และ fallback expenses)
+        // 1. บันทึกลงตาราง clinic_expenses ใน Supabase
         try {
             if (typeof _supabase !== 'undefined') {
-                const { error: dbErr } = await _supabase.from('clinic_expenses').insert([{
+                await _supabase.from('clinic_expenses').insert([{
                     id: expId,
                     date: dateVal,
                     category: catVal,
@@ -16895,21 +16875,9 @@ async function saveExpense(e) {
                     recorded_by: payerVal,
                     created_at: nowIso
                 }]);
-                if (dbErr) {
-                    console.warn('Supabase clinic_expenses insert warning, retrying expenses table:', dbErr.message);
-                    await _supabase.from('expenses').insert([{
-                        expense_date: dateVal,
-                        category: catVal,
-                        detail: detailVal,
-                        amount: amountVal,
-                        payment_method: methodVal,
-                        payer: payerVal,
-                        created_at: nowIso
-                    }]);
-                }
             }
         } catch (dbErr) {
-            console.warn('DB error fallback:', dbErr);
+            console.warn('DB error notice:', dbErr);
         }
 
         // 2. บันทึกลง LocalStorage Cache ทันที (ทั้ง clinic_expenses_data และ clinic_expenses_cache)

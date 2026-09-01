@@ -3749,6 +3749,21 @@
                         <div><button type="button" id="rxPdfBtn" class="btn btn-sm btn-danger px-3"><i
                                     class="bi bi-file-pdf"></i> เปิดดูผล Lab</button></div>
                     </div>
+
+                    <!-- กล่องแสดงหมายเหตุ / ข้อเน้นย้ำจากแพทย์ (Lab Note) -->
+                    <div id="rxDoctorLabNoteBox" class="alert alert-warning py-2.5 px-3 mb-3 border-warning border d-flex align-items-start gap-2 shadow-xs rounded-3" style="display: none; font-size: 0.88rem; background-color: #fffbeb;">
+                        <i class="bi bi-exclamation-triangle-fill text-warning fs-5 mt-0.5"></i>
+                        <div class="w-100">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <strong class="text-dark d-flex align-items-center gap-1.5" style="font-size: 0.88rem;">
+                                    <i class="bi bi-pencil-square text-primary"></i> หมายเหตุ / ข้อเน้นย้ำจากแพทย์ (Lab Note):
+                                </strong>
+                                <span class="badge bg-warning text-dark px-2 py-0.5 rounded-pill" style="font-size: 0.72rem;">ข้อความจากห้องตรวจ</span>
+                            </div>
+                            <div id="rxDoctorLabNoteText" class="text-dark fw-medium" style="white-space: pre-wrap; line-height: 1.5; color: #1e293b;">-</div>
+                        </div>
+                    </div>
+
                     <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                         <h6 class="fw-bold mb-0"><i
                                 class="bi bi-capsule-pill text-primary me-1"></i>รายการสั่งจ่ายยา/อาหารเสริม</h6>
@@ -4757,7 +4772,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="../config.js"></script>
-    <script src="function.js?v=2.3.2"></script>
+    <script src="function.js?v=2.3.8"></script>
 
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
     <script>
