@@ -3416,9 +3416,8 @@
                                 <input type="text" class="form-control custom-input" name="Tel" required>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label fw-bold"
-                                    data-i18n="reg_modal_emergency">เบอร์ติดต่อฉุกเฉิน</label>
-                                <input type="text" class="form-control custom-input" name="EmergencyTel">
+                                <label class="form-label fw-bold">วันที่นัดมาตรวจ</label>
+                                <input type="date" class="form-control custom-input" name="NextAppointmentDate">
                             </div>
                         </div>
                         <div class="row mb-3">
@@ -3671,17 +3670,17 @@
                     <form id="labUploadForm" onsubmit="event.preventDefault(); submitLabUpload();">
                         <input type="hidden" id="uploadVisitId" name="visitId">
 
-                        <!-- 1. เพิ่ม Dropdown เลือกหมวดหมู่ผลตรวจ -->
                         <div class="mb-3">
-                            <select class="form-select custom-input" id="labCategorySelect" required
-                                style="border-radius: 10px; padding: 10px 14px;">
-                                <option value="" disabled selected>กรุณาเลือก.........</option>
-                                <option value="ตรวจเลือด">ตรวจเลือด</option>
-                                <option value="เอโก">เอโก</option>
-                                <option value="เอ็กซเรย์">เอ็กซเรย์</option>
-                                <option value="ตรวจหลอดเลือด">ตรวจหลอดเลือด</option>
-                                <option value="ผลตรวจอื่นๆ">ผลตรวจอื่นๆ</option>
-                            </select>
+                            <input type="text" class="form-control custom-input" id="labCategorySelect" required
+                                list="labCategoryOptions" placeholder="กรุณาเลือก หรือ พิมพ์หมวดหมู่ใหม่..."
+                                style="border-radius: 10px; padding: 10px 14px;" autocomplete="off">
+                            <datalist id="labCategoryOptions">
+                                <option value="ตรวจเลือด"></option>
+                                <option value="เอโก"></option>
+                                <option value="เอ็กซเรย์"></option>
+                                <option value="ตรวจหลอดเลือด"></option>
+                                <option value="ผลตรวจอื่นๆ"></option>
+                            </datalist>
                         </div>
 
                         <!-- 2. ส่วนอัปโหลดไฟล์ -->

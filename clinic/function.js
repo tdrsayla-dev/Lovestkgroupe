@@ -718,6 +718,22 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
+    document.addEventListener('click', function (e) {
+        if (e.target && (e.target.matches('[data-bs-dismiss="modal"]') || e.target.closest('[data-bs-dismiss="modal"]'))) {
+            if (document.activeElement) document.activeElement.blur();
+        }
+    });
+
+    if (typeof Swal !== 'undefined' && Swal.fire) {
+        const _origSwalFire = Swal.fire.bind(Swal);
+        window.Swal.fire = function (...args) {
+            if (document.activeElement && document.activeElement !== document.body) {
+                document.activeElement.blur();
+            }
+            return _origSwalFire(...args);
+        };
+    }
+
     loadAppointments();
     loadPatients();
     loadTriage();
@@ -1108,14 +1124,18 @@ function filterPatients() {
 
     let filtered = window.allPatients;
 
-    // Filter by Date
+    // Filter by Date (กรองตามวันที่นัดมาตรวจ)
     const startDateStr = document.getElementById('patientFilterStartDate')?.value;
     const endDateStr = document.getElementById('patientFilterEndDate')?.value;
 
     if (startDateStr || endDateStr) {
         filtered = filtered.filter(row => {
-            if (!row.created_at) return true;
-            const rowDate = new Date(row.created_at).toISOString().split('T')[0];
+            // 🌟 เปลี่ยนเป้าหมายไปตรวจที่ next_appointment_date แทน created_at
+            // ถ้าผู้ป่วยคนไหนไม่ได้ระบุวันที่นัดมาตรวจไว้ เมื่อมีการใช้ตัวกรองวันที่ ระบบจะซ่อนผู้ป่วยคนนั้น (return false)
+            if (!row.next_appointment_date) return false; 
+            
+            // แปลงรูปแบบวันที่ให้อยู่ในฟอร์แมตมาตรฐาน YYYY-MM-DD เพื่อใช้เปรียบเทียบ
+            const rowDate = new Date(row.next_appointment_date).toISOString().split('T')[0];
 
             let pass = true;
             if (startDateStr && rowDate < startDateStr) pass = false;
@@ -2569,16 +2589,46 @@ async function showLabDetails(visitId, hn, patientName, testsString, labNote = '
         patientName = 'ผู้ป่วย';
     }
 
+    // --- 🌟 โค้ดส่วนที่ 1: ดึงข้อมูล แพทย์ผู้ตรวจ, ผู้แนะนำ, อาการเบื้องต้น ---
+    let doctorName = '-';
+    let referrerName = '-';
+    let patientSymptom = '-';
+
+    // 1. ค้นหาข้อมูลจากแคชที่โหลดไว้ หรือดึงจากฐานข้อมูล Supabase โดยตรง
+    let visitRecord = null;
+    if (window.clinicVisits) visitRecord = window.clinicVisits.find(v => v.visit_id === visitId);
+    if (!visitRecord && window.pharmacyQueueData) visitRecord = window.pharmacyQueueData.find(v => v.visit_id === visitId);
+    
+    if (!visitRecord && typeof _supabase !== 'undefined') {
+        try {
+            const { data } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
+            if (data) visitRecord = data;
+        } catch (e) { console.warn('Fetch visit error:', e); }
+    }
+
+    // 2. จับคู่ค่าลงตัวแปร
+    if (visitRecord) {
+        doctorName = visitRecord.doctor_name && visitRecord.doctor_name !== 'null' ? visitRecord.doctor_name : '-';
+        patientSymptom = visitRecord.symptom || visitRecord.initial_symptom || '-';
+        referrerName = visitRecord.referred_by || '-';
+    }
+
+    // 3. กรณีไม่มีผู้แนะนำในคิวตรวจ ให้ดึงสำรองจาก "ทะเบียนผู้ป่วย"
+    if (referrerName === '-' && window.allPatients && hn) {
+        const pat = window.allPatients.find(p => p.hn === hn);
+        if (pat && pat.referred_by) referrerName = pat.referred_by;
+    }
+    // ---------------------------------------------------------
+
     if (!window.servicesData || window.servicesData.length === 0) {
         if (typeof loadServicesData === 'function') await loadServicesData();
     }
 
     const testsList = (testsString || '').split(',').map(t => t.trim()).filter(Boolean);
 
-    // --- ค้นหาข้อมูล อายุ ที่อยู่ และ อาการเบื้องต้น ---
+    // --- ค้นหาข้อมูล อายุ และ ที่อยู่ ---
     let patientAge = '-';
     let patientAddress = '-';
-    let patientSymptom = '-'; // ตัวแปรสำหรับเก็บอาการเบื้องต้น
 
     // 1. ดึงอายุและที่อยู่จากประวัติผู้ป่วย
     let pat = null;
@@ -2614,19 +2664,6 @@ async function showLabDetails(visitId, hn, patientName, testsString, labNote = '
             patientAddress = addressParts.join(', ');
         }
     }
-
-    // 2. ดึงอาการเบื้องต้นจากตาราง visits
-    if (visitId !== '-' && typeof _supabase !== 'undefined') {
-        try {
-            const { data } = await _supabase.from('visits').select('symptom').eq('visit_id', visitId).maybeSingle();
-            if (data && data.symptom) {
-                patientSymptom = data.symptom;
-            }
-        } catch (e) {
-            console.warn('Error fetching symptom:', e);
-        }
-    }
-    // -----------------------------------------------------
 
     let rowsHtml = '';
     testsList.forEach((test, idx) => {
@@ -2695,7 +2732,7 @@ async function showLabDetails(visitId, hn, patientName, testsString, labNote = '
         `;
     }
 
-    // ประกอบร่าง HTML ทั้งหมด โดยเพิ่ม อาการเบื้องต้น ลงไปต่อจาก ที่อยู่
+    // ประกอบร่าง HTML ทั้งหมด
     const modalContentHtml = `
         <div class="text-start mt-2">
             <div class="p-3 mb-3 rounded-3 bg-light border d-flex justify-content-between align-items-start">
@@ -2704,7 +2741,11 @@ async function showLabDetails(visitId, hn, patientName, testsString, labNote = '
                     <div class="small text-muted mb-1" style="font-size: 0.8rem;">HN: <strong class="text-secondary ms-1">${hn || '-'}</strong></div>
                     <div class="small text-muted mb-1" style="font-size: 0.8rem;">อายุ: <strong class="text-dark ms-1">${patientAge}</strong></div>
                     <div class="small text-muted mb-1" style="font-size: 0.8rem;">ที่อยู่: <strong class="text-dark ms-1">${patientAddress}</strong></div>
-                    <div class="small text-muted" style="font-size: 0.8rem;">อาการเบื้องต้น: <strong class="text-danger ms-1">${patientSymptom}</strong></div>
+                    <div class="mb-2" style="font-size: 0.88rem;">
+                        <span class="me-3 text-muted">แพทย์ผู้ตรวจ: <strong class="text-primary">${doctorName}</strong></span>
+                        <span class="me-3 text-muted">ผู้แนะนำ: <strong class="text-info">${referrerName}</strong></span>
+                        <span class="text-muted">อาการเบื้องต้น: <strong class="text-danger">${patientSymptom}</strong></span>
+                    </div>
                 </div>
                 <div class="text-end">
                     <div class="small text-muted mb-1" style="font-size: 0.85rem;">รหัส VISIT : <strong class="text-primary ms-1">${visitId || '-'}</strong></div>
@@ -3670,8 +3711,8 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
     });
 
     try {
-        // 1. บันทึกลงตาราง bills ใน Supabase (พร้อม fallback รองรับ schema ของ Supabase ทุกรูปแบบ)
-        const baseBillPayload = {
+        // 1. บันทึกลงตาราง bills ใน Supabase (ปรับฟิลด์ให้ตรงตาม Schema ฐานข้อมูล 100% เพื่อไม่ให้เกิด Error 400)
+        const primaryBillPayload = {
             bill_id: billId,
             visit_id: visitId,
             hn: hn,
@@ -3684,35 +3725,39 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
             status: 'ชำระแล้ว',
             created_by: staffName,
             created_at: now.toISOString(),
-            note: billNote + ` [ช่องทาง: ${paymentMethodSummary}]`
+            note: billNote + (paymentMethodSummary ? ` [ช่องทาง: ${paymentMethodSummary}]` : '')
         };
 
         try {
-            // ลองบันทึกแบบเต็มก่อน
-            let res = await _supabase.from('bills').insert([{
-                ...baseBillPayload,
-                payment_method: paymentMethodSummary
-            }]);
+            let res = await _supabase.from('bills').insert([primaryBillPayload]);
 
             if (res && res.error) {
-                // หากไม่มีคอลัมน์ payment_method ใน bills schema
-                const res2 = await _supabase.from('bills').insert([baseBillPayload]);
-                if (res2 && res2.error) console.warn('Bills DB insert fallback warning:', res2.error.message);
+                // หาก items ในฐานข้อมูลเป็นประเภท TEXT/VARCHAR ให้ลองแปลงเป็น JSON String
+                const fallbackPayload = {
+                    ...primaryBillPayload,
+                    items: JSON.stringify(billItems)
+                };
+                await _supabase.from('bills').insert([fallbackPayload]);
             }
         } catch (bErr) {
             console.warn('Bills DB insert exception:', bErr);
         }
 
-        // บันทึกลงหน่วยความจำแคชและ LocalStorage อย่างปลอดภัย (ป้องกัน QuotaExceededError)
+        // 🌟 บันทึกลง LocalStorage และลดจำนวนแคชจาก 50 เหลือ 20 รายการ เพื่อป้องกันความจำเต็ม (QuotaExceededError)
         window.clinicBills = window.clinicBills || [];
         window.clinicBills.unshift(billPayload);
         window.allBillsData = window.allBillsData || [];
         window.allBillsData.unshift(billPayload);
+        
         try {
-            const safeBillsCache = (window.clinicBills || []).slice(0, 50);
-            localStorage.setItem('clinic_bills_cache', JSON.stringify(safeBillsCache));
+            const safeBillsCache = (window.clinicBills || []).slice(0, 20); // เก็บแค่ 20 บิลล่าสุด
+            if (typeof window.safeSetLocalStorage === 'function') {
+                window.safeSetLocalStorage('clinic_bills_cache', safeBillsCache);
+            } else {
+                localStorage.setItem('clinic_bills_cache', JSON.stringify(safeBillsCache));
+            }
         } catch (storageErr) {
-            console.warn('LocalStorage clinic_bills_cache quota exceeded, clearing cache:', storageErr);
+            console.warn('เคลียร์แคชบิลเนื่องจากพื้นที่เต็ม', storageErr);
             try { localStorage.removeItem('clinic_bills_cache'); } catch (e) { }
         }
 
@@ -3731,30 +3776,11 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
             }
         }
 
-        // 2. อัปเดตสถานะในตาราง visits ให้เป็น "รอผลแล็บ" เพื่อให้แสดงในห้อง Lab ทันที
-        const visitUpdatePayload = {
-            status: 'รอผลแล็บ',
-            payment_status: 'paid',
-            payable_amount: netPayable,
-            discount: discountVal,
-            payment_method: paymentMethodSummary
-        };
-
+        // 2. อัปเดตสถานะในตาราง visits ให้เป็น "รอผลแล็บ" เพื่อให้แสดงในห้อง Lab ทันที (อัปเดตเฉพาะคอลัมน์ status ที่มีจริงใน DB เพื่อไม่ให้เกิด Error 400)
         try {
-            const { error: vErr } = await _supabase.from('visits').update(visitUpdatePayload).eq('visit_id', visitId);
-            if (vErr) {
-                const { error: vErr2 } = await _supabase.from('visits').update({
-                    status: 'รอผลแล็บ',
-                    payment_status: 'paid'
-                }).eq('visit_id', visitId);
-                if (vErr2) {
-                    await _supabase.from('visits').update({ status: 'รอผลแล็บ' }).eq('visit_id', visitId);
-                }
-            }
+            await _supabase.from('visits').update({ status: 'รอผลแล็บ' }).eq('visit_id', visitId);
         } catch (vErr) {
-            try {
-                await _supabase.from('visits').update({ status: 'รอผลแล็บ' }).eq('visit_id', visitId);
-            } catch (e) { }
+            console.warn('Update visit status notice:', vErr);
         }
 
         if (Array.isArray(window.clinicVisits)) {
@@ -4634,7 +4660,8 @@ async function submitPatient() {
         province: (document.getElementById('patientProvinceSelect')?.value || form.Province?.value || null),
         job: form.Job.value || null,
         phone: form.Tel.value,
-        emergency_tel: form.EmergencyTel.value || null,
+        // 🌟 แก้ไข: ดึงค่าจากฟอร์มและส่งไปที่คอลัมน์ใหม่
+        next_appointment_date: (form.NextAppointmentDate ? form.NextAppointmentDate.value : null) || null, 
         past_history: form.PastHistory.value || null,
         allergies: form.Allergies.value || null,
         referred_by: refByVal
@@ -4763,7 +4790,8 @@ function editPatient(hn) {
     if (form.DOB) form.DOB.value = patient.dob || '';
     if (form.Age) form.Age.value = patient.age || '';
     if (form.Tel) form.Tel.value = patient.phone || '';
-    if (form.EmergencyTel) form.EmergencyTel.value = patient.emergency_tel || '';
+    // 🌟 แก้ไข: นำค่าจากฐานข้อมูลกลับมาใส่ในฟอร์มวันที่นัดมาตรวจ
+    if (form.NextAppointmentDate) form.NextAppointmentDate.value = patient.next_appointment_date || ''; 
     if (form.Job) form.Job.value = patient.job || '';
     if (form.Village) form.Village.value = patient.village || '';
     if (form.PastHistory) form.PastHistory.value = patient.past_history || '';
@@ -8197,12 +8225,41 @@ async function loadPharmacyQueue() {
 }
 
 // 🌟 ฟังก์ชันแสดงป๊อปอัปรายละเอียดบิลยา/อาหารเสริมในห้องจ่ายยา
-window.viewPharmacyBillDetails = function (visitId, billType) {
+window.viewPharmacyBillDetails = async function (visitId, billType) {
     const visit = (window.allPharmacyVisits || []).find(v => v.visit_id === visitId);
     if (!visit) {
         Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลรายการสำหรับเคสนี้', 'error');
         return;
     }
+
+    // --- 1. โค้ดสำหรับค้นหาอาการเบื้องต้น ---
+    let patientSymptom = '-';
+    
+    // ดึงข้อมูลจากฐานข้อมูล Supabase (ตาราง visits)
+    if (visitId && typeof _supabase !== 'undefined') {
+        try {
+            const { data: vData } = await _supabase.from('visits')
+                .select('*')
+                .eq('visit_id', visitId)
+                .maybeSingle();
+                
+            if (vData) {
+                // เลือกใช้อาการที่มีการบันทึกไว้
+                if (vData.symptom && vData.symptom.trim() !== '') {
+                    patientSymptom = vData.symptom.trim();
+                } else if (vData.initial_symptom && vData.initial_symptom.trim() !== '') {
+                    patientSymptom = vData.initial_symptom.trim();
+                }
+            }
+        } catch (e) {
+            console.warn('Fetch symptom error:', e);
+        }
+    }
+    if (patientSymptom === '-' && visit) {
+        if (visit.symptom && visit.symptom.trim() !== '') patientSymptom = visit.symptom.trim();
+        else if (visit.initial_symptom && visit.initial_symptom.trim() !== '') patientSymptom = visit.initial_symptom.trim();
+    }
+    // ----------------------------------------
 
     // --- ส่วนที่เพิ่มใหม่: ค้นหาผู้แนะนำ (Referrer) และเบอร์โทรศัพท์ ---
     let referrerText = '-';
@@ -8295,8 +8352,11 @@ window.viewPharmacyBillDetails = function (visitId, billType) {
                     </div>
                     <div><strong>รหัส VISIT:</strong> <span class="text-primary fw-bold">${visit.visit_id}</span></div>
                     <div><strong>แพทย์ผู้ตรวจ:</strong> ${visit.doctor_name || '-'}</div>
-                    <!-- ส่วนที่เพิ่มใหม่: แสดงผู้แนะนำ -->
-                    <div class="w-100 mt-1 pt-2 border-top"><strong>ผู้แนะนำ:</strong> <span class="text-primary fw-bold">${referrerText}</span></div>
+                    <!-- ส่วนที่เพิ่มใหม่: แสดงผู้แนะนำ & อาการเบื้องต้น -->
+                    <div class="w-100 mt-1 pt-2 border-top d-flex flex-wrap align-items-center justify-content-between gap-2">
+                        <div><strong>ผู้แนะนำ:</strong> <span class="text-primary fw-bold">${referrerText}</span></div>
+                        <div><span class="me-3 text-muted" style="font-size: 0.88rem;">อาการเบื้องต้น: <strong class="text-danger">${patientSymptom}</strong></span></div>
+                    </div>
                 </div>
 
                 <div class="table-responsive border rounded-3 mb-3">
