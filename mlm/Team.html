@@ -55,7 +55,12 @@
       window.supabaseClient = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
       console.log('%c Supabase Connected!', 'color:green;font-weight:bold', window.SUPABASE_URL);
     }
-    async function supabaseSelect(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:Object.assign({},window.SUPABASE_HEADERS,{'Cache-Control':'no-cache, no-store, must-revalidate'})});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();}
+    async function supabaseSelect(table, query) {
+      var url = window.SUPABASE_REST_URL + '/' + table + (query ? '?' + query : '');
+      var res = await fetch(url, { method: 'GET', headers: window.SUPABASE_HEADERS });
+      if (!res.ok) { var t = await res.text(); throw new Error('SELECT ' + table + ': ' + res.status + ' ' + t); }
+      return res.json();
+    }
     async function supabaseInsert(table, data) {
       var res = await fetch(window.SUPABASE_REST_URL + '/' + table, { method: 'POST', headers: window.SUPABASE_HEADERS, body: JSON.stringify(data) });
       if (!res.ok) { var t = await res.text(); throw new Error('INSERT ' + table + ': ' + res.status + ' ' + t); }
@@ -360,16 +365,11 @@
                     accumulatedPV: 150 
                 };
 
-                const supabasePayload = {
-                    user_id: finalData.id,
+                let supabasePayload = {
                     username: (finalData.username || finalData.id).toLowerCase(),
                     password_hash: finalData.password || '1234',
                     name: finalData.name,
-                    business_team: finalData.team || finalData.businessTeam,
-                    permission_role: finalData.role || 'พนักงานทั่วไป',
-                    status: finalData.status || 'ทำงานอยู่',
                     id_card_url: finalData.profileUrl || finalData.idCardDocUrl || '',
-                    sponsor_id: finalData.referrer || finalData.sponsorId || '',
                     phone_number: finalData.phone || finalData.phoneNumber || '',
                     email: finalData.email || '',
                     line_id: finalData.lineId || '',
@@ -377,11 +377,20 @@
                     bank_name: finalData.bankName || '',
                     bank_account_no: finalData.bankAccountNo || '',
                     bank_account_name: finalData.bankAccountName || '',
-                    bank_account_status: finalData.bankAccountStatus || 'รอตรวจสอบ',
-                    accumulated_pv: finalData.accumulatedPv || finalData.accumulatedPV || 0
                 };
 
+                if (isAdmin) {
+                    supabasePayload.user_id = finalData.id;
+                    supabasePayload.business_team = finalData.team || finalData.businessTeam;
+                    supabasePayload.permission_role = finalData.role || 'พนักงานทั่วไป';
+                    supabasePayload.status = finalData.status || 'ทำงานอยู่';
+                    supabasePayload.sponsor_id = finalData.referrer || finalData.sponsorId || '';
+                    supabasePayload.bank_account_status = finalData.bankAccountStatus || 'รอตรวจสอบ';
+                    supabasePayload.accumulated_pv = finalData.accumulatedPv || finalData.accumulatedPV || 0;
+                }
+
                 if (isEditing) {
+                    if (supabasePayload.user_id) delete supabasePayload.user_id; // Prevent PK update error
                     await supabaseUpdate('stk_members', formData.id, supabasePayload, 'user_id');
                     setMembers((members || []).map(m => m && m.id.toUpperCase() === formData.id.toUpperCase() ? { ...m, ...finalData } : m));
                     showToast('แก้ไขข้อมูลสมาชิกเรียบร้อยแล้ว!', 'success');
@@ -1284,17 +1293,14 @@
 
       const fetchData = () => {
         Promise.all([
-            supabaseSelect('stk_products').catch(() => []),
-            supabaseSelect('stk_customer_types').catch(() => []),
-            supabaseSelect('stk_closers').catch(() => []),
             supabaseSelect('stk_members').catch(() => []),
-            supabaseSelect('stk_customers').catch(() => []),
-            supabaseSelect('stk_sales').catch(() => []),
-            supabaseSelect('stk_business_teams').catch(() => []),
-            supabaseSelect('stk_target_history').catch(() => [])
-        ]).then(([products, customerTypes, closers, members, customers, sales, businessTeams, targetHistory]) => {
+            supabaseSelect('stk_business_teams').catch(() => [])
+        ]).then(([members, businessTeams]) => {
+            let initialCache = {};
+            try { initialCache = JSON.parse(localStorage.getItem('stk_app_cache_data')) || {}; } catch(e){}
             const response = {
-                products, customerTypes, closers, members, customers, sales, businessTeams, targetHistory
+                ...initialCache,
+                members, businessTeams
             };
             try { localStorage.setItem('stk_app_cache_data', JSON.stringify(response)); } catch(e){}
             applyDataToStates(response);
