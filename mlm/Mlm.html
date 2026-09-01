@@ -128,7 +128,7 @@
   <script type="text/babel">
     const { useState, useMemo, useEffect, useRef, useCallback } = React;
     // ðŸ›¡ï¸ GLOBAL ICONS DESTRUCTURING: à¸›à¸¥à¸­à¸”à¸ à¸±à¸¢à¸ˆà¸²à¸à¸•à¸±à¸§à¹à¸›à¸£à¸‹à¹‰à¸³à¸‹à¹‰à¸­à¸™ à¹à¸¥à¸°à¸”à¸¶à¸‡à¹‚à¸¡à¸”à¸¹à¸¥à¹à¸¥à¸°à¸„à¸­à¸¡à¹‚à¸žà¹€à¸™à¸™à¸•à¹Œà¸¡à¸²à¸„à¸£à¸šà¸–à¹‰à¸§à¸™
-    const { LayoutDashboard, ShoppingCart, Users, Contact, Headset, BarChart3, Plus, Edit, Trash2, UserCircle, Menu, X, Save, Info, PackageIcon, Package, Target, Trophy, Activity, Eye, Tags, CheckCircle, GitBranch, Archive, ChevronDown, FileText, SettingsIcon, Coins, ShieldCheck, AlertTriangle, AlertCircle, LoginModal, Toast, Sidebar, Header, ConfirmModal, EditModal, DonutChart, AutoSuggestInput, SearchIcon } = window;
+    const { LayoutDashboard, ShoppingCart, Users, Contact, Headset, BarChart3, Plus, Edit, Trash2, UserCircle, Menu, X, Save, Info, PackageIcon, Package, Target, Trophy, Activity, Eye, Tags, CheckCircle, GitBranch, Archive, ChevronDown, FileText, SettingsIcon, Coins, ShieldCheck, AlertTriangle, AlertCircle, LoginModal, Toast, Sidebar, Header, ConfirmModal, EditModal, DonutChart, DualDonutChart, AutoSuggestInput, SearchIcon } = window;
     const mapPageToHtml = (urlStr) => {
       try {
         const url = new URL(urlStr, window.location.origin);
@@ -203,7 +203,10 @@
             }
         }, [dashStartDate, dashEndDate, fetchSalesForPeriod, lastFetchedRange]);
         const [dashboardTarget, setDashboardTarget] = useState(4000);
+        const [topSalesTarget, setTopSalesTarget] = useState(4000);
+        const [topCheckupTarget, setTopCheckupTarget] = useState(200);
         const [competitionPage, setCompetitionPage] = useState(0);
+        const [showGoalCompetition, setShowGoalCompetition] = useState(false);
 
         const [targetHistory, setTargetHistory] = useState(initialTargetHistory || []);
         const [showTargetHistoryModal, setShowTargetHistoryModal] = useState(false);
@@ -393,6 +396,86 @@
           return { teamsList, memberTargetData: Object.values(mTargetData).sort((a, b) => b.actual - a.actual) };
         }, [sales, members, activeBusinessTeams, dashStartDate, dashEndDate, customMemberTargets, globalIndividualTarget]);
 
+        const teamTopStats = useMemo(() => {
+            const map = {};
+            activeBusinessTeams.forEach(t => {
+                map[t.id] = { 
+                    id: t.id, 
+                    name: t.name, 
+                    full: 0, mem: 0, promo: 0, zero: 0, totalBoxes: 0, 
+                    newCustSet: new Set(), totalCheckups: 0
+                };
+            });
+        
+            const filteredSales = (sales || []).filter(s => s && (s.date || '') >= dashStartDate && (s.date || '') <= dashEndDate);
+            
+            filteredSales.forEach(s => {
+                const mem = (members || []).find(m => m && safeUpper(m.id || m.user_id) === safeUpper(s.memberId || s.sellerId));
+                if (!mem) return;
+                
+                const memTeam = String(mem.team || mem.business_team || mem.businessTeam || '').trim().toUpperCase();
+                let targetTeamId = null;
+                
+                (activeBusinessTeams || []).forEach(bt => {
+                     const btId = String(bt.id || '').toUpperCase();
+                     const btName = String(bt.name || '').toUpperCase();
+                     if (
+                         (btId && memTeam === btId) || 
+                         (btName && memTeam === btName) ||
+                         (btId === 'T01' && (memTeam === 'MARKETING' || memTeam === 'TEAM A')) ||
+                         (btId === 'T02' && (memTeam === 'CENTER' || memTeam === 'TEAM B')) ||
+                         (btName.includes('MARKETING') && (memTeam === 'T01' || memTeam === 'TEAM A')) ||
+                         (btName.includes('CENTER') && (memTeam === 'T02' || memTeam === 'TEAM B'))
+                     ) {
+                         targetTeamId = bt.id;
+                     }
+                });
+        
+                if (targetTeamId && map[targetTeamId]) {
+                    const fQty = Number(s['รวมชิ้นราคาเต็ม'] || 0);
+                    const mQty = Number(s['รวมชิ้นราคาสมาชิก'] || 0);
+                    const pQty = Number(s['รวมชิ้นราคาโปร'] || 0);
+                    const sumBoxes = fQty + mQty + pQty;
+        
+                    if (sumBoxes > 0) {
+                        map[targetTeamId].full += fQty;
+                        map[targetTeamId].mem += mQty;
+                        map[targetTeamId].promo += pQty;
+                        map[targetTeamId].totalBoxes += sumBoxes;
+                    }
+        
+                    const custId = safeUpper(s.customerId || s.customer_id || s.hn || s.customerName || s.customer_name || '');
+                    let cType = String(s.customerType || s.customer_type || '').trim();
+                    if (!cType && customers) {
+                        const cust = findSaleCustomer(s, customers);
+                        if (cust) {
+                            cType = String(cust.type || cust.customer_type || cust.customerType || '').trim();
+                        }
+                    }
+                    const isNew = (cType.includes('ใหม่') || cType.includes('ตรวจ') || cType.includes('ปรึกษา') || cType.includes('New')) && !cType.includes('ไม่มาตรวจ') && !cType.includes('เก่า');
+                    
+                    if (isNew && custId) {
+                        map[targetTeamId].newCustSet.add(custId);
+                    }
+                }
+            });
+        
+            const palette = [
+                { text: "text-blue-400", checkupText: "text-blue-300", strokeLeft: "#3b82f6", strokeRight: "#93c5fd", bg: "bg-blue-600/20", border: "border-blue-500/40", hoverBg: "group-hover:bg-blue-600" },
+                { text: "text-rose-500", checkupText: "text-rose-300", strokeLeft: "#f43f5e", strokeRight: "#fda4af", bg: "bg-rose-600/20", border: "border-rose-500/40", hoverBg: "group-hover:bg-rose-600" },
+                { text: "text-amber-400", checkupText: "text-amber-300", strokeLeft: "#f59e0b", strokeRight: "#fcd34d", bg: "bg-amber-600/20", border: "border-amber-500/40", hoverBg: "group-hover:bg-amber-600" },
+                { text: "text-emerald-400", checkupText: "text-emerald-300", strokeLeft: "#10b981", strokeRight: "#6ee7b7", bg: "bg-emerald-600/20", border: "border-emerald-500/40", hoverBg: "group-hover:bg-emerald-600" },
+                { text: "text-purple-400", checkupText: "text-purple-300", strokeLeft: "#8b5cf6", strokeRight: "#c4b5fd", bg: "bg-purple-600/20", border: "border-purple-500/40", hoverBg: "group-hover:bg-purple-600" },
+                { text: "text-cyan-400", checkupText: "text-cyan-300", strokeLeft: "#06b6d4", strokeRight: "#67e8f9", bg: "bg-cyan-600/20", border: "border-cyan-500/40", hoverBg: "group-hover:bg-cyan-600" }
+            ];
+            
+            return Object.values(map).map((t, idx) => ({
+                ...t, 
+                totalCheckups: t.newCustSet.size,
+                style: palette[idx % palette.length]
+            }));
+        }, [sales, members, activeBusinessTeams, dashStartDate, dashEndDate, customers]);
+
         const parseSaleDate = (s) => String(s?.date || s?.created_at || s?.sale_date || '').trim().substring(0, 10);
         const parseSaleMemberId = (s) => s?.memberId || s?.member_id || s?.sellerId || s?.seller_id;
         const parseSaleBoxes = (s) => {
@@ -401,7 +484,7 @@
             return (fQty + mQty);
         };
 
-        const findSaleCustomer = (s, customersList) => {
+        function findSaleCustomer(s, customersList) {
             const sCustId = safeUpper(s?.customerId || s?.customer_id || s?.hn || s?.customerHn || '');
             const sCustName = safeUpper(s?.customerName || s?.customer_name || '');
             return (customersList || []).find(c => {
@@ -474,6 +557,54 @@
             if(topPerformanceData.length > 2) podium.push({ ...topPerformanceData[2], rank: 3 });
             return podium;
         }, [topPerformanceData]);
+
+        const topCheckupPerformanceData = useMemo(() => {
+            let mStats = {};
+            (members || []).forEach(m => {
+                if (m && (m.id || m.user_id)) {
+                    const key = safeUpper(m.id || m.user_id);
+                    mStats[key] = { id: m.id || m.user_id, name: m.name || m.id, profileUrl: m.profileUrl, newCustSet: new Set() };
+                }
+            });
+            const filteredSales = (sales || []).filter(s => {
+                if (!s) return false;
+                const dStr = parseSaleDate(s);
+                return dStr >= dashStartDate && dStr <= dashEndDate;
+            });
+            filteredSales.forEach(s => {
+                const memberId = parseSaleMemberId(s);
+                if (!memberId) return;
+                const key = safeUpper(memberId);
+                if (!mStats[key]) {
+                    const mem = (members || []).find(m => m && safeUpper(m.id || m.user_id) === key);
+                    mStats[key] = { id: memberId, name: mem ? mem.name : (s.memberName || s.member_name || memberId), profileUrl: mem?.profileUrl, newCustSet: new Set() };
+                }
+                const cust = findSaleCustomer(s, customers);
+                let cType = cust ? String(cust.type || cust.customer_type || cust.customerType || '').trim() : '';
+                if (!cType && (s.customerType || s.customer_type)) {
+                    cType = String(s.customerType || s.customer_type).trim();
+                }
+                const sCustId = s.customerId || s.customer_id || s.hn || s.customerName || s.customer_name;
+                const isNew = (cType.includes('ใหม่') || cType.includes('ตรวจ') || cType.includes('ปรึกษา') || cType.includes('New')) && !cType.includes('ไม่มาตรวจ') && !cType.includes('เก่า');
+                
+                if (isNew && sCustId) {
+                    mStats[key].newCustSet.add(sCustId);
+                }
+            });
+            return Object.values(mStats)
+                .map(m => ({ ...m, newCustCount: m.newCustSet.size }))
+                .filter(m => m.newCustCount > 0)
+                .sort((a, b) => b.newCustCount - a.newCustCount)
+                .slice(0, 3);
+        }, [sales, customers, members, dashStartDate, dashEndDate]);
+
+        const checkupPodiumData = useMemo(() => {
+            const podium = [];
+            if(topCheckupPerformanceData.length > 0) podium.push({ ...topCheckupPerformanceData[0], rank: 1 });
+            if(topCheckupPerformanceData.length > 1) podium.push({ ...topCheckupPerformanceData[1], rank: 2 });
+            if(topCheckupPerformanceData.length > 2) podium.push({ ...topCheckupPerformanceData[2], rank: 3 });
+            return podium;
+        }, [topCheckupPerformanceData]);
 
         const rank4to10Data = useMemo(() => topPerformanceData.slice(3, 10), [topPerformanceData]);
 
@@ -655,26 +786,202 @@
 
         return (
           <div className="space-y-4 animation-fade-in pb-4">
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3">
-              <h2 className="text-2xl font-bold text-slate-800">แดชบอร์ดสรุปผล (Dashboard)</h2>
-              <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-2xl shadow-sm border border-slate-100/80 shadow-slate-100">
-                <span className="text-[12px] font-bold text-slate-500">กรองช่วงเวลา:</span>
-                <div className="flex items-center gap-1.5">
-                    <input type="date" className="bg-slate-50/50 focus:bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-[13px] font-bold text-blue-600 outline-none shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300" value={dashStartDate} onChange={e => setDashStartDate(e.target.value)} />
-                    <span className="text-slate-400 font-bold">-</span>
-                    <input type="date" className="bg-slate-50/50 focus:bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-[13px] font-bold text-blue-600 outline-none shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300" value={dashEndDate} onChange={e => setDashEndDate(e.target.value)} />
-                </div>
-              </div>
-              <div className="bg-white px-5 py-3 rounded-3xl shadow-sm border border-slate-100/80 shadow-slate-100/40 flex items-center gap-4 w-full xl:w-auto">
-                 <div className="bg-rose-50 p-2.5 rounded-2xl text-rose-500"><Target size={28} /></div>
-                 <div>
-                    <span className="block text-xs font-bold text-slate-400">เป้าหมายรวม {isAdmin ? '(แก้ไขได้)' : ''}</span>
-                    <div className="flex items-baseline gap-2 mt-0.5">
-                       <input type="number" className="w-24 text-2xl font-black text-slate-800 bg-slate-50/50 border border-slate-200 px-2 py-1 rounded-xl outline-none focus:border-rose-400 focus:ring-4 focus:ring-rose-100 transition-all duration-300 disabled:opacity-80 disabled:bg-transparent disabled:border-transparent disabled:px-0" value={dashboardTarget} onChange={e => setDashboardTarget(Number(e.target.value))} min="1" disabled={!isAdmin} />
-                       <span className="text-sm font-bold text-slate-500">กล่อง</span>
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 items-center mb-1">
+              <div className="flex justify-start">
+                  <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl shadow-sm border border-slate-100/80 shadow-slate-100 w-fit">
+                    <span className="text-[10px] font-bold text-slate-500">ช่วงเวลา:</span>
+                    <div className="flex items-center gap-1">
+                        <input type="date" className="bg-slate-50/50 focus:bg-white border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-bold text-blue-600 outline-none shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all duration-300" value={dashStartDate} onChange={e => setDashStartDate(e.target.value)} />
+                        <span className="text-slate-400 font-bold">-</span>
+                        <input type="date" className="bg-slate-50/50 focus:bg-white border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-bold text-blue-600 outline-none shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all duration-300" value={dashEndDate} onChange={e => setDashEndDate(e.target.value)} />
                     </div>
-                 </div>
+                  </div>
               </div>
+              
+              <h2 className="text-xl sm:text-2xl font-black text-slate-800 text-center order-first xl:order-none drop-shadow-sm">แดชบอร์ดสรุปผล (Dashboard)</h2>
+              
+              <div className="flex justify-start xl:justify-end">
+                  <details className="group relative">
+                      <summary className="bg-white px-3 py-1.5 rounded-xl shadow-sm border border-slate-100/80 shadow-slate-100/40 flex items-center gap-2 w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden select-none hover:bg-slate-50 transition-colors">
+                         <div className="bg-rose-50 p-1.5 rounded-lg text-rose-500 group-open:bg-rose-500 group-open:text-white transition-colors"><Target size={18} /></div>
+                         <span className="text-[10px] sm:text-xs font-bold text-slate-500 group-open:text-slate-800 transition-colors">ตั้งเป้าหมายรวม</span>
+                      </summary>
+                      <div className="absolute right-0 top-full mt-2 bg-white px-4 py-3 rounded-xl shadow-xl border border-slate-100 flex items-center gap-2 w-max z-[100] animate-fade-in-down">
+                         <span className="text-[11px] font-bold text-slate-400">เป้าหมายรวม:</span>
+                         <input type="text" className="w-16 sm:w-24 text-base font-black text-slate-800 bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all text-center" value={Number(dashboardTarget || 0).toLocaleString()} onChange={e => { const v = e.target.value.replace(/,/g, ''); if (!isNaN(v) && v !== '') setDashboardTarget(Number(v)); else if (v === '') setDashboardTarget(''); }} disabled={!isAdmin} />
+                         <span className="text-[11px] font-bold text-slate-500">กล่อง</span>
+                      </div>
+                  </details>
+              </div>
+            </div>
+
+            {/* 🟢 NEW SECTION: Cloned Donut Charts & Dual Podiums in ONE FRAME */}
+            <div className={`${boxWrapper} flex flex-col relative overflow-hidden bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border border-white/10 shadow-2xl p-3 sm:p-5 rounded-3xl mb-4 w-full`}>
+                <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none opacity-20">
+                    <div className="absolute -top-32 -left-32 w-96 h-96 bg-blue-500 rounded-full blur-[100px]"></div>
+                    <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-red-600 rounded-full blur-[120px]"></div>
+                </div>
+                
+                <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-2 mb-3 relative z-10 border-b border-white/10 pb-2">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
+                            <Target size={24} />
+                        </div>
+                        <div>
+                            <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">ยอดขายและคนมาตรวจ</h3>
+                        </div>
+                    </div>
+                    
+                    <div className="flex flex-col sm:flex-row gap-3 xl:gap-6 items-center">
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-300">เป้ายอดขาย:</span>
+                            <input type="text" className="w-24 text-lg font-black text-slate-800 bg-slate-50/90 border border-slate-200 px-2 py-1 rounded-lg outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all text-center" value={Number(topSalesTarget || 0).toLocaleString()} onChange={e => { const v = e.target.value.replace(/,/g, ''); if (!isNaN(v) && v !== '') setTopSalesTarget(Number(v)); else if (v === '') setTopSalesTarget(''); }} disabled={!isAdmin} />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-300">เป้าคนมาตรวจ:</span>
+                            <input type="text" className="w-24 text-lg font-black text-slate-800 bg-slate-50/90 border border-slate-200 px-2 py-1 rounded-lg outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all text-center" value={Number(topCheckupTarget || 0).toLocaleString()} onChange={e => { const v = e.target.value.replace(/,/g, ''); if (!isNaN(v) && v !== '') setTopCheckupTarget(Number(v)); else if (v === '') setTopCheckupTarget(''); }} disabled={!isAdmin} />
+                        </div>
+                    </div>
+                </div>
+                
+                {/* Cloned donuts with DualDonutChart */}
+                <div className="flex flex-wrap xl:flex-nowrap justify-center items-stretch gap-2 lg:gap-4 relative z-10 w-full mb-4">
+                    {teamTopStats.map((t, idx) => (
+                        <React.Fragment key={t.id || idx}>
+                            {idx > 0 && (
+                                <div className="hidden xl:flex flex-col items-center justify-center w-px h-auto bg-white/10 shrink-0 relative">
+                                    <div className="bg-slate-800 text-slate-400 text-[9px] font-black px-1.5 py-0.5 rounded-full border border-white/10 absolute z-20">VS</div>
+                                </div>
+                            )}
+                            <div className="flex flex-col items-center group cursor-pointer hover:scale-[1.02] transition-transform duration-500 w-full sm:w-[220px] xl:flex-1">
+                                <DualDonutChart 
+                                    leftValue={t.totalBoxes} leftTarget={topSalesTarget} leftColor={t.style.strokeLeft}
+                                    rightValue={t.totalCheckups} rightTarget={topCheckupTarget} rightColor={t.style.strokeRight}
+                                    label={t.name} size="md" labelColor={t.style.text}
+                                />
+                                
+                                <div className={`flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl border ${t.style.border} ${t.style.bg} mt-1 sm:mt-2 shadow-lg w-full`}>
+                                    <div className="grid grid-cols-2 gap-x-1 sm:gap-x-2 text-[10px] sm:text-xs w-full text-center">
+                                        <div className="flex flex-col border-r border-white/10 pr-1 sm:pr-2 items-center justify-center">
+                                            <span className={`font-black text-[11px] sm:text-[13px] ${t.style.text} mb-1 drop-shadow-sm`}>ยอดขาย: <span className="text-white">{t.totalBoxes}</span></span>
+                                            <div className="flex flex-wrap justify-center gap-x-2 gap-y-0.5 text-[8px] sm:text-[9.5px]">
+                                                <span className="text-slate-400 font-medium whitespace-nowrap">เต็ม: <span className="text-white font-bold">{t.full}</span></span>
+                                                <span className="text-slate-400 font-medium whitespace-nowrap">สมาชิก: <span className="text-white font-bold">{t.mem}</span></span>
+                                                <span className="text-slate-400 font-medium whitespace-nowrap">โปร: <span className="text-white font-bold">{t.promo}</span></span>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col pl-1 sm:pl-2 justify-center items-center">
+                                            <span className={`font-black text-[11px] sm:text-[13px] ${t.style.checkupText} drop-shadow-sm mb-1`}>คนมาตรวจ: <span className="text-white">{t.totalCheckups}</span></span>
+                                            <span className="text-slate-400 text-[8px] sm:text-[9.5px] font-medium">รวมลูกค้าทั้งหมด</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </React.Fragment>
+                    ))}
+                </div>
+
+                <div className="w-full h-px bg-white/10 relative z-10 mb-4 mt-1"></div>
+
+                {/* Dual Podiums inside the SAME frame */}
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 xl:gap-2 w-full relative z-10">
+                    {/* Left: Top Sales */}
+                    <div className="flex flex-col relative py-1">
+                        <div className="flex flex-col mb-4 gap-0.5 shrink-0 relative z-10 text-center">
+                            <h3 className="text-lg sm:text-xl font-black text-white flex items-center justify-center gap-2"><Trophy size={20} className="text-yellow-400 drop-shadow-md"/> ยอดขายสินค้าสูงสุด (Top Sales)</h3>
+                            <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium">จัดอันดับ 1-3 ตามจำนวนกล่องที่ขายได้</p>
+                        </div>
+                        <div className="flex justify-center items-end gap-1 sm:gap-2 w-full pt-1 pb-1 px-1 relative z-10 min-h-[14rem]">
+                            {podiumData.map((m) => {
+                                const currentMember = (members || []).find(mem => mem.id === m.id);
+                                const avatarUrl = cleanAvatarUrl(currentMember?.profileUrl, m.name);
+                                const isRank1 = m.rank === 1; const isRank2 = m.rank === 2;
+                                const theme = isRank1 
+                                    ? { outer: 'bg-gradient-to-br from-yellow-300 via-yellow-500 to-amber-700', inner: 'bg-gradient-to-b from-yellow-100 via-yellow-300 to-amber-500', text: 'text-yellow-950', avatar: 'w-14 h-14 sm:w-20 sm:h-20', card: 'w-28 sm:w-36 h-[13.5rem] sm:h-[16.5rem] z-30', rank: 'text-yellow-900', shadow: 'shadow-[0_10px_30px_rgba(217,119,6,0.6)]' }
+                                    : isRank2 
+                                    ? { outer: 'bg-gradient-to-br from-slate-300 via-slate-400 to-slate-600', inner: 'bg-gradient-to-b from-slate-100 via-slate-200 to-slate-400', text: 'text-slate-900', avatar: 'w-12 h-12 sm:w-16 sm:h-16', card: 'w-24 sm:w-32 h-[12rem] sm:h-[14.5rem] z-20 opacity-95', rank: 'text-slate-800', shadow: 'shadow-[0_10px_30px_rgba(100,116,139,0.5)]' }
+                                    : { outer: 'bg-gradient-to-br from-orange-400 via-orange-500 to-orange-800', inner: 'bg-gradient-to-b from-orange-100 via-orange-300 to-orange-600', text: 'text-orange-950', avatar: 'w-12 h-12 sm:w-16 sm:h-16', card: 'w-24 sm:w-32 h-[12rem] sm:h-[14.5rem] z-20 opacity-95', rank: 'text-orange-900', shadow: 'shadow-[0_10px_30px_rgba(153,56,17,0.5)]' };
+                                const animClass = isRank1 ? 'animate-float-1' : isRank2 ? 'animate-float-2' : 'animate-float-3';
+                                return (
+                                    <div key={m.id} className={`relative flex flex-col items-center shrink-0 ${theme.card} ${animClass} transition-transform duration-300 hover:scale-105 cursor-pointer`}>
+                                        <div className={`absolute inset-0 ${theme.outer} rounded-t-[2rem] sm:rounded-t-[3rem] rounded-b-xl ${theme.shadow} p-[3px] sm:p-[4px]`}>
+                                            <div className={`w-full h-full ${theme.inner} rounded-t-[1.8rem] sm:rounded-t-[2.8rem] rounded-b-lg flex flex-col items-center relative overflow-hidden`}>
+                                                <div className="absolute inset-0 bg-white/10" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 20px)' }}></div>
+                                                <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/40 to-transparent"></div>
+                                                <div className="absolute top-2 sm:top-2.5 left-1/2 -translate-x-1/2 flex flex-col items-center z-10">
+                                                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border-2 sm:border-[3px] shadow-lg ${
+                                                        isRank1 ? 'bg-gradient-to-b from-yellow-100 to-yellow-400 border-white text-yellow-900 shadow-yellow-600/40' :
+                                                        isRank2 ? 'bg-gradient-to-b from-slate-50 to-slate-300 border-white text-slate-800 shadow-slate-600/40' :
+                                                        'bg-gradient-to-b from-orange-100 to-orange-400 border-white text-orange-900 shadow-orange-700/40'
+                                                    }`}>
+                                                        <span className="text-sm sm:text-base font-black drop-shadow-sm leading-none">{m.rank}</span>
+                                                    </div>
+                                                    <span className={`text-[6px] sm:text-[8px] font-black tracking-widest ${theme.rank} uppercase mt-1 bg-white/60 px-1.5 py-0.5 rounded-full border border-white/60 shadow-sm backdrop-blur-sm leading-none`}>RANK</span>
+                                                </div>
+                                                <div className="mt-11 sm:mt-14 mb-1 relative z-10">
+                                                    <img src={avatarUrl} className={`rounded-full object-cover border-[3px] shadow-xl border-white/90 ${theme.avatar}`} />
+                                                </div>
+                                                <div className="flex-1 w-full flex flex-col justify-end items-center text-center pb-2 z-10 px-1 sm:px-2">
+                                                    <div className={`font-black text-[10px] sm:text-[11px] uppercase tracking-wide w-full drop-shadow-sm break-words leading-tight ${theme.text}`}>{m.name}</div>
+                                                    <p className={`text-3xl sm:text-4xl font-black leading-none drop-shadow-md mt-1 ${theme.text}`}>{m.totalFullBoxes}</p>
+                                                    <span className={`text-[7px] sm:text-[9px] font-bold ${theme.text} opacity-80 mt-0.5`}>กล่อง</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col relative py-1 border-t xl:border-t-0 xl:border-l border-white/10 xl:pl-2">
+                        <div className="flex flex-col mb-4 gap-0.5 shrink-0 relative z-10 text-center">
+                            <h3 className="text-lg sm:text-xl font-black text-white flex items-center justify-center gap-2"><Users size={20} className="text-emerald-400 drop-shadow-md"/> ยอดพาคนมาตรวจ (Top Checkups)</h3>
+                            <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium">จัดอันดับ 1-3 ตามจำนวนคนมาตรวจ</p>
+                        </div>
+                        <div className="flex justify-center items-end gap-1 w-full pt-1 pb-1 relative z-10 min-h-[14rem]">
+                            {checkupPodiumData.map((m) => {
+                                const currentMember = (members || []).find(mem => mem.id === m.id);
+                                const avatarUrl = cleanAvatarUrl(currentMember?.profileUrl, m.name);
+                                const isRank1 = m.rank === 1; const isRank2 = m.rank === 2;
+                                const theme = isRank1 
+                                    ? { outer: 'bg-gradient-to-br from-emerald-300 via-emerald-500 to-teal-700', inner: 'bg-gradient-to-b from-emerald-100 via-emerald-300 to-teal-500', text: 'text-teal-950', avatar: 'w-14 h-14 sm:w-20 sm:h-20', card: 'w-28 sm:w-36 h-[13.5rem] sm:h-[16.5rem] z-30', rank: 'text-emerald-900', shadow: 'shadow-[0_10px_30px_rgba(16,185,129,0.5)]' }
+                                    : isRank2 
+                                    ? { outer: 'bg-gradient-to-br from-slate-300 via-slate-400 to-slate-600', inner: 'bg-gradient-to-b from-slate-100 via-slate-200 to-slate-400', text: 'text-slate-900', avatar: 'w-12 h-12 sm:w-16 sm:h-16', card: 'w-24 sm:w-32 h-[12rem] sm:h-[14.5rem] z-20 opacity-95', rank: 'text-slate-800', shadow: 'shadow-[0_10px_30px_rgba(100,116,139,0.5)]' }
+                                    : { outer: 'bg-gradient-to-br from-orange-400 via-orange-500 to-orange-800', inner: 'bg-gradient-to-b from-orange-100 via-orange-300 to-orange-600', text: 'text-orange-950', avatar: 'w-12 h-12 sm:w-16 sm:h-16', card: 'w-24 sm:w-32 h-[12rem] sm:h-[14.5rem] z-20 opacity-95', rank: 'text-orange-900', shadow: 'shadow-[0_10px_30px_rgba(153,56,17,0.5)]' };
+                                const animClass = isRank1 ? 'animate-float-1' : isRank2 ? 'animate-float-2' : 'animate-float-3';
+                                return (
+                                    <div key={m.id} className={`relative flex flex-col items-center shrink-0 ${theme.card} ${animClass} transition-transform duration-300 hover:scale-105 cursor-pointer`}>
+                                        <div className={`absolute inset-0 ${theme.outer} rounded-t-[2rem] sm:rounded-t-[3rem] rounded-b-xl ${theme.shadow} p-[3px] sm:p-[4px]`}>
+                                            <div className={`w-full h-full ${theme.inner} rounded-t-[1.8rem] sm:rounded-t-[2.8rem] rounded-b-lg flex flex-col items-center relative overflow-hidden`}>
+                                                <div className="absolute inset-0 bg-white/10" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 20px)' }}></div>
+                                                <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/40 to-transparent"></div>
+                                                <div className="absolute top-2 sm:top-2.5 left-1/2 -translate-x-1/2 flex flex-col items-center z-10">
+                                                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border-2 sm:border-[3px] shadow-lg ${
+                                                        isRank1 ? 'bg-gradient-to-b from-yellow-100 to-yellow-400 border-white text-yellow-900 shadow-yellow-600/40' :
+                                                        isRank2 ? 'bg-gradient-to-b from-slate-50 to-slate-300 border-white text-slate-800 shadow-slate-600/40' :
+                                                        'bg-gradient-to-b from-orange-100 to-orange-400 border-white text-orange-900 shadow-orange-700/40'
+                                                    }`}>
+                                                        <span className="text-sm sm:text-base font-black drop-shadow-sm leading-none">{m.rank}</span>
+                                                    </div>
+                                                    <span className={`text-[6px] sm:text-[8px] font-black tracking-widest ${theme.rank} uppercase mt-1 bg-white/60 px-1.5 py-0.5 rounded-full border border-white/60 shadow-sm backdrop-blur-sm leading-none`}>RANK</span>
+                                                </div>
+                                                <div className="mt-11 sm:mt-14 mb-1 relative z-10">
+                                                    <img src={avatarUrl} className={`rounded-full object-cover border-[3px] shadow-xl border-white/90 ${theme.avatar}`} />
+                                                </div>
+                                                <div className="flex-1 w-full flex flex-col justify-end items-center text-center pb-2 z-10 px-1 sm:px-2">
+                                                    <div className={`font-black text-[10px] sm:text-[11px] uppercase tracking-wide w-full drop-shadow-sm break-words leading-tight ${theme.text}`}>{m.name}</div>
+                                                    <p className={`text-3xl sm:text-4xl font-black leading-none drop-shadow-md mt-1 ${theme.text}`}>{m.newCustCount}</p>
+                                                    <span className={`text-[7px] sm:text-[9px] font-bold ${theme.text} opacity-80 mt-0.5`}>คน</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* 🟢 การแข่งขันความคืบหน้าเป้าหมาย (จำกัด 6 ทีม/หน้า ถ้ามีไม่ถึง 6 ทีมจะอยู่หน้าเดียว ถ้าเกิน 6 ทีมจะมีปุ่มเลื่อนหน้า) */}
@@ -686,29 +993,45 @@
                 const currentCompetitionTeams = teamStats.teamsList.slice(safeCompetitionPage * TEAMS_PER_PAGE, (safeCompetitionPage + 1) * TEAMS_PER_PAGE);
 
                 return (
-                    <div className={`${boxWrapper} flex flex-col justify-between relative overflow-hidden bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border border-white/10 shadow-2xl mb-8 min-h-[75vh] p-6 sm:p-8 rounded-3xl`}>
+                    <div className={`${boxWrapper} flex flex-col relative overflow-hidden bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border border-white/10 shadow-2xl mb-8 ${showGoalCompetition ? 'min-h-[75vh] p-6 sm:p-8 justify-between' : 'p-4 sm:p-6'} rounded-3xl transition-all duration-500`}>
                         <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none opacity-20">
                             <div className="absolute -top-32 -left-32 w-96 h-96 bg-blue-500 rounded-full blur-[100px]"></div>
                             <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-red-600 rounded-full blur-[120px]"></div>
                         </div>
 
                         {/* Title & Page Controls Header */}
-                        <div className="flex flex-col sm:flex-row justify-between items-center mb-6 border-b border-white/10 pb-6 shrink-0 relative z-10 gap-4">
-                            <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-500 to-red-600 flex items-center justify-center text-white shadow-lg shadow-rose-500/30">
+                        <div className={`flex flex-col sm:flex-row justify-between items-center ${showGoalCompetition ? 'mb-6 border-b border-white/10 pb-6' : ''} shrink-0 relative z-10 gap-4`}>
+                            <div className="flex items-center gap-3 w-full sm:w-auto">
+                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-500 to-red-600 flex items-center justify-center text-white shadow-lg shadow-rose-500/30 shrink-0">
                                     <Target size={28} />
                                 </div>
                                 <div>
-                                    <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">การแข่งขันความคืบหน้าเป้าหมาย</h3>
-                                    <p className="text-xs font-bold text-slate-400 mt-1">
+                                    <h3 className="text-xl sm:text-3xl font-black text-white tracking-tight">การแข่งขันความคืบหน้าเป้าหมาย</h3>
+                                    <p className="text-[10px] sm:text-xs font-bold text-slate-400 mt-1">
                                         เปรียบเทียบยอดขายรวมของแต่ละทีมกับเป้าหมายระบบ (ทีมทั้งหมด {totalTeamsCount} ทีม)
                                     </p>
                                 </div>
                             </div>
 
-                            {/* 🟢 แสดงปุ่มเปลี่ยนหน้าเฉพาะเมื่อมีทีมมากกว่า 6 ทีมขึ้นไป */}
-                            {totalTeamsCount > TEAMS_PER_PAGE && (
-                                <div className="flex items-center gap-3 bg-white/5 p-2 rounded-2xl border border-white/10 shadow-xl backdrop-blur-md">
+                            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                                {/* Toggle Button */}
+                                <button onClick={() => setShowGoalCompetition(!showGoalCompetition)} className={`px-4 py-2.5 rounded-xl text-sm font-bold border transition-all flex items-center gap-2 ${showGoalCompetition ? 'bg-white/10 border-white/20 text-slate-200 hover:bg-white/20 hover:text-white' : 'bg-rose-600 border-rose-500 text-white hover:bg-rose-500 shadow-lg shadow-rose-600/30'}`}>
+                                    {showGoalCompetition ? (
+                                        <>
+                                            <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse"></span>
+                                            ซ่อนการแข่งขัน
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                            เปิดดูการแข่งขัน
+                                        </>
+                                    )}
+                                </button>
+
+                                {/* 🟢 แสดงปุ่มเปลี่ยนหน้าเฉพาะเมื่อมีทีมมากกว่า 6 ทีมขึ้นไป */}
+                                {showGoalCompetition && totalTeamsCount > TEAMS_PER_PAGE && (
+                                    <div className="flex items-center gap-3 bg-white/5 p-2 rounded-2xl border border-white/10 shadow-xl backdrop-blur-md">
                                     <button
                                         type="button"
                                         disabled={safeCompetitionPage === 0}
@@ -735,40 +1058,45 @@
                                         <ChevronRightIcon size={18} />
                                     </button>
                                 </div>
-                            )}
-                        </div>
-
-                        {/* Teams Grid (ลบกรอบใสออก ให้ภาพวงกลมลอยสวยงามบนพื้นหลังมืดแบบเดิม) */}
-                        <div className="flex flex-wrap justify-center items-center flex-1 pb-10 pt-6 gap-8 lg:gap-16 relative z-10 w-full">
-                            {currentCompetitionTeams.map((t, idx) => (
-                                <React.Fragment key={t.id || idx}>
-                                    {idx > 0 && (
-                                        <div className="hidden lg:block w-px h-64 bg-white/10 shrink-0 relative">
-                                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800 text-slate-400 text-[12px] font-black px-3 py-1.5 rounded-full border border-white/10">VS</div>
-                                        </div>
-                                    )}
-                                    <div className="flex flex-col items-center group cursor-pointer hover:scale-105 transition-transform duration-500 min-w-[220px]">
-                                        <DonutChart value={t.totalSales} target={dashboardTarget} colorClass={t.style.text} strokeColor={t.style.stroke} glowColor={t.style.glow} size="xl" />
-                                        <h4 className={`font-bold text-white text-xl sm:text-2xl mt-8 ${t.style.bg} px-8 py-2.5 rounded-full border ${t.style.border} shadow-lg ${t.style.hoverBg} transition-all duration-300`}>
-                                            {t.name}
-                                        </h4>
-                                    </div>
-                                </React.Fragment>
-                            ))}
-                        </div>
-
-                        {/* Page Indicator Dots (เฉพาะกรณีเกิน 6 ทีม) */}
-                        {totalTeamsCount > TEAMS_PER_PAGE && (
-                            <div className="flex justify-center items-center gap-2 pt-4 relative z-10">
-                                {Array.from({ length: totalCompetitionPages }).map((_, pIdx) => (
-                                    <button
-                                        key={pIdx}
-                                        type="button"
-                                        onClick={() => setCompetitionPage(pIdx)}
-                                        className={`h-2.5 rounded-full transition-all duration-300 cursor-pointer ${safeCompetitionPage === pIdx ? 'w-8 bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.8)]' : 'w-2.5 bg-white/20 hover:bg-white/40'}`}
-                                    />
-                                ))}
+                                )}
                             </div>
+                        </div>
+
+                        {showGoalCompetition && (
+                            <>
+                                {/* Teams Grid (ลบกรอบใสออก ให้ภาพวงกลมลอยสวยงามบนพื้นหลังมืดแบบเดิม) */}
+                                <div className="flex flex-wrap justify-center items-center flex-1 pb-10 pt-6 gap-8 lg:gap-16 relative z-10 w-full animate-fade-in">
+                                    {currentCompetitionTeams.map((t, idx) => (
+                                        <React.Fragment key={t.id || idx}>
+                                            {idx > 0 && (
+                                                <div className="hidden lg:block w-px h-64 bg-white/10 shrink-0 relative">
+                                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800 text-slate-400 text-[12px] font-black px-3 py-1.5 rounded-full border border-white/10">VS</div>
+                                                </div>
+                                            )}
+                                            <div className="flex flex-col items-center group cursor-pointer hover:scale-105 transition-transform duration-500 min-w-[220px]">
+                                                <DonutChart value={t.totalSales} target={dashboardTarget} colorClass={t.style.text} strokeColor={t.style.stroke} glowColor={t.style.glow} size="xl" />
+                                                <h4 className={`font-bold text-white text-xl sm:text-2xl mt-8 ${t.style.bg} px-8 py-2.5 rounded-full border ${t.style.border} shadow-lg ${t.style.hoverBg} transition-all duration-300`}>
+                                                    {t.name}
+                                                </h4>
+                                            </div>
+                                        </React.Fragment>
+                                    ))}
+                                </div>
+
+                                {/* Page Indicator Dots (เฉพาะกรณีเกิน 6 ทีม) */}
+                                {totalTeamsCount > TEAMS_PER_PAGE && (
+                                    <div className="flex justify-center items-center gap-2 pt-4 relative z-10 animate-fade-in">
+                                        {Array.from({ length: totalCompetitionPages }).map((_, pIdx) => (
+                                            <button
+                                                key={pIdx}
+                                                type="button"
+                                                onClick={() => setCompetitionPage(pIdx)}
+                                                className={`h-2.5 rounded-full transition-all duration-300 cursor-pointer ${safeCompetitionPage === pIdx ? 'w-8 bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.8)]' : 'w-2.5 bg-white/20 hover:bg-white/40'}`}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 );
