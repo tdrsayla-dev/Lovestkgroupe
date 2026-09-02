@@ -1872,7 +1872,7 @@
             <div class="d-flex align-items-center gap-2 mb-3">
                 <input type="text" id="searchStaffInput" class="form-control custom-input py-2"
                     placeholder="ค้นหารหัสพนักงาน, ชื่อ หรืออีเมล..." style="max-width: 320px;"
-                    onkeyup="filterStaffTable()">
+                    oninput="filterStaffTable()" onkeyup="filterStaffTable()">
             </div>
 
             <!-- Staff Table -->
@@ -3416,8 +3416,11 @@
                                 <input type="text" class="form-control custom-input" name="Tel" required>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label fw-bold">วันที่นัดมาตรวจ</label>
-                                <input type="date" class="form-control custom-input" name="NextAppointmentDate">
+                                <!-- 🌟 เพิ่มดอกจันสีแดงให้ดูรู้ว่าบังคับกรอก -->
+                                <label class="form-label fw-bold">วันที่นัดมาตรวจ <span class="text-danger">*</span></label>
+                                
+                                <!-- 🌟 เพิ่มแอตทริบิวต์ required ไว้ด้านหลังสุด -->
+                                <input type="date" class="form-control custom-input" name="NextAppointmentDate" required>
                             </div>
                         </div>
                         <div class="row mb-3">

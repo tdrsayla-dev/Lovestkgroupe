@@ -34,9 +34,17 @@ window.safeSetLocalStorage = function (key, value) {
     }
 };
 
-// Immediate cleanup of bloated base64 entries in localStorage on script load
+// Immediate cleanup of bloated base64 or oversized entries in localStorage on script load
 (function cleanupBloatedLocalStorage() {
     try {
+        ['clinic_lab_files_meta', 'clinic_services_packages', 'clinic_commission_logs', 'clinic_bills_cache', 'clinic_visits_queue'].forEach(k => {
+            try {
+                const item = localStorage.getItem(k);
+                if (item && item.length > 50000) {
+                    localStorage.removeItem(k);
+                }
+            } catch (err) { }
+        });
         const metaRaw = localStorage.getItem('clinic_lab_files_meta');
         if (metaRaw && metaRaw.includes('data:')) {
             try {
@@ -4600,13 +4608,25 @@ async function submitAppointment() {
     };
 
     // อัปเดตข้อมูลลง LocalStorage ไว้เป็นแคชสำรอง
-    if (selectedRefBy) {
-        window.appointmentReferrersMap = JSON.parse(localStorage.getItem('clinic_appointment_referrers') || '{}');
-        window.appointmentReferrersMap[apptId] = selectedRefBy;
-        localStorage.setItem('clinic_appointment_referrers', JSON.stringify(window.appointmentReferrersMap));
-    } else if (window.appointmentReferrersMap && window.appointmentReferrersMap[apptId]) {
-        delete window.appointmentReferrersMap[apptId];
-        localStorage.setItem('clinic_appointment_referrers', JSON.stringify(window.appointmentReferrersMap));
+    try {
+        if (selectedRefBy) {
+            window.appointmentReferrersMap = JSON.parse(localStorage.getItem('clinic_appointment_referrers') || '{}');
+            window.appointmentReferrersMap[apptId] = selectedRefBy;
+            if (typeof window.safeSetLocalStorage === 'function') {
+                window.safeSetLocalStorage('clinic_appointment_referrers', window.appointmentReferrersMap);
+            } else {
+                localStorage.setItem('clinic_appointment_referrers', JSON.stringify(window.appointmentReferrersMap));
+            }
+        } else if (window.appointmentReferrersMap && window.appointmentReferrersMap[apptId]) {
+            delete window.appointmentReferrersMap[apptId];
+            if (typeof window.safeSetLocalStorage === 'function') {
+                window.safeSetLocalStorage('clinic_appointment_referrers', window.appointmentReferrersMap);
+            } else {
+                localStorage.setItem('clinic_appointment_referrers', JSON.stringify(window.appointmentReferrersMap));
+            }
+        }
+    } catch (ex) {
+        console.warn('clinic_appointment_referrers LocalStorage error:', ex);
     }
 
     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -4641,13 +4661,25 @@ async function submitPatient() {
     const linkApptId = document.getElementById('linkAppointmentId')?.value;
     const refByVal = (document.getElementById('patientReferredBySelect')?.value || null);
 
-    if (refByVal) {
-        window.patientReferrersMap = JSON.parse(localStorage.getItem('clinic_patient_referrers') || '{}');
-        window.patientReferrersMap[hn] = refByVal;
-        localStorage.setItem('clinic_patient_referrers', JSON.stringify(window.patientReferrersMap));
-    } else if (window.patientReferrersMap && window.patientReferrersMap[hn]) {
-        delete window.patientReferrersMap[hn];
-        localStorage.setItem('clinic_patient_referrers', JSON.stringify(window.patientReferrersMap));
+    try {
+        if (refByVal) {
+            window.patientReferrersMap = JSON.parse(localStorage.getItem('clinic_patient_referrers') || '{}');
+            window.patientReferrersMap[hn] = refByVal;
+            if (typeof window.safeSetLocalStorage === 'function') {
+                window.safeSetLocalStorage('clinic_patient_referrers', window.patientReferrersMap);
+            } else {
+                localStorage.setItem('clinic_patient_referrers', JSON.stringify(window.patientReferrersMap));
+            }
+        } else if (window.patientReferrersMap && window.patientReferrersMap[hn]) {
+            delete window.patientReferrersMap[hn];
+            if (typeof window.safeSetLocalStorage === 'function') {
+                window.safeSetLocalStorage('clinic_patient_referrers', window.patientReferrersMap);
+            } else {
+                localStorage.setItem('clinic_patient_referrers', JSON.stringify(window.patientReferrersMap));
+            }
+        }
+    } catch (ex) {
+        console.warn('clinic_patient_referrers LocalStorage error:', ex);
     }
 
     const patientData = {
@@ -6933,15 +6965,6 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
         } else if (visitRow.initial_symptom && visitRow.initial_symptom.trim() !== '') {
             patientSymptom = visitRow.initial_symptom.trim();
         }
-
-        let vitalsList = [];
-        if (visitRow.bp && visitRow.bp !== '-') vitalsList.push(`ความดัน: ${visitRow.bp}`);
-        if (visitRow.pulse) vitalsList.push(`ชีพจร: ${visitRow.pulse}`);
-        if (visitRow.temp) vitalsList.push(`อุณหภูมิ: ${visitRow.temp}°C`);
-        if (visitRow.weight) vitalsList.push(`นน.: ${visitRow.weight} กก.`);
-        if (vitalsList.length > 0) {
-            patientSymptom = (patientSymptom !== '-' ? patientSymptom + ' | ' : '') + vitalsList.join(', ');
-        }
     }
 
     const phoneEl = document.getElementById('rxPatientPhoneDisplay');
@@ -7251,7 +7274,21 @@ async function submitPrescription() {
         const p = window.allPatients.find(pat => pat.hn === hn);
         if (p && p.doctor) doctorName = p.doctor;
     }
-    const symptomText = refillTag ? `ต่อยา (${refillTag})` : 'สั่งจ่ายยา';
+
+    // 🌟 ดึงอาการแรกรับเดิม (ถ้ามี) ไม่ให้โดนทับด้วยคำว่า 'สั่งจ่ายยา'
+    let originalSymptom = '';
+    if (window.clinicVisits) {
+        const v = window.clinicVisits.find(x => x.visit_id === visitId);
+        if (v && v.symptom && v.symptom !== 'สั่งจ่ายยา') originalSymptom = v.symptom;
+    }
+    if (!originalSymptom && typeof _supabase !== 'undefined') {
+        try {
+            const { data: vDb } = await _supabase.from('visits').select('symptom').eq('visit_id', visitId).maybeSingle();
+            if (vDb && vDb.symptom && vDb.symptom !== 'สั่งจ่ายยา') originalSymptom = vDb.symptom;
+        } catch (e) {}
+    }
+
+    const symptomText = originalSymptom || (refillTag ? `ต่อยา (${refillTag})` : 'สั่งจ่ายยา');
     const nowIso = new Date().toISOString();
 
     // 1. อัปเดตข้อมูลลง LocalStorage ทันทีเพื่อให้แสดงผลในห้องจ่ายยา 100%
@@ -7265,7 +7302,9 @@ async function submitPrescription() {
             cachedVisits[vIndex].status = 'รอจ่ายยา';
             if (refillTag) {
                 cachedVisits[vIndex].refill_batch = refillTag;
-                cachedVisits[vIndex].symptom = symptomText;
+            }
+            if (originalSymptom) {
+                cachedVisits[vIndex].symptom = originalSymptom;
             }
             if (doctorName && !cachedVisits[vIndex].doctor_name) {
                 cachedVisits[vIndex].doctor_name = doctorName;
@@ -7288,23 +7327,29 @@ async function submitPrescription() {
         // ⚠️ จำกัดข้อมูลไว้ที่ 50 แถวล่าสุด เพื่อป้องกัน QuotaExceededError
         cachedVisits = cachedVisits.slice(0, 50);
 
-        localStorage.setItem('clinic_visits_queue', JSON.stringify(cachedVisits));
+        if (typeof window.safeSetLocalStorage === 'function') {
+            window.safeSetLocalStorage('clinic_visits_queue', cachedVisits);
+        } else {
+            localStorage.setItem('clinic_visits_queue', JSON.stringify(cachedVisits));
+        }
     } catch (ex) {
         console.warn('LocalStorage save error:', ex);
-        // หากความจำเต็ม ให้ล้างข้อมูลเดิมทิ้งแล้วบันทึกเฉพาะรายการใหม่
-        localStorage.removeItem('clinic_visits_queue');
     }
 
     // 2. อัปเดตข้อมูลขึ้น Supabase DB
     try {
         if (typeof _supabase !== 'undefined') {
-            const { data: existingVisit } = await _supabase.from('visits').select('visit_id').eq('visit_id', visitId).maybeSingle();
+            const { data: existingVisit } = await _supabase.from('visits').select('visit_id, symptom').eq('visit_id', visitId).maybeSingle();
             if (existingVisit) {
                 const updatePayload = {
                     meds: medsStr,
-                    status: 'รอจ่ายยา',
-                    symptom: symptomText
+                    status: 'รอจ่ายยา'
                 };
+                if (existingVisit.symptom && existingVisit.symptom !== 'สั่งจ่ายยา') {
+                    // ไม่ต้องเขียนทับ symptom เดิม
+                } else if (originalSymptom) {
+                    updatePayload.symptom = originalSymptom;
+                }
                 if (doctorName) updatePayload.doctor_name = doctorName;
 
                 await _supabase
@@ -7331,35 +7376,37 @@ async function submitPrescription() {
     }
 
     // 3. หากมีรายการสินค้าสารอาหาร / MLM ให้บันทึกลงตาราง stk_nutrient_orders อัตโนมัติด้วย
-    const mlmItems = (window.currentRxMeds || []).filter(i =>
-        i.source === 'mlm' ||
-        (i.sourceLabel && i.sourceLabel.includes('MLM')) ||
-        (i.name && (i.name.includes('STK') || i.name.includes('BOOM') || i.name.includes('GOLD') || i.name.includes('ORYZA') || i.name.includes('APPLE') || i.name.includes('COLLAGEN') || i.name.includes('VIT') || i.name.includes('COFFEE')))
-    );
+    const mlmItems = (window.currentRxMeds && window.currentRxMeds.length > 0) ? window.currentRxMeds : [];
     if (mlmItems.length > 0) {
         try {
+            // ดึงชื่อผู้แนะนำ (Referrer)
             const assistant = document.getElementById('rxAssistantDisplay')?.innerText || 'L03709 - MS CHERRY LOUANGPHAN';
             const orderId = `ORD-CLINIC-${visitId || Date.now()}`;
 
-            let patientPhone = '-';
-            if (window.allPatients && hn) {
+            // 🌟 1. ดึงข้อมูลเบอร์โทรศัพท์ (customer_phone)
+            let patientPhone = document.getElementById('rxPatientPhoneDisplay')?.innerText || '-';
+            if (patientPhone === '-' && window.allPatients && hn) {
                 const p = window.allPatients.find(pat => pat.hn === hn);
                 if (p && p.phone) patientPhone = p.phone;
             }
 
+            // 🌟 2. ดึงข้อมูลอาการเบื้องต้น (symptom)
+            let patientSymptom = document.getElementById('rxPatientSymptomDisplay')?.innerText || (typeof symptomText !== 'undefined' ? symptomText : '-');
+
+            // 🌟 3. ประกอบ Payload ให้ครบถ้วนตาม Schema ของตาราง stk_nutrient_orders
             const nutrientPayload = {
                 order_id: orderId,
-                sale_id: orderId,
                 visit_id: visitId || '-',
-                rxvisitid: visitId || '-',
                 hn: hn || 'CLINIC-PATIENT',
-                customer_id: hn || 'CLINIC-PATIENT',
                 customer_name: patientName || '-',
-                customer_phone: patientPhone,
-                recorded_by: assistant,
+                customer_phone: patientPhone,           // เบอร์โทรศัพท์
+                closer_dr: (typeof doctorName !== 'undefined' ? doctorName : '-'), // แพทย์ผู้ตรวจ
+                recorded_by: assistant,                 // ผู้แนะนำ
+                symptom: patientSymptom,                // อาการเบื้องต้น
                 date: nowIso.split('T')[0],
                 status: 'รอดำเนินการ',
-                items_json: mlmItems,
+                items_json: mlmItems,                   // 🌟 ส่ง Array รายการสินค้าสารอาหารไปลง items_json
+                items: mlmItems,
                 created_at: nowIso
             };
 
@@ -7549,9 +7596,82 @@ async function saveNutrientOrderToDatabase(salePayload) {
 
     // 2. จัดรูปแบบ Payload ให้ตรงกับคอลัมน์ในตาราง public.stk_nutrient_orders
     // Schema: order_id, visit_id, hn, customer_name, recorded_by, date, status, items_json
-    const rawItems = Array.isArray(salePayload.items_json)
-        ? salePayload.items_json
-        : (Array.isArray(salePayload.items) ? salePayload.items : []);
+    let rawItems = [];
+    if (Array.isArray(salePayload.items_json)) {
+        rawItems = salePayload.items_json;
+    } else if (typeof salePayload.items_json === 'string' && salePayload.items_json.trim() !== '') {
+        try {
+            rawItems = JSON.parse(salePayload.items_json);
+        } catch (e) {
+            console.warn("Parse items_json string error:", e);
+        }
+    }
+    
+    if (!Array.isArray(rawItems) || rawItems.length === 0) {
+        if (Array.isArray(salePayload.items)) {
+            rawItems = salePayload.items;
+        } else if (typeof salePayload.items === 'string' && salePayload.items.trim() !== '') {
+            try {
+                rawItems = JSON.parse(salePayload.items);
+            } catch (e) { }
+        }
+    }
+
+    if (!Array.isArray(rawItems) || rawItems.length === 0) {
+        if (window.currentRxMeds && Array.isArray(window.currentRxMeds) && window.currentRxMeds.length > 0) {
+            rawItems = window.currentRxMeds;
+        }
+    }
+
+    if (!Array.isArray(rawItems)) rawItems = [];
+
+    // ฟอร์แมตแต่ละรายการให้สมบูรณ์และถูกต้องตามโครงสร้าง
+    const cleanItems = rawItems.map(i => {
+        let priceTypeName = 'ราคาปกติ';
+        if (i.tier === 'promo' || (i.name && i.name.includes('(โปร)'))) priceTypeName = 'ราคาโปร';
+        else if (i.tier === 'high' || (i.name && i.name.includes('(ส่ง/สมาชิก)'))) priceTypeName = 'ราคาส่ง/สมาชิก';
+        else if (i.tier === 'free' || (i.name && i.name.includes('(แถมฟรี)'))) priceTypeName = 'แถมฟรี';
+        else if (i.type && i.type !== 'ONE') priceTypeName = i.type;
+
+        return {
+            id: i.id || 'ITEM',
+            name: i.name || i.title || i.product_name || 'รายการยา/สารอาหาร',
+            type: priceTypeName,
+            priceType: priceTypeName,
+            tier: i.tier || 'normal',
+            source: i.sourceLabel || i.source || 'คลังยา',
+            qty: Number(i.qty || 1),
+            price: Number(i.price || 0),
+            total: Number((i.price || 0) * (i.qty || 1))
+        };
+    });
+
+    let cleanSymptom = salePayload.symptom || null;
+    if (cleanSymptom) {
+        if (cleanSymptom.includes(' | ความดัน:')) cleanSymptom = cleanSymptom.split(' | ความดัน:')[0];
+        else if (cleanSymptom.includes('ความดัน:')) cleanSymptom = cleanSymptom.split('ความดัน:')[0];
+        else if (cleanSymptom.includes(' | ชีพจร:')) cleanSymptom = cleanSymptom.split(' | ชีพจร:')[0];
+        else if (cleanSymptom.includes('ชีพจร:')) cleanSymptom = cleanSymptom.split('ชีพจร:')[0];
+        cleanSymptom = cleanSymptom.replace(/,?\s*ความดัน:.*$/i, '')
+            .replace(/,?\s*ชีพจร:.*$/i, '')
+            .replace(/,?\s*อุณหภูมิ:.*$/i, '')
+            .replace(/,?\s*นน\.?:.*$/i, '')
+            .trim();
+    }
+
+    // 🌟 ดึงข้อมูล แพทย์ผู้ตรวจ (closer_dr) จาก Payload, visits table หรือ currentUser
+    let closerDr = salePayload.closer_dr || salePayload.doctor_name || null;
+    if ((!closerDr || closerDr === '-' || closerDr === 'null') && salePayload.visit_id && typeof _supabase !== 'undefined') {
+        try {
+            const { data: vDb } = await _supabase.from('visits').select('doctor_name').eq('visit_id', salePayload.visit_id).maybeSingle();
+            if (vDb && vDb.doctor_name && vDb.doctor_name !== 'null' && vDb.doctor_name !== '-') {
+                closerDr = vDb.doctor_name;
+            }
+        } catch (e) { }
+    }
+    if ((!closerDr || closerDr === '-' || closerDr === 'null') && window.currentUser) {
+        closerDr = window.currentUser.name || window.currentUser.full_name || null;
+    }
 
     const cleanPayload = {
         order_id: String(salePayload.order_id),
@@ -7559,10 +7679,12 @@ async function saveNutrientOrderToDatabase(salePayload) {
         hn: salePayload.hn ? String(salePayload.hn) : null,
         customer_name: salePayload.customer_name || salePayload.patient_name || null,
         customer_phone: salePayload.customer_phone || null,
+        closer_dr: closerDr || null,
         recorded_by: salePayload.recorded_by || 'Staff',
+        symptom: cleanSymptom || null,
         date: salePayload.date || (new Date().toISOString().split('T')[0]),
         status: salePayload.status || 'รอดำเนินการ',
-        items_json: rawItems
+        items_json: (cleanItems && cleanItems.length > 0) ? cleanItems : (Array.isArray(salePayload.items_json) ? salePayload.items_json : rawItems)
     };
 
     // 3. บันทึกข้อมูลลงฐานข้อมูล Supabase ด้วย Upsert/Insert
@@ -7629,7 +7751,11 @@ async function saveNutrientOrderToDatabase(salePayload) {
             cachedNutrients.unshift({ ...cleanPayload, total_amount: salePayload.total_amount || 0 });
         }
         cachedNutrients = cachedNutrients.slice(0, 50);
-        localStorage.setItem('stk_nutrient_orders', JSON.stringify(cachedNutrients));
+        if (typeof window.safeSetLocalStorage === 'function') {
+            window.safeSetLocalStorage('stk_nutrient_orders', cachedNutrients);
+        } else {
+            localStorage.setItem('stk_nutrient_orders', JSON.stringify(cachedNutrients));
+        }
     } catch (ex) {
         console.warn('LocalStorage save error:', ex);
     }
@@ -7688,6 +7814,9 @@ async function submitPrescriptionToMlm() {
         }
     }
 
+    const doctorName = document.getElementById('rxDoctorNameDisplay')?.innerText || (typeof window.currentUser !== 'undefined' && window.currentUser ? window.currentUser.name : 'แพทย์ผู้ตรวจ');
+    const symptomText = document.getElementById('rxPatientSymptomDisplay')?.innerText || '-';
+
     // Payload ที่ตรงตาม Schema ของตาราง public.stk_nutrient_orders
     const salePayload = {
         order_id: orderId,
@@ -7698,7 +7827,9 @@ async function submitPrescriptionToMlm() {
         customer_id: hn || 'CLINIC-PATIENT',
         customer_name: patientName || '-',
         customer_phone: patientPhone,
+        closer_dr: doctorName || '-',
         recorded_by: assistant || '-',
+        symptom: symptomText || '-',
         date: nowIso.split('T')[0],
         status: 'รอดำเนินการ',
         items_json: cleanItems,
@@ -8232,19 +8363,26 @@ window.viewPharmacyBillDetails = async function (visitId, billType) {
         return;
     }
 
-    // --- 1. โค้ดสำหรับค้นหาอาการเบื้องต้น ---
+    // --- 🌟 ดึงข้อมูล แพทย์ผู้ตรวจ และ อาการเบื้องต้น จากฐานข้อมูลให้ตรง 100% ---
+    let doctorName = '-';
     let patientSymptom = '-';
-    
-    // ดึงข้อมูลจากฐานข้อมูล Supabase (ตาราง visits)
+
     if (visitId && typeof _supabase !== 'undefined') {
         try {
-            const { data: vData } = await _supabase.from('visits')
+            // ค้นหาข้อมูลจากตาราง visits โดยใช้ visitId ดึงแบบ Real-time
+            const { data: vData } = await _supabase
+                .from('visits')
                 .select('*')
                 .eq('visit_id', visitId)
                 .maybeSingle();
-                
+
             if (vData) {
-                // เลือกใช้อาการที่มีการบันทึกไว้
+                // 1. ดึงชื่อแพทย์ผู้รับผิดชอบ
+                if (vData.doctor_name && vData.doctor_name !== 'null' && vData.doctor_name !== '') {
+                    doctorName = vData.doctor_name;
+                }
+                
+                // 2. ดึงอาการจากจุดคัดกรอง
                 if (vData.symptom && vData.symptom.trim() !== '') {
                     patientSymptom = vData.symptom.trim();
                 } else if (vData.initial_symptom && vData.initial_symptom.trim() !== '') {
@@ -8252,14 +8390,15 @@ window.viewPharmacyBillDetails = async function (visitId, billType) {
                 }
             }
         } catch (e) {
-            console.warn('Fetch symptom error:', e);
+            console.warn('Fetch pharmacy details error:', e);
         }
     }
+    if (doctorName === '-' && visit && visit.doctor_name) doctorName = visit.doctor_name;
     if (patientSymptom === '-' && visit) {
         if (visit.symptom && visit.symptom.trim() !== '') patientSymptom = visit.symptom.trim();
         else if (visit.initial_symptom && visit.initial_symptom.trim() !== '') patientSymptom = visit.initial_symptom.trim();
     }
-    // ----------------------------------------
+    // ---------------------------------------------------------------------
 
     // --- ส่วนที่เพิ่มใหม่: ค้นหาผู้แนะนำ (Referrer) และเบอร์โทรศัพท์ ---
     let referrerText = '-';
@@ -8351,11 +8490,11 @@ window.viewPharmacyBillDetails = async function (visitId, billType) {
                         <span class="ms-3 text-primary"><i class="bi bi-telephone-fill me-1"></i>${patientPhone}</span>
                     </div>
                     <div><strong>รหัส VISIT:</strong> <span class="text-primary fw-bold">${visit.visit_id}</span></div>
-                    <div><strong>แพทย์ผู้ตรวจ:</strong> ${visit.doctor_name || '-'}</div>
+                    <div><span class="me-3 text-muted">แพทย์ผู้ตรวจ: <strong class="text-dark">${doctorName}</strong></span></div>
                     <!-- ส่วนที่เพิ่มใหม่: แสดงผู้แนะนำ & อาการเบื้องต้น -->
                     <div class="w-100 mt-1 pt-2 border-top d-flex flex-wrap align-items-center justify-content-between gap-2">
                         <div><strong>ผู้แนะนำ:</strong> <span class="text-primary fw-bold">${referrerText}</span></div>
-                        <div><span class="me-3 text-muted" style="font-size: 0.88rem;">อาการเบื้องต้น: <strong class="text-danger">${patientSymptom}</strong></span></div>
+                        <div><span class="text-muted">อาการเบื้องต้น: <strong class="text-danger">${patientSymptom}</strong></span></div>
                     </div>
                 </div>
 
@@ -8409,10 +8548,10 @@ function isNutrientItem(item) {
     if (item.source === 'mlm') return true;
     if (item.sourceLabel && item.sourceLabel.includes('MLM')) return true;
     const name = (item.name || item.product_name || '').toUpperCase();
-    if (name.includes('STK') || name.includes('BOOM') || name.includes('GOLD') || name.includes('ORYZA') || name.includes('APPLE') || name.includes('COLLAGEN') || name.includes('VIT') || name.includes('COFFEE')) {
+    if (name.includes('STK') || name.includes('BOOM') || name.includes('GOLD') || name.includes('ORYZA') || name.includes('APPLE') || name.includes('COLLAGEN') || name.includes('VIT') || name.includes('COFFEE') || name.includes('PINE') || name.includes('SESAME') || name.includes('ZINC') || name.includes('CORDY')) {
         return true;
     }
-    return false;
+    return !!(item.name || item.id);
 }
 
 // ==========================================
@@ -8485,6 +8624,29 @@ window.sendPharmacyNutrientOrder = async function (visitId) {
         }
     }
 
+    // 🌟 ดึงข้อมูล แพทย์ผู้ตรวจ และ อาการเบื้องต้น
+    let closerDr = visit.doctor_name || null;
+    let patientSymptom = visit.symptom || null;
+
+    if (!closerDr || closerDr === '-' || closerDr === 'null') {
+        const docEl = document.getElementById('rxDoctorNameDisplay');
+        if (docEl && docEl.innerText && docEl.innerText !== '-') closerDr = docEl.innerText;
+    }
+
+    if ((!closerDr || !patientSymptom || closerDr === '-') && typeof _supabase !== 'undefined') {
+        try {
+            const { data: vDb } = await _supabase.from('visits').select('doctor_name, symptom').eq('visit_id', visitId).maybeSingle();
+            if (vDb) {
+                if ((!closerDr || closerDr === '-') && vDb.doctor_name && vDb.doctor_name !== 'null') closerDr = vDb.doctor_name;
+                if (!patientSymptom && vDb.symptom && vDb.symptom !== 'สั่งจ่ายยา') patientSymptom = vDb.symptom;
+            }
+        } catch (e) {}
+    }
+
+    if ((!closerDr || closerDr === '-') && window.currentUser) {
+        closerDr = window.currentUser.name || window.currentUser.full_name || null;
+    }
+
     // สร้าง Payload สำหรับส่งไปยังตาราง stk_nutrient_orders
     const salePayload = {
         order_id: orderId,
@@ -8493,7 +8655,9 @@ window.sendPharmacyNutrientOrder = async function (visitId) {
         customer_name: visit.patient_name || null,
         customer_phone: patientPhone,
         patient_name: visit.patient_name || null,
+        closer_dr: closerDr || '-',
         recorded_by: referrerText, // ส่งข้อมูลผู้แนะนำ (เช่น L02626 - Name) ไปด้วย
+        symptom: patientSymptom || '-',
         date: nowIso.split('T')[0],
         status: 'รอดำเนินการ',
         items_json: mlmItems,
@@ -8876,25 +9040,33 @@ window.completeDispensing = async function (visitId) {
         const currentVisit = (window.allPharmacyVisits || []).find(v => v.visit_id === visitId);
 
         // 1. อัปเดตสถานะเป็น "เสร็จสิ้น" ใน LocalStorage (เพื่อให้หน้าจออัปเดตไวขึ้น)
-        let cachedVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
-        if (!Array.isArray(cachedVisits)) cachedVisits = [];
+        try {
+            let cachedVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
+            if (!Array.isArray(cachedVisits)) cachedVisits = [];
 
-        const vIdx = cachedVisits.findIndex(v => v.visit_id === visitId);
-        if (vIdx !== -1) {
-            cachedVisits[vIdx].status = 'เสร็จสิ้น';
-            cachedVisits[vIdx].dispensed_at = new Date().toISOString();
-            if (currentVisit && currentVisit.meds && !cachedVisits[vIdx].meds) {
-                cachedVisits[vIdx].meds = currentVisit.meds;
+            const vIdx = cachedVisits.findIndex(v => v.visit_id === visitId);
+            if (vIdx !== -1) {
+                cachedVisits[vIdx].status = 'เสร็จสิ้น';
+                cachedVisits[vIdx].dispensed_at = new Date().toISOString();
+                if (currentVisit && currentVisit.meds && !cachedVisits[vIdx].meds) {
+                    cachedVisits[vIdx].meds = currentVisit.meds;
+                }
+            } else if (currentVisit) {
+                cachedVisits.unshift({
+                    ...currentVisit,
+                    status: 'เสร็จสิ้น',
+                    dispensed_at: new Date().toISOString()
+                });
             }
-        } else if (currentVisit) {
-            cachedVisits.unshift({
-                ...currentVisit,
-                status: 'เสร็จสิ้น',
-                dispensed_at: new Date().toISOString()
-            });
+            cachedVisits = cachedVisits.slice(0, 25);
+            if (typeof window.safeSetLocalStorage === 'function') {
+                window.safeSetLocalStorage('clinic_visits_queue', cachedVisits);
+            } else {
+                localStorage.setItem('clinic_visits_queue', JSON.stringify(cachedVisits));
+            }
+        } catch (lsErr) {
+            console.warn('LocalStorage queue update warning:', lsErr);
         }
-        cachedVisits = cachedVisits.slice(0, 50);
-        localStorage.setItem('clinic_visits_queue', JSON.stringify(cachedVisits));
 
         // 2. อัปเดตสถานะเป็น "เสร็จสิ้น" ในฐานข้อมูล Supabase
         if (typeof _supabase !== 'undefined') {
@@ -9359,7 +9531,31 @@ async function showHistoryDetails(visitId) {
     setSafeText('histWeight', row.weight);
     setSafeText('histHeight', row.height);
     setSafeText('histBMI', row.bmi);
-    setSafeText('histSymptom', row.symptom || 'ไม่มีระบุ');
+
+    // 🌟 ดึงข้อมูล อาการแรกรับ / อาการสำคัญ ที่แท้จริง (หลีกเลี่ยงข้อความสถานะ เช่น 'สั่งจ่ายยา', 'รอจ่ายยา')
+    const invalidSymptoms = ['สั่งจ่ายยา', 'รอจ่ายยา', 'รอตรวจ', 'เสร็จสิ้น', 'สำเร็จ', 'รอรับยา', 'กำลังตรวจ'];
+    let realSymptom = row.symptom || '';
+
+    if (invalidSymptoms.includes(realSymptom.trim())) {
+        realSymptom = row.initial_symptom || row.triage_symptom || row.chief_complaint || '';
+    }
+
+    if ((!realSymptom || invalidSymptoms.includes(realSymptom.trim())) && row.hn) {
+        const matchingVisit = (window.clinicVisits || window.allVisits || []).find(v =>
+            (v.visit_id === row.visit_id || v.hn === row.hn) &&
+            v.symptom && !invalidSymptoms.includes(v.symptom.trim())
+        );
+        if (matchingVisit) realSymptom = matchingVisit.symptom.trim();
+    }
+
+    if ((!realSymptom || invalidSymptoms.includes(realSymptom.trim())) && row.hn && window.allPatients) {
+        const pat = window.allPatients.find(p => p.hn === row.hn);
+        if (pat && pat.symptom && !invalidSymptoms.includes(pat.symptom.trim())) {
+            realSymptom = pat.symptom.trim();
+        }
+    }
+
+    setSafeText('histSymptom', (realSymptom && !invalidSymptoms.includes(realSymptom.trim())) ? realSymptom : 'ไม่มีระบุ');
 
     // 🌟 ส่วนที่ 3: ดึงและประมวลผลไฟล์ผลตรวจ (Lab, Echo, X-ray, Vascular)
     let allResultButtons = [];
@@ -10645,15 +10841,42 @@ function showPermissionsPopup(empCode, name, perms = []) {
 
 function filterStaffTable() {
     const q = (document.getElementById('searchStaffInput')?.value || '').toLowerCase().trim();
-    if (!q) { renderStaffTable(allStaffUsers); return; }
-    const filtered = allStaffUsers.filter(u =>
-        (u.emp_code && u.emp_code.toLowerCase().includes(q)) ||
-        (u.full_name && u.full_name.toLowerCase().includes(q)) ||
-        (u.email && u.email.toLowerCase().includes(q)) ||
-        (u.role && u.role.toLowerCase().includes(q))
-    );
-    renderStaffTable(filtered);
+    const cleanQ = q.replace(/[-\s]/g, '');
+    const list = window.allStaffUsers || (typeof allStaffUsers !== 'undefined' ? allStaffUsers : []);
+
+    if (!q) {
+        if (typeof renderStaffTable === 'function') renderStaffTable(list);
+        return;
+    }
+
+    if (list && list.length > 0 && typeof renderStaffTable === 'function') {
+        const filtered = list.filter(u => {
+            const empCode = String(u.emp_code || u.code || u.Employee_ID || '').toLowerCase();
+            const name = String(u.full_name || u.name || '').toLowerCase();
+            const email = String(u.email || '').toLowerCase();
+            const role = String(u.role || '').toLowerCase();
+
+            const cleanCode = empCode.replace(/[-\s]/g, '');
+            const cleanName = name.replace(/[-\s]/g, '');
+            const cleanEmail = email.replace(/[-\s]/g, '');
+
+            return empCode.includes(q) || (cleanQ && cleanCode.includes(cleanQ)) ||
+                name.includes(q) || (cleanQ && cleanName.includes(cleanQ)) ||
+                email.includes(q) || (cleanQ && cleanEmail.includes(cleanQ)) ||
+                role.includes(q);
+        });
+        renderStaffTable(filtered);
+    } else {
+        const rows = document.querySelectorAll('#staffTable tbody tr');
+        rows.forEach(row => {
+            if (row.cells.length < 2) return;
+            const rowText = row.textContent.toLowerCase();
+            const cleanRowText = rowText.replace(/[-\s]/g, '');
+            row.style.display = (!q || rowText.includes(q) || (cleanQ && cleanRowText.includes(cleanQ))) ? '' : 'none';
+        });
+    }
 }
+window.filterStaffTable = filterStaffTable;
 
 function openAddUserModal() {
     document.getElementById('editUserId').value = '';
@@ -10746,12 +10969,13 @@ function openEditUserModal(user) {
 }
 
 async function submitStaffUser() {
-    const editId = document.getElementById('editUserId').value.trim();
+    const editIdInput = document.getElementById('editUserId');
+    let editId = editIdInput ? editIdInput.value.trim() : '';
     const fullName = (document.getElementById('userFullName')?.value || '').trim();
-    const empCode = document.getElementById('userEmpCode').value.trim();
-    const email = document.getElementById('userEmail').value.trim();
-    const password = document.getElementById('userPassword').value.trim();
-    const role = document.getElementById('userRole').value;
+    const empCode = (document.getElementById('userEmpCode')?.value || '').trim();
+    const email = (document.getElementById('userEmail')?.value || '').trim();
+    const password = (document.getElementById('userPassword')?.value || '').trim();
+    const role = document.getElementById('userRole')?.value || '';
     const perms = getSelectedPermissions();
 
     if (!empCode || !email || !role || !fullName) {
@@ -10774,19 +10998,44 @@ async function submitStaffUser() {
     if (password.length >= 6) payload.password_hash = password;
 
     try {
+        Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
         let error;
+        // ถ้าเป็นการสร้างใหม่ ให้เช็คก่อนว่ามี emp_code นี้อยู่ในระบบแล้วหรือไม่ เพื่ออัปเดตแทนการเพิ่มซ้ำ
+        if (!editId) {
+            const { data: existing } = await _supabase.from('staff_users').select('id').eq('emp_code', empCode).maybeSingle();
+            if (existing && existing.id) {
+                editId = existing.id; // สลับเป็นโหมดอัปเดตพนักงานคนเดิมอัตโนมัติ
+            }
+        }
+
         if (editId) {
             ({ error } = await _supabase.from('staff_users').update(payload).eq('id', editId));
         } else {
             ({ error } = await _supabase.from('staff_users').insert([payload]));
         }
+
+        if (error && error.message && (error.message.includes('staff_users_emp_code_key') || error.message.includes('duplicate key'))) {
+            const { data: existing } = await _supabase.from('staff_users').select('id').eq('emp_code', empCode).maybeSingle();
+            if (existing && existing.id) {
+                const updateRes = await _supabase.from('staff_users').update(payload).eq('id', existing.id);
+                error = updateRes.error;
+                editId = existing.id;
+            }
+        }
+
         if (error) throw error;
+
         bootstrap.Modal.getInstance(document.getElementById('addUserModal'))?.hide();
         await loadStaffUsers();
-        Swal.fire({ icon: 'success', title: editId ? 'แก้ไขข้อมูลสำเร็จ!' : 'เพิ่มข้อมูลสำเร็จ!', timer: 1800, showConfirmButton: false });
+        Swal.fire({ icon: 'success', title: editId ? 'บันทึกการแก้ไขสำเร็จ!' : 'เพิ่มข้อมูลพนักงานสำเร็จ!', timer: 1800, showConfirmButton: false });
     } catch (err) {
         console.error('submitStaffUser error:', err);
-        Swal.fire('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถบันทึกข้อมูลได้', 'error');
+        let msg = err.message || 'ไม่สามารถบันทึกข้อมูลได้';
+        if (msg.includes('staff_users_emp_code_key') || msg.includes('duplicate key')) {
+            msg = `รหัสพนักงาน "${empCode}" นี้มีอยู่ในระบบแล้ว กรุณาใช้รหัสพนักงานอื่น หรือเลือกแก้ไขข้อมูลพนักงานคนเดิม`;
+        }
+        Swal.fire('เกิดข้อผิดพลาด', msg, 'error');
     }
 }
 
@@ -13178,7 +13427,11 @@ async function loadItemCommissionSettings() {
             if (srvData && srvData.length > 0) {
                 services = srvData;
                 window.allServicesData = srvData;
-                localStorage.setItem('clinic_services_packages', JSON.stringify(srvData));
+                if (typeof window.safeSetLocalStorage === 'function') {
+                    window.safeSetLocalStorage('clinic_services_packages', srvData);
+                } else {
+                    try { localStorage.setItem('clinic_services_packages', JSON.stringify(srvData)); } catch(e){}
+                }
             }
         }
 
@@ -14578,7 +14831,11 @@ async function loadServicesData() {
 
             if (!error && data && data.length > 0) {
                 window.allServicesData = data;
-                localStorage.setItem('clinic_services_packages', JSON.stringify(data));
+                if (typeof window.safeSetLocalStorage === 'function') {
+                    window.safeSetLocalStorage('clinic_services_packages', data);
+                } else {
+                    try { localStorage.setItem('clinic_services_packages', JSON.stringify(data)); } catch(e){}
+                }
             } else if (!error && data && data.length === 0) {
                 // หากยังไม่มีข้อมูลในตาราง Supabase ให้ Seed ข้อมูลเริ่มต้นเข้า Database
                 const defaultSeed = [
@@ -18130,3 +18387,10 @@ window.populateReferrerDropdowns = async function () {
         console.error('Error loading stk_members for referrers:', err);
     }
 };
+
+// =====================================
+// ระบบจัดการค้นหาพนักงาน (Staff Search)
+// =====================================
+if (typeof filterStaffTable === 'function') {
+    window.filterStaffTable = filterStaffTable;
+}
