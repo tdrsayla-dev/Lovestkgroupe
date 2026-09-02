@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -1817,7 +1817,7 @@
       const pagePerm = window.getUserPagePermission ? window.getUserPagePermission(currentUser, 'dashboard') : 'none';
       const isAdmin = currentUser && (
           String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
-          String(currentUser.role).trim().toLowerCase() === 'admin' ||
+          String(currentUser.role).trim().toLowerCase().includes('admin') || String(currentUser.role).trim().includes('แอดมิน') ||
           pagePerm === 'full'
       );
       const currentUserProfileUrl = currentUser?.profileUrl || '';

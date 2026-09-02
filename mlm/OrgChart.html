@@ -1219,8 +1219,8 @@
             const nodeId = String(node.id || '').trim().toUpperCase();
             const isSelf = !!currentUserId && currentUserId === nodeId;
             // อนุญาตกดดูรายละเอียด: admin กดได้ทุกคน, non-admin กดได้เฉพาะตัวเอง
-            const isSuperAdmin = currentUser && (String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || String(currentUser.role).trim().toLowerCase() === 'admin');
-            const canOpenDetail = isSuperAdmin || isSelf;
+            
+            const canOpenDetail = isAdmin || isSelf;
 
             return (
                 <div className="flex flex-col items-center">
@@ -1395,7 +1395,11 @@
 
             // ✅ สิทธิ์สายงาน: ถ้าไม่ใช่ Admin ให้กรองเฉพาะตัวเองและ downline
             const currentUserId = String(currentUser?.id || '').trim().toUpperCase();
-            const isScopeOwn = !isAdmin && !!currentUserId;
+            const isMarketing = currentUser && (
+                String(currentUser.role).trim() === 'พนักงานการตลาด' ||
+                String(currentUser.role).trim().toLowerCase() === 'marketing'
+            );
+            const isScopeOwn = isMarketing && !!currentUserId;
 
             const scopedMembers = useMemo(() => {
                 if (!isScopeOwn) return members || [];
@@ -1600,8 +1604,8 @@
                                                                             const currentUserId = String(currentUser?.id || '').trim().toUpperCase();
                                                                             const mId = String(m.id || '').trim().toUpperCase();
                                                                             const isSelf = !!currentUserId && currentUserId === mId;
-                                                                            const isSuperAdmin = currentUser && (String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || String(currentUser.role).trim().toLowerCase() === 'admin');
-                                                                            const canOpenDetail = isSuperAdmin || isSelf;
+                                                                            
+                                                                            const canOpenDetail = isAdmin || isSelf;
 
                                                                             return canOpenDetail ? (
                                                                                 <button
@@ -1720,7 +1724,7 @@
             const pagePerm = window.getUserPagePermission ? window.getUserPagePermission(currentUser, 'orgchart') : 'none';
             const isAdmin = currentUser && (
                 String(currentUser.role).trim() === 'ผู้ดูแลระบบ' ||
-                String(currentUser.role).trim().toLowerCase() === 'admin' ||
+                String(currentUser.role).trim().toLowerCase().includes('admin') || String(currentUser.role).trim().includes('à¹à¸­à¸”à¸¡à¸´à¸™') ||
                 pagePerm === 'full'
             );
             const currentUserProfileUrl = currentUser?.profileUrl || '';

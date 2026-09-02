@@ -354,10 +354,19 @@
 
         const handleSaveMember = async (e) => {
             e.preventDefault();
+
+            if (formData.referrer && formData.referrer.trim() !== '') {
+                const isValidReferrer = (members || []).some(m => m && String(m.id || '').toUpperCase() === formData.referrer.trim().toUpperCase());
+                if (!isValidReferrer) {
+                    showToast('รหัสผู้แนะนำไม่ถูกต้อง กรุณาตรวจสอบและเลือกจากรายการที่แนะนำ (หรือลบออกหากไม่มี)', 'error');
+                    return;
+                }
+            }
+
             setIsSubmitting(true);
 
             try {
-                const finalData = { 
+                const finalData = {
                     ...formData, 
                     profileUrl: imageFileBase64 || formData.profileUrl, 
                     idCardDocUrl: idDocFileBase64 || formData.idCardDocUrl,
@@ -429,7 +438,11 @@
 
         // ✅ กรองสายงาน: non-admin เห็นเฉพาะตัวเองและ downline ของตัวเอง
         const currentUserId = String(currentUser?.id || '').trim().toUpperCase();
-        const isScopeOwn = !isAdmin && !!currentUserId;
+        const isMarketing = currentUser && (
+            String(currentUser.role).trim() === 'พนักงานการตลาด' ||
+            String(currentUser.role).trim().toLowerCase() === 'marketing'
+        );
+        const isScopeOwn = isMarketing && !!currentUserId;
         const scopedMembers = useMemo(() => {
             if (!isScopeOwn) return members || [];
             const allowedIds = getAllDownlineIds(members || [], currentUserId);
@@ -957,6 +970,12 @@
                           <PhoneIcon size={12} className="text-slate-400 shrink-0" />
                           <span className="font-extrabold text-slate-700">{m?.phone || '-'}</span>
                         </div>
+                        <div className="flex items-center gap-2">
+                          <UserIcon size={12} className="text-slate-400 shrink-0" />
+                          <span className="font-medium text-slate-500 truncate" title="ผู้แนะนำ (Sponsor)">
+                            {m.referrer ? `${m.referrer} ${refName !== '-' ? `(${refName})` : ''}` : '-'}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
@@ -1286,7 +1305,7 @@
       const pagePerm = window.getUserPagePermission ? window.getUserPagePermission(currentUser, 'team') : 'none';
       const isAdmin = currentUser && (
           String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
-          String(currentUser.role).trim().toLowerCase() === 'admin' ||
+          String(currentUser.role).trim().toLowerCase().includes('admin') || String(currentUser.role).trim().includes('แอดมิน') ||
           pagePerm === 'full'
       );
       const currentUserProfileUrl = currentUser?.profileUrl || '';
