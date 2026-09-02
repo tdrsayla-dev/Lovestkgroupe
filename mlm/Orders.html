@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -553,6 +553,8 @@
                         let unitPrice = 0;
                         if (it.unitPrice !== undefined && it.unitPrice !== null) {
                             unitPrice = parseFloat(it.unitPrice);
+                        } else if (it.price !== undefined && it.price !== null) {
+                            unitPrice = parseFloat(it.price);
                         } else if (priceType === 'ราคาเต็ม') unitPrice = fullPrice;
                         else if (priceType === 'ราคาโปร') unitPrice = parseFloat(prodObj.pricePromo || 0);
                         else if (priceType === 'ราคาสมาชิก') unitPrice = parseFloat(prodObj.priceMember || 0);
@@ -820,8 +822,8 @@
                     <tr><td class="bold" style="width: 38%;">เลขที่บิล:</td><td style="width: 62%; font-weight: 700; color: #0f172a;">${saleRecord.id}</td></tr>
                     <tr><td class="bold">วันที่/เวลา:</td><td>${formatDbDateForFilter(saleRecord.date)}${formatOrderTime(saleRecord) ? ` <span style="color:#2563eb; font-weight:700; margin-left:4px;">(${formatOrderTime(saleRecord)})</span>` : ""}</td></tr>
                     <tr><td class="bold">ลูกค้า:</td><td>${cleanCustName ? `${cleanCustName} (${saleRecord.customerId || '-'})` : (saleRecord.customerId || '-')}</td></tr>
-                    <tr><td class="bold">ผู้ขาย (เคส):</td><td>${mName}</td></tr>
-                    <tr><td class="bold">ผู้ปิดการขาย:</td><td>${cleanCloserName}</td></tr>
+                    <tr><td class="bold">ผู้ดูแล:</td><td>${mName}</td></tr>
+                    <tr><td class="bold">หมอสั่งจ่ายยา:</td><td>${cleanCloserName}</td></tr>
                     <tr><td class="bold">พนักงานบันทึก:</td><td>${saleRecord.recordedBy || '-'}</td></tr>
                   </table>
                   <div class="divider"></div>

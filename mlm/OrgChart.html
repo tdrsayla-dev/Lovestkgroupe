@@ -118,8 +118,7 @@
         style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999;">
         <div
             style="width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 24px;">
-        </div>
-        <style>
+        </div>        <style>
             @keyframes initial-spin {
                 to {
                     transform: rotate(360deg);
@@ -136,7 +135,7 @@
 
     <script type="text/babel">
         const { useState, useMemo, useEffect, useRef, useCallback } = React;
-        // ðŸ›¡ï¸ GLOBAL ICONS DESTRUCTURING: à¸›à¸¥à¸­à¸”à¸ à¸±à¸¢à¸ˆà¸²à¸à¸•à¸±à¸§à¹à¸›à¸£à¸‹à¹‰à¸³à¸‹à¹‰à¸­à¸™ à¹à¸¥à¸°à¸”à¸¶à¸‡à¹‚à¸¡à¸”à¸¹à¸¥à¹à¸¥à¸°à¸„à¸­à¸¡à¹‚à¸žà¹€à¸™à¸™à¸•à¹Œà¸¡à¸²à¸„à¸£à¸šà¸–à¹‰à¸§à¸™
+        // 🛡️ GLOBAL ICONS DESTRUCTURING: ปลอดภัยจากตัวแปรซ้ำซ้อน และดึงโมดูลและคอมโพเนนต์มาครบถ้วน
         const { LayoutDashboard, ShoppingCart, Users, Contact, Headset, BarChart3, Plus, Edit, Trash2, UserCircle, Menu, X, Save, Info, PackageIcon, Package, Target, Trophy, Activity, Eye, Tags, CheckCircle, GitBranch, Archive, ChevronDown, FileText, SettingsIcon, Coins, ShieldCheck, AlertTriangle, AlertCircle, LoginModal, Toast, Sidebar, Header, ConfirmModal, EditModal, DonutChart, AutoSuggestInput, SearchIcon, getUserPagePermission, resolvePageUrl, fallbackCustomerTypes, fallbackProductsList } = window;
 
 
@@ -160,6 +159,7 @@
             return _cachedChildrenMap.get(String(parentId).trim().toUpperCase()) || [];
         };
 
+
         // ✅ Helper: Get all downline member IDs (including self) for a given rootId
         const getAllDownlineIds = (membersList, rootId) => {
             const result = new Set();
@@ -180,31 +180,30 @@
         const getProductCategoryAndRate = (prodName, dbProductsList) => {
             const cleanName = String(prodName || '').trim().toUpperCase();
 
+            let defaultCat = { categoryKey: 'Supplement', categoryName: 'หมวด Supplement', rate: 250000, l1Rate: 200000, full_margin_amount: 0 };
+            if (cleanName.includes('COFFEE') || cleanName.includes('ARABICA')) {
+                defaultCat = { categoryKey: 'Coffee', categoryName: 'หมวด Coffee', rate: 20000, l1Rate: 10000, full_margin_amount: 0 };
+            } else if (cleanName.includes('SERUM') || cleanName.includes('SUNCREAM') || cleanName.includes('TONER') || cleanName.includes('CREAM') || cleanName.includes('APPLE') || cleanName.includes('ZINC')) {
+                defaultCat = { categoryKey: 'Cosmetic', categoryName: 'หมวด Cosmetic', rate: 70000, l1Rate: 30000, full_margin_amount: 0 };
+            } else if (cleanName.includes('GLUTA') || cleanName.includes('COLLAGEN') || cleanName.includes('BALANCE') || cleanName.includes('KUT-SO') || cleanName.includes('LIPO') || cleanName.includes('LUTEIN') || cleanName.includes('ORYZA')) {
+                defaultCat = { categoryKey: 'Supplement02', categoryName: 'หมวด Supplement 02', rate: 150000, l1Rate: 50000, full_margin_amount: 0 };
+            }
+
             if (Array.isArray(dbProductsList)) {
                 const found = dbProductsList.find(p =>
                     String(p.name || p.product_name || p.id || '').trim().toUpperCase() === cleanName ||
                     String(p.category || '').trim().toUpperCase() === cleanName
                 );
                 if (found) {
-                    const cat = String(found.category || '').trim();
-                    const selfFee = Number(found.self_fee || 0);
-                    const l1Fee = Number(found.level_1_fee || 0);
+                    const cat = String(found.category || defaultCat.categoryKey).trim();
+                    const selfFee = Number(found.self_fee || 0) || defaultCat.rate;
+                    const l1Fee = Number(found.level_1_fee || 0) || defaultCat.l1Rate;
                     const margin = Number(found.full_margin_amount ?? found.fullMarginAmount ?? 0);
-                    return { categoryKey: cat, categoryName: `หมวด ${cat}`, rate: selfFee, l1Rate: l1Fee, full_margin_amount: margin };
+                    return { categoryKey: cat || defaultCat.categoryKey, categoryName: `หมวด ${cat || defaultCat.categoryKey}`, rate: selfFee, l1Rate: l1Fee, full_margin_amount: margin };
                 }
             }
 
-            // Clean Category Names (Without Rate Text Suffixed)
-            if (cleanName.includes('COFFEE') || cleanName.includes('ARABICA')) {
-                return { categoryKey: 'Coffee', categoryName: 'หมวด Coffee', rate: 20000, l1Rate: 10000, full_margin_amount: 0 };
-            }
-            if (cleanName.includes('SERUM') || cleanName.includes('SUNCREAM') || cleanName.includes('TONER') || cleanName.includes('CREAM') || cleanName.includes('APPLE') || cleanName.includes('ZINC')) {
-                return { categoryKey: 'Cosmetic', categoryName: 'หมวด Cosmetic', rate: 70000, l1Rate: 30000, full_margin_amount: 0 };
-            }
-            if (cleanName.includes('GLUTA') || cleanName.includes('COLLAGEN') || cleanName.includes('BALANCE') || cleanName.includes('KUT-SO') || cleanName.includes('LIPO') || cleanName.includes('LUTEIN') || cleanName.includes('ORYZA')) {
-                return { categoryKey: 'Supplement02', categoryName: 'หมวด Supplement 02', rate: 150000, l1Rate: 50000, full_margin_amount: 0 };
-            }
-            return { categoryKey: 'Supplement', categoryName: 'หมวด Supplement', rate: 250000, l1Rate: 200000, full_margin_amount: 0 };
+            return defaultCat;
         };
 
         // 🟢 Detailed Modal Component (Match User Requirements)
@@ -218,6 +217,7 @@
                     return saved ? JSON.parse(saved) : {};
                 } catch (e) { return {}; }
             }, []);
+
             const getDefaultMonthRange = () => {
                 const now = new Date();
                 const y = now.getFullYear();
@@ -357,7 +357,7 @@
                         itemsList.forEach(it => {
                             const pName = String(it.prod || it.productName || it.name || '').trim();
                             const q = Number(it.qty || it.quantity || 1);
-                            const typeStr = String(it.type || '').trim();
+                            const typeStr = String(it.type || it.priceType || '').trim();
 
                             const catInfo = getProductCategoryAndRate(pName, products);
                             let targetKey = 'Supplement';
@@ -376,22 +376,24 @@
                             else if (typeStr === 'ราคาศูนย์' || typeStr === 'ราคาฟรี') catMap[targetKey].zeroQty += q;
                             else catMap[targetKey].promoQty += q;
 
-                            const typeLower = typeStr.toLowerCase(); const isNotPromoOrZero = !typeLower.includes('โปร') && !typeLower.includes('ศูนย์') && !typeLower.includes('zero') && !typeLower.includes('promo') && !typeLower.includes('free'); if (typeStr === 'ราคาเต็ม' || typeStr === 'ราคาสมาชิก' || (typeStr !== 'ราคาโปร' && typeStr !== 'โปรโมชั่น' && typeStr !== 'ราคาศูนย์' && typeStr !== 'ราคาฟรี' && isNotPromoOrZero)) {
+                            const typeLower = typeStr.toLowerCase();
+                            const isNotPromoOrZero = !typeLower.includes('โปร') && !typeLower.includes('ศูนย์') && !typeLower.includes('zero') && !typeLower.includes('promo') && !typeLower.includes('free');
+                            if (typeStr === 'ราคาเต็ม' || typeStr === 'ราคาสมาชิก' || (typeStr !== 'ราคาโปร' && typeStr !== 'โปรโมชั่น' && typeStr !== 'ราคาศูนย์' && typeStr !== 'ราคาฟรี' && isNotPromoOrZero)) {
                                 catMap[targetKey].totalQty += q;
 
                                 let feePerBox = 0;
                                 if (sellerLevel === 0) {
-                                    feePerBox = catInfo.rate;
+                                    feePerBox = catInfo.rate || catMap[targetKey].rate || 250000;
                                 } else if (sellerLevel <= maxDownlines) {
                                     if (sellerLevel === 1) {
-                                        feePerBox = catInfo.l1Rate;
+                                        feePerBox = catInfo.l1Rate || catMap[targetKey].l1Rate || 200000;
                                     } else {
                                         const cleanTarget = pName.replace(/\(.*?\)/g, '').trim().toUpperCase();
                                         const found = (products || []).find(p => {
                                             const pNameUpper = String(p.name || p.product_name || p.id || '').replace(/\(.*?\)/g, '').trim().toUpperCase();
                                             return pNameUpper === cleanTarget;
                                         });
-                                        feePerBox = Number(found?.[`level${sellerLevel}Fee`] || found?.[`level_${sellerLevel}_fee`] || 0);
+                                        feePerBox = Number(found?.[`level${sellerLevel}Fee`] || found?.[`level_${sellerLevel}_fee`] || 0) || catInfo.l1Rate || catMap[targetKey].l1Rate || 200000;
                                     }
                                 } else {
                                     feePerBox = 0;
@@ -421,7 +423,7 @@
                         }
 
                         catMap['Supplement'].totalQty += validQty;
-                        const applicableRate = isDownline ? (sellerLevel <= maxDownlines ? 200000 : 0) : 250000;
+                        const applicableRate = isDownline ? (sellerLevel <= maxDownlines ? (catMap['Supplement'].l1Rate || 200000) : 0) : 250000;
                         catMap['Supplement'].totalLAK += validQty * applicableRate;
                         if (!isDownline) {
                             const finalFullQty = (f === 0 && m === 0 && p === 0 && z === 0) ? q : f;

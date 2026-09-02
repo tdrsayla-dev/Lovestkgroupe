@@ -410,8 +410,7 @@
   const DualDonutChart = ({ leftValue, leftTarget, leftColor, rightValue, rightTarget, rightColor, size = "lg", label = "", labelColor = "text-white" }) => {
     const leftPercent = Math.min((leftValue / (leftTarget || 1)) * 100, 100) || 0;
     const rightPercent = Math.min((rightValue / (rightTarget || 1)) * 100, 100) || 0;
-    
-    const dimensions = size === "xl" ? "w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96" : size === "lg" ? "w-48 h-48 sm:w-56 sm:h-56 lg:w-64 lg:h-64" : size === "md" ? "w-32 h-32 sm:w-44 sm:h-44 lg:w-48 lg:h-48" : "w-40 h-40 sm:w-56 sm:h-56";
+    const dimensions = size === "xl" ? "w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96" : size === "lg" ? "w-48 h-48 sm:w-56 sm:h-56 lg:w-64 lg:h-64" : size === "md" ? "w-44 h-44 sm:w-48 sm:h-48 lg:w-52 lg:h-52" : "w-40 h-40 sm:w-56 sm:h-56";
     const strokeW = size === "xl" ? "2.5" : "3";
 
     return React.createElement('div', { className: `relative flex-shrink-0 mx-auto ${dimensions} flex flex-col items-center` },
@@ -434,17 +433,17 @@
         })
       ),
       React.createElement('div', { className: "absolute inset-0 flex flex-col items-center justify-center z-20 pointer-events-none" },
-        React.createElement('span', { className: `text-[11px] sm:text-[14px] font-black ${labelColor} drop-shadow-md text-center px-1 sm:px-2 mb-2 w-[90%] break-words leading-tight` }, label),
-        React.createElement('div', { className: "w-[85%] flex items-start justify-between border-t border-white/10 pt-2" },
+        React.createElement('span', { className: `text-[15px] sm:text-[17px] font-black ${labelColor} drop-shadow-md text-center px-1 sm:px-2 mb-1 w-[90%] break-words leading-tight` }, label),
+        React.createElement('div', { className: "w-[85%] flex items-start justify-between border-t border-white/10 pt-1.5" },
            React.createElement('div', { className: "flex flex-col items-center w-1/2 border-r border-white/10 pr-1" },
-               React.createElement('span', { className: "text-[8px] sm:text-[9px] text-slate-400 font-bold mb-0.5 whitespace-nowrap" }, "เป้า: ", React.createElement('span', { className: "text-slate-300" }, Number(leftTarget || 0).toLocaleString())),
-               React.createElement('span', { className: "text-[12px] sm:text-[15px] font-black leading-none drop-shadow-md mb-1", style: { color: leftColor } }, Number(leftValue || 0).toLocaleString()),
-               React.createElement('span', { className: "text-[8px] sm:text-[9px] font-bold bg-black/30 px-1 py-0.5 rounded border border-white/5", style: { color: leftColor } }, `${leftPercent.toFixed(1)}%`)
+               React.createElement('span', { className: "text-[10px] sm:text-[11px] text-slate-400 font-bold mb-0.5 whitespace-nowrap" }, "เป้า: ", React.createElement('span', { className: "text-slate-300" }, Number(leftTarget || 0).toLocaleString())),
+               React.createElement('span', { className: "text-[20px] sm:text-[24px] font-black leading-none drop-shadow-md mb-1", style: { color: leftColor } }, Number(leftValue || 0).toLocaleString()),
+               React.createElement('span', { className: "text-[10px] sm:text-[11px] font-bold bg-black/30 px-1 py-0.5 rounded border border-white/5", style: { color: leftColor } }, `${leftPercent.toFixed(1)}%`)
            ),
            React.createElement('div', { className: "flex flex-col items-center w-1/2 pl-1" },
-               React.createElement('span', { className: "text-[8px] sm:text-[9px] text-slate-400 font-bold mb-0.5 whitespace-nowrap" }, "เป้า: ", React.createElement('span', { className: "text-slate-300" }, Number(rightTarget || 0).toLocaleString())),
-               React.createElement('span', { className: "text-[12px] sm:text-[15px] font-black leading-none drop-shadow-md mb-1", style: { color: rightColor } }, Number(rightValue || 0).toLocaleString()),
-               React.createElement('span', { className: "text-[8px] sm:text-[9px] font-bold bg-black/30 px-1 py-0.5 rounded border border-white/5", style: { color: rightColor } }, `${rightPercent.toFixed(1)}%`)
+               React.createElement('span', { className: "text-[10px] sm:text-[11px] text-slate-400 font-bold mb-0.5 whitespace-nowrap" }, "เป้า: ", React.createElement('span', { className: "text-slate-300" }, Number(rightTarget || 0).toLocaleString())),
+               React.createElement('span', { className: "text-[20px] sm:text-[24px] font-black leading-none drop-shadow-md mb-1", style: { color: rightColor } }, Number(rightValue || 0).toLocaleString()),
+               React.createElement('span', { className: "text-[10px] sm:text-[11px] font-bold bg-black/30 px-1 py-0.5 rounded border border-white/5", style: { color: rightColor } }, `${rightPercent.toFixed(1)}%`)
            )
         )
       )

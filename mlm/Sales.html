@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 
 <head>
@@ -674,8 +674,8 @@
                     <tr><td class="bold" style="width: 38%;">เลขที่บิล:</td><td style="width: 62%; font-weight: 700; color: #0f172a;">${saleRecord.id}</td></tr>
                     <tr><td class="bold">วันที่/เวลา:</td><td>${formatDbDateForFilter(saleRecord.date)}${formatOrderTime(saleRecord) ? ` <span style="color:#2563eb; font-weight:700; margin-left:4px;">(${formatOrderTime(saleRecord)})</span>` : ""}</td></tr>
                     <tr><td class="bold">ลูกค้า:</td><td>${cleanCustName ? `${cleanCustName} (${saleRecord.customerId || '-'})` : (saleRecord.customerId || '-')}</td></tr>
-                    <tr><td class="bold">ผู้ขาย (เคส):</td><td>${mName}</td></tr>
-                    <tr><td class="bold">ผู้ปิดการขาย:</td><td>${cleanCloserName}</td></tr>
+                    <tr><td class="bold">ผู้ดูแล:</td><td>${mName}</td></tr>
+                    <tr><td class="bold">หมอสั่งจ่ายยา:</td><td>${cleanCloserName}</td></tr>
                     <tr><td class="bold">พนักงานบันทึก:</td><td>${saleRecord.recordedBy || '-'}</td></tr>
                   </table>
                   <div class="divider"></div>
@@ -942,6 +942,51 @@
             const [cart, setCart] = useState([]);
             const [catalogSearch, setCatalogSearch] = useState('');
 
+            const findMatchingProduct = useCallback((name, prods = products) => {
+                if (!name || !prods || !Array.isArray(prods) || prods.length === 0) return null;
+                const sName = String(name || '').trim();
+                if (!sName) return null;
+
+                // 1. Exact name match
+                let found = prods.find(p => p && (p.name === sName || p.product_name === sName));
+                if (found) return found;
+
+                // 2. Clean parenthetical match e.g. "ZINC" vs "ZINC(ซิ้ง)" or "ZINC(เยี่ยว)"
+                const clean = (s) => String(s || '').replace(/\s*\([^)]*\)\s*/g, '').trim().toLowerCase();
+                const sClean = clean(sName);
+                if (sClean) {
+                    found = prods.find(p => p && (clean(p.name) === sClean || clean(p.product_name) === sClean));
+                    if (found) return found;
+                }
+
+                // 3. Normalized alphanumeric match
+                const norm = (s) => String(s || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+                const sNorm = norm(sName);
+                if (sNorm) {
+                    found = prods.find(p => p && (norm(p.name) === sNorm || norm(p.product_name) === sNorm));
+                    if (found) return found;
+                    found = prods.find(p => p && ((p.name && norm(p.name).includes(sNorm)) || (p.name && sNorm.includes(norm(p.name)))));
+                    if (found) return found;
+                }
+
+                return null;
+            }, [products]);
+
+            useEffect(() => {
+                if (Array.isArray(products) && products.length > 0 && Array.isArray(cart) && cart.length > 0) {
+                    let updated = false;
+                    const newCart = cart.map(item => {
+                        const match = findMatchingProduct(item.productName, products);
+                        if (match && match.name && match.name !== item.productName) {
+                            updated = true;
+                            return { ...item, productName: match.name };
+                        }
+                        return item;
+                    });
+                    if (updated) setCart(newCart);
+                }
+            }, [products, cart, findMatchingProduct]);
+
             const [payMode, setPayMode] = useState('สด');
             const [payCashTHB, setPayCashTHB] = useState('');
             const [payCashLAK, setPayCashLAK] = useState('');
@@ -988,11 +1033,9 @@
                             const newCart = pending.items.map(it => {
                                 const rawName = it.name || '';
                                 const cleanName = rawName.replace(/\s*\([^)]*\)\s*/g, '').trim();
-                                const prodObj = (products || []).find(p =>
-                                    p.name === cleanName ||
-                                    p.name.toLowerCase() === cleanName.toLowerCase() ||
-                                    cleanName.toLowerCase().includes(p.name.toLowerCase())
-                                ) || { name: cleanName || rawName, priceFull: it.price, pricePromo: it.price, priceMember: it.price };
+                                const normalize = (s) => String(s || '').replace(/\s*\([^)]*\)\s*/g, '').replace(/[^a-z0-9à¸-à¹™]/gi, '').toLowerCase();
+                                const cNorm = normalize(rawName);
+                                const prodObj = (products || []).find(p => normalize(p.name) === cNorm) || { name: cleanName || rawName, priceFull: it.price, pricePromo: it.price, priceMember: it.price };
 
                                 let mappedPriceType = 'ราคาโปร';
                                 const typeStr = String(it.type || it.priceType || '');
@@ -1317,7 +1360,7 @@
                 let parsedQty = parseInt(newQtyVal, 10);
                 if (isNaN(parsedQty)) return;
 
-                const prodObj = (products || []).find(p => p.name === productName) || {};
+                const prodObj = findMatchingProduct(productName, products) || (products || []).find(p => p.name === productName) || {};
                 const currentQtyInCartOtherTypes = cart.filter(item => item.productName === productName && item.priceType !== priceType).reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
 
                 if (prodObj.stock < currentQtyInCartOtherTypes + parsedQty) {
@@ -1366,7 +1409,7 @@
                     const itemQty = parseInt(item.qty) || 0;
                     qty += itemQty;
                     amount += item.price * itemQty;
-                    const prodObj = (products || []).find(p => p.name === item.productName) || {};
+                    const prodObj = findMatchingProduct(item.productName, products) || (products || []).find(p => p.name === item.productName) || {};
                     let fPrice = parseFloat(prodObj.priceFull || 0);
                     if (fPrice < item.price) fPrice = item.price;
                     baseAmount += fPrice * itemQty;
@@ -1666,7 +1709,6 @@
                         }
                     }
 
-                    // ⚡ FIX: คืนค่า PV ให้สมาชิกเวลายกเลิกบิล
                     if (saleToCancel && typeof calculateBillPV === 'function' && typeof updateMemberPVInSupabase === 'function') {
                         const memberIdToDeduct = saleToCancel.memberId || saleToCancel.seller_id || saleToCancel.seller || saleToCancel.recorded_by;
                         if (memberIdToDeduct) {
@@ -1704,7 +1746,6 @@
                         }
                     }
 
-                    // แจ้งยกเลิกบิลไปยังตารางใบสั่งยา (Nutrients)
                     const paymentNoteStr = saleToCancel ? (saleToCancel.paymentNote || saleToCancel.payment_note || '') : '';
                     const visitMatch = paymentNoteStr.match(/VISIT:\s*([^\)\s]+)/);
                     if (visitMatch && visitMatch[1]) {
@@ -1735,9 +1776,7 @@
                     showToast('บันทึกการขายสำเร็จ!', 'success');
                 }
 
-                // --- 🟢 โค้ดส่งแจ้งเตือน LINE OA (ยิงผ่าน Supabase) ---
                 try {
-                    // ดึง UID ของเจ้าของเคส
                     const targetLineUid = foundMember ? (foundMember.lineUid || foundMember.line_uid) : null;
 
                     if (targetLineUid && targetLineUid.startsWith('U')) {
@@ -1751,7 +1790,6 @@
                             `💰 ยอดรวม: ฿${netTotal.toLocaleString()}\n\n` +
                             `ตรวจสอบรายละเอียดเพิ่มเติมในระบบได้เลยครับ`;
 
-                        // สั่งให้ฟังก์ชัน send_line_message ใน Supabase ทำงาน
                         fetch(window.SUPABASE_REST_URL + '/rpc/send_line_message', {
                             method: 'POST',
                             headers: window.SUPABASE_HEADERS,
@@ -1767,7 +1805,6 @@
                 } catch (e) {
                     console.warn('LINE Notify Error:', e);
                 }
-                // ---------------------------------------------------
             };
 
             const handleAdd = async (e) => {
@@ -1788,7 +1825,6 @@
                 if (!foundMember) { showToast('ระบุรหัสสมาชิกผู้ขายไม่ถูกต้อง', 'error'); return; }
                 if (!custMode || String(custMode).trim() === '') { showToast('กรุณาระบุประเภทลูกค้า', 'error'); return; }
 
-                // --- ⚡ เพิ่มการตรวจสอบห้ามเปิดบิลซ้ำสำหรับ VISIT ID เดิม (เฉพาะตอนเปิดบิลใหม่) ---
                 if (!editingSaleId && paymentNote && paymentNote.includes('VISIT:')) {
                     const visitMatch = paymentNote.match(/VISIT:\s*([^\)\s]+)/);
                     if (visitMatch && visitMatch[1]) {
@@ -1811,7 +1847,6 @@
                         }
                     }
                 }
-                // --------------------------------------------------------
 
                 let finalCustomerId = custData.id; let newCustomerObj = null;
                 const isOldCustomerMode = custMode.includes('เก่า');
@@ -1831,7 +1866,6 @@
                             if (match) usedIds.add(parseInt(match[1], 10));
                         });
 
-                        // Query DB to prevent race conditions on Customer ID
                         try {
                             const dbCusts = await supabaseSelect('stk_customers', 'customer_id=like.C*&select=customer_id&limit=10000');
                             if (Array.isArray(dbCusts)) {
@@ -1849,7 +1883,6 @@
                             nextIdNum++;
                         }
 
-                        // Double check uniqueness in database loop
                         let idCheckAttempts = 0;
                         while (idCheckAttempts < 10) {
                             const candidateId = "C" + nextIdNum.toString().padStart(3, '0');
@@ -1874,7 +1907,6 @@
                 } else {
                     let originalCust = (customers || []).find(c => c && safeUpper(c.id) === safeUpper(finalCustomerId));
 
-                    // 🔒 CASE STEALING PROTECTION: If customer is not found in client state, query DB directly
                     if (!originalCust) {
                         try {
                             const dbCheck = await supabaseSelect('stk_customers', `customer_id=eq.${finalCustomerId}`);
@@ -1905,7 +1937,6 @@
                     if (!custData.closerTeam) { showToast('กรุณาเลือกทีมผู้ปิดการขาย', 'error'); return; }
                     if (!custData.closer) { showToast('กรุณาระบุผู้ปิดการขาย', 'error'); return; }
 
-                    // Compare original owner member ID with the entered seller member ID
                     const ownerId = String(originalCust.memberId || '').trim().toUpperCase();
                     const sellerId = String(foundMember.id || '').trim().toUpperCase();
                     if (ownerId && ownerId !== sellerId) {
@@ -1926,14 +1957,12 @@
                     const p = (products || []).find(prod => prod.name === item.productName);
                     if (p) {
                         if (p.isBundle || p.is_bundle) {
-                            // ถ้าเป็นเซ็ตโปรโมชั่น ให้ไปดึงสินค้าหลักมาตัดสต๊อก
                             const baseP = (products || []).find(bp => bp.name === (p.baseProduct || p.base_product));
                             if (baseP) {
                                 const totalToDeduct = (parseInt(item.qty) || 0) * (parseInt(p.bundleQty || p.bundle_qty) || 1);
                                 qtyMap[baseP.id] = (qtyMap[baseP.id] || 0) + totalToDeduct;
                             }
                         } else {
-                            // ถ้าเป็นสินค้าปกติ ตัดของตัวเอง
                             qtyMap[p.id] = (qtyMap[p.id] || 0) + (parseInt(item.qty) || 0);
                         }
                     }
@@ -1952,9 +1981,6 @@
                     const dateParts = formData.date.split('-');
                     const datePrefix = `${dateParts[0]}${dateParts[1]}${dateParts[2]}`;
 
-                    // 🔒 RACE CONDITION FIX: ดึง ID ล่าสุดจาก Database จริงๆ เสมอ
-                    // (ไม่ใช้ State ที่อาจค้างอยู่) เพื่อป้องกันพนักงาน 2 คนกดพร้อมกัน
-                    // แล้วได้ ID เดียวกัน ทำให้บิลหายเมื่อ upsert ทับกัน
                     let dbMaxRun = 0;
                     try {
                         const dbSales = await supabaseSelect(
@@ -1971,7 +1997,6 @@
                             });
                         }
                     } catch (err) {
-                        // Fallback: ใช้ State ถ้า DB query ล้มเหลว
                         const prefixSales = (sales || []).filter(s => String(s.id).startsWith(datePrefix));
                         prefixSales.forEach(s => {
                             const parts = String(s.id).split('-');
@@ -1984,8 +2009,6 @@
                     }
                     nextSaleIdStr = `${datePrefix}-${String(dbMaxRun + 1).padStart(3, '0')}`;
 
-                    // 🛡️ DOUBLE-CHECK: ตรวจสอบซ้ำว่า ID ที่สร้างขึ้นยังไม่มีในฐานข้อมูล
-                    // (ป้องกันกรณี 2 คนกดพร้อมกัน millisecond เดียวกัน)
                     let finalRun = dbMaxRun + 1;
                     let idCheckAttempts = 0;
                     while (idCheckAttempts < 5) {
@@ -1995,12 +2018,11 @@
                                 `order_id=eq.${datePrefix}-${String(finalRun).padStart(3, '0')}&select=order_id`
                             );
                             if (!Array.isArray(existCheck) || existCheck.length === 0) {
-                                break; // ID นี้ยังไม่มีในระบบ ใช้ได้
+                                break;
                             }
-                            // ID ซ้ำ — เพิ่มเลขและลองใหม่
                             finalRun++;
                         } catch (_) {
-                            break; // ถ้า check ไม่ได้ก็ดำเนินการต่อด้วย ID ปัจจุบัน
+                            break;
                         }
                         idCheckAttempts++;
                     }
@@ -2017,7 +2039,6 @@
                 const tLaosTHB = parseFloat(payTransferLaosTHB) || 0;
                 const tLaosLAK = parseFloat(payTransferLaosLAK) || 0;
 
-                // 🚨 เพิ่มเงื่อนไขบังคับให้ต้องกรอกตัวเลข (ข้ามการเช็คถ้ายอดบิลเป็น 0)
                 if (!isHistoryBypass && cartTotals.amount > 0) {
                     if (payMode === 'สด' && cTHB === 0 && cLAK === 0) {
                         showToast('กรุณาระบุจำนวนเงินในช่อง "รับเงินสด" (บาท หรือ กีบ)', 'error');
@@ -2136,7 +2157,6 @@
 
                     if (editingSaleId) {
                         newRecord.id = editingSaleId;
-                        // 🔒 RACE CONDITION LOCK: Insert customer first and retry if ID collision occurs
                         if (newCustomerObj && typeof supabaseInsert === 'function') {
                             let success = false;
                             let retryCount = 0;
@@ -2192,7 +2212,8 @@
                                     qty: item.qty,
                                     prod: item.productName,
                                     type: item.priceType,
-                                    id: prodObj.id || prodObj.product_id || ''
+                                    id: prodObj.id || prodObj.product_id || '',
+                                    price: item.price
                                 };
                             }),
                             payment_note: newRecord.paymentNote || newRecord.payment_note || ''
@@ -2231,14 +2252,12 @@
                             });
                         }
 
-                        // ⚡ FIX: ดึงค่าสต็อกล่าสุดแบบ Real-time เพื่อป้องกันสต็อกกลายเป็น 0 รวดเดียวเวลาเปิดบิลติดกัน
                         if (!isHistoryBypass && typeof supabaseUpdate === 'function') {
                             for (const pid of [...new Set([...Object.keys(oldQtyMap), ...Object.keys(qtyMap)])]) {
                                 const diff = (qtyMap[pid] || 0) - (oldQtyMap[pid] || 0);
                                 if (diff !== 0) {
                                     let currentStockNum = 0;
                                     try {
-                                        // Query DB สดๆ ก่อนหักสต็อก เพื่อความชัวร์ 100%
                                         const latestP = await supabaseSelect('stk_products', `product_id=eq.${pid}&select=current_stock`);
                                         if (latestP && latestP.length > 0) {
                                             currentStockNum = parseInt(latestP[0].current_stock || 0) || 0;
@@ -2310,7 +2329,8 @@
                                 qty: item.qty,
                                 prod: item.productName,
                                 type: item.priceType,
-                                id: prodObj.id || prodObj.product_id || ''
+                                id: prodObj.id || prodObj.product_id || '',
+                                price: item.price
                             };
                         }),
                         payment_note: newRecord.paymentNote || newRecord.payment_note || ''
@@ -2481,7 +2501,21 @@
                     setSales(prev => [newRecord, ...(prev || [])]);
                     if (newCustomerObj) setCustomers(prev => [newCustomerObj, ...(prev || [])]);
                     clearAppCache();
-                    setIsSubmitting(false);  // <---- แทรกบรรทัดนี้ลงไป
+                    setIsSubmitting(false);
+                    if (newRecord.paymentNote && String(newRecord.paymentNote).includes('VISIT:')) {
+                        const visitMatch = String(newRecord.paymentNote).match(/VISIT:\s*([^\)\s]+)/);
+                        if (visitMatch && visitMatch[1]) {
+                            const visitId = visitMatch[1];
+                            if (typeof window.supabaseUpdate === 'function') {
+                                try {
+                                    await window.supabaseUpdate('stk_nutrient_orders', visitId, { status: 'ขายสำเร็จแล้ว' }, 'visit_id');
+                                    localStorage.setItem('stk_refresh_trigger', Date.now().toString());
+                                } catch (e) {
+                                    console.warn('Failed to update nutrient order status to completed:', e);
+                                }
+                            }
+                        }
+                    }
                     handleSuccessFinish(newRecord);
                 } catch (err) {
                     console.error("Save Error:", err);
@@ -2940,7 +2974,7 @@
 
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3 bg-slate-50/50">
                                 {cart.map((item, idx) => {
-                                    const prodObj = (products || []).find(p => p.name === item.productName) || {};
+                                    const prodObj = findMatchingProduct(item.productName, products) || (products || []).find(p => p.name === item.productName) || {};
                                     const img = prodObj.imageUrl && prodObj.imageUrl.trim() !== '' ? prodObj.imageUrl : null;
                                     return (
                                         <div key={`${item.productName}-${item.priceType}`} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 bg-white rounded-xl border border-slate-200 hover:border-blue-300 transition-all shadow-sm">
@@ -3484,3 +3518,5 @@
 </body>
 
 </html>
+
+

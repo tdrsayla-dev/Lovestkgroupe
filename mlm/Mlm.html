@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -202,9 +202,9 @@
                 }
             }
         }, [dashStartDate, dashEndDate, fetchSalesForPeriod, lastFetchedRange]);
-        const [dashboardTarget, setDashboardTarget] = useState(4000);
-        const [topSalesTarget, setTopSalesTarget] = useState(4000);
-        const [topCheckupTarget, setTopCheckupTarget] = useState(200);
+        const [dashboardTarget, setDashboardTarget] = useState(() => { try { const saved = localStorage.getItem('stk_dashboard_target'); return saved ? Number(saved) : 4000; } catch(e){ return 4000; } });
+        const [topSalesTarget, setTopSalesTarget] = useState(() => { try { const saved = localStorage.getItem('stk_top_sales_target'); return saved ? Number(saved) : 4000; } catch(e){ return 4000; } });
+        const [topCheckupTarget, setTopCheckupTarget] = useState(() => { try { const saved = localStorage.getItem('stk_top_checkup_target'); return saved ? Number(saved) : 200; } catch(e){ return 200; } });
         const [competitionPage, setCompetitionPage] = useState(0);
         const [showGoalCompetition, setShowGoalCompetition] = useState(false);
 
@@ -219,6 +219,20 @@
         useEffect(() => {
             if (Array.isArray(initialTargetHistory) && initialTargetHistory.length > 0) {
                 setTargetHistory(initialTargetHistory);
+                
+                const sorted = [...initialTargetHistory].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+                
+                const latestDash = sorted.find(t => t.targetType === 'เป้ายอดขายรวม');
+                if (latestDash && latestDash.targetValue > 0) setDashboardTarget(latestDash.targetValue);
+                
+                const latestSales = sorted.find(t => t.targetType === 'เป้ายอดขายสูงสุด');
+                if (latestSales && latestSales.targetValue > 0) setTopSalesTarget(latestSales.targetValue);
+                
+                const latestCheckup = sorted.find(t => t.targetType === 'เป้าคนมาตรวจรวม');
+                if (latestCheckup && latestCheckup.targetValue > 0) setTopCheckupTarget(latestCheckup.targetValue);
+                
+                const latestGlobalInd = sorted.find(t => t.targetType === 'เป้าหมายรวมทุกคน');
+                if (latestGlobalInd && latestGlobalInd.targetValue > 0) setGlobalIndividualTarget(latestGlobalInd.targetValue);
             }
         }, [initialTargetHistory]);
 
@@ -283,6 +297,54 @@
                 globalTargetDebounceRef.current = setTimeout(() => {
                     recordTargetHistory(num, 'เป้าหมายรวมทุกคน', 'ALL', 'ปรับเป้าหมายทุกคนในครั้งเดียว');
                 }, 800);
+            }
+        };
+
+        const handleDashboardTargetChange = (val) => {
+            const v = val.replace(/,/g, '');
+            if (!isNaN(v) && v !== '') {
+                const num = Number(v);
+                setDashboardTarget(num);
+                try { localStorage.setItem('stk_dashboard_target', num); } catch(err){}
+                if (window._dashDebounce) clearTimeout(window._dashDebounce);
+                window._dashDebounce = setTimeout(() => {
+                    recordTargetHistory(num, 'เป้ายอดขายรวม', 'ALL', 'ปรับเป้าหมายยอดขายรวม');
+                }, 800);
+            } else if (v === '') {
+                setDashboardTarget('');
+                try { localStorage.removeItem('stk_dashboard_target'); } catch(err){}
+            }
+        };
+
+        const handleTopSalesTargetChange = (val) => {
+            const v = val.replace(/,/g, '');
+            if (!isNaN(v) && v !== '') {
+                const num = Number(v);
+                setTopSalesTarget(num);
+                try { localStorage.setItem('stk_top_sales_target', num); } catch(err){}
+                if (window._salesDebounce) clearTimeout(window._salesDebounce);
+                window._salesDebounce = setTimeout(() => {
+                    recordTargetHistory(num, 'เป้ายอดขายสูงสุด', 'ALL', 'ปรับเป้าหมายยอดขายสูงสุด');
+                }, 800);
+            } else if (v === '') {
+                setTopSalesTarget('');
+                try { localStorage.removeItem('stk_top_sales_target'); } catch(err){}
+            }
+        };
+
+        const handleTopCheckupTargetChange = (val) => {
+            const v = val.replace(/,/g, '');
+            if (!isNaN(v) && v !== '') {
+                const num = Number(v);
+                setTopCheckupTarget(num);
+                try { localStorage.setItem('stk_top_checkup_target', num); } catch(err){}
+                if (window._checkupDebounce) clearTimeout(window._checkupDebounce);
+                window._checkupDebounce = setTimeout(() => {
+                    recordTargetHistory(num, 'เป้าคนมาตรวจรวม', 'ALL', 'ปรับเป้าหมายคนมาตรวจรวม');
+                }, 800);
+            } else if (v === '') {
+                setTopCheckupTarget('');
+                try { localStorage.removeItem('stk_top_checkup_target'); } catch(err){}
             }
         };
 
@@ -808,7 +870,7 @@
                       </summary>
                       <div className="absolute right-0 top-full mt-2 bg-white px-4 py-3 rounded-xl shadow-xl border border-slate-100 flex items-center gap-2 w-max z-[100] animate-fade-in-down">
                          <span className="text-[11px] font-bold text-slate-400">เป้าหมายรวม:</span>
-                         <input type="text" className="w-16 sm:w-24 text-base font-black text-slate-800 bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all text-center" value={Number(dashboardTarget || 0).toLocaleString()} onChange={e => { const v = e.target.value.replace(/,/g, ''); if (!isNaN(v) && v !== '') setDashboardTarget(Number(v)); else if (v === '') setDashboardTarget(''); }} disabled={!isAdmin} />
+                         <input type="text" className="w-16 sm:w-24 text-base font-black text-slate-800 bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all text-center" value={Number(dashboardTarget || 0).toLocaleString()} onChange={e => handleDashboardTargetChange(e.target.value)} disabled={!isAdmin} />
                          <span className="text-[11px] font-bold text-slate-500">กล่อง</span>
                       </div>
                   </details>
@@ -835,11 +897,11 @@
                     <div className="flex flex-col sm:flex-row gap-3 xl:gap-6 items-center">
                         <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-slate-300">เป้ายอดขาย:</span>
-                            <input type="text" className="w-24 text-lg font-black text-slate-800 bg-slate-50/90 border border-slate-200 px-2 py-1 rounded-lg outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all text-center" value={Number(topSalesTarget || 0).toLocaleString()} onChange={e => { const v = e.target.value.replace(/,/g, ''); if (!isNaN(v) && v !== '') setTopSalesTarget(Number(v)); else if (v === '') setTopSalesTarget(''); }} disabled={!isAdmin} />
+                            <input type="text" className="w-24 text-lg font-black text-slate-800 bg-slate-50/90 border border-slate-200 px-2 py-1 rounded-lg outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all text-center" value={Number(topSalesTarget || 0).toLocaleString()} onChange={e => handleTopSalesTargetChange(e.target.value)} disabled={!isAdmin} />
                         </div>
                         <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-slate-300">เป้าคนมาตรวจ:</span>
-                            <input type="text" className="w-24 text-lg font-black text-slate-800 bg-slate-50/90 border border-slate-200 px-2 py-1 rounded-lg outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all text-center" value={Number(topCheckupTarget || 0).toLocaleString()} onChange={e => { const v = e.target.value.replace(/,/g, ''); if (!isNaN(v) && v !== '') setTopCheckupTarget(Number(v)); else if (v === '') setTopCheckupTarget(''); }} disabled={!isAdmin} />
+                            <input type="text" className="w-24 text-lg font-black text-slate-800 bg-slate-50/90 border border-slate-200 px-2 py-1 rounded-lg outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all text-center" value={Number(topCheckupTarget || 0).toLocaleString()} onChange={e => handleTopCheckupTargetChange(e.target.value)} disabled={!isAdmin} />
                         </div>
                     </div>
                 </div>
@@ -863,16 +925,16 @@
                                 <div className={`flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl border ${t.style.border} ${t.style.bg} mt-1 sm:mt-2 shadow-lg w-full`}>
                                     <div className="grid grid-cols-2 gap-x-1 sm:gap-x-2 text-[10px] sm:text-xs w-full text-center">
                                         <div className="flex flex-col border-r border-white/10 pr-1 sm:pr-2 items-center justify-center">
-                                            <span className={`font-black text-[11px] sm:text-[13px] ${t.style.text} mb-1 drop-shadow-sm`}>ยอดขาย: <span className="text-white">{t.totalBoxes}</span></span>
-                                            <div className="flex flex-wrap justify-center gap-x-2 gap-y-0.5 text-[8px] sm:text-[9.5px]">
+                                            <span className={`font-black text-[13px] sm:text-[15px] ${t.style.text} mb-1 drop-shadow-sm`}>ยอดขาย: <span className="text-white text-[15px] sm:text-[18px]">{t.totalBoxes}</span></span>
+                                            <div className="flex flex-wrap justify-center gap-x-2 gap-y-0.5 text-[9px] sm:text-[10px]">
                                                 <span className="text-slate-400 font-medium whitespace-nowrap">เต็ม: <span className="text-white font-bold">{t.full}</span></span>
                                                 <span className="text-slate-400 font-medium whitespace-nowrap">สมาชิก: <span className="text-white font-bold">{t.mem}</span></span>
                                                 <span className="text-slate-400 font-medium whitespace-nowrap">โปร: <span className="text-white font-bold">{t.promo}</span></span>
                                             </div>
                                         </div>
                                         <div className="flex flex-col pl-1 sm:pl-2 justify-center items-center">
-                                            <span className={`font-black text-[11px] sm:text-[13px] ${t.style.checkupText} drop-shadow-sm mb-1`}>คนมาตรวจ: <span className="text-white">{t.totalCheckups}</span></span>
-                                            <span className="text-slate-400 text-[8px] sm:text-[9.5px] font-medium">รวมลูกค้าทั้งหมด</span>
+                                            <span className={`font-black text-[13px] sm:text-[15px] ${t.style.checkupText} drop-shadow-sm mb-1`}>คนมาตรวจ: <span className="text-white text-[15px] sm:text-[18px]">{t.totalCheckups}</span></span>
+                                            <span className="text-slate-400 text-[9px] sm:text-[10px] font-medium">รวมลูกค้าทั้งหมด</span>
                                         </div>
                                     </div>
                                 </div>
@@ -2114,13 +2176,13 @@
               <React.Fragment>
                 <div className="p-3 sm:p-6 flex-1 w-full relative z-0">
                   <div className="w-full relative z-10">
-                    {isAppLoading ? (
-                      <div className="flex flex-col items-center justify-center py-32 gap-5 animation-fade-in">
+                    {isAppLoading && (
+                      <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-slate-50/80 backdrop-blur-sm animation-fade-in min-h-[500px] rounded-xl">
                         <div className="w-16 h-16 border-[4px] border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
                         <h2 className="text-lg font-bold text-slate-700">กำลังซิงค์ข้อมูลกับฐานข้อมูล...</h2>
                         <p className="text-slate-500 text-sm">กรุณารอสักครู่ ระบบกำลังดึงข้อมูลล่าสุด</p>
                       </div>
-                    ) : (
+                    )}
                       <DashboardView 
                         sales={sales} 
                         fetchFreshData={fetchFreshData}
@@ -2132,7 +2194,7 @@
                         businessTeams={businessTeams}
                         initialTargetHistory={targetHistory}
                       />
-                    )}
+
                   </div>
                 </div>
 

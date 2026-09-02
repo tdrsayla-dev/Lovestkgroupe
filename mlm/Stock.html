@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
   <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
@@ -1159,6 +1159,7 @@
                         } else {
                             setProducts([...(products || []), dataToSave]);
                         }
+                        try { localStorage.removeItem('stk_app_cache_data'); localStorage.removeItem('stk_app_cache_time'); } catch(e){}
                         setShowForm(false); setIsSubmitting(false); showToast(isEditing ? 'แก้ไขสินค้าสำเร็จ' : 'เพิ่มสินค้าสำเร็จ', 'success');
                     }).catch(err => {
                          setIsSubmitting(false); showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
@@ -1185,7 +1186,9 @@
          const executeDelete = () => { 
              const id = confirmDelete.id;
              supabaseDelete('stk_products', id, 'product_id').then(() => {
-                setProducts((products || []).filter(p => p && p.id !== id)); showToast('ลบสำเร็จ', 'success');
+                setProducts((products || []).filter(p => p && p.id !== id)); 
+                try { localStorage.removeItem('stk_app_cache_data'); localStorage.removeItem('stk_app_cache_time'); } catch(e){}
+                showToast('ลบสำเร็จ', 'success');
              }).catch(err => {
                 showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
              });
@@ -1650,7 +1653,11 @@
             }
         };
         const executeDelete = () => { 
-             supabaseDelete('stk_products', confirmDelete.id, 'product_id').then(() => { setProducts((products || []).filter(p => p && p.id !== confirmDelete.id)); showToast('ลบสำเร็จ', 'success'); }).catch(err => { showToast('ข้อผิดพลาด: ' + err.message, 'error'); });
+             supabaseDelete('stk_products', confirmDelete.id, 'product_id').then(() => { 
+                 setProducts((products || []).filter(p => p && p.id !== confirmDelete.id)); 
+                 try { localStorage.removeItem('stk_app_cache_data'); localStorage.removeItem('stk_app_cache_time'); } catch(e){}
+                 showToast('ลบสำเร็จ', 'success'); 
+             }).catch(err => { showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error'); });
          };
          const filteredBundles = (products || []).filter(p => p.isBundle).filter(p => (p.id && p.id.toLowerCase().includes(searchTerm.toLowerCase())) || (p.name && p.name.toLowerCase().includes(searchTerm.toLowerCase())));
          const renderNumberInput = (label, valueKey, colorKey) => {
