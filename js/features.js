@@ -375,8 +375,8 @@ function processAttendance(empId, scannedText = null) {
                 }
             });
 
-            // ❌ ตรวจสอบเงื่อนไข Geofence: หากอยู่นอกวงรัศมีสาขาที่กำหนด และไม่ใช่ Admin Manual Entry -> บล็อกการ Check In/Out
-            if (!currentBranch && !isSuperAdmin && !isManualAdminEntry) {
+            // ❌ ตรวจสอบเงื่อนไข Geofence: หากผู้ใช้ไม่ใช่ Super Admin และอยู่นอกวงรัศมีสาขา -> บล็อกการ Check In/Out 100%
+            if (!currentBranch && !isSuperAdmin) {
                 toggleLoading(false);
                 isProcessingScan = false;
                 showToast(`ไม่อนุญาตให้ลงเวลา: คุณอยู่นอกพื้นที่ที่กำหนด (ห่าง ${Math.round(minDistance)} ม.)`, "error");
@@ -385,18 +385,18 @@ function processAttendance(empId, scannedText = null) {
                     `<div class="text-left space-y-2">
                         <p class="font-bold text-red-600">คุณอยู่นอกวงรัศมีที่กำหนดให้เช็คอิน-เช็คเอาท์!</p>
                         <p class="text-xs text-gray-600">ตำแหน่งปัจจุบันของคุณอยู่ห่างจาก <b>${nearestBranch ? nearestBranch.name : 'สาขา'}</b> ประมาณ <b>${Math.round(minDistance)} เมตร</b> (รัศมีที่อนุญาต: <b>${nearestBranch ? nearestBranch.radius : 20} เมตร</b>)</p>
-                        <p class="text-xs text-gray-500">กรุณาเข้าใกล้พื้นที่สาขาที่กำหนดเพื่อทำการเช็คอิน/เช็คเอาท์</p>
+                        <p class="text-xs text-red-500 font-bold mt-2">⛔ ระบบจะล็อกไม่ให้ลงเวลาจนกว่าคุณจะเข้าสู่พื้นที่สาขาที่กำหนด</p>
                     </div>`,
                     null, null, true, "เข้าใจแล้ว", ""
                 );
                 return;
             }
 
-            let finalLocation = currentBranch ? currentBranch.name : (role === 'Staff' ? `${locationText} (Offsite/GPS)` : `${locationText} (GPS)`);
+            let finalLocation = currentBranch ? currentBranch.name : `${locationText} (SuperAdmin Override/GPS)`;
             executeRecord(lat, lng, finalLocation);
         }, err => {
             console.warn("GPS lookup failed/unavailable:", err);
-            if (!isSuperAdmin && !isManualAdminEntry) {
+            if (!isSuperAdmin) {
                 toggleLoading(false);
                 isProcessingScan = false;
                 showToast("ไม่สามารถตรวจสอบตำแหน่ง GPS ได้ กรุณาเปิดระบบระบุตำแหน่ง", "error");
@@ -409,9 +409,9 @@ function processAttendance(empId, scannedText = null) {
             }
             let finalLocation = `${locationText} (Manual)`;
             executeRecord(null, null, finalLocation);
-        }, { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 });
+        }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
     } else {
-        if (!isSuperAdmin && !isManualAdminEntry) {
+        if (!isSuperAdmin) {
             toggleLoading(false);
             isProcessingScan = false;
             showToast("อุปกรณ์นี้ไม่รองรับระบบระบุตำแหน่ง GPS", "error");
