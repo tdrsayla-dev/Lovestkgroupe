@@ -135,9 +135,36 @@ function initScanner() {
                 pos => {
                     try {
                         const lat = pos.coords.latitude, lng = pos.coords.longitude;
+
+                        let currentBranch = null;
+                        let minDistance = Infinity;
+                        let nearestBranch = BRANCHES[0];
+
+                        BRANCHES.forEach(b => {
+                            let dist = calculateDistance(lat, lng, b.lat, b.lng);
+                            if (dist <= b.radius && dist < minDistance) {
+                                minDistance = dist;
+                                currentBranch = b;
+                            } else if (dist < minDistance) {
+                                minDistance = dist;
+                                nearestBranch = b;
+                            }
+                        });
+
+                        const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+                        let role = 'Staff';
+                        if (sessionStr) { try { role = JSON.parse(sessionStr).role || 'Staff'; } catch (e) { } }
+                        const isSuperAdmin = String(role).trim().toLowerCase() === 'super admin' || String(role).trim().toLowerCase() === 'superadmin';
+
                         const gpsText = document.getElementById('gps-coords');
                         if (gpsText) {
-                            gpsText.innerText = `Current Location: Lat ${lat.toFixed(4)}, Lng ${lng.toFixed(4)}`;
+                            if (currentBranch) {
+                                gpsText.innerHTML = `<span class="text-emerald-600 font-bold"><i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i>อยู่ในพื้นที่ (${currentBranch.name})</span> <span class="text-gray-400 text-[10px] ml-1">(Lat ${lat.toFixed(4)}, Lng ${lng.toFixed(4)})</span>`;
+                            } else if (isSuperAdmin) {
+                                gpsText.innerHTML = `<span class="text-purple-700 font-bold"><i class="fa-solid fa-user-shield text-purple-600 mr-1"></i>Super Admin: ลงเวลาได้ทุกสถานที่ (ห่าง ${Math.round(minDistance)}ม. จาก ${nearestBranch ? nearestBranch.name : 'สาขา'})</span>`;
+                            } else {
+                                gpsText.innerHTML = `<span class="text-red-500 font-bold"><i class="fa-solid fa-circle-xmark text-red-500 mr-1"></i>อยู่นอกพื้นที่เช็คอิน (ห่าง ${Math.round(minDistance)}ม. จาก ${nearestBranch ? nearestBranch.name : 'สาขา'})</span>`;
+                            }
                         }
 
                         if (userMarker) { userMarker.setLatLng([lat, lng]); }
@@ -152,7 +179,7 @@ function initScanner() {
                 err => {
                     const gpsText = document.getElementById('gps-coords');
                     if (gpsText) {
-                        gpsText.innerHTML = '<span class="text-red-500">Failed to get location. Enable GPS.</span>';
+                        gpsText.innerHTML = '<span class="text-red-500 font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i>ไม่สามารถดึงตำแหน่ง GPS ได้</span>';
                     }
                 },
                 { enableHighAccuracy: true }
@@ -266,6 +293,9 @@ function processAttendance(empId, scannedText = null) {
     let role = 'Staff';
     if (sessionStr) { try { role = JSON.parse(sessionStr).role || 'Staff'; } catch (e) { } }
 
+    const isSuperAdmin = String(role).trim().toLowerCase() === 'super admin' || String(role).trim().toLowerCase() === 'superadmin';
+    const isManualAdminEntry = scannedText === 'Manual Entry by Admin';
+
     const executeRecord = (lat, lng, locStr) => {
         toggleLoading(true, `SAVING RECORD...`);
         google.script.run
@@ -312,24 +342,62 @@ function processAttendance(empId, scannedText = null) {
 
             let currentBranch = null;
             let minDistance = Infinity;
+            let nearestBranch = BRANCHES[0];
 
             BRANCHES.forEach(branch => {
                 let dist = calculateDistance(lat, lng, branch.lat, branch.lng);
                 if (dist <= branch.radius && dist < minDistance) {
                     minDistance = dist;
-                    currentBranch = branch.name;
+                    currentBranch = branch;
+                } else if (dist < minDistance) {
+                    minDistance = dist;
+                    nearestBranch = branch;
                 }
             });
 
-            let finalLocation = role === 'Staff' ? `${locationText} (${currentBranch || 'Offsite/GPS'})` : `${locationText} (GPS)`;
+            // ❌ ตรวจสอบเงื่อนไข Geofence: หากอยู่นอกวงรัศมีสาขาที่กำหนด และไม่ใช่ Admin Manual Entry -> บล็อกการ Check In/Out
+            if (!currentBranch && !isSuperAdmin && !isManualAdminEntry) {
+                toggleLoading(false);
+                isProcessingScan = false;
+                showToast(`ไม่อนุญาตให้ลงเวลา: คุณอยู่นอกพื้นที่ที่กำหนด (ห่าง ${Math.round(minDistance)} ม.)`, "error");
+                showConfirmModal(
+                    "❌ ไม่อนุญาตให้ลงเวลาทำงาน",
+                    `<div class="text-left space-y-2">
+                        <p class="font-bold text-red-600">คุณอยู่นอกวงรัศมีที่กำหนดให้เช็คอิน-เช็คเอาท์!</p>
+                        <p class="text-xs text-gray-600">ตำแหน่งปัจจุบันของคุณอยู่ห่างจาก <b>${nearestBranch ? nearestBranch.name : 'สาขา'}</b> ประมาณ <b>${Math.round(minDistance)} เมตร</b> (รัศมีที่อนุญาต: <b>${nearestBranch ? nearestBranch.radius : 20} เมตร</b>)</p>
+                        <p class="text-xs text-gray-500">กรุณาเข้าใกล้พื้นที่สาขาที่กำหนดเพื่อทำการเช็คอิน/เช็คเอาท์</p>
+                    </div>`,
+                    null, null, true, "เข้าใจแล้ว", ""
+                );
+                return;
+            }
+
+            let finalLocation = currentBranch ? currentBranch.name : (role === 'Staff' ? `${locationText} (Offsite/GPS)` : `${locationText} (GPS)`);
             executeRecord(lat, lng, finalLocation);
         }, err => {
-            console.warn("GPS lookup failed/unavailable, falling back to manual recording:", err);
-            let finalLocation = role === 'Staff' ? `${locationText} (No GPS/Direct)` : `${locationText} (Manual)`;
+            console.warn("GPS lookup failed/unavailable:", err);
+            if (!isSuperAdmin && !isManualAdminEntry) {
+                toggleLoading(false);
+                isProcessingScan = false;
+                showToast("ไม่สามารถตรวจสอบตำแหน่ง GPS ได้ กรุณาเปิดระบบระบุตำแหน่ง", "error");
+                showConfirmModal(
+                    "❌ ไม่สามารถระบุตำแหน่ง GPS",
+                    "ระบบต้องการตำแหน่ง GPS เพื่อตรวจสอบว่าคุณอยู่ในพื้นที่เช็คอิน-เช็คเอาท์ที่กำหนดไว้ กรุณาเปิด GPS และลองใหม่อีกครั้ง",
+                    null, null, true, "เข้าใจแล้ว", ""
+                );
+                return;
+            }
+            let finalLocation = `${locationText} (Manual)`;
             executeRecord(null, null, finalLocation);
         }, { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 });
     } else {
-        let finalLocation = role === 'Staff' ? `${locationText} (No GPS)` : `${locationText} (Manual)`;
+        if (!isSuperAdmin && !isManualAdminEntry) {
+            toggleLoading(false);
+            isProcessingScan = false;
+            showToast("อุปกรณ์นี้ไม่รองรับระบบระบุตำแหน่ง GPS", "error");
+            return;
+        }
+        let finalLocation = `${locationText} (Manual)`;
         executeRecord(null, null, finalLocation);
     }
 }
