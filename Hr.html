@@ -1289,6 +1289,28 @@
                     return { success: false, message: 'กรุณาระบุรหัสพนักงาน (Employee ID)' };
                 }
 
+                // 🛑 STRICT GEOFENCE SECURITY (SERVER/BRIDGE LEVEL)
+                const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+                let userRole = 'Staff';
+                if (sessionStr) { try { userRole = JSON.parse(sessionStr).role || 'Staff'; } catch (e) { } }
+                const isSuperAdminUser = String(userRole).trim().toLowerCase() === 'super admin' || String(userRole).trim().toLowerCase() === 'superadmin';
+
+                if (!isSuperAdminUser) {
+                    if (!lat || !lng) {
+                        return { success: false, message: '❌ ไม่สามารถดึงตำแหน่ง GPS ได้ กรุณาเปิดระบบระบุตำแหน่งเพื่อเช็คอิน-เช็คเอาท์' };
+                    }
+                    let insideBranch = false;
+                    if (typeof BRANCHES !== 'undefined' && typeof calculateDistance === 'function') {
+                        BRANCHES.forEach(b => {
+                            let d = calculateDistance(lat, lng, b.lat, b.lng);
+                            if (d <= b.radius) insideBranch = true;
+                        });
+                    }
+                    if (!insideBranch) {
+                        return { success: false, message: '❌ ไม่อนุญาตให้ลงเวลา: คุณอยู่นอกวงรัศมีสาขาที่กำหนด' };
+                    }
+                }
+
                 // Date/time format
                 const now = new Date();
                 const year = now.getFullYear();
@@ -7308,19 +7330,164 @@
     <!-- /OT Settings Modal -->
 
     <!-- 📌 Script หลัก (แบ่งย่อยเพื่อประสิทธิภาพและความปลอดภัย) -->
-    <script src="js/i18n.js?v=20260825_08"></script>
-    <script src="js/utils.js?v=20260825_08"></script>
-    <script src="js/auth.js?v=20260825_08"></script>
-    <script src="js/navigation.js?v=20260825_08"></script>
-    <script src="js/api.js?v=20260825_08"></script>
-    <script src="js/dashboard.js?v=20260825_08"></script>
-    <script src="js/organization.js?v=20260825_08"></script>
-    <script src="js/employees.js?v=20260825_08"></script>
-    <script src="js/tables.js?v=20260825_08"></script>
-    <script src="js/forms.js?v=20260825_08"></script>
-    <script src="js/features.js?v=20260825_08"></script>
-    <script src="js/accounting.js?v=20260825_08"></script>
-    <script src="js/payroll.js?v=20260825_08"></script>
+    <script src="js/i18n.js?v=20260903_v99"></script>
+    <script src="js/utils.js?v=20260903_v99"></script>
+    <script src="js/auth.js?v=20260903_v99"></script>
+    <script src="js/navigation.js?v=20260903_v99"></script>
+    <script src="js/api.js?v=20260903_v99"></script>
+    <script src="js/dashboard.js?v=20260903_v99"></script>
+    <script src="js/organization.js?v=20260903_v99"></script>
+    <script src="js/employees.js?v=20260903_v99"></script>
+    <script src="js/tables.js?v=20260903_v99"></script>
+    <script src="js/forms.js?v=20260903_v99"></script>
+    <script src="js/features.js?v=20260903_v99"></script>
+    <script src="js/accounting.js?v=20260903_v99"></script>
+    <script src="js/payroll.js?v=20260903_v99"></script>
+
+    <!-- 🛑 MANDATORY INLINE OVERRIDE: GEOFENCE RESTRICTION (GUARANTEED NO CACHE ISSUE) -->
+    <script>
+    (function() {
+        window.processAttendance = function(empId, scannedText) {
+            const cleanEmpId = String(empId || '').trim().toUpperCase();
+            if (!cleanEmpId) {
+                if (typeof showToast === 'function') showToast("Please specify Employee ID", "error");
+                if (typeof isProcessingScan !== 'undefined') isProcessingScan = false;
+                return;
+            }
+
+            const scanTypeRadio = document.querySelector('input[name="scanType"]:checked');
+            const scanType = scanTypeRadio ? scanTypeRadio.value : 'IN';
+            let locationText = "Unknown Location";
+
+            if (scannedText && scannedText !== 'Manual Entry by Admin') {
+                let foundBranch = (typeof BRANCHES !== 'undefined') ? BRANCHES.find(b => b.id === scannedText || b.name === scannedText) : null;
+                locationText = foundBranch ? foundBranch.name : scannedText;
+            } else if (scannedText === 'Manual Entry by Admin') {
+                locationText = scannedText;
+            }
+
+            const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+            let role = 'Staff';
+            if (sessionStr) { try { role = JSON.parse(sessionStr).role || 'Staff'; } catch (e) { } }
+
+            const isSuperAdmin = String(role).trim().toLowerCase() === 'super admin' || String(role).trim().toLowerCase() === 'superadmin';
+
+            const executeRecord = (lat, lng, locStr) => {
+                if (typeof toggleLoading === 'function') toggleLoading(true, `SAVING RECORD...`);
+                google.script.run
+                    .withSuccessHandler(res => {
+                        if (typeof toggleLoading === 'function') toggleLoading(false);
+                        if (res && res.success) {
+                            if (typeof tableCache !== 'undefined') {
+                                delete tableCache['Fingerprint_Logs'];
+                                delete tableCache['fingerprint_logs'];
+                            }
+                            if (window.tableCache) {
+                                delete window.tableCache['Fingerprint_Logs'];
+                                delete window.tableCache['fingerprint_logs'];
+                            }
+                            if (window.tableQueryCache) {
+                                delete window.tableQueryCache['Fingerprint_Logs'];
+                                delete window.tableQueryCache['fingerprint_logs'];
+                            }
+                            if (typeof showSuccessModal === 'function') {
+                                showSuccessModal("Scan Successful!", `Your attendance has been recorded.<br><span class="text-xs text-gray-500 mt-3 block font-medium">Loc: ${locStr}</span>`);
+                            }
+                            if (typeof loadTodayAttendance === 'function') loadTodayAttendance();
+                            if (role !== 'Staff') {
+                                const input = document.getElementById('manualEmpId');
+                                if (input) input.value = '';
+                            }
+                        } else {
+                            if (typeof showToast === 'function') showToast((res && res.message) || 'Failed to record attendance', 'error');
+                        }
+                        setTimeout(() => { if (typeof isProcessingScan !== 'undefined') isProcessingScan = false; }, 2000);
+                    })
+                    .withFailureHandler(err => {
+                        if (typeof showToast === 'function') showToast('Connection failed: ' + (err.message || err), 'error');
+                        if (typeof toggleLoading === 'function') toggleLoading(false);
+                        setTimeout(() => { if (typeof isProcessingScan !== 'undefined') isProcessingScan = false; }, 2000);
+                    })
+                    .recordAttendance(cleanEmpId, scanType, lat, lng, locStr);
+            };
+
+            if (typeof toggleLoading === 'function') toggleLoading(true, `CHECKING GPS...`);
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+
+                    let currentBranch = null;
+                    let minDistance = Infinity;
+                    let nearestBranch = (typeof BRANCHES !== 'undefined') ? BRANCHES[0] : null;
+
+                    if (typeof BRANCHES !== 'undefined' && typeof calculateDistance === 'function') {
+                        BRANCHES.forEach(branch => {
+                            let dist = calculateDistance(lat, lng, branch.lat, branch.lng);
+                            if (dist <= branch.radius && dist < minDistance) {
+                                minDistance = dist;
+                                currentBranch = branch;
+                            } else if (dist < minDistance) {
+                                minDistance = dist;
+                                nearestBranch = branch;
+                            }
+                        });
+                    }
+
+                    // ❌ STRICT GEOFENCE ENFORCEMENT: Block ALL non-SuperAdmin users outside branch circle radius!
+                    if (!currentBranch && !isSuperAdmin) {
+                        if (typeof toggleLoading === 'function') toggleLoading(false);
+                        if (typeof isProcessingScan !== 'undefined') isProcessingScan = false;
+                        const distMsg = minDistance !== Infinity ? ` (ห่าง ${Math.round(minDistance)} ม.)` : '';
+                        if (typeof showToast === 'function') showToast(`❌ ไม่อนุญาตให้ลงเวลา: คุณอยู่นอกพื้นที่ที่กำหนด${distMsg}`, "error");
+                        if (typeof showConfirmModal === 'function') {
+                            showConfirmModal(
+                                "❌ ไม่อนุญาตให้ลงเวลาทำงาน",
+                                `<div class="text-left space-y-2">
+                                    <p class="font-bold text-red-600">คุณอยู่นอกวงรัศมีที่กำหนดให้เช็คอิน-เช็คเอาท์!</p>
+                                    <p class="text-xs text-gray-600">ตำแหน่งปัจจุบันของคุณอยู่ห่างจาก <b>${nearestBranch ? nearestBranch.name : 'สาขา'}</b> ประมาณ <b>${minDistance !== Infinity ? Math.round(minDistance) : '-'} เมตร</b> (รัศมีที่อนุญาต: <b>${nearestBranch ? nearestBranch.radius : 20} เมตร</b>)</p>
+                                    <p class="text-xs text-red-500 font-bold mt-2">⛔ ระบบจะล็อกไม่ให้ลงเวลาจนกว่าคุณจะเข้าสู่พื้นที่สาขาที่กำหนด</p>
+                                </div>`,
+                                null, null, true, "เข้าใจแล้ว", ""
+                            );
+                        }
+                        return;
+                    }
+
+                    let finalLocation = currentBranch ? currentBranch.name : `${locationText} (SuperAdmin Override/GPS)`;
+                    executeRecord(lat, lng, finalLocation);
+                }, err => {
+                    console.warn("GPS lookup failed/unavailable:", err);
+                    if (!isSuperAdmin) {
+                        if (typeof toggleLoading === 'function') toggleLoading(false);
+                        if (typeof isProcessingScan !== 'undefined') isProcessingScan = false;
+                        if (typeof showToast === 'function') showToast("❌ ไม่สามารถตรวจสอบตำแหน่ง GPS ได้ กรุณาเปิดระบบระบุตำแหน่ง", "error");
+                        if (typeof showConfirmModal === 'function') {
+                            showConfirmModal(
+                                "❌ ไม่สามารถระบุตำแหน่ง GPS",
+                                "ระบบต้องการตำแหน่ง GPS เพื่อตรวจสอบว่าคุณอยู่ในพื้นที่เช็คอิน-เช็คเอาท์ที่กำหนดไว้ กรุณาเปิด GPS และลองใหม่อีกครั้ง",
+                                null, null, true, "เข้าใจแล้ว", ""
+                            );
+                        }
+                        return;
+                    }
+                    let finalLocation = `${locationText} (Manual)`;
+                    executeRecord(null, null, finalLocation);
+                }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
+            } else {
+                if (!isSuperAdmin) {
+                    if (typeof toggleLoading === 'function') toggleLoading(false);
+                    if (typeof isProcessingScan !== 'undefined') isProcessingScan = false;
+                    if (typeof showToast === 'function') showToast("❌ อุปกรณ์นี้ไม่รองรับระบบระบุตำแหน่ง GPS", "error");
+                    return;
+                }
+                let finalLocation = `${locationText} (Manual)`;
+                executeRecord(null, null, finalLocation);
+            }
+        };
+    })();
+    </script>
 
 </body>
 
