@@ -257,13 +257,33 @@ function updateScanEmployeeDisplay() {
 
 function handleManualScan(e) {
     e.preventDefault();
-    const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
-    let role = 'Staff';
-    if (sessionStr) { try { role = JSON.parse(sessionStr).role || 'Staff'; } catch (e) { } }
-
     if (typeof isProcessingScan !== 'undefined' && isProcessingScan) return;
     isProcessingScan = true;
-    processAttendance(document.getElementById('manualEmpId').value, role === 'Staff' ? 'Scanned via App' : 'Manual Entry by Admin');
+
+    const empInput = document.getElementById('manualEmpId');
+    const empId = empInput ? empInput.value : '';
+
+    const sessionStr = localStorage.getItem('hr_user_session') || sessionStorage.getItem('hr_user_session');
+    let loggedInEmpId = '';
+    let role = 'Staff';
+    if (sessionStr) {
+        try {
+            const sData = JSON.parse(sessionStr);
+            loggedInEmpId = String(sData.empId || sData.employeeId || '').trim().toUpperCase();
+            role = sData.role || 'Staff';
+        } catch (e) { }
+    }
+
+    const isSuperAdmin = String(role).trim().toLowerCase() === 'super admin' || String(role).trim().toLowerCase() === 'superadmin';
+    const targetEmpId = String(empId || loggedInEmpId || '').trim().toUpperCase();
+
+    // หากเป็น Super Admin และพิมพ์รหัสพนักงานคนอื่นที่ไม่ใช่ของตัวเอง -> ถือเป็น Manual Entry by Admin
+    let scannedText = 'Scanned via App';
+    if (isSuperAdmin && targetEmpId && loggedInEmpId && targetEmpId !== loggedInEmpId) {
+        scannedText = 'Manual Entry by Admin';
+    }
+
+    processAttendance(targetEmpId, scannedText);
 }
 
 function processAttendance(empId, scannedText = null) {
