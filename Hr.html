@@ -114,6 +114,17 @@
                     if (!res.ok) throw new Error(data?.message || data?.error || text || `Request failed: ${res.status}`);
                     return data;
                 } catch (err) {
+                    if (err && (err.name === 'TypeError' || String(err.message).includes('Failed to fetch')) && window.location.protocol === 'file:') {
+                        if (!hasShownOfflineToast && window.Swal) {
+                            hasShownOfflineToast = true;
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'กรุณาเปิดผ่าน Local Server',
+                                html: 'เนื่องจากคุณเปิดไฟล์ผ่าน <b>file:///</b> เบราว์เซอร์จึงบล็อกการเชื่อมต่อ (CORS)<br><br><b>วิธีแก้ไข:</b> ดับเบิ้ลคลิกไฟล์ <code>run_local_server.bat</code> เพื่อเปิดใช้งานผ่าน <code>http://localhost:8080/Hr.html</code>',
+                                confirmButtonText: 'เข้าใจแล้ว'
+                            });
+                        }
+                    }
                     if (err && err.name === 'AbortError') {
                         console.warn(`[Supabase Timeout] Fetching ${path} timed out after 35s.`);
                         throw new Error('Request timed out. Please try again.');
@@ -3341,11 +3352,11 @@
                             <span class="text-gray-400 font-medium">Date</span>
                             <input type="date" id="fb_start_date"
                                 class="border-0 bg-transparent text-xs font-bold text-gray-700 focus:ring-0 p-0 cursor-pointer"
-                                onchange="filterFbBudgetRows()">
+                                onchange="loadFacebookBudgetDashboard()">
                             <span class="text-gray-300">-</span>
                             <input type="date" id="fb_end_date"
                                 class="border-0 bg-transparent text-xs font-bold text-gray-700 focus:ring-0 p-0 cursor-pointer"
-                                onchange="filterFbBudgetRows()">
+                                onchange="loadFacebookBudgetDashboard()">
                             <button type="button" onclick="clearFbDateFilter()"
                                 class="ml-1 text-gray-400 hover:text-rose-500 transition p-0.5"
                                 title="เคลียร์วันที่ (Clear Date)">
@@ -3387,11 +3398,49 @@
                         class="hidden bg-white p-6 rounded-2xl shadow-sm border border-gray-100 max-w-lg mx-auto mt-6">
                         <form id="fbBudgetForm" onsubmit="submitFacebookBudget(event)" class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">รหัสพนักงาน (Member
-                                    ID)</label>
-                                <input type="text" id="fb_member_id" required
-                                    class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                    placeholder="เช่น L03709">
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="block text-sm font-medium text-gray-700">รหัสสมาชิก / รหัสพนักงาน (Member ID)</label>
+                                    <span id="fb_member_mlm_status_badge" class="text-xs px-2.5 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600 transition-all">
+                                        <i class="fa-solid fa-circle-nodes me-1"></i>ระบบ MLM
+                                    </span>
+                                </div>
+                                <div class="relative">
+                                    <input type="text" id="fb_member_id" list="fb_mlm_members_datalist" required autocomplete="off"
+                                        oninput="handleFbMemberIdInput(this.value)"
+                                        onchange="handleFbMemberIdChange(this.value)"
+                                        class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm font-medium"
+                                        placeholder="พิมพ์ค้นหารหัส เช่น L02815 หรือชื่อสมาชิก...">
+                                    <datalist id="fb_mlm_members_datalist"></datalist>
+                                </div>
+
+                                <!-- กล่องพรีวิวข้อมูลสมาชิกจากระบบ MLM -->
+                                <div id="fb_member_info_preview" class="mt-2.5 p-3.5 rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/70 to-purple-50/50 hidden transition-all duration-300">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div class="flex items-center gap-3">
+                                            <div id="fb_preview_avatar" class="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 text-white flex items-center justify-center font-bold text-sm shadow-sm flex-shrink-0">
+                                                <i class="fa-solid fa-user"></i>
+                                            </div>
+                                            <div>
+                                                <div id="fb_preview_name" class="text-sm font-bold text-gray-900 flex items-center gap-1.5 flex-wrap">
+                                                    <span>-</span>
+                                                </div>
+                                                <div class="text-xs text-gray-600 flex flex-wrap items-center gap-2 mt-0.5">
+                                                    <span id="fb_preview_team" class="inline-flex items-center gap-1"><i class="fa-solid fa-users text-indigo-600"></i> สายงาน: <b>-</b></span>
+                                                    <span>•</span>
+                                                    <span id="fb_preview_role" class="inline-flex items-center gap-1"><i class="fa-solid fa-id-badge text-amber-600"></i> ตำแหน่ง: <b>-</b></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <span id="fb_preview_badge" class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full flex-shrink-0">
+                                            <i class="fa-solid fa-circle-check"></i> ข้อมูล MLM
+                                        </span>
+                                    </div>
+                                    <div id="fb_preview_extra" class="mt-2.5 pt-2 border-t border-indigo-100/80 text-xs text-gray-600 flex flex-wrap gap-x-4 gap-y-1">
+                                        <span id="fb_preview_phone"><i class="fa-solid fa-phone text-emerald-600 me-1"></i> -</span>
+                                        <span id="fb_preview_email"><i class="fa-solid fa-envelope text-blue-600 me-1"></i> -</span>
+                                        <span id="fb_preview_sponsor"><i class="fa-solid fa-user-tie text-purple-600 me-1"></i> ผู้แนะนำ: -</span>
+                                    </div>
+                                </div>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อแคมเปญ</label>
@@ -3489,6 +3538,136 @@
                 <script>
                     let editingFbId = null;
                     window.currentFbLoadId = 0;
+                    window.allMlmMembersList = window.allMlmMembersList || [];
+
+                    function extractFbMemberId(raw) {
+                        if (!raw) return '';
+                        let str = String(raw).trim();
+                        if (str.includes(' - ')) {
+                            str = str.split(' - ')[0].trim();
+                        }
+                        return str.toUpperCase();
+                    }
+
+                    window.populateFbMlmDatalist = async function (preloadList) {
+                        const datalist = document.getElementById('fb_mlm_members_datalist');
+                        if (Array.isArray(preloadList) && preloadList.length > 0) {
+                            window.allMlmMembersList = preloadList;
+                        }
+
+                        if (!window.allMlmMembersList || window.allMlmMembersList.length === 0) {
+                            const mlmUrl = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_URL) || window.MLM_SUPABASE_URL || 'https://mfpkeyrykqnrywyksyqp.supabase.co';
+                            const mlmKey = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_ANON_KEY) || window.MLM_SUPABASE_ANON_KEY || 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
+                            try {
+                                const headers = { 'apikey': mlmKey, 'Authorization': `Bearer ${mlmKey}` };
+                                const res = await fetch(`${mlmUrl}/rest/v1/stk_members?select=*&order=user_id.asc`, { headers }).catch(() => null);
+                                if (res && res.ok) {
+                                    const data = await res.json();
+                                    window.allMlmMembersList = data || [];
+                                }
+                            } catch (e) {
+                                console.warn('Could not fetch stk_members:', e);
+                            }
+                        }
+
+                        if (datalist && Array.isArray(window.allMlmMembersList) && window.allMlmMembersList.length > 0) {
+                            datalist.innerHTML = window.allMlmMembersList.map(m => {
+                                const mId = String(m.user_id || m.username || m.id || m.User_ID || '').trim().toUpperCase();
+                                const mName = m.name || ((m.First_Name || '') + ' ' + (m.Last_Name || '')).trim() || '-';
+                                const mTeam = m.business_team || m.team || '';
+                                const teamTxt = mTeam ? ` (ทีม: ${mTeam})` : '';
+                                return `<option value="${mId} - ${mName}">${mName}${teamTxt}</option>`;
+                            }).join('');
+                        }
+
+                        const memInput = document.getElementById('fb_member_id');
+                        if (memInput && memInput.value) {
+                            handleFbMemberIdInput(memInput.value);
+                        }
+                    };
+
+                    window.handleFbMemberIdInput = function (val) {
+                        const rawVal = String(val || '').trim();
+                        const cleanId = extractFbMemberId(rawVal);
+
+                        const previewEl = document.getElementById('fb_member_info_preview');
+                        const badgeEl = document.getElementById('fb_member_mlm_status_badge');
+
+                        if (!cleanId) {
+                            if (previewEl) previewEl.classList.add('hidden');
+                            if (badgeEl) {
+                                badgeEl.className = 'text-xs px-2.5 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600 transition-all';
+                                badgeEl.innerHTML = '<i class="fa-solid fa-circle-nodes me-1"></i>ระบบ MLM';
+                            }
+                            return;
+                        }
+
+                        const list = window.allMlmMembersList || [];
+                        let member = list.find(m => {
+                            const uid = String(m.user_id || m.username || m.id || m.User_ID || '').trim().toUpperCase();
+                            return uid === cleanId;
+                        });
+
+                        if (!member) {
+                            const q = cleanId.toLowerCase();
+                            member = list.find(m => {
+                                const name = String(m.name || m.First_Name || '').toLowerCase();
+                                const phone = String(m.phone_number || m.phone || '').replace(/\D/g, '');
+                                return name.includes(q) || (phone && phone.length >= 4 && phone.includes(q));
+                            });
+                        }
+
+                        if (member) {
+                            const mId = String(member.user_id || member.username || member.id || member.User_ID || cleanId).toUpperCase();
+                            const mName = member.name || ((member.First_Name || '') + ' ' + (member.Last_Name || '')).trim() || '-';
+                            const mTeam = member.business_team || member.team || '-';
+                            const mRole = member.permission_role || member.role || member.rank || '-';
+                            const mPhone = member.phone_number || member.phone || '-';
+                            const mEmail = member.email || '-';
+                            const mSponsor = member.sponsor_id || member.referrer || '-';
+
+                            if (previewEl) {
+                                previewEl.classList.remove('hidden');
+                                const nameEl = document.getElementById('fb_preview_name');
+                                const teamEl = document.getElementById('fb_preview_team');
+                                const roleEl = document.getElementById('fb_preview_role');
+                                const phoneEl = document.getElementById('fb_preview_phone');
+                                const emailEl = document.getElementById('fb_preview_email');
+                                const sponsorEl = document.getElementById('fb_preview_sponsor');
+                                const avatarEl = document.getElementById('fb_preview_avatar');
+
+                                if (nameEl) nameEl.innerHTML = `<span>${mName}</span> <span class="text-xs font-mono font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-md">ID: ${mId}</span>`;
+                                if (teamEl) teamEl.innerHTML = `<i class="fa-solid fa-users text-indigo-600"></i> สายงาน: <b class="text-gray-800">${mTeam}</b>`;
+                                if (roleEl) roleEl.innerHTML = `<i class="fa-solid fa-id-badge text-amber-600"></i> ตำแหน่ง: <b class="text-gray-800">${mRole}</b>`;
+                                if (phoneEl) phoneEl.innerHTML = `<i class="fa-solid fa-phone text-emerald-600 me-1"></i> เบอร์โทร: <b class="text-gray-800">${mPhone}</b>`;
+                                if (emailEl) emailEl.innerHTML = `<i class="fa-solid fa-envelope text-blue-600 me-1"></i> อีเมล: <b class="text-gray-800">${mEmail}</b>`;
+                                if (sponsorEl) sponsorEl.innerHTML = `<i class="fa-solid fa-user-tie text-purple-600 me-1"></i> ผู้แนะนำ: <b class="text-gray-800">${mSponsor}</b>`;
+                                if (avatarEl) {
+                                    const initial = (mName && mName[0]) ? mName[0].toUpperCase() : 'M';
+                                    avatarEl.innerText = initial;
+                                }
+                            }
+                            if (badgeEl) {
+                                badgeEl.className = 'text-xs px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700 transition-all shadow-xs';
+                                badgeEl.innerHTML = '<i class="fa-solid fa-circle-check me-1"></i>ดึงข้อมูลจาก MLM แล้ว';
+                            }
+                        } else {
+                            if (previewEl) previewEl.classList.add('hidden');
+                            if (badgeEl) {
+                                badgeEl.className = 'text-xs px-2.5 py-0.5 rounded-full font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 transition-all';
+                                badgeEl.innerHTML = `<i class="fa-solid fa-user-tag me-1"></i>รหัส: ${cleanId}`;
+                            }
+                        }
+                    };
+
+                    window.handleFbMemberIdChange = function (val) {
+                        const cleanId = extractFbMemberId(val);
+                        const input = document.getElementById('fb_member_id');
+                        if (input && cleanId) {
+                            input.value = cleanId;
+                        }
+                        handleFbMemberIdInput(cleanId);
+                    };
 
                     window.switchFbTab = function (tab) {
                         const formSec = document.getElementById('fb-budget-form');
@@ -3550,9 +3729,8 @@
                             if (subControlsBar) subControlsBar.classList.add('hidden');
                             if (titleEl) titleEl.innerText = 'เบิกงบประมาณ Facebook';
 
-                            // Auto-fill member ID for staff
+                            // Auto-fill member ID for staff (editable)
                             const memInput = document.getElementById('fb_member_id');
-                            const isAdminOrMgr = role === 'Admin' || role === 'Manager' || role === 'HR Admin' || role === 'HR Manager' || role === 'CEO' || role === 'COO' || role === 'CFO' || (Array.isArray(userPerms) && userPerms.includes('all'));
                             let preferredId = window.currentStaffPreferredMemberId || '';
                             if (!preferredId && sessionStr) {
                                 try {
@@ -3560,16 +3738,15 @@
                                     preferredId = String(s.empId || s.employeeId || s.username || '').trim().toUpperCase();
                                 } catch (e) { }
                             }
-                            if (memInput && !editingFbId) {
-                                if (!isAdminOrMgr && preferredId) {
+                            if (memInput) {
+                                if (!editingFbId && !memInput.value && preferredId) {
                                     memInput.value = preferredId;
-                                    memInput.readOnly = true;
-                                    memInput.classList.add('bg-gray-100', 'cursor-not-allowed', 'text-gray-600');
-                                } else {
-                                    memInput.readOnly = false;
-                                    memInput.classList.remove('bg-gray-100', 'cursor-not-allowed', 'text-gray-600');
                                 }
+                                memInput.readOnly = false;
+                                memInput.disabled = false;
+                                memInput.classList.remove('bg-gray-100', 'cursor-not-allowed', 'text-gray-600');
                             }
+                            populateFbMlmDatalist();
                         } else if (tab === 'report') {
                             if (reportSec) reportSec.classList.remove('hidden');
                             if (btnReport) btnReport.className = 'px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all bg-indigo-600 text-white shadow-sm';
@@ -3678,7 +3855,7 @@
                         const eInput = document.getElementById('fb_end_date');
                         if (sInput) sInput.value = '';
                         if (eInput) eInput.value = '';
-                        filterFbBudgetRows();
+                        loadFacebookBudgetDashboard();
                     };
 
                     function getLocalDateISO(d = new Date()) {
@@ -3751,7 +3928,8 @@
                             let b = typeof encodedFbRow === 'object' ? encodedFbRow : JSON.parse(decodeURIComponent(encodedFbRow));
                             editingFbId = b.raw_id || b.id || b.Id_Budget;
 
-                            document.getElementById('fb_member_id').value = b.member_id || b.Employee_ID || '';
+                            const cleanMemVal = b.member_id || b.Employee_ID || '';
+                            document.getElementById('fb_member_id').value = cleanMemVal;
                             document.getElementById('fb_campaign_name').value = b.campaign_name || b.Title || '';
 
                             const amtVal = b.amount || b.Amount || 0;
@@ -3763,6 +3941,7 @@
                             document.getElementById('fb_currency').value = b.currency || 'THB';
 
                             switchFbTab('form');
+                            handleFbMemberIdInput(cleanMemVal);
 
                             const submitBtn = document.getElementById('fb_submit_btn');
                             if (submitBtn) submitBtn.innerText = 'อัปเดตคำขอเบิกงบ';
@@ -3803,9 +3982,11 @@
                             const bridge = window.SUPABASE_URL && window.SUPABASE_ANON_KEY ? createSupabaseBridge({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY }) : null;
                             if (!bridge) throw new Error("Supabase is not configured.");
 
+                            const cleanMemberId = extractFbMemberId(document.getElementById('fb_member_id').value);
+
                             if (editingFbId) {
                                 const updatePayload = {
-                                    member_id: document.getElementById('fb_member_id').value,
+                                    member_id: cleanMemberId,
                                     campaign_name: document.getElementById('fb_campaign_name').value,
                                     amount: Number(rawAmtStr) || 0,
                                     currency: document.getElementById('fb_currency').value
@@ -3816,7 +3997,7 @@
                                 else alert('อัปเดตข้อมูลเบิกงบสำเร็จ');
                             } else {
                                 const newPayload = {
-                                    member_id: document.getElementById('fb_member_id').value,
+                                    member_id: cleanMemberId,
                                     campaign_name: document.getElementById('fb_campaign_name').value,
                                     amount: Number(rawAmtStr) || 0,
                                     currency: document.getElementById('fb_currency').value,
@@ -4000,13 +4181,16 @@
                         const canEditFb = userRole === 'Admin' || (typeof hasActionPermission === 'function' ? (hasActionPermission('FB_Budget_List', 'edit', userPerms) || hasActionPermission('facebook-budget', 'edit', userPerms)) : (userRole !== 'Staff'));
                         const canDeleteFb = userRole === 'Admin' || (typeof hasActionPermission === 'function' ? (hasActionPermission('FB_Budget_List', 'delete', userPerms) || hasActionPermission('facebook-budget', 'delete', userPerms)) : (userRole !== 'Staff'));
 
-                        // Set default date range if empty
                         const sInput = document.getElementById('fb_start_date');
                         const eInput = document.getElementById('fb_end_date');
                         const todayISO = getLocalDateISO();
-                        const firstDayISO = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
+                        const now = new Date();
+                        const firstDayISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+                        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+                        const lastDayISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
                         if (sInput && !sInput.value) sInput.value = firstDayISO;
-                        if (eInput && !eInput.value) eInput.value = todayISO;
+                        if (eInput && !eInput.value) eInput.value = lastDayISO;
 
                         try {
                             const hrBridge = window.SUPABASE_URL && window.SUPABASE_ANON_KEY ? createSupabaseBridge({ url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY }) : null;
@@ -4073,36 +4257,41 @@
 
                             let salesMap = {};
                             let mlmMembersMap = {};
+                            const memberAliasToUid = {};
 
                             try {
                                 const headers = { 'apikey': mlmKey, 'Authorization': `Bearer ${mlmKey}` };
-                                const [prodRes, salesRes, stkSalesRes, memRes] = await Promise.all([
-                                    fetch(`${mlmUrl}/rest/v1/stk_products?select=*`, { headers }).catch(() => null),
-                                    fetch(`${mlmUrl}/rest/v1/sales?select=*`, { headers }).catch(() => null),
+                                const [stkSalesRes, memRes] = await Promise.all([
                                     fetch(`${mlmUrl}/rest/v1/stk_sales?select=*`, { headers }).catch(() => null),
                                     fetch(`${mlmUrl}/rest/v1/stk_members?select=*`, { headers }).catch(() => null)
                                 ]);
 
                                 if (loadId !== window.currentFbLoadId) return;
 
-                                const products = prodRes && prodRes.ok ? await prodRes.json() : [];
-                                let sales = stkSalesRes && stkSalesRes.ok ? await stkSalesRes.json() : null;
-                                if (!sales) {
-                                    sales = salesRes && salesRes.ok ? await salesRes.json() : [];
-                                }
+                                let sales = stkSalesRes && stkSalesRes.ok ? await stkSalesRes.json() : [];
                                 const membersList = memRes && memRes.ok ? await memRes.json() : [];
+                                window.allMlmMembersList = membersList || [];
+                                populateFbMlmDatalist(window.allMlmMembersList);
 
                                 (membersList || []).forEach(m => {
-                                    const uid = String(m.id || m.user_id || m.User_ID || '').trim().toUpperCase();
-                                    if (uid && (m.name || m.First_Name)) {
-                                        const fullName = m.name || (m.First_Name + ' ' + (m.Last_Name || '')).trim();
+                                    const uid = String(m.id || m.user_id || m.User_ID || m.username || '').trim().toUpperCase();
+                                    if (uid) {
+                                        memberAliasToUid[uid] = uid;
+                                        if (m.username) memberAliasToUid[String(m.username).trim().toUpperCase()] = uid;
+                                        if (m.user_id) memberAliasToUid[String(m.user_id).trim().toUpperCase()] = uid;
+                                        if (m.id) memberAliasToUid[String(m.id).trim().toUpperCase()] = uid;
+                                        if (m.name) memberAliasToUid[String(m.name).trim().toUpperCase()] = uid;
+
+                                        const fullName = m.name || (m.First_Name ? (m.First_Name + ' ' + (m.Last_Name || '')) : uid).trim();
                                         mlmMembersMap[uid] = fullName;
+                                        if (m.username) mlmMembersMap[String(m.username).trim().toUpperCase()] = fullName;
+                                        if (m.user_id) mlmMembersMap[String(m.user_id).trim().toUpperCase()] = fullName;
                                     }
                                 });
 
                                 let primaryMlmId = '';
                                 (membersList || []).forEach(m => {
-                                    const mId = String(m.id || m.user_id || m.User_ID || '').trim().toUpperCase();
+                                    const mId = String(m.id || m.user_id || m.User_ID || m.username || '').trim().toUpperCase();
                                     const mEmail = String(m.email || '').trim().toLowerCase();
                                     const mName = String(m.name || (m.First_Name ? (m.First_Name + ' ' + (m.Last_Name || '')) : '')).trim().toLowerCase();
 
@@ -4160,7 +4349,7 @@
                                 const getProductCategoryAndRate = (prodName, dbProductsList) => {
                                     const cleanName = String(prodName || '').trim().toUpperCase();
 
-                                    if (Array.isArray(dbProductsList)) {
+                                    if (Array.isArray(dbProductsList) && dbProductsList.length > 0) {
                                         const found = dbProductsList.find(p => 
                                             String(p.name || p.product_name || p.id || '').trim().toUpperCase() === cleanName ||
                                             String(p.category || '').trim().toUpperCase() === cleanName
@@ -4186,10 +4375,27 @@
                                     return { categoryKey: 'Supplement', categoryName: 'หมวด Supplement', rate: 250000, l1Rate: 200000, full_margin_amount: 0 };
                                 };
 
-                                (sales || []).forEach(s => {
-                                    const sellerId = String(s.seller_id || s.sellerId || s.seller || s.memberId || s.user_id || s.marketing || '').trim().toUpperCase();
-                                    if (!sellerId) return;
-                                    if (!salesMap[sellerId]) salesMap[sellerId] = 0;
+                                let filterStart = sInput ? sInput.value : '';
+                                let filterEnd = eInput ? eInput.value : '';
+
+                                // Auto-fix invalid date filter range (e.g., if end date is earlier than start date)
+                                if (filterStart && filterEnd && filterEnd < filterStart) {
+                                    filterEnd = filterStart.slice(0, 7) + '-31';
+                                }
+
+                                const periodSales = (sales || []).filter(s => {
+                                    let sDate = String(s.date || s.sale_date || s.created_at || '').split('T')[0].slice(0, 10);
+                                    if (!sDate) return true;
+                                    if (filterStart && sDate < filterStart) return false;
+                                    if (filterEnd && sDate > filterEnd) return false;
+                                    return true;
+                                });
+
+                                (periodSales || []).forEach(s => {
+                                    const rawSeller = String(s.seller_id || s.sellerId || s.seller || s.memberId || s.user_id || s.marketing || '').trim().toUpperCase();
+                                    if (!rawSeller) return;
+                                    const sellerId = memberAliasToUid[rawSeller] || rawSeller;
+                                    if (salesMap[sellerId] === undefined) salesMap[sellerId] = 0;
 
                                     let itemsList = [];
                                     if (s.items_json) {
@@ -4201,20 +4407,23 @@
                                             const q = Number(it.qty || it.quantity || 1);
                                             const typeStr = String(it.type || '').trim();
                                             const pName = String(it.prod || it.productName || it.name || '').trim();
+
+                                            // กรองเอาเฉพาะ "ราคาเต็ม" และ "ราคาสมาชิก" เท่านั้น (ตัดราคาโปร / ราคาศูนย์ ทิ้งตามระบบ MLM)
+                                            if (typeStr !== 'ราคาเต็ม' && typeStr !== 'ราคาสมาชิก' && typeStr !== '') {
+                                                return;
+                                            }
+
                                             const catInfo = getProductCategoryAndRate(pName, products);
 
-                                            // Only count 'ราคาเต็ม' and 'ราคาสมาชิก' (exclude 'ราคาโปร', 'โปรโมชั่น', 'ราคาศูนย์', 'ราคาฟรี')
-                                            if (typeStr === 'ราคาเต็ม' || typeStr === 'ราคาสมาชิก' || (!typeStr && !pName.toUpperCase().includes('FREE') && !pName.toUpperCase().includes('PROMO'))) {
-                                                // 1. Personal Sales LAK
-                                                salesMap[sellerId] += (q * catInfo.rate);
+                                            // 1. Personal Sales LAK
+                                            salesMap[sellerId] = (salesMap[sellerId] || 0) + (q * catInfo.rate);
 
-                                                // 2. Downline Team Sales Dividend LAK
-                                                Object.keys(downlineMap).forEach(uplineId => {
-                                                    if (downlineMap[uplineId] && downlineMap[uplineId].has(sellerId)) {
-                                                        salesMap[uplineId] = (salesMap[uplineId] || 0) + (q * catInfo.l1Rate);
-                                                    }
-                                                });
-                                            }
+                                            // 2. Downline Team Sales LAK to Uplines
+                                            Object.keys(downlineMap).forEach(uplineId => {
+                                                if (downlineMap[uplineId] && downlineMap[uplineId].has(sellerId)) {
+                                                    salesMap[uplineId] = (salesMap[uplineId] || 0) + (q * catInfo.l1Rate);
+                                                }
+                                            });
                                         });
                                     } else {
                                         const f = Number(s['รวมชิ้นราคาเต็ม'] || 0);
@@ -4224,16 +4433,17 @@
                                             validQty = Number(s['ยอดรวมชิ้นทั้งหมด'] || 1);
                                         }
 
-                                        // Legacy records logic
-                                        salesMap[sellerId] += (validQty * 250000);
-
-                                        Object.keys(downlineMap).forEach(uplineId => {
-                                            if (downlineMap[uplineId] && downlineMap[uplineId].has(sellerId)) {
-                                                salesMap[uplineId] = (salesMap[uplineId] || 0) + (validQty * 200000);
-                                            }
-                                        });
+                                        if (validQty > 0) {
+                                            salesMap[sellerId] = (salesMap[sellerId] || 0) + (validQty * 250000);
+                                            Object.keys(downlineMap).forEach(uplineId => {
+                                                if (downlineMap[uplineId] && downlineMap[uplineId].has(sellerId)) {
+                                                    salesMap[uplineId] = (salesMap[uplineId] || 0) + (validQty * 200000);
+                                                }
+                                            });
+                                        }
                                     }
                                 });
+                                console.log('📊 MLM Sales calculated for FB Dashboard:', salesMap);
                             } catch (mlmErr) {
                                 console.warn('MLM fetch failed, proceeding with local data:', mlmErr);
                             }
@@ -4280,8 +4490,9 @@
                                 const runningBalLAKMap = {};
 
                                 budgets.forEach(b => {
-                                    const mId = String(b.member_id || '').trim().toUpperCase();
-                                    const salesLAK = salesMap[mId] || 0;
+                                    const mId = String(b.member_id || b.Employee_ID || b.empId || b.employee_id || b.user_id || '').trim().toUpperCase();
+                                    const canonicalMId = memberAliasToUid[mId] || mId;
+                                    const salesLAK = salesMap[canonicalMId] || salesMap[mId] || 0;
                                     const clinicFeeLAK = Number(b.clinic_fee || 0);
 
                                     if (runningBalLAKMap[mId] === undefined) {
@@ -4313,13 +4524,16 @@
                                 });
 
                                 // 1. กรองเฉพาะของตนเองถ้าเป็น Staff (ไม่ใช่ Admin / ผู้จัดการ)
-                                const isAdminOrManager = userRole === 'Admin' || userRole === 'Manager' || userRole === 'HR Admin' || userRole === 'HR Manager' || userRole === 'CEO' || userRole === 'COO' || userRole === 'CFO' || (Array.isArray(userPerms) && userPerms.includes('all'));
+                                const hasListPerm = userRole === 'Admin' || userRole === 'Manager' || userRole === 'HR Admin' || userRole === 'HR Manager' || userRole === 'CEO' || userRole === 'COO' || userRole === 'CFO' || (Array.isArray(userPerms) && (userPerms.includes('all') || userPerms.some(p => String(p).toLowerCase().includes('fb_budget') || String(p).toLowerCase().includes('facebook-budget'))));
                                 let displayBudgets = [...budgets];
-                                if (!isAdminOrManager && userAllowedIds && userAllowedIds.size > 0) {
-                                    displayBudgets = displayBudgets.filter(b => {
+                                if (!hasListPerm && userAllowedIds && userAllowedIds.size > 0) {
+                                    const filtered = displayBudgets.filter(b => {
                                         const mId = String(b.member_id || b.Employee_ID || '').trim().toUpperCase();
                                         return userAllowedIds.has(mId);
                                     });
+                                    if (filtered.length > 0) {
+                                        displayBudgets = filtered;
+                                    }
                                 }
 
                                 // 2. 📌 เรียงลำดับจากวันล่าสุดขึ้นข้างบน (DESC)
@@ -4333,8 +4547,9 @@
                                 let reportHtml = '';
 
                                 displayBudgets.forEach(b => {
-                                    const mId = String(b.member_id || '').trim().toUpperCase();
-                                    const mlmName = mlmMembersMap[mId];
+                                    const mId = String(b.member_id || b.Employee_ID || b.empId || b.employee_id || b.user_id || '').trim().toUpperCase();
+                                    const canonicalMId = memberAliasToUid[mId] || mId;
+                                    const mlmName = mlmMembersMap[canonicalMId] || mlmMembersMap[mId];
                                     const staffName = staffMap[mId] ? staffMap[mId].name : '';
                                     const displayName = mlmName || staffName || mId;
 
@@ -4357,7 +4572,7 @@
                                     const [yStr, mStr, dStr] = isoDateStr.split('-');
                                     const dateStr = `${dStr}/${mStr}/${yStr}`;
 
-                                    const salesLAK = salesMap[mId] || 0;
+                                    const salesLAK = salesMap[canonicalMId] || salesMap[mId] || 0;
                                     const clinicFee = Number(b.clinic_fee || 0);
                                     const amt = Number(b.amount || 0);
                                     const curr = String(b.currency || 'LAK').toUpperCase().trim();
@@ -4515,8 +4730,9 @@
 
                                 // 1. กรองเฉพาะของตนเองสำหรับแท็บ Report
                                 let reportItems = Object.values(reportMap);
-                                if (!isAdminOrManager && userAllowedIds && userAllowedIds.size > 0) {
-                                    reportItems = reportItems.filter(item => userAllowedIds.has(String(item.member_id || '').trim().toUpperCase()));
+                                if (!hasListPerm && userAllowedIds && userAllowedIds.size > 0) {
+                                    const filteredRep = reportItems.filter(item => userAllowedIds.has(String(item.member_id || '').trim().toUpperCase()));
+                                    if (filteredRep.length > 0) reportItems = filteredRep;
                                 }
 
                                 // 2. 📌 เรียงลำดับจากวันล่าสุดขึ้นข้างบน (DESC)
@@ -4528,7 +4744,8 @@
 
                                 reportItems.forEach(item => {
                                     const mId = item.member_id;
-                                    const mlmName = mlmMembersMap[mId];
+                                    const canonicalMId = memberAliasToUid[mId] || mId;
+                                    const mlmName = mlmMembersMap[canonicalMId] || mlmMembersMap[mId];
                                     const staffName = staffMap[mId] ? staffMap[mId].name : '';
                                     const displayName = mlmName || staffName || mId;
 
@@ -4543,7 +4760,7 @@
                                     const dateStr = `${dStr}/${mStr}/${yStr}`;
 
                                     const curr = item.primaryCurr || 'LAK';
-                                    const salesLAK = salesMap[mId] || 0;
+                                    const salesLAK = salesMap[canonicalMId] || salesMap[mId] || 0;
                                     const totalClinicFeeLAK = item.totalClinicFeeLAK;
                                     const totalBudgetLAK = item.totalBudgetLAK;
                                     const netLAK = (salesLAK + totalClinicFeeLAK) - totalBudgetLAK;
