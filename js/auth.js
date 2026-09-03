@@ -175,22 +175,12 @@ function showApp() {
     }
 }
 
-async function getClientIpAddress() {
+function getClientDeviceId() {
     let deviceId = localStorage.getItem('hr_device_id');
     if (!deviceId) {
         deviceId = 'DEV-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now();
         localStorage.setItem('hr_device_id', deviceId);
     }
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2500);
-        const res = await fetch('https://api.ipify.org?format=json', { signal: controller.signal });
-        clearTimeout(timeoutId);
-        if (res.ok) {
-            const data = await res.json();
-            if (data && data.ip) return data.ip;
-        }
-    } catch (e) { }
     return deviceId;
 }
 
@@ -201,17 +191,17 @@ function clearUserBoundIp(empId, email) {
     const isSuperAdmin = String(role).trim().toLowerCase() === 'super admin' || String(role).trim().toLowerCase() === 'superadmin';
 
     if (!isSuperAdmin) {
-        if (typeof showToast === 'function') showToast('คุณไม่มีสิทธิ์เคลียร์ IP (เฉพาะ Super Admin)', 'error');
+        if (typeof showToast === 'function') showToast('คุณไม่มีสิทธิ์เคลียร์ IP / อุปกรณ์ (เฉพาะ Super Admin)', 'error');
         return;
     }
 
     const confirmAction = () => {
-        if (typeof toggleLoading === 'function') toggleLoading(true, 'CLEARING BOUND IP...');
+        if (typeof toggleLoading === 'function') toggleLoading(true, 'RESETTING DEVICE...');
         google.script.run
             .withSuccessHandler(res => {
                 if (typeof toggleLoading === 'function') toggleLoading(false);
                 if (res && res.success) {
-                    if (typeof showToast === 'function') showToast(`✅ เคลียร์ IP ของ ${email || empId} เรียบร้อยแล้ว`, 'success');
+                    if (typeof showToast === 'function') showToast(`✅ เคลียร์ IP / รีเซ็ตอุปกรณ์ของ ${email || empId} เรียบร้อยแล้ว`, 'success');
                     if (typeof tableCache !== 'undefined') {
                         delete tableCache['staff'];
                         delete tableCache['users'];
@@ -234,19 +224,19 @@ function clearUserBoundIp(empId, email) {
 
     if (typeof showConfirmModal === 'function') {
         showConfirmModal(
-            "⚡ เคลียร์ IP ผูกเครื่อง",
+            "⚡ เคลียร์ IP / รีเซ็ตอุปกรณ์",
             `<div class="text-left space-y-2">
-                <p>คุณต้องการเคลียร์ IP / ล็อกอุปกรณ์ของ <b>${email || empId}</b> หรือไม่?</p>
-                <p class="text-xs text-gray-500">เมื่อเคลียร์แล้ว พนักงานคนนี้จะสามารถนำอีเมลไปล็อกอินผูกกับเครื่องใหม่ได้</p>
+                <p>คุณต้องการเคลียร์ IP และรีเซ็ตอุปกรณ์ของ <b>${email || empId}</b> หรือไม่?</p>
+                <p class="text-xs text-gray-500">เมื่อรีเซ็ตแล้ว พนักงานคนนี้จะสามารถนำอีเมลไปล็อกอินผูกกับเครื่องใหม่ได้</p>
             </div>`,
             confirmAction,
             null,
             false,
-            "ยืนยันเคลียร์ IP",
+            "ยืนยันรีเซ็ต",
             "ยกเลิก"
         );
     } else {
-        if (confirm(`คุณต้องการเคลียร์ IP ของ ${email || empId} หรือไม่?`)) {
+        if (confirm(`คุณต้องการรีเซ็ตอุปกรณ์ของ ${email || empId} หรือไม่?`)) {
             confirmAction();
         }
     }
@@ -268,7 +258,7 @@ async function handleLogin(e) {
         }
 
         toggleLoading(true, 'AUTHENTICATING...');
-        const clientIp = await getClientIpAddress();
+        const deviceId = getClientDeviceId();
 
         google.script.run
             .withSuccessHandler(res => {
@@ -285,13 +275,13 @@ async function handleLogin(e) {
                         else sessionStorage.setItem('hr_user_session', JSON.stringify({ username: res.username || email.split('@')[0], email: email, role: res.role, empId: res.empId, permissions: res.permissions, status: res.status }));
                         showApp();
                     } else {
-                        if (res.message && res.message.includes('ผูกไว้กับอุปกรณ์อื่น')) {
+                        if (res.message && (res.message.includes('ผูกไว้กับอุปกรณ์อื่น') || res.message.includes('1 เครื่อง'))) {
                             if (typeof showConfirmModal === 'function') {
                                 showConfirmModal(
                                     "❌ บัญชีนี้ถูกล็อกกับอุปกรณ์อื่น",
                                     `<div class="text-left space-y-2">
                                         <p class="font-bold text-red-600">${res.message}</p>
-                                        <p class="text-xs text-gray-500 mt-2">กรุณาติดต่อ Super Admin เพื่อให้กด "เคลียร์ IP" ในระบบเพื่อเข้าใช้งานจากเครื่องใหม่</p>
+                                        <p class="text-xs text-gray-500 mt-2">กรุณาติดต่อ Super Admin เพื่อให้กด "รีเซ็ตอุปกรณ์" หรือ "เคลียร์ IP" ในระบบก่อนนำไปผูกกับเครื่องใหม่</p>
                                     </div>`,
                                     null, null, true, "เข้าใจแล้ว", ""
                                 );
@@ -312,7 +302,7 @@ async function handleLogin(e) {
                 toggleLoading(false);
                 showToast('Connection failed: ' + err.message, 'error');
             })
-            .verifyLogin(email, pass, clientIp);
+            .verifyLogin(email, pass, deviceId);
     } catch (error) {
         console.error("Error in handleLogin submit:", error);
         window.dispatchEvent(new ErrorEvent('error', { error: error, message: "handleLogin: " + error.message }));
