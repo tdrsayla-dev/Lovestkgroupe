@@ -137,6 +137,15 @@
                         from += pageSize;
                     }
                     return allRows;
+                },
+                async updateTableData(table, filter, data) {
+                    let baseUrl = `/rest/v1/${table}`;
+                    if (filter) baseUrl += `?${filter}`;
+                    return request(baseUrl, {
+                        method: "PATCH",
+                        body: data,
+                        extraHeaders: { Prefer: "return=representation" },
+                    });
                 }
             };
         }
@@ -330,6 +339,13 @@
                     return;
                 }
 
+                // Status check (Account Suspended check)
+                const statusStr = String(user.status || user.Status || '').toLowerCase();
+                if (['disabled', 'suspended', 'inactive', 'ระงับใช้งาน', 'ปิดใช้งาน'].includes(statusStr)) {
+                    showToast('⚠️ บัญชีของคุณถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ (Account Suspended)', 'error');
+                    return;
+                }
+
                 // Password check (support case-insensitive & trimmed passwords)
                 const storedPassword = String(user.password_hash || user.password || user.Password || '').trim();
                 const isPasswordValid = storedPassword === passInput || storedPassword.toLowerCase() === cleanPass;
@@ -337,6 +353,28 @@
                 if (!isPasswordValid) {
                     showToast('รหัสผ่านไม่ถูกต้อง', 'error');
                     return;
+                }
+
+                // 📌 Device ID Lock: 1 Email ต่อ 1 เครื่อง (ทุก User ยกเว้น Super Admin)
+                const userRole = String(user.role || user.Role || 'Staff').trim().toLowerCase();
+                const isSuperAdmin = userRole === 'super admin' || userRole === 'superadmin';
+
+                if (!isSuperAdmin) {
+                    const registeredDeviceId = String(user.device_id || user.Device_ID || user.DeviceId || user.device || '').trim();
+                    if (!registeredDeviceId || registeredDeviceId === '-' || registeredDeviceId === 'null') {
+                        // First login: Automatically bind current device to this user account
+                        try {
+                            const userKey = user.id ? `id=eq.${user.id}` : (user.username ? `username=eq.${encodeURIComponent(user.username)}` : `employee_id=eq.${encodeURIComponent(user.employee_id)}`);
+                            await bridge.updateTableData('users', userKey, { device_id: deviceId, bound_ip: deviceId });
+                            console.log('Successfully registered device ID:', deviceId);
+                        } catch (devErr) {
+                            console.warn('Could not auto-register device ID in database:', devErr.message);
+                        }
+                    } else if (registeredDeviceId !== deviceId) {
+                        // Mismatched device - access denied for non-SuperAdmin
+                        showToast('❌ บัญชีนี้ถูกผูกไว้กับอุปกรณ์อื่นแล้ว (1 เครื่อง / 1 บัญชี)\nกรุณาใช้เครื่องเดิม หรือติดต่อ Super Admin เพื่อกด "รีเซ็ตอุปกรณ์"', 'error');
+                        return;
+                    }
                 }
 
                 showToast('เข้าสู่ระบบสำเร็จ', 'success');

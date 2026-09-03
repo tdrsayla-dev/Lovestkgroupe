@@ -585,32 +585,32 @@
                         return { success: false, message: '⚠️ บัญชีผู้ใช้นี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ (Account Suspended)' };
                     }
 
-                    // 3. 🔒 SINGLE DEVICE IP LOCKING CHECK (1 อีเมล = 1 เครื่อง):
+                    // 3. 🔒 SINGLE DEVICE ID & IP LOCKING CHECK (1 อีเมล = 1 เครื่อง):
                     const isSuperAdmin = String(user.role || '').trim().toLowerCase() === 'super admin' || String(user.role || '').trim().toLowerCase() === 'superadmin';
-                    const boundIp = user.bound_ip || user.Bound_IP || '';
+                    const boundDevId = String(user.device_id || user.Device_ID || user.DeviceId || user.device || user.bound_ip || user.Bound_IP || '').trim();
 
                     if (!isSuperAdmin && clientIp) {
-                        if (boundIp && String(boundIp).trim() !== '' && String(boundIp).trim() !== '-' && String(boundIp).trim() !== String(clientIp).trim()) {
+                        if (boundDevId && boundDevId !== '' && boundDevId !== '-' && boundDevId !== 'null' && boundDevId !== String(clientIp).trim()) {
                             return {
                                 success: false,
-                                message: `❌ บัญชีอีเมลนี้ถูกผูกไว้กับอุปกรณ์อื่นแล้ว (IP: ${boundIp})\nไม่อนุญาตให้เข้าสู่ระบบจากเครื่องอื่น กรุณาติดต่อ Super Admin เพื่อเคลียร์ IP`
+                                message: `❌ บัญชีนี้ถูกผูกไว้กับอุปกรณ์อื่นแล้ว (${boundDevId.length > 20 ? boundDevId.substring(0, 18) + '...' : boundDevId})\nไม่อนุญาตให้เข้าสู่ระบบจากเครื่องอื่น กรุณาติดต่อ Super Admin เพื่อกด "รีเซ็ตอุปกรณ์" หรือ "เคลียร์ IP"`
                             };
                         }
 
-                        // หากยังไม่ได้ผูก IP เครื่องแรก -> ทำการผูก IP เครื่องนี้ลงฐานข้อมูลทันที
-                        if (!boundIp || String(boundIp).trim() === '' || String(boundIp).trim() === '-') {
+                        // หากยังไม่ได้ผูกอุปกรณ์เครื่องแรก -> ทำการผูก ID อุปกรณ์เครื่องนี้ลงฐานข้อมูลทันที
+                        if (!boundDevId || boundDevId === '' || boundDevId === '-' || boundDevId === 'null') {
                             const nowIso = new Date().toISOString();
                             try {
                                 if (!isStaffTableOnly && user.id) {
-                                    await bridge.updateRow('users', 'id', user.id, { bound_ip: clientIp, bound_at: nowIso });
+                                    await bridge.updateRow('users', 'id', user.id, { device_id: clientIp, bound_ip: clientIp, bound_at: nowIso });
                                 } else {
                                     const staffPk = user.employee_id || user.Employee_ID;
                                     if (staffPk) {
-                                        await bridge.updateRow('staff', getKeyForTable('staff'), staffPk, { bound_ip: clientIp, bound_at: nowIso, Bound_IP: clientIp });
+                                        await bridge.updateRow('staff', getKeyForTable('staff'), staffPk, { device_id: clientIp, bound_ip: clientIp, bound_at: nowIso, Bound_IP: clientIp });
                                     }
                                 }
                             } catch (ipBindErr) {
-                                console.warn('[IP Lock] Failed to save bound_ip to DB:', ipBindErr);
+                                console.warn('[IP Lock] Failed to save device_id to DB:', ipBindErr);
                             }
                         }
                     }
@@ -640,7 +640,7 @@
                         const users = await bridge.getTableData('users', { select: '*' });
                         const u = (users || []).find(r => String(r.username || r.Email || r.email || '').trim().toLowerCase() === normEmail || String(r.employee_id || r.Employee_ID || '').trim().toUpperCase() === normEmpId);
                         if (u && u.id) {
-                            await bridge.updateRow('users', 'id', u.id, { bound_ip: null, bound_device: null, bound_at: null });
+                            await bridge.updateRow('users', 'id', u.id, { device_id: null, Device_ID: null, bound_ip: null, bound_device: null, bound_at: null });
                         }
                     } catch (e) { }
 
@@ -650,11 +650,11 @@
                         const s = (staffList || []).find(r => String(r.Email || r.email || '').trim().toLowerCase() === normEmail || String(r.Employee_ID || r.employee_id || '').trim().toUpperCase() === normEmpId);
                         if (s) {
                             const pk = s.Employee_ID || s.employee_id;
-                            await bridge.updateRow('staff', getKeyForTable('staff'), pk, { bound_ip: null, bound_device: null, bound_at: null, Bound_IP: null });
+                            await bridge.updateRow('staff', getKeyForTable('staff'), pk, { device_id: null, Device_ID: null, bound_ip: null, bound_device: null, bound_at: null, Bound_IP: null });
                         }
                     } catch (e) { }
 
-                    return { success: true, message: 'เคลียร์ IP สำเร็จแล้ว' };
+                    return { success: true, message: 'เคลียร์ IP / รีเซ็ตอุปกรณ์สำเร็จแล้ว' };
                 } catch (clearErr) {
                     return { success: false, message: 'เคลียร์ IP ไม่สำเร็จ: ' + clearErr.message };
                 }
@@ -7398,19 +7398,19 @@
     <!-- /OT Settings Modal -->
 
     <!-- 📌 Script หลัก (แบ่งย่อยเพื่อประสิทธิภาพและความปลอดภัย) -->
-    <script src="js/i18n.js?v=20260903_v101"></script>
-    <script src="js/utils.js?v=20260903_v101"></script>
-    <script src="js/auth.js?v=20260903_v101"></script>
-    <script src="js/navigation.js?v=20260903_v101"></script>
-    <script src="js/api.js?v=20260903_v101"></script>
-    <script src="js/dashboard.js?v=20260903_v101"></script>
-    <script src="js/organization.js?v=20260903_v101"></script>
-    <script src="js/employees.js?v=20260903_v101"></script>
-    <script src="js/tables.js?v=20260903_v101"></script>
-    <script src="js/forms.js?v=20260903_v101"></script>
-    <script src="js/features.js?v=20260903_v101"></script>
-    <script src="js/accounting.js?v=20260903_v101"></script>
-    <script src="js/payroll.js?v=20260903_v101"></script>
+    <script src="js/i18n.js?v=20260903_v102"></script>
+    <script src="js/utils.js?v=20260903_v102"></script>
+    <script src="js/auth.js?v=20260903_v102"></script>
+    <script src="js/navigation.js?v=20260903_v102"></script>
+    <script src="js/api.js?v=20260903_v102"></script>
+    <script src="js/dashboard.js?v=20260903_v102"></script>
+    <script src="js/organization.js?v=20260903_v102"></script>
+    <script src="js/employees.js?v=20260903_v102"></script>
+    <script src="js/tables.js?v=20260903_v102"></script>
+    <script src="js/forms.js?v=20260903_v102"></script>
+    <script src="js/features.js?v=20260903_v102"></script>
+    <script src="js/accounting.js?v=20260903_v102"></script>
+    <script src="js/payroll.js?v=20260903_v102"></script>
 
     <!-- 🛑 MANDATORY INLINE OVERRIDE: GEOFENCE RESTRICTION (GUARANTEED NO CACHE ISSUE) -->
     <script>
