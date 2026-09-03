@@ -1533,11 +1533,26 @@ function renderTable(data) {
                         } else {
                             val = `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${color}">${displayText}</span>`;
                         }
-                    } else if ((currentSheet.toLowerCase() === 'user' || currentSheet.toLowerCase() === 'users') && (lw === 'device_id' || lw === 'device id' || lw === 'device')) {
-                        if (val && val !== '-' && val !== 'null' && val !== 'undefined') {
-                            val = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200" title="${val}"><i class="fa-solid fa-mobile-screen text-indigo-500"></i> ${String(val).substring(0, 15)}...</span>`;
+                    } else if (lw === 'bound_ip' || lw === 'bound ip' || lw === 'bound_device' || lw === 'device_id' || lw === 'device id' || lw === 'device') {
+                        const targetEmpId = String(row.Employee_ID || row.employee_id || row.Emp_ID || row.emp_id || '').toUpperCase().trim();
+                        const targetEmail = String(row.Username || row.username || row.Email || row.email || '').toLowerCase().trim();
+                        const boundValue = String(val || row.bound_ip || row.Bound_IP || '').trim();
+
+                        if (boundValue && boundValue !== '-' && boundValue !== 'null' && boundValue !== 'undefined') {
+                            val = `
+                                <div class="flex items-center gap-1.5">
+                                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold bg-purple-50 text-purple-700 border border-purple-200 shadow-xs" title="IP/Device: ${boundValue}">
+                                        <i class="fa-solid fa-lock text-purple-600"></i> ${boundValue.length > 18 ? boundValue.substring(0, 15) + '...' : boundValue}
+                                    </span>
+                                    ${isSuperAdmin ? `<button type="button" onclick="clearUserBoundIp('${targetEmpId}', '${targetEmail}')" class="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold shadow-xs transition-all cursor-pointer" title="เคลียร์ IP ผูกเครื่อง"><i class="fa-solid fa-bolt"></i> เคลียร์ IP</button>` : ''}
+                                </div>`;
                         } else {
-                            val = `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-200"><i class="fa-solid fa-triangle-exclamation"></i> ยังไม่ผูกเครื่อง</span>`;
+                            val = `
+                                <div class="flex items-center gap-1.5">
+                                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200">
+                                        <i class="fa-solid fa-lock-open"></i> ไม่ได้ผูกเครื่อง (พร้อมผูก)
+                                    </span>
+                                </div>`;
                         }
                     } else if (currentSheet === 'Leave application' && lw === 'signature') {
                         const rowId = getRecordId(row);
