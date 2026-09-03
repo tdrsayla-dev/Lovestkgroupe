@@ -16,15 +16,53 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <!-- เชื่อมโยงไฟล์ CSS -->
-    <link rel="stylesheet" href="style.css?v=2.0.2">
+    <link rel="stylesheet" href="style.css?v=2.5.0">
     <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <!-- i18n Internationalization Engine -->
-    <script src="i18n.js?v=2.0.2"></script>
+    <script src="i18n.js?v=2.5.0"></script>
 
     <!-- สคริปต์ตรวจสอบการล็อกอิน -->
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
     <script>
+        // ตรวจสอบการเปิดไฟล์ผ่าน file:// ซึ่งโดน Chrome/Edge บล็อก Same-Origin Security
+        if (window.location.protocol === 'file:') {
+            console.warn("⚠️ ตรวจพบการเปิดด้วย file:// protocol ซึ่งจะถูกบล็อกความปลอดภัย Same-Origin Policy ในการแสดง iframe / พิมพ์เอกสาร / Supabase");
+            document.addEventListener("DOMContentLoaded", function () {
+                setTimeout(function () {
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'กรุณาเปิดระบบผ่าน Local Server',
+                            html: `
+                                <div class="text-start fs-6 p-2">
+                                    <p class="mb-2 text-danger fw-bold">⚠️ ตรวจพบการเปิดไฟล์ด้วย file:// protocol</p>
+                                    <p class="mb-2 text-secondary" style="font-size: 0.9rem;">
+                                        เบราว์เซอร์ (Chrome / Edge) จะล็อกความปลอดภัยแบบ <b>Unique Security Origins</b> ทำให้ไม่สามารถโหลด iframe, พิมพ์รายงาน หรือเชื่อมต่อฐานข้อมูลได้อย่างถูกต้อง
+                                    </p>
+                                    <hr class="my-2">
+                                    <p class="mb-1 fw-bold text-dark">วิธีเปิดใช้งานอย่างถูกต้อง:</p>
+                                    <ol class="ps-3 mb-3 text-secondary" style="font-size: 0.9rem;">
+                                        <li>ดับเบิ้ลคลิกไฟล์ <b class="text-dark">RUN_CLINIC.bat</b> ในโฟลเดอร์ Clinic</li>
+                                        <li>หรือเปิดเบราว์เซอร์แล้วพิมพ์ URL: <br><a href="http://localhost:8085/Clinic.html" target="_blank" class="fw-bold text-primary">http://localhost:8085/Clinic.html</a></li>
+                                    </ol>
+                                </div>
+                            `,
+                            confirmButtonText: '<i class="bi bi-box-arrow-up-right me-1"></i> ไปที่ http://localhost:8085/Clinic.html',
+                            showCancelButton: true,
+                            cancelButtonText: 'ปิดคำเตือนนี้',
+                            confirmButtonColor: '#0b3c73',
+                            customClass: { popup: 'rounded-4 shadow-lg' }
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                window.location.href = 'http://localhost:8085/Clinic.html';
+                            }
+                        });
+                    }
+                }, 500);
+            });
+        }
+
         document.addEventListener("DOMContentLoaded", function () {
             // ดึงค่า page จาก URL ตัวอย่าง: clinic.html?page=triage
             const urlParams = new URLSearchParams(window.location.search);
@@ -170,7 +208,8 @@
 
         <!-- ปุ่มออกจากระบบด้านล่างสุด -->
         <div class="mt-auto pb-3 px-2">
-            <a href="javascript:void(0);" class="nav-link text-danger d-flex align-items-center gap-2" onclick="logoutUser()" style="border-radius: 8px; font-weight: 500;">
+            <a href="javascript:void(0);" class="nav-link text-danger d-flex align-items-center gap-2"
+                onclick="logoutUser()" style="border-radius: 8px; font-weight: 500;">
                 <i class="ph ph-sign-out fs-5"></i> <span data-i18n="logout">ออกจากระบบ</span>
             </a>
         </div>
@@ -897,10 +936,10 @@
                     </tbody>
                 </table>
             </div>
-            
+
             <!-- 🌟 พื้นที่แสดงปุ่มแบ่งหน้า (Pagination) -->
             <div id="patientPagination" class="mt-3 mb-2"></div>
-            
+
         </div>
 
 
@@ -916,7 +955,8 @@
                 </div>
             </div>
             <!-- ปรับให้ตารางมีกรอบสวยงาม และตั้งความสูงขั้นต่ำที่ 400px -->
-            <div class="table-responsive table-container shadow-sm border" style="border-radius: 14px; background: white; min-height: 400px; max-height: 450px; overflow-y: auto;">
+            <div class="table-responsive table-container shadow-sm border"
+                style="border-radius: 14px; background: white; min-height: 400px; max-height: 450px; overflow-y: auto;">
                 <table class="table table-modern align-middle" id="triageTable">
                     <thead>
                         <tr>
@@ -941,54 +981,68 @@
                     <h5 class="fw-bold mb-0" style="color: #0f172a; font-family: 'Kanit', sans-serif;">
                         <i class="bi bi-clock-history text-primary me-2"></i>ประวัติการคัดกรองเบื้องต้น
                     </h5>
-                    
+
                     <!-- แถบเครื่องมือ: ช่องค้นหา + เลือกวันที่ -->
                     <div class="d-flex flex-wrap align-items-center gap-2">
-                        
+
                         <!-- 🌟 ส่วนที่เพิ่มใหม่: ช่องค้นหา (Search Box) -->
                         <div class="position-relative shadow-sm rounded-pill" style="min-width: 240px;">
-                            <span class="position-absolute text-muted" style="top: 50%; left: 14px; transform: translateY(-50%);">
+                            <span class="position-absolute text-muted"
+                                style="top: 50%; left: 14px; transform: translateY(-50%);">
                                 <i class="bi bi-search"></i>
                             </span>
-                            <input type="text" id="searchTriageHistoryInput" class="form-control border-0 bg-white rounded-pill ps-5 pe-3" 
-                                placeholder="ค้นหา ชื่อ, เบอร์โทร, VIS-, HN-..." 
+                            <input type="text" id="searchTriageHistoryInput"
+                                class="form-control border-0 bg-white rounded-pill ps-5 pe-3"
+                                placeholder="ค้นหา ชื่อ, เบอร์โทร, VIS-, HN-..."
                                 style="font-size: 0.85rem; height: 36px;" onkeyup="filterTriageHistory()">
                         </div>
 
                         <!-- กลุ่มปุ่มเลือกเวลาด่วน -->
                         <div class="btn-group shadow-sm" role="group" style="height: 36px;">
-                            <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary d-flex align-items-center px-3" 
-                                style="border-top-left-radius: 50rem; border-bottom-left-radius: 50rem; font-size: 0.85rem;" 
+                            <button type="button"
+                                class="btn btn-light bg-white border fw-semibold text-secondary d-flex align-items-center px-3"
+                                style="border-top-left-radius: 50rem; border-bottom-left-radius: 50rem; font-size: 0.85rem;"
                                 onclick="setTriageHistoryDateFilter('today')">วันนี้</button>
-                            <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary d-flex align-items-center px-3" 
-                                style="font-size: 0.85rem;" 
+                            <button type="button"
+                                class="btn btn-light bg-white border fw-semibold text-secondary d-flex align-items-center px-3"
+                                style="font-size: 0.85rem;"
                                 onclick="setTriageHistoryDateFilter('month')">เดือนนี้</button>
-                            <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary d-flex align-items-center px-3" 
-                                style="border-top-right-radius: 50rem; border-bottom-right-radius: 50rem; font-size: 0.85rem;" 
+                            <button type="button"
+                                class="btn btn-light bg-white border fw-semibold text-secondary d-flex align-items-center px-3"
+                                style="border-top-right-radius: 50rem; border-bottom-right-radius: 50rem; font-size: 0.85rem;"
                                 onclick="setTriageHistoryDateFilter('year')">ปีนี้</button>
                         </div>
 
                         <!-- แคปซูลเลือกช่วงวันที่ -->
-                        <div class="d-flex align-items-center bg-white border rounded-pill px-3 shadow-sm gap-2" style="height: 36px;">
+                        <div class="d-flex align-items-center bg-white border rounded-pill px-3 shadow-sm gap-2"
+                            style="height: 36px;">
                             <i class="bi bi-calendar-event text-primary" style="font-size: 0.95rem;"></i>
-                            <input type="date" id="triageHistoryStartDate" class="form-control border-0 p-0 bg-transparent shadow-none text-secondary fw-medium" 
-                                style="width: 110px; font-size: 0.85rem; cursor: pointer; outline: none;" onchange="loadTriageHistory()">
+                            <input type="date" id="triageHistoryStartDate"
+                                class="form-control border-0 p-0 bg-transparent shadow-none text-secondary fw-medium"
+                                style="width: 110px; font-size: 0.85rem; cursor: pointer; outline: none;"
+                                onchange="loadTriageHistory()">
                             <span class="text-muted small fw-bold" style="opacity: 0.3;">|</span>
-                            <input type="date" id="triageHistoryEndDate" class="form-control border-0 p-0 bg-transparent shadow-none text-secondary fw-medium" 
-                                style="width: 110px; font-size: 0.85rem; cursor: pointer; outline: none;" onchange="loadTriageHistory()">
+                            <input type="date" id="triageHistoryEndDate"
+                                class="form-control border-0 p-0 bg-transparent shadow-none text-secondary fw-medium"
+                                style="width: 110px; font-size: 0.85rem; cursor: pointer; outline: none;"
+                                onchange="loadTriageHistory()">
                         </div>
 
-                        <button class="btn btn-primary rounded-pill px-3 fw-semibold shadow-sm d-flex align-items-center" style="height: 36px; font-size: 0.85rem;" onclick="loadTriageHistory()">
+                        <button
+                            class="btn btn-primary rounded-pill px-3 fw-semibold shadow-sm d-flex align-items-center"
+                            style="height: 36px; font-size: 0.85rem;" onclick="loadTriageHistory()">
                             <i class="bi bi-search me-1"></i> ดึงข้อมูล
                         </button>
                     </div>
                 </div>
 
                 <!-- บังคับความสูงสูงสุดไม่เกิน 250px เพื่อให้พื้นที่ส่วนนี้น้อยกว่าส่วนบน -->
-                <div class="table-responsive table-container shadow-sm border" style="border-radius: 14px; background: white; max-height: 250px; overflow-y: auto;">
+                <div class="table-responsive table-container shadow-sm border"
+                    style="border-radius: 14px; background: white; max-height: 250px; overflow-y: auto;">
                     <table class="table table-modern align-middle" id="triageHistoryTable">
                         <thead>
-                            <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; color: #475569; font-size: 0.88rem;">
+                            <tr
+                                style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; color: #475569; font-size: 0.88rem;">
                                 <th class="ps-4" width="140">VISIT ID</th>
                                 <th width="120">เลข HN</th>
                                 <th width="200">ชื่อ-นามสกุล</th>
@@ -1003,10 +1057,10 @@
                         </tbody>
                     </table>
                 </div>
-                
+
                 <!-- พื้นที่แสดงปุ่มแบ่งหน้า (Pagination) -->
                 <div id="triageHistoryPagination" class="d-flex justify-content-center mt-3 mb-2"></div>
-                
+
             </div>
         </div>
 
@@ -1059,44 +1113,50 @@
 
                 <!-- แถบเครื่องมือ: ช่องค้นหา + เลือกวันที่ -->
                 <div class="d-flex flex-wrap align-items-center gap-2">
-                    
+
                     <!-- ช่องค้นหา (Search Box) -->
                     <div class="position-relative shadow-sm rounded-pill" style="min-width: 200px;">
-                        <span class="position-absolute text-muted" style="top: 50%; left: 14px; transform: translateY(-50%);">
+                        <span class="position-absolute text-muted"
+                            style="top: 50%; left: 14px; transform: translateY(-50%);">
                             <i class="bi bi-search"></i>
                         </span>
-                        <input type="text" id="searchPaymentInput" class="form-control border-0 bg-white rounded-pill ps-5 pe-3" 
-                            placeholder="ค้นหาชื่อ, HN, VIS-..." 
-                            style="font-size: 0.85rem; height: 36px;" onkeyup="filterPaymentTable()">
+                        <input type="text" id="searchPaymentInput"
+                            class="form-control border-0 bg-white rounded-pill ps-5 pe-3"
+                            placeholder="ค้นหาชื่อ, HN, VIS-..." style="font-size: 0.85rem; height: 36px;"
+                            onkeyup="filterPaymentTable()">
                     </div>
 
                     <!-- กลุ่มปุ่มเลือกเวลาด่วน -->
                     <div class="btn-group shadow-sm" role="group" style="height: 36px;">
-                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3" 
-                            style="border-top-left-radius: 50rem; border-bottom-left-radius: 50rem; font-size: 0.85rem;" 
+                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3"
+                            style="border-top-left-radius: 50rem; border-bottom-left-radius: 50rem; font-size: 0.85rem;"
                             onclick="setPaymentDateFilter('today')">วันนี้</button>
-                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3" 
-                            style="font-size: 0.85rem;" 
-                            onclick="setPaymentDateFilter('month')">เดือนนี้</button>
-                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3" 
-                            style="font-size: 0.85rem;" 
-                            onclick="setPaymentDateFilter('year')">ปีนี้</button>
-                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3" 
-                            style="border-top-right-radius: 50rem; border-bottom-right-radius: 50rem; font-size: 0.85rem;" 
+                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3"
+                            style="font-size: 0.85rem;" onclick="setPaymentDateFilter('month')">เดือนนี้</button>
+                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3"
+                            style="font-size: 0.85rem;" onclick="setPaymentDateFilter('year')">ปีนี้</button>
+                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3"
+                            style="border-top-right-radius: 50rem; border-bottom-right-radius: 50rem; font-size: 0.85rem;"
                             onclick="setPaymentDateFilter('all')">ทั้งหมด</button>
                     </div>
 
                     <!-- แคปซูลเลือกช่วงวันที่ -->
-                    <div class="d-flex align-items-center bg-white border rounded-pill px-3 shadow-sm gap-2" style="height: 36px;">
+                    <div class="d-flex align-items-center bg-white border rounded-pill px-3 shadow-sm gap-2"
+                        style="height: 36px;">
                         <i class="bi bi-calendar-event text-primary" style="font-size: 0.95rem;"></i>
-                        <input type="date" id="paymentStartDate" class="form-control border-0 p-0 bg-transparent shadow-none text-secondary fw-medium" 
-                            style="width: 110px; font-size: 0.85rem; cursor: pointer; outline: none;" onchange="filterPaymentTable()">
+                        <input type="date" id="paymentStartDate"
+                            class="form-control border-0 p-0 bg-transparent shadow-none text-secondary fw-medium"
+                            style="width: 110px; font-size: 0.85rem; cursor: pointer; outline: none;"
+                            onchange="filterPaymentTable()">
                         <span class="text-muted small fw-bold" style="opacity: 0.3;">|</span>
-                        <input type="date" id="paymentEndDate" class="form-control border-0 p-0 bg-transparent shadow-none text-secondary fw-medium" 
-                            style="width: 110px; font-size: 0.85rem; cursor: pointer; outline: none;" onchange="filterPaymentTable()">
+                        <input type="date" id="paymentEndDate"
+                            class="form-control border-0 p-0 bg-transparent shadow-none text-secondary fw-medium"
+                            style="width: 110px; font-size: 0.85rem; cursor: pointer; outline: none;"
+                            onchange="filterPaymentTable()">
                     </div>
 
-                    <button class="btn btn-primary rounded-pill px-3 fw-semibold shadow-sm" style="height: 36px; font-size: 0.85rem;" onclick="loadPaymentQueue()">
+                    <button class="btn btn-primary rounded-pill px-3 fw-semibold shadow-sm"
+                        style="height: 36px; font-size: 0.85rem;" onclick="loadPaymentQueue()">
                         <i class="bi bi-arrow-clockwise me-1"></i> รีเฟรช
                     </button>
                 </div>
@@ -1130,49 +1190,56 @@
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #09111c; font-family: 'Kanit', sans-serif;"><i
                             class="bi bi-virus text-primary me-2"></i><span data-i18n="lab_title">ห้อง Lab</span></h2>
-                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="lab_subtitle">อัปโหลดผล Lab (PDF, PNG, JPG)</p>
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="lab_subtitle">อัปโหลดผล Lab (PDF,
+                        PNG, JPG)</p>
                 </div>
-                
+
                 <!-- แถบเครื่องมือ: ช่องค้นหา + เลือกวันที่ -->
                 <div class="d-flex flex-wrap align-items-center gap-2">
-                    
+
                     <!-- ช่องค้นหา (Search Box) -->
                     <div class="position-relative shadow-sm rounded-pill" style="min-width: 200px;">
-                        <span class="position-absolute text-muted" style="top: 50%; left: 14px; transform: translateY(-50%);">
+                        <span class="position-absolute text-muted"
+                            style="top: 50%; left: 14px; transform: translateY(-50%);">
                             <i class="bi bi-search"></i>
                         </span>
-                        <input type="text" id="searchLabInput" class="form-control border-0 bg-white rounded-pill ps-5 pe-3" 
-                            placeholder="ค้นหาชื่อ, HN, VIS-..." 
-                            style="font-size: 0.85rem; height: 36px;" onkeyup="filterLabTable()">
+                        <input type="text" id="searchLabInput"
+                            class="form-control border-0 bg-white rounded-pill ps-5 pe-3"
+                            placeholder="ค้นหาชื่อ, HN, VIS-..." style="font-size: 0.85rem; height: 36px;"
+                            onkeyup="filterLabTable()">
                     </div>
 
                     <!-- กลุ่มปุ่มเลือกเวลาด่วน -->
                     <div class="btn-group shadow-sm" role="group" style="height: 36px;">
-                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3" 
-                            style="border-top-left-radius: 50rem; border-bottom-left-radius: 50rem; font-size: 0.85rem;" 
+                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3"
+                            style="border-top-left-radius: 50rem; border-bottom-left-radius: 50rem; font-size: 0.85rem;"
                             onclick="setLabDateFilter('today')">วันนี้</button>
-                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3" 
-                            style="font-size: 0.85rem;" 
-                            onclick="setLabDateFilter('month')">เดือนนี้</button>
-                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3" 
-                            style="font-size: 0.85rem;" 
-                            onclick="setLabDateFilter('year')">ปีนี้</button>
-                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3" 
-                            style="border-top-right-radius: 50rem; border-bottom-right-radius: 50rem; font-size: 0.85rem;" 
+                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3"
+                            style="font-size: 0.85rem;" onclick="setLabDateFilter('month')">เดือนนี้</button>
+                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3"
+                            style="font-size: 0.85rem;" onclick="setLabDateFilter('year')">ปีนี้</button>
+                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3"
+                            style="border-top-right-radius: 50rem; border-bottom-right-radius: 50rem; font-size: 0.85rem;"
                             onclick="setLabDateFilter('all')">ทั้งหมด</button>
                     </div>
 
                     <!-- แคปซูลเลือกช่วงวันที่ -->
-                    <div class="d-flex align-items-center bg-white border rounded-pill px-3 shadow-sm gap-2" style="height: 36px;">
+                    <div class="d-flex align-items-center bg-white border rounded-pill px-3 shadow-sm gap-2"
+                        style="height: 36px;">
                         <i class="bi bi-calendar-event text-primary" style="font-size: 0.95rem;"></i>
-                        <input type="date" id="labStartDate" class="form-control border-0 p-0 bg-transparent shadow-none text-secondary fw-medium" 
-                            style="width: 110px; font-size: 0.85rem; cursor: pointer; outline: none;" onchange="filterLabTable()">
+                        <input type="date" id="labStartDate"
+                            class="form-control border-0 p-0 bg-transparent shadow-none text-secondary fw-medium"
+                            style="width: 110px; font-size: 0.85rem; cursor: pointer; outline: none;"
+                            onchange="filterLabTable()">
                         <span class="text-muted small fw-bold" style="opacity: 0.3;">|</span>
-                        <input type="date" id="labEndDate" class="form-control border-0 p-0 bg-transparent shadow-none text-secondary fw-medium" 
-                            style="width: 110px; font-size: 0.85rem; cursor: pointer; outline: none;" onchange="filterLabTable()">
+                        <input type="date" id="labEndDate"
+                            class="form-control border-0 p-0 bg-transparent shadow-none text-secondary fw-medium"
+                            style="width: 110px; font-size: 0.85rem; cursor: pointer; outline: none;"
+                            onchange="filterLabTable()">
                     </div>
 
-                    <button class="btn btn-primary rounded-pill px-3 fw-semibold shadow-sm" style="height: 36px; font-size: 0.85rem;" onclick="loadLabQueue()">
+                    <button class="btn btn-primary rounded-pill px-3 fw-semibold shadow-sm"
+                        style="height: 36px; font-size: 0.85rem;" onclick="loadLabQueue()">
                         <i class="bi bi-arrow-clockwise me-1"></i> รีเฟรช
                     </button>
                 </div>
@@ -1238,13 +1305,16 @@
                             <th data-i18n="triage_th_visit">รหัส VISIT</th>
                             <th data-i18n="reg_hn">HN</th>
                             <th data-i18n="reg_name">ชื่อ-นามสกุล</th>
+                            <!-- 🌟 เพิ่มคอลัมน์ผู้แนะนำตรงนี้ -->
+                            <th data-i18n="queue_th_referrer">ผู้แนะนำ (ผู้ช่วย)</th>
                             <th width="280" data-i18n="queue_th_select_doctor">เลือกคุณหมอที่ต้องการส่งตรวจ</th>
                             <th class="text-center" data-i18n="actions">ดำเนินการ</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-5" data-i18n="queue_empty">
+                            <!-- 🌟 เปลี่ยน colspan จาก 6 เป็น 7 -->
+                            <td colspan="7" class="text-center text-muted py-5" data-i18n="queue_empty">
                                 ไม่มีรายการรอจัดคิว</td>
                         </tr>
                     </tbody>
@@ -1753,8 +1823,9 @@
                 </div>
                 <div class="d-flex gap-2 align-items-center flex-wrap">
                     <input type="text" id="searchHistoryInput" class="form-control custom-input py-2"
-                        placeholder="ค้นหา HN, ชื่อ, เบอร์โทร หรือ Visit ID..." data-i18n-placeholder="history_search_placeholder"
-                        style="width: 300px;" onkeyup="searchPatientHistory()">
+                        placeholder="ค้นหา HN, ชื่อ, เบอร์โทร หรือ Visit ID..."
+                        data-i18n-placeholder="history_search_placeholder" style="width: 300px;"
+                        onkeyup="searchPatientHistory()">
                     <button class="btn btn-outline-primary py-2 px-3 fw-semibold" onclick="loadPatientHistory()"><i
                             class="bi bi-arrow-clockwise me-1"></i> <span data-i18n="refresh">รีเฟรช</span></button>
                     <button class="btn btn-danger py-2 px-3 fw-bold shadow-sm" onclick="deleteAllHistoryVisits()"><i
@@ -3417,10 +3488,12 @@
                             </div>
                             <div class="col-md-4">
                                 <!-- 🌟 เพิ่มดอกจันสีแดงให้ดูรู้ว่าบังคับกรอก -->
-                                <label class="form-label fw-bold">วันที่นัดมาตรวจ <span class="text-danger">*</span></label>
-                                
+                                <label class="form-label fw-bold">วันที่นัดมาตรวจ <span
+                                        class="text-danger">*</span></label>
+
                                 <!-- 🌟 เพิ่มแอตทริบิวต์ required ไว้ด้านหลังสุด -->
-                                <input type="date" class="form-control custom-input" name="NextAppointmentDate" required>
+                                <input type="date" class="form-control custom-input" name="NextAppointmentDate"
+                                    required>
                             </div>
                         </div>
                         <div class="row mb-3">
@@ -3545,17 +3618,23 @@
                         <div class="mb-3 pb-3 border-bottom">
                             <div class="row g-2 text-secondary small" style="font-size: 0.85rem;">
                                 <div class="col-md-4">
-                                    <div class="mb-1">รหัส VISIT: <strong id="labVisitIdDisplay" class="text-primary fw-semibold">-</strong></div>
+                                    <div class="mb-1">รหัส VISIT: <strong id="labVisitIdDisplay"
+                                            class="text-primary fw-semibold">-</strong></div>
                                     <div>HN: <strong id="labHNDisplay" class="text-dark fw-bold">-</strong></div>
                                 </div>
                                 <div class="col-md-4">
-                                    <div class="mb-1">ชื่อ-นามสกุล: <strong id="labPatientName" class="text-dark fw-bold">-</strong></div>
-                                    <div>อายุ: <strong id="labPatientAge" class="text-dark fw-bold">-</strong> | ที่อยู่: <strong id="labPatientAddress" class="text-dark fw-bold">-</strong></div>
+                                    <div class="mb-1">ชื่อ-นามสกุล: <strong id="labPatientName"
+                                            class="text-dark fw-bold">-</strong></div>
+                                    <div>อายุ: <strong id="labPatientAge" class="text-dark fw-bold">-</strong> |
+                                        ที่อยู่: <strong id="labPatientAddress" class="text-dark fw-bold">-</strong>
+                                    </div>
                                 </div>
                                 <div class="col-md-4">
                                     <div class="p-2 bg-light rounded border border-danger-subtle">
-                                        <div class="text-danger fw-bold mb-1"><i class="bi bi-heart-pulse-fill me-1"></i>สัญญาณชีพ</div>
-                                        <div id="labPatientVitals" class="text-dark" style="font-size: 0.8rem;">ความดัน: -, นน.: - กก., อุณหภูมิ: -°C</div>
+                                        <div class="text-danger fw-bold mb-1"><i
+                                                class="bi bi-heart-pulse-fill me-1"></i>สัญญาณชีพ</div>
+                                        <div id="labPatientVitals" class="text-dark" style="font-size: 0.8rem;">ความดัน:
+                                            -, นน.: - กก., อุณหภูมิ: -°C</div>
                                     </div>
                                 </div>
                             </div>
@@ -3737,14 +3816,21 @@
                                 <span class="text-secondary opacity-50">|</span>
                                 <span>คนไข้: <strong id="rxPatientNameDisplay" class="text-dark ms-1">-</strong></span>
                                 <span class="text-secondary opacity-50">|</span>
-                                <span><i class="bi bi-telephone-fill text-success me-1"></i>เบอร์โทร: <strong id="rxPatientPhoneDisplay" class="text-dark ms-1">-</strong></span>
+                                <span><i class="bi bi-telephone-fill text-success me-1"></i>เบอร์โทร: <strong
+                                        id="rxPatientPhoneDisplay" class="text-dark ms-1">-</strong></span>
                             </div>
                             <div class="small text-muted d-flex align-items-center flex-wrap gap-2 mt-0.5">
-                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2.5 py-1 fw-semibold" style="font-size: 0.82rem;">
-                                    <i class="bi bi-heart-pulse-fill me-1"></i>อาการเบื้องต้น: <span id="rxPatientSymptomDisplay" class="fw-bold ms-1">-</span>
+                                <span
+                                    class="badge bg-danger-subtle text-danger border border-danger-subtle px-2.5 py-1 fw-semibold"
+                                    style="font-size: 0.82rem;">
+                                    <i class="bi bi-heart-pulse-fill me-1"></i>อาการเบื้องต้น: <span
+                                        id="rxPatientSymptomDisplay" class="fw-bold ms-1">-</span>
                                 </span>
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1 fw-medium" style="font-size: 0.82rem;">
-                                    <i class="ph ph-user-gear me-1"></i>ผู้ดูแล: <strong id="rxAssistantDisplay" class="fw-bold ms-1">L03709 - MS CHERRY LOUANGPHAN</strong>
+                                <span
+                                    class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1 fw-medium"
+                                    style="font-size: 0.82rem;">
+                                    <i class="ph ph-user-gear me-1"></i>ผู้ดูแล: <strong id="rxAssistantDisplay"
+                                        class="fw-bold ms-1">L03709 - MS CHERRY LOUANGPHAN</strong>
                                 </span>
                             </div>
                         </div>
@@ -3753,71 +3839,85 @@
                     </div>
 
                     <!-- กล่องแสดงหมายเหตุ / ข้อเน้นย้ำจากแพทย์ (Lab Note) -->
-                    <div id="rxDoctorLabNoteBox" class="alert alert-warning py-2.5 px-3 mb-3 border-warning border d-flex align-items-start gap-2 shadow-xs rounded-3" style="display: none; font-size: 0.88rem; background-color: #fffbeb;">
+                    <div id="rxDoctorLabNoteBox"
+                        class="alert alert-warning py-2.5 px-3 mb-3 border-warning border d-flex align-items-start gap-2 shadow-xs rounded-3"
+                        style="display: none; font-size: 0.88rem; background-color: #fffbeb;">
                         <i class="bi bi-exclamation-triangle-fill text-warning fs-5 mt-0.5"></i>
                         <div class="w-100">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <strong class="text-dark d-flex align-items-center gap-1.5" style="font-size: 0.88rem;">
-                                    <i class="bi bi-pencil-square text-primary"></i> หมายเหตุ / ข้อเน้นย้ำจากแพทย์ (Lab Note):
+                                    <i class="bi bi-pencil-square text-primary"></i> ໝາຍເຫດ /ໍ ຂໍ້ແນະນຳຈາກແພດ (Lab
+                                    Note):
                                 </strong>
-                                <span class="badge bg-warning text-dark px-2 py-0.5 rounded-pill" style="font-size: 0.72rem;">ข้อความจากห้องตรวจ</span>
+                                <span class="badge bg-warning text-dark px-2 py-0.5 rounded-pill"
+                                    style="font-size: 0.72rem;">ข้อความจากห้องตรวจ</span>
                             </div>
-                            <div id="rxDoctorLabNoteText" class="text-dark fw-medium" style="white-space: pre-wrap; line-height: 1.5; color: #1e293b;">-</div>
+                            <div id="rxDoctorLabNoteText" class="text-dark fw-medium"
+                                style="white-space: pre-wrap; line-height: 1.5; color: #1e293b;">-</div>
                         </div>
                     </div>
 
-                    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-                        <h6 class="fw-bold mb-0"><i
-                                class="bi bi-capsule-pill text-primary me-1"></i>รายการสั่งจ่ายยา/อาหารเสริม</h6>
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <h6 class="fw-bold mb-0 text-dark" style="font-size: 1rem;"><i
+                                class="bi bi-capsule-pill text-primary me-2 fs-5"></i>ລາຍການຈ່າຍຢາ</h6>
                         <!-- ปุ่มเลือกคลังสินค้า (Clinic Stock vs MLM Inventory Stock) -->
-                        <div class="btn-group btn-group-sm" role="group" id="rxStockSourceGroup">
-                            <button type="button" class="btn btn-primary active px-3 fw-bold" id="btnSourceClinic"
-                                onclick="setRxStockSource('clinic', this)">
-                                <i class="bi bi-prescription2 me-1"></i> ยาในคลัง (คลังยา)
+                        <div class="btn-group shadow-xs" role="group" id="rxStockSourceGroup">
+                            <button type="button" class="btn btn-primary active px-3.5 py-2 fw-bold"
+                                id="btnSourceClinic" onclick="setRxStockSource('clinic', this)"
+                                style="font-size: 0.92rem; height: 40px;">
+                                <i class="bi bi-prescription2 me-1"></i> ຢາຫຼວງ
                             </button>
-                            <button type="button" class="btn btn-outline-primary px-3 fw-bold" id="btnSourceMlm"
-                                onclick="setRxStockSource('mlm', this)">
-                                <i class="bi bi-box-seam-fill me-1"></i> คลังสินค้า (STK Groupe / MLM)
+                            <button type="button" class="btn btn-outline-primary px-3.5 py-2 fw-bold" id="btnSourceMlm"
+                                onclick="setRxStockSource('mlm', this)" style="font-size: 0.92rem; height: 40px;">
+                                <i class="bi bi-box-seam-fill me-1"></i> ອາຫານເສີມ
                             </button>
-                            <button type="button" class="btn btn-outline-secondary px-2" id="btnSourceAll"
-                                onclick="setRxStockSource('all', this)">
+                            <button type="button" class="btn btn-outline-secondary px-3 py-2 fw-semibold"
+                                id="btnSourceAll" onclick="setRxStockSource('all', this)"
+                                style="font-size: 0.92rem; height: 40px;">
                                 ทั้งหมด
                             </button>
                         </div>
                     </div>
-                    <div class="row g-2 mb-3">
+                    <div class="row g-2 mb-3 align-items-center">
                         <!-- ตัวกรองหมวดหมู่ -->
-                        <div class="col-md-3">
-                            <select id="rxCategorySelect" class="form-select custom-input"
-                                onchange="filterMedsByCategory()">
-                                <option value="all">ทุกหมวดหมู่ (All)</option>
-                                <option value="ยา">💊 ยารักษาโรค (Medicines)</option>
-                                <option value="อาหารเสริม">🍃 อาหารเสริม (Supplements)</option>
+                        <div class="col-md-2">
+                            <select id="rxCategorySelect" class="form-select custom-input fw-medium"
+                                onchange="filterMedsByCategory()"
+                                style="height: 42px; font-size: 0.88rem; border-radius: 8px;">
+                                <option value="all">ທັງໝົດ</option>
+                                <option value="ยา">ຢາຫຼວງ</option>
+                                <option value="อาหารเสริม">ອາຫານເສີມ</option>
                             </select>
                         </div>
-                        <!-- ดร็อปดาวน์เลือกยา -->
-                        <div class="col-md-5">
-                            <select id="rxMedSelect" class="form-select custom-input" onchange="onMedSelectChange()">
-                                <option value="">-- เลือกรายการยา/อาหารเสริม --</option>
-                            </select>
+                        <!-- ดร็อปดาวน์เลือกยา (ค้นหาและพิมพ์ได้) -->
+                        <div class="col-md-4">
+                            <input type="text" id="rxMedSelect" class="form-control custom-input" list="rxMedOptions"
+                                placeholder="-- พิมพ์ค้นหา หรือ เลือกรายการ --" onchange="onMedSelectChange()"
+                                autocomplete="off" style="height: 42px; font-size: 0.88rem; border-radius: 8px;">
+                            <datalist id="rxMedOptions"></datalist>
                         </div>
                         <!-- เลือกประเภทราคา -->
-                        <div class="col-md-2">
-                            <select id="rxPriceTierSelect" class="form-select custom-input">
+                        <div class="col-md-3">
+                            <select id="rxPriceTierSelect" class="form-select custom-input fw-medium"
+                                style="height: 42px; font-size: 0.88rem; border-radius: 8px;">
                                 <option value="normal">ราคาปกติ</option>
                                 <option value="promo">ราคาโปร</option>
-                                <option value="high">ราคาส่ง/สมาชิก</option>
+                                <option value="high">สมาชิก</option>
                                 <option value="free">แถมฟรี</option>
                             </select>
                         </div>
                         <!-- ระบุจำนวน -->
                         <div class="col-md-1">
-                            <input type="number" id="rxMedQty" class="form-control custom-input" value="1" min="1">
+                            <input type="number" id="rxMedQty" class="form-control custom-input text-center fw-bold"
+                                value="1" min="1" style="height: 42px; font-size: 0.92rem; border-radius: 8px;">
                         </div>
                         <!-- ปุ่มเพิ่ม -->
-                        <div class="col-md-1">
-                            <button type="button" class="btn btn-primary w-100 h-100 p-0" onclick="addMedToRx()"><i
-                                    class="bi bi-plus-lg"></i></button>
+                        <div class="col-md-2">
+                            <button type="button"
+                                class="btn btn-primary w-100 fw-bold px-2 d-flex align-items-center justify-content-center gap-1 shadow-sm"
+                                onclick="addMedToRx()" style="height: 42px; font-size: 0.9rem; border-radius: 8px;">
+                                <i class="bi bi-plus-lg"></i> ເພີ່ມລາຍຍການ
+                            </button>
                         </div>
                     </div>
                     <div class="table-responsive border rounded mb-4" style="max-height: 180px;">
@@ -3834,7 +3934,7 @@
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td colspan="6" class="text-center text-muted py-3">ยังไม่มีรายการยา/อาหารเสริม</td>
+                                    <td colspan="6" class="text-center text-muted py-3">ກະລຸນາເລືອກລາຍການ</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -4773,8 +4873,13 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="../config.js"></script>
-    <script src="function.js?v=2.4.0"></script>
+    <script src="config.js"></script>
+    <script>
+        if (typeof CONFIG === 'undefined') {
+            document.write('<script src="../config.js"><\/script>');
+        }
+    </script>
+    <script src="function.js?v=2.7.0"></script>
 
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
     <script>

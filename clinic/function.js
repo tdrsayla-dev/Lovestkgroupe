@@ -1711,8 +1711,34 @@ async function completeDoctorCheck(visitId) {
 }
 
 async function loadQueueList() {
-    const tbody = document.querySelector('#queueTable tbody');
+    const table = document.querySelector('#queueTable');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
     if (!tbody) return;
+
+    // 🌟 บังคับอัปเดตหัวตาราง (thead) ให้แน่ใจว่ามีคอลัมน์ผู้แนะนำ (7 คอลัมน์) ตรงตามคอลัมน์ข้อมูลเสมอ
+    const thead = table.querySelector('thead');
+    if (thead) {
+        const currentLang = window.currentLang || localStorage.getItem('clinic_lang') || 'la';
+        const thReferrerText = (currentLang === 'th') ? 'ผู้แนะนำ (ผู้ช่วย)' : (currentLang === 'en' ? 'Referrer / Assistant' : 'ຜູ້ແນະນຳ (ຜູ້ຊ່ວຍ)');
+        const thVisitText = (currentLang === 'th') ? 'รหัส VISIT' : (currentLang === 'en' ? 'VISIT Code' : 'ລະຫັດ VISIT');
+        const thHnText = (currentLang === 'th') ? 'เลข HN' : (currentLang === 'en' ? 'HN' : 'ເລກ HN');
+        const thNameText = (currentLang === 'th') ? 'ชื่อ-นามสกุล' : (currentLang === 'en' ? 'Full Name' : 'ຊື່-ນາມສະກຸນ');
+        const thDocText = (currentLang === 'th') ? 'เลือกคุณหมอที่ต้องการส่งตรวจ' : (currentLang === 'en' ? 'Select Doctor' : 'ເລືອກທ່ານໝໍທີ່ຕ້ອງການສົ່ງກວດ');
+        const thActionText = (currentLang === 'th') ? 'ดำเนินการ' : (currentLang === 'en' ? 'Action' : 'ການຈັດການ');
+
+        thead.innerHTML = `
+            <tr>
+                <th class="ps-4 text-center" style="width: 60px;">ลำดับ</th>
+                <th data-i18n="triage_th_visit">${thVisitText}</th>
+                <th data-i18n="reg_hn">${thHnText}</th>
+                <th data-i18n="reg_name">${thNameText}</th>
+                <th data-i18n="queue_th_referrer">${thReferrerText}</th>
+                <th width="260" data-i18n="queue_th_select_doctor">${thDocText}</th>
+                <th class="text-center" data-i18n="actions">${thActionText}</th>
+            </tr>
+        `;
+    }
 
     // 1. ดึงข้อมูลผู้ป่วยที่เกี่ยวข้องกับหน้าจัดคิวทั้งหมด
     const queueRes = await _supabase
@@ -1747,15 +1773,36 @@ async function loadQueueList() {
 
     tbody.innerHTML = '';
     if (queueRes.error) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-5">เกิดข้อผิดพลาด: ${queueRes.error.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-5">เกิดข้อผิดพลาด: ${queueRes.error.message}</td></tr>`;
         return;
     }
 
     const queue = queueRes.data;
 
     if (!queue || queue.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">ไม่มีรายการรอจัดคิว</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-5">ไม่มีรายการรอจัดคิว</td></tr>';
         return;
+    }
+
+    // 🌟 ดึงข้อมูลผู้แนะนำ (referred_by) จากตาราง patients โดยตรงสำหรับทุก HN ในคิว
+    const queueHns = (queue || []).map(q => q.hn).filter(Boolean);
+    let patientReferrerMapFromDb = {};
+    if (queueHns.length > 0) {
+        try {
+            const { data: patData } = await _supabase
+                .from('patients')
+                .select('hn, referred_by')
+                .in('hn', queueHns);
+            if (patData) {
+                patData.forEach(p => {
+                    if (p.hn && p.referred_by) {
+                        patientReferrerMapFromDb[p.hn] = p.referred_by;
+                    }
+                });
+            }
+        } catch (e) {
+            console.warn('Error fetching patient referrers in queue:', e);
+        }
     }
 
     // ดึงข้อมูลการเข้าตรวจที่กำลังดำเนินการอยู่เพื่อตรวจสอบสถานะแพทย์ในเวลาจริง (Real-Time Doctor Status)
@@ -1835,11 +1882,48 @@ async function loadQueueList() {
             `;
         }
 
+        // 🌟 เพิ่มลอจิกดึงข้อมูลผู้แนะนำ / ผู้ช่วย (Referrer / Assistant) ให้แสดงทั้ง รหัส และ ชื่อ
+        let refId = row.referred_by || row.assistant_code || patientReferrerMapFromDb[row.hn];
+        if (!refId || refId === '-' || refId === 'undefined' || refId === 'null') {
+            refId = (window.hnReferrerMap && window.hnReferrerMap[row.hn])
+                || (window.patientReferrersMap && window.patientReferrersMap[row.hn])
+                || (window.nameReferrerMap && window.nameReferrerMap[row.patient_name])
+                || (window.appointmentReferrersMap && row.appointment_id && window.appointmentReferrersMap[row.appointment_id]);
+        }
+        if ((!refId || refId === '-') && window.allPatients && row.hn) {
+            const pat = window.allPatients.find(p => p.hn === row.hn);
+            if (pat && pat.referred_by) {
+                refId = pat.referred_by;
+            }
+        }
+
+        let referrerName = '-';
+        if (refId && refId !== '-' && refId !== 'undefined' && refId !== 'null') {
+            const refObj = (window.referrersData || []).find(r => r.id === refId || r.code === refId || r.name === refId);
+            const staffObj = (window.allStaffUsers || window.defaultTeamStaffUsers || []).find(s => s.emp_code === refId || s.id === refId || s.full_name === refId);
+
+            if (refObj) {
+                const codeText = refObj.code || refObj.id;
+                referrerName = (codeText && codeText !== refObj.name) ? `${codeText} - ${refObj.name}` : refObj.name;
+            } else if (staffObj) {
+                const codeText = staffObj.emp_code;
+                referrerName = (codeText && codeText !== staffObj.full_name) ? `${codeText} - ${staffObj.full_name}` : staffObj.full_name;
+            } else {
+                referrerName = refId;
+            }
+        }
+
+        // ตกแต่งป้ายผู้แนะนำให้สวยงาม
+        let referrerHtml = referrerName !== '-' 
+            ? `<span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1"><i class="ph ph-hand-coins me-1"></i>${referrerName}</span>` 
+            : `<span class="text-muted small">-</span>`;
+
         tbody.innerHTML += `<tr>
         <td class="ps-4 py-3 text-center fw-semibold text-secondary">${idx + 1}</td>
         <td class="py-3 fw-bold text-primary">${row.visit_id}</td>
         <td class="py-3">${row.hn}</td>
         <td class="py-3 fw-bold text-dark">${row.patient_name}</td>
+        <td class="py-3">${referrerHtml}</td>
         ${actionColumnHtml}
       </tr>`;
     });
@@ -2045,12 +2129,12 @@ function filterMedsByCategory() {
 }
 
 function onMedSelectChange() {
-    const medSelect = document.getElementById('rxMedSelect');
+    const select = document.getElementById('rxMedSelect');
     const tierSelect = document.getElementById('rxPriceTierSelect');
-    if (!medSelect || !tierSelect) return;
+    if (!select || !tierSelect) return;
 
-    const val = medSelect.value;
-    if (!val) {
+    const rawVal = select.value;
+    if (!rawVal) {
         tierSelect.innerHTML = `
             <option value="normal">ราคาปกติ</option>
             <option value="promo">ราคาโปร</option>
@@ -2060,36 +2144,41 @@ function onMedSelectChange() {
         return;
     }
 
-    const parts = val.split(':');
-    const itemSource = parts.length > 1 ? parts[0] : (val.startsWith('P') || val.startsWith('PRO') ? 'mlm' : 'clinic');
-    const medId = parts.length > 1 ? parts[1] : parts[0];
+    // 🌟 จุดที่แก้ไข: ตัดเอาเฉพาะ "รหัส" ที่อยู่ด้านหน้าสุดมาใช้ค้นหา
+    const medId = rawVal.split(' - ')[0].trim();
 
     let med = null;
-    if (itemSource === 'mlm') {
-        med = (window.allMlmProducts || []).find(m => m.id === medId || m.product_id === medId);
+    let itemSource = 'clinic';
+
+    // ค้นหาในคลัง MLM ก่อน ถ้าไม่เจอค่อยไปหาในคลังคลินิก
+    med = (window.allMlmProducts || []).find(m => m.id === medId || m.product_id === medId);
+    if (med) {
+        itemSource = 'mlm';
     } else {
         med = (window.allMedicines || []).find(m => m.id === medId);
+        itemSource = 'clinic';
     }
 
     if (!med) return;
+
+    // ดักจับการเลือกสินค้าที่หมดสต็อก
+    if (med.stock <= 0) {
+        Swal.fire('แจ้งเตือน', 'รายการนี้สต็อกหมด ไม่สามารถเลือกได้ครับ', 'warning');
+        select.value = ''; 
+        return;
+    }
 
     const priceNormal = parseFloat(med.price_normal || med.price_full || med.price || 0);
     const pricePromo = parseFloat(med.price_promo || 0);
     const priceHigh = parseFloat(med.price_high || med.price_member || 0);
 
-    let optionsHtml = `
-        <option value="normal">ราคาปกติ (${priceNormal.toLocaleString()}฿)</option>
-    `;
-    if (pricePromo > 0) {
-        optionsHtml += `<option value="promo">ราคาโปร (${pricePromo.toLocaleString()}฿)</option>`;
-    } else {
-        optionsHtml += `<option value="promo">ราคาโปร (${priceNormal.toLocaleString()}฿)</option>`;
-    }
-    if (priceHigh > 0) {
-        optionsHtml += `<option value="high">ราคาส่ง/สมาชิก (${priceHigh.toLocaleString()}฿)</option>`;
-    } else {
-        optionsHtml += `<option value="high">ราคาส่ง/สมาชิก (${priceNormal.toLocaleString()}฿)</option>`;
-    }
+    let optionsHtml = `<option value="normal">ราคาปกติ (${priceNormal.toLocaleString()}฿)</option>`;
+    if (pricePromo > 0) optionsHtml += `<option value="promo">ราคาโปร (${pricePromo.toLocaleString()}฿)</option>`;
+    else optionsHtml += `<option value="promo">ราคาโปร (${priceNormal.toLocaleString()}฿)</option>`;
+    
+    if (priceHigh > 0) optionsHtml += `<option value="high">ราคาส่ง/สมาชิก (${priceHigh.toLocaleString()}฿)</option>`;
+    else optionsHtml += `<option value="high">ราคาส่ง/สมาชิก (${priceNormal.toLocaleString()}฿)</option>`;
+    
     optionsHtml += `<option value="free">แถมฟรี (0฿)</option>`;
 
     tierSelect.innerHTML = optionsHtml;
@@ -6816,6 +6905,7 @@ function filterMedsByCategory() {
 // ฟังก์ชันสร้างตัวเลือกรายการยา/อาหารเสริมใน Dropdown (พร้อมโชว์ Stock)
 function populateRxMedDropdown() {
     const select = document.getElementById('rxMedSelect');
+    const dataList = document.getElementById('rxMedOptions'); 
     const catSelect = document.getElementById('rxCategorySelect');
     if (!select) return;
 
@@ -6824,91 +6914,56 @@ function populateRxMedDropdown() {
 
     let items = [];
 
-    // 1. ดึงข้อมูลจากคลังยา คลินิก (Clinic Stock)
+    // ดึงข้อมูลคลังยาคลินิก
     if (source === 'clinic' || source === 'all') {
         const clinicItems = (window.allMedicines || []).map(m => ({
-            id: m.id,
-            name: m.name,
-            type: m.type || 'ยา',
-            stock: m.stock || 0,
-            price_normal: m.price_normal || m.price || 0,
-            price_promo: m.price_promo || 0,
-            price_high: m.price_high || 0,
-            source: 'clinic',
-            sourceLabel: 'คลังยา'
+            id: m.id, name: m.name, type: m.type || 'ยา',
+            stock: m.stock || 0, price_normal: m.price_normal || m.price || 0,
+            price_promo: m.price_promo || 0, price_high: m.price_high || 0,
+            source: 'clinic', sourceLabel: 'คลังยา'
         }));
         items = items.concat(clinicItems);
     }
 
-    // 2. ดึงข้อมูลจากคลังสินค้า MLM / STK Groupe (stk_products)
+    // ดึงข้อมูลคลังสินค้า MLM
     if (source === 'mlm' || source === 'all') {
-        if (!window.allMlmProducts || window.allMlmProducts.length === 0) {
-            loadMlmProducts();
-        }
-
+        if (!window.allMlmProducts || window.allMlmProducts.length === 0) loadMlmProducts();
         const mlmItems = (window.allMlmProducts || []).map(p => ({
-            id: p.id,
-            name: p.name,
-            type: p.type || 'อาหารเสริม',
-            stock: p.stock || 0,
-            price_normal: p.price_normal || 0,
-            price_promo: p.price_promo || 0,
-            price_high: p.price_high || 0,
-            status: p.status || 'ใช้งาน',
-            source: 'mlm',
-            sourceLabel: 'STK MLM'
+            id: p.id, name: p.name, type: p.type || 'อาหารเสริม',
+            stock: p.stock || 0, price_normal: p.price_normal || 0,
+            price_promo: p.price_promo || 0, price_high: p.price_high || 0,
+            status: p.status || 'ใช้งาน', source: 'mlm', sourceLabel: 'STK MLM'
         }));
         items = items.concat(mlmItems);
     }
 
-    // กรองหมวดหมู่สินค้าด้วยความยืดหยุ่น (Smart Category Matching)
+    // กรองหมวดหมู่
     let filteredItems = items;
     if (category !== 'all') {
         filteredItems = items.filter(i => {
             const itemType = (i.type || '').toLowerCase();
-            if (category === 'ยา') {
-                return itemType === 'ยา' || itemType.includes('med');
-            } else if (category === 'อาหารเสริม') {
-                return itemType.includes('อาหารเสริม') || itemType.includes('supplement') || itemType.includes('cosmetic') || itemType.includes('coffee');
-            }
+            if (category === 'ยา') return itemType === 'ยา' || itemType.includes('med');
+            else if (category === 'อาหารเสริม') return itemType.includes('อาหารเสริม') || itemType.includes('supplement') || itemType.includes('cosmetic') || itemType.includes('coffee');
             return itemType.includes(category.toLowerCase());
         });
-
-        // กรณีเลือกคลัง MLM แต่หมวดหมู่อยู่ที่ "ยา" แล้ว filteredItems ว่าง ให้ fallback แสดงสินค้าทั้งหมดของคลังนั้น
-        if (filteredItems.length === 0 && items.length > 0) {
-            filteredItems = items;
-        }
+        if (filteredItems.length === 0 && items.length > 0) filteredItems = items;
     }
 
-    let html = '<option value="">-- เลือกรายการยา/สินค้า --</option>';
+    let html = '';
+    filteredItems.forEach(item => {
+        const isOutOfStock = item.stock <= 0;
+        const stockText = isOutOfStock ? 'หมด (Out of Stock)' : `คงเหลือ: ${item.stock}`;
+        const disableAttr = isOutOfStock ? 'disabled' : '';
+        
+        // 🌟 จุดที่แก้ไข: ใช้รูปแบบ "รหัส - ชื่อ" เพื่อให้ดูสะอาดตา
+        html += `<option value="${item.id} - ${item.name}" ${disableAttr}>${stockText}</option>`;
+    });
 
-    if (source === 'all') {
-        const clinicGroup = filteredItems.filter(i => i.source === 'clinic');
-        const mlmGroup = filteredItems.filter(i => i.source === 'mlm');
-        if (clinicGroup.length > 0) {
-            html += '<optgroup label="💊 ยาในคลัง (คลังยาคลินิก)">';
-            clinicGroup.forEach(i => {
-                // เพิ่มการแสดงผลจำนวนคงเหลือตรงนี้
-                html += `<option value="${i.source}:${i.id}">${i.id} - ${i.name} (คงเหลือ: ${i.stock})</option>`;
-            });
-            html += '</optgroup>';
-        }
-        if (mlmGroup.length > 0) {
-            html += '<optgroup label="📦 คลังสินค้า (STK Groupe / MLM)">';
-            mlmGroup.forEach(i => {
-                // เพิ่มการแสดงผลจำนวนคงเหลือตรงนี้
-                html += `<option value="${i.source}:${i.id}">${i.id} - ${i.name} (คงเหลือ: ${i.stock})</option>`;
-            });
-            html += '</optgroup>';
-        }
-    } else {
-        filteredItems.forEach(item => {
-            // เพิ่มการแสดงผลจำนวนคงเหลือตรงนี้
-            html += `<option value="${item.source}:${item.id}">${item.id} - ${item.name} (คงเหลือ: ${item.stock})</option>`;
-        });
+    if (dataList) {
+        dataList.innerHTML = html;
+    } else if (select.tagName === 'SELECT') {
+        select.innerHTML = '<option value="">-- เลือกรายการยา/สินค้า --</option>' + html;
     }
-
-    select.innerHTML = html;
 }
 
 async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds = null, refillBatchTag = null) {
@@ -7148,33 +7203,43 @@ function addMedToRx() {
     const tierSelect = document.getElementById('rxPriceTierSelect');
     if (!select || !select.value || !tierSelect) return;
 
-    const val = select.value;
-    const parts = val.split(':');
-    const itemSource = parts.length > 1 ? parts[0] : 'clinic';
-    const medId = parts.length > 1 ? parts[1] : parts[0];
+    const rawVal = select.value;
+    
+    // 🌟 จุดที่แก้ไข: ตัดเอาเฉพาะ "รหัส" ที่อยู่ด้านหน้าสุดมาใช้ค้นหา
+    const medId = rawVal.split(' - ')[0].trim();
 
     const qty = parseInt(qtyInput.value) || 1;
     const selectedTier = tierSelect.value;
 
     let medDetails = null;
-    if (itemSource === 'mlm') {
-        medDetails = (window.allMlmProducts || []).find(m => m.id === medId);
+    let itemSource = 'clinic';
+
+    // ค้นหาในคลัง MLM ก่อน ถ้าไม่เจอค่อยไปหาในคลังคลินิก
+    medDetails = (window.allMlmProducts || []).find(m => m.id === medId || m.product_id === medId);
+    if (medDetails) {
+        itemSource = 'mlm';
     } else {
         medDetails = (window.allMedicines || []).find(m => m.id === medId);
+        itemSource = 'clinic';
     }
 
     if (!medDetails) return;
 
+    // ดักจับการเพิ่มสินค้าที่หมดสต็อก
+    if (medDetails.stock <= 0) {
+        Swal.fire('แจ้งเตือน', 'รายการนี้สต็อกหมด ไม่สามารถสั่งจ่ายได้', 'warning');
+        return;
+    }
+
     const medName = medDetails.name;
     const sourceLabel = itemSource === 'mlm' ? 'STK MLM' : 'คลังยา';
 
-    // เลือกราคาสินค้าตามประเภทโปรโมชั่น/สมาชิกที่แพทย์เลือก
     let medPrice = 0;
     let tierLabel = '';
 
+    // จัดการประเภทราคา
     if (selectedTier === 'normal') {
         medPrice = medDetails.price_normal || medDetails.price || 0;
-        tierLabel = ''; // ราคาปกติไม่ต้องต่อชื่อท้าย
     } else if (selectedTier === 'promo') {
         medPrice = medDetails.price_promo || 0;
         tierLabel = ' (โปร)';
@@ -7187,24 +7252,22 @@ function addMedToRx() {
     }
 
     const displayName = medName + tierLabel;
-
-    // ตรวจหาไอเท็มที่มี ID, ประเภทราคา และคลังต้นทางตรงกัน
+    
+    // ตรวจสอบว่ามีรายการนี้ในบิลแล้วหรือไม่
     const existing = window.currentRxMeds.find(m => m.id === medId && m.tier === selectedTier && m.source === itemSource);
     if (existing) {
         existing.qty += qty;
     } else {
         window.currentRxMeds.push({
-            id: medId,
-            name: displayName,
-            price: medPrice,
-            qty: qty,
-            tier: selectedTier,
-            source: itemSource,
-            sourceLabel: sourceLabel
+            id: medId, name: displayName, price: medPrice,
+            qty: qty, tier: selectedTier, source: itemSource, sourceLabel: sourceLabel
         });
     }
 
     renderRxMedsTable();
+    
+    // เคลียร์ช่องค้นหาให้ว่าง เพื่อเตรียมพิมพ์รายการต่อไป
+    select.value = '';
 }
 
 function removeMedFromRx(index) { window.currentRxMeds.splice(index, 1); renderRxMedsTable(); }

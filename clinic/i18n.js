@@ -163,6 +163,7 @@ const CLINIC_I18N_DICTIONARY = {
         queue_subtitle: "ບໍລິຫານຄິວແພດ ແລະ ອັບເດດສະຖານະການກວດແບບเรียลไທມ໌",
         queue_inner_header: "ລາຍຊື່ຄິວລໍຖ້າສົ່ງໃຫ້ທ່ານໝໍອ່ານຜົນ",
         queue_th_select_doctor: "ເລືອກທ່ານໝໍທີ່ຕ້ອງການສົ່ງກວດ",
+        queue_th_referrer: "ຜູ້ແນະນຳ (ຜູ້ຊ່ວຍ)",
         queue_empty: "ບໍ່ມີລາຍການລໍຖ້າຈັດຄິວ",
 
         // Prescription Review (ອ່ານຜົນ/ຈັດຢາ)
@@ -492,6 +493,7 @@ const CLINIC_I18N_DICTIONARY = {
         queue_subtitle: "บริหารคิวแพทย์และอัปเดตสถานะการตรวจแบบเรียลไทม์",
         queue_inner_header: "รายชื่อคิวรอส่งให้คุณหมออ่านผล",
         queue_th_select_doctor: "เลือกคุณหมอที่ต้องการส่งตรวจ",
+        queue_th_referrer: "ผู้แนะนำ (ผู้ช่วย)",
         queue_empty: "ไม่มีรายการรอจัดคิว",
 
         // Prescription Review (อ่านผล/จัดยา)
@@ -820,6 +822,7 @@ const CLINIC_I18N_DICTIONARY = {
         queue_subtitle: "Manage doctor queues and real-time exam status",
         queue_inner_header: "Queue list waiting for doctor review",
         queue_th_select_doctor: "Select Doctor to Assign",
+        queue_th_referrer: "Referrer / Assistant",
         queue_empty: "No patients waiting in queue",
 
         // Prescription Review (อ่านผล/จัดยา)
