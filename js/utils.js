@@ -483,7 +483,7 @@ function renderAttendanceCalendar(year, month, logs, targetEmpId) {
 }
 
 const BRANCHES = [
-    { id: 'B1', name: 'HQ Branch (Main)', lat: 17.9604167, lng: 102.6424722, radius: 20 },
+    { id: 'B1', name: 'HQ Branch (Main)', lat: 17.9604167, lng: 102.6424722, radius: 40 },
     { id: 'B2', name: 'Branch 2', lat: 17.96075, lng: 102.6438056, radius: 90 }
 ];
 
