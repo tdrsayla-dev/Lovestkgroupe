@@ -1710,6 +1710,34 @@ async function completeDoctorCheck(visitId) {
     }
 }
 
+// 🌟 ฟังก์ชันกำหนดช่วงวันที่ด่วนในหน้าจัดคิว (วันนี้ / เดือนนี้ / ปีนี้ / ทั้งหมด)
+window.setQueueDateFilter = function (mode) {
+    const startInput = document.getElementById('queueStartDate');
+    const endInput = document.getElementById('queueEndDate');
+    const now = new Date();
+
+    if (mode === 'today') {
+        const todayStr = now.toISOString().slice(0, 10);
+        if (startInput) startInput.value = todayStr;
+        if (endInput) endInput.value = todayStr;
+    } else if (mode === 'month') {
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+        if (startInput) startInput.value = firstDay;
+        if (endInput) endInput.value = lastDay;
+    } else if (mode === 'year') {
+        const firstDay = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+        const lastDay = new Date(now.getFullYear(), 11, 31).toISOString().slice(0, 10);
+        if (startInput) startInput.value = firstDay;
+        if (endInput) endInput.value = lastDay;
+    } else if (mode === 'all') {
+        if (startInput) startInput.value = '';
+        if (endInput) endInput.value = '';
+    }
+
+    if (typeof loadQueueList === 'function') loadQueueList();
+};
+
 async function loadQueueList() {
     const table = document.querySelector('#queueTable');
     if (!table) return;
@@ -1740,12 +1768,27 @@ async function loadQueueList() {
         `;
     }
 
-    // 1. ดึงข้อมูลผู้ป่วยที่เกี่ยวข้องกับหน้าจัดคิวทั้งหมด
-    const queueRes = await _supabase
+    // 1. ดึงข้อมูลผู้ป่วยที่เกี่ยวข้องกับหน้าจัดคิวตามช่วงวันที่
+    const startDate = document.getElementById('queueStartDate')?.value;
+    const endDate = document.getElementById('queueEndDate')?.value;
+
+    let queueQuery = _supabase
         .from('visits')
         .select('*')
-        .in('status', ['รอจัดคิว', 'รออ่านผล', 'กำลังคุยกับแพทย์'])
-        .order('created_at', { ascending: true });
+        .in('status', ['รอจัดคิว', 'รออ่านผล', 'กำลังคุยกับแพทย์']);
+
+    if (startDate) {
+        const startIso = new Date(startDate + 'T00:00:00').toISOString();
+        queueQuery = queueQuery.gte('created_at', startIso);
+    }
+    if (endDate) {
+        const endIso = new Date(endDate + 'T23:59:59.999').toISOString();
+        queueQuery = queueQuery.lte('created_at', endIso);
+    }
+
+    queueQuery = queueQuery.order('created_at', { ascending: true });
+
+    const queueRes = await queueQuery;
 
     // ดึงข้อมูลแพทย์จาก staff_users หรือ staff
     let doctors = [];
@@ -4667,11 +4710,7 @@ function exportBillsExcel() {
 }
 window.exportBillsExcel = exportBillsExcel;
 
-// Export PDF สำรอง (เรียก print)
-function exportBillsPDF() {
-    printBillsReport();
-}
-window.exportBillsPDF = exportBillsPDF;
+// Export PDF จะถูกประกาศพร้อมกับ printBillsReport ด้านล่าง
 
 // =====================================
 // การบันทึกและส่งข้อมูล
@@ -5882,6 +5921,16 @@ async function loadPaymentQueue() {
     const tbody = document.querySelector('#paymentTable tbody');
     if (!tbody) return;
 
+    // 🌟 ตั้งค่าเริ่มต้นช่วงวันที่ในหน้าจ่ายค่ารักษาให้เป็นวันปัจจุบันก่อน (Default to Today)
+    const startInput = document.getElementById('paymentStartDate');
+    const endInput = document.getElementById('paymentEndDate');
+    if (startInput && endInput && !startInput.value && !endInput.value && !window._paymentDateInitialized) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        startInput.value = todayStr;
+        endInput.value = todayStr;
+        window._paymentDateInitialized = true;
+    }
+
     tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูล...</td></tr>';
 
     // ดึงคนที่มาก่อน (คิวเก่า) ขึ้นก่อน
@@ -6975,10 +7024,12 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
     if (!visitRow && window.allQueueData) visitRow = window.allQueueData.find(v => v.visit_id === visitId);
     if (!visitRow && window.clinicVisits) visitRow = window.clinicVisits.find(v => v.visit_id === visitId);
 
-    if ((!visitRow || visitRow.lab_note === undefined) && typeof _supabase !== 'undefined') {
+    if ((!visitRow || visitRow.bp === undefined || visitRow.lab_note === undefined) && typeof _supabase !== 'undefined') {
         try {
             const { data } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
-            if (data) visitRow = data;
+            if (data) {
+                visitRow = visitRow ? { ...visitRow, ...data } : data;
+            }
         } catch (e) { }
     }
 
@@ -7027,6 +7078,42 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
 
     const symptomEl = document.getElementById('rxPatientSymptomDisplay');
     if (symptomEl) symptomEl.innerText = patientSymptom || '-';
+
+    // 🌟 ดึงและแสดงข้อมูลจุดคัดกรอง / สัญญาณชีพ (Screening Vitals: BP, Temp, Pulse, Weight, Height, BMI, SpO2)
+    const vitalsEl = document.getElementById('rxVitalsDisplay');
+    if (vitalsEl) {
+        let vitalsBadges = [];
+        if (visitRow) {
+            if (visitRow.bp) {
+                vitalsBadges.push(`<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 fw-semibold" style="font-size: 0.8rem;" title="ความดันโลหิต"><i class="bi bi-activity me-1"></i>ความดัน: <strong class="ms-0.5">${visitRow.bp}</strong> mmHg</span>`);
+            }
+            if (visitRow.temp) {
+                vitalsBadges.push(`<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1 fw-semibold" style="font-size: 0.8rem;" title="อุณหภูมิร่างกาย"><i class="bi bi-thermometer-half me-1"></i>อุณหภูมิ: <strong class="ms-0.5">${visitRow.temp}</strong> °C</span>`);
+            }
+            if (visitRow.pulse) {
+                vitalsBadges.push(`<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fw-semibold" style="font-size: 0.8rem;" title="อัตราการเต้นของหัวใจ/ชีพจร"><i class="bi bi-heart-fill me-1"></i>ชีพจร: <strong class="ms-0.5">${visitRow.pulse}</strong> bpm</span>`);
+            }
+            if (visitRow.weight) {
+                vitalsBadges.push(`<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle px-2 py-1 fw-semibold" style="font-size: 0.8rem;" title="น้ำหนัก"><i class="bi bi-speedometer2 me-1"></i>นน.: <strong class="ms-0.5">${visitRow.weight}</strong> kg</span>`);
+            }
+            if (visitRow.height) {
+                vitalsBadges.push(`<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1 fw-semibold" style="font-size: 0.8rem;" title="ส่วนสูง"><i class="bi bi-ruler me-1"></i>สส.: <strong class="ms-0.5">${visitRow.height}</strong> cm</span>`);
+            }
+            if (visitRow.bmi) {
+                vitalsBadges.push(`<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 fw-semibold" style="font-size: 0.8rem;" title="ดัชนีมวลกาย BMI"><i class="bi bi-calculator me-1"></i>BMI: <strong class="ms-0.5">${visitRow.bmi}</strong></span>`);
+            }
+            if (visitRow.spo2) {
+                vitalsBadges.push(`<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 fw-semibold" style="font-size: 0.8rem;" title="ออกซิเจนในเลือด SpO2"><i class="bi bi-lungs me-1"></i>SpO2: <strong class="ms-0.5">${visitRow.spo2}</strong>%</span>`);
+            }
+        }
+        if (vitalsBadges.length > 0) {
+            vitalsEl.innerHTML = vitalsBadges.join(' ');
+            vitalsEl.style.display = 'flex';
+        } else {
+            vitalsEl.innerHTML = '';
+            vitalsEl.style.display = 'none';
+        }
+    }
 
     // Query เบอร์โทรจาก Supabase เสริมกรณีไม่มีใน memory
     if (patientPhone === '-' && (hn || patientName) && typeof _supabase !== 'undefined') {
@@ -9172,27 +9259,69 @@ window.completeDispensing = async function (visitId) {
 };
 
 // =====================================
-// ระบบประวัติการเข้าตรวจผู้ป่วย (Patient History) - รองรับ Search + Pagination
+// ระบบประวัติการเข้าตรวจผู้ป่วย (Patient History) - รองรับ Search + Date Filter + Pagination
 // =====================================
 
 window.allHistoryVisits = []; // ข้อมูลทั้งหมดจากฐานข้อมูล
-window.historyFilteredData = []; // ข้อมูลที่ผ่านการค้นหา
+window.historyFilteredData = []; // ข้อมูลที่ผ่านการค้นหาและกรองวันที่
 window.historyCurrentPage = 1;
 const HISTORY_PER_PAGE = 10; // กำหนด 10 รายการต่อหน้า
+
+// 🌟 ฟังก์ชันกำหนดช่วงวันที่ด่วนในหน้าประวัติผู้ป่วย (วันนี้ / เดือนนี้ / ปีนี้ / ทั้งหมด)
+window.setHistoryDateFilter = function (mode) {
+    const startInput = document.getElementById('historyStartDate');
+    const endInput = document.getElementById('historyEndDate');
+    const now = new Date();
+
+    if (mode === 'today') {
+        const todayStr = now.toISOString().slice(0, 10);
+        if (startInput) startInput.value = todayStr;
+        if (endInput) endInput.value = todayStr;
+    } else if (mode === 'month') {
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+        if (startInput) startInput.value = firstDay;
+        if (endInput) endInput.value = lastDay;
+    } else if (mode === 'year') {
+        const firstDay = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+        const lastDay = new Date(now.getFullYear(), 11, 31).toISOString().slice(0, 10);
+        if (startInput) startInput.value = firstDay;
+        if (endInput) endInput.value = lastDay;
+    } else if (mode === 'all') {
+        if (startInput) startInput.value = '';
+        if (endInput) endInput.value = '';
+    }
+
+    if (typeof loadPatientHistory === 'function') loadPatientHistory();
+};
 
 // 1. ฟังก์ชันโหลดข้อมูลประวัติจากฐานข้อมูล
 window.loadPatientHistory = async function () {
     const tbody = document.querySelector('#historyTable tbody');
     if (!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูลประวัติ...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูลประวัติ...</td></tr>';
+
+    const startDate = document.getElementById('historyStartDate')?.value;
+    const endDate = document.getElementById('historyEndDate')?.value;
 
     try {
         if (typeof _supabase !== 'undefined') {
-            const { data, error } = await _supabase
+            let query = _supabase
                 .from('visits')
                 .select('*')
                 .order('created_at', { ascending: false });
+
+            if (startDate) {
+                const startIso = new Date(startDate + 'T00:00:00').toISOString();
+                query = query.gte('created_at', startIso);
+            }
+            if (endDate) {
+                const endIso = new Date(endDate + 'T23:59:59.999').toISOString();
+                query = query.lte('created_at', endIso);
+            }
+
+            const { data, error } = await query;
 
             if (data && !error) {
                 let rows = data;
@@ -9241,28 +9370,35 @@ window.loadPatientHistory = async function () {
 window.searchPatientHistory = function () {
     const q = (document.getElementById('searchHistoryInput')?.value || '').toLowerCase().trim();
     const cleanQ = q.replace(/[-\s]/g, '');
+    const startDate = document.getElementById('historyStartDate')?.value;
+    const endDate = document.getElementById('historyEndDate')?.value;
 
     if (!window.allHistoryVisits) return;
 
-    if (!q) {
-        window.historyFilteredData = [...window.allHistoryVisits];
-    } else {
-        window.historyFilteredData = window.allHistoryVisits.filter(row => {
-            const hn = (row.hn || '').toLowerCase();
-            const name = (row.patient_name || '').toLowerCase();
-            const visitId = (row.visit_id || '').toLowerCase();
-            const phone = (row.phone || row.tel || row.emergency_tel || '').toLowerCase();
-            const cleanPhone = phone.replace(/[-\s]/g, '');
-            const symptom = (row.symptom || row.reason || '').toLowerCase();
+    window.historyFilteredData = window.allHistoryVisits.filter(row => {
+        // กรองตามช่วงวันที่ (Date Filter)
+        if (startDate || endDate) {
+            const rowDateStr = (row.created_at || row.updated_at || '').slice(0, 10);
+            if (startDate && rowDateStr < startDate) return false;
+            if (endDate && rowDateStr > endDate) return false;
+        }
 
-            return hn.includes(q) ||
-                name.includes(q) ||
-                visitId.includes(q) ||
-                symptom.includes(q) ||
-                (phone && phone.includes(q)) ||
-                (cleanPhone && cleanPhone.includes(cleanQ));
-        });
-    }
+        if (!q) return true;
+
+        const hn = (row.hn || '').toLowerCase();
+        const name = (row.patient_name || '').toLowerCase();
+        const visitId = (row.visit_id || '').toLowerCase();
+        const phone = (row.phone || row.tel || row.emergency_tel || '').toLowerCase();
+        const cleanPhone = phone.replace(/[-\s]/g, '');
+        const symptom = (row.symptom || row.reason || '').toLowerCase();
+
+        return hn.includes(q) ||
+            name.includes(q) ||
+            visitId.includes(q) ||
+            symptom.includes(q) ||
+            (phone && phone.includes(q)) ||
+            (cleanPhone && cleanPhone.includes(cleanQ));
+    });
 
     window.historyCurrentPage = 1; // รีเซ็ตหน้ากลับไปที่ 1 เสมอเมื่อค้นหา
     renderHistoryTable();
@@ -12306,6 +12442,161 @@ function setCommLogPeriodFilter(mode) {
     renderCommissionLogsTable();
 }
 
+window.selectedCommLogIds = window.selectedCommLogIds || new Set();
+
+function toggleSelectAllCommLogs(masterCb) {
+    const checkboxes = document.querySelectorAll('.comm-log-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = masterCb.checked;
+        if (masterCb.checked) {
+            window.selectedCommLogIds.add(String(cb.value));
+        } else {
+            window.selectedCommLogIds.delete(String(cb.value));
+        }
+    });
+    updateCommLogSelectState();
+}
+
+function onCommLogCheckboxChange(id, checked) {
+    if (checked) {
+        window.selectedCommLogIds.add(String(id));
+    } else {
+        window.selectedCommLogIds.delete(String(id));
+    }
+    updateCommLogSelectState();
+}
+
+function updateCommLogSelectState() {
+    const checkboxes = document.querySelectorAll('.comm-log-checkbox');
+    const master = document.getElementById('selectAllCommLogs');
+    const countEl = document.getElementById('selectedCommCount');
+    const batchBtn = document.getElementById('btnBatchPayoutCommLogs');
+
+    let checkedCount = 0;
+    checkboxes.forEach(cb => {
+        if (cb.checked) checkedCount++;
+    });
+
+    if (master) {
+        master.checked = (checkboxes.length > 0 && checkedCount > 0 && checkedCount === checkboxes.length);
+        master.indeterminate = (checkedCount > 0 && checkedCount < checkboxes.length);
+    }
+
+    const selectedSize = window.selectedCommLogIds ? window.selectedCommLogIds.size : 0;
+    if (countEl) countEl.textContent = selectedSize;
+
+    if (batchBtn) {
+        if (selectedSize > 0) {
+            batchBtn.classList.remove('d-none');
+            batchBtn.classList.add('d-flex');
+        } else {
+            batchBtn.classList.add('d-none');
+            batchBtn.classList.remove('d-flex');
+        }
+    }
+}
+
+async function batchPayoutCommissionLogs() {
+    if (!window.selectedCommLogIds || window.selectedCommLogIds.size === 0) {
+        Swal.fire('ข้อผิดพลาด', 'โปรดเลือกรายการเงินปันผลที่ต้องการจ่ายเงินก่อน', 'warning');
+        return;
+    }
+
+    const selectedIds = Array.from(window.selectedCommLogIds);
+    const pendingLogs = (window.commissionLogs || []).filter(l => selectedIds.includes(String(l.id)) && l.status === 'pending');
+
+    if (pendingLogs.length === 0) {
+        Swal.fire('แจ้งเตือน', 'รายการที่เลือกทั้งหมดมีสถานะจ่ายเงินเรียบร้อยแล้ว', 'info');
+        return;
+    }
+
+    let totalBatchAmount = 0;
+    pendingLogs.forEach(l => {
+        const b = l.base_amount !== undefined ? parseFloat(l.base_amount) : parseFloat(l.amount || 0);
+        const i = parseFloat(l.item_amount || 0);
+        totalBatchAmount += (b + i);
+    });
+
+    const { value: formValues } = await Swal.fire({
+        title: '<h5 class="fw-bold mb-0 text-success"><i class="ph ph-hand-coins me-2"></i>อนุมัติจ่ายเงินปันผลที่เลือก (' + pendingLogs.length + ' รายการ)</h5>',
+        html: `
+            <div class="text-start p-2" style="font-size: 0.9rem;">
+                <div class="p-3 bg-light rounded-3 border mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">จำนวนรายการรอจ่าย:</span>
+                        <strong class="text-dark">${pendingLogs.length} รายการ</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mt-2 pt-1 border-top">
+                        <span class="fw-bold text-dark fs-6">ยอดรวมปันผลจ่ายสุทธิ:</span>
+                        <strong class="text-success fs-5">${formatCommissionAmount(totalBatchAmount)}</strong>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold small text-secondary">ช่องทางการจ่ายเงิน</label>
+                    <select id="swalBatchPayoutMethod" class="form-select custom-input py-2">
+                        <option value="โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)">โอนเงินผ่านธนาคาร</option>
+                        <option value="เงินสด">เงินสด</option>
+                        <option value="เช็ค / อื่นๆ">เช็ค / อื่นๆ</option>
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label fw-bold small text-secondary">เลขที่อ้างอิง / สลิปโอนเงิน (ถ้ามี)</label>
+                    <input type="text" id="swalBatchPayoutRef" class="form-control custom-input py-2" placeholder="เช่น BATCH-${Date.now().toString().slice(-6)}">
+                </div>
+            </div>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: '<i class="bi bi-check-circle-fill me-1"></i> ยืนยันอนุมัติจ่ายเงิน',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#10b981',
+        preConfirm: () => {
+            const method = document.getElementById('swalBatchPayoutMethod').value;
+            const ref = document.getElementById('swalBatchPayoutRef').value.trim() || 'อนุมัติจ่ายแล้ว (แบบกลุ่ม)';
+            return { method, ref };
+        }
+    });
+
+    if (formValues) {
+        const nowIso = new Date().toISOString();
+        for (const log of pendingLogs) {
+            log.status = 'paid';
+            log.paid_at = nowIso;
+            log.payout_method = formValues.method;
+            log.payout_ref = formValues.ref;
+
+            try {
+                if (typeof _supabase !== 'undefined') {
+                    await _supabase.from('commission_logs').update({
+                        status: 'paid',
+                        paid_at: log.paid_at,
+                        payout_method: formValues.method,
+                        payout_ref: formValues.ref
+                    }).eq('id', log.id);
+                }
+            } catch (e) {
+                console.warn('Supabase log batch payout update fallback');
+            }
+        }
+
+        saveReferralLocalData();
+        window.selectedCommLogIds.clear();
+
+        updateReferralSummaryCards();
+        renderCommissionLogsTable();
+        renderReferrersTable();
+
+        Swal.fire({
+            icon: 'success',
+            title: 'อนุมัติจ่ายเงินปันผลเรียบร้อย!',
+            text: `ทำการจ่ายเงินปันผลจำนวน ${pendingLogs.length} รายการ เรียบร้อยแล้ว`,
+            confirmButtonColor: '#003f88'
+        });
+    }
+}
+window.batchPayoutCommissionLogs = batchPayoutCommissionLogs;
+
 function renderCommissionLogsTable() {
     const tbody = document.querySelector('#commissionLogsTable tbody');
     if (!tbody) return;
@@ -12322,6 +12613,21 @@ function renderCommissionLogsTable() {
     tbody.innerHTML = '';
 
     let logs = [...window.commissionLogs];
+
+    // Filter out logs for visits that are currently unpaid at Cashier
+    const unpaidVisitIds = new Set();
+    const allVis = (window.clinicVisits || []).concat(window.allPaymentQueue || []);
+    allVis.forEach(v => {
+        const vId = v.visit_id || v.id;
+        const vStatus = (v.status || '').trim();
+        if (vId && vStatus === 'รอชำระเงิน' && v.payment_status !== 'paid' && !v.bill_id) {
+            unpaidVisitIds.add(vId);
+        }
+    });
+
+    if (unpaidVisitIds.size > 0) {
+        logs = logs.filter(l => !l.visit_id || !unpaidVisitIds.has(l.visit_id));
+    }
 
     // 1. Filter by Status
     if (filterStatus !== 'all') {
@@ -12402,7 +12708,7 @@ function renderCommissionLogsTable() {
     let totalItemSum = 0;
 
     if (logs.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-5">ไม่มีประวัติรายการเงินปันผล/คอมมิชชั่น</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" class="text-center text-muted py-5">ไม่มีประวัติรายการเงินปันผล/คอมมิชชั่น</td></tr>';
     } else {
         logs.forEach((l, index) => {
             let dateStr = l.created_at ? new Date(l.created_at).toLocaleDateString('th-TH') : '-';
@@ -12430,9 +12736,15 @@ function renderCommissionLogsTable() {
             let itemText = formatCommissionAmount(itemVal);
             let totalText = formatCommissionAmount(totalVal);
 
+            let isChecked = window.selectedCommLogIds.has(String(l.id));
+            let checkAttr = isChecked ? 'checked' : '';
+
             tbody.innerHTML += `
                 <tr class="${l.status === 'pending' ? 'table-warning-subtle fw-semibold' : ''}">
-                    <td class="ps-4 fw-bold text-muted" style="width: 50px;">${index + 1}</td>
+                    <td class="text-center ps-3" style="width: 40px;">
+                        <input type="checkbox" class="form-check-input comm-log-checkbox" value="${l.id}" ${checkAttr} onchange="onCommLogCheckboxChange('${l.id}', this.checked)">
+                    </td>
+                    <td class="ps-2 fw-bold text-muted" style="width: 50px;">${index + 1}</td>
                     <td class="small text-muted">${dateStr}</td>
                     <td class="fw-bold text-dark">${l.referrer_name || '-'}</td>
                     <td class="fw-medium">${l.patient_name || '-'} ${bonusBadge}</td>
@@ -12463,6 +12775,8 @@ function renderCommissionLogsTable() {
     if (document.getElementById('commFooterBase')) document.getElementById('commFooterBase').textContent = formatCommissionAmount(totalBaseSum);
     if (document.getElementById('commFooterItem')) document.getElementById('commFooterItem').textContent = formatCommissionAmount(totalItemSum);
     if (document.getElementById('commFooterTotal')) document.getElementById('commFooterTotal').textContent = formatCommissionAmount(totalCombinedSum);
+
+    updateCommLogSelectState();
 }
 
 window.allEmployeesData = [
@@ -13822,6 +14136,22 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
 
     if (!visitRecord) return;
 
+    // 🛑 CRITICAL CHECK: Visit MUST be PAID! Skip if status is 'รอชำระเงิน' (Waiting for payment)
+    const vStatus = (visitRecord.status || '').trim();
+    const isPaidStatus = (
+        visitRecord.payment_status === 'paid' ||
+        vStatus === 'รอผลแล็บ' ||
+        vStatus === 'ทำรายการสำเร็จ' ||
+        vStatus === 'สำเร็จ' ||
+        vStatus === 'ชำระแล้ว' ||
+        !!visitRecord.bill_id ||
+        (Array.isArray(window.clinicBills) && window.clinicBills.some(b => b.visit_id === visitId))
+    );
+
+    if (!isPaidStatus && vStatus === 'รอชำระเงิน') {
+        return;
+    }
+
     // ตรวจสอบว่าเคยสร้าง Log สำหรับ visitId นี้แล้วหรือยัง เพื่อป้องกันการคำนวณซ้ำ
     window.commissionLogs = window.commissionLogs || [];
     const existingLog = window.commissionLogs.find(l => l.visit_id === visitId);
@@ -13964,9 +14294,12 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
     );
 
     if (itemModeEnabled) {
-        const itemSettings = JSON.parse(localStorage.getItem('hr_item_commission_settings') || '{}');
-        let itemList = [];
+        let itemSettings = JSON.parse(localStorage.getItem('hr_item_commission_settings') || '{}');
+        if (Object.keys(itemSettings).length === 0 && window.allCommissionItemSettings) {
+            itemSettings = window.allCommissionItemSettings;
+        }
 
+        let itemList = [];
         if (Array.isArray(visitRecord.items)) itemList = itemList.concat(visitRecord.items);
         if (Array.isArray(visitRecord.services)) itemList = itemList.concat(visitRecord.services);
         if (Array.isArray(visitRecord.lab_orders)) itemList = itemList.concat(visitRecord.lab_orders);
@@ -13975,7 +14308,10 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
         if (currentLabTests && typeof currentLabTests === 'string') {
             const labArr = currentLabTests.split(',').map(s => s.trim()).filter(Boolean);
             labArr.forEach(labName => {
-                itemList.push({ name: labName, id: labName });
+                const exists = itemList.some(it => String(it.name || it.title || it.id || '').trim().toLowerCase() === labName.toLowerCase());
+                if (!exists) {
+                    itemList.push({ name: labName, id: labName });
+                }
             });
         }
 
@@ -13986,26 +14322,41 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
             const qty = parseFloat(item.qty || item.quantity || 1);
 
             let matchedVal = null;
-            // 1. ตรวจสอบตรงกับคีย์ใน itemSettings (ทั้งแบบมีและไม่มี item_ prefix)
-            if (itemSettings[cleanItemId] !== undefined) {
+            // 1. Check direct keys in itemSettings
+            if (itemSettings[cleanItemId] !== undefined && parseFloat(itemSettings[cleanItemId]) > 0) {
                 matchedVal = parseFloat(itemSettings[cleanItemId]);
-            } else if (itemSettings['item_' + cleanItemId] !== undefined) {
+            } else if (itemSettings['item_' + cleanItemId] !== undefined && parseFloat(itemSettings['item_' + cleanItemId]) > 0) {
                 matchedVal = parseFloat(itemSettings['item_' + cleanItemId]);
-            } else if (itemSettings[rawItemId] !== undefined) {
+            } else if (itemSettings[rawItemId] !== undefined && parseFloat(itemSettings[rawItemId]) > 0) {
                 matchedVal = parseFloat(itemSettings[rawItemId]);
+            } else if (itemSettings[itemName] !== undefined && parseFloat(itemSettings[itemName]) > 0) {
+                matchedVal = parseFloat(itemSettings[itemName]);
             } else {
-                // 2. ค้นหาในฐานข้อมูลรายการตรวจทั้งหมด (allServicesData / services)
-                const allSvc = window.allServicesData || JSON.parse(localStorage.getItem('clinic_services_packages') || '[]') || window.servicesData || [];
-                const foundSvc = allSvc.find(s =>
-                    String(s.name || '').trim().toLowerCase() === itemName.toLowerCase() ||
-                    String(s.id || '').trim().toLowerCase() === cleanItemId.toLowerCase()
+                // 2. Case-insensitive key lookup in itemSettings
+                const foundKey = Object.keys(itemSettings).find(k =>
+                    k.trim().toLowerCase() === itemName.toLowerCase() ||
+                    k.trim().toLowerCase() === cleanItemId.toLowerCase() ||
+                    k.trim().toLowerCase() === ('item_' + cleanItemId).toLowerCase()
                 );
-                if (foundSvc) {
-                    const sId = String(foundSvc.id).replace(/^item_/, '');
-                    if (itemSettings[sId] !== undefined) {
-                        matchedVal = parseFloat(itemSettings[sId]);
-                    } else if (itemSettings['item_' + sId] !== undefined) {
-                        matchedVal = parseFloat(itemSettings['item_' + sId]);
+
+                if (foundKey && parseFloat(itemSettings[foundKey]) > 0) {
+                    matchedVal = parseFloat(itemSettings[foundKey]);
+                } else {
+                    // 3. Search in catalog (allServicesData / servicesData)
+                    const allSvc = window.allServicesData || JSON.parse(localStorage.getItem('clinic_services_packages') || '[]') || window.servicesData || [];
+                    const foundSvc = allSvc.find(s =>
+                        String(s.name || '').trim().toLowerCase() === itemName.toLowerCase() ||
+                        String(s.id || '').trim().toLowerCase() === cleanItemId.toLowerCase()
+                    );
+                    if (foundSvc) {
+                        const sId = String(foundSvc.id).replace(/^item_/, '');
+                        if (itemSettings[sId] !== undefined && parseFloat(itemSettings[sId]) > 0) {
+                            matchedVal = parseFloat(itemSettings[sId]);
+                        } else if (itemSettings['item_' + sId] !== undefined && parseFloat(itemSettings['item_' + sId]) > 0) {
+                            matchedVal = parseFloat(itemSettings['item_' + sId]);
+                        } else if (foundSvc.name && itemSettings[foundSvc.name.trim()] !== undefined && parseFloat(itemSettings[foundSvc.name.trim()]) > 0) {
+                            matchedVal = parseFloat(itemSettings[foundSvc.name.trim()]);
+                        }
                     }
                 }
             }
@@ -14018,10 +14369,10 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
         });
     }
 
-    // ยอดรวมปันผลสุทธิ = ภาพรวม + รายรายการบวกเพิ่ม
+    // Net dividend = Overall + Item-based
     commAmount = (isOverallActive ? overallComm : 0) + (itemModeEnabled ? itemCommSum : 0);
 
-    // 🌟 หากปิดทั้ง 2 สวิตช์ หรือยอดปันผลรวมเป็น 0 ให้ข้ามการบันทึก Log ปันผล
+    // 🌟 If no matching item with dividend in table 4 (or total dividend is 0), skip creating dividend log
     if ((!isOverallActive && !itemModeEnabled) || commAmount <= 0) {
         return;
     }
@@ -14114,6 +14465,19 @@ async function syncAllVisitsCommissionLogs() {
     for (const v of visits) {
         const vId = v.visit_id || v.id;
         if (vId && existingVisitIds.has(vId)) continue;
+
+        // 🛑 Skip unpaid visits waiting for payment at Cashier
+        const vStatus = (v.status || '').trim();
+        const isPaidStatus = (
+            v.payment_status === 'paid' ||
+            vStatus === 'รอผลแล็บ' ||
+            vStatus === 'ทำรายการสำเร็จ' ||
+            vStatus === 'สำเร็จ' ||
+            vStatus === 'ชำระแล้ว' ||
+            !!v.bill_id ||
+            (Array.isArray(window.clinicBills) && window.clinicBills.some(b => b.visit_id === vId))
+        );
+        if (!isPaidStatus && vStatus === 'รอชำระเงิน') continue;
 
         let p = null;
         if (v.hn && patientMap[v.hn]) {
@@ -15593,9 +15957,6 @@ async function loadBills(forceReload = false) {
         }
     });
 
-    // เรียงลำดับจากใหม่สุดไปเก่าสุด
-    billsList.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-
     window.allBillsData = billsList;
     window.clinicBills = billsList;
     if (typeof window.safeSetLocalStorage === 'function') {
@@ -15604,6 +15965,32 @@ async function loadBills(forceReload = false) {
     renderBillsTable();
 }
 window.loadBills = loadBills;
+
+async function refreshBills(btn) {
+    let icon = btn ? btn.querySelector('i') : null;
+    if (icon) {
+        icon.style.transition = 'transform 0.5s ease';
+        icon.style.transform = 'rotate(360deg)';
+    }
+    await loadBills(true);
+    if (icon) {
+        setTimeout(() => {
+            icon.style.transform = 'rotate(0deg)';
+            icon.style.transition = 'none';
+        }, 500);
+    }
+    if (typeof Swal !== 'undefined') {
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 1500,
+            timerProgressBar: true
+        });
+        Toast.fire({ icon: 'success', title: 'รีเฟรชข้อมูลใบเสร็จเรียบร้อย' });
+    }
+}
+window.refreshBills = refreshBills;
 
 function setBillDateFilter(type) {
     const startInput = document.getElementById('billStartDate');
@@ -16456,18 +16843,7 @@ function exportBillsExcel() {
 }
 window.exportBillsExcel = exportBillsExcel;
 
-function exportBillsPDF() {
-    printBillsReport();
-}
-window.exportBillsPDF = exportBillsPDF;
-
-function printBillsReport() {
-    const bills = getFilteredBillsData();
-    if (!bills || bills.length === 0) {
-        Swal.fire({ icon: 'warning', title: 'ไม่มีข้อมูล', text: 'ไม่พบข้อมูลใบเสร็จสำหรับพิมพ์รายงาน' });
-        return;
-    }
-
+function generateBillsReportHtmlContent(bills) {
     const startVal = document.getElementById('billStartDate')?.value || 'ทั้งหมด';
     const endVal = document.getElementById('billEndDate')?.value || 'ทั้งหมด';
     const printDate = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -16478,115 +16854,194 @@ function printBillsReport() {
     let grandCash = 0;
     let grandTransfer = 0;
 
-    const rowsHtml = bills.map((b, idx) => {
-        const labItems = (Array.isArray(b.items) ? b.items : []).filter(i => i.type !== 'med');
-        const itemNames = labItems.map(i => i.name).join(', ') || '-';
+    const fmtNum = (val) => {
+        const n = parseFloat(val);
+        return isNaN(n) ? '0' : n.toLocaleString();
+    };
+
+    const rowsHtml = (bills || []).map((b, idx) => {
+        if (!b) return '';
+        const labItems = (Array.isArray(b.items) ? b.items : []).filter(i => i && i.type !== 'med');
+        const itemNames = labItems.map(i => i.name || '').filter(Boolean).join(', ') || '-';
 
         let splitInfo = { subtotal: 0, discount: 0, payable: 0, cashAmount: 0, transferAmount: 0 };
         if (typeof parseBillPaymentSplit === 'function') {
-            splitInfo = parseBillPaymentSplit(b);
-        } else {
-            const subtotal = parseFloat(b.subtotal || 0);
-            const discount = parseFloat(b.discount || 0);
+            try {
+                const parsed = parseBillPaymentSplit(b);
+                if (parsed) {
+                    splitInfo = {
+                        subtotal: parseFloat(parsed.subtotal || 0) || 0,
+                        discount: parseFloat(parsed.discount || 0) || 0,
+                        payable: parseFloat(parsed.payable || 0) || 0,
+                        cashAmount: parseFloat(parsed.cashAmount || 0) || 0,
+                        transferAmount: parseFloat(parsed.transferAmount || 0) || 0
+                    };
+                }
+            } catch (e) {
+                console.warn('Error parsing bill payment split:', e);
+            }
+        }
+        
+        if (!splitInfo.subtotal && !splitInfo.payable) {
+            const subtotal = parseFloat(b.subtotal || 0) || 0;
+            const discount = parseFloat(b.discount || 0) || 0;
             splitInfo = {
                 subtotal: subtotal,
                 discount: discount,
-                payable: parseFloat(b.payable_amount || (subtotal - discount)),
-                cashAmount: parseFloat(b.cash_lak || 0),
-                transferAmount: parseFloat(b.transfer_lak || 0)
+                payable: parseFloat(b.payable_amount || (subtotal - discount)) || 0,
+                cashAmount: parseFloat(b.cash_lak || 0) || 0,
+                transferAmount: parseFloat(b.transfer_lak || 0) || 0
             };
         }
 
-        grandSubtotal += splitInfo.subtotal;
-        grandDiscount += splitInfo.discount;
-        grandPayable += splitInfo.payable;
-        grandCash += splitInfo.cashAmount;
-        grandTransfer += splitInfo.transferAmount;
+        grandSubtotal += (splitInfo.subtotal || 0);
+        grandDiscount += (splitInfo.discount || 0);
+        grandPayable += (splitInfo.payable || 0);
+        grandCash += (splitInfo.cashAmount || 0);
+        grandTransfer += (splitInfo.transferAmount || 0);
 
         const d = b.created_at ? new Date(b.created_at) : null;
         const dateStr = d ? d.toLocaleDateString('th-TH') + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
 
         return `<tr>
-            <td style="text-align:center;padding:7px 5px;">${idx + 1}</td>
-            <td style="font-weight:600;color:#0b3c73;padding:7px 5px;">${b.bill_id || '-'}</td>
-            <td style="padding:7px 5px;color:#64748b;">${b.visit_id || '-'}</td>
-            <td style="padding:7px 5px;"><strong>${b.patient_name || '-'}</strong><br><small style="color:#64748b;">HN: ${b.hn || '-'}</small></td>
-            <td style="padding:7px 5px;font-size:11.5px;">${itemNames} (${labItems.length} รายการ)</td>
-            <td style="text-align:right;padding:7px 5px;">${splitInfo.subtotal.toLocaleString()} LAK</td>
-            <td style="text-align:right;padding:7px 5px;color:#dc2626;">${splitInfo.discount > 0 ? '-' + splitInfo.discount.toLocaleString() : '-'} LAK</td>
-            <td style="text-align:right;padding:7px 5px;font-weight:700;color:#0f172a;">${splitInfo.payable.toLocaleString()} LAK</td>
-            <td style="text-align:right;padding:7px 5px;font-weight:600;color:#0b3c73;background:#f0fdf4;">${splitInfo.cashAmount > 0 ? splitInfo.cashAmount.toLocaleString() + ' LAK' : '-'}</td>
-            <td style="text-align:right;padding:7px 5px;font-weight:600;color:#0284c7;background:#f0f9ff;">${splitInfo.transferAmount > 0 ? splitInfo.transferAmount.toLocaleString() + ' LAK' : '-'}</td>
-            <td style="text-align:center;padding:7px 5px;"><span style="background:#dcfce7;color:#15803d;padding:2px 6px;border-radius:10px;font-size:10.5px;font-weight:600;">${b.status || 'ชำระแล้ว'}</span></td>
-            <td style="text-align:center;padding:7px 5px;font-size:10.5px;color:#64748b;">${dateStr}</td>
+            <td style="text-align:center;padding:7px 5px;border:1px solid #e2e8f0;">${idx + 1}</td>
+            <td style="font-weight:600;color:#0b3c73;padding:7px 5px;border:1px solid #e2e8f0;">${b.bill_id || '-'}</td>
+            <td style="padding:7px 5px;color:#64748b;border:1px solid #e2e8f0;">${b.visit_id || '-'}</td>
+            <td style="padding:7px 5px;border:1px solid #e2e8f0;"><strong>${b.patient_name || '-'}</strong><br><small style="color:#64748b;">HN: ${b.hn || '-'}</small></td>
+            <td style="padding:7px 5px;font-size:11px;border:1px solid #e2e8f0;">${itemNames} (${labItems.length} รายการ)</td>
+            <td style="text-align:right;padding:7px 5px;border:1px solid #e2e8f0;">₭${fmtNum(splitInfo.subtotal)}</td>
+            <td style="text-align:right;padding:7px 5px;color:#dc2626;border:1px solid #e2e8f0;">${splitInfo.discount > 0 ? '-₭' + fmtNum(splitInfo.discount) : '-'}</td>
+            <td style="text-align:right;padding:7px 5px;font-weight:700;color:#0f172a;border:1px solid #e2e8f0;">₭${fmtNum(splitInfo.payable)}</td>
+            <td style="text-align:right;padding:7px 5px;font-weight:600;color:#0b3c73;background:#f0fdf4;border:1px solid #e2e8f0;">${splitInfo.cashAmount > 0 ? '₭' + fmtNum(splitInfo.cashAmount) : '-'}</td>
+            <td style="text-align:right;padding:7px 5px;font-weight:600;color:#0284c7;background:#f0f9ff;border:1px solid #e2e8f0;">${splitInfo.transferAmount > 0 ? '₭' + fmtNum(splitInfo.transferAmount) : '-'}</td>
+            <td style="text-align:center;padding:7px 5px;border:1px solid #e2e8f0;"><span style="background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:600;">${b.status || 'ชำระแล้ว'}</span></td>
+            <td style="text-align:center;padding:7px 5px;font-size:10.5px;color:#64748b;border:1px solid #e2e8f0;">${dateStr}</td>
         </tr>`;
     }).join('');
 
-    const html = `<!DOCTYPE html><html lang="lo"><head><title>รายงานประวัติใบเสร็จรับเงิน (Bill Summary Report)</title><meta charset="UTF-8">
-    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Noto+Sans+Lao:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
-        body{font-family:'Kanit','Noto Sans Lao','Noto Sans Thai',sans-serif;color:#1e293b;padding:15px;background:#f8fafc;font-size:11.5px;}
-        .page{width:297mm;margin:0 auto;background:#fff;padding:10mm 12mm;border-radius:8px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);}
-        .header{text-align:center;border-bottom:2px solid #0b3c73;padding-bottom:10px;margin-bottom:12px;}
-        .header h1{font-size:20px;color:#0b3c73;font-weight:700;margin-bottom:3px;}
-        .header p{font-size:11.5px;color:#64748b;}
-        .summary-bar{display:flex;justify-content:space-between;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;flex-wrap:wrap;gap:8px;}
-        .stat-item{display:flex;flex-direction:column;}
-        .stat-label{font-size:10.5px;color:#64748b;font-weight:600;text-transform:uppercase;}
-        .stat-val{font-size:15px;font-weight:700;color:#0f172a;}
-        table{width:100%;border-collapse:collapse;margin:10px 0;font-size:11px;}
-        thead th{background:#0b3c73;color:#fff;padding:7px 5px;font-weight:600;border:1px solid #0b3c73;}
-        tbody td{border:1px solid #e2e8f0;vertical-align:middle;}
-        tbody tr:nth-child(even){background:#f8fafc;}
-        .footer{margin-top:40px;display:flex;justify-content:space-between;text-align:center;font-size:11.5px;color:#475569;}
-        .sig-box{width:240px;}
-        .sig-line{border-top:1px dashed #94a3b8;margin-top:45px;padding-top:4px;}
-        @media print{
-            body{padding:0;background:#fff;}
-            .page{box-shadow:none;padding:4mm;width:100%;}
-            @page{size: A4 landscape; margin: 8mm;}
-        }
-    </style></head><body>
-    <div class="page">
-        <div class="header">
-            <h1>รายงานประวัติการออกใบเสร็จรับเงิน (Bill Summary Report)</h1>
-            <p>ข้อมูลวันที่พิมพ์: ${printDate} | ช่วงวันที่: ${startVal} ถึง ${endVal}</p>
+    return `
+        <div style="text-align:center;border-bottom:2.5px solid #0b3c73;padding-bottom:10px;margin-bottom:12px;">
+            <h1 style="font-size:20px;color:#0b3c73;font-weight:700;margin-bottom:3px;font-family:'Kanit', 'Noto Sans Lao', sans-serif;">รายงานสรุปประวัติการออกใบเสร็จรับเงิน (Bill Summary Report)</h1>
+            <p style="font-size:11.5px;color:#64748b;">วันที่พิมพ์รายงาน: ${printDate} | ช่วงวันที่: ${startVal} ถึง ${endVal}</p>
         </div>
-        <div class="summary-bar">
-            <div class="stat-item"><span class="stat-label">จำนวนบิลทั้งหมด</span><span class="stat-val">${bills.length.toLocaleString()} รายการ</span></div>
-            <div class="stat-item"><span class="stat-label">ยอดรวมบริการ</span><span class="stat-val" style="color:#2563eb;">₭${grandSubtotal.toLocaleString()}</span></div>
-            <div class="stat-item"><span class="stat-label">ส่วนลดรวม</span><span class="stat-val" style="color:#dc2626;">₭${grandDiscount.toLocaleString()}</span></div>
-            <div class="stat-item"><span class="stat-label">เงินสดรวม</span><span class="stat-val" style="color:#0b3c73;">₭${grandCash.toLocaleString()}</span></div>
-            <div class="stat-item"><span class="stat-label">เงินโอนรวม</span><span class="stat-val" style="color:#0284c7;">₭${grandTransfer.toLocaleString()}</span></div>
-            <div class="stat-item"><span class="stat-label">ยอดรับสุทธิรวม</span><span class="stat-val" style="color:#16a34a;">₭${grandPayable.toLocaleString()}</span></div>
+        <div style="display:flex;justify-content:space-between;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;flex-wrap:wrap;gap:8px;">
+            <div style="display:flex;flex-direction:column;"><span style="font-size:10.5px;color:#64748b;font-weight:600;">จำนวนบิลทั้งหมด</span><span style="font-size:15px;font-weight:700;color:#0f172a;">${fmtNum(bills.length)} รายการ</span></div>
+            <div style="display:flex;flex-direction:column;"><span style="font-size:10.5px;color:#64748b;font-weight:600;">ยอดรวมบริการ</span><span style="font-size:15px;font-weight:700;color:#2563eb;">₭${fmtNum(grandSubtotal)}</span></div>
+            <div style="display:flex;flex-direction:column;"><span style="font-size:10.5px;color:#64748b;font-weight:600;">ส่วนลดรวม</span><span style="font-size:15px;font-weight:700;color:#dc2626;">₭${fmtNum(grandDiscount)}</span></div>
+            <div style="display:flex;flex-direction:column;"><span style="font-size:10.5px;color:#64748b;font-weight:600;">เงินสดรวม</span><span style="font-size:15px;font-weight:700;color:#0b3c73;">₭${fmtNum(grandCash)}</span></div>
+            <div style="display:flex;flex-direction:column;"><span style="font-size:10.5px;color:#64748b;font-weight:600;">เงินโอนรวม</span><span style="font-size:15px;font-weight:700;color:#0284c7;">₭${fmtNum(grandTransfer)}</span></div>
+            <div style="display:flex;flex-direction:column;"><span style="font-size:10.5px;color:#64748b;font-weight:600;">ยอดรับสุทธิรวม</span><span style="font-size:15px;font-weight:700;color:#16a34a;">₭${fmtNum(grandPayable)}</span></div>
         </div>
-        <table>
+        <table style="width:100%;border-collapse:collapse;margin:10px 0;font-size:11px;">
             <thead>
                 <tr>
-                    <th style="width:35px;">#</th>
-                    <th style="width:125px;">Bill ID</th>
-                    <th style="width:95px;">Visit ID</th>
-                    <th style="width:145px;">ผู้ป่วย / HN</th>
-                    <th>รายการตรวจ</th>
-                    <th style="width:95px;text-align:right;">ยอดบริการ</th>
-                    <th style="width:75px;text-align:right;">ส่วนลด</th>
-                    <th style="width:105px;text-align:right;">ยอดสุทธิ</th>
-                    <th style="width:100px;text-align:right;background:#065f46;">เงินสด</th>
-                    <th style="width:100px;text-align:right;background:#0369a1;">เงินโอน</th>
-                    <th style="width:70px;text-align:center;">สถานะ</th>
-                    <th style="width:105px;text-align:center;">วันที่</th>
+                    <th style="width:35px;background:#0b3c73;color:#fff;padding:7px 5px;font-weight:600;border:1px solid #0b3c73;text-align:center;">#</th>
+                    <th style="width:125px;background:#0b3c73;color:#fff;padding:7px 5px;font-weight:600;border:1px solid #0b3c73;text-align:left;">Bill ID</th>
+                    <th style="width:95px;background:#0b3c73;color:#fff;padding:7px 5px;font-weight:600;border:1px solid #0b3c73;text-align:left;">Visit ID</th>
+                    <th style="width:145px;background:#0b3c73;color:#fff;padding:7px 5px;font-weight:600;border:1px solid #0b3c73;text-align:left;">ผู้ป่วย / HN</th>
+                    <th style="background:#0b3c73;color:#fff;padding:7px 5px;font-weight:600;border:1px solid #0b3c73;text-align:left;">รายการตรวจ</th>
+                    <th style="width:95px;text-align:right;background:#0b3c73;color:#fff;padding:7px 5px;font-weight:600;border:1px solid #0b3c73;">ยอดบริการ</th>
+                    <th style="width:75px;text-align:right;background:#0b3c73;color:#fff;padding:7px 5px;font-weight:600;border:1px solid #0b3c73;">ส่วนลด</th>
+                    <th style="width:105px;text-align:right;background:#0b3c73;color:#fff;padding:7px 5px;font-weight:600;border:1px solid #0b3c73;">ยอดสุทธิ</th>
+                    <th style="width:100px;text-align:right;background:#065f46;color:#fff;padding:7px 5px;font-weight:600;border:1px solid #065f46;">เงินสด</th>
+                    <th style="width:100px;text-align:right;background:#0369a1;color:#fff;padding:7px 5px;font-weight:600;border:1px solid #0369a1;">เงินโอน</th>
+                    <th style="width:70px;text-align:center;background:#0b3c73;color:#fff;padding:7px 5px;font-weight:600;border:1px solid #0b3c73;">สถานะ</th>
+                    <th style="width:105px;text-align:center;background:#0b3c73;color:#fff;padding:7px 5px;font-weight:600;border:1px solid #0b3c73;">วันที่</th>
                 </tr>
             </thead>
             <tbody>
                 ${rowsHtml}
             </tbody>
         </table>
-        <div class="footer">
-            <div class="sig-box"><div class="sig-line">ลงชื่อ......................................................<br>( เจ้าหน้าที่การเงิน / ผู้จัดทำ )</div></div>
-            <div class="sig-box"><div class="sig-line">ลงชื่อ......................................................<br>( ผู้จัดการ / ผู้ตรวจสอบ )</div></div>
+        <div style="margin-top:40px;display:flex;justify-content:space-between;text-align:center;font-size:11.5px;color:#475569;">
+            <div style="width:240px;"><div style="border-top:1px dashed #94a3b8;margin-top:45px;padding-top:4px;">ลงชื่อ......................................................<br>( เจ้าหน้าที่การเงิน / ผู้จัดทำ )</div></div>
+            <div style="width:240px;"><div style="border-top:1px dashed #94a3b8;margin-top:45px;padding-top:4px;">ลงชื่อ......................................................<br>( ผู้จัดการ / ผู้ตรวจสอบ )</div></div>
         </div>
-    </div>
+    `;
+}
+
+async function exportBillsPDF() {
+    const bills = getFilteredBillsData();
+    if (!bills || bills.length === 0) {
+        Swal.fire({ icon: 'warning', title: 'ไม่มีข้อมูล', text: 'ไม่พบข้อมูลใบเสร็จสำหรับส่งออก PDF' });
+        return;
+    }
+
+    if (typeof html2pdf === 'undefined') {
+        printBillsReport();
+        return;
+    }
+
+    Swal.fire({
+        title: 'กำลังสร้างไฟล์ PDF...',
+        text: 'กรุณารอสักครู่ ระบบกำลังจัดทำเอกสาร PDF รายงานใบเสร็จ',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+    });
+
+    const reportContainer = document.createElement('div');
+    reportContainer.style.position = 'absolute';
+    reportContainer.style.left = '-9999px';
+    reportContainer.style.top = '0';
+    reportContainer.style.width = '280mm';
+    reportContainer.style.background = '#ffffff';
+    reportContainer.style.padding = '10mm';
+    reportContainer.style.fontFamily = "'Kanit', 'Noto Sans Lao', 'Noto Sans Thai', sans-serif";
+    reportContainer.style.color = "#1e293b";
+
+    reportContainer.innerHTML = generateBillsReportHtmlContent(bills);
+    document.body.appendChild(reportContainer);
+
+    const opt = {
+        margin: [8, 8, 8, 8],
+        filename: `Bill_Summary_Report_${new Date().toISOString().slice(0, 10)}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+    };
+
+    try {
+        await html2pdf().set(opt).from(reportContainer).save();
+        Swal.fire({
+            icon: 'success',
+            title: 'ส่งออก PDF สำเร็จ!',
+            text: 'ไฟล์ PDF รายงานใบเสร็จรับเงินถูกบันทึกลงในเครื่องเรียบร้อยแล้ว',
+            timer: 2000,
+            showConfirmButton: false
+        });
+    } catch (err) {
+        console.error('PDF generation error:', err);
+        printBillsReport();
+    } finally {
+        if (document.body.contains(reportContainer)) {
+            document.body.removeChild(reportContainer);
+        }
+    }
+}
+window.exportBillsPDF = exportBillsPDF;
+
+function printBillsReport() {
+    const bills = getFilteredBillsData();
+    if (!bills || bills.length === 0) {
+        Swal.fire({ icon: 'warning', title: 'ไม่มีข้อมูล', text: 'ไม่พบข้อมูลใบเสร็จสำหรับพิมพ์รายงาน' });
+        return;
+    }
+
+    const htmlContent = generateBillsReportHtmlContent(bills);
+    const html = `<!DOCTYPE html><html lang="lo"><head><title>รายงานประวัติใบเสร็จรับเงิน (Bill Summary Report)</title><meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Noto+Sans+Lao:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+        body{font-family:'Kanit','Noto Sans Lao','Noto Sans Thai',sans-serif;color:#1e293b;padding:15px;background:#fff;font-size:11.5px;}
+        .page{width:297mm;margin:0 auto;background:#fff;padding:8mm 10mm;}
+        tbody tr:nth-child(even){background:#f8fafc;}
+        @media print{
+            body{padding:0;background:#fff;}
+            .page{padding:4mm;width:100%;}
+            @page{size: A4 landscape; margin: 8mm;}
+        }
+    </style></head><body>
+    <div class="page">${htmlContent}</div>
     <script>
         window.onload = function() { 
             window.focus();
@@ -16600,9 +17055,359 @@ function printBillsReport() {
         printWin.document.open();
         printWin.document.write(html);
         printWin.document.close();
+    } else {
+        let printFrame = document.getElementById('printBillsIframe');
+        if (!printFrame) {
+            printFrame = document.createElement('iframe');
+            printFrame.id = 'printBillsIframe';
+            printFrame.style.display = 'none';
+            document.body.appendChild(printFrame);
+        }
+        const doc = printFrame.contentWindow.document;
+        doc.open();
+        doc.write(html);
+        doc.close();
+        setTimeout(() => {
+            printFrame.contentWindow.focus();
+            printFrame.contentWindow.print();
+        }, 500);
     }
 }
 window.printBillsReport = printBillsReport;
+
+function getFilteredCommissionLogsData(onlySelected = false) {
+    if (!Array.isArray(window.commissionLogs)) return [];
+
+    const filterEl = document.getElementById('filterLogStatus');
+    const filterStatus = filterEl ? filterEl.value : 'all';
+
+    const searchInput = document.getElementById('searchLogInput');
+    const searchText = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+    const dateInput = document.getElementById('filterLogDate');
+    const monthInput = document.getElementById('filterLogMonth');
+
+    let logs = [...window.commissionLogs];
+
+    if (filterStatus !== 'all') {
+        logs = logs.filter(l => l.status === filterStatus);
+    }
+
+    if (typeof commLogPeriodMode !== 'undefined') {
+        if (commLogPeriodMode === 'month') {
+            let targetMonth = monthInput && monthInput.value ? monthInput.value : '';
+            if (!targetMonth) {
+                const now = new Date();
+                targetMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            }
+            logs = logs.filter(l => {
+                if (!l.created_at) return true;
+                const d = new Date(l.created_at);
+                const logMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                return logMonth === targetMonth;
+            });
+        } else if (commLogPeriodMode === 'year') {
+            const targetYear = new Date().getFullYear();
+            logs = logs.filter(l => {
+                if (!l.created_at) return true;
+                const d = new Date(l.created_at);
+                return d.getFullYear() === targetYear;
+            });
+        } else if (commLogPeriodMode === 'day') {
+            let targetDate = dateInput && dateInput.value ? dateInput.value : '';
+            if (!targetDate) {
+                const now = new Date();
+                targetDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            }
+            logs = logs.filter(l => {
+                if (!l.created_at) return true;
+                const d = new Date(l.created_at);
+                const logDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                return logDate === targetDate;
+            });
+        }
+    }
+
+    if (searchText) {
+        logs = logs.filter(l => {
+            const refName = (l.referrer_name || '').toLowerCase();
+            const patName = (l.patient_name || '').toLowerCase();
+            const logId = (l.id || '').toLowerCase();
+            const payoutMethod = (l.payout_method || '').toLowerCase();
+            const payoutRef = (l.payout_ref || '').toLowerCase();
+
+            return refName.includes(searchText) ||
+                patName.includes(searchText) ||
+                logId.includes(searchText) ||
+                payoutMethod.includes(searchText) ||
+                payoutRef.includes(searchText);
+        });
+    }
+
+    if (onlySelected && window.selectedCommLogIds && window.selectedCommLogIds.size > 0) {
+        logs = logs.filter(l => window.selectedCommLogIds.has(String(l.id)));
+    }
+
+    logs.sort((a, b) => {
+        const isPendingA = a.status === 'pending' ? 1 : 0;
+        const isPendingB = b.status === 'pending' ? 1 : 0;
+
+        if (isPendingA !== isPendingB) {
+            return isPendingB - isPendingA;
+        }
+
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        if (timeA !== timeB) {
+            return timeB - timeA;
+        }
+        return (b.id || '').localeCompare(a.id || '', undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    return logs;
+}
+
+function generateCommissionLogsReportHtmlContent(logs) {
+    const lang = (typeof getCurrentLanguage === 'function') ? getCurrentLanguage() : (localStorage.getItem('clinic_lang') || 'la');
+    const isLao = (lang === 'la');
+
+    const labels = {
+        title: isLao ? 'ລາຍງານຄ່າຄອມມິດຊັ່ນ / ເງິນປັນຜົນຜູ້ແນະນຳ' : 'รายงานค่าคอมมิชชั่น / เงินปันผลผู้แนะนำ',
+        subtitle: isLao ? 'ຄລີນິກເວຊະກຳ | ປະຫວັດລາຍການປັນຜົນ ແລະ ຄອມມິດຊັ່ນ' : 'คลินิกเวชกรรม | ประวัติรายการปันผลและคอมมิชชั่น',
+        printDate: isLao ? 'ວັນທີພິມ:' : 'วันที่พิมพ์:',
+        totalItems: isLao ? 'ຈຳນວນລາຍການ:' : 'จำนวนรายการ:',
+        itemUnit: isLao ? 'ລາຍການ' : 'รายการ',
+        
+        totalServices: isLao ? 'ຍອດລວມບໍລິການ' : 'ยอดรวมบริการ',
+        totalDividends: isLao ? 'ຍອດປັນຜົນທັງໝົດ' : 'ยอดปันผลทั้งหมด',
+        paidAmount: isLao ? 'ຈ່າຍເງິນແລ້ວ' : 'จ่ายเงินแล้ว',
+        pendingAmount: isLao ? 'ລໍຖ້າອະນຸມັດ / ລໍຖ້າຈ່າຍ' : 'รออนุมัติ / รอจ่าย',
+        
+        thNum: '#',
+        thDate: isLao ? 'ວັນທີ' : 'วันที่',
+        thReferrer: isLao ? 'ຜູ້ແນະນຳ' : 'ผู้แนะนำ',
+        thPatient: isLao ? 'ຄົນເຈັບທີ່ແນະນຳ' : 'ผู้ป่วยที่แนะนำ',
+        thBillRef: isLao ? 'ອ້າງອີງບິນ' : 'อ้างอิงบิล',
+        thServiceAmount: isLao ? 'ຍອດຄ່າບໍລິການ' : 'ยอดค่าบริการ',
+        thBaseDividend: isLao ? 'ປັນຜົນທົ່ວໄປ' : 'ปันผลทั่วไป',
+        thItemDividend: isLao ? 'ປັນຜົນລາຍການ' : 'ปันผลรายการ',
+        thTotalDividend: isLao ? 'ຍອດລວມປັນຜົນ' : 'ยอดรวมปันผล',
+        thStatus: isLao ? 'ສະຖານະ' : 'สถานะ',
+        
+        badgePaid: isLao ? 'ຈ່າຍແລ້ວ' : 'จ่ายเงินแล้ว',
+        badgePending: isLao ? 'ລໍຖ້າອະນຸມັດ / ລໍຖ້າຈ່າຍ' : 'รออนุมัติ / รอจ่าย',
+        
+        totalSumLabel: (count) => isLao ? `ລວມທັງໝົດ (${count} ລາຍການ):` : `รวมทั้งสิ้น (${count} รายการ):`,
+        
+        signPrepared: isLao ? 'ຜູ້ຈັດເຮັດ / ຜູ້ຈ່າຍ' : 'ผู้จัดทำ / ผู้จ่าย',
+        signAuditor: isLao ? 'ຜູ້ກວດສອບ' : 'ผู้ตรวจสอบ',
+        signPresident: isLao ? 'ປະທານ ຄລີນິກ' : 'ประธานคลินิก',
+        datePlaceholder: isLao ? 'ວັນທີ: ....../....../..........' : 'วันที่: ....../....../..........'
+    };
+
+    const dateLocale = isLao ? 'lo-LA' : 'th-TH';
+    const todayStr = new Date().toLocaleDateString(dateLocale, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    
+    const fmtNum = (val) => {
+        const n = parseFloat(val);
+        return isNaN(n) ? '0' : n.toLocaleString();
+    };
+
+    let totalServiceSum = 0;
+    let totalBaseSum = 0;
+    let totalItemSum = 0;
+    let totalDividendSum = 0;
+    let totalPaidSum = 0;
+    let totalPendingSum = 0;
+
+    let rowsHtml = '';
+    logs.forEach((l, index) => {
+        const dateStr = l.created_at ? new Date(l.created_at).toLocaleDateString(dateLocale) : '-';
+        const refName = l.referrer_name || l.referrer_code || '-';
+        const patName = l.patient_name || '-';
+        const billInfo = l.bill_id ? `${l.bill_id} (${l.visit_id || ''})` : (l.visit_id || '-');
+        
+        const serviceVal = parseFloat(l.total_invoice || l.service_amount || 0);
+        const baseVal = parseFloat(l.base_amount || 0);
+        const itemVal = parseFloat(l.item_amount || 0);
+        const totalVal = parseFloat(l.amount || (baseVal + itemVal));
+        
+        const isPaid = l.status === 'paid';
+        const statusText = isPaid ? labels.badgePaid : labels.badgePending;
+        const statusBadgeStyle = isPaid 
+            ? 'background-color: #dcfce7; color: #166534; font-weight: 600; padding: 3px 8px; border-radius: 12px; font-size: 10px;'
+            : 'background-color: #fef3c7; color: #92400e; font-weight: 600; padding: 3px 8px; border-radius: 12px; font-size: 10px;';
+
+        totalServiceSum += serviceVal;
+        totalBaseSum += baseVal;
+        totalItemSum += itemVal;
+        totalDividendSum += totalVal;
+
+        if (isPaid) {
+            totalPaidSum += totalVal;
+        } else {
+            totalPendingSum += totalVal;
+        }
+
+        rowsHtml += `
+            <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
+                <td style="padding: 8px; text-align: center; color: #64748b;">${index + 1}</td>
+                <td style="padding: 8px;">${dateStr}</td>
+                <td style="padding: 8px; font-weight: 600; color: #1e293b;">${refName}</td>
+                <td style="padding: 8px; color: #334155;">${patName}</td>
+                <td style="padding: 8px; text-align: center; color: #64748b;">${billInfo}</td>
+                <td style="padding: 8px; text-align: right; color: #475569;">${fmtNum(serviceVal)} ₭</td>
+                <td style="padding: 8px; text-align: right; color: #475569;">${fmtNum(baseVal)} ₭</td>
+                <td style="padding: 8px; text-align: right; color: #475569;">${fmtNum(itemVal)} ₭</td>
+                <td style="padding: 8px; text-align: right; font-weight: 700; color: #0284c7;">${fmtNum(totalVal)} ₭</td>
+                <td style="padding: 8px; text-align: center;"><span style="${statusBadgeStyle}">${statusText}</span></td>
+            </tr>
+        `;
+    });
+
+    return `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; border-bottom: 2px solid #0284c7; padding-bottom: 12px;">
+            <div>
+                <h2 style="font-size: 20px; font-weight: 700; color: #0f172a; margin: 0 0 4px 0;">${labels.title}</h2>
+                <p style="font-size: 12px; color: #64748b; margin: 0;">${labels.subtitle}</p>
+            </div>
+            <div style="text-align: right; font-size: 11px; color: #64748b;">
+                <div><strong>${labels.printDate}</strong> ${todayStr}</div>
+                <div><strong>${labels.totalItems}</strong> ${logs.length} ${labels.itemUnit}</div>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-bottom: 15px;">
+            <div style="flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; text-align: center;">
+                <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600;">${labels.totalServices}</div>
+                <div style="font-size: 14px; font-weight: 700; color: #1e293b;">₭${fmtNum(totalServiceSum)}</div>
+            </div>
+            <div style="flex: 1; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 10px; text-align: center;">
+                <div style="font-size: 10px; color: #0369a1; text-transform: uppercase; font-weight: 600;">${labels.totalDividends}</div>
+                <div style="font-size: 14px; font-weight: 700; color: #0284c7;">₭${fmtNum(totalDividendSum)}</div>
+            </div>
+            <div style="flex: 1; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; text-align: center;">
+                <div style="font-size: 10px; color: #15803d; text-transform: uppercase; font-weight: 600;">${labels.paidAmount}</div>
+                <div style="font-size: 14px; font-weight: 700; color: #16a34a;">₭${fmtNum(totalPaidSum)}</div>
+            </div>
+            <div style="flex: 1; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px; text-align: center;">
+                <div style="font-size: 10px; color: #b45309; text-transform: uppercase; font-weight: 600;">${labels.pendingAmount}</div>
+                <div style="font-size: 14px; font-weight: 700; color: #d97706;">₭${fmtNum(totalPendingSum)}</div>
+            </div>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+            <thead>
+                <tr style="background: #0284c7; color: #ffffff; font-size: 11px; text-align: left;">
+                    <th style="padding: 8px; text-align: center; width: 40px;">${labels.thNum}</th>
+                    <th style="padding: 8px; width: 90px;">${labels.thDate}</th>
+                    <th style="padding: 8px;">${labels.thReferrer}</th>
+                    <th style="padding: 8px;">${labels.thPatient}</th>
+                    <th style="padding: 8px; text-align: center; width: 120px;">${labels.thBillRef}</th>
+                    <th style="padding: 8px; text-align: right; width: 100px;">${labels.thServiceAmount}</th>
+                    <th style="padding: 8px; text-align: right; width: 95px;">${labels.thBaseDividend}</th>
+                    <th style="padding: 8px; text-align: right; width: 95px;">${labels.thItemDividend}</th>
+                    <th style="padding: 8px; text-align: right; width: 110px;">${labels.thTotalDividend}</th>
+                    <th style="padding: 8px; text-align: center; width: 90px;">${labels.thStatus}</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${rowsHtml}
+            </tbody>
+            <tfoot>
+                <tr style="background: #f1f5f9; font-weight: 700; font-size: 11.5px; border-top: 2px solid #cbd5e1;">
+                    <td colspan="5" style="padding: 10px; text-align: right; color: #334155;">${labels.totalSumLabel(logs.length)}</td>
+                    <td style="padding: 10px; text-align: right; color: #1e293b;">${fmtNum(totalServiceSum)} ₭</td>
+                    <td style="padding: 10px; text-align: right; color: #1e293b;">${fmtNum(totalBaseSum)} ₭</td>
+                    <td style="padding: 10px; text-align: right; color: #1e293b;">${fmtNum(totalItemSum)} ₭</td>
+                    <td style="padding: 10px; text-align: right; color: #0284c7; font-size: 13px;">${fmtNum(totalDividendSum)} ₭</td>
+                    <td style="padding: 10px;"></td>
+                </tr>
+            </tfoot>
+        </table>
+
+        <div style="margin-top: 40px; display: flex; justify-content: space-around; align-items: flex-end; text-align: center; font-size: 11px; page-break-inside: avoid;">
+            <div style="width: 220px;">
+                <div style="border-bottom: 1px dashed #94a3b8; height: 35px; margin-bottom: 8px;"></div>
+                <div style="font-weight: 600; color: #1e293b;">${labels.signPrepared}</div>
+                <div style="font-size: 10px; color: #64748b; margin-top: 4px;">( ________________________ )</div>
+                <div style="font-size: 10px; color: #64748b; margin-top: 2px;">${labels.datePlaceholder}</div>
+            </div>
+
+            <div style="width: 220px;">
+                <div style="border-bottom: 1px dashed #94a3b8; height: 35px; margin-bottom: 8px;"></div>
+                <div style="font-weight: 600; color: #1e293b;">${labels.signAuditor}</div>
+                <div style="font-size: 10px; color: #64748b; margin-top: 4px;">( ________________________ )</div>
+                <div style="font-size: 10px; color: #64748b; margin-top: 2px;">${labels.datePlaceholder}</div>
+            </div>
+
+            <div style="width: 220px;">
+                <div style="border-bottom: 1px dashed #94a3b8; height: 35px; margin-bottom: 8px;"></div>
+                <div style="font-weight: 600; color: #1e293b;">${labels.signPresident}</div>
+                <div style="font-size: 10px; color: #64748b; margin-top: 4px;">( ________________________ )</div>
+                <div style="font-size: 10px; color: #64748b; margin-top: 2px;">${labels.datePlaceholder}</div>
+            </div>
+        </div>
+    `;
+}
+
+function printCommissionLogsReport() {
+    const logs = getFilteredCommissionLogsData(true);
+    if (!logs || logs.length === 0) {
+        Swal.fire({ icon: 'warning', title: 'ไม่มีข้อมูล', text: 'ไม่พบข้อมูลรายการคอมมิชชั่น/ปันผลสำหรับพิมพ์รายงาน' });
+        return;
+    }
+
+    const lang = (typeof getCurrentLanguage === 'function') ? getCurrentLanguage() : (localStorage.getItem('clinic_lang') || 'la');
+    const isLao = (lang === 'la');
+
+    const htmlContent = generateCommissionLogsReportHtmlContent(logs);
+    const html = `<!DOCTYPE html><html lang="${isLao ? 'lo' : 'th'}"><head><title>${isLao ? 'ລາຍງານຄ່າຄອມມິດຊັ່ນ ແລະ ເງິນປັນຜົນ' : 'รายงานค่าคอมมิชชั่นและเงินปันผล'} (Commission & Dividend Report)</title><meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Noto+Sans+Lao:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+        body{font-family:'Kanit','Noto Sans Lao','Noto Sans Thai',sans-serif;color:#1e293b;padding:15px;background:#fff;font-size:11.5px;}
+        .page{width:297mm;margin:0 auto;background:#fff;padding:8mm 10mm;}
+        tbody tr:nth-child(even){background:#f8fafc;}
+        @media print{
+            body{padding:0;background:#fff;}
+            .page{padding:4mm;width:100%;}
+            @page{size: A4 landscape; margin: 8mm;}
+        }
+    </style></head><body>
+    <div class="page">${htmlContent}</div>
+    <script>
+        window.onload = function() { 
+            window.focus();
+            setTimeout(function() { window.print(); }, 250); 
+        };
+    </script>
+    </body></html>`;
+
+    const printWin = window.open('', '_blank', 'width=1150,height=850');
+    if (printWin) {
+        printWin.document.open();
+        printWin.document.write(html);
+        printWin.document.close();
+    } else {
+        let printFrame = document.getElementById('printCommLogsIframe');
+        if (!printFrame) {
+            printFrame = document.createElement('iframe');
+            printFrame.id = 'printCommLogsIframe';
+            printFrame.style.display = 'none';
+            document.body.appendChild(printFrame);
+        }
+        const doc = printFrame.contentWindow.document;
+        doc.open();
+        doc.write(html);
+        doc.close();
+        setTimeout(() => {
+            printFrame.contentWindow.focus();
+            printFrame.contentWindow.print();
+        }, 500);
+    }
+}
+window.printCommissionLogsReport = printCommissionLogsReport;
 // ฟังก์ชันคำนวณยอดรวมและส่วนลดในหน้าอ่านผล/จัดยา
 function updateRxTotals() {
     // คำนวณยอดรวมทั้งหมดจากรายการยา
