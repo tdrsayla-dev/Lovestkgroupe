@@ -15,6 +15,13 @@
           from { opacity: 0; }
           to { opacity: 1; }
         }
+        /* Fix Thai tone mark clipping and line heights globally */
+        body, button, input, select, textarea, .font-sans, [class*="font-"] {
+          font-family: 'Noto Sans Thai', 'Sarabun', 'Inter', sans-serif !important;
+        }
+        h1, h2, h3, h4, h5, h6, p, span, button, a, label, td, th {
+          line-height: 1.45;
+        }
         /* ⚠️ ห้ามใส่ transform บน main เพราะจะทำให้ position:fixed ของ modal อ้างอิงผิด viewport */
         main {
           animation: stkFadeIn 0.3s ease-out forwards !important;
@@ -1277,7 +1284,7 @@
       if (invalidated) {
         saveCache(currentCache);
         window.top.stkDbCache = currentCache;
-        console.log(`%c⚡ [Cache Invalidate] Cleared cache for table: ${table}`, "color:red;font-weight:bold");
+        console.log(`%c⚡ [Cache Invalidate] Cleared cache for table: ${table}`, "color:#059669;font-weight:bold");
       }
     };
 

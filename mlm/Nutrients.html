@@ -40,7 +40,7 @@
     window.supabaseSelect = async function(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:window.SUPABASE_HEADERS});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();};
     window.supabaseInsert = async function(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('INSERT '+t+':'+r.status);return r.json();};
     window.supabaseUpdate = async function(t,id,d,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('UPDATE '+t+':'+r.status);return r.json();};
-    window.supabaseDelete = async function(t,id){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?id=eq.'+encodeURIComponent(id),{method:'DELETE',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'})});if(!r.ok)throw new Error('DELETE '+t+':'+r.status);return true;};
+    window.supabaseDelete = async function(t,id,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'DELETE',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'return=minimal'})});if(!r.ok)throw new Error('DELETE '+t+':'+r.status);return true;};
     window.supabaseUpsert = async function(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:Object.assign({},window.SUPABASE_HEADERS,{'Prefer':'resolution=merge-duplicates,return=representation'}),body:JSON.stringify(d)});if(!r.ok)throw new Error('UPSERT '+t+':'+r.status);return r.json();};
   </script>
   <script src="CommonComponents.js"></script>
@@ -92,42 +92,134 @@
       return 'ราคาปกติ';
     }
 
+    // ฟังก์ชันช่วยสกัด ID / Visit ID ทุกรูปแบบที่เป็นไปได้เพื่อใช้เทียบและลบข้อมูลถาวร
+    function getNormalizedIds(val) {
+      if (!val) return [];
+      const str = String(val).trim();
+      if (!str || str === '-') return [];
+      const set = new Set();
+      set.add(str);
+      set.add(str.toLowerCase());
+
+      // สกัดตัวเลขล้วน (เช่น 137364 จาก VIS-137364)
+      const digits = str.replace(/[^0-9]/g, '');
+      if (digits.length >= 3) {
+        set.add(digits);
+        set.add(`VIS-${digits}`);
+        set.add(`VISIT: ${digits}`);
+        set.add(`VISIT:${digits}`);
+        set.add(`ORD-CLINIC-${digits}`);
+        set.add(`ORD-CLINIC-VIS-${digits}`);
+      }
+
+      // สกัด prefix คำว่า VIS- หรือ ORD-CLINIC- ออก
+      const stripped = str.replace(/^(ORD-CLINIC-|VISIT:\s*|VIS-?)/gi, '').trim();
+      if (stripped) {
+        set.add(stripped);
+        set.add(`VIS-${stripped}`);
+        set.add(`ORD-CLINIC-${stripped}`);
+        set.add(`ORD-CLINIC-VIS-${stripped}`);
+      }
+
+      return Array.from(set);
+    }
+
+    function isOrderDeleted(item, deletedSet) {
+      if (!item || !deletedSet || deletedSet.size === 0) return false;
+      const candidates = [
+        item.id,
+        item.order_id,
+        item.sale_id,
+        item.visit_id,
+        item.rxVisitId,
+        item.payment_note
+      ];
+      for (const cand of candidates) {
+        if (!cand) continue;
+        const normList = getNormalizedIds(cand);
+        for (const norm of normList) {
+          if (deletedSet.has(norm) || deletedSet.has(norm.toLowerCase())) return true;
+        }
+      }
+      return false;
+    }
+
     function NutrientsView() {
       const [orders, setOrders] = useState([]);
       const [searchTerm, setSearchTerm] = useState('');
       const [startDate, setStartDate] = useState('');
       const [endDate, setEndDate] = useState('');
+      const [quickFilter, setQuickFilter] = useState('all'); // 'today', 'month', 'all', 'custom'
       const [loading, setLoading] = useState(true);
+
+      const setFilterPeriod = (period) => {
+        setQuickFilter(period);
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const todayStr = `${year}-${month}-${day}`;
+
+        if (period === 'today') {
+          setStartDate(todayStr);
+          setEndDate(todayStr);
+        } else if (period === 'month') {
+          const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+          const lastDayStr = String(lastDay).padStart(2, '0');
+          setStartDate(`${year}-${month}-01`);
+          setEndDate(`${year}-${month}-${lastDayStr}`);
+        } else if (period === 'all') {
+          setStartDate('');
+          setEndDate('');
+        }
+      };
 
       // โหลดข้อมูลจาก Supabase เป็นหลัก + sync LocalStorage → Supabase อัตโนมัติ
       const fetchOrders = async (showLoading = true) => {
         if (showLoading) setLoading(true);
         let dbList = [];
         let localList = [];
+
+        // ─── โหลด Blacklist รายการที่ถูกลบไปแล้ว และแปลงทุกรูปแบบ ID ────────────────
+        const deletedIdsList = JSON.parse(localStorage.getItem('stk_deleted_nutrient_orders') || '[]');
+        const deletedIdsSet = new Set();
+        deletedIdsList.forEach(id => {
+          getNormalizedIds(id).forEach(v => {
+            deletedIdsSet.add(v);
+            deletedIdsSet.add(v.toLowerCase());
+          });
+        });
+
         // ─── 1. ดึงจาก Supabase (ข้อมูลถาวร) ────────────────────────────────
         try {
           if (typeof window.supabaseSelect === 'function') {
-            const data = await window.supabaseSelect('stk_nutrient_orders', 'order=created_at.desc&limit=200');
+            const data = await window.supabaseSelect('stk_nutrient_orders', 'order=created_at.desc&limit=200&nocache=true');
             if (Array.isArray(data)) {
-              dbList = data.map(item => ({
-                id: item.order_id || String(item.id),
-                visit_id: item.visit_id || '-',
-                hn: item.hn || '-',
-                customer_name: item.customer_name || '-',
-                phone: item.phone || item.customer_phone || item.tel || '-',
-                disease: item.disease || item.disease_name || item.symptom || item.symptoms || '-',
-                recorded_by: item.recorded_by || '-',
-                closer_dr: item.closer_dr || '-',
-                date: item.date || item.created_at || new Date().toISOString(),
-                status: item.status || 'รอดำเนินการ',
-                items: (() => {
-                  try {
-                    let parsed = item.items_json || item.items || item.products;
-                    if (typeof parsed === 'string') parsed = JSON.parse(parsed);
-                    return Array.isArray(parsed) ? parsed : [];
-                  } catch(e) { return []; }
-                })()
-              }));
+              dbList = data
+                .filter(item => {
+                  if (item.status === 'บิลถูกยกเลิก') return false;
+                  if (isOrderDeleted(item, deletedIdsSet)) return false;
+                  return true;
+                })
+                .map(item => ({
+                  id: item.order_id || String(item.id),
+                  visit_id: item.visit_id || '-',
+                  hn: item.hn || '-',
+                  customer_name: item.customer_name || '-',
+                  phone: item.phone || item.customer_phone || item.tel || '-',
+                  disease: item.disease || item.disease_name || item.symptom || item.symptoms || '-',
+                  recorded_by: item.recorded_by || '-',
+                  closer_dr: item.closer_dr || '-',
+                  date: item.date || item.created_at || new Date().toISOString(),
+                  status: item.status || 'รอดำเนินการ',
+                  items: (() => {
+                    try {
+                      let parsed = item.items_json || item.items || item.products;
+                      if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+                      return Array.isArray(parsed) ? parsed : [];
+                    } catch(e) { return []; }
+                  })()
+                }));
             }
           }
         } catch (err) {
@@ -151,6 +243,11 @@
 
             const vId = item.visit_id || (item.payment_note && item.payment_note.match(/VISIT:\s*([^\)\s]+)/) ? item.payment_note.match(/VISIT:\s*([^\)\s]+)/)[1] : null) || item.rxVisitId || `VIS-${item.id}`;
             const orderId = item.id || item.sale_id || item.order_id || `ORD-CLINIC-${vId}`;
+
+            // ข้ามหากอยู่ในรายการที่ถูกลบไปแล้ว
+            if (item.status === 'บิลถูกยกเลิก' || isOrderDeleted(item, deletedIdsSet) || isOrderDeleted({ id: orderId, visit_id: vId }, deletedIdsSet)) {
+              continue;
+            }
 
             const normalizedItems = Array.isArray(parsedItems) ? parsedItems.map(it => ({
               id: it.id,
@@ -210,7 +307,7 @@
         // ─── 3. รวมและ deduplicate ────────────────
         const idMap = new Map();
         [...dbList, ...localList].forEach(o => {
-          if (o.visit_id && o.visit_id !== '-' && !idMap.has(o.id)) {
+          if (o.visit_id && o.visit_id !== '-' && !idMap.has(o.id) && !isOrderDeleted(o, deletedIdsSet)) {
             idMap.set(o.id, o);
           }
         });
@@ -390,27 +487,184 @@
         });
       };
 
+      // 🗑️ ฟังก์ชันลบ / ยกเลิกรายการสั่งจ่ายยา (ตอบสนองเร็ว 0ms + ลบแบบขนานหลังบ้าน)
+      const handleDeleteOrder = (order) => {
+        if (typeof Swal === 'undefined') return;
+        
+        Swal.fire({
+          title: 'ยืนยันการลบรายการสั่งจ่ายยา',
+          html: `
+            <div class="text-left text-sm space-y-2 p-2">
+              <p class="text-slate-600 font-medium">คุณต้องการลบรายการสั่งจ่ายยานี้ใช่หรือไม่?</p>
+              <div class="p-3 bg-red-50 text-red-900 rounded-xl border border-red-200 mt-2 space-y-1">
+                <p><strong>รหัส VISIT:</strong> <span class="text-red-700 font-bold">${order.visit_id}</span></p>
+                <p><strong>HN:</strong> ${order.hn}</p>
+                <p><strong>ชื่อคนไข้:</strong> ${order.customer_name}</p>
+                <p><strong>โรค/อาการ:</strong> ${order.disease || '-'}</p>
+              </div>
+              <p class="text-xs text-rose-600 font-bold mt-2">⚠️ เมื่อลบแล้ว รายการนี้จะถูกลบออกจากรายการรอดำเนินการ</p>
+            </div>
+          `,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#dc2626',
+          cancelButtonColor: '#64748b',
+          confirmButtonText: 'ยืนยันลบรายการ',
+          cancelButtonText: 'ยกเลิก'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            // ⚡ 1. อัปเดต Blacklist และ LocalStorage ทันที (0ms Response)
+            try {
+              const deletedList = JSON.parse(localStorage.getItem('stk_deleted_nutrient_orders') || '[]');
+              const idsToAdd = [
+                ...getNormalizedIds(order.id),
+                ...getNormalizedIds(order.visit_id),
+                ...getNormalizedIds(order.hn)
+              ];
+              idsToAdd.forEach(id => {
+                if (id && !deletedList.includes(id)) deletedList.push(id);
+              });
+              localStorage.setItem('stk_deleted_nutrient_orders', JSON.stringify(deletedList));
+            } catch (e) {}
+
+            const newDeletedList = JSON.parse(localStorage.getItem('stk_deleted_nutrient_orders') || '[]');
+            const newDeletedSet = new Set();
+            newDeletedList.forEach(id => {
+              getNormalizedIds(id).forEach(v => {
+                newDeletedSet.add(v);
+                newDeletedSet.add(v.toLowerCase());
+              });
+            });
+
+            // ⚡ 2. อัปเดต React State ให้รายการหายไปจากหน้าจอทันที (0ms)
+            setOrders(prev => prev.filter(o => !isOrderDeleted(o, newDeletedSet)));
+
+            // ⚡ 3. กวาดล้างแคช LocalStorage & SessionStorage ทันที
+            try {
+              sessionStorage.removeItem('stk_db_cache');
+              if (typeof window.top !== 'undefined') window.top.stkDbCache = {};
+
+              const keysToClean = ['stk_nutrient_orders', 'clinic_mlm_orders', 'clinic_orders', 'rx_orders'];
+              keysToClean.forEach(key => {
+                const str = localStorage.getItem(key);
+                if (str) {
+                  try {
+                    const list = JSON.parse(str);
+                    if (Array.isArray(list)) {
+                      const updated = list.filter(o => !isOrderDeleted(o, newDeletedSet));
+                      localStorage.setItem(key, JSON.stringify(updated));
+                    }
+                  } catch(e) {}
+                }
+              });
+
+              const pendingSaleStr = localStorage.getItem('stk_pending_sale');
+              if (pendingSaleStr) {
+                try {
+                  const pendingSale = JSON.parse(pendingSaleStr);
+                  if (isOrderDeleted(pendingSale, newDeletedSet)) {
+                    localStorage.removeItem('stk_pending_sale');
+                  }
+                } catch(e) {}
+              }
+
+              localStorage.setItem('stk_refresh_trigger', Date.now().toString());
+            } catch (ex) {}
+
+            // Broadcast refresh
+            if (typeof BroadcastChannel !== 'undefined') {
+              try {
+                const bc = new BroadcastChannel('stk_mlm_channel');
+                bc.postMessage({ action: 'delete_order', visit_id: order.visit_id, order_id: order.id });
+                bc.close();
+              } catch(e) {}
+            }
+
+            // แสดงแจ้งเตือนลบสำเร็จทันที
+            Swal.fire({
+              icon: 'success',
+              title: 'ลบรายการสำเร็จแล้ว',
+              timer: 800,
+              showConfirmButton: false
+            });
+
+            // ⚡ 4. ส่งคำสั่งลบไปยัง Supabase แบบขนานใน Background (ไม่บล็อก UI)
+            (async () => {
+              try {
+                const targets = [
+                  { val: order.id, defaultPk: 'order_id' },
+                  { val: order.visit_id, defaultPk: 'visit_id' }
+                ];
+
+                const promises = [];
+
+                for (const item of targets) {
+                  if (!item.val || item.val === '-') continue;
+                  const str = String(item.val).trim();
+                  const digits = str.replace(/[^0-9]/g, '');
+
+                  const requests = [];
+
+                  if (str.startsWith('ORD-')) {
+                    requests.push({ val: str, pk: 'order_id' });
+                  } else if (str.startsWith('VIS-')) {
+                    requests.push({ val: str, pk: 'visit_id' });
+                    requests.push({ val: `ORD-CLINIC-${str}`, pk: 'order_id' });
+                    if (digits) requests.push({ val: `ORD-CLINIC-VIS-${digits}`, pk: 'order_id' });
+                  }
+
+                  if (digits) {
+                    requests.push({ val: digits, pk: 'visit_id' });
+                    requests.push({ val: `VIS-${digits}`, pk: 'visit_id' });
+                    requests.push({ val: `ORD-CLINIC-${digits}`, pk: 'order_id' });
+                    requests.push({ val: `ORD-CLINIC-VIS-${digits}`, pk: 'order_id' });
+                    requests.push({ val: digits, pk: 'id' });
+                  }
+
+                  const executedSet = new Set();
+                  for (const req of requests) {
+                    const key = `${req.pk}:${req.val}`;
+                    if (executedSet.has(key)) continue;
+                    executedSet.add(key);
+
+                    if (typeof window.supabaseDelete === 'function') {
+                      promises.push(window.supabaseDelete('stk_nutrient_orders', req.val, req.pk).catch(() => {}));
+                    }
+                    if (typeof window.supabaseUpdate === 'function') {
+                      promises.push(window.supabaseUpdate('stk_nutrient_orders', req.val, { status: 'บิลถูกยกเลิก' }, req.pk).catch(() => {}));
+                    }
+                  }
+                }
+
+                await Promise.allSettled(promises);
+              } catch (e) {
+                console.warn('Background DB delete error:', e);
+              }
+            })();
+          }
+        });
+      };
+
       return (
         <div class="w-full flex-1 flex flex-col">
           {/* Header Bar */}
           <div class="bg-white border-b border-slate-200 px-6 py-5 shadow-xs">
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 max-w-7xl mx-auto">
-              <div>
-                <h1 class="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2.5">
-                  <span class="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
-                    <PillIcon size={26} />
-                  </span>
-                  สั่งจ่ายยา
-                </h1>
-                <p class="text-[11px] font-semibold text-slate-500 mt-1">
-                  รายการคำสั่งจ่ายยาเสริมจากระบบคลินิก (Clinic System Integration)
-                </p>
-              </div>
+            <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4 max-w-7xl mx-auto">
+              <div class="flex flex-wrap items-center gap-4">
+                <div>
+                  <h1 class="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2.5">
+                    <span class="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
+                      <PillIcon size={26} />
+                    </span>
+                    สั่งจ่ายยา
+                  </h1>
+                  <p class="text-[11px] font-semibold text-slate-500 mt-1">
+                    รายการคำสั่งจ่ายยาเสริมจากระบบคลินิก (Clinic System Integration)
+                  </p>
+                </div>
 
-              {/* Filtering Controls */}
-              <div class="flex flex-wrap items-center gap-3">
-                {/* Search Box */}
-                <div class="relative ">
+                {/* 🌟 (2) Search Box - ย้ายมาอยู่ทางซ้ายข้างหัวข้อใหญ่ */}
+                <div class="relative min-w-[220px] self-center">
                   <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                     <SearchIcon size={18} />
                   </span>
@@ -419,36 +673,79 @@
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="ค้นหารายการ..."
-                    class="pl-9 pr-3 py-1 bg-white border border-slate-200 rounded-xl text-[11px] font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent w-full shadow-xs"
+                    class="pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent w-full shadow-xs"
                   />
+                </div>
+              </div>
+
+              {/* Filtering Controls */}
+              <div class="flex flex-wrap items-center gap-3">
+                {/* 🌟 (1) Quick Period Filter Buttons: วันนี้ / เดือนนี้ / ทั้งหมด - ย้ายมาอยู่ทางขวาข้างช่วงเวลา */}
+                <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs gap-1">
+                  <button
+                    onClick={() => setFilterPeriod('today')}
+                    class={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      quickFilter === 'today'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    วันนี้
+                  </button>
+                  <button
+                    onClick={() => setFilterPeriod('month')}
+                    class={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      quickFilter === 'month'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    เดือนนี้
+                  </button>
+                  <button
+                    onClick={() => setFilterPeriod('all')}
+                    class={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      quickFilter === 'all'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    ทั้งหมด
+                  </button>
                 </div>
 
                 {/* Date Range Selector */}
-                <div class="flex items-center bg-white border border-slate-200 rounded-xl px-1 py-1.5 shadow-xs gap-2">
+                <div class="flex items-center bg-white border border-slate-200 rounded-xl px-2 py-1.5 shadow-xs gap-2">
                   <span class="text-[11px] font-bold text-slate-500 whitespace-nowrap">ช่วงเวลาตามสาย:</span>
                   <input
                     type="date"
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      setQuickFilter('custom');
+                    }}
                     class="text-[11px] font-semibold text-slate-700 border-none bg-transparent focus:outline-none"
                   />
                   <span class="text-slate-400 text-[11px]">-</span>
                   <input
                     type="date"
                     value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
+                    onChange={(e) => {
+                      setEndDate(e.target.value);
+                      setQuickFilter('custom');
+                    }}
                     class="text-[11px] font-semibold text-slate-700 border-none bg-transparent focus:outline-none"
                   />
                 </div>
 
-                {/* Filter Button & Refresh */}
+                {/* Refresh Button */}
                 <button
                   onClick={fetchOrders}
-                  class="flex items-center gap-1.5 px-1 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[11px] font-bold transition-colors border border-slate-200 shadow-xs"
+                  class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[11px] font-bold transition-colors border border-slate-200 shadow-xs cursor-pointer"
                   title="รีเฟรชข้อมูล"
                 >
                   <RefreshCw size={16} />
-                  <span>ตัวกรอง</span>
+                  <span>รีเฟรช</span>
                 </button>
               </div>
             </div>
@@ -573,14 +870,25 @@
                               </table>
                             </div>
                           </td>
-                          <td class="py-1 px-2 text-center align-middle whitespace-nowrap">
-                            <button
-                              onClick={() => handleCreateDraftOrder(ord)}
-                              class="inline-flex items-center justify-center gap-1.5 px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-[11px] shadow-xs shadow-emerald-200 transition-all transform active:scale-95"
-                            >
-                              <CheckCircle size={15} />
-                              ร่างใบสั่งซื้อ
-                            </button>
+                          <td class="py-2 px-3 text-center align-middle whitespace-nowrap">
+                            <div class="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => handleCreateDraftOrder(ord)}
+                                class="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-[11px] shadow-xs shadow-emerald-200 transition-all transform active:scale-95 cursor-pointer"
+                                title="สร้างร่างใบสั่งซื้อ"
+                              >
+                                <CheckCircle size={14} />
+                                ร่างใบสั่งซื้อ
+                              </button>
+                              <button
+                                onClick={() => handleDeleteOrder(ord)}
+                                class="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 hover:border-rose-300 font-bold rounded-xl text-[11px] shadow-2xs transition-all transform active:scale-95 cursor-pointer"
+                                title="ลบรายการนี้"
+                              >
+                                <Trash2 size={14} />
+                                ลบ
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))

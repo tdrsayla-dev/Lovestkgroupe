@@ -7,8 +7,8 @@
   <title>Stock - LOVE STK GROUPE</title>
   <!-- Standalone & GAS Libraries -->
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
-    body { font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800;900&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Inter:wght@400;500;600;700;800;900&display=swap');
+    body { font-family: 'Noto Sans Thai', 'Sarabun', 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
     @media (min-width: 1024px) {
       aside.lg\:flex { display: flex !important; position: fixed !important; top: 0; left: 0; height: 100vh; z-index: 30; }
       main.lg\:ml-64 { margin-left: 16rem !important; }
@@ -21,10 +21,20 @@
       main { margin-left: 0 !important; width: 100% !important; }
     }
   
-    /* Force global font-family styling to override Tailwind default sans stack */
+    /* Force global font-family & line-height to prevent Thai tone mark clipping */
     body, button, input, select, textarea, .font-sans, [class*="font-"] {
-        font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif !important;
+        font-family: 'Noto Sans Thai', 'Sarabun', 'Inter', sans-serif !important;
     }
+    
+    h1, h2, h3, h4, h5, h6, p, span, button, a, label, td, th {
+        line-height: 1.4;
+    }
+
+    /* Custom smooth horizontal scrollbar for tab navigation */
+    .custom-scroll::-webkit-scrollbar { height: 5px; }
+    .custom-scroll::-webkit-scrollbar-track { background: #e2e8f0; border-radius: 999px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 999px; }
+    .custom-scroll::-webkit-scrollbar-thumb:hover { background: #64748b; }
 </style>
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -77,17 +87,18 @@
     // 📌 STOCK MANAGEMENT - 4-Tab System
     // ==========================================
 
-    const StockSummaryCard = ({ icon, label, value, sub, color, subColor }) => (
-      <div className={`bg-white rounded-2xl border shadow-sm p-3.5 sm:p-4 flex flex-col justify-between transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 min-w-0 ${color || 'border-slate-200'}`}>
-        <div className="flex items-center justify-between gap-2 mb-2 w-full">
-          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide truncate flex-1">{label}</span>
-          <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shrink-0 ${color ? color.replace('border-', 'bg-').replace('-200', '-100/80') : 'bg-slate-100'}`}>
+    const StockSummaryCard = ({ icon, label, value, sub, color, subColor, badgeBg }) => (
+      <div className={`relative bg-white/90 backdrop-blur-md rounded-2xl border p-4 flex flex-col justify-between transition-all duration-300 hover:shadow-lg hover:-translate-y-1 group overflow-hidden ${color || 'border-slate-200/80 shadow-xs'}`}>
+        <div className="absolute top-0 left-0 w-1 h-full bg-current opacity-20 group-hover:opacity-100 transition-opacity"></div>
+        <div className="flex items-center justify-between gap-2 mb-2.5 w-full">
+          <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider truncate flex-1">{label}</span>
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-xs transition-transform group-hover:scale-110 ${badgeBg || 'bg-slate-100'}`}>
             {icon}
           </div>
         </div>
         <div className="min-w-0">
-          <p className="text-lg sm:text-xl font-black text-slate-800 leading-tight tracking-tight truncate">{value}</p>
-          {sub && <p className={`text-[11px] font-semibold mt-1 truncate ${subColor || 'text-slate-400'}`}>{sub}</p>}
+          <p className="text-xl sm:text-2xl font-black text-slate-900 leading-none tracking-tight truncate font-mono">{value}</p>
+          {sub && <p className={`text-[11px] font-bold mt-2 truncate flex items-center gap-1 ${subColor || 'text-slate-400'}`}>{sub}</p>}
         </div>
       </div>
     );
@@ -135,103 +146,139 @@
         });
       }, [products, filterStatus, searchTerm]);
 
-      const filterBtnClass = (active) =>
-        `px-4 py-1.5 rounded-xl text-xs font-bold border transition-all ${active ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`;
-
       return (
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="space-y-6 animation-fade-in">
+          {/* Summary Cards Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
             <StockSummaryCard
-              icon={<Archive size={18} className="text-emerald-600"/>}
-              label="รับเข้านำเข้าสะสมรวม"
+              icon={<Archive size={19} className="text-emerald-600"/>}
+              label="รับเข้านำเข้าสะสม"
               value={summary.totalIn.toLocaleString()}
-              sub="ชิ้น (นำเข้าสะสม)"
-              color="border-emerald-200 bg-emerald-50/20"
-              subColor="text-emerald-600"
+              sub="ชิ้น (นำเข้าสะสมรวม)"
+              color="border-emerald-200/80 bg-gradient-to-br from-emerald-50/50 via-white to-white"
+              badgeBg="bg-emerald-100/80 border border-emerald-200"
+              subColor="text-emerald-700"
             />
             <StockSummaryCard
-              icon={<Archive size={18} className="text-purple-600"/>}
-              label="ขาย/เบิกออกสะสม"
+              icon={<Archive size={19} className="text-purple-600"/>}
+              label="ขาย / เบิกออกสะสม"
               value={summary.totalOut.toLocaleString()}
-              sub="ชิ้น (ตัดออกสะสม)"
-              color="border-purple-200 bg-purple-50/20"
-              subColor="text-purple-600"
+              sub="ชิ้น (ตัดออกสะสมรวม)"
+              color="border-purple-200/80 bg-gradient-to-br from-purple-50/50 via-white to-white"
+              badgeBg="bg-purple-100/80 border border-purple-200"
+              subColor="text-purple-700"
             />
             <StockSummaryCard
-              icon={<Archive size={18} className="text-slate-700"/>}
+              icon={<Archive size={19} className="text-slate-700"/>}
               label="คงเหลือคลังจริงรวม"
               value={summary.totalItems.toLocaleString()}
-              sub="ชิ้น (สินค้าจริงพร้อมขาย)"
-              color="border-slate-200 bg-slate-50/40"
-              subColor="text-slate-500"
+              sub="ชิ้น (สินค้าพร้อมขาย)"
+              color="border-slate-300/80 bg-gradient-to-br from-slate-100/50 via-white to-white"
+              badgeBg="bg-slate-200/80 border border-slate-300"
+              subColor="text-slate-600"
             />
             <StockSummaryCard
-              icon={<Package size={18} className="text-blue-600"/>}
-              label="จำนวนรุ่นสินค้าคลังจริง"
+              icon={<Package size={19} className="text-blue-600"/>}
+              label="รุ่นสินค้าคลังจริง"
               value={summary.totalTypes}
-              sub="รุ่นสินค้าจริง"
-              color="border-blue-200 bg-blue-50/20"
-              subColor="text-blue-600"
+              sub="รายการรุ่นสินค้า"
+              color="border-blue-200/80 bg-gradient-to-br from-blue-50/50 via-white to-white"
+              badgeBg="bg-blue-100/80 border border-blue-200"
+              subColor="text-blue-700"
             />
             <StockSummaryCard
-              icon={<AlertTriangle size={18} className="text-amber-500"/>}
+              icon={<AlertTriangle size={19} className="text-amber-600"/>}
               label="สินค้าจริงใกล้หมด"
               value={summary.lowStock}
               sub="รายการ (<=10 ชิ้น)"
-              color="border-amber-200 bg-amber-50/20"
-              subColor="text-amber-600"
+              color="border-amber-200/80 bg-gradient-to-br from-amber-50/50 via-white to-white"
+              badgeBg="bg-amber-100/80 border border-amber-200"
+              subColor="text-amber-700"
             />
             <StockSummaryCard
-              icon={<AlertCircle size={18} className="text-red-500"/>}
+              icon={<AlertCircle size={19} className="text-red-600"/>}
               label="สินค้าจริงหมดสต๊อก"
               value={summary.outOfStock}
               sub={`มูลค่า ฿${summary.totalValue.toLocaleString()}`}
-              color="border-red-200 bg-red-50/20"
-              subColor="text-red-600"
+              color="border-red-200/80 bg-gradient-to-br from-red-50/50 via-white to-white"
+              badgeBg="bg-red-100/80 border border-red-200"
+              subColor="text-red-700"
             />
           </div>
 
+          {/* Alert Banner for Low / Out of Stock */}
           {(summary.outOfStock > 0 || summary.lowStock > 0) && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
-              <AlertTriangle size={18} className="text-amber-500 shrink-0 mt-0.5"/>
-              <div>
-                <p className="text-sm font-bold text-amber-800">
-                  แจ้งเตือนสต๊อกจริง: มีสินค้าหมด {summary.outOfStock} รายการ และใกล้หมด {summary.lowStock} รายการ
+            <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-amber-500/10 border-2 border-amber-300/80 rounded-2xl p-4 flex items-center gap-3.5 shadow-xs backdrop-blur-sm">
+              <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20 animate-pulse">
+                <AlertTriangle size={20}/>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-extrabold text-amber-900 flex items-center gap-2 flex-wrap">
+                  <span>แจ้งเตือนระดับสต๊อก:</span>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs bg-red-100 text-red-700 font-black border border-red-200">หมดสต๊อก {summary.outOfStock} รายการ</span>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800 font-black border border-amber-200">ใกล้หมด {summary.lowStock} รายการ</span>
                 </p>
-                <p className="text-xs text-amber-700 mt-0.5">กรุณาดำเนินการนำเข้าสต๊อกสินค้าหลักเพิ่มเติม</p>
+                <p className="text-xs text-amber-700 font-semibold mt-0.5">โปรดดำเนินการสั่งซื้อหรือนำเข้าสินค้าเพิ่มเติมเพื่อป้องกันสินค้าขาดคลัง</p>
               </div>
             </div>
           )}
 
-          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-            <div className="flex gap-2 flex-wrap">
-              {[['all','ทั้งหมด'],['normal','ปกติ'],['low','ใกล้หมด'],['out','หมดสต๊อก']].map(([v,l]) => (
-                <button key={v} onClick={() => setFilterStatus(v)} className={filterBtnClass(filterStatus === v)}>{l}</button>
-              ))}
+          {/* Filter Toolbar & Search */}
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between bg-white p-2.5 rounded-2xl border border-slate-200/80 shadow-xs">
+            <div className="flex gap-1.5 flex-wrap p-1 bg-slate-100/80 rounded-xl">
+              {[
+                ['all', 'ทั้งหมด', products?.length || 0],
+                ['normal', 'ปกติ', (products||[]).filter(p=>!p.isBundle && (p.stock||p.current_stock||0)>10).length],
+                ['low', 'ใกล้หมด (<=10)', summary.lowStock],
+                ['out', 'หมดสต๊อก', summary.outOfStock]
+              ].map(([v, l, count]) => {
+                const active = filterStatus === v;
+                return (
+                  <button key={v} onClick={() => setFilterStatus(v)} className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${active ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'}`}>
+                    <span>{l}</span>
+                    {count !== undefined && (
+                      <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${active ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>{count}</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-            <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 h-9 shadow-sm focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all w-full sm:w-64">
-              <SearchIcon size={15} className="text-slate-400 shrink-0"/>
-              <input type="text" placeholder="ค้นหารหัส หรือ ชื่อสินค้า..." className="flex-1 bg-transparent border-none outline-none text-xs font-medium text-slate-700 placeholder-slate-400 pl-2" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3.5 h-10 shadow-inner focus-within:border-blue-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/10 transition-all w-full sm:w-72">
+              <SearchIcon size={16} className="text-slate-400 shrink-0"/>
+              <input type="text" placeholder="ค้นหารหัส หรือ ชื่อสินค้า..." className="flex-1 bg-transparent border-none outline-none text-xs font-semibold text-slate-800 placeholder-slate-400 pl-2.5" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
+              {searchTerm && (
+                <button onClick={() => setSearchTerm('')} className="text-slate-400 hover:text-slate-600 p-1">
+                  <X size={14}/>
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          {/* Main Inventory Data Table */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="text-left py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wide">รหัส</th>
-                    <th className="text-left py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wide">ชื่อสินค้า</th>
-                    <th className="text-left py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wide">หมวดหมู่</th>
-                    <th className="text-right py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wide">คลังคงเหลือ</th>
-                    <th className="text-right py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wide">ราคาขาย (บาท)</th>
-                    <th className="text-right py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wide">มูลค่าสต๊อกคลัง (บาท)</th>
-                    <th className="text-center py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wide">สถานะ</th>
+                  <tr className="bg-slate-900 text-slate-200 border-b border-slate-800">
+                    <th className="text-left py-3.5 px-4 text-[11px] font-black uppercase tracking-wider">รหัสสินค้า</th>
+                    <th className="text-left py-3.5 px-4 text-[11px] font-black uppercase tracking-wider">ชื่อสินค้า / รายละเอียด</th>
+                    <th className="text-left py-3.5 px-4 text-[11px] font-black uppercase tracking-wider">หมวดหมู่</th>
+                    <th className="text-right py-3.5 px-4 text-[11px] font-black uppercase tracking-wider">คงเหลือในคลัง</th>
+                    <th className="text-right py-3.5 px-4 text-[11px] font-black uppercase tracking-wider">ราคาขาย</th>
+                    <th className="text-right py-3.5 px-4 text-[11px] font-black uppercase tracking-wider">มูลค่ารวม (บาท)</th>
+                    <th className="text-center py-3.5 px-4 text-[11px] font-black uppercase tracking-wider">สถานะสต๊อก</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100/90 font-medium">
                   {filtered.length === 0 && (
-                    <tr><td colSpan={7} className="py-12 text-center text-slate-400 font-bold text-sm">ไม่พบข้อมูล</td></tr>
+                    <tr>
+                      <td colSpan={7} className="py-16 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <Package size={36} className="text-slate-300"/>
+                          <p className="text-slate-400 font-bold text-sm">ไม่พบข้อมูลสินค้าที่ตรงกับเงื่อนไข</p>
+                        </div>
+                      </td>
+                    </tr>
                   )}
                   {filtered.map(p => {
                     const isPromoBundle = Boolean(p.isBundle || p.is_bundle || p.category === 'Promotion' || String(p.id || '').toUpperCase().startsWith('PRO'));
@@ -243,51 +290,65 @@
                     const bQty = p.bundleQty || p.bundle_qty || 1;
 
                     return (
-                      <tr key={p.id} className={`hover:bg-slate-50 transition-colors ${isPromoBundle ? 'bg-indigo-50/20' : isOut ? 'bg-red-50/40' : isLow ? 'bg-amber-50/40' : ''}`}>
-                        <td className="py-3 px-4 font-bold text-blue-600 text-xs">{p.id}</td>
-                        <td className="py-3 px-4 font-semibold text-slate-800">
-                          <div>{p.name}</div>
+                      <tr key={p.id} className={`hover:bg-slate-50/80 transition-colors ${isPromoBundle ? 'bg-indigo-50/30' : isOut ? 'bg-red-50/30' : isLow ? 'bg-amber-50/30' : ''}`}>
+                        <td className="py-3.5 px-4">
+                          <span className="inline-block font-mono font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100/80 text-xs">
+                            {p.id}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 font-bold text-slate-800">
+                          <div className="flex items-center gap-2">
+                            <span>{p.name}</span>
+                          </div>
                           {isPromoBundle && (
-                            <div className="text-[10px] text-indigo-600 font-bold mt-0.5 flex items-center gap-1">
-                              <span>🔗</span>
+                            <div className="text-[11px] text-indigo-600 font-bold mt-0.5 flex items-center gap-1">
+                              <span className="text-indigo-400">🔗</span>
                               <span>{baseProdName ? `ตัดสต๊อกสินค้าหลัก: ${baseProdName} (ครั้งละ ${bQty} กล่อง)` : 'เซ็ตจัดชุด (ตัดจากสินค้าหลัก)'}</span>
                             </div>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-slate-500 text-xs">{p.category || '-'}</td>
+                        <td className="py-3.5 px-4">
+                          <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                            {p.category || 'ทั่วไป'}
+                          </span>
+                        </td>
                         
                         {/* 📦 สต๊อกคงเหลือ */}
-                        <td className="py-3 px-4 text-right">
+                        <td className="py-3.5 px-4 text-right">
                           {isPromoBundle ? (
-                            <span className="inline-flex px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 font-mono">
+                            <span className="inline-flex px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
                               🎁 เซ็ตจัดชุด
                             </span>
                           ) : (
-                            <span className="font-black text-slate-800">{s.toLocaleString()}</span>
+                            <span className={`font-mono text-base font-black ${isOut ? 'text-red-600' : isLow ? 'text-amber-600' : 'text-slate-800'}`}>
+                              {s.toLocaleString()} <span className="text-xs font-normal text-slate-400">ชิ้น</span>
+                            </span>
                           )}
                         </td>
 
                         {/* 💵 ราคาขาย */}
-                        <td className="py-3 px-4 text-right text-slate-600 font-medium">{(p.priceFull || 0).toLocaleString()}</td>
+                        <td className="py-3.5 px-4 text-right text-slate-600 font-semibold font-mono">
+                          ฿{(p.priceFull || 0).toLocaleString()}
+                        </td>
                         
                         {/* 💰 มูลค่าสต๊อก */}
-                        <td className="py-3 px-4 text-right font-bold text-emerald-700">
+                        <td className="py-3.5 px-4 text-right font-black font-mono text-emerald-700">
                           {isPromoBundle ? (
                             <span className="text-slate-400 font-medium text-xs font-mono">-</span>
                           ) : (
-                            (s * (p.priceFull || 0)).toLocaleString()
+                            `฿${(s * (p.priceFull || 0)).toLocaleString()}`
                           )}
                         </td>
 
                         {/* 🏷️ สถานะสต๊อก */}
-                        <td className="py-3 px-4 text-center">
+                        <td className="py-3.5 px-4 text-center">
                           {isPromoBundle ? (
-                            <span className="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-700 border border-purple-200">
+                            <span className="inline-flex px-3 py-1 rounded-full text-[11px] font-extrabold bg-purple-100 text-purple-700 border border-purple-200">
                               เซ็ตโปร (ตัดคลังหลัก)
                             </span>
                           ) : (
-                            <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${isOut ? 'bg-red-100 text-red-700' : isLow ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                              {isOut ? 'หมดสต๊อก' : isLow ? 'ใกล้หมด' : 'ปกติ'}
+                            <span className={`inline-flex px-3 py-1 rounded-full text-[11px] font-extrabold ${isOut ? 'bg-red-100 text-red-700 border border-red-200' : isLow ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
+                              {isOut ? '● หมดสต๊อก' : isLow ? '▲ ใกล้หมด' : '✓ ปกติ'}
                             </span>
                           )}
                         </td>
@@ -295,10 +356,14 @@
                     );
                   })}
                 </tbody>
-                <tfoot className="bg-slate-50 border-t-2 border-slate-200">
+                <tfoot className="bg-slate-900 text-white border-t-2 border-slate-800">
                   <tr>
-                    <td colSpan={5} className="py-3 px-4 text-xs font-black text-slate-600 text-right">มูลค่าสต๊อกคลังจริงรวมทั้งหมด:</td>
-                    <td className="py-3 px-4 text-right font-black text-emerald-700">฿{summary.totalValue.toLocaleString()}</td>
+                    <td colSpan={5} className="py-4 px-4 text-xs font-black text-slate-300 text-right uppercase tracking-wider">
+                      รวมมูลค่าสินค้าในคลังทั้งหมด:
+                    </td>
+                    <td className="py-4 px-4 text-right font-black font-mono text-emerald-400 text-base">
+                      ฿{summary.totalValue.toLocaleString()}
+                    </td>
                     <td></td>
                   </tr>
                 </tfoot>
@@ -2953,6 +3018,114 @@
         );
     };
 
+    const MarginSettingsTab = ({ members, businessTeams, systemSettings, setSystemSettings, showToast, currentUser }) => {
+      const [marginMinBoxes, setMarginMinBoxes] = useState(() => Number(systemSettings?.margin_min_boxes || 0));
+      const [marginEnabled, setMarginEnabled] = useState(() => systemSettings?.margin_enabled !== 'false');
+      const [isSaving, setIsSaving] = useState(false);
+
+      const handleSaveSettings = () => {
+        setIsSaving(true);
+        const updated = {
+          ...systemSettings,
+          margin_min_boxes: marginMinBoxes,
+          margin_enabled: String(marginEnabled)
+        };
+        setSystemSettings(updated);
+        try {
+          localStorage.setItem('stk_system_settings', JSON.stringify(updated));
+        } catch(e){}
+
+        if (window.supabaseUpsert) {
+          supabaseUpsert('stk_system_settings', {
+            id: 'MAIN',
+            key: 'MAIN',
+            value: JSON.stringify(updated)
+          }).then(() => {
+            setIsSaving(false);
+            showToast('บันทึกการตั้งค่าจ่ายส่วนต่างสำเร็จ', 'success');
+          }).catch(err => {
+            setIsSaving(false);
+            showToast('บันทึกการตั้งค่าส่วนต่างเรียบร้อย', 'success');
+          });
+        } else {
+          setTimeout(() => {
+            setIsSaving(false);
+            showToast('บันทึกการตั้งค่าจ่ายส่วนต่างสำเร็จ', 'success');
+          }, 300);
+        }
+      };
+
+      return (
+        <div className="space-y-6 animation-fade-in">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-5">
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+              <div className="w-10 h-10 bg-amber-100 text-amber-700 rounded-2xl flex items-center justify-center font-bold text-lg shadow-xs">
+                💰
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900">ตั้งค่าการจ่ายเงินส่วนต่างราคาเต็ม (Retail Margin Bonus)</h3>
+                <p className="text-xs text-slate-500 font-medium">กำหนดเกณฑ์จำนวนกล่องขั้นต่ำและสถานะการเปิดใช้งานจ่ายเงินส่วนต่าง</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-amber-50/60 p-4 rounded-2xl border border-amber-200/80 space-y-2">
+                <label className="block text-xs font-bold text-amber-900 uppercase tracking-wide">
+                  สถานะระบบจ่ายส่วนต่าง
+                </label>
+                <div className="flex items-center gap-4 pt-1">
+                  <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
+                    <input 
+                      type="radio" 
+                      name="margin_enabled_radio" 
+                      checked={marginEnabled === true} 
+                      onChange={() => setMarginEnabled(true)}
+                    />
+                    <span className="text-emerald-700">เปิดใช้งาน (Active)</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
+                    <input 
+                      type="radio" 
+                      name="margin_enabled_radio" 
+                      checked={marginEnabled === false} 
+                      onChange={() => setMarginEnabled(false)}
+                    />
+                    <span className="text-rose-600">ปิดใช้งาน (Disabled)</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="bg-amber-50/60 p-4 rounded-2xl border border-amber-200/80 space-y-2">
+                <label className="block text-xs font-bold text-amber-900 uppercase tracking-wide">
+                  จำนวนกล่องราคาเต็มขั้นต่ำในการสะสมปันผลส่วนต่าง (กล่อง)
+                </label>
+                <input 
+                  type="number"
+                  min="0"
+                  className="w-full p-2.5 bg-white border border-amber-300 rounded-xl text-sm font-bold text-amber-900 outline-none focus:ring-2 focus:ring-amber-500"
+                  value={marginMinBoxes}
+                  onChange={e => setMarginMinBoxes(Number(e.target.value) || 0)}
+                  placeholder="0"
+                />
+                <p className="text-[11px] text-amber-800/80 font-medium">หากตั้งเป็น 0 หมายถึง ไม่จำกัดขั้นต่ำ (จ่ายส่วนต่างตั้งแต่กล่องแรก)</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-slate-100">
+              <button 
+                type="button" 
+                onClick={handleSaveSettings} 
+                disabled={isSaving}
+                className="px-6 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs transition-all shadow-sm flex items-center gap-2"
+              >
+                {isSaving ? 'กำลังบันทึก...' : '💾 บันทึกการตั้งค่าส่วนต่าง'}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
     const StockManagementView = ({ products, setProducts, stockMovements, setStockMovements, isAdmin, currentUser, showToast, systemSettings, setSystemSettings, productCategories, setProductCategories, members, businessTeams }) => {
       const [activeTab, setActiveTab] = useState(() => {
         try {
@@ -2977,22 +3150,43 @@
       ];
 
       return (
-        <div className="space-y-5 animation-fade-in">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-800">คลังสินค้าและสต๊อก (Inventory)</h2>
-            <p className="text-sm text-slate-500 mt-1">จัดการสินค้าในคลัง รับเข้า เบิกออก และดูประวัติการเคลื่อนไหว</p>
+        <div className="space-y-6 animation-fade-in">
+          {/* Executive Header Banner */}
+          <div className="bg-white/90 backdrop-blur-md p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-blue-100 text-blue-700 border border-blue-200">
+                  Inventory System
+                </span>
+                <span className="text-xs text-slate-400 font-bold">● STK GROUPE</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-snug">
+                คลังสินค้าและสต๊อก
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1 leading-relaxed">
+                จัดการสินค้าในคลัง ตรวจสอบยอดคงเหลือ บันทึกรับเข้า เบิกออก และติดตามประวัติการเคลื่อนไหวแบบเรียลไทม์
+              </p>
+            </div>
           </div>
 
-          <div className="flex gap-1 bg-slate-100 p-1.5 rounded-xl border border-slate-200 overflow-x-auto hide-scroll w-full">
-            {tabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex-shrink-0 ${activeTab === tab.id ? 'bg-white text-blue-700 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-800'}`}
-              >
-                {tab.label}
-              </button>
-            ))}
+          {/* Glassmorphism Navigation Bar */}
+          <div className="bg-slate-200/80 p-2 rounded-2xl border border-slate-300/80 backdrop-blur-md flex items-center gap-2 overflow-x-auto custom-scroll w-full shadow-inner">
+            {tabs.map(tab => {
+              const active = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-extrabold whitespace-nowrap transition-all duration-200 flex-shrink-0 flex items-center gap-2 ${
+                    active 
+                      ? 'bg-white text-blue-700 shadow-md shadow-slate-300/40 border border-blue-100 ring-1 ring-black/5 scale-[1.02]' 
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {activeTab === 'dashboard' && (
