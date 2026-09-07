@@ -324,7 +324,7 @@ function showPage(pageId, element) {
                 if (!hasAccess) {
                     // ถ้าไม่มีสิทธิ์! ให้หาหน้าแรกที่เขามีสิทธิ์แล้วสลับไปหน้านั้นแทน
                     const allMenuKeys = [
-                        'dashboard', 'appointments', 'registration', 'triage', 'doctor',
+                        'dashboard', 'appointments', 'booking', 'registration', 'triage', 'doctor',
                         'payment', 'lab', 'queue', 'prescription', 'pharmacy', 'history',
                         'billing', 'expenses', 'services', 'stock-drugs', 'stock-equip', 'staff', 'referrals', 'daily-reports'
                     ];
@@ -391,6 +391,16 @@ function showPage(pageId, element) {
         if (pageId === 'dashboard') {
             if (typeof window.renderCalendar === 'function') window.renderCalendar();
             if (typeof window.updateDashboardStats === 'function') window.updateDashboardStats();
+        } else if (pageId === 'booking') {
+            try {
+                const frame = document.getElementById('marketingFrame');
+                if (frame && frame.contentWindow) {
+                    if (typeof frame.contentWindow.loadLivePatientData === 'function') {
+                        frame.contentWindow.loadLivePatientData();
+                    }
+                    frame.contentWindow.postMessage({ type: 'FETCH_PATIENTS' }, '*');
+                }
+            } catch (fErr) { }
         } else if (pageId === 'stock-drugs') {
             if (typeof loadStockList === 'function') loadStockList();
         } else if (pageId === 'pharmacy') {
@@ -763,6 +773,134 @@ document.addEventListener("DOMContentLoaded", function () {
     loadStaffUsers();
     loadBills();
     loadExpenses();
+
+    // Listen for messages from iframes (e.g. marketing.html) to circumvent CORS issues
+    window.addEventListener('message', async function (event) {
+        if (event.data === 'openAddPatientModal') {
+            if (typeof openAddPatientModal === 'function') {
+                openAddPatientModal();
+            }
+        } else if (event.data && event.data.type === 'SHOW_VISIT_DETAIL') {
+            if (typeof showHistoryDetails === 'function') {
+                showHistoryDetails(event.data.visitId);
+            }
+        } else if (event.data && event.data.type === 'FETCH_PATIENTS') {
+            try {
+                if (typeof _supabase === 'undefined') return;
+
+                let currentUser = window.currentUser;
+                if (!currentUser) {
+                    try { currentUser = JSON.parse(localStorage.getItem('clinicUser') || 'null'); } catch (e) { }
+                }
+
+                // รวบรวมข้อมูลระบุตัวตนของผู้ใช้ที่ล็อกอินอยู่ทั้งหมด
+                const myIdentifiers = [];
+                if (currentUser) {
+                    if (currentUser.name) myIdentifiers.push(String(currentUser.name).trim().toLowerCase());
+                    if (currentUser.full_name) myIdentifiers.push(String(currentUser.full_name).trim().toLowerCase());
+                    if (currentUser.fullname) myIdentifiers.push(String(currentUser.fullname).trim().toLowerCase());
+                    if (currentUser.email) {
+                        const em = String(currentUser.email).trim().toLowerCase();
+                        myIdentifiers.push(em);
+                        const emPrefix = em.split('@')[0].trim();
+                        if (emPrefix) myIdentifiers.push(emPrefix);
+                    }
+                    if (currentUser.emp_code) myIdentifiers.push(String(currentUser.emp_code).trim().toLowerCase());
+                    if (currentUser.id) myIdentifiers.push(String(currentUser.id).trim().toLowerCase());
+                }
+
+                // โหลดรายชื่อผู้ป่วยทั้งหมดจาก Supabase (เรียงตามล่าสุด)
+                const { data: patients, error } = await _supabase
+                    .from('patients')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                // ดึงข้อมูลการเข้าตรวจล่าสุด (visits)
+                const { data: recentVisits } = await _supabase
+                    .from('visits')
+                    .select('visit_id, hn, patient_name, created_at, symptom, status, doctor_name')
+                    .order('created_at', { ascending: false })
+                    .limit(300);
+
+                let allPatients = patients ? [...patients] : [];
+
+                if (recentVisits && recentVisits.length > 0) {
+                    // ผูก visit_status ล่าสุดให้กับคนไข้แต่ละคน
+                    allPatients.forEach(p => {
+                        const pVisits = recentVisits.filter(v => (p.hn && v.hn === p.hn) || (v.patient_name && p.patient_name && v.patient_name.trim() === p.patient_name.trim()));
+                        if (pVisits.length > 0) {
+                            p.latest_visit_id = pVisits[0].visit_id;
+                            p.latest_visit_date = new Date(pVisits[0].created_at).toLocaleString('lo-LA');
+                            p.latest_visit_raw_date = pVisits[0].created_at;
+                            p.latest_symptom = pVisits[0].symptom || '-';
+                            p.visit_status = pVisits[0].status || '-';
+                            p.doctor_name = pVisits[0].doctor_name || '-';
+                        }
+                    });
+                }
+
+                // ตรวจสอบสิทธิ์ว่าเป็น Admin หรือไม่
+                const permissions = currentUser && Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
+                const userRole = (currentUser && currentUser.role ? String(currentUser.role) : '').trim().toLowerCase();
+                const userEmp = (currentUser && currentUser.emp_code ? String(currentUser.emp_code) : '').trim().toLowerCase();
+                const userName = (currentUser && (currentUser.name || currentUser.full_name) ? String(currentUser.name || currentUser.full_name) : '').trim().toLowerCase();
+
+                const isAdmin = userRole === 'admin' || 
+                                userRole === 'administrator' || 
+                                userRole === 'ผู้ดูแลระบบ' || 
+                                permissions.includes('all') || 
+                                userEmp === 'admin01' || 
+                                userName.includes('admin');
+
+                // 🌟 เงื่อนไขเฉพาะบุคคล:
+                // ถ้าเป็น Admin -> แสดงผู้ป่วยทั้งหมดในระบบ (ยกเว้น Admin ไม่ต้องกรอง)
+                // ถ้าไม่ใช่ Admin -> กรองให้เห็นเฉพาะผู้ป่วยที่ตนเองลงทะเบียน (created_by หรือ referred_by)
+                let userFilteredPatients = allPatients;
+                if (!isAdmin && myIdentifiers.length > 0) {
+                    userFilteredPatients = allPatients.filter(p => {
+                        // 1. เช็ค created_by
+                        if (p.created_by) {
+                            const c = String(p.created_by).trim().toLowerCase();
+                            if (myIdentifiers.some(id => c === id || c.includes(id) || id.includes(c))) {
+                                return true;
+                            }
+                        }
+                        // 2. เช็ค referred_by
+                        if (p.referred_by) {
+                            const r = String(p.referred_by).trim().toLowerCase();
+                            if (myIdentifiers.some(id => r === id || r.includes(id) || id.includes(r))) {
+                                return true;
+                            }
+                        }
+                        // 3. เช็คจาก clinic_patient_referrers ที่เก็บไว้ในระบบ
+                        try {
+                            const refMap = JSON.parse(localStorage.getItem('clinic_patient_referrers') || '{}');
+                            if (p.hn && refMap[p.hn]) {
+                                const mr = String(refMap[p.hn]).trim().toLowerCase();
+                                if (myIdentifiers.some(id => mr === id || mr.includes(id) || id.includes(mr))) {
+                                    return true;
+                                }
+                            }
+                        } catch (e) { }
+
+                        return false;
+                    });
+                }
+
+                if (event.source) {
+                    event.source.postMessage({ 
+                        type: 'PATIENTS_DATA', 
+                        patients: userFilteredPatients,
+                        isAdmin: isAdmin,
+                        currentUserName: currentUser ? (currentUser.name || currentUser.full_name || currentUser.email) : '',
+                        targetHn: event.data.targetHn || null
+                    }, '*');
+                }
+            } catch (err) {
+                console.error('Error fetching patients for iframe:', err);
+            }
+        }
+    });
 });
 
 function calculateAge() {
@@ -1140,8 +1278,8 @@ function filterPatients() {
         filtered = filtered.filter(row => {
             // 🌟 เปลี่ยนเป้าหมายไปตรวจที่ next_appointment_date แทน created_at
             // ถ้าผู้ป่วยคนไหนไม่ได้ระบุวันที่นัดมาตรวจไว้ เมื่อมีการใช้ตัวกรองวันที่ ระบบจะซ่อนผู้ป่วยคนนั้น (return false)
-            if (!row.next_appointment_date) return false; 
-            
+            if (!row.next_appointment_date) return false;
+
             // แปลงรูปแบบวันที่ให้อยู่ในฟอร์แมตมาตรฐาน YYYY-MM-DD เพื่อใช้เปรียบเทียบ
             const rowDate = new Date(row.next_appointment_date).toISOString().split('T')[0];
 
@@ -1238,27 +1376,46 @@ function renderPatientsTable(page = window.patientCurrentPage) {
 
         const latestVisit = window.latestVisitMap ? window.latestVisitMap[row.hn] : null;
 
-        // สถานะการคัดกรอง
+        // 🌟 1. ກວດສອບສະຖານະການກວດຂອງ Visit ຫຼ້າສຸດ (Active vs Finished/New Visit)
+        const todayStr = new Date().toISOString().split('T')[0];
+        let visitDateStr = '';
+        if (latestVisit && latestVisit.created_at) {
+            visitDateStr = new Date(latestVisit.created_at).toISOString().split('T')[0];
+        }
+        const isFromPreviousDay = Boolean(visitDateStr && visitDateStr < todayStr);
+        const vStatus = latestVisit ? latestVisit.status : null;
+
+        // ຖືວ່າ "ກຳລັງປິ່ນປົວຢູ່" (ຍັງບໍ່ໃຫ້ສົ່ງຄັດກອງຊ້ຳ) ສະເພາະກໍລະນີທີ່ຍັງບໍ່ທັນສຳເລັດ ແລະ ເປັນຂອງມື້ນີ້ເທົ່ານັ້ນ
+        const isOngoingTreatment = !isFromPreviousDay && latestVisit && (
+            vStatus === 'รอคัดกรอง' || vStatus === 'รอตรวจ' || vStatus === 'รอผลแล็บ' ||
+            vStatus === 'รอผลตรวจ Lab' || vStatus === 'รอจัดคิว' || vStatus === 'รออ่านผล' ||
+            vStatus === 'กำลังคุยกับแพทย์' || vStatus === 'กำลังตรวจ' || vStatus === 'กำลังตรวจอยู่' ||
+            vStatus === 'รอชำระเงิน' || vStatus === 'รอจัดยา' || vStatus === 'รอจ่ายยา'
+        );
+
+        const isFinished = !isOngoingTreatment && latestVisit && (vStatus === 'เสร็จสิ้น' || vStatus === 'ยกเลิก' || isFromPreviousDay);
+
+        // ສະຖານະການຄັດກອງ
         let triageBadge = '';
-        let isSent = !!latestVisit;
-        if (isSent) {
+        if (isOngoingTreatment) {
             const sentText = typeof t === 'function' ? t('reg_sent_triage', 'ส่งคัดกรองแล้ว') : 'ส่งคัดกรองแล้ว';
             triageBadge = `<span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1 text-nowrap"><i class="bi bi-check-circle-fill me-1"></i>${sentText}</span>`;
+        } else if (isFinished) {
+            triageBadge = `<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 text-nowrap"><i class="bi bi-check-all me-1"></i>ກວດສຳເລັດແລ້ວ</span>`;
         } else {
             const waitText = typeof t === 'function' ? t('reg_waiting_triage', 'รอส่งคัดกรอง') : 'รอส่งคัดกรอง';
             triageBadge = `<span class="badge bg-secondary-subtle text-secondary border px-2 py-1 text-nowrap"><i class="bi bi-clock me-1"></i>${waitText}</span>`;
         }
 
-        // สถานะการชำระเงิน
+        // ສະຖານະການຊຳລະເງິນ
         let paymentBadge = '';
-        const vStatus = latestVisit ? latestVisit.status : null;
-        if (vStatus === 'เสร็จสิ้น' || vStatus === 'รอจัดยา' || vStatus === 'รอจ่ายยา') {
+        if (vStatus === 'เสร็จสิ้น' || (isFromPreviousDay && vStatus !== 'รอชำระเงิน')) {
             const paidText = typeof t === 'function' ? t('payment_status_paid', 'ชำระเงินเสร็จสิ้น') : 'ชำระเงินเสร็จสิ้น';
             paymentBadge = `<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 text-nowrap"><i class="bi bi-check-all me-1"></i>${paidText}</span>`;
         } else if (vStatus === 'รอชำระเงิน') {
             const pendingPayText = typeof t === 'function' ? t('payment_status_pending', 'รอชำระเงิน') : 'รอชำระเงิน';
             paymentBadge = `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1 text-nowrap"><i class="bi bi-hourglass-split me-1"></i>${pendingPayText}</span>`;
-        } else if (vStatus === 'รอคัดกรอง' || vStatus === 'รอตรวจ' || vStatus === 'รอผลแล็บ' || vStatus === 'รอผลตรวจ Lab' || vStatus === 'รอจัดคิว' || vStatus === 'รออ่านผล' || vStatus === 'กำลังคุยกับแพทย์' || vStatus === 'กำลังตรวจ' || vStatus === 'กำลังตรวจอยู่') {
+        } else if (isOngoingTreatment) {
             const treatingText = typeof t === 'function' ? t('reg_status_in_treatment', 'กำลังรักษา') : 'กำลังรักษา';
             paymentBadge = `<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 text-nowrap"><i class="bi bi-activity me-1"></i>${treatingText}</span>`;
         } else if (vStatus) {
@@ -1277,9 +1434,19 @@ function renderPatientsTable(page = window.patientCurrentPage) {
 
         const sentBtnLabel = typeof t === 'function' ? t('reg_sent', 'ส่งแล้ว') : 'ส่งแล้ว';
         const sendTriageLabel = typeof t === 'function' ? t('reg_btn_send_triage', 'ส่งเข้าคัดกรอง') : 'ส่งเข้าคัดกรอง';
-        let sendBtn = isSent
-            ? `<button type="button" class="btn btn-sm btn-secondary text-nowrap" disabled title="${sentBtnLabel}">${sentBtnLabel}</button>`
-            : `<button type="button" class="btn btn-sm btn-primary text-nowrap" onclick="sendToTriage('${row.hn}', '${row.patient_name}')">${sendTriageLabel}</button>`;
+
+        // 🌟 2. ປຸ່ມສົ່ງເຂົ້າຄັດກອງ / ເປີດຮອບກວດໃໝ່:
+        // - ຖ້າກຳລັງປິ່ນປົວຢູ່ໃນມື້ນີ້ -> ລັອກປຸ່ມ (disabled)
+        // - ຖ້າກວດສຳເລັດແລ້ວ ຫຼື ມາຄົນລະມື້ -> ສະແດງປຸ່ມ "ເປີດຮອບໃໝ່" (ສ້າງ VISIT ໃໝ່)
+        // - ຖ້າຄົນໄຂ້ໃໝ່ຍັງບໍ່ເຄີຍມີ Visit -> ສະແດງປຸ່ມ "ສົ່ງເຂົ້າຄັດກອງ"
+        let sendBtn = '';
+        if (isOngoingTreatment) {
+            sendBtn = `<button type="button" class="btn btn-sm btn-secondary text-nowrap" disabled title="${sentBtnLabel}">${sentBtnLabel}</button>`;
+        } else if (isFinished) {
+            sendBtn = `<button type="button" class="btn btn-sm btn-outline-primary text-nowrap fw-semibold" onclick="sendToTriage('${row.hn}', '${row.patient_name}')" title="ເປີດຮອບກວດໃໝ່ (ສ້າງ VISIT ໃໝ່)"><i class="bi bi-plus-circle me-1"></i>ເປີດຮອບໃໝ່</button>`;
+        } else {
+            sendBtn = `<button type="button" class="btn btn-sm btn-primary text-nowrap" onclick="sendToTriage('${row.hn}', '${row.patient_name}')">${sendTriageLabel}</button>`;
+        }
 
         let actionBtns = `
             <div class="d-flex gap-1 justify-content-center align-items-center text-nowrap">
@@ -1433,7 +1600,7 @@ function populateProvinceDropdown() {
     const provSelect = document.getElementById('patientProvinceSelect');
     if (!provSelect) return;
 
-    let html = '<option value="">-- เลือกແຂວງ / จังหวัด --</option>';
+    let html = '<option value="">-- ເລືອກແຂວງ --</option>';
     let index = 1;
     for (const prov in LAOS_ADDRESS_DATA) {
         html += `<option value="${prov}">${index}. ${prov}</option>`;
@@ -1449,14 +1616,14 @@ function onPatientProvinceChange(targetDistrictVal = null) {
 
     const selectedProv = provSelect.value;
     if (!selectedProv || !LAOS_ADDRESS_DATA[selectedProv]) {
-        distSelect.innerHTML = '<option value="">-- กรุณาเลือกແຂວງ / จังหวัดก่อน --</option>';
+        distSelect.innerHTML = '<option value="">-- ກະລຸນາເລືອກແຂວງກ່ອນ --</option>';
         distSelect.disabled = true;
         distSelect.value = '';
         return;
     }
 
     const districts = LAOS_ADDRESS_DATA[selectedProv];
-    let html = '<option value="">-- เลือกເມືອງ / ตำบล --</option>';
+    let html = '<option value="">-- ເລືອກເມືອງ --</option>';
     districts.forEach(d => {
         html += `<option value="${d}">${d}</option>`;
     });
@@ -1506,6 +1673,10 @@ async function loadTriage() {
 function isDoctorUser(currentUser) {
     if (!currentUser) return false;
     const role = (currentUser.role || '').trim().toLowerCase();
+    // สิทธิ์ระดับผู้ดูแลระบบ (Admin) ไม่ควรถูกจำกัดคิวเป็นแพทย์คนเดียว ให้เห็นภาพรวมทั้งหมด
+    if (role === 'admin' || role === 'ผู้ดูแลระบบ' || role === 'superadmin' || role === 'เจ้าของระบบ') {
+        return false;
+    }
     if (role === 'doctor' || role === 'แพทย์' || role === 'หมอ' || role === 'ທ່ານໝໍ' || role.includes('doctor') || role.includes('แพทย์')) {
         return true;
     }
@@ -1519,6 +1690,14 @@ function isDoctorUser(currentUser) {
 }
 window.isDoctorUser = isDoctorUser;
 
+// ตรวจสอบว่าคิวตรวจนี้ยังไม่ระบุแพทย์หรือไม่
+function isUnassignedDoctor(visitDoctorName) {
+    if (!visitDoctorName) return true;
+    const docStr = String(visitDoctorName).trim().toLowerCase();
+    return !docStr || docStr === '-' || docStr === 'null' || docStr === 'undefined' || docStr === 'ไม่ได้ระบุ' || docStr === 'บ่ໄດ້ລະບຸ';
+}
+window.isUnassignedDoctor = isUnassignedDoctor;
+
 // ตรวจสอบว่าคิวตรวจนี้ถูกส่งให้กับแพทย์คนที่กำลังล็อกอินอยู่หรือไม่
 function isVisitAssignedToCurrentDoctor(visitDoctorName, currentUser) {
     if (!currentUser) return true;
@@ -1528,16 +1707,16 @@ function isVisitAssignedToCurrentDoctor(visitDoctorName, currentUser) {
         return true;
     }
 
-    // ถ้าเป็นแพทย์ แต่คิวนี้ยังไม่ระบุแพทย์ หรือระบุเป็นคนอื่น -> ไม่แสดงให้เห็น
-    if (!visitDoctorName || visitDoctorName.trim() === '-' || visitDoctorName.trim() === '') {
-        return false;
+    // ถ้าคิวนี้ยังไม่ระบุแพทย์ (ส่งมาจากจุดคัดกรอง) ให้แพทย์ทุกคนสามารถตรวจได้
+    if (isUnassignedDoctor(visitDoctorName)) {
+        return true;
     }
 
     const docStr = visitDoctorName.trim().toLowerCase();
     const curName = (currentUser.name || '').trim().toLowerCase();
     const curFullName = (currentUser.full_name || '').trim().toLowerCase();
     const curEmp = (currentUser.emp_code || '').trim().toLowerCase();
-    const curEmail = (currentUser.email || '').trim().toLowerCase();
+    const curEmail = (currentUser.email || '').toLowerCase();
     const curEmailUser = curEmail.split('@')[0];
 
     // แตกคำสำคัญเพื่อจับคู่ชื่อแพทย์ (เช่น "khanittha", "phoutthaamat")
@@ -1555,7 +1734,8 @@ window.isVisitAssignedToCurrentDoctor = isVisitAssignedToCurrentDoctor;
 // =====================================
 // ระบบห้องตรวจแพทย์ (Doctor Room) - รองรับ Pagination 15 รายการ/หน้า
 // =====================================
-window.doctorQueueData = []; // ตัวแปรเก็บข้อมูลทั้งหมด
+window.allDoctorQueueData = []; // ตัวแปรเก็บข้อมูลทั้งหมดที่ดึงมาจาก Supabase
+window.doctorQueueData = []; // ตัวแปรเก็บข้อมูลหลังผ่านการค้นหา/กรอง
 window.doctorCurrentPage = 1; // หน้าปัจจุบัน
 const DOCTOR_PER_PAGE = 15; // 🌟 กำหนดจำนวน 15 รายการต่อหน้า
 
@@ -1564,13 +1744,7 @@ window.loadDoctorQueue = async function () {
     const tbody = document.querySelector('#doctorTable tbody');
     if (!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูล...</td></tr>';
-
-    let currentUser = window.currentUser;
-    if (!currentUser) {
-        try { currentUser = JSON.parse(localStorage.getItem('clinicUser') || 'null'); } catch (e) { }
-    }
-    const isDoc = isDoctorUser(currentUser);
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูลคิวรอตรวจ...</td></tr>';
 
     const { data, error } = await _supabase
         .from('visits')
@@ -1579,18 +1753,47 @@ window.loadDoctorQueue = async function () {
         .order('created_at', { ascending: true });
 
     if (error) {
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
         return;
     }
 
-    let filtered = data || [];
-    // หากเป็นแพทย์ ให้เห็นเฉพาะคิวของตัวเอง
-    if (isDoc) {
-        filtered = filtered.filter(row => !row.doctor_name || isVisitAssignedToCurrentDoctor(row.doctor_name, currentUser));
+    window.allDoctorQueueData = data || [];
+    filterDoctorTable();
+};
+
+// 🌟 ฟังก์ชันกรองข้อมูลคิวตรวจแพทย์ (ค้นหา + กรองตามแพทย์)
+window.filterDoctorTable = function () {
+    let currentUser = window.currentUser;
+    if (!currentUser) {
+        try { currentUser = JSON.parse(localStorage.getItem('clinicUser') || 'null'); } catch (e) { }
+    }
+    const isDoc = isDoctorUser(currentUser);
+
+    const filterVal = document.getElementById('doctorQueueFilter')?.value || 'all';
+    const searchQuery = (document.getElementById('searchDoctorInput')?.value || '').toLowerCase().trim();
+
+    let list = [...(window.allDoctorQueueData || [])];
+
+    // 1. กรองตามเงื่อนไขแพทย์ (เฉพาะคิวของฉัน / ยังไม่ระบุแพทย์ / ทั้งหมด)
+    if (filterVal === 'my' && isDoc) {
+        list = list.filter(row => isVisitAssignedToCurrentDoctor(row.doctor_name, currentUser));
+    } else if (filterVal === 'unassigned') {
+        list = list.filter(row => isUnassignedDoctor(row.doctor_name));
     }
 
-    // เก็บข้อมูลลงตัวแปรกลาง แล้วเรียกฟังก์ชันวาดตาราง
-    window.doctorQueueData = filtered;
+    // 2. กรองตามคำค้นหา (ชื่อผู้ป่วย, HN, รหัส VISIT, อาการ, ชื่อแพทย์)
+    if (searchQuery) {
+        list = list.filter(row => {
+            const name = (row.patient_name || '').toLowerCase();
+            const hn = (row.hn || '').toLowerCase();
+            const vId = (row.visit_id || '').toLowerCase();
+            const sym = (row.symptom || '').toLowerCase();
+            const doc = (row.doctor_name || '').toLowerCase();
+            return name.includes(searchQuery) || hn.includes(searchQuery) || vId.includes(searchQuery) || sym.includes(searchQuery) || doc.includes(searchQuery);
+        });
+    }
+
+    window.doctorQueueData = list;
     window.doctorCurrentPage = 1;
     renderDoctorTable();
 };
@@ -1632,17 +1835,28 @@ window.renderDoctorTable = function (page = window.doctorCurrentPage) {
     // นำข้อมูล 15 รายการมาวาดลงตาราง
     currentData.forEach((row, idx) => {
         let no = startIndex + idx + 1;
-        let vitals = `ความดัน: ${row.bp || '-'}, นน.: ${row.weight || '-'} กก., อุณหภูมิ: ${row.temp || '-'}°C`;
-        let docBadge = row.doctor_name ? `<span class="badge bg-info-subtle text-info border border-info-subtle ms-2"><i class="bi bi-person me-1"></i>${row.doctor_name}</span>` : '';
+        
+        let vitalsList = [];
+        if (row.bp) vitalsList.push(`BP: <strong>${row.bp}</strong>`);
+        if (row.pulse) vitalsList.push(`PR: <strong>${row.pulse}</strong>`);
+        if (row.temp) vitalsList.push(`T: <strong>${row.temp}</strong>°C`);
+        if (row.weight) vitalsList.push(`Wt: <strong>${row.weight}</strong> kg`);
+        if (row.height) vitalsList.push(`Ht: <strong>${row.height}</strong> cm`);
+        if (row.bmi) vitalsList.push(`BMI: <strong>${row.bmi}</strong>`);
+        if (row.spo2) vitalsList.push(`SpO2: <strong>${row.spo2}</strong>%`);
 
-        // 🌟 เพิ่มคลาส py-2 เพื่อให้แถวแคบและชิดกันมากขึ้น ปรับปุ่มให้โค้งมนดูทันสมัย
+        let vitals = vitalsList.length > 0 ? vitalsList.join(' | ') : `ความดัน: ${row.bp || '-'}, นน.: ${row.weight || '-'} กก., อุณหภูมิ: ${row.temp || '-'}°C`;
+        let docBadge = (!isUnassignedDoctor(row.doctor_name)) 
+            ? `<span class="badge bg-info-subtle text-info border border-info-subtle ms-2"><i class="bi bi-person me-1"></i>${row.doctor_name}</span>` 
+            : `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-2"><i class="bi bi-clock me-1"></i>ยังไม่ระบุแพทย์</span>`;
+
         tbody.innerHTML += `
             <tr class="border-bottom">
                 <td class="ps-4 text-center align-middle py-2">${no}</td>
                 <td class="fw-bold text-dark align-middle py-2" style="font-size: 0.92rem;">${row.visit_id}</td>
                 <td class="align-middle py-2">
                     <div class="fw-bold text-dark" style="font-size: 0.92rem;">${row.patient_name}${docBadge}</div>
-                    <div class="text-muted small">อาการ: <span class="text-danger">${row.symptom || '-'}</span></div>
+                    <div class="text-muted small">อาการ: <span class="text-danger fw-semibold">${row.symptom || '-'}</span></div>
                 </td>
                 <td class="text-muted small align-middle py-2">${vitals}</td>
                 <td class="text-end pe-4 align-middle py-2">
@@ -1692,6 +1906,8 @@ window.renderDoctorTable = function (page = window.doctorCurrentPage) {
         paginationContainer.innerHTML = paginationHtml;
     }
 };
+
+
 
 async function completeDoctorCheck(visitId) {
     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -1957,8 +2173,8 @@ async function loadQueueList() {
         }
 
         // ตกแต่งป้ายผู้แนะนำให้สวยงาม
-        let referrerHtml = referrerName !== '-' 
-            ? `<span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1"><i class="ph ph-hand-coins me-1"></i>${referrerName}</span>` 
+        let referrerHtml = referrerName !== '-'
+            ? `<span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1"><i class="ph ph-hand-coins me-1"></i>${referrerName}</span>`
             : `<span class="text-muted small">-</span>`;
 
         tbody.innerHTML += `<tr>
@@ -2207,7 +2423,7 @@ function onMedSelectChange() {
     // ดักจับการเลือกสินค้าที่หมดสต็อก
     if (med.stock <= 0) {
         Swal.fire('แจ้งเตือน', 'รายการนี้สต็อกหมด ไม่สามารถเลือกได้ครับ', 'warning');
-        select.value = ''; 
+        select.value = '';
         return;
     }
 
@@ -2218,10 +2434,10 @@ function onMedSelectChange() {
     let optionsHtml = `<option value="normal">ราคาปกติ (${priceNormal.toLocaleString()}฿)</option>`;
     if (pricePromo > 0) optionsHtml += `<option value="promo">ราคาโปร (${pricePromo.toLocaleString()}฿)</option>`;
     else optionsHtml += `<option value="promo">ราคาโปร (${priceNormal.toLocaleString()}฿)</option>`;
-    
+
     if (priceHigh > 0) optionsHtml += `<option value="high">ราคาส่ง/สมาชิก (${priceHigh.toLocaleString()}฿)</option>`;
     else optionsHtml += `<option value="high">ราคาส่ง/สมาชิก (${priceNormal.toLocaleString()}฿)</option>`;
-    
+
     optionsHtml += `<option value="free">แถมฟรี (0฿)</option>`;
 
     tierSelect.innerHTML = optionsHtml;
@@ -2604,7 +2820,7 @@ function getTestItemDetails(testStr) {
 
         return {
             name: cleanTest,
-            price: totalPrice > 0 ? totalPrice : (parts.length * 150000),
+            price: totalPrice,
             isPackage: packageFound,
             subItems: combinedSubItems
         };
@@ -2649,10 +2865,13 @@ function getTestItemDetails(testStr) {
         ];
     }
 
-    let price = match ? (parseFloat(match.price) || 0) : 0;
-
-    // Smart Keyword Fallback Prices for Lab Tests when price is not set in servicesData
-    if (price === 0) {
+    let price = 0;
+    if (match && match.price !== undefined && match.price !== null && String(match.price).trim() !== '') {
+        // หากพบรายการในตารางบริการ/ตั้งค่ารายการตรวจ (servicesData) ให้ยึดราคาที่ตั้งค่าไว้เสมอ (แม้จะเป็น 0 กีบ)
+        price = parseFloat(match.price);
+        if (isNaN(price)) price = 0;
+    } else {
+        // กรณีไม่พบรายการในตารางบริการ ค่อยตรวจสอบ Keyword พื้นฐาน
         if (testNameLower.includes('ตับ') || testNameLower.includes('lft') || testNameLower.includes('liver') || testNameLower.includes('วงจอม') || testNameLower.includes('วงจร') || testNameLower.includes('sgot') || testNameLower.includes('sgpt')) {
             price = 300000;
         } else if (testNameLower.includes('t4') || testNameLower.includes('tsh') || testNameLower.includes('thyroid') || testNameLower.includes('ไทรอยด์') || testNameLower.includes('ft3') || testNameLower.includes('ft4')) {
@@ -2675,9 +2894,8 @@ function getTestItemDetails(testStr) {
             price = 100000;
         } else if (testNameLower.includes('แพ็ก') || testNameLower.includes('แพค') || testNameLower.includes('package')) {
             price = 1200000;
-        } else if (cleanTest !== '' && cleanTest !== '-') {
-            // Default price fallback for any non-empty lab test item
-            price = 150000;
+        } else {
+            price = 0;
         }
     }
 
@@ -2738,7 +2956,7 @@ async function showLabDetails(visitId, hn, patientName, testsString, labNote = '
     let visitRecord = null;
     if (window.clinicVisits) visitRecord = window.clinicVisits.find(v => v.visit_id === visitId);
     if (!visitRecord && window.pharmacyQueueData) visitRecord = window.pharmacyQueueData.find(v => v.visit_id === visitId);
-    
+
     if (!visitRecord && typeof _supabase !== 'undefined') {
         try {
             const { data } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
@@ -3012,62 +3230,181 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
     // ถ้า visit มี payable_amount หรือ total_price ที่บันทึกไว้แล้ว ให้ใช้เป็น totalPrice รวม
     const savedTotal = visitRecord ? parseFloat(visitRecord.payable_amount || visitRecord.total_price || visitRecord.price || 0) : 0;
 
+    // 🌟 2. ກວດສອບລາຍການທີ່ເຄີຍອອກບິນ ແລະ ຊຳລະແລ້ວໃນບິນກ່ອນໜ້າ (Option B: ແຍກບິນ - ສະເພາະບິນໃນມື້ດຽວກັນເທົ່ານັ້ນ)
+    const billedItemsSet = new Set();
+    const todayStr = new Date().toISOString().split('T')[0];
+    let existingBillsForVisit = (window.allBillsData || window.clinicBills || []).filter(b => b.visit_id === visitId);
+
+    if (existingBillsForVisit.length === 0 && typeof _supabase !== 'undefined') {
+        try {
+            const { data: dbBills } = await _supabase.from('bills').select('*').eq('visit_id', visitId);
+            if (dbBills && dbBills.length > 0) existingBillsForVisit = dbBills;
+        } catch (e) { }
+    }
+
+    // 🌟 ສຳຄັນຫຼາຍ: ກັ່ນຕອງສະເພາະບິນທີ່ອອກ "ໃນມື້ດຽວກັນ (ມື້ນີ້)" ເທົ່ານັ້ນ!
+    // ຖ້າເປັນບິນທີ່ຈ່າຍໃນມື້ກ່ອນໜ້າ (ເຊັ່ນ: ວັນທີ 1 ກັນຍາ ຫຼື ຂ້າມວັນໄປແລ້ວ) ຈະບໍ່ຖືກນຳມານັບວ່າຊຳລະແລ້ວ
+    // ເພື່ອໃຫ້ການມາກວດໃນມື້ໃໝ່ ຄິດເງິນເຕັມ 100% ທຸກລາຍການ
+    existingBillsForVisit = existingBillsForVisit.filter(b => {
+        if (!b.created_at) return true;
+        const billDateStr = new Date(b.created_at).toISOString().split('T')[0];
+        return billDateStr === todayStr;
+    });
+
+    existingBillsForVisit.forEach(b => {
+        if (Array.isArray(b.items)) {
+            b.items.forEach(it => {
+                if (it && it.name) {
+                    billedItemsSet.add(it.name.trim().toLowerCase());
+                    const subDet = getTestItemDetails(it.name);
+                    if (subDet && subDet.name) billedItemsSet.add(subDet.name.trim().toLowerCase());
+                }
+            });
+        }
+        const bTestsStr = b.lab_tests || b.tests || b.items_detail || '';
+        if (bTestsStr && typeof bTestsStr === 'string') {
+            bTestsStr.split(/[,;\n]/).forEach(s => {
+                const clean = s.trim().toLowerCase();
+                if (clean) billedItemsSet.add(clean);
+            });
+        }
+    });
+
     let totalPrice = 0;
     let rowsHtml = '';
+    let unpaidTestsList = [];
+    let paidCount = 0;
+
     testsList.forEach((test, idx) => {
         const itemDetails = getTestItemDetails(test);
-        totalPrice += itemDetails.price;
-        const priceDisplay = itemDetails.price > 0 ? itemDetails.price.toLocaleString() + ' LAK' : '<span class="text-muted small">- LAK</span>';
+        const testKey = test.trim().toLowerCase();
+        const itemNameKey = (itemDetails.name || '').trim().toLowerCase();
+        const isPaidInPreviousBill = billedItemsSet.has(testKey) || billedItemsSet.has(itemNameKey);
 
-        if (itemDetails.isPackage && itemDetails.subItems.length > 0) {
-            let subItemsHtml = itemDetails.subItems.map((sub) => {
-                const subName = sub.name || sub;
-                return `
-                    <span class="badge bg-white text-secondary border px-2 py-1 fw-semibold text-nowrap me-1 mb-1 shadow-sm" style="font-size: 0.78rem; border-radius: 6px;">
-                        <i class="bi bi-check2 text-success me-1 fw-bold"></i>${subName}
-                    </span>
+        if (isPaidInPreviousBill) {
+            paidCount++;
+            const priceBadge = `<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill fw-semibold" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i>ຊຳລະແລ້ວ</span>`;
+
+            if (itemDetails.isPackage && itemDetails.subItems.length > 0) {
+                let subItemsHtml = itemDetails.subItems.map((sub) => {
+                    const subName = sub.name || sub;
+                    return `
+                        <span class="badge bg-white text-secondary border px-2 py-1 fw-semibold text-nowrap me-1 mb-1 shadow-sm" style="font-size: 0.78rem; border-radius: 6px;">
+                            <i class="bi bi-check2 text-success me-1 fw-bold"></i>${subName}
+                        </span>
+                    `;
+                }).join('');
+
+                rowsHtml += `
+                    <tr class="bg-light border-bottom opacity-75">
+                        <td class="ps-3 py-3 text-center text-muted fw-semibold align-top" style="width: 60px; min-width: 60px;">${idx + 1}</td>
+                        <td class="py-3 text-secondary align-top">
+                            <div class="d-flex align-items-center mb-1">
+                                <span class="badge bg-secondary-subtle text-secondary border px-2 py-0.5 rounded-pill me-2 fw-semibold" style="font-size: 0.72rem;">
+                                    <i class="bi bi-box-seam me-1"></i>ແພັກເກຈ
+                                </span>
+                                <span class="fw-bold text-dark fs-6">${itemDetails.name}</span>
+                                <span class="badge bg-success-subtle text-success border border-success-subtle ms-2 px-2 py-0.5 rounded-pill" style="font-size: 0.72rem;">ຈ່າຍແລ້ວ (ບິນກ່ອນໜ້າ)</span>
+                            </div>
+                            <div class="p-2 rounded-3 bg-white border ms-1">
+                                <div class="d-flex flex-wrap gap-1">
+                                    ${subItemsHtml}
+                                </div>
+                            </div>
+                        </td>
+                        <td class="pe-3 py-3 text-end align-top" style="white-space: nowrap !important;">${priceBadge}</td>
+                    </tr>
                 `;
-            }).join('');
-
-            rowsHtml += `
-                <tr class="bg-white border-bottom">
-                    <td class="ps-3 py-3 text-center text-muted fw-semibold align-top" style="width: 60px; min-width: 60px;">${idx + 1}</td>
-                    <td class="py-3 text-dark align-top">
-                        <div class="d-flex align-items-center mb-2">
-                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill me-2 fw-semibold" style="font-size: 0.75rem;">
-                                <i class="bi bi-box-seam me-1"></i>แพ็กเกจ
-                            </span>
-                            <span class="fw-bold text-dark fs-6">${itemDetails.name}</span>
-                        </div>
-                        <div class="p-2.5 rounded-3 bg-light border ms-1">
-                            <div class="text-muted extra-small fw-bold mb-2" style="font-size: 0.75rem; color: #475569;">
-                                <i class="bi bi-diagram-3 me-1 text-primary"></i>รายการตรวจย่อยในแพ็กเกจ (${itemDetails.subItems.length} รายการ):
-                            </div>
-                            <div class="d-flex flex-wrap gap-1">
-                                ${subItemsHtml}
-                            </div>
-                        </div>
-                    </td>
-                    <td class="pe-3 py-3 text-end text-primary fw-bold fs-6 align-top" style="white-space: nowrap !important;">${priceDisplay}</td>
-                </tr>
-            `;
+            } else {
+                rowsHtml += `
+                    <tr class="bg-light border-bottom opacity-75">
+                        <td class="ps-3 py-2.5 text-center text-muted fw-semibold align-middle" style="width: 60px; min-width: 60px;">${idx + 1}</td>
+                        <td class="py-2.5 text-secondary fw-semibold align-middle">
+                            ${itemDetails.name}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle ms-2 px-2 py-0.5 rounded-pill" style="font-size: 0.72rem;">ຈ່າຍແລ້ວ (ບິນກ່ອນໜ້າ)</span>
+                        </td>
+                        <td class="pe-3 py-2.5 text-end align-middle" style="white-space: nowrap !important;">${priceBadge}</td>
+                    </tr>
+                `;
+            }
         } else {
-            rowsHtml += `
-                <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-light'} border-bottom">
-                    <td class="ps-3 py-2.5 text-center text-muted fw-semibold align-middle" style="width: 60px; min-width: 60px;">${idx + 1}</td>
-                    <td class="py-2.5 text-dark fw-semibold align-middle">${itemDetails.name}</td>
-                    <td class="pe-3 py-2.5 text-end text-primary fw-bold align-middle" style="white-space: nowrap !important;">${priceDisplay}</td>
-                </tr>
-            `;
+            // ລາຍການສັ່ງເພີ່ມໃໝ່ -> ຄິດໄລ່ລາຄາລົງໃນບິນໃໝ່ນີ້
+            totalPrice += itemDetails.price;
+            unpaidTestsList.push(test);
+            const priceDisplay = itemDetails.price > 0 ? itemDetails.price.toLocaleString() + ' LAK' : (itemDetails.price === 0 ? '0 LAK' : '<span class="text-muted small">- LAK</span>');
+            const newBadge = billedItemsSet.size > 0 ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2 px-2 py-0.5 rounded-pill" style="font-size: 0.72rem;"><i class="bi bi-plus-circle me-1"></i>ສັ່ງເພີ່ມໃໝ່</span>` : '';
+
+            if (itemDetails.isPackage && itemDetails.subItems.length > 0) {
+                let subItemsHtml = itemDetails.subItems.map((sub) => {
+                    const subName = sub.name || sub;
+                    return `
+                        <span class="badge bg-white text-secondary border px-2 py-1 fw-semibold text-nowrap me-1 mb-1 shadow-sm" style="font-size: 0.78rem; border-radius: 6px;">
+                            <i class="bi bi-check2 text-success me-1 fw-bold"></i>${subName}
+                        </span>
+                    `;
+                }).join('');
+
+                rowsHtml += `
+                    <tr class="bg-white border-bottom">
+                        <td class="ps-3 py-3 text-center text-muted fw-semibold align-top" style="width: 60px; min-width: 60px;">${idx + 1}</td>
+                        <td class="py-3 text-dark align-top">
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill me-2 fw-semibold" style="font-size: 0.75rem;">
+                                    <i class="bi bi-box-seam me-1"></i>ແພັກເກຈ
+                                </span>
+                                <span class="fw-bold text-dark fs-6">${itemDetails.name}</span>
+                                ${newBadge}
+                            </div>
+                            <div class="p-2.5 rounded-3 bg-light border ms-1">
+                                <div class="text-muted extra-small fw-bold mb-2" style="font-size: 0.75rem; color: #475569;">
+                                    <i class="bi bi-diagram-3 me-1 text-primary"></i>ລາຍການກວດຍ່ອຍໃນແພັກເກຈ (${itemDetails.subItems.length} ລາຍການ):
+                                </div>
+                                <div class="d-flex flex-wrap gap-1">
+                                    ${subItemsHtml}
+                                </div>
+                            </div>
+                        </td>
+                        <td class="pe-3 py-3 text-end text-primary fw-bold fs-6 align-top" style="white-space: nowrap !important;">${priceDisplay}</td>
+                    </tr>
+                `;
+            } else {
+                rowsHtml += `
+                    <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-light'} border-bottom">
+                        <td class="ps-3 py-2.5 text-center text-muted fw-semibold align-middle" style="width: 60px; min-width: 60px;">${idx + 1}</td>
+                        <td class="py-2.5 text-dark fw-semibold align-middle">
+                            ${itemDetails.name}
+                            ${newBadge}
+                        </td>
+                        <td class="pe-3 py-2.5 text-end text-primary fw-bold align-middle" style="white-space: nowrap !important;">${priceDisplay}</td>
+                    </tr>
+                `;
+            }
         }
     });
 
     if (testsList.length === 0) {
-        rowsHtml = `<tr><td colspan="3" class="text-center text-muted py-3">ไม่มีรายการแล็บ</td></tr>`;
+        rowsHtml = `<tr><td colspan="3" class="text-center text-muted py-3">ບໍ່ມີລາຍການແລັບ</td></tr>`;
     }
 
-    // ถ้าค้นหาราคาจาก services ไม่ได้ ให้ใช้ราคารวมจาก visit record แทน
-    const effectiveTotal = totalPrice > 0 ? totalPrice : savedTotal;
+    // ບັນທຶກສະເພາະລາຍການທີ່ຈະອອກບິນໃໝ່ (Option B - ແຍກບິນ)
+    window.currentPaymentBillTests = unpaidTestsList.length > 0 ? unpaidTestsList.join(', ') : effectiveTestsString;
+
+    // ແຖບແຈ້ງເຕືອນຖ້າມີລາຍການທີ່ເຄີຍຈ່າຍແລ້ວໃນບິນກ່ອນໜ້າ
+    let reorderBanner = '';
+    if (paidCount > 0) {
+        reorderBanner = `
+            <div class="alert alert-success py-2 px-3 mb-2.5 d-flex align-items-center justify-content-between" style="font-size: 0.82rem; border-radius: 8px;">
+                <div>
+                    <i class="bi bi-receipt text-success me-1"></i>
+                    <strong>ກວດພົບການສັ່ງກວດເພີ່ມ:</strong> ມີ ${paidCount} ລາຍການທີ່ຊຳລະແລ້ວໃນບິນກ່ອນໜ້າ
+                </div>
+                <span class="badge bg-success text-white fw-normal" style="font-size: 0.72rem;">ແຍກບິນໃໝ່ສະເພາະລາຍການເພີ່ມ</span>
+            </div>
+        `;
+    }
+
+    // ຖ້າມີການແຍກບິນ ໃຫ້ຄິດໄລ່ຍອດເງິນສະເພາະລາຍການທີ່ສັ່ງເພີ່ມໃໝ່
+    const effectiveTotal = (unpaidTestsList.length > 0 || billedItemsSet.size > 0) ? totalPrice : (testsList.length > 0 ? totalPrice : (savedTotal > 0 ? savedTotal : 0));
     const finalPayable = Math.max(0, effectiveTotal - discount);
     const finalPayableTHB = Math.round((finalPayable / exRate) * 100) / 100;
 
@@ -3075,7 +3412,7 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
     const safeTests = (testsString || '').replace(/'/g, "\\'");
 
     // แสดง note ถ้าราคาต่อรายการหาไม่เจอแต่ visit มีราคารวม
-    const priceNote = (totalPrice === 0 && savedTotal > 0)
+    const priceNote = (totalPrice === 0 && savedTotal > 0 && billedItemsSet.size === 0)
         ? `<div class="alert alert-info py-2 px-3 small mb-3"><i class="bi bi-info-circle me-1"></i>ราคารวมจากระบบ: <strong>${savedTotal.toLocaleString()} LAK</strong></div>`
         : '';
 
@@ -3158,6 +3495,7 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
 
                     ${priceNote}
                     ${noteHtml}
+                    ${reorderBanner}
 
                     <!-- ตารางรายการส่งตรวจ -->
                     <div class="table-responsive rounded-3 border mb-2.5" style="max-height: 250px; overflow-y: auto;">
@@ -3336,14 +3674,14 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
                     <!-- ปุ่มดำเนินการด้านล่าง -->
                     <div class="mt-3 pt-2.5 border-top d-flex flex-column gap-2">
                         <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-outline-secondary w-50 py-2 fw-semibold rounded-3 d-flex align-items-center justify-content-center gap-1.5" onclick="printPaymentInvoice('${visitId}', '${hn}', '${safeName}', '${safeTests}', (document.getElementById('labDiscountInput')?.value || '').replace(/,/g, '') || ${discount})">
+                            <button type="button" class="btn btn-outline-secondary w-50 py-2 fw-semibold rounded-3 d-flex align-items-center justify-content-center gap-1.5" onclick="printPaymentInvoice('${visitId}', '${hn}', '${safeName}', (window.currentPaymentBillTests || '${safeTests}'), (document.getElementById('labDiscountInput')?.value || '').replace(/,/g, '') || ${discount})">
                                 <i class="bi bi-printer"></i> พิมพ์ใบเสร็จ
                             </button>
                             <button type="button" class="btn btn-light border w-50 py-2 fw-semibold text-secondary rounded-3" onclick="saveLabDiscountAndClose('${visitId}')">
                                 บันทึกส่วนลด & ปิด
                             </button>
                         </div>
-                        <button type="button" class="btn btn-success w-100 py-2.5 fw-bold rounded-3 shadow-sm d-flex align-items-center justify-content-center gap-2 fs-6" onclick="confirmAndSubmitClinicPayment('${visitId}', '${hn}', '${safeName}', '${safeTests}', ${effectiveTotal})">
+                        <button type="button" class="btn btn-success w-100 py-2.5 fw-bold rounded-3 shadow-sm d-flex align-items-center justify-content-center gap-2 fs-6" onclick="confirmAndSubmitClinicPayment('${visitId}', '${hn}', '${safeName}', (window.currentPaymentBillTests || '${safeTests}'), ${effectiveTotal})">
                             <i class="bi bi-check2-circle fs-5"></i> ยืนยันรับเงิน & ส่ง Lab
                         </button>
                     </div>
@@ -3708,8 +4046,9 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
         paymentMethodSummary = parts.join(' | ') || 'เงินสด + เงินโอน';
     }
 
-    // สร้างรายการย่อย items
-    const testsList = (testsString || '').split(',').map(t => t.trim()).filter(Boolean);
+    // สร้างรายการย่อย items (ยึดตามรายการที่จะออกบินใบนี้)
+    const effectiveBillTests = (window.currentPaymentBillTests && window.currentPaymentBillTests.trim() !== '') ? window.currentPaymentBillTests : (testsString || '');
+    const testsList = effectiveBillTests.split(',').map(t => t.trim()).filter(Boolean);
     const billItems = testsList.map(t => {
         const item = typeof getTestItemDetails === 'function' ? getTestItemDetails(t) : { name: t, price: 0 };
         return {
@@ -3888,7 +4227,7 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
         window.clinicBills.unshift(billPayload);
         window.allBillsData = window.allBillsData || [];
         window.allBillsData.unshift(billPayload);
-        
+
         try {
             const safeBillsCache = (window.clinicBills || []).slice(0, 20); // เก็บแค่ 20 บิลล่าสุด
             if (typeof window.safeSetLocalStorage === 'function') {
@@ -4118,32 +4457,6 @@ window.printBillDetail = function (billId) {
     }
 };
 
-window.deleteBill = async function (billId) {
-    if (!billId) return;
-    const confirmRes = await Swal.fire({
-        title: 'ຢືນຢັນການລຶບ?',
-        text: 'ທ່ານຕ້ອງການລຶບໃບບິນ ' + billId + ' ຫຼືບໍ່?',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#6c757d',
-        confirmButtonText: 'ລຶບ',
-        cancelButtonText: 'ຍົກເລີກ'
-    });
-    if (!confirmRes.isConfirmed) return;
-
-    try {
-        if (typeof _supabase !== 'undefined') {
-            await _supabase.from('bills').delete().eq('bill_id', billId);
-        }
-        window.allBillsData = (window.allBillsData || []).filter(b => b.bill_id !== billId);
-        window.clinicBills = (window.clinicBills || []).filter(b => b.bill_id !== billId);
-        if (typeof renderBillsTable === 'function') renderBillsTable();
-        Swal.fire('ສຳເລັດ', 'ລຶບໃບບິນຮຽບຮ້ອຍແລ້ວ', 'success');
-    } catch (e) {
-        Swal.fire('ຜິດພາດ', 'ບໍ່ສາມາດລຶບໃບບິນໄດ້', 'error');
-    }
-};
 
 window.setBillDateFilter = function (mode) {
     const startInput = document.getElementById('billStartDate');
@@ -4536,35 +4849,112 @@ function printCurrentBillModal() {
 }
 window.printCurrentBillModal = printCurrentBillModal;
 
-// ลบใบเสร็จ
+// ลบใบเสร็จ (Admin Only)
 async function deleteBill(billId) {
+    if (!billId) return;
+
+    // ตรวจสอบสิทธิ์ Admin อย่างเคร่งครัด
+    if (typeof isClinicAdminUser === 'function' && !isClinicAdminUser()) {
+        Swal.fire({
+            icon: 'error',
+            title: 'ບໍ່ມີສິດດຳເນີນການ',
+            text: 'ສະເພາະຜູ້ດູແລລະບົບ (Admin) ເທົ່ານັ້ນທີ່ສາມາດລຶບໃບບິນໄດ້'
+        });
+        return;
+    }
+
+    const isLao = (localStorage.getItem('clinic_lang') || 'la') === 'la';
     const confirm = await Swal.fire({
-        title: 'ยืนยันการลบใบเสร็จ?',
-        text: `คุณต้องการลบใบเสร็จรหัส ${billId} ใช่หรือไม่? ข้อมูลจะไม่สามารถกู้คืนได้`,
+        title: isLao ? 'ຢືນຢັນການລຶບໃບບິນ?' : 'ยืนยันการลบใบเสร็จ?',
+        text: isLao ? `ທ່ານຕ້ອງການລຶບໃບບິນລະຫັດ ${billId} ແທ້ຫຼືບໍ່? ຂໍ້ມູນຈະບໍ່ສາມາດກູ້ຄືນໄດ້` : `คุณต้องการลบใบเสร็จรหัส ${billId} ใช่หรือไม่? ข้อมูลจะไม่สามารถกู้คืนได้`,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'ลบใบเสร็จ',
-        cancelButtonText: 'ยกเลิก',
+        confirmButtonText: isLao ? 'ລຶບໃບບິນ' : 'ลบใบเสร็จ',
+        cancelButtonText: isLao ? 'ຍົກເລີກ' : 'ยกเลิก',
         confirmButtonColor: '#dc2626'
     });
 
     if (!confirm.isConfirmed) return;
 
-    Swal.fire({ title: 'กำลังลบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    Swal.fire({ title: isLao ? 'ກຳລັງລຶບ...' : 'กำลังลบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    // ค้นหา Visit ID ที่เชื่อมโยงกับบิลนี้
+    const targetBill = (window.allBillsData || window.clinicBills || []).find(b => b.bill_id === billId || b.id === billId);
+    let vId = targetBill ? (targetBill.visit_id || targetBill.id) : null;
+    if (!vId && String(billId).startsWith('BILL-')) {
+        vId = 'VIS-' + String(billId).replace(/^BILL-/, '');
+    }
+
+    // บันทึกลงรายการ clinic_deleted_bills ใน LocalStorage ถาวร
+    let deletedBills = [];
+    try {
+        deletedBills = JSON.parse(localStorage.getItem('clinic_deleted_bills') || '[]');
+    } catch (e) { }
+    deletedBills.push(billId);
+    if (vId) deletedBills.push(vId);
+    if (String(billId).startsWith('BILL-')) {
+        const rawNum = String(billId).replace(/^BILL-/, '');
+        deletedBills.push(rawNum);
+        deletedBills.push('VIS-' + rawNum);
+    }
+    try {
+        localStorage.setItem('clinic_deleted_bills', JSON.stringify([...new Set(deletedBills)]));
+    } catch (e) { }
 
     try {
-        await _supabase.from('bills').delete().eq('bill_id', billId);
+        if (typeof _supabase !== 'undefined') {
+            // 1. ลบจาก Supabase ตาราง bills
+            await _supabase.from('bills').delete().eq('bill_id', billId);
+            if (vId) {
+                await _supabase.from('bills').delete().eq('visit_id', vId);
+            }
+            if (String(billId).startsWith('BILL-')) {
+                const rawNum = String(billId).replace(/^BILL-/, '');
+                await _supabase.from('bills').delete().eq('bill_id', rawNum);
+            }
+
+            // 2. อัปเดตสถานะใน Supabase ตาราง visits ให้เป็น 'ຍົກເລີກ' (Soft Delete เพื่อไม่ให้ติด Foreign Key 409 Conflict)
+            if (vId) {
+                try {
+                    await _supabase.from('visits').update({ status: 'ຍົກເລີກ' }).eq('visit_id', vId);
+                } catch (uErr) {
+                    console.warn('Update visit cancelled warning:', uErr);
+                }
+            }
+        }
     } catch (err) {
         console.warn('DB delete warning:', err);
     }
 
-    window.clinicBills = (window.clinicBills || []).filter(b => b.bill_id !== billId);
+    // 3. เคลียร์ออกจากตัวแปร Global และ Cache ທັນທີ
+    window.clinicBills = (window.clinicBills || []).filter(b => b.bill_id !== billId && (!vId || b.visit_id !== vId));
+    window.allBillsData = (window.allBillsData || []).filter(b => b.bill_id !== billId && (!vId || b.visit_id !== vId));
+    if (vId && Array.isArray(window.clinicVisits)) {
+        window.clinicVisits = window.clinicVisits.filter(v => v.visit_id !== vId && v.id !== vId);
+    }
     try {
         localStorage.setItem('clinic_bills_cache', JSON.stringify((window.clinicBills || []).slice(0, 50)));
     } catch (e) { }
+
+    // 4. เคลียร์ออกจากคิวและประวัติผู้ป่วย (Patient History)
+    try {
+        let cachedVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
+        if (Array.isArray(cachedVisits) && vId) {
+            cachedVisits = cachedVisits.filter(v => v.visit_id !== vId && v.id !== vId);
+            localStorage.setItem('clinic_visits_queue', JSON.stringify(cachedVisits));
+        }
+    } catch (e) { }
+
+    if (vId && Array.isArray(window.allHistoryVisits)) {
+        window.allHistoryVisits = window.allHistoryVisits.filter(v => v.visit_id !== vId && v.id !== vId);
+    }
+    if (typeof window.searchPatientHistory === 'function') {
+        try { window.searchPatientHistory(); } catch (e) { }
+    }
+
     renderBillsTable();
 
-    Swal.fire({ icon: 'success', title: 'ลบใบเสร็จเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
+    Swal.fire({ icon: 'success', title: isLao ? 'ລຶບໃບບິນຮຽບຮ້ອຍແລ້ວ' : 'ลบใบเสร็จเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
 }
 window.deleteBill = deleteBill;
 
@@ -4821,10 +5211,11 @@ async function submitPatient() {
         job: form.Job.value || null,
         phone: form.Tel.value,
         // 🌟 แก้ไข: ดึงค่าจากฟอร์มและส่งไปที่คอลัมน์ใหม่
-        next_appointment_date: (form.NextAppointmentDate ? form.NextAppointmentDate.value : null) || null, 
+        next_appointment_date: (form.NextAppointmentDate ? form.NextAppointmentDate.value : null) || null,
         past_history: form.PastHistory.value || null,
         allergies: form.Allergies.value || null,
-        referred_by: refByVal
+        referred_by: refByVal,
+        created_by: window.currentUser ? (window.currentUser.fullname || window.currentUser.name || window.currentUser.email) : null
     };
 
     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -4865,8 +5256,21 @@ async function submitPatient() {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('addPatientModal')).hide();
     form.reset();
     if (document.getElementById('patientEditHn')) document.getElementById('patientEditHn').value = '';
+
+    // สั่งเปลี่ยนหน้าจอ (Redirect) ไปที่หน้า "ทะเบียนผู้ป่วย" (ID: registration) ทันที
+    if (typeof showPage === 'function') {
+        showPage('registration', document.getElementById('nav-registration'));
+    }
+
+    // โหลดข้อมูลใหม่เพื่อให้ตารางอัปเดต
     loadPatients();
-    Swal.fire('สำเร็จ', editHn ? 'แก้ไขประวัติผู้ป่วยเรียบร้อยแล้ว' : 'ลงทะเบียนผู้ป่วยและประวัติใหม่เรียบร้อยแล้ว', 'success');
+
+    // แสดงข้อความแจ้งเตือนสำเร็จ
+    Swal.fire('สำเร็จ', editHn ? 'แก้ไขประวัติผู้ป่วยเรียบร้อยแล้ว' : 'ลงทะเบียนผู้ป่วยและประวัติใหม่เรียบร้อยแล้ว', 'success').then(() => {
+        if (typeof showPage === 'function') {
+            showPage('registration', document.getElementById('nav-registration'));
+        }
+    });
 }
 
 function openAddPatientModal() {
@@ -4890,7 +5294,7 @@ function openAddPatientModal() {
     if (lockHint) lockHint.style.display = 'none';
 
     const modalTitle = document.querySelector('#addPatientModal .modal-title');
-    if (modalTitle) modalTitle.textContent = 'เพิ่มประวัติผู้ป่วยใหม่';
+    if (modalTitle) modalTitle.textContent = 'ເພີ່ມປະຫວັດຜູ້ປ່ວຍໃໝ່';
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('addPatientModal')).show();
 }
@@ -4929,7 +5333,7 @@ function openRegisterFromAppointment(appId, name, phone) {
     }
 
     const modalTitle = document.querySelector('#addPatientModal .modal-title');
-    if (modalTitle) modalTitle.textContent = `เพิ่มประวัติผู้ป่วยใหม่ (จากรายการนัดหมาย: ${appId})`;
+    if (modalTitle) modalTitle.textContent = `ເພີ່ມປະຫວັດຜູ້ປ່ວຍໃໝ່ (ຈາກລາຍການນັດໝາຍ: ${appId})`;
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('addPatientModal')).show();
 }
@@ -4951,7 +5355,7 @@ function editPatient(hn) {
     if (form.Age) form.Age.value = patient.age || '';
     if (form.Tel) form.Tel.value = patient.phone || '';
     // 🌟 แก้ไข: นำค่าจากฐานข้อมูลกลับมาใส่ในฟอร์มวันที่นัดมาตรวจ
-    if (form.NextAppointmentDate) form.NextAppointmentDate.value = patient.next_appointment_date || ''; 
+    if (form.NextAppointmentDate) form.NextAppointmentDate.value = patient.next_appointment_date || '';
     if (form.Job) form.Job.value = patient.job || '';
     if (form.Village) form.Village.value = patient.village || '';
     if (form.PastHistory) form.PastHistory.value = patient.past_history || '';
@@ -4985,7 +5389,7 @@ function editPatient(hn) {
     }
 
     const modalTitle = document.querySelector('#addPatientModal .modal-title');
-    if (modalTitle) modalTitle.textContent = `แก้ไขประวัติผู้ป่วย (${patient.hn})`;
+    if (modalTitle) modalTitle.textContent = `ແກ້ໄຂປະຫວັດຜູ້ປ່ວຍ (${patient.hn})`;
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('addPatientModal')).show();
 }
@@ -5040,25 +5444,52 @@ async function sendToTriage(hn, name) {
     }
 }
 
-function openTriageModal(visitId) {
-    document.getElementById('triageForm').reset();
-    document.getElementById('triageVisitId').value = visitId;
+async function openTriageModal(visitId) {
+    const form = document.getElementById('triageForm');
+    if (form) form.reset();
+    const vInput = document.getElementById('triageVisitId');
+    if (vInput) vInput.value = visitId;
+
+    // ดึงข้อมูลเดิมของ visit นี้มาแสดงเผื่อมีการบันทึกค้างไว้
+    if (typeof _supabase !== 'undefined' && visitId) {
+        try {
+            const { data } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
+            if (data && form) {
+                if (data.temp && form.temp) form.temp.value = data.temp;
+                if (data.bp && form.bp) form.bp.value = data.bp;
+                if (data.pulse && form.pulse) form.pulse.value = data.pulse;
+                if (data.weight && form.weight) form.weight.value = data.weight;
+                if (data.height && form.height) form.height.value = data.height;
+                if (data.bmi && form.bmi) form.bmi.value = data.bmi;
+                if (data.spo2 && form.spo2) form.spo2.value = data.spo2;
+                if (data.symptom && form.symptom) form.symptom.value = data.symptom;
+            }
+        } catch (e) {
+            console.warn('Could not prefetch visit triage info:', e);
+        }
+    }
+
     bootstrap.Modal.getOrCreateInstance(document.getElementById('triageModal')).show();
 }
 
 async function submitTriage() {
     const form = document.getElementById('triageForm');
-    const visitId = form.visitId.value;
+    const visitId = document.getElementById('triageVisitId')?.value || form?.visitId?.value;
+
+    if (!visitId) {
+        Swal.fire('ข้อผิดพลาด', 'ไม่พบรหัสการตรวจ (Visit ID) กรุณาลองใหม่อีกครั้ง', 'error');
+        return;
+    }
 
     const triageData = {
-        temp: parseFloat(form.temp.value) || null,
-        bp: form.bp.value || null,
-        pulse: parseInt(form.pulse.value) || null,
-        weight: parseFloat(form.weight.value) || null,
-        height: parseFloat(form.height.value) || null,
-        bmi: parseFloat(form.bmi.value) || null,
-        spo2: parseInt(form.spo2.value) || null,
-        symptom: form.symptom.value || null,
+        temp: form.temp?.value ? parseFloat(form.temp.value) : null,
+        bp: form.bp?.value?.trim() || null,
+        pulse: form.pulse?.value ? parseInt(form.pulse.value) : null,
+        weight: form.weight?.value ? parseFloat(form.weight.value) : null,
+        height: form.height?.value ? parseFloat(form.height.value) : null,
+        bmi: form.bmi?.value ? parseFloat(form.bmi.value) : null,
+        spo2: form.spo2?.value ? parseInt(form.spo2.value) : null,
+        symptom: form.symptom?.value?.trim() || null,
         status: 'รอตรวจ'
     };
 
@@ -5073,11 +5504,24 @@ async function submitTriage() {
         Swal.fire('ข้อผิดพลาด', error.message, 'error');
     } else {
         bootstrap.Modal.getOrCreateInstance(document.getElementById('triageModal')).hide();
-        loadTriage();
+        if (typeof loadTriage === 'function') loadTriage();
         if (typeof loadTriageHistory === 'function') loadTriageHistory();
-        loadDoctorQueue();
+        if (typeof loadDoctorQueue === 'function') loadDoctorQueue();
         if (typeof loadPatients === 'function') loadPatients();
-        Swal.fire('สำเร็จ', 'ส่งเข้าห้องตรวจแล้ว', 'success');
+
+        Swal.fire({
+            icon: 'success',
+            title: 'ส่งเข้าห้องตรวจแล้ว',
+            html: `รหัสตรวจ: <strong>${visitId}</strong> ได้ถูกส่งไปยังห้องตรวจแพทย์เรียบร้อยแล้ว`,
+            showCancelButton: true,
+            confirmButtonText: '<i class="bi bi-person-check me-1"></i>ไปที่ห้องตรวจแพทย์',
+            cancelButtonText: 'อยู่ที่หน้านี้ต่อ',
+            confirmButtonColor: '#0d6efd'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                showPage('doctor', document.querySelector('a[onclick*="doctor"]'));
+            }
+        });
     }
 }
 
@@ -5702,6 +6146,41 @@ async function openLabOrder(visitId, patientName, hn) {
 
     window.checkedLabState = {};
 
+    // 🌟 ดึงรายการตรวจเดิมของ Visit นี้ (เฉพาะกรณีที่เป็นของวันนี้เท่านั้น เพื่อไม่ให้บล็อกรายการของวันก่อนหน้า)
+    let existingLabs = [];
+    if (visitInfo && visitInfo.lab_tests) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        let visitDateStr = '';
+        if (visitInfo.created_at) {
+            visitDateStr = new Date(visitInfo.created_at).toISOString().split('T')[0];
+        }
+        if (!visitDateStr || visitDateStr === todayStr) {
+            existingLabs = visitInfo.lab_tests.split(',').map(s => s.trim()).filter(Boolean);
+        }
+    }
+    window.currentVisitExistingLabs = existingLabs;
+
+    // แสดงแถบรายการตรวจเดิมที่เคยสั่งไปแล้ว
+    const existingLabsBanner = document.getElementById('existingLabsBanner');
+    if (existingLabsBanner) {
+        if (existingLabs.length > 0) {
+            existingLabsBanner.innerHTML = `
+                <div class="alert alert-info py-2 px-3 mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; border-radius: 10px; border-left: 4px solid #0284c7;">
+                    <i class="bi bi-info-circle-fill text-primary fs-5"></i>
+                    <div>
+                        <strong class="text-dark">ລາຍການທີ່ເຄີຍສັ່ງກ່ອນໜ້າ (${existingLabs.length} ລາຍການ):</strong>
+                        <div class="text-primary fw-semibold mt-0.5">${existingLabs.join(', ')}</div>
+                        <small class="text-muted">ກະລຸນາເລືອກສະເພາະລາຍການທີ່ຕ້ອງການ <strong>"ສັ່ງເພີ່ມ"</strong> (ລະບົບຈະຮວມລາຍການໃຫ້ອັດຕະໂນມັດ ໂດຍບໍ່ລຶບລາຍການເກົ່າ ແລະ ແຍກບິນໃຫ້ຢ່າງຖືກຕ້ອງ)</small>
+                    </div>
+                </div>
+            `;
+            existingLabsBanner.style.display = 'block';
+        } else {
+            existingLabsBanner.innerHTML = '';
+            existingLabsBanner.style.display = 'none';
+        }
+    }
+
     // ดึงข้อมูลบริการ/แล็บ 38 รายการจาก Supabase DB เพื่อให้ข้อมูลครบถ้วนเสมอ
     if (typeof loadServicesData === 'function') {
         await loadServicesData();
@@ -5749,9 +6228,13 @@ async function submitLabOrder() {
 
     Swal.fire({ title: 'กำลังบันทึกส่งแล็บ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
+    // 🌟 ຮວມລາຍການກວດເກົ່າ + ລາຍການກວດໃໝ່ ບໍ່ໃຫ້ລາຍການເກົ່າຖືກຂຽນທັບ
+    const existingLabs = window.currentVisitExistingLabs || [];
+    const mergedLabs = [...new Set([...existingLabs, ...selectedLabs])];
+
     // ข้อมูลที่จะอัปเดตลงฐานข้อมูล Supabase
     const updateData = {
-        lab_tests: selectedLabs.join(', '),
+        lab_tests: mergedLabs.join(', '),
         lab_note: labNoteVal, // บันทึกข้อความหมายเหตุลงฐานข้อมูล
         status: 'รอชำระเงิน'
     };
@@ -6417,14 +6900,38 @@ async function sendToReportQueue(visitId) {
     }
 }
 function openLabUploadModal(visitId) {
-    document.getElementById('labUploadForm').reset();
-    document.getElementById('uploadVisitId').value = visitId;
-    const previewContainer = document.getElementById('labFilePreviewContainer');
-    if (previewContainer) {
-        previewContainer.innerHTML = '';
-        previewContainer.style.display = 'none';
+    try {
+        // 1. เคลียร์ฉากหลัง (Backdrop) ที่อาจตกค้างออกทั้งหมด ป้องกันอาการจอมืดค้าง
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
+
+        // 2. รีเซ็ตฟอร์มอัปโหลดอย่างปลอดภัย
+        const form = document.getElementById('labUploadForm');
+        if (form) form.reset();
+
+        const visitIdInput = document.getElementById('uploadVisitId');
+        if (visitIdInput) visitIdInput.value = visitId;
+
+        const previewContainer = document.getElementById('labFilePreviewContainer');
+        if (previewContainer) {
+            previewContainer.innerHTML = '';
+            previewContainer.style.display = 'none';
+        }
+
+        // 3. แสดง Modal อัปโหลดผลตรวจแล็บ
+        const modalEl = document.getElementById('labUploadModal');
+        if (modalEl) {
+            modalEl.style.zIndex = '1060';
+            const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modalInstance.show();
+        } else {
+            console.error('ไม่พบ element #labUploadModal');
+        }
+    } catch (err) {
+        console.error('openLabUploadModal Error:', err);
     }
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('labUploadModal')).show();
 }
 
 async function submitLabUpload() {
@@ -6595,6 +7102,11 @@ async function submitLabUpload() {
         if (modalEl) {
             const instance = bootstrap.Modal.getInstance(modalEl);
             if (instance) instance.hide();
+            setTimeout(() => {
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                document.body.classList.remove('modal-open');
+                document.body.style.removeProperty('overflow');
+            }, 300);
         }
 
         // รีเฟรชตารางห้องแล็บเพื่อโชว์ปุ่มไฟล์แล็บตามหมวดหมู่ในช่อง "ผลตรวจทั้งหมด" ทันที!
@@ -6954,7 +7466,7 @@ function filterMedsByCategory() {
 // ฟังก์ชันสร้างตัวเลือกรายการยา/อาหารเสริมใน Dropdown (พร้อมโชว์ Stock)
 function populateRxMedDropdown() {
     const select = document.getElementById('rxMedSelect');
-    const dataList = document.getElementById('rxMedOptions'); 
+    const dataList = document.getElementById('rxMedOptions');
     const catSelect = document.getElementById('rxCategorySelect');
     if (!select) return;
 
@@ -7003,7 +7515,7 @@ function populateRxMedDropdown() {
         const isOutOfStock = item.stock <= 0;
         const stockText = isOutOfStock ? 'หมด (Out of Stock)' : `คงเหลือ: ${item.stock}`;
         const disableAttr = isOutOfStock ? 'disabled' : '';
-        
+
         // 🌟 จุดที่แก้ไข: ใช้รูปแบบ "รหัส - ชื่อ" เพื่อให้ดูสะอาดตา
         html += `<option value="${item.id} - ${item.name}" ${disableAttr}>${stockText}</option>`;
     });
@@ -7291,7 +7803,7 @@ function addMedToRx() {
     if (!select || !select.value || !tierSelect) return;
 
     const rawVal = select.value;
-    
+
     // 🌟 จุดที่แก้ไข: ตัดเอาเฉพาะ "รหัส" ที่อยู่ด้านหน้าสุดมาใช้ค้นหา
     const medId = rawVal.split(' - ')[0].trim();
 
@@ -7339,7 +7851,7 @@ function addMedToRx() {
     }
 
     const displayName = medName + tierLabel;
-    
+
     // ตรวจสอบว่ามีรายการนี้ในบิลแล้วหรือไม่
     const existing = window.currentRxMeds.find(m => m.id === medId && m.tier === selectedTier && m.source === itemSource);
     if (existing) {
@@ -7352,7 +7864,7 @@ function addMedToRx() {
     }
 
     renderRxMedsTable();
-    
+
     // เคลียร์ช่องค้นหาให้ว่าง เพื่อเตรียมพิมพ์รายการต่อไป
     select.value = '';
 }
@@ -7435,7 +7947,7 @@ async function submitPrescription() {
         try {
             const { data: vDb } = await _supabase.from('visits').select('symptom').eq('visit_id', visitId).maybeSingle();
             if (vDb && vDb.symptom && vDb.symptom !== 'สั่งจ่ายยา') originalSymptom = vDb.symptom;
-        } catch (e) {}
+        } catch (e) { }
     }
 
     const symptomText = originalSymptom || (refillTag ? `ต่อยา (${refillTag})` : 'สั่งจ่ายยา');
@@ -7756,7 +8268,7 @@ async function saveNutrientOrderToDatabase(salePayload) {
             console.warn("Parse items_json string error:", e);
         }
     }
-    
+
     if (!Array.isArray(rawItems) || rawItems.length === 0) {
         if (Array.isArray(salePayload.items)) {
             rawItems = salePayload.items;
@@ -8531,7 +9043,7 @@ window.viewPharmacyBillDetails = async function (visitId, billType) {
                 if (vData.doctor_name && vData.doctor_name !== 'null' && vData.doctor_name !== '') {
                     doctorName = vData.doctor_name;
                 }
-                
+
                 // 2. ดึงอาการจากจุดคัดกรอง
                 if (vData.symptom && vData.symptom.trim() !== '') {
                     patientSymptom = vData.symptom.trim();
@@ -8790,7 +9302,7 @@ window.sendPharmacyNutrientOrder = async function (visitId) {
                 if ((!closerDr || closerDr === '-') && vDb.doctor_name && vDb.doctor_name !== 'null') closerDr = vDb.doctor_name;
                 if (!patientSymptom && vDb.symptom && vDb.symptom !== 'สั่งจ่ายยา') patientSymptom = vDb.symptom;
             }
-        } catch (e) {}
+        } catch (e) { }
     }
 
     if ((!closerDr || closerDr === '-') && window.currentUser) {
@@ -9321,10 +9833,61 @@ window.loadPatientHistory = async function () {
                 query = query.lte('created_at', endIso);
             }
 
-            const { data, error } = await query;
+            const [{ data, error }, { data: bData }] = await Promise.all([
+                query,
+                _supabase.from('bills').select('bill_id, visit_id, status')
+            ]);
 
             if (data && !error) {
                 let rows = data;
+
+                // ดึงรายการบิลที่ถูกลบออกจากระบบ
+                let deletedBills = [];
+                try {
+                    deletedBills = JSON.parse(localStorage.getItem('clinic_deleted_bills') || '[]');
+                } catch (e) { }
+                const isHistDeleted = (id) => {
+                    if (!id) return false;
+                    const s = String(id).trim();
+                    return deletedBills.includes(s) ||
+                        (s.startsWith('VIS-') && deletedBills.includes(s.replace(/^VIS-/, ''))) ||
+                        (s.startsWith('BILL-') && deletedBills.includes(s.replace(/^BILL-/, ''))) ||
+                        deletedBills.includes('VIS-' + s) ||
+                        deletedBills.includes('BILL-' + s);
+                };
+
+                // รวบรวม Visit ID ที่มี Bill อยู่จริง (ผ่านการชำระค่ารักษา/บิลแล้ว)
+                const activeBillVisits = new Set();
+                (bData || []).forEach(b => {
+                    if (b && !isHistDeleted(b.bill_id) && !isHistDeleted(b.visit_id)) {
+                        if (b.visit_id) activeBillVisits.add(b.visit_id);
+                    }
+                });
+                (window.allBillsData || window.clinicBills || []).forEach(b => {
+                    if (b && !isHistDeleted(b.bill_id) && !isHistDeleted(b.visit_id)) {
+                        if (b.visit_id) activeBillVisits.add(b.visit_id);
+                    }
+                });
+
+                // 🎯 เงื่อนไขสำคัญ: ทุกรายการที่จะแสดงตรงประวัติผู้ป่วย ต้องผ่าน "ชำระค่ารักษา / Bill" เท่านั้น
+                rows = rows.filter(v => {
+                    if (!v) return false;
+                    const vId = v.visit_id || v.id;
+                    if (isHistDeleted(vId)) return false;
+
+                    const st = (v.status || '').trim();
+                    const pSt = (v.payment_status || '').trim();
+                    if (st === 'ยกเลิก' || st === 'ຍົກເລີກ' || pSt === 'deleted' || pSt === 'cancelled' || pSt === 'unpaid') {
+                        return false;
+                    }
+
+                    // ต้องมี Bill ในระบบ หรือ ชำระเงินแล้วพร้อมมียอดเงิน
+                    const hasBill = activeBillVisits.has(vId) || (v.visit_id && activeBillVisits.has(v.visit_id));
+                    const isPaid = st === 'ชำระแล้ว' || st === 'ชำระเงินแล้ว' || st === 'รอผลแล็บ' || st === 'รอผลตรวจ Lab' || st === 'รออ่านผล' || st === 'รอจัดยา' || st === 'เสร็จสิ้น' || pSt === 'paid';
+                    const hasPaymentAmount = (parseFloat(v.payable_amount || 0) > 0 || parseFloat(v.cash_lak || 0) > 0 || parseFloat(v.transfer_lak || 0) > 0);
+
+                    return hasBill || (isPaid && hasPaymentAmount);
+                });
 
                 // ดึงเบอร์โทรศัพท์จากตาราง patients มาผูกกับ visits
                 try {
@@ -10604,6 +11167,7 @@ function filterIntakeTable() {
 
 const SYSTEM_FUNCTIONS = [
     { key: 'dashboard', label: 'ພາບລວມລະບົບ / ภาพรวมระบบ (Dashboard)', category: 'หน้าหลัก', icon: 'bi-grid-1x2-fill' },
+    { key: 'booking', label: 'เฉพาะพนักงาน (Booking)', category: 'งานบริการผู้ป่วย', icon: 'bi-telephone-fill' },
     { key: 'appointments', label: 'ນັດໝາຍລ່ວງໜ້າ / นัดหมายล่วงหน้า (Appointments)', category: 'งานบริการผู้ป่วย', icon: 'bi-calendar-event-fill' },
     { key: 'registration', label: 'ທະບຽນຜູ້ປ່ວຍ / ทะเบียนผู้ป่วย (Registration)', category: 'งานบริการผู้ป่วย', icon: 'bi-person-vcard-fill' },
     { key: 'triage', label: 'ຈຸດຄັດກອງ / จุดคัดกรอง (Triage)', category: 'งานบริการผู้ป่วย', icon: 'bi-heart-pulse-fill' },
@@ -10788,7 +11352,7 @@ function onUserRoleChange(role) {
         nurse: ['registration', 'triage', 'queue', 'appointments', 'history'],
         pharmacist: ['prescription', 'pharmacy', 'stock-drugs', 'stock-drugs-list', 'stock-drugs-intake', 'history'],
         lab: ['lab', 'doctor', 'history'],
-        marketing: ['referrals', 'referrals-logs', 'referrals-members', 'referrals-daily', 'appointments', 'registration'],
+        marketing: ['referrals', 'referrals-logs', 'referrals-members', 'referrals-daily', 'appointments', 'registration', 'booking'],
         staff: ['appointments', 'registration', 'triage', 'queue', 'payment', 'billing', 'expenses']
     };
     if (role === 'admin') {
@@ -11293,7 +11857,7 @@ function applyUserPermissions(currentUser) {
         permissions.includes('all');
 
     const allMenuKeys = [
-        'dashboard', 'appointments', 'registration', 'triage', 'doctor',
+        'dashboard', 'appointments', 'booking', 'registration', 'triage', 'doctor',
         'payment', 'lab', 'queue', 'prescription', 'pharmacy', 'history',
         'billing', 'expenses', 'services', 'stock-drugs', 'stock-equip', 'staff', 'referrals', 'daily-reports'
     ];
@@ -13807,7 +14371,7 @@ async function loadItemCommissionSettings() {
                 if (typeof window.safeSetLocalStorage === 'function') {
                     window.safeSetLocalStorage('clinic_services_packages', srvData);
                 } else {
-                    try { localStorage.setItem('clinic_services_packages', JSON.stringify(srvData)); } catch(e){}
+                    try { localStorage.setItem('clinic_services_packages', JSON.stringify(srvData)); } catch (e) { }
                 }
             }
         }
@@ -15261,7 +15825,7 @@ async function loadServicesData() {
                 if (typeof window.safeSetLocalStorage === 'function') {
                     window.safeSetLocalStorage('clinic_services_packages', data);
                 } else {
-                    try { localStorage.setItem('clinic_services_packages', JSON.stringify(data)); } catch(e){}
+                    try { localStorage.setItem('clinic_services_packages', JSON.stringify(data)); } catch (e) { }
                 }
             } else if (!error && data && data.length === 0) {
                 // หากยังไม่มีข้อมูลในตาราง Supabase ให้ Seed ข้อมูลเริ่มต้นเข้า Database
@@ -15844,6 +16408,21 @@ async function loadBills(forceReload = false) {
     let billsList = [];
     let visitList = [];
 
+    // ดึงรายการบิลที่ถูกลบออกจากระบบ เพื่อป้องกันไม่ให้ดึงกลับมาแสดงผลเด็ดขาด
+    let deletedBills = [];
+    try {
+        deletedBills = JSON.parse(localStorage.getItem('clinic_deleted_bills') || '[]');
+    } catch (e) { }
+    const isDeleted = (id) => {
+        if (!id) return false;
+        const strId = String(id).trim();
+        return deletedBills.includes(strId) ||
+            (strId.startsWith('BILL-') && deletedBills.includes(strId.replace(/^BILL-/, ''))) ||
+            (strId.startsWith('VIS-') && deletedBills.includes(strId.replace(/^VIS-/, ''))) ||
+            deletedBills.includes('BILL-' + strId) ||
+            deletedBills.includes('VIS-' + strId);
+    };
+
     // 1. ดึงข้อมูลจากตาราง bills และ visits ใน Supabase พร้อมกัน
     try {
         if (typeof _supabase !== 'undefined') {
@@ -15852,14 +16431,14 @@ async function loadBills(forceReload = false) {
                 _supabase.from('visits').select('*').order('created_at', { ascending: false })
             ]);
             if (bData && Array.isArray(bData)) {
-                billsList = bData.map(b => {
+                billsList = bData.filter(b => !isDeleted(b.bill_id) && !isDeleted(b.visit_id) && !isDeleted(b.id)).map(b => {
                     const labItems = (Array.isArray(b.items) ? b.items : []).filter(i => i && i.type !== 'med');
                     return { ...b, items: labItems };
                 });
             }
             if (vData && Array.isArray(vData)) {
-                visitList = vData;
-                window.clinicVisits = vData;
+                visitList = vData.filter(v => !isDeleted(v.visit_id) && !isDeleted(v.id));
+                window.clinicVisits = visitList;
             }
         }
     } catch (e) {
@@ -15871,7 +16450,7 @@ async function loadBills(forceReload = false) {
         const localBills = JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]');
         if (Array.isArray(localBills) && localBills.length > 0) {
             localBills.forEach(lb => {
-                if (lb && (lb.bill_id || lb.visit_id)) {
+                if (lb && (lb.bill_id || lb.visit_id) && !isDeleted(lb.bill_id) && !isDeleted(lb.visit_id)) {
                     const exists = billsList.some(b => b.bill_id === lb.bill_id || (lb.visit_id && b.visit_id === lb.visit_id));
                     if (!exists) billsList.push(lb);
                 }
@@ -15883,8 +16462,11 @@ async function loadBills(forceReload = false) {
     const allVisits = (visitList.length > 0 ? visitList : (window.clinicVisits || []));
     const paidVisits = allVisits.filter(v => {
         if (!v) return false;
+        const vId = v.visit_id || v.id;
+        if (isDeleted(vId) || isDeleted(`BILL-${String(vId).replace(/^VIS-/, '')}`)) return false;
         const st = (v.status || '').trim();
         const pSt = (v.payment_status || '').trim();
+        if (st === 'ยกเลิก' || st === 'ຍົກເລີກ' || pSt === 'deleted' || pSt === 'cancelled' || pSt === 'unpaid') return false;
         const isPaidStatus = st === 'ชำระแล้ว' || st === 'ชำระเงินแล้ว' || st === 'รอผลแล็บ' || st === 'รอผลตรวจ Lab' || st === 'รออ่านผล' || st === 'รอจัดยา' || st === 'เสร็จสิ้น' || pSt === 'paid';
         const hasPayment = (parseFloat(v.payable_amount || 0) > 0 || parseFloat(v.cash_lak || 0) > 0 || parseFloat(v.transfer_lak || 0) > 0);
         return isPaidStatus || hasPayment;
@@ -15892,6 +16474,7 @@ async function loadBills(forceReload = false) {
 
     paidVisits.forEach((v, idx) => {
         const vId = v.visit_id || v.id;
+        if (isDeleted(vId) || isDeleted(`BILL-${String(vId).replace(/^VIS-/, '')}`)) return;
         const alreadyInBills = billsList.some(b => (vId && (b.visit_id === vId || b.bill_id === vId)));
         if (!alreadyInBills && vId) {
             const rawTests = v.lab_tests || v.tests || '';
@@ -15956,6 +16539,9 @@ async function loadBills(forceReload = false) {
             });
         }
     });
+
+    // กรองบิลที่ถูกลบออกทั้งหมดอย่างเด็ดขาด
+    billsList = billsList.filter(b => !isDeleted(b.bill_id) && !isDeleted(b.visit_id));
 
     window.allBillsData = billsList;
     window.clinicBills = billsList;
@@ -16389,6 +16975,38 @@ function parseBillPaymentSplit(b, vMatch) {
 }
 window.parseBillPaymentSplit = parseBillPaymentSplit;
 
+// ตรวจสอบสิทธิ์ Admin ของคลินิก
+function isClinicAdminUser() {
+    try {
+        let u = window.currentUser;
+        if (!u) {
+            const str = localStorage.getItem('clinicUser') || sessionStorage.getItem('clinicUser');
+            if (str) u = JSON.parse(str);
+        }
+        if (!u) {
+            const stkStr = localStorage.getItem('stk_current_user') || sessionStorage.getItem('stk_current_user');
+            if (stkStr) u = JSON.parse(stkStr);
+        }
+        if (u) {
+            const role = String(u.role || '').toLowerCase();
+            const perms = Array.isArray(u.permissions) ? u.permissions : [];
+            const nonAdminRoles = ['doctor', 'nurse', 'pharmacist', 'lab', 'marketing', 'staff'];
+            if (role === 'admin' || role === 'ผู้ดูแลระบบ' || role === 'ຜູ້ດູແລລະບົບ' || role === 'superadmin' || role === 'executive' || role === 'director' || role === 'manager' || role === 'owner' || perms.includes('all') || perms.includes('billing:delete') || perms.includes('bills:delete') || perms.includes('admin')) {
+                return true;
+            }
+            if (nonAdminRoles.includes(role)) {
+                return false;
+            }
+            return role.includes('admin') || role.includes('ผู้ดูแล');
+        }
+        // หากไม่มีข้อมูล user ใน session/localStorage (เปิดไฟล์โดยตรงแบบไม่ระบุสิทธิ์) ให้มีสิทธิ์เสมือน Admin
+        return true;
+    } catch (e) {
+        return true;
+    }
+}
+window.isClinicAdminUser = isClinicAdminUser;
+
 function renderBillsTable() {
     const tbody = document.getElementById('billsTableBody');
     if (!tbody) return;
@@ -16452,6 +17070,8 @@ function renderBillsTable() {
         return;
     }
 
+    const isAdmin = isClinicAdminUser();
+
     bills.forEach(function (b, idx) {
         // คิดเฉพาะรายการตรวจ (กรองรายการยา/อาหารเสริมออก)
         let labItems = (Array.isArray(b.items) ? b.items : []).filter(item => item.type !== 'med');
@@ -16496,6 +17116,14 @@ function renderBillsTable() {
         const dateStr = d ? d.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
         const statusBadge = '<span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1"><i class="bi bi-check-circle-fill me-1"></i>' + (b.status || 'ชำระแล้ว') + '</span>';
 
+        let actionButtons = '<div class="d-inline-flex align-items-center justify-content-center flex-nowrap" style="gap: 6px;">' +
+            '<button class="btn btn-sm btn-outline-primary rounded-pill px-2.5 py-1 fw-semibold" onclick="showBillDetails(\'' + b.bill_id + '\')" title="' + (typeof t === 'function' ? t('details', 'ລາຍລະອຽດ') : 'ລາຍລະອຽດ') + '"><i class="bi bi-eye me-1"></i><span data-i18n="details">' + (typeof t === 'function' ? t('details', 'ລາຍລະອຽດ') : 'ລາຍລະອຽດ') + '</span></button>';
+
+        if (isAdmin) {
+            actionButtons += '<button class="btn btn-sm btn-outline-danger rounded-pill px-2.5 py-1 fw-semibold" onclick="deleteBill(\'' + b.bill_id + '\')" title="' + (typeof t === 'function' ? t('delete', 'ລຶບ') : 'ລຶບ') + '"><i class="bi bi-trash me-1"></i><span data-i18n="delete">' + (typeof t === 'function' ? t('delete', 'ລຶບ') : 'ລຶບ') + '</span></button>';
+        }
+        actionButtons += '</div>';
+
         tbody.innerHTML += '<tr class="border-bottom">' +
             '<td class="ps-4 fw-bold text-muted" style="font-size:0.85rem;">' + (idx + 1) + '</td>' +
             '<td class="fw-bold text-primary" style="font-size:0.88rem;">' + (b.bill_id || '-') + '</td>' +
@@ -16509,7 +17137,7 @@ function renderBillsTable() {
             '<td class="text-end fw-semibold text-info" style="background-color: #f0f9ff;">' + (transferAmount > 0 ? transferAmount.toLocaleString() + ' LAK' : '-') + '</td>' +
             '<td class="text-center">' + statusBadge + '</td>' +
             '<td class="text-center small text-muted">' + dateStr + '</td>' +
-            '<td class="text-center pe-4"><button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1 fw-semibold" onclick="showBillDetails(\'' + b.bill_id + '\')"><i class="bi bi-eye me-1"></i><span data-i18n="details">' + (typeof t === 'function' ? t('details', 'รายละเอียด') : 'รายละเอียด') + '</span></button></td>' +
+            '<td class="text-center pe-3">' + actionButtons + '</td>' +
             '</tr>';
     });
 
@@ -16881,7 +17509,7 @@ function generateBillsReportHtmlContent(bills) {
                 console.warn('Error parsing bill payment split:', e);
             }
         }
-        
+
         if (!splitInfo.subtotal && !splitInfo.payable) {
             const subtotal = parseFloat(b.subtotal || 0) || 0;
             const discount = parseFloat(b.discount || 0) || 0;
@@ -17177,12 +17805,12 @@ function generateCommissionLogsReportHtmlContent(logs) {
         printDate: isLao ? 'ວັນທີພິມ:' : 'วันที่พิมพ์:',
         totalItems: isLao ? 'ຈຳນວນລາຍການ:' : 'จำนวนรายการ:',
         itemUnit: isLao ? 'ລາຍການ' : 'รายการ',
-        
+
         totalServices: isLao ? 'ຍອດລວມບໍລິການ' : 'ยอดรวมบริการ',
         totalDividends: isLao ? 'ຍອດປັນຜົນທັງໝົດ' : 'ยอดปันผลทั้งหมด',
         paidAmount: isLao ? 'ຈ່າຍເງິນແລ້ວ' : 'จ่ายเงินแล้ว',
         pendingAmount: isLao ? 'ລໍຖ້າອະນຸມັດ / ລໍຖ້າຈ່າຍ' : 'รออนุมัติ / รอจ่าย',
-        
+
         thNum: '#',
         thDate: isLao ? 'ວັນທີ' : 'วันที่',
         thReferrer: isLao ? 'ຜູ້ແນະນຳ' : 'ผู้แนะนำ',
@@ -17193,12 +17821,12 @@ function generateCommissionLogsReportHtmlContent(logs) {
         thItemDividend: isLao ? 'ປັນຜົນລາຍການ' : 'ปันผลรายการ',
         thTotalDividend: isLao ? 'ຍອດລວມປັນຜົນ' : 'ยอดรวมปันผล',
         thStatus: isLao ? 'ສະຖານະ' : 'สถานะ',
-        
+
         badgePaid: isLao ? 'ຈ່າຍແລ້ວ' : 'จ่ายเงินแล้ว',
         badgePending: isLao ? 'ລໍຖ້າອະນຸມັດ / ລໍຖ້າຈ່າຍ' : 'รออนุมัติ / รอจ่าย',
-        
+
         totalSumLabel: (count) => isLao ? `ລວມທັງໝົດ (${count} ລາຍການ):` : `รวมทั้งสิ้น (${count} รายการ):`,
-        
+
         signPrepared: isLao ? 'ຜູ້ຈັດເຮັດ / ຜູ້ຈ່າຍ' : 'ผู้จัดทำ / ผู้จ่าย',
         signAuditor: isLao ? 'ຜູ້ກວດສອບ' : 'ผู้ตรวจสอบ',
         signPresident: isLao ? 'ປະທານ ຄລີນິກ' : 'ประธานคลินิก',
@@ -17207,7 +17835,7 @@ function generateCommissionLogsReportHtmlContent(logs) {
 
     const dateLocale = isLao ? 'lo-LA' : 'th-TH';
     const todayStr = new Date().toLocaleDateString(dateLocale, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    
+
     const fmtNum = (val) => {
         const n = parseFloat(val);
         return isNaN(n) ? '0' : n.toLocaleString();
@@ -17226,15 +17854,15 @@ function generateCommissionLogsReportHtmlContent(logs) {
         const refName = l.referrer_name || l.referrer_code || '-';
         const patName = l.patient_name || '-';
         const billInfo = l.bill_id ? `${l.bill_id} (${l.visit_id || ''})` : (l.visit_id || '-');
-        
+
         const serviceVal = parseFloat(l.total_invoice || l.service_amount || 0);
         const baseVal = parseFloat(l.base_amount || 0);
         const itemVal = parseFloat(l.item_amount || 0);
         const totalVal = parseFloat(l.amount || (baseVal + itemVal));
-        
+
         const isPaid = l.status === 'paid';
         const statusText = isPaid ? labels.badgePaid : labels.badgePending;
-        const statusBadgeStyle = isPaid 
+        const statusBadgeStyle = isPaid
             ? 'background-color: #dcfce7; color: #166534; font-weight: 600; padding: 3px 8px; border-radius: 12px; font-size: 10px;'
             : 'background-color: #fef3c7; color: #92400e; font-weight: 600; padding: 3px 8px; border-radius: 12px; font-size: 10px;';
 

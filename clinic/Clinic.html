@@ -160,6 +160,9 @@
             <a href="javascript:void(0);" class="nav-link" id="nav-appointments"
                 onclick="showPage('appointments', this)"><i class="ph ph-calendar-plus"></i> <span
                     data-i18n="sidebar_appointments">นัดหมายล่วงหน้า</span></a>
+            <a href="javascript:void(0);" class="nav-link" id="nav-booking"
+                onclick="showPage('booking', this)"><i class="ph ph-calendar-check"></i> <span
+                    data-i18n="sidebar_clinic_booking">ປະຫວັດການເຂົ້າກວດຜູ້ປ່ວຍ</span></a>
             <a href="javascript:void(0);" class="nav-link" id="nav-registration"
                 onclick="showPage('registration', this)"><i class="ph ph-identification-card"></i> <span
                     data-i18n="sidebar_registration">ทะเบียนผู้ป่วย</span></a>
@@ -857,6 +860,14 @@
             </div>
         </div>
 
+        <!-- 2.5 Clinic Booking -->
+        <div id="booking" class="page-section"
+            style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%;">
+            <iframe id="marketingFrame" src="marketing.html"
+                style="width: 100%; height: calc(100vh - 25px); border: none; min-height: 850px; display: block; border-radius: 16px;"
+                title="Clinic Booking System"></iframe>
+        </div>
+
         <!-- 3. ทะเบียนผู้ป่วย (Registration) -->
         <div id="registration" class="page-section">
             <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
@@ -1068,13 +1079,27 @@
 
         <!-- 5. ห้องตรวจแพทย์ (Doctor) -->
         <div id="doctor" class="page-section">
-            <div class="d-flex justify-content-between align-items-end mb-4">
+            <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-2">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: #1e293b; font-family: 'Kanit', sans-serif;"><i
                             class="bi bi-stethoscope text-primary me-2"></i><span
                             data-i18n="doctor_title">ห้องตรวจแพทย์</span></h2>
                     <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="doctor_subtitle">
                         รายการผู้ป่วยรอตรวจ และระบบสั่ง Lab</p>
+                </div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <div class="input-group input-group-sm" style="width: 250px;">
+                        <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                        <input type="text" id="searchDoctorInput" class="form-control border-start-0 ps-0" placeholder="ค้นหาชื่อ, HN, อาการ..." oninput="filterDoctorTable()">
+                    </div>
+                    <select id="doctorQueueFilter" class="form-select form-select-sm" style="width: 170px;" onchange="filterDoctorTable()">
+                        <option value="all">แสดงคิวตรวจทั้งหมด</option>
+                        <option value="my">เฉพาะคิวของฉัน</option>
+                        <option value="unassigned">คิวยังไม่ระบุแพทย์</option>
+                    </select>
+                    <button class="btn btn-sm btn-outline-primary shadow-sm" onclick="loadDoctorQueue()" title="รีเฟรชคิว">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
                 </div>
             </div>
             <div class="table-responsive table-container">
@@ -1294,11 +1319,9 @@
                             style="border-top-left-radius: 50rem; border-bottom-left-radius: 50rem; font-size: 0.85rem;"
                             onclick="setQueueDateFilter('today')">วันนี้</button>
                         <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3"
-                            style="font-size: 0.85rem;"
-                            onclick="setQueueDateFilter('month')">เดือนนี้</button>
+                            style="font-size: 0.85rem;" onclick="setQueueDateFilter('month')">เดือนนี้</button>
                         <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3"
-                            style="font-size: 0.85rem;"
-                            onclick="setQueueDateFilter('year')">ปีนี้</button>
+                            style="font-size: 0.85rem;" onclick="setQueueDateFilter('year')">ปีนี้</button>
                         <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3"
                             style="border-top-right-radius: 50rem; border-bottom-right-radius: 50rem; font-size: 0.85rem;"
                             onclick="setQueueDateFilter('all')">ทั้งหมด</button>
@@ -1319,7 +1342,8 @@
                             onchange="loadQueueList()">
                     </div>
 
-                    <button class="btn btn-outline-primary rounded-pill py-2 px-3 fw-semibold shadow-xs" style="height: 38px; font-size: 0.88rem;" onclick="loadQueueList()"><i
+                    <button class="btn btn-outline-primary rounded-pill py-2 px-3 fw-semibold shadow-xs"
+                        style="height: 38px; font-size: 0.88rem;" onclick="loadQueueList()"><i
                             class="bi bi-arrow-clockwise me-1"></i> โหลดคิวใหม่</button>
                 </div>
             </div>
@@ -1865,11 +1889,9 @@
                             style="border-top-left-radius: 50rem; border-bottom-left-radius: 50rem; font-size: 0.85rem;"
                             onclick="setHistoryDateFilter('today')">วันนี้</button>
                         <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3"
-                            style="font-size: 0.85rem;"
-                            onclick="setHistoryDateFilter('month')">เดือนนี้</button>
+                            style="font-size: 0.85rem;" onclick="setHistoryDateFilter('month')">เดือนนี้</button>
                         <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3"
-                            style="font-size: 0.85rem;"
-                            onclick="setHistoryDateFilter('year')">ปีนี้</button>
+                            style="font-size: 0.85rem;" onclick="setHistoryDateFilter('year')">ปีนี้</button>
                         <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3"
                             style="border-top-right-radius: 50rem; border-bottom-right-radius: 50rem; font-size: 0.85rem;"
                             onclick="setHistoryDateFilter('all')">ทั้งหมด</button>
@@ -1891,17 +1913,20 @@
                     </div>
 
                     <!-- ช่องค้นหา Text -->
-                    <input type="text" id="searchHistoryInput" class="form-control custom-input py-2 rounded-pill shadow-xs"
+                    <input type="text" id="searchHistoryInput"
+                        class="form-control custom-input py-2 rounded-pill shadow-xs"
                         placeholder="ค้นหา HN, ชื่อ, เบอร์โทร หรือ Visit ID..."
-                        data-i18n-placeholder="history_search_placeholder" style="width: 260px; height: 38px; font-size: 0.88rem;"
-                        onkeyup="searchPatientHistory()">
+                        data-i18n-placeholder="history_search_placeholder"
+                        style="width: 260px; height: 38px; font-size: 0.88rem;" onkeyup="searchPatientHistory()">
 
                     <!-- ปุ่มรีเฟรช -->
-                    <button class="btn btn-outline-primary rounded-pill py-2 px-3 fw-semibold shadow-xs" style="height: 38px; font-size: 0.88rem;" onclick="loadPatientHistory()"><i
+                    <button class="btn btn-outline-primary rounded-pill py-2 px-3 fw-semibold shadow-xs"
+                        style="height: 38px; font-size: 0.88rem;" onclick="loadPatientHistory()"><i
                             class="bi bi-arrow-clockwise me-1"></i> <span data-i18n="refresh">รีเฟรช</span></button>
 
                     <!-- ปุ่มลบทั้งหมด -->
-                    <button class="btn btn-danger rounded-pill py-2 px-3 fw-bold shadow-xs" style="height: 38px; font-size: 0.88rem;" onclick="deleteAllHistoryVisits()"><i
+                    <button class="btn btn-danger rounded-pill py-2 px-3 fw-bold shadow-xs"
+                        style="height: 38px; font-size: 0.88rem;" onclick="deleteAllHistoryVisits()"><i
                             class="bi bi-trash3-fill me-1"></i> <span
                             data-i18n="history_btn_delete_all">ลบทั้งหมด</span></button>
                 </div>
@@ -2118,7 +2143,8 @@
                             <button type="button"
                                 class="btn btn-success rounded-pill px-3.5 py-2 fw-semibold d-none align-items-center gap-1.5 shadow-sm"
                                 id="btnBatchPayoutCommLogs" onclick="batchPayoutCommissionLogs()">
-                                <i class="ph ph-hand-coins fs-6"></i> <span>จ่ายเงินปันผลที่เลือก (<span id="selectedCommCount">0</span>)</span>
+                                <i class="ph ph-hand-coins fs-6"></i> <span>จ่ายเงินปันผลที่เลือก (<span
+                                        id="selectedCommCount">0</span>)</span>
                             </button>
                         </div>
 
@@ -2169,7 +2195,8 @@
                             <thead>
                                 <tr>
                                     <th class="text-center ps-3" style="width: 40px;">
-                                        <input type="checkbox" class="form-check-input" id="selectAllCommLogs" onchange="toggleSelectAllCommLogs(this)" title="เลือกทั้งหมด">
+                                        <input type="checkbox" class="form-check-input" id="selectAllCommLogs"
+                                            onchange="toggleSelectAllCommLogs(this)" title="เลือกทั้งหมด">
                                     </th>
                                     <th class="ps-2" style="width: 50px;">#</th>
                                     <th>วันที่ทำรายการ</th>
@@ -3034,7 +3061,7 @@
                                         data-i18n="bill_transfer">เงินโอน</th>
                                     <th class="py-3 text-center" style="width: 110px;" data-i18n="status">สถานะ</th>
                                     <th class="py-3 text-center" style="width: 130px;" data-i18n="date">วันที่</th>
-                                    <th class="py-3 text-center pe-4" style="width: 120px;" data-i18n="actions">
+                                    <th class="py-3 text-center pe-3" style="min-width: 160px;" data-i18n="actions">
                                         การจัดการ
                                     </th>
                                 </tr>
@@ -3517,7 +3544,7 @@
             <div class="modal-content" style="border-radius: 16px; border: none;">
                 <div class="modal-header bg-white">
                     <h4 class="modal-title fw-bold" id="addPatientModalTitle" data-i18n="reg_modal_title">
-                        เพิ่มประวัติผู้ป่วยใหม่</h4>
+                        ເພີ່ມປະຫວັດຜູ້ປ່ວຍໃໝ່</h4>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4 bg-white">
@@ -3525,63 +3552,60 @@
                         <input type="hidden" id="patientEditHn" value="">
                         <div class="row mb-3">
                             <div class="col-md-8">
-                                <label class="form-label fw-bold"><span data-i18n="reg_modal_name">ชื่อ-นามสกุล</span>
+                                <label class="form-label fw-bold"><span data-i18n="reg_modal_name">ຊື່-ນາມສະກຸນ</span>
                                     <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control custom-input" name="FullName" required>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label fw-bold" data-i18n="reg_modal_age">อายุ (ปี)</label>
+                                <label class="form-label fw-bold" data-i18n="reg_modal_age">ອາຍຸ (ປີ)</label>
                                 <input type="number" class="form-control custom-input" name="Age" min="0" max="150"
-                                    placeholder="อายุ">
+                                    placeholder="ອາຍຸ" data-i18n-placeholder="reg_modal_age_ph">
                             </div>
                         </div>
                         <div class="row mb-3">
                             <div class="col-md-4">
-                                <label class="form-label fw-bold" data-i18n="reg_modal_province">แขวง / จังหวัด</label>
+                                <label class="form-label fw-bold" data-i18n="reg_modal_province">ແຂວງ</label>
                                 <select class="form-select custom-input" name="Province" id="patientProvinceSelect"
                                     onchange="onPatientProvinceChange()">
-                                    <option value="">-- เลือกแขวง / จังหวัด --</option>
+                                    <option value="">-- ເລືອກແຂວງ --</option>
                                 </select>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label fw-bold" data-i18n="reg_modal_district">เมือง / ตำบล</label>
+                                <label class="form-label fw-bold" data-i18n="reg_modal_district">ເມືອງ</label>
                                 <select class="form-select custom-input" name="District" id="patientDistrictSelect"
                                     disabled>
-                                    <option value="">-- กรุณาเลือกแขวง / จังหวัดก่อน --</option>
+                                    <option value="">-- ກະລຸນາເລືອກແຂວງກ່ອນ --</option>
                                 </select>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label fw-bold" data-i18n="reg_modal_village">หมู่บ้าน</label>
+                                <label class="form-label fw-bold" data-i18n="reg_modal_village">ບ້ານ</label>
                                 <input type="text" class="form-control custom-input" name="Village">
                             </div>
                         </div>
                         <div class="row mb-3">
                             <div class="col-md-4">
-                                <label class="form-label fw-bold" data-i18n="reg_modal_job">อาชีพ</label>
+                                <label class="form-label fw-bold" data-i18n="reg_modal_job">ອາຊີບ</label>
                                 <input type="text" class="form-control custom-input" name="Job">
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label fw-bold"><span data-i18n="reg_modal_phone">เบอร์โทรศัพท์</span>
+                                <label class="form-label fw-bold"><span data-i18n="reg_modal_phone">ເບີໂທລະສັບ</span>
                                     <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control custom-input" name="Tel" required>
                             </div>
                             <div class="col-md-4">
-                                <!-- 🌟 เพิ่มดอกจันสีแดงให้ดูรู้ว่าบังคับกรอก -->
-                                <label class="form-label fw-bold">วันที่นัดมาตรวจ <span
+                                <label class="form-label fw-bold"><span data-i18n="reg_modal_next_date">ວັນທີນັດມາກວດ</span> <span
                                         class="text-danger">*</span></label>
-
-                                <!-- 🌟 เพิ่มแอตทริบิวต์ required ไว้ด้านหลังสุด -->
                                 <input type="date" class="form-control custom-input" name="NextAppointmentDate"
                                     required>
                             </div>
                         </div>
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label class="form-label fw-bold" data-i18n="reg_modal_disease">โรคประจำตัว</label>
+                                <label class="form-label fw-bold" data-i18n="reg_modal_disease">ພະຍາດປະຈຳຕົວ</label>
                                 <input type="text" class="form-control custom-input" name="PastHistory">
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-bold" data-i18n="reg_modal_allergy">ประวัติการแพ้ยา</label>
+                                <label class="form-label fw-bold" data-i18n="reg_modal_allergy">ປະຫວັດການແພ້ຢາ</label>
                                 <input type="text" class="form-control custom-input" name="Allergies">
                             </div>
                         </div>
@@ -3590,27 +3614,27 @@
                                 <div class="d-flex justify-content-between align-items-center mb-1">
                                     <label class="form-label fw-bold text-primary mb-0">
                                         <i class="ph ph-hand-coins me-1"></i><span
-                                            data-i18n="reg_modal_referrer">ผู้แนะนำผู้ป่วย (Referrer / Dividend)</span>
+                                            data-i18n="reg_modal_referrer">ຜູ້ແນະນຳຜູ້ປ່ວຍ (Referrer / Dividend)</span>
                                     </label>
                                     <span id="patientRefLockHint"
                                         class="badge bg-warning-subtle text-dark border border-warning px-2 py-1 small"
                                         style="display: none;">
-                                        <i class="ph ph-lock me-1"></i>ล็อกตามการนัดหมายล่วงหน้า (ไม่สามารถแก้ไขได้)
+                                        <i class="ph ph-lock me-1"></i>ລັອກຕາມການນັດໝາຍລ່ວງໜ້າ (ບໍ່ສາມາດແກ້ໄຂໄດ້)
                                     </span>
                                 </div>
                                 <input type="text" class="form-select custom-input" list="referrerDatalist"
                                     id="patientReferredBySelect" name="ReferredBy"
                                     data-i18n-placeholder="reg_modal_referrer_ph"
-                                    placeholder="พิมพ์รหัส/ชื่อ พนักงาน หรือคลิกเพื่อเลือก..." autocomplete="off">
+                                    placeholder="ພິມລະຫັດ/ຊື່ ພະນັກງານ ຫຼື ຄລິກເພື່ອເລືອກ..." autocomplete="off">
                                 <datalist id="referrerDatalist"></datalist>
                             </div>
                         </div>
                         <input type="hidden" name="appointmentId" id="linkAppointmentId">
                         <div class="d-flex justify-content-end gap-2 mt-4">
                             <button type="button" class="btn btn-light border" data-bs-dismiss="modal"
-                                data-i18n="cancel">ยกเลิก</button>
+                                data-i18n="cancel">ຍົກເລີກ</button>
                             <button type="submit" class="btn btn-primary px-4"
-                                data-i18n="reg_modal_save">บันทึกข้อมูล</button>
+                                data-i18n="reg_modal_save">ບັນທຶກຂໍ້ມູນ</button>
                         </div>
                     </form>
                 </div>
@@ -3719,6 +3743,9 @@
                             </div>
                         </div>
 
+                        <!-- แถบแจ้งเตือนรายการตรวจเดิมที่เคยสั่งแล้ว -->
+                        <div id="existingLabsBanner" class="mb-3" style="display: none;"></div>
+
                         <!-- Category Navigation Header -->
                         <div class="mb-4">
                             <div class="fw-bold text-dark small mb-2" style="font-size: 0.88rem;">หมวดรายการตรวจ</div>
@@ -3819,7 +3846,7 @@
         </div>
     </div>
 
-    <div class="modal fade" id="labUploadModal" tabindex="-1">
+    <div class="modal fade" id="labUploadModal" tabindex="-1" style="z-index: 1060;">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content"
                 style="border-radius: 16px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
@@ -3898,7 +3925,8 @@
                                         id="rxPatientPhoneDisplay">-</strong></span>
                             </div>
                             <!-- 🌟 สัญญาณชีพ/ข้อมูลคัดกรอง (Screening Vitals: BP, Temp, Pulse, Wt, Ht, BMI, SpO2) -->
-                            <div id="rxVitalsDisplay" class="d-flex align-items-center flex-wrap gap-1.5 mt-0.5" style="display: none;"></div>
+                            <div id="rxVitalsDisplay" class="d-flex align-items-center flex-wrap gap-1.5 mt-0.5"
+                                style="display: none;"></div>
                             <div class="small text-muted d-flex align-items-center flex-wrap gap-2 mt-0.5">
                                 <span
                                     class="badge bg-danger-subtle text-danger border border-danger-subtle px-2.5 py-1 fw-semibold"
@@ -4956,7 +4984,7 @@
             document.write('<script src="../config.js"><\/script>');
         }
     </script>
-    <script src="function.js?v=3.5.0"></script>
+    <script src="function.js?v=3.7.3"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
     <script>
         document.addEventListener("DOMContentLoaded", function () {

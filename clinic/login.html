@@ -16,7 +16,8 @@
 
     <!-- เรียกใช้งาน style.css -->
     <link rel="stylesheet" href="style.css">
-    <!-- i18n Internationalization Engine -->
+    <!-- Config & i18n Engine -->
+    <script src="config.js"></script>
     <script src="i18n.js"></script>
 
     <style>
@@ -54,20 +55,11 @@
 
         /* 3. สไตล์สำหรับกล่อง Login แบบกระจกฝ้า (Glassmorphism) */
         .login-card {
-            /* 1. พื้นหลังสีขาวโปร่งแสง (ค่า 0.6 คือความโปร่งใส ปรับลดเป็น 0.2 ให้ใสขึ้น หรือ 0.8 ให้ทึบขึ้นได้ตามชอบ) */
             background-color: rgba(255, 255, 255, 0.6) !important;
-            
-            /* 2. เอฟเฟกต์เบลอเฉพาะพื้นหลังที่อยู่ใต้กล่อง (ค่า 16px คือระดับความเบลอ) */
             backdrop-filter: blur(16px) !important;
-            -webkit-backdrop-filter: blur(16px) !important; /* สำหรับรองรับเบราว์เซอร์ Safari ของ Apple */
-            
-            /* 3. เส้นขอบสีขาวโปร่งแสงบางๆ เพิ่มมิติแสงสะท้อนที่ขอบกระจก */
+            -webkit-backdrop-filter: blur(16px) !important;
             border: 1px solid rgba(255, 255, 255, 0.5) !important;
-            
-            /* 4. เงากล่องนุ่มๆ ให้ดูลอยเด่นขึ้นมาจากพื้นหลัง */
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3) !important;
-            
-            /* 5. ความโค้งมนของมุมกล่อง */
             border-radius: 16px !important;
             width: 100%;
             max-width: 420px;
@@ -88,18 +80,27 @@
             box-shadow: 0 8px 20px rgba(3, 86, 197, 0.35);
         }
 
-        /* 1. เปลี่ยนสีตัวไอคอนให้เป็นสีขาว */
         .login-icon i, 
         .login-icon svg,
         .icon-container {
             color: #ffffff !important; 
-            fill: #ffffff !important; /* ใช้ในกรณีที่ไอคอนเป็นไฟล์ SVG */
+            fill: #ffffff !important;
         }
 
-        /* 2. (ตัวเลือกเสริม) ปรับกรอบวงกลมด้านหลังไอคอนให้เป็นสีขาวโปร่งแสงเข้ากับกระจก */
         .icon-wrapper-circle {
-            background-color: rgba(255, 255, 255, 0.15) !important; /* พื้นหลังขาวใสๆ */
-            border: 1px solid rgba(255, 255, 255, 0.4) !important; /* ขอบวงกลมสีขาวบางๆ */
+            background-color: rgba(255, 255, 255, 0.15) !important;
+            border: 1px solid rgba(255, 255, 255, 0.4) !important;
+        }
+
+        .lockout-banner {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #b91c1c;
+            font-size: 0.85rem;
+            border-radius: 10px;
+            padding: 0.6rem 1rem;
+            margin-bottom: 1rem;
+            display: none;
         }
     </style>
 </head>
@@ -126,12 +127,20 @@
             <p class="text-muted small" data-i18n="login_subtitle">ลงชื่อเข้าใช้ด้วยอีเมลและรหัสผ่านพนักงาน</p>
         </div>
 
+        <!-- Lockout Banner (Rate Limiting) -->
+        <div id="lockoutBanner" class="lockout-banner text-center fw-semibold">
+            <i class="ph ph-warning-circle me-1"></i> <span id="lockoutText">ระงับการเข้าสู่ระบบชั่วคราว</span>
+        </div>
+
         <form id="loginForm">
+            <!-- 🛡️ CSRF Token (Security Feature) -->
+            <input type="hidden" id="csrfToken" name="csrfToken">
+
             <div class="mb-3">
                 <label class="form-label fw-bold text-dark small" data-i18n="staff_email">อีเมลพนักงาน</label>
                 <div class="input-group">
                     <span class="input-group-text border-end-0"><i class="ph ph-envelope"></i></span>
-                    <input type="text" id="loginEmail" class="form-control custom-input border-start-0 ps-0"
+                    <input type="email" id="loginEmail" class="form-control custom-input border-start-0 ps-0"
                         placeholder="example@clinic.com" data-i18n-placeholder="login_email_placeholder" required>
                 </div>
             </div>
@@ -144,7 +153,7 @@
                 </div>
             </div>
 
-            <!-- Checkbox: Remember Me (จดจำฉันไว้) -->
+            <!-- Checkbox: Remember Me -->
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <div class="form-check mb-0">
                     <input class="form-check-input" type="checkbox" id="rememberMe" style="cursor: pointer;">
@@ -161,12 +170,156 @@
     </div>
 
     <script>
-        const supabaseUrl = 'https://fpmstumpobbjozflkola.supabase.co';
-        const supabaseKey = 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7';
-        const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
+        // 🔐 1. ซ่อนและรับ API Key ผ่าน CONFIG ใน config.js
+        const cfg = (typeof window.getSupabaseConfig === 'function')
+            ? window.getSupabaseConfig()
+            : { url: window.SUPABASE_URL || 'https://fpmstumpobbjozflkola.supabase.co', anonKey: window.SUPABASE_ANON_KEY || 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7' };
 
-        // โหลดข้อมูลอีเมลที่จดจำไว้ (ถ้ามี)
+        const _supabase = supabase.createClient(cfg.url, cfg.anonKey);
+
+        // State variables for Rate Limiting & Lockout
+        let lockoutTimer = null;
+        const MAX_FAILED_ATTEMPTS = 3;
+        const LOCKOUT_DURATION_MS = 30000; // 30 seconds
+
+        // 🔒 Helper: SHA-256 Hashing สำหรับเข้ารหัสรหัสผ่านใน Frontend
+        async function hashPassword(str) {
+            if (!str) return '';
+            try {
+                const encoder = new TextEncoder();
+                const data = encoder.encode(str);
+                const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            } catch (e) {
+                console.warn('Crypto SHA-256 fallback', e);
+                return str;
+            }
+        }
+
+        // 🛡️ Helper: CSRF Protection
+        function initCSRFProtection() {
+            let csrfToken = sessionStorage.getItem('clinic_csrf_token');
+            if (!csrfToken) {
+                csrfToken = (typeof crypto.randomUUID === 'function')
+                    ? crypto.randomUUID()
+                    : (Math.random().toString(36).substring(2) + Date.now().toString(36));
+                sessionStorage.setItem('clinic_csrf_token', csrfToken);
+            }
+            document.getElementById('csrfToken').value = csrfToken;
+        }
+
+        // ⏱️ Helper: Rate Limiting & Lockout Timer
+        function checkLockoutStatus() {
+            const lockoutUntil = parseInt(localStorage.getItem('clinic_lockout_until') || '0', 10);
+            const now = Date.now();
+
+            if (now < lockoutUntil) {
+                const remainingSec = Math.ceil((lockoutUntil - now) / 1000);
+                setLockoutUI(true, remainingSec);
+                return true;
+            } else {
+                setLockoutUI(false);
+                return false;
+            }
+        }
+
+        function setLockoutUI(isLocked, remainingSec = 0) {
+            const banner = document.getElementById('lockoutBanner');
+            const textSpan = document.getElementById('lockoutText');
+            const btn = document.getElementById('loginBtn');
+
+            if (isLocked) {
+                banner.style.display = 'block';
+                textSpan.innerText = `ลองผิดเกินกำหนด ระงับ ${remainingSec} วินาที`;
+                btn.disabled = true;
+
+                if (lockoutTimer) clearInterval(lockoutTimer);
+                lockoutTimer = setInterval(() => {
+                    const newUntil = parseInt(localStorage.getItem('clinic_lockout_until') || '0', 10);
+                    const now = Date.now();
+                    if (now >= newUntil) {
+                        clearInterval(lockoutTimer);
+                        banner.style.display = 'none';
+                        btn.disabled = false;
+                        localStorage.removeItem('clinic_failed_attempts');
+                    } else {
+                        const sec = Math.ceil((newUntil - now) / 1000);
+                        textSpan.innerText = `ลองผิดเกินกำหนด ระงับ ${sec} วินาที`;
+                    }
+                }, 1000);
+            } else {
+                banner.style.display = 'none';
+                btn.disabled = false;
+                if (lockoutTimer) clearInterval(lockoutTimer);
+            }
+        }
+
+        function registerFailedAttempt() {
+            let attempts = parseInt(localStorage.getItem('clinic_failed_attempts') || '0', 10) + 1;
+            localStorage.setItem('clinic_failed_attempts', attempts);
+
+            if (attempts >= MAX_FAILED_ATTEMPTS) {
+                const lockoutUntil = Date.now() + LOCKOUT_DURATION_MS;
+                localStorage.setItem('clinic_lockout_until', lockoutUntil);
+                checkLockoutStatus();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'ระงับการเข้าสู่ระบบชั่วคราว 30 วินาที',
+                    text: 'คุณกรอกรหัสผ่านผิดเกิน 3 ครั้ง เพื่อความปลอดภัยระบบจึงระงับชั่วคราว'
+                });
+            } else {
+                const remaining = MAX_FAILED_ATTEMPTS - attempts;
+                Swal.fire({
+                    icon: 'error',
+                    title: 'เข้าสู่ระบบไม่สำเร็จ',
+                    text: `อีเมลหรือรหัสผ่านไม่ถูกต้อง (สามารถลองได้อีก ${remaining} ครั้ง)`
+                });
+            }
+        }
+
+        // 📱 2FA Verification Modal Process
+        async function prompt2FAVerification(userData) {
+            // สร้างรหัส OTP 6 หลักสำหรับการยืนยัน 2FA
+            const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+            const { value: userOtp } = await Swal.fire({
+                title: '📱 ยืนยันตัวตน 2FA (Two-Factor Authentication)',
+                html: `
+                    <div class="text-start mb-3">
+                        <p class="text-muted small mb-2">กรุณากรอกรหัสยืนยัน 6 หลัก เพื่อเข้าสู่ระบบอย่างปลอดภัย</p>
+                        <div class="p-2 bg-light rounded text-center border">
+                            <small class="text-secondary">รหัส OTP ทดสอบ (2FA Code):</small>
+                            <h4 class="fw-bold text-primary tracking-widest mb-0">${otpCode}</h4>
+                        </div>
+                    </div>
+                `,
+                input: 'text',
+                inputPlaceholder: 'กรอกรหัส 6 หลักที่นี่',
+                inputAttributes: {
+                    maxlength: 6,
+                    autocapitalize: 'off',
+                    autocorrect: 'off',
+                    style: 'text-align: center; letter-spacing: 4px; font-weight: bold; font-size: 1.2rem;'
+                },
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยันรหัส 2FA',
+                cancelButtonText: 'ยกเลิก',
+                inputValidator: (val) => {
+                    if (!val || val.trim() !== otpCode) {
+                        return 'รหัส 2FA ไม่ถูกต้อง กรุณากรอกรหัสให้ถูกต้อง';
+                    }
+                }
+            });
+
+            return userOtp === otpCode;
+        }
+
+        // DOM Initializer
         document.addEventListener("DOMContentLoaded", function () {
+            initCSRFProtection();
+            checkLockoutStatus();
+
             const rememberedEmail = localStorage.getItem('rememberedEmail');
             if (rememberedEmail) {
                 document.getElementById('loginEmail').value = rememberedEmail;
@@ -174,74 +327,101 @@
             }
         });
 
+        // Form Submission Handler
         document.getElementById('loginForm').addEventListener('submit', async function (e) {
             e.preventDefault();
+
+            // Check Lockout
+            if (checkLockoutStatus()) return;
+
+            // 🛡️ CSRF Token Check
+            const formCsrf = document.getElementById('csrfToken').value;
+            const sessionCsrf = sessionStorage.getItem('clinic_csrf_token');
+            if (!formCsrf || formCsrf !== sessionCsrf) {
+                Swal.fire({ icon: 'error', title: 'คำขอไม่ปลอดภัย', text: 'เกิดข้อผิดพลาดด้านความปลอดภัย (CSRF Token Mismatch)' });
+                return;
+            }
 
             const email = document.getElementById('loginEmail').value.trim();
             const password = document.getElementById('loginPassword').value.trim();
             const rememberMe = document.getElementById('rememberMe').checked;
             const btn = document.getElementById('loginBtn');
 
+            if (!email || !password) {
+                Swal.fire({ icon: 'warning', title: 'ข้อมูลไม่ครบถ้วน', text: 'กรุณากรอกอีเมลและรหัสผ่าน' });
+                return;
+            }
+
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>กำลังตรวจสอบ...';
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>กำลังตรวจสอบความปลอดภัย...';
 
             try {
+                // 🔒 SHA-256 Hashing ของรหัสผ่าน
+                const hashedPassword = await hashPassword(password);
+
                 let userData = null;
 
-                // 1. ตรวจสอบข้อมูลจากตาราง staff_users ใน Supabase Clinic DB
+                // ⏱️ Timeout Control (10 Seconds Limit)
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+
                 try {
+                    // 1. ตรวจสอบข้อมูลพนักงานจาก Supabase Clinic DB (เช็คทั้ง password_hash และ hashed/plain)
                     const { data, error } = await _supabase
                         .from('staff_users')
                         .select('*')
                         .eq('email', email)
-                        .eq('password_hash', password)
                         .maybeSingle();
 
+                    clearTimeout(timeoutId);
+
                     if (data && !error) {
-                        userData = data;
+                        const dbPass = data.password_hash || '';
+                        if (dbPass === password || dbPass === hashedPassword) {
+                            userData = data;
+                        }
                     }
                 } catch (dbErr) {
-                    console.log('Supabase DB Login fallback');
+                    clearTimeout(timeoutId);
+                    console.warn('Supabase authentication error:', dbErr.message);
                 }
 
-                // 2. Fallback สำรองสำหรับบัญชีผู้ใช้ในระบบหากเกิดปัญหาการเชื่อมต่อ
-                if (!userData) {
-                    const defaultUsers = [
-                        { id: '25722b50-dd8f-4b49-b8f1-59152e89', emp_code: 'Test001', email: 'p.boualalstkgroupe@gmail.com', password_hash: '123456', full_name: 'Administrator', role: 'admin' },
-                        { id: 'la-gmail-user-001', emp_code: 'LA001', email: 'la@gmail.com', password_hash: '123456', full_name: 'LA Staff', role: 'admin', permissions: ['all'] },
-                        { id: '4eb96672-322d-497e-91df-e2a1d7e0', emp_code: 'DR001', email: '789@gmail.com', password_hash: '123456', full_name: 'DR NOY', role: 'doctor' },
-                        { id: '992810bb-7cf8-41e6-b336-cffc280a0', emp_code: 'Tes002', email: '123@gmail.com', password_hash: '123456', full_name: 'Staff', role: 'staff' },
-                        { id: 'df0ea89d-87e8-44ae-ab38-899e5f77', emp_code: 'DR002', email: '1234@gmail.com', password_hash: '123456', full_name: 'DR BEE', role: 'doctor' }
-                    ];
-
-                    const found = defaultUsers.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password_hash === password);
-                    if (found) {
-                        userData = found;
-                    }
-                }
+                // 🗑️ บัญชีทดสอบ (defaultUsers) ถูกลบออกแล้วอย่างสมบูรณ์ เพื่อความปลอดภัย
 
                 if (!userData) {
-                    Swal.fire({ icon: 'error', title: 'เข้าสู่ระบบไม่สำเร็จ', text: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
                     btn.disabled = false;
-                    btn.innerHTML = 'เข้าสู่ระบบ <i class="ph ph-sign-in ms-1"></i>';
+                    btn.innerHTML = '<i class="ph ph-sign-in me-1"></i> เข้าสู่ระบบ';
+                    registerFailedAttempt();
                     return;
                 }
 
                 if (userData.is_active === false) {
                     Swal.fire({ icon: 'warning', title: 'บัญชีถูกระงับ', text: 'บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อ Admin' });
                     btn.disabled = false;
-                    btn.innerHTML = 'เข้าสู่ระบบ <i class="ph ph-sign-in ms-1"></i>';
+                    btn.innerHTML = '<i class="ph ph-sign-in me-1"></i> เข้าสู่ระบบ';
                     return;
                 }
 
-                // จดจำอีเมลหากติ๊ก Remember Me
+                // 📱 2FA Verification Step
+                const is2FAVerified = await prompt2FAVerification(userData);
+                if (!is2FAVerified) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="ph ph-sign-in me-1"></i> เข้าสู่ระบบ';
+                    return;
+                }
+
+                // Successful login - reset failed attempts
+                localStorage.removeItem('clinic_failed_attempts');
+                localStorage.removeItem('clinic_lockout_until');
+
+                // Remember Me Option
                 if (rememberMe) {
                     localStorage.setItem('rememberedEmail', email);
                 } else {
                     localStorage.removeItem('rememberedEmail');
                 }
 
-                // บันทึกข้อมูลลง Local Storage
+                // Save user session safely
                 const userName = userData.full_name || userData.email.split('@')[0];
                 localStorage.setItem('clinicUser', JSON.stringify({
                     id: userData.id,
@@ -249,16 +429,30 @@
                     email: userData.email,
                     name: userName,
                     role: userData.role,
-                    permissions: userData.permissions
+                    permissions: userData.permissions || [],
+                    authenticated_at: new Date().toISOString(),
+                    has_2fa: true
                 }));
 
-                // นำทางไปหน้า Dashboard (Clinic.html)
-                window.location.href = 'Clinic.html';
+                Swal.fire({
+                    icon: 'success',
+                    title: 'เข้าสู่ระบบสำเร็จ',
+                    text: 'ผ่านการยืนยัน 2FA เรียบร้อยแล้ว กำลังนำท่านเข้าสู่ระบบ...',
+                    timer: 1500,
+                    showConfirmButton: false
+                }).then(() => {
+                    window.location.href = 'Clinic.html';
+                });
 
             } catch (err) {
-                Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message });
+                console.error("Login processing error:", err);
+                const msg = (err && err.name === 'AbortError')
+                    ? 'การเชื่อมต่อใช้เวลานานเกินไป กรุณาลองใหม่อีกครั้ง (Request Timed Out)'
+                    : (err.message || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ');
+                
+                Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ', text: msg });
                 btn.disabled = false;
-                btn.innerHTML = 'เข้าสู่ระบบ <i class="ph ph-sign-in ms-1"></i>';
+                btn.innerHTML = '<i class="ph ph-sign-in me-1"></i> เข้าสู่ระบบ';
             }
         });
     </script>

@@ -1,0 +1,2020 @@
+<!DOCTYPE html>
+<html lang="lo">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clinic Booking - Timeline</title>
+    
+    <!-- นำเข้า Bootstrap & Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <style>
+        body {
+            background-color: #f8fafc;
+            font-family: 'Noto Sans Lao', sans-serif;
+            color: #1e293b;
+        }
+
+        /* ---------------- Horizontal Tab Navigation (Modern Minimal) ---------------- */
+        .top-nav-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            max-width: 100%;
+        }
+        .top-nav-bar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .horizontal-tab-nav {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: transparent;
+            padding: 0;
+            margin: 0;
+            flex-shrink: 0;
+        }
+
+        /* เมนู Tab: ไม่มีกรอบ ไม่มีพื้นหลัง สีน้ำเงินเทา สูง 40px padding 18px */
+        .tab-btn {
+            height: 40px;
+            min-height: 40px;
+            padding: 0 18px;
+            border-radius: 12px;
+            border: none;
+            background: transparent;
+            color: #475569;
+            font-size: 14px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+            outline: none;
+            text-decoration: none;
+            user-select: none;
+        }
+
+        /* เมื่อวางเมาส์ (Hover): พื้นหลังสีฟ้าอ่อน พร้อม Transition 0.2s */
+        .tab-btn:hover {
+            background-color: rgba(224, 242, 254, 0.6);
+            color: #0284c7;
+        }
+
+        /* เมนูที่กำลังเลือก (Active Tab): พื้นหลังสีฟ้าอ่อนโปร่ง ตัวอักษรสีน้ำเงินเข้ม ตัวหนา มุมโค้งแคปซูล 12px */
+        .tab-btn.active {
+            background-color: rgba(224, 242, 254, 0.85);
+            color: #0369a1;
+            font-weight: 700;
+            border-radius: 12px;
+            border: none;
+        }
+
+        /* ---------------- ปุ่ม Action สไตล์ Clean Clinic (ลดเงาและเส้นขอบที่ไม่จำเป็น) ---------------- */
+        .action-btn-primary {
+            height: 40px;
+            min-height: 40px;
+            background-color: #0b3c73;
+            color: #ffffff;
+            border-radius: 12px;
+            padding: 0 18px;
+            font-size: 13.5px;
+            font-weight: 600;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .action-btn-primary:hover {
+            background-color: #072b54;
+            color: #ffffff;
+        }
+
+        .action-btn-outline {
+            height: 40px;
+            min-height: 40px;
+            background-color: #ffffff;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 0 18px;
+            font-size: 13.5px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .action-btn-outline:hover:not(:disabled) {
+            background-color: rgba(224, 242, 254, 0.5);
+            color: #0b3c73;
+            border-color: #bae6fd;
+        }
+        .action-btn-outline:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        @keyframes spin-anim {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .icon-spin {
+            animation: spin-anim 0.8s linear infinite;
+            display: inline-block;
+        }
+
+        /* ---------------- การ์ดข้อมูลผู้ป่วย ---------------- */
+        .patient-info-card {
+            background-color: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 12px;
+            padding: 16px;
+        }
+        .patient-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: #dcfce7;
+            color: #16a34a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        /* ---------------- Timeline Stepper (Single Compact Row) ---------------- */
+        .timeline-stepper {
+            position: relative;
+            padding: 12px 0 8px 0;
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+
+        .timeline-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            position: relative;
+            z-index: 3;
+            width: 100%;
+            min-width: 760px;
+            margin: 0 auto;
+        }
+
+        /* Individual Step Item */
+        .step-item {
+            flex: 1;
+            text-align: center;
+            position: relative;
+            min-width: 68px;
+            padding: 0 2px;
+        }
+
+        /* The connecting lines between circles */
+        .step-item::after {
+            content: '';
+            position: absolute;
+            top: 24px; /* Center of 48px circle */
+            left: 50%;
+            width: 100%;
+            height: 3px;
+            background: #e2e8f0;
+            z-index: -1;
+            transition: background 0.3s;
+        }
+
+        /* Hide line for last item */
+        .step-item:last-child::after {
+            display: none;
+        }
+
+        /* Green line for completed steps */
+        .step-item.is-completed::after {
+            background: #10b981;
+        }
+
+        /* Compact Step Circle */
+        .step-circle {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: #ffffff;
+            border: 2.5px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            margin: 0 auto 8px auto;
+            position: relative;
+            z-index: 4;
+            color: #94a3b8;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            transition: all 0.3s;
+        }
+
+        .step-circle.completed {
+            border-color: #10b981;
+            color: #10b981;
+        }
+
+        .step-circle.active {
+            border-color: #10b981;
+            color: #10b981;
+            box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.15);
+        }
+
+        /* The indicator dot below the circle */
+        .step-indicator {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+            z-index: 5;
+            background: #ffffff;
+            border: 2px solid #e2e8f0;
+            color: #94a3b8;
+        }
+
+        .step-indicator.completed {
+            background: #10b981;
+            border-color: #10b981;
+            color: #ffffff;
+        }
+
+        .step-indicator.active {
+            background: #ffffff;
+            border: 3px solid #10b981;
+            color: transparent;
+        }
+
+        .step-title-wrap {
+            margin-top: 12px;
+        }
+
+        .step-num-text {
+            font-weight: 700;
+            color: #64748b;
+            font-size: 11px;
+            margin-bottom: 2px;
+        }
+
+        .step-title-text {
+            font-weight: 700;
+            color: #1e293b;
+            font-size: 12px;
+            line-height: 1.25;
+            margin-bottom: 2px;
+            transition: color 0.3s;
+            word-break: break-word;
+        }
+
+        .step-item.is-active .step-title-text {
+            color: #10b981 !important;
+            font-weight: 800;
+        }
+
+        .step-item.is-completed .step-title-text {
+            color: #0f172a;
+        }
+
+        .step-desc-text {
+            display: none;
+            font-size: 11px;
+            color: #64748b;
+            line-height: 1.3;
+        }
+        .search-dropdown-item {
+            padding: 10px 14px;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f5f9;
+            transition: all 0.15s;
+        }
+        .search-dropdown-item:hover, .search-dropdown-item.active {
+            background-color: #f0fdf4;
+        }
+        .search-dropdown-item.is-selected {
+            background-color: #ecfdf5;
+            border-left: 3px solid #10b981;
+        }
+        .btn-group .btn.active {
+            background-color: #0b3c73 !important;
+            color: #ffffff !important;
+            border-color: #0b3c73 !important;
+        }
+        .btn-group .btn.active i {
+            color: #ffffff !important;
+        }
+        .date-filter-capsule {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 50rem;
+            padding: 4px 12px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .date-filter-capsule input[type="date"]::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            opacity: 0.7;
+        }
+        
+        /* Custom path using SVG overlay for perfection (optional, but CSS borders work for now) */
+        .svg-timeline-path {
+            position: absolute;
+            top: 60px;
+            left: 0;
+            width: 100%;
+            height: 184px;
+            z-index: 1;
+            pointer-events: none;
+        }
+        
+        /* ---------------- ตาราง ---------------- */
+        .table-modern th {
+            background-color: #f8fafc;
+            color: #0b3c73;
+            font-weight: 600;
+            font-size: 13px;
+            border-bottom: 2px solid #e2e8f0;
+            white-space: nowrap;
+        }
+        .table-modern td {
+            vertical-align: middle;
+            font-size: 13px;
+            color: #334155;
+            border-bottom: 1px solid #f1f5f9;
+            padding: 12px 8px;
+        }
+
+        /* ---------------- Luxury Clinic Modal & SweetAlert ---------------- */
+        .clinic-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 999999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .clinic-modal-backdrop.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        .clinic-modal-card {
+            background: #ffffff;
+            border-radius: 24px;
+            padding: 32px 28px 24px;
+            width: 100%;
+            max-width: 440px;
+            text-align: center;
+            position: relative;
+            box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.3), 0 0 0 1px rgba(226, 232, 240, 0.9);
+            transform: scale(0.92) translateY(12px);
+            transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .clinic-modal-backdrop.show .clinic-modal-card {
+            transform: scale(1) translateY(0);
+        }
+        .clinic-modal-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #f1f5f9;
+            border: none;
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s ease;
+        }
+        .clinic-modal-close:hover {
+            background: #e2e8f0;
+            color: #0f172a;
+            transform: rotate(90deg);
+        }
+        .clinic-modal-icon-wrapper {
+            width: 68px;
+            height: 68px;
+            border-radius: 50%;
+            margin: 0 auto 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 34px;
+            position: relative;
+        }
+        .clinic-modal-icon-wrapper.info {
+            background: #e0f2fe;
+            color: #0284c7;
+            box-shadow: 0 0 0 8px #f0f9ff;
+        }
+        .clinic-modal-icon-wrapper.warning {
+            background: #fef3c7;
+            color: #d97706;
+            box-shadow: 0 0 0 8px #fffbeb;
+        }
+        .clinic-modal-icon-wrapper.success {
+            background: #dcfce7;
+            color: #16a34a;
+            box-shadow: 0 0 0 8px #f0fdf4;
+        }
+        .clinic-modal-title {
+            font-size: 19px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 8px;
+            line-height: 1.35;
+        }
+        .clinic-modal-message {
+            font-size: 14px;
+            color: #64748b;
+            line-height: 1.6;
+            margin-bottom: 18px;
+        }
+        .clinic-modal-hint {
+            background: #f8fafc;
+            border: 1px dashed #cbd5e1;
+            border-radius: 14px;
+            padding: 12px 16px;
+            margin-bottom: 24px;
+            font-size: 13px;
+            color: #475569;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-align: left;
+        }
+        .clinic-modal-btn {
+            background: linear-gradient(135deg, #0b3c73 0%, #0284c7 100%);
+            color: #ffffff;
+            border: none;
+            border-radius: 50rem;
+            padding: 10px 42px;
+            font-size: 14.5px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 6px 18px rgba(11, 60, 115, 0.28);
+            transition: all 0.2s ease;
+        }
+        .clinic-modal-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(11, 60, 115, 0.4);
+            color: #ffffff;
+        }
+
+        /* SweetAlert2 Styling */
+        div.swal2-container {
+            z-index: 999999 !important;
+            backdrop-filter: blur(8px) !important;
+            background: rgba(15, 23, 42, 0.45) !important;
+        }
+        div.swal2-popup.clinic-swal-popup {
+            border-radius: 24px !important;
+            padding: 28px 24px 22px !important;
+            font-family: 'Noto Sans Lao', sans-serif !important;
+            box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.3) !important;
+            border: 1px solid rgba(226, 232, 240, 0.9) !important;
+            width: 440px !important;
+            max-width: 92% !important;
+        }
+        .clinic-swal-title {
+            font-size: 1.25rem !important;
+            font-weight: 700 !important;
+            color: #0f172a !important;
+            margin-top: 10px !important;
+        }
+        .clinic-swal-btn {
+            background: linear-gradient(135deg, #0b3c73 0%, #0284c7 100%) !important;
+            border-radius: 50rem !important;
+            padding: 10px 38px !important;
+            font-weight: 600 !important;
+            font-size: 0.95rem !important;
+            box-shadow: 0 6px 18px rgba(11, 60, 115, 0.28) !important;
+            border: none !important;
+        }
+    </style>
+</head>
+<body class="p-4">
+
+    <!-- 1. ส่วนหัวข้อและแท็บเมนู -->
+    <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
+        <div>
+            <div class="text-success fw-bold" style="font-size: 11px; letter-spacing: 1px;">PATIENT DIRECTORY</div>
+            <h3 class="fw-bold mb-1" id="page-patient-title" style="color: #0b3c73;">ຜູ້ປ່ວຍຂອງຂ້ອຍ</h3>
+            <p class="text-muted mb-0" id="page-patient-subtitle" style="font-size: 13px;">ສະແດງສະເພາະຜູ້ປ່ວຍທີ່ທ່ານເປັນຜູ້ລົງທະບຽນ</p>
+        </div>
+        
+        <!-- Horizontal Tab Navigation & Action Buttons (Modern Minimal) -->
+        <div class="top-nav-bar">
+            <!-- กลุ่มแท็บสลับหน้า Horizontal Tab Navigation -->
+            <nav class="horizontal-tab-nav" aria-label="Main Tabs">
+                <button type="button" class="tab-btn active" id="btn-tab-timeline" onclick="switchTab('timeline')">
+                    <i class="ph ph-chart-line-up"></i> Timeline
+                </button>
+                <button type="button" class="tab-btn" id="btn-tab-history" onclick="switchTab('history')">
+                    <i class="ph ph-clock-counter-clockwise"></i> ປະຫວັດຜູ້ປ່ວຍ
+                </button>
+            </nav>
+            
+            <!-- กลุ่มปุ่ม Action -->
+            <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                <button type="button" class="action-btn-primary" onclick="try { window.parent.postMessage('openAddPatientModal', '*'); } catch(e) { console.warn(e); }">
+                    <i class="ph ph-user-plus"></i> ລົງທະບຽນຜູ້ປ່ວຍ
+                </button>
+                <button type="button" class="action-btn-outline" id="btnRefreshData" onclick="refreshPatientData()" title="ກົດເພື່ອຣີເຟຣຊຂໍ້ມູນໃໝ່ລ່າສຸດ">
+                    <i class="ph ph-arrows-clockwise" id="refreshIcon"></i>
+                    <span id="refreshBtnText">ຣີເຟຣຊຂໍ້ມູນ</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- แท็บที่ 1: Timeline (แสดงแผนภาพติดตามสถานะ) -->
+    <!-- ========================================== -->
+    <div id="content-timeline" class="card border-0 shadow-sm" style="border-radius: 16px;">
+        <div class="card-body p-4">
+            
+            <!-- ส่วนค้นหาและตัวกรอง -->
+            <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom flex-wrap gap-3">
+                <div>
+                    <h5 class="fw-bold text-dark mb-0">ສະຫຼຸບເສັ້ນທາງການຮັບບໍລິການຂອງຜູ້ປ່ວຍ</h5>
+                    <small class="text-muted">ຕິດຕາມທຸກຂັ້ນຕອນການຮັບບໍລິການ ຕັ້ງແຕ່ເຂົ້າຄລີນິກຈົນຮອດສຳເລັດ</small>
+                </div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <!-- ปุ่มเลือกเวลาด่วน: ມື້ນີ້ / ທັງໝົດ -->
+                    <div class="btn-group btn-group-sm shadow-sm" role="group" style="border-radius: 50rem;">
+                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary" id="btnFilterToday" onclick="setDateFilterMode('today')">
+                            <i class="ph ph-calendar-check me-1 text-primary"></i>ມື້ນີ້
+                        </button>
+                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary active" id="btnFilterAll" onclick="setDateFilterMode('all')">
+                            ທັງໝົດ
+                        </button>
+                    </div>
+
+                    <!-- แคปซูลเลือกช่วงเวลา (ເລືອກຊ່ວງເວລາ) -->
+                    <div class="date-filter-capsule">
+                        <span class="text-muted small fw-semibold d-flex align-items-center"><i class="ph ph-calendar-blank text-primary me-1"></i>ເລືອກຊ່ວງເວລາ:</span>
+                        <input type="date" id="dateFilterStart" class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none" style="width: 115px; font-size: 13px;" onchange="onCustomDateChange()">
+                        <span class="text-muted small fw-bold">ຫາ</span>
+                        <input type="date" id="dateFilterEnd" class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none" style="width: 115px; font-size: 13px;" onchange="onCustomDateChange()">
+                        <button type="button" class="btn btn-link btn-sm text-muted p-0 ms-1 text-decoration-none" title="ລ້າງວັນທີ" onclick="setDateFilterMode('all')">
+                            <i class="ph ph-x-circle fs-6"></i>
+                        </button>
+                    </div>
+
+                    <!-- กล่องค้นหา/เลือกผู้ป่วย (พิมพ์ หรือ เลือกได้) -->
+                    <div class="position-relative" style="width: 280px;" id="patientSearchContainer">
+                        <div class="input-group shadow-sm" style="border-radius: 50rem; overflow: hidden; border: 1px solid #cbd5e1; background: #ffffff;">
+                            <span class="input-group-text bg-white border-0 text-muted ps-3 pe-1"><i class="ph ph-magnifying-glass fs-6"></i></span>
+                            <input type="text" id="patientSearchInput" class="form-control bg-white border-0 shadow-none ps-1 pe-1" placeholder="ພິມ ຫຼື ຄລິກເລືອກຜູ້ປ່ວຍ..." autocomplete="off" style="font-size: 13.5px; cursor: pointer;">
+                            <button class="btn btn-link text-muted border-0 p-0 pe-3 text-decoration-none d-flex align-items-center" type="button" id="btnToggleDropdown" onclick="toggleSearchDropdown()" title="ກົດເພື່ອເລືອກຜູ້ປ່ວຍ">
+                                <i class="ph ph-caret-down fs-6 text-secondary" id="searchDropdownCaret"></i>
+                            </button>
+                        </div>
+                        <div id="patientSearchDropdown" class="dropdown-menu shadow-lg p-0 mt-1" style="display:none; position:absolute; top:100%; right:0; min-width: 320px; max-height:360px; overflow-y:auto; z-index:1060; border-radius:14px; border:1px solid #cbd5e1; background:#ffffff;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- การ์ดสรุปข้อมูลผู้ป่วย (สีเขียวอ่อน) -->
+            <div class="patient-info-card mb-4 d-flex align-items-center gap-4 flex-wrap">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="patient-avatar"><i class="ph ph-user"></i></div>
+                    <div>
+                        <h6 class="fw-bold mb-1">ທ້າວ ສະຫວັນ ຈັນທະວົງ</h6>
+                        <div class="text-muted small">
+                            <span class="me-2"><i class="ph ph-identification-card me-1"></i>ເລກປະຈຳຕົວ: <strong>PT202600123</strong></span>
+                        </div>
+                        <div class="text-muted small mt-1">
+                            <span class="me-3"><i class="ph ph-phone me-1"></i>020 5066 7758</span>
+                            <span class="me-3"><i class="ph ph-user me-1"></i>ຊາຍ, 35 ປີ</span>
+                            <span><i class="ph ph-calendar-blank me-1"></i>ວັນເກີດ: 15/03/1991</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="ms-auto d-flex align-items-center gap-4">
+                    <div>
+                        <div class="text-muted small mb-1">ວັນທີຮັບບໍລິການ</div>
+                        <div class="fw-bold text-dark"><i class="ph ph-calendar-check text-primary me-1"></i> 01/09/2026 <span class="text-muted fw-normal ms-1">08:26</span></div>
+                    </div>
+                    <div class="border-start ps-4">
+                        <div class="text-muted small mb-1">ແພດຜູ້ດູແລ</div>
+                        <div class="fw-bold text-dark"><i class="ph ph-user-circle text-info me-1"></i> ທ່ານ ໝໍ ສຸລິນ ວິລະພັນ <br><small class="text-muted fw-normal">ແພດທົ່ວໄປ</small></div>
+                    </div>
+                    <div class="border-start ps-4">
+                        <div class="text-muted small mb-1">ສະຖານະປະຈຸບັນ</div>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill"><i class="ph ph-circle-fill me-1"></i>ກຳລັງຮັບບໍລິການ</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- แผนภาพ 9 ขั้นตอน -->
+            <h6 class="fw-bold mb-3 text-primary"><i class="ph ph-navigation-arrow me-2"></i>ເສັ້ນທາງການຮັບບໍລິການ (Timeline)</h6>
+            
+            <div class="timeline-stepper mb-4">
+                <div class="timeline-row">
+                    <!-- Step 01 -->
+                    <div class="step-item">
+                        <div class="step-circle"><i class="ph ph-calendar-plus"></i>
+                            <div class="step-indicator"></div>
+                        </div>
+                        <div class="step-title-wrap">
+                            <div class="step-num-text">01</div>
+                            <div class="step-title-text">ທະບຽນຜູ້ປ່ວຍ</div>
+                            <div class="step-desc-text">ລົງທະບຽນ ແລະ ກວດສອບຂໍ້ມູນຜູ້ປ່ວຍ</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 02 -->
+                    <div class="step-item">
+                        <div class="step-circle"><i class="ph ph-heartbeat"></i>
+                            <div class="step-indicator"></div>
+                        </div>
+                        <div class="step-title-wrap">
+                            <div class="step-num-text">02</div>
+                            <div class="step-title-text">ຈຸດຄັດກອງ</div>
+                            <div class="step-desc-text">ວັດສັນຍານຊີບ ແລະ ຄັດກອງເບື້ອງຕົ້ນ</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 03 -->
+                    <div class="step-item">
+                        <div class="step-circle"><i class="ph ph-stethoscope"></i>
+                            <div class="step-indicator"></div>
+                        </div>
+                        <div class="step-title-wrap">
+                            <div class="step-num-text">03</div>
+                            <div class="step-title-text">ຫ້ອງກວດແພດ</div>
+                            <div class="step-desc-text">ພົບແພດ ແລະ ກວດວິນິດໄສ</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 04 -->
+                    <div class="step-item">
+                        <div class="step-circle"><i class="ph ph-credit-card"></i>
+                            <div class="step-indicator"></div>
+                        </div>
+                        <div class="step-title-wrap">
+                            <div class="step-num-text">04</div>
+                            <div class="step-title-text">ຊຳລະຄ່າປິ່ນປົວ</div>
+                            <div class="step-desc-text">ຊຳລະເງິນກ່ອນສົ່ງກວດ Lab</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 05 -->
+                    <div class="step-item">
+                        <div class="step-circle"><i class="ph ph-flask"></i>
+                            <div class="step-indicator"></div>
+                        </div>
+                        <div class="step-title-wrap">
+                            <div class="step-num-text">05</div>
+                            <div class="step-title-text">ຫ້ອງ Lab</div>
+                            <div class="step-desc-text">ກວດວິເຄາະຫາຜົນປະລິມານ</div>
+                        </div>
+                    </div>
+
+                    <!-- Step 06 -->
+                    <div class="step-item">
+                        <div class="step-circle"><i class="ph ph-list-numbers"></i>
+                            <div class="step-indicator"></div>
+                        </div>
+                        <div class="step-title-wrap">
+                            <div class="step-num-text">06</div>
+                            <div class="step-title-text">ຈັດຄິວ</div>
+                            <div class="step-desc-text">ລໍຖ້າຮັບຜົນແລັບ ແລະ ເອີ້ນພົບ</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 07 -->
+                    <div class="step-item">
+                        <div class="step-circle"><i class="ph ph-file-text"></i>
+                            <div class="step-indicator"></div>
+                        </div>
+                        <div class="step-title-wrap">
+                            <div class="step-num-text">07</div>
+                            <div class="step-title-text">ອ່ານຜົນ/ຈັດຢາ</div>
+                            <div class="step-desc-text">ແພດອ່ານຜົນ Lab ແລະ ສັ່ງຢາ</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 08 -->
+                    <div class="step-item">
+                        <div class="step-circle"><i class="ph ph-first-aid"></i>
+                            <div class="step-indicator"></div>
+                        </div>
+                        <div class="step-title-wrap">
+                            <div class="step-num-text">08</div>
+                            <div class="step-title-text">ຫ້ອງຈ່າຍຢາ</div>
+                            <div class="step-desc-text">ຈ່າຍຢາ ແລະ ແນະນຳການໃຊ້ຢາ</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 09 -->
+                    <div class="step-item">
+                        <div class="step-circle"><i class="ph ph-check-circle"></i>
+                            <div class="step-indicator"></div>
+                        </div>
+                        <div class="step-title-wrap">
+                            <div class="step-num-text">09</div>
+                            <div class="step-title-text">ສຳເລັດ</div>
+                            <div class="step-desc-text">ສິ້ນສຸດການຮັບບໍລິການ</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        <div class="card-footer bg-light border-top py-3 d-flex justify-content-between align-items-center">
+            <div id="timeline-footer-status" class="text-success small fw-bold"><i class="ph ph-check-circle me-1"></i>ກຳລັງດຳເນີນການປິ່ນປົວ</div>
+            <button class="btn btn-sm btn-link text-decoration-none" onclick="switchTab('history')">ເບິ່ງປະຫວັດທັງໝົດ <i class="ph ph-caret-right"></i></button>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- แท็บที่ 2: ประวัติผู้ป่วย (ตารางข้อมูล) -->
+    <!-- ========================================== -->
+    <div id="content-history" class="card border-0 shadow-sm" style="border-radius: 16px; display: none;">
+        <div class="card-body p-4">
+            <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom flex-wrap gap-3">
+                <div>
+                    <h5 class="fw-bold text-dark mb-0"><i class="ph ph-clock-counter-clockwise text-primary me-2"></i>ປະຫວັດການເຂົ້າກວດຜູ້ປ່ວຍ</h5>
+                    <small class="text-muted" id="history-subtitle">ລາຍການປະຫວັດການກວດ ແລະ ການຮັບບໍລິການທັງໝົດ</small>
+                </div>
+                
+                <!-- ຕົວເລືອກເວລາ ແລະ ຊ່ອງຄົ້ນຫາໃນໜ້າປະຫວັດຜູ້ປ່ວຍ -->
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <!-- ປຸ່ມເລືອກເວລາດ່ວນ: ມື້ນີ້ / ທັງໝົດ -->
+                    <div class="btn-group btn-group-sm shadow-sm" role="group" style="border-radius: 50rem;">
+                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary" id="btnFilterTodayHistory" onclick="setDateFilterMode('today')">
+                            <i class="ph ph-calendar-check me-1 text-primary"></i>ມື້ນີ້
+                        </button>
+                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary active" id="btnFilterAllHistory" onclick="setDateFilterMode('all')">
+                            ທັງໝົດ
+                        </button>
+                    </div>
+
+                    <!-- ແຄບຊູນເລືອກຊ່ວງເວລາ (ເລືອກຊ່ວງເວລາ) -->
+                    <div class="date-filter-capsule">
+                        <span class="text-muted small fw-semibold d-flex align-items-center"><i class="ph ph-calendar-blank text-primary me-1"></i>ເລືອກຊ່ວງເວລາ:</span>
+                        <input type="date" id="dateFilterStartHistory" class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none" style="width: 115px; font-size: 13px;" onchange="onCustomDateChangeHistory()">
+                        <span class="text-muted small fw-bold">ຫາ</span>
+                        <input type="date" id="dateFilterEndHistory" class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none" style="width: 115px; font-size: 13px;" onchange="onCustomDateChangeHistory()">
+                        <button type="button" class="btn btn-link btn-sm text-muted p-0 ms-1 text-decoration-none" title="ລ້າງວັນທີ" onclick="setDateFilterMode('all')">
+                            <i class="ph ph-x-circle fs-6"></i>
+                        </button>
+                    </div>
+
+                    <!-- ຊ່ອງຄົ້ນຫາໃນຕາຕະລາງປະຫວັດ -->
+                    <div class="position-relative" style="width: 250px;">
+                        <div class="input-group shadow-sm" style="border-radius: 50rem; overflow: hidden; border: 1px solid #cbd5e1; background: #ffffff;">
+                            <span class="input-group-text bg-white border-0 text-muted ps-3 pe-1"><i class="ph ph-magnifying-glass fs-6"></i></span>
+                            <input type="text" id="historySearchInput" class="form-control bg-white border-0 shadow-none ps-1 pe-2" placeholder="ຄົ້ນຫາ (ຊື່, HN, Visit...)" autocomplete="off" style="font-size: 13.5px;" oninput="applyHistoryTableSearch()">
+                            <button class="btn btn-link text-muted border-0 p-0 pe-3 text-decoration-none d-none" type="button" id="btnClearHistorySearch" onclick="clearHistorySearch()" title="ລ້າງການຄົ້ນຫາ">
+                                <i class="ph ph-x-circle fs-6"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="table-responsive border rounded-3">
+                <table class="table table-modern mb-0">
+                    <thead>
+                        <tr>
+                            <th class="text-center" width="60">ລ/ດ</th>
+                            <th width="130">ລະຫັດ VISIT</th>
+                            <th width="120">ລະຫັດ HN</th>
+                            <th width="180">ຊື່-ນາມສະກຸນ</th>
+                            <th width="150">ວັນທີກວດ</th>
+                            <th>ອາການສຳຄັນ / ອາການວິນິດໄສ</th>
+                            <th class="text-center" width="130">ສະຖານະ</th>
+                            <th class="text-center" width="170">ຈັດການ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-5">
+                                <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                                ກຳລັງໂຫຼດຂໍ້ມູນປະຫວັດຜູ້ປ່ວຍ...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            <div class="d-flex justify-content-between align-items-center mt-3 px-2 flex-wrap gap-2">
+                <small id="pagination-info" class="text-muted">ສະແດງ 0 ລາຍການ</small>
+                <div id="pagination-controls" class="d-flex gap-1 flex-wrap">
+                    <!-- Dynamic Pagination Controls -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script ควบคุมการสลับแท็บ -->
+    <!-- Script ควบคุมการสลับแท็บ และระบบ Timeline แบบ Dynamic -->
+    <script>
+        function switchTab(tabId) {
+            const btnTimeline = document.getElementById('btn-tab-timeline');
+            const btnHistory = document.getElementById('btn-tab-history');
+            const contentTimeline = document.getElementById('content-timeline');
+            const contentHistory = document.getElementById('content-history');
+
+            btnTimeline.classList.remove('active');
+            btnHistory.classList.remove('active');
+            contentTimeline.style.display = 'none';
+            contentHistory.style.display = 'none';
+
+            if (tabId === 'timeline') {
+                btnTimeline.classList.add('active');
+                contentTimeline.style.display = 'block';
+            } else if (tabId === 'history') {
+                btnHistory.classList.add('active');
+                contentHistory.style.display = 'block';
+                // Sync ข้อมูลตารางทันทีเมื่อสลับมาแท็บประวัติ
+                if (filteredPatientsData && filteredPatientsData.length > 0) {
+                    const histSearchInput = document.getElementById('historySearchInput');
+                    if (histSearchInput && histSearchInput.value.trim()) {
+                        applyHistoryTableSearch();
+                    } else {
+                        renderHistoryTable(filteredPatientsData, '', historyCurrentPage || 1);
+                    }
+                } else if (allPatientsData && allPatientsData.length > 0) {
+                    applyFilters();
+                }
+            }
+        }
+
+        // Auto-detect iframe mode for Clinic Booking integration
+        if (window.self !== window.top) {
+            document.body.classList.add("in-iframe");
+            const style = document.createElement("style");
+            style.textContent = `
+                body.in-iframe { background: #f8fafc !important; padding: 16px !important; }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // รายละเอียดขั้นตอนทั้ง 9 ขั้นตอนตามระบบคลินิกจริง
+        const STEP_CONFIG = {
+            1: { num: '01', title: 'ທະບຽນຜູ້ປ່ວຍ', desc: 'ລົງທະບຽນ ແລະ ກວດສອບຂໍ້ມູນຜູ້ປ່ວຍ', badge: '01 ລົງທະບຽນແລ້ວ (ລໍຖ້າຄັດກອງ)', badgeClass: 'bg-primary-subtle text-primary border-primary-subtle' },
+            2: { num: '02', title: 'ຈຸດຄັດກອງ', desc: 'ວັດສັນຍານຊີບ ແລະ ຄັດກອງເບື້ອງຕົ້ນ', badge: '02 ຈຸດຄັດກອງ (ກຳລັງລໍຖ້າຄັດກອງ)', badgeClass: 'bg-warning-subtle text-warning-emphasis border-warning-subtle' },
+            3: { num: '03', title: 'ຫ້ອງກວດແພດ', desc: 'ພົບແພດ ແລະ ກວດວິນິດໄສ', badge: '03 ຫ້ອງກວດແພດ (ລໍຖ້າກວດ)', badgeClass: 'bg-info-subtle text-info border-info-subtle' },
+            4: { num: '04', title: 'ຊຳລະຄ່າປິ່ນປົວ', desc: 'ຊຳລະເງິນກ່ອນສົ່ງກວດ Lab', badge: '04 ຊຳລະຄ່າປິ່ນປົວ (ລໍຖ້າຊຳລະເງິນ)', badgeClass: 'bg-warning-subtle text-warning-emphasis border-warning-subtle' },
+            5: { num: '05', title: 'ຫ້ອງ Lab', desc: 'ກວດວິເຄາະຫາຜົນປະລິມານ', badge: '05 ຫ້ອງ Lab (ລໍຖ້າຜົນແລັບ)', badgeClass: 'bg-danger-subtle text-danger border-danger-subtle' },
+            6: { num: '06', title: 'ຈັດຄິວ', desc: 'ລໍຖ້າຮັບຜົນແລັບ ແລະ ເອີ້ນພົບ', badge: '06 ຈັດຄິວ (ລໍຖ້າອ່ານຜົນ)', badgeClass: 'bg-secondary-subtle text-secondary border-secondary-subtle' },
+            7: { num: '07', title: 'ອ່ານຜົນ/ຈັດຢາ', desc: 'ແພດອ່ານຜົນ Lab ແລະ ສັ່ງຈ່າຍຢາ', badge: '07 ອ່ານຜົນ/ຈັດຢາ (ລໍຖ້າອ່ານຜົນ/ສັ່ງຢາ)', badgeClass: 'bg-info-subtle text-info border-info-subtle' },
+            8: { num: '08', title: 'ຫ້ອງຈ່າຍຢາ', desc: 'ຈ່າຍຢາ ແລະ ແນະນຳການໃຊ້ຢາ', badge: '08 ຫ້ອງຈ່າຍຢາ (ລໍຖ້າຮັບຢາ)', badgeClass: 'bg-primary-subtle text-primary border-primary-subtle' },
+            9: { num: '09', title: 'ສຳເລັດ', desc: 'ສິ້ນສຸດການຮັບບໍລິການ', badge: '09 ສຳເລັດການປິ່ນປົວ', badgeClass: 'bg-success-subtle text-success border-success-subtle' }
+        };
+
+        // แปลงข้อความสถานะจากคลินิก เป็นขั้นตอนที่ 1-9 ให้ตรงตามระบบคลินิกจริง
+        function mapStatusToStep(statusStr) {
+            if (!statusStr) return 1;
+            const s = String(statusStr).trim().toLowerCase();
+
+            // 9: สำเร็จ (เสร็จสิ้น / สำเร็จ / ชำระแล้วเสร็จสิ้น)
+            if (s.includes('เสร็จสิ้น') || s.includes('ສຳເລັດ') || s.includes('discharged') || s.includes('completed')) {
+                return 9;
+            }
+
+            // 8: ห้องจ่ายยา (รอจ่ายยา / จ่ายยา / รับยา / รอรับยา)
+            if (s.includes('จ่ายยา') || s.includes('รับยา') || s.includes('ຮັບຢາ') || s.includes('ห้องยา') || s.includes('pharmacy')) {
+                return 8;
+            }
+
+            // 7: อ่านผล/จัดยา (แพทย์อ่านผลแล็บและสั่งยา / รอจัดยา / รออ่านผล)
+            if (s.includes('อ่านผล') || s.includes('ອ່ານຜົນ') || s.includes('จัดยา') || s.includes('ຈັດຢາ') || s.includes('prescription')) {
+                return 7;
+            }
+
+            // 6: จัดคิว (รอจัดคิวพบแพทย์เพื่ออ่านผลแล็บ)
+            if (s.includes('รอจัดคิว') || s.includes('จัดคิว') || s.includes('ຈັດຄິວ') || s.includes('queue')) {
+                return 6;
+            }
+
+            // 5: ห้อง Lab (รอผลแล็บ / กำลังตรวจแล็บ)
+            if (s.includes('แล็บ') || s.includes('lab') || s.includes('แລັບ') || s.includes('ແລັບ') || s.includes('ผลแล็บ')) {
+                return 5;
+            }
+
+            // 4: ชำระค่ารักษา (รอชำระเงินก่อนส่งตรวจแล็บ / ชำระค่ารักษา / ชำระเงิน)
+            if (s.includes('รอชำระ') || s.includes('ลอชำระ') || s.includes('ຊຳລະ') || s.includes('payment') || s.includes('billing') || s.includes('cashier') || s.includes('ชำระเงิน') || s.includes('จ่ายเงิน')) {
+                return 4;
+            }
+
+            // 3: ห้องตรวจแพทย์ (รอตรวจ / กำลังตรวจ / คุยกับแพทย์ / ห้องตรวจ)
+            if (s.includes('รอตรวจ') || s.includes('ลอตรวจ') || s.includes('กำลังตรวจ') || s.includes('คุยกับแพทย์') || s.includes('ห้องตรวจ') || s.includes('ກວດແພດ') || s.includes('ແພດ') || s.includes('doctor')) {
+                return 3;
+            }
+
+            // 2: จุดคัดกรอง (รอคัดกรอง / ซักประวัติ / วัดสัญญาณชีพ / รอส่งคัดกรอง)
+            if (s.includes('คัดกรอง') || s.includes('ຄັດກອງ') || s.includes('triage') || s.includes('vitals') || s.includes('ซักประวัติ') || s.includes('ຊັກປະຫວັດ') || s.includes('รอส่งคัดกรอง')) {
+                return 2;
+            }
+
+            // 1: ลงทะเบียน (ทะเบียนผู้ป่วย)
+            if (s.includes('ลงทะเบียน') || s.includes('ລົງທະບຽນ') || s.includes('new') || s.includes('register')) {
+                return 1;
+            }
+
+            const num = parseInt(s, 10);
+            if (!isNaN(num) && num >= 1 && num <= 9) return num;
+
+            return 1;
+        }
+
+        // แสดงผล Stepper จุดที่เสร็จแล้ว (เขียว) จุดปัจจุบัน (Active) และจุดที่รอ (Pending)
+        function renderTimeline(currentStep) {
+            const steps = document.querySelectorAll('.timeline-stepper .step-item');
+            steps.forEach((step, index) => {
+                const stepNum = index + 1;
+                const circle = step.querySelector('.step-circle');
+                const indicator = step.querySelector('.step-indicator');
+                
+                // Reset classes
+                step.className = 'step-item';
+                circle.className = 'step-circle';
+                indicator.className = 'step-indicator';
+                indicator.innerHTML = '';
+                
+                if (stepNum < currentStep) {
+                    step.classList.add('is-completed');
+                    circle.classList.add('completed');
+                    indicator.classList.add('completed');
+                    indicator.innerHTML = '<i class="ph ph-check text-white"></i>';
+                } else if (stepNum === currentStep) {
+                    if (currentStep === 9) {
+                        // ເມື່ອຮອດຂັ້ນຕອນ 09 (ສຳເລັດ): ໃຫ້ຂຶ້ນເຄື່ອງໝາຍຕິກຖືກເລີຍ
+                        step.classList.add('is-completed', 'is-active');
+                        circle.classList.add('completed', 'active');
+                        indicator.classList.add('completed');
+                        indicator.innerHTML = '<i class="ph ph-check text-white"></i>';
+                    } else {
+                        step.classList.add('is-active');
+                        circle.classList.add('active');
+                        indicator.classList.add('active');
+                        indicator.innerHTML = '<div style="width:8px;height:8px;background:#10b981;border-radius:50%;"></div>';
+                    }
+                } else {
+                    circle.classList.add('pending');
+                    indicator.classList.add('pending');
+                }
+            });
+        }
+
+        let allPatientsData = [];
+        let filteredPatientsData = [];
+        let currentSelectedPatient = null;
+        let currentDateFilterMode = 'all';
+        let isCurrentUserAdmin = false;
+        let currentUserNameGlobal = '';
+
+        // ฟังก์ชันดึงวันที่ปัจจุบันในรูปแบบ YYYY-MM-DD (ຮອງຮັບທັງ ຄ.ສ. ແລະ ພ.ສ.)
+        function getTodayDateString() {
+            const d = new Date();
+            let year = d.getFullYear();
+            if (year > 2400) year -= 543;
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        // ฟังก์ชันเปลี่ยนโหมดตัวกรองวันที่ (today / all / custom) - sync ທັງແທັບ 1 ແລະ ແທັບ 2
+        function setDateFilterMode(mode) {
+            const btnToday = document.getElementById('btnFilterToday');
+            const btnAll = document.getElementById('btnFilterAll');
+            const btnTodayH = document.getElementById('btnFilterTodayHistory');
+            const btnAllH = document.getElementById('btnFilterAllHistory');
+
+            const inputStart = document.getElementById('dateFilterStart');
+            const inputEnd = document.getElementById('dateFilterEnd');
+            const inputStartH = document.getElementById('dateFilterStartHistory');
+            const inputEndH = document.getElementById('dateFilterEndHistory');
+
+            if (mode === 'today') {
+                const today = getTodayDateString();
+                if (inputStart) inputStart.value = today;
+                if (inputEnd) inputEnd.value = today;
+                if (inputStartH) inputStartH.value = today;
+                if (inputEndH) inputEndH.value = today;
+
+                if (btnToday) btnToday.classList.add('active');
+                if (btnAll) btnAll.classList.remove('active');
+                if (btnTodayH) btnTodayH.classList.add('active');
+                if (btnAllH) btnAllH.classList.remove('active');
+                currentDateFilterMode = 'today';
+            } else if (mode === 'all') {
+                if (inputStart) inputStart.value = '';
+                if (inputEnd) inputEnd.value = '';
+                if (inputStartH) inputStartH.value = '';
+                if (inputEndH) inputEndH.value = '';
+
+                if (btnToday) btnToday.classList.remove('active');
+                if (btnAll) btnAll.classList.add('active');
+                if (btnTodayH) btnTodayH.classList.remove('active');
+                if (btnAllH) btnAllH.classList.add('active');
+                currentDateFilterMode = 'all';
+            } else if (mode === 'custom') {
+                if (btnToday) btnToday.classList.remove('active');
+                if (btnAll) btnAll.classList.remove('active');
+                if (btnTodayH) btnTodayH.classList.remove('active');
+                if (btnAllH) btnAllH.classList.remove('active');
+                currentDateFilterMode = 'custom';
+            }
+
+            applyFilters();
+        }
+
+        // ฟังก์ชันเมื่อเปลี่ยนวันเริ่มต้นหรือวันสิ้นสุดในแทັບ Timeline
+        function onCustomDateChange() {
+            const inputStart = document.getElementById('dateFilterStart');
+            const inputEnd = document.getElementById('dateFilterEnd');
+            const inputStartH = document.getElementById('dateFilterStartHistory');
+            const inputEndH = document.getElementById('dateFilterEndHistory');
+            
+            if (inputStart && inputEnd) {
+                if (inputStart.value && !inputEnd.value) {
+                    inputEnd.value = inputStart.value;
+                } else if (!inputStart.value && inputEnd.value) {
+                    inputStart.value = inputEnd.value;
+                }
+                if (inputStartH) inputStartH.value = inputStart.value;
+                if (inputEndH) inputEndH.value = inputEnd.value;
+            }
+            setDateFilterMode('custom');
+        }
+
+        // ฟังก์ชันเมื่อเปลี่ยนวันเริ่มต้นหรือวันสิ้นสุดในแทັບ ປະຫວັດຜູ້ປ່ວຍ
+        function onCustomDateChangeHistory() {
+            const inputStart = document.getElementById('dateFilterStart');
+            const inputEnd = document.getElementById('dateFilterEnd');
+            const inputStartH = document.getElementById('dateFilterStartHistory');
+            const inputEndH = document.getElementById('dateFilterEndHistory');
+            
+            if (inputStartH && inputEndH) {
+                if (inputStartH.value && !inputEndH.value) {
+                    inputEndH.value = inputStartH.value;
+                } else if (!inputStartH.value && inputEndH.value) {
+                    inputStartH.value = inputEndH.value;
+                }
+                if (inputStart) inputStart.value = inputStartH.value;
+                if (inputEnd) inputEnd.value = inputEndH.value;
+            }
+            setDateFilterMode('custom');
+        }
+
+        // ฟังก์ชันตรวจสอบว่าคนไข้อยู่ในช่วงวันที่เลือกหรือไม่ (ກວດສອບທຸກ field: latest_visit, created_at, latest_visit_date)
+        function isPatientInDateRange(p, startDate, endDate) {
+            if (!startDate && !endDate) return true;
+
+            const candidateDates = [];
+
+            // 1. ວັນທີ visit ຫຼ້າສຸດ
+            if (p.latest_visit_raw_date) {
+                const d = new Date(p.latest_visit_raw_date);
+                if (!isNaN(d.getTime())) {
+                    let y = d.getFullYear();
+                    if (y > 2400) y -= 543;
+                    candidateDates.push(`${y}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+                }
+            }
+
+            // 2. ວັນທີລົງທະບຽນ
+            if (p.created_at) {
+                const d = new Date(p.created_at);
+                if (!isNaN(d.getTime())) {
+                    let y = d.getFullYear();
+                    if (y > 2400) y -= 543;
+                    candidateDates.push(`${y}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+                }
+            }
+
+            // 3. ຂໍ້ຄວາມ latest_visit_date ເຊັ່ນ "5/9/2569 17:13:12" ຫຼື "05/09/2026"
+            if (p.latest_visit_date && typeof p.latest_visit_date === 'string') {
+                const str = p.latest_visit_date.trim();
+                const m1 = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
+                if (m1) {
+                    let y = parseInt(m1[3], 10);
+                    if (y > 2400) y -= 543;
+                    candidateDates.push(`${y}-${m1[2].padStart(2, '0')}-${m1[1].padStart(2, '0')}`);
+                }
+                const m2 = str.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
+                if (m2) {
+                    let y = parseInt(m2[1], 10);
+                    if (y > 2400) y -= 543;
+                    candidateDates.push(`${y}-${m2[2].padStart(2, '0')}-${m2[3].padStart(2, '0')}`);
+                }
+            }
+
+            if (candidateDates.length === 0) return false;
+
+            const s = startDate && endDate ? (startDate <= endDate ? startDate : endDate) : (startDate || endDate);
+            const e = startDate && endDate ? (startDate <= endDate ? endDate : startDate) : (startDate || endDate);
+
+            return candidateDates.some(pDate => {
+                if (startDate && endDate) return pDate >= s && pDate <= e;
+                if (startDate) return pDate >= s;
+                if (endDate) return pDate <= e;
+                return true;
+            });
+        }
+
+        // ตัวแปรสำหรับ Pagination ในแท็บประวัติผู้ป่วย
+        let historyCurrentPage = 1;
+        const historyPageSize = 25;
+        let currentHistoryPatientsList = [];
+        let currentHistorySearchQuery = '';
+
+        function changeHistoryPage(newPage) {
+            historyCurrentPage = newPage;
+            renderHistoryTable(currentHistoryPatientsList, currentHistorySearchQuery, newPage);
+        }
+
+        // ฟังก์ชันกรองข้อมูลตามวันที่และอัปเดตหน้าจอทั้งหมด
+        function applyFilters() {
+            const inputStart = document.getElementById('dateFilterStart');
+            const inputEnd = document.getElementById('dateFilterEnd');
+            const startDate = inputStart && inputStart.value ? inputStart.value : null;
+            const endDate = inputEnd && inputEnd.value ? inputEnd.value : null;
+
+            if (!startDate && !endDate) {
+                filteredPatientsData = [...allPatientsData];
+            } else {
+                filteredPatientsData = allPatientsData.filter(p => isPatientInDateRange(p, startDate, endDate));
+            }
+
+            // ກຳນົດ filterLabel ລ່ວງໜ້າ (Global Scope ພາຍໃນ applyFilters)
+            let filterLabel = 'ທັງໝົດ';
+            if (currentDateFilterMode === 'today') {
+                filterLabel = 'ມື້ນີ້';
+            } else if (currentDateFilterMode === 'custom' && startDate && endDate) {
+                filterLabel = `ວັນທີ ${startDate} ຫາ ${endDate}`;
+            } else if (currentDateFilterMode === 'custom' && (startDate || endDate)) {
+                filterLabel = `ວັນທີ ${startDate || endDate}`;
+            }
+
+            // ອັບເດດຂໍ້ຄວາມສະແດງຈຳນວນໃນ Subtitle ໃຫ້ຕົງກັບຂໍ້ມູນທີ່ກັ່ນຕອງຈິງ
+            const subTitleEl = document.getElementById('page-patient-subtitle');
+            if (subTitleEl) {
+                if (isCurrentUserAdmin) {
+                    subTitleEl.innerHTML = `ສະແດງລາຍຊື່ຜູ້ປ່ວຍ (ສິດທິ Admin) - <strong>${filterLabel}</strong>: ພົບ <strong>${filteredPatientsData.length}</strong> ລາຍການ`;
+                } else {
+                    subTitleEl.innerHTML = `ສະແດງສະເພາະຄົນໄຂ້ຂອງທ່ານ - <strong>${filterLabel}</strong>: ພົບ <strong>${filteredPatientsData.length}</strong> ຄົນ`;
+                }
+            }
+
+            // ອັບເດດ Subtitle ໃນແທັບປະຫວັດຜູ້ປ່ວຍ (Tab 2)
+            const histSubTitle = document.getElementById('history-subtitle');
+            if (histSubTitle) {
+                histSubTitle.innerHTML = `ລາຍການປະຫວັດການກວດ - <strong>${filterLabel}</strong>: ພົບ <strong>${filteredPatientsData.length}</strong> ລາຍການ`;
+            }
+
+            // ສະແດງຜົນຕາຕະລາງປະຫວັດໃນແທັບ 2 (ຖ້າມີຄຳຄົ້ນຫາຄ້າງຢູ່ໃຫ້ກັ່ນຕອງຕໍ່)
+            try {
+                const histSearchInput = document.getElementById('historySearchInput');
+                if (histSearchInput && histSearchInput.value.trim()) {
+                    applyHistoryTableSearch();
+                } else {
+                    renderHistoryTable(filteredPatientsData, '', 1);
+                }
+            } catch (tblErr) {
+                console.error('Error updating history table:', tblErr);
+            }
+
+            // ອັບເດດຂໍ້ມູນຜູ້ປ່ວຍເທິງໜ້າ Timeline
+            try {
+                const searchInput = document.getElementById('patientSearchInput');
+                if (filteredPatientsData.length > 0) {
+                    let target = null;
+                    // 1. ຖ້າມີຜູ້ປ່ວຍທີ່ເລືອກໄວ້ຢູ່ແລ້ວ ແລະ ຍັງຢູ່ໃນຊ່ວງເວລາທີ່ເລືອກ
+                    if (currentSelectedPatient) {
+                        target = filteredPatientsData.find(p => p.hn === currentSelectedPatient.hn);
+                    }
+                    // 2. ຖ້າບໍ່ມີ ໃຫ້ເລືອກຄົນໄຂ້ທົດສອບ (Testing ທົດສອບລະບົບ)
+                    if (!target) {
+                        target = filteredPatientsData.find(p => (p.hn && p.hn.includes('460348')) || (p.patient_name && p.patient_name.includes('Testing')));
+                    }
+                    // 3. ຖ້າບໍ່ມີ ໃຫ້ເລືອກຄົນໄຂ້ທີ່ມີ Visit ກຳລັງດຳເນີນການ (ຂັ້ນຕອນ 2-8)
+                    if (!target) {
+                        target = filteredPatientsData.find(p => {
+                            const step = mapStatusToStep(p.visit_status || p.status || p.status_id);
+                            return step >= 2 && step <= 8;
+                        });
+                    }
+                    // 4. ຖ້າບໍ່ມີ ເລືອກຄົນທຳອິດໃນລາຍການທີ່ກັ່ນຕອງ
+                    if (!target) {
+                        target = filteredPatientsData[0];
+                    }
+
+                    renderPatientInfo(target);
+                    if (searchInput) {
+                        searchInput.value = `${target.patient_name} (${target.hn})`;
+                    }
+                } else {
+                    // ແຈ້ງເຕືອນເມື່ອບໍ່ມີຄົນໄຂ້ໃນຊ່ວງເວລາທີ່ເລືອກ
+                    currentSelectedPatient = null;
+                    if (searchInput) searchInput.value = '';
+
+                    const card = document.querySelector('.patient-info-card');
+                    if (card) {
+                        const timeLabel = currentDateFilterMode === 'today' ? 'ມື້ນີ້' : (startDate && endDate ? `${startDate} ຫາ ${endDate}` : '');
+                        card.innerHTML = `
+                            <div class="p-4 text-center w-100 text-muted">
+                                <i class="ph ph-calendar-x fs-1 text-secondary mb-2 d-block" style="font-size: 2.8rem;"></i>
+                                <div class="fw-bold mb-1 fs-6">ບໍ່ພົບຂໍ້ມູນຜູ້ປ່ວຍໃນຊ່ວງເວລາທີ່ເລືອກ ${timeLabel ? `(${timeLabel})` : ''}</div>
+                                <small class="text-muted">ກະລຸນາເລືອກຊ່ວງເວລາອື່ນ ຫຼື ກົດປຸ່ມ <strong>"ທັງໝົດ"</strong> ເພື່ອສະແດງຂໍ້ມູນທັງໝົດ</small>
+                            </div>
+                        `;
+                    }
+                    const footerStatus = document.getElementById('timeline-footer-status');
+                    if (footerStatus) {
+                        footerStatus.innerHTML = `<span class="text-muted"><i class="ph ph-info me-1"></i>ບໍ່ມີຜູ້ປ່ວຍທີ່ເລືອກໃນຊ່ວງເວລານີ້</span>`;
+                    }
+                    const steps = document.querySelectorAll('.timeline-stepper .step-item');
+                    steps.forEach(step => {
+                        step.className = 'step-item';
+                        const circle = step.querySelector('.step-circle');
+                        const indicator = step.querySelector('.step-indicator');
+                        if (circle) circle.className = 'step-circle pending';
+                        if (indicator) {
+                            indicator.className = 'step-indicator pending';
+                            indicator.innerHTML = '';
+                        }
+                    });
+                }
+
+                // ຖ້າ dropdown ເປີດຢູ່ ໃຫ້ອັບເດດລາຍການຕາມຊ່ວງເວລາໃໝ່
+                const searchDropdown = document.getElementById('patientSearchDropdown');
+                if (searchDropdown && searchDropdown.style.display === 'block') {
+                    renderSearchDropdown(filteredPatientsData);
+                }
+            } catch (tlErr) {
+                console.error('Error updating timeline:', tlErr);
+            }
+        }
+
+        // ฟังก์ชันแสดงข้อมูลคนไข้ที่เลือกลงบน Info Card และ Timeline
+        function renderPatientInfo(pt) {
+            if (!pt) return;
+            currentSelectedPatient = pt;
+            try {
+                localStorage.setItem('selected_timeline_hn', pt.hn || '');
+            } catch(e) {}
+
+            const currentStep = mapStatusToStep(pt.visit_status || pt.status || pt.status_id);
+            const stepConf = STEP_CONFIG[currentStep] || STEP_CONFIG[1];
+
+            const regDate = pt.created_at ? new Date(pt.created_at).toLocaleDateString('lo-LA') : '-';
+            const visitDate = pt.latest_visit_date || regDate;
+            const docName = pt.doctor_name && pt.doctor_name !== '-' ? pt.doctor_name : 'ແພດປະຈຳຄລີນິກ';
+            const visitCode = pt.latest_visit_id ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-0.5 ms-2 font-monospace">${pt.latest_visit_id}</span>` : '';
+
+            const infoCardHTML = `
+                <div class="d-flex align-items-center gap-3">
+                    <div class="patient-avatar"><i class="ph ph-user"></i></div>
+                    <div>
+                        <h6 class="fw-bold mb-1">${pt.patient_name || 'N/A'} ${visitCode}</h6>
+                        <div class="text-muted small">
+                            <span class="me-2"><i class="ph ph-identification-card me-1"></i>ເລກປະຈຳຕົວ: <strong>${pt.hn || 'N/A'}</strong></span>
+                        </div>
+                        <div class="text-muted small mt-1">
+                            <span class="me-3"><i class="ph ph-phone me-1"></i>${pt.phone || '-'}</span>
+                            <span class="me-3"><i class="ph ph-user me-1"></i>${pt.age ? pt.age + ' ປີ' : '-'}</span>
+                            <span><i class="ph ph-calendar-blank me-1"></i>ວັນເກີດ: ${pt.dob || '-'}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="ms-auto d-flex align-items-center gap-4 flex-wrap">
+                    <div>
+                        <div class="text-muted small mb-1">ວັນທີຮັບບໍລິການ</div>
+                        <div class="fw-bold text-dark"><i class="ph ph-calendar-check text-primary me-1"></i> ${visitDate} </div>
+                    </div>
+                    <div class="border-start ps-4">
+                        <div class="text-muted small mb-1">ແພດ / ຜູ້ດູແລ</div>
+                        <div class="fw-bold text-dark"><i class="ph ph-user-circle text-info me-1"></i> ${docName} </div>
+                    </div>
+                    <div class="border-start ps-4">
+                        <div class="text-muted small mb-1">ສະຖານະປະຈຸບັນ</div>
+                        <span class="badge ${stepConf.badgeClass} border px-3 py-2 rounded-pill"><i class="ph ph-circle-fill me-1"></i>${stepConf.badge}</span>
+                    </div>
+                </div>
+            `;
+
+            const card = document.querySelector('.patient-info-card');
+            if (card) card.innerHTML = infoCardHTML;
+
+            // ອັບເດດ footer
+            const footerStatus = document.getElementById('timeline-footer-status');
+            if (footerStatus) {
+                footerStatus.innerHTML = `<i class="ph ph-check-circle me-1 text-success"></i>ຂັ້ນຕອນປະຈຸບັນ: <strong>${stepConf.num} ${stepConf.title}</strong> (${stepConf.desc})`;
+            }
+
+            renderTimeline(currentStep);
+        }
+
+        // แสดงผลตารางประวัติในแท็บ 2 พร้อมระบบ Pagination และเลขลำดับ Run Auto
+        function renderHistoryTable(patients, searchQuery = '', page = 1) {
+            const tbody = document.querySelector('#content-history tbody');
+            const paginationText = document.getElementById('pagination-info');
+            const paginationControls = document.getElementById('pagination-controls');
+            if (!tbody) return;
+
+            currentHistoryPatientsList = Array.isArray(patients) ? patients : [];
+            currentHistorySearchQuery = searchQuery || '';
+
+            if (currentHistoryPatientsList.length === 0) {
+                const searchMsg = searchQuery ? ` ທີ່ກົງກັບ "${searchQuery}"` : '';
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-5">
+                            <i class="ph ph-magnifying-glass fs-2 text-secondary d-block mb-2"></i>
+                            <div class="fw-bold mb-1">ບໍ່ພົບຂໍ້ມູນຜູ້ປ່ວຍ${searchMsg}</div>
+                            <small class="text-muted">ກະລຸນາກວດສອບຄຳຄົ້ນຫາ ຫຼື ເລືອກຊ່ວງເວລາອື່ນ</small>
+                        </td>
+                    </tr>
+                `;
+                if (paginationText) paginationText.innerHTML = `ສະແດງ 0 ຈາກ 0 ລາຍການ`;
+                if (paginationControls) paginationControls.innerHTML = '';
+                return;
+            }
+
+            const totalItems = currentHistoryPatientsList.length;
+            const totalPages = Math.ceil(totalItems / historyPageSize) || 1;
+            historyCurrentPage = Math.max(1, Math.min(page, totalPages));
+
+            const startIdx = (historyCurrentPage - 1) * historyPageSize;
+            const endIdx = Math.min(startIdx + historyPageSize, totalItems);
+            const pagedPatients = currentHistoryPatientsList.slice(startIdx, endIdx);
+
+            tbody.innerHTML = pagedPatients.map((p, index) => {
+                const autoIndex = startIdx + index + 1; // เลขลำดับ Run Auto ต่อเนื่องตามหน้า
+                const dateStr = p.created_at ? new Date(p.created_at).toLocaleString('lo-LA') : '-';
+                const visitId = p.latest_visit_id || '-';
+                const visitDate = p.latest_visit_date || dateStr;
+                const symptom = p.latest_symptom || '-';
+                const stepNum = mapStatusToStep(p.visit_status || p.status || p.status_id);
+                const stepConf = STEP_CONFIG[stepNum] || STEP_CONFIG[1];
+
+                return `
+                    <tr>
+                        <td class="text-center fw-semibold text-muted">${autoIndex}</td>
+                        <td class="fw-bold text-primary font-monospace">${visitId}</td>
+                        <td class="fw-semibold font-monospace">${p.hn || '-'}</td>
+                        <td class="fw-bold text-dark">${p.patient_name || '-'}</td>
+                        <td>${visitDate}</td>
+                        <td>${symptom}</td>
+                        <td class="text-center">
+                            <span class="badge ${stepConf.badgeClass} border px-2 py-1" style="border-radius: 6px;">
+                                ${stepConf.num} ${stepConf.title}
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <div class="d-flex justify-content-center gap-1">
+                                <button class="btn btn-sm btn-primary rounded-pill px-2.5 py-1 fw-semibold" onclick="viewPatientTimeline('${p.hn}')" title="ເບິ່ງ Timeline">
+                                    <i class="ph ph-chart-line-up me-1"></i>Timeline
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary rounded-pill px-2 py-1 fw-semibold" onclick="viewVisit('${visitId}')" title="ເບິ່ງລາຍລະອຽດ">
+                                    <i class="ph ph-eye"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            if (paginationText) {
+                if (searchQuery) {
+                    paginationText.innerHTML = `ສະແດງ <strong>${startIdx + 1}-${endIdx}</strong> ຈາກ <strong>${totalItems}</strong> ລາຍການ (ຄົ້ນຫາ "${searchQuery}")`;
+                } else {
+                    paginationText.innerHTML = `ສະແດງ <strong>${startIdx + 1}-${endIdx}</strong> ຈາກ <strong>${totalItems}</strong> ລາຍການ`;
+                }
+            }
+
+            if (paginationControls) {
+                if (totalPages <= 1) {
+                    paginationControls.innerHTML = '';
+                } else {
+                    let controlsHTML = '';
+                    // Previous button
+                    controlsHTML += `
+                        <button type="button" class="btn btn-sm btn-light border text-muted px-2.5 ${historyCurrentPage === 1 ? 'disabled' : ''}" 
+                            onclick="changeHistoryPage(${historyCurrentPage - 1})" ${historyCurrentPage === 1 ? 'disabled' : ''} title="ໜ້າກ່ອນໜ້າ">
+                            <i class="ph ph-caret-left"></i>
+                        </button>
+                    `;
+
+                    // Generate page numbers
+                    let startP = Math.max(1, historyCurrentPage - 2);
+                    let endP = Math.min(totalPages, historyCurrentPage + 2);
+
+                    if (startP > 1) {
+                        controlsHTML += `<button type="button" class="btn btn-sm btn-light border text-dark px-2.5" onclick="changeHistoryPage(1)">1</button>`;
+                        if (startP > 2) {
+                            controlsHTML += `<span class="px-1 text-muted align-self-center">...</span>`;
+                        }
+                    }
+
+                    for (let pNum = startP; pNum <= endP; pNum++) {
+                        if (pNum === historyCurrentPage) {
+                            controlsHTML += `<button type="button" class="btn btn-sm btn-primary px-3 fw-bold">${pNum}</button>`;
+                        } else {
+                            controlsHTML += `<button type="button" class="btn btn-sm btn-light border text-dark px-3" onclick="changeHistoryPage(${pNum})">${pNum}</button>`;
+                        }
+                    }
+
+                    if (endP < totalPages) {
+                        if (endP < totalPages - 1) {
+                            controlsHTML += `<span class="px-1 text-muted align-self-center">...</span>`;
+                        }
+                        controlsHTML += `<button type="button" class="btn btn-sm btn-light border text-dark px-2.5" onclick="changeHistoryPage(${totalPages})">${totalPages}</button>`;
+                    }
+
+                    // Next button
+                    controlsHTML += `
+                        <button type="button" class="btn btn-sm btn-light border text-muted px-2.5 ${historyCurrentPage === totalPages ? 'disabled' : ''}" 
+                            onclick="changeHistoryPage(${historyCurrentPage + 1})" ${historyCurrentPage === totalPages ? 'disabled' : ''} title="ໜ້າຖັດໄປ">
+                            <i class="ph ph-caret-right"></i>
+                        </button>
+                    `;
+
+                    paginationControls.innerHTML = controlsHTML;
+                }
+            }
+        }
+
+        // ฟังก์ชันค้นหาข้อมูลในตารางประวัติผู้ป่วยแบบ Realtime
+        function applyHistoryTableSearch() {
+            const searchInput = document.getElementById('historySearchInput');
+            const clearBtn = document.getElementById('btnClearHistorySearch');
+            const val = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+            if (clearBtn) {
+                if (val) clearBtn.classList.remove('d-none');
+                else clearBtn.classList.add('d-none');
+            }
+
+            if (!val) {
+                renderHistoryTable(filteredPatientsData, '', 1);
+                return;
+            }
+
+            const matches = filteredPatientsData.filter(p => 
+                (p.patient_name && p.patient_name.toLowerCase().includes(val)) ||
+                (p.hn && p.hn.toLowerCase().includes(val)) ||
+                (p.phone && p.phone.toLowerCase().includes(val)) ||
+                (p.latest_visit_id && p.latest_visit_id.toLowerCase().includes(val)) ||
+                (p.latest_symptom && p.latest_symptom.toLowerCase().includes(val)) ||
+                (p.doctor_name && p.doctor_name.toLowerCase().includes(val)) ||
+                (p.visit_status && p.visit_status.toLowerCase().includes(val))
+            );
+
+            renderHistoryTable(matches, val, 1);
+        }
+
+        // ฟังก์ชันล้างข้อความค้นหาในตารางประวัติผู้ป่วย
+        function clearHistorySearch() {
+            const searchInput = document.getElementById('historySearchInput');
+            const clearBtn = document.getElementById('btnClearHistorySearch');
+            if (searchInput) searchInput.value = '';
+            if (clearBtn) clearBtn.classList.add('d-none');
+            renderHistoryTable(filteredPatientsData, '', 1);
+        }
+
+        // เปลี่ยนคนไข้บนหน้า Timeline
+        function viewPatientTimeline(hn) {
+            if (!hn) return;
+            const target = allPatientsData.find(p => p.hn === hn);
+            if (target) {
+                // If patient not in current filter date range, reset to 'all'
+                if (!filteredPatientsData.some(p => p.hn === hn)) {
+                    setDateFilterMode('all');
+                }
+                renderPatientInfo(target);
+                switchTab('timeline');
+                const searchInput = document.getElementById('patientSearchInput');
+                if (searchInput) searchInput.value = `${target.patient_name} (${target.hn})`;
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        // ========================================================
+        // ລະບົບຄົ້ນຫາ ແລະ ເລືອກຜູ້ປ່ວຍ (ພິມ ຫຼື ເລືອກໄດ້ - Searchable Select)
+        // ========================================================
+        function renderSearchDropdown(matches, query = '') {
+            const dropdown = document.getElementById('patientSearchDropdown');
+            if (!dropdown) return;
+
+            const poolCount = filteredPatientsData.length;
+            let filterDesc = 'ທັງໝົດ';
+            if (currentDateFilterMode === 'today') filterDesc = 'ມື້ນີ້';
+            else if (currentDateFilterMode === 'custom') filterDesc = 'ຊ່ວງເວລາທີ່ເລືອກ';
+
+            let headerHTML = `
+                <div class="px-3 py-2 bg-light border-bottom d-flex justify-content-between align-items-center" style="border-radius: 14px 14px 0 0;">
+                    <span class="small fw-bold text-secondary">
+                        <i class="ph ph-users me-1 text-primary"></i>ລາຍຊື່ຜູ້ປ່ວຍ (${matches ? matches.length : 0} / ${poolCount})
+                    </span>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 11px;">
+                        ${filterDesc}
+                    </span>
+                </div>
+            `;
+
+            if (!matches || matches.length === 0) {
+                dropdown.innerHTML = headerHTML + `
+                    <div class="p-4 text-muted text-center small">
+                        <i class="ph ph-user-circle-dashed fs-3 text-secondary d-block mb-1"></i>
+                        ບໍ່ພົບຂໍ້ມູນຜູ້ປ່ວຍ${query ? ` ທີ່ກົງກັບ "${query}"` : ''} ໃນ${filterDesc}
+                    </div>
+                `;
+                dropdown.style.display = 'block';
+                return;
+            }
+
+            const itemsHTML = matches.map(p => {
+                const stepNum = mapStatusToStep(p.visit_status || p.status || p.status_id);
+                const stepConf = STEP_CONFIG[stepNum] || STEP_CONFIG[1];
+                const isSelected = currentSelectedPatient && currentSelectedPatient.hn === p.hn;
+                const visitCode = p.latest_visit_id ? `<span class="badge bg-light text-secondary border ms-1 font-monospace" style="font-size: 11px;">${p.latest_visit_id}</span>` : '';
+
+                return `
+                    <div class="search-dropdown-item d-flex align-items-center justify-content-between ${isSelected ? 'is-selected' : ''}" onclick="selectPatientFromDropdown('${p.hn}')">
+                        <div class="me-2 text-truncate">
+                            <div class="fw-bold text-dark text-truncate mb-0" style="font-size: 13.5px;">
+                                ${p.patient_name || 'N/A'} ${visitCode}
+                            </div>
+                            <div class="text-muted small text-truncate" style="font-size: 11.5px;">
+                                HN: <strong class="text-primary font-monospace">${p.hn || '-'}</strong> | ໂທ: ${p.phone || '-'}
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-1 flex-shrink-0">
+                            <span class="badge ${stepConf.badgeClass} border px-2 py-0.5 rounded-pill" style="font-size: 11px;">
+                                ${stepConf.num} ${stepConf.title}
+                            </span>
+                            ${isSelected ? '<i class="ph-fill ph-check-circle text-success fs-5 ms-1"></i>' : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            dropdown.innerHTML = headerHTML + `<div style="max-height: 280px; overflow-y: auto;">${itemsHTML}</div>`;
+            dropdown.style.display = 'block';
+        }
+
+        function filterAndRenderDropdown(query = '') {
+            const q = query.trim().toLowerCase();
+            const sourcePool = filteredPatientsData.length > 0 ? filteredPatientsData : allPatientsData;
+
+            if (!q) {
+                renderSearchDropdown(sourcePool, '');
+                return;
+            }
+
+            let matches = sourcePool.filter(p => 
+                (p.patient_name && p.patient_name.toLowerCase().includes(q)) ||
+                (p.hn && p.hn.toLowerCase().includes(q)) ||
+                (p.phone && p.phone.toLowerCase().includes(q)) ||
+                (p.latest_visit_id && p.latest_visit_id.toLowerCase().includes(q))
+            );
+
+            renderSearchDropdown(matches, q);
+        }
+
+        function openSearchDropdown() {
+            const searchInput = document.getElementById('patientSearchInput');
+            const caret = document.getElementById('searchDropdownCaret');
+            if (caret) caret.className = 'ph ph-caret-up fs-6 text-primary';
+
+            let query = '';
+            if (searchInput) {
+                const val = searchInput.value.trim();
+                // ຖ້າຂໍ້ຄວາມກົງກັບຄົນໄຂ້ທີ່ເລືອກຢູ່ ໃຫ້ສະແດງທຸກຄົນໃນ pool ເພື່ອໃຫ້ເລືອກໃໝ່ໄດ້ງ່າຍ
+                const isCurrent = currentSelectedPatient && (
+                    val === `${currentSelectedPatient.patient_name} (${currentSelectedPatient.hn})` ||
+                    val === currentSelectedPatient.patient_name
+                );
+                query = isCurrent ? '' : val;
+            }
+
+            filterAndRenderDropdown(query);
+        }
+
+        function closeSearchDropdown() {
+            const dropdown = document.getElementById('patientSearchDropdown');
+            if (dropdown) dropdown.style.display = 'none';
+            const caret = document.getElementById('searchDropdownCaret');
+            if (caret) caret.className = 'ph ph-caret-down fs-6 text-secondary';
+        }
+
+        function toggleSearchDropdown() {
+            const dropdown = document.getElementById('patientSearchDropdown');
+            if (dropdown && dropdown.style.display === 'block') {
+                closeSearchDropdown();
+            } else {
+                openSearchDropdown();
+                const searchInput = document.getElementById('patientSearchInput');
+                if (searchInput) searchInput.focus();
+            }
+        }
+
+        function selectPatientFromDropdown(hn) {
+            const target = allPatientsData.find(p => p.hn === hn);
+            if (target) {
+                // ຖ້າຄົນໄຂ້ທີ່ເລືອກບໍ່ຢູ່ໃນຊ່ວງເວລາທີ່ກັ່ນຕອງຢູ່ ໃຫ້ປົດ filter ເປັນ "ທັງໝົດ"
+                if (!filteredPatientsData.some(p => p.hn === hn)) {
+                    setDateFilterMode('all');
+                }
+                renderPatientInfo(target);
+                const searchInput = document.getElementById('patientSearchInput');
+                if (searchInput) searchInput.value = `${target.patient_name} (${target.hn})`;
+                closeSearchDropdown();
+            }
+        }
+
+        function setupSearch() {
+            const searchInput = document.getElementById('patientSearchInput');
+            const searchDropdown = document.getElementById('patientSearchDropdown');
+            const container = document.getElementById('patientSearchContainer');
+            if (!searchInput) return;
+
+            // ເມື່ອກົດ ຫຼື focus ໃນຊ່ອງ input ໃຫ້ເປີດ dropdown ທັນທີ (ພິມ ຫຼື ເລືອກໄດ້)
+            searchInput.addEventListener('click', function() {
+                openSearchDropdown();
+                this.select();
+            });
+
+            searchInput.addEventListener('focus', function() {
+                openSearchDropdown();
+            });
+
+            // ເມື່ອພິມຂໍ້ຄວາມ ໃຫ້ກັ່ນຕອງທັນທີ
+            searchInput.addEventListener('input', function() {
+                filterAndRenderDropdown(this.value);
+            });
+
+            // ຮອງຮັບປຸ່ມ Enter
+            searchInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    const val = this.value.trim().toLowerCase();
+                    const sourcePool = filteredPatientsData.length > 0 ? filteredPatientsData : allPatientsData;
+                    let match = sourcePool.find(p => 
+                        (p.patient_name && p.patient_name.toLowerCase().includes(val)) ||
+                        (p.hn && p.hn.toLowerCase().includes(val)) ||
+                        (p.phone && p.phone.toLowerCase().includes(val))
+                    );
+                    if (!match) {
+                        match = allPatientsData.find(p => 
+                            (p.patient_name && p.patient_name.toLowerCase().includes(val)) ||
+                            (p.hn && p.hn.toLowerCase().includes(val)) ||
+                            (p.phone && p.phone.toLowerCase().includes(val))
+                        );
+                    }
+                    if (match) {
+                        selectPatientFromDropdown(match.hn);
+                    }
+                } else if (e.key === 'Escape') {
+                    closeSearchDropdown();
+                }
+            });
+
+            // ເມື່ອກົດນອກກ່ອງຄົ້ນຫາ ໃຫ້ປິດ dropdown
+            document.addEventListener('click', function(e) {
+                if (container && !container.contains(e.target) && searchDropdown && !searchDropdown.contains(e.target)) {
+                    closeSearchDropdown();
+                }
+            });
+        }
+
+        let isRefreshing = false;
+
+        function refreshPatientData() {
+            if (isRefreshing) return;
+            isRefreshing = true;
+
+            const btn = document.getElementById('btnRefreshData');
+            const icon = document.getElementById('refreshIcon');
+            const text = document.getElementById('refreshBtnText');
+
+            if (icon) icon.classList.add('icon-spin');
+            if (btn) btn.disabled = true;
+            if (text) text.innerText = 'ກຳລັງອັບເດດ...';
+
+            let requested = false;
+            try {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({ type: 'FETCH_PATIENTS', isManualRefresh: true }, '*');
+                    requested = true;
+                }
+            } catch (e) {
+                console.warn('postMessage to parent failed:', e);
+            }
+
+            if (!requested) {
+                // Standalone mode
+                setTimeout(() => {
+                    applyFilters();
+                    finishRefresh(true);
+                }, 600);
+                return;
+            }
+
+            // Fallback timeout ป้องกันปุ่มค้างหมุนกรณี network ช้า
+            setTimeout(() => {
+                if (isRefreshing) {
+                    finishRefresh(false);
+                }
+            }, 6000);
+        }
+
+        function finishRefresh(showNotice = false) {
+            isRefreshing = false;
+            const btn = document.getElementById('btnRefreshData');
+            const icon = document.getElementById('refreshIcon');
+            const text = document.getElementById('refreshBtnText');
+
+            if (icon) icon.classList.remove('icon-spin');
+            if (btn) btn.disabled = false;
+            if (text) text.innerText = 'ຣີເຟຣຊຂໍ້ມູນ';
+
+            if (showNotice) {
+                showRefreshToast('ອັບເດດຂໍ້ມູນລ່າສຸດສຳເລັດແລ້ວ');
+            }
+        }
+
+        function showRefreshToast(msg) {
+            let toastEl = document.getElementById('customRefreshToast');
+            if (!toastEl) {
+                toastEl = document.createElement('div');
+                toastEl.id = 'customRefreshToast';
+                toastEl.style.cssText = `
+                    position: fixed;
+                    top: 24px;
+                    right: 24px;
+                    z-index: 99999;
+                    background: #0f172a;
+                    color: #ffffff;
+                    padding: 10px 20px;
+                    border-radius: 50rem;
+                    box-shadow: 0 10px 25px rgba(0,0,0,0.18);
+                    font-size: 13.5px;
+                    font-weight: 600;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    transition: all 0.3s ease;
+                    opacity: 0;
+                    transform: translateY(-10px);
+                    pointer-events: none;
+                `;
+                document.body.appendChild(toastEl);
+            }
+
+            toastEl.innerHTML = `<i class="ph-fill ph-check-circle text-success fs-5"></i> <span>${msg}</span>`;
+            toastEl.style.opacity = '1';
+            toastEl.style.transform = 'translateY(0)';
+
+            setTimeout(() => {
+                toastEl.style.opacity = '0';
+                toastEl.style.transform = 'translateY(-10px)';
+            }, 2500);
+        }
+
+        function loadLivePatientData() {
+            try {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({ type: 'FETCH_PATIENTS' }, '*');
+                }
+            } catch (e) {
+                console.warn('loadLivePatientData error:', e);
+            }
+        }
+
+        // ฟังการตอบกลับจาก function.js (parent)
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'PATIENTS_DATA') {
+                const wasManualRefresh = isRefreshing;
+                const patients = event.data.patients || [];
+                allPatientsData = patients;
+
+                currentUserNameGlobal = event.data.currentUserName || '';
+                isCurrentUserAdmin = !!event.data.isAdmin;
+                const titleEl = document.getElementById('page-patient-title');
+                if (titleEl) {
+                    if (isCurrentUserAdmin) {
+                        titleEl.innerHTML = `ຜູ້ປ່ວຍທັງໝົດ <span class="badge bg-danger-subtle text-danger fs-6 fw-semibold px-2.5 py-1 ms-1" style="border-radius:8px;"><i class="ph ph-shield-check me-1"></i>Admin Mode</span>`;
+                    } else {
+                        titleEl.innerHTML = currentUserNameGlobal 
+                            ? `ຜູ້ປ່ວຍຂອງຂ້ອຍ <span class="badge bg-primary-subtle text-primary fs-6 fw-semibold px-2.5 py-1 ms-1" style="border-radius:8px;"><i class="ph ph-user me-1"></i>${currentUserNameGlobal}</span>`
+                            : `ຜູ້ປ່ວຍຂອງຂ້ອຍ`;
+                    }
+                }
+
+                try {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    let storedHn = null;
+                    try { storedHn = localStorage.getItem('selected_timeline_hn'); } catch(e) {}
+                    const targetHn = event.data.targetHn || urlParams.get('hn') || storedHn;
+                    if (targetHn) {
+                        const target = patients.find(p => p.hn === targetHn);
+                        if (target) currentSelectedPatient = target;
+                    }
+
+                    applyFilters();
+                } catch (err) {
+                    console.error('Render patients error:', err);
+                }
+
+                if (wasManualRefresh) {
+                    finishRefresh(true);
+                }
+            }
+        });
+
+        function showModernPopup(options = {}) {
+            const {
+                type = 'info',
+                title = 'ແຈ້ງເຕືອນ',
+                message = '',
+                hint = '',
+                btnText = 'ຮັບຊາບ'
+            } = options;
+
+            // 1. ຖ້າມີ SweetAlert2 ໃຫ້ສະແດງຜ່ານ SweetAlert2 ດ້ວຍດີໄຊນ໌ສຸດພຣີມ້ຽມ
+            if (typeof Swal !== 'undefined') {
+                const swalIcon = type === 'info' ? 'info' : (type === 'warning' ? 'warning' : 'success');
+                Swal.fire({
+                    icon: swalIcon,
+                    title: `<span class="clinic-swal-title">${title}</span>`,
+                    html: `
+                        <div style="font-family:'Noto Sans Lao', sans-serif; font-size: 0.95rem; color:#64748b; line-height:1.6; margin-top:8px;">
+                            <div>${message}</div>
+                            ${hint ? `
+                                <div class="clinic-modal-hint mt-3 mb-1">
+                                    <i class="ph ph-lightbulb text-warning fs-5 flex-shrink-0"></i>
+                                    <span>${hint}</span>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `,
+                    confirmButtonText: btnText,
+                    buttonsStyling: false,
+                    customClass: {
+                        popup: 'clinic-swal-popup',
+                        confirmButton: 'clinic-swal-btn'
+                    }
+                });
+                return;
+            }
+
+            // 2. Fallback ເປັນ Built-in Modern Modal (ສະແດງໄດ້ 100% ບໍ່ຕ້ອງອາໄສ CDN)
+            const backdrop = document.getElementById('clinicModernModal');
+            if (!backdrop) return;
+
+            const titleEl = document.getElementById('clinicModalTitle');
+            const msgEl = document.getElementById('clinicModalMessage');
+            const hintEl = document.getElementById('clinicModalHint');
+            const hintTextEl = document.getElementById('clinicModalHintText');
+            const iconWrapper = document.getElementById('clinicModalIconWrapper');
+            const iconEl = document.getElementById('clinicModalIcon');
+            const btnEl = document.getElementById('clinicModalBtn');
+
+            if (titleEl) titleEl.innerText = title;
+            if (msgEl) msgEl.innerHTML = message;
+            if (btnEl) btnEl.innerText = btnText;
+
+            if (hint && hintEl && hintTextEl) {
+                hintTextEl.innerHTML = hint;
+                hintEl.style.display = 'flex';
+            } else if (hintEl) {
+                hintEl.style.display = 'none';
+            }
+
+            if (iconWrapper && iconEl) {
+                iconWrapper.className = `clinic-modal-icon-wrapper ${type}`;
+                if (type === 'info') iconEl.className = 'ph-fill ph-info';
+                else if (type === 'warning') iconEl.className = 'ph-fill ph-warning';
+                else iconEl.className = 'ph-fill ph-check-circle';
+            }
+
+            backdrop.style.display = 'flex';
+            requestAnimationFrame(() => {
+                backdrop.classList.add('show');
+            });
+        }
+
+        function closeModernPopup(e) {
+            if (e && e.target && e.target !== e.currentTarget && !e.target.closest('.clinic-modal-close') && !e.target.closest('.clinic-modal-btn')) {
+                return;
+            }
+            const backdrop = document.getElementById('clinicModernModal');
+            if (backdrop) {
+                backdrop.classList.remove('show');
+                setTimeout(() => {
+                    backdrop.style.display = 'none';
+                }, 260);
+            }
+        }
+
+        // ປິດ Pop-up ເມື່ອກົດປຸ່ມ Escape
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeModernPopup();
+            }
+        });
+
+        function viewVisit(visitId) {
+            if (!visitId || visitId === '-') {
+                showModernPopup({
+                    type: 'info',
+                    title: 'ຍັງບໍ່ມີປະຫວັດການກວດ',
+                    message: 'ຜູ້ປ່ວຍລາຍນີ້ຍັງບໍ່ເຄີຍເຂົ້າຮັບການກວດປິ່ນປົວໃນລະບົບ',
+                    hint: 'ທ່ານສາມາດກົດປຸ່ມ <strong>"Timeline"</strong> ເພື່ອຕິດຕາມສະຖານະ ຫຼື ລົງທະບຽນເຂົ້າກວດໄດ້',
+                    btnText: 'ຮັບຊາບ'
+                });
+                return;
+            }
+            try {
+                if (window.parent) {
+                    window.parent.postMessage({ type: 'SHOW_VISIT_DETAIL', visitId: visitId }, '*');
+                }
+            } catch (e) {
+                console.warn('viewVisit postMessage error:', e);
+            }
+        }
+
+        // โหลดข้อมูลอัตโนมัติเมื่อเปิดหน้า
+        setupSearch();
+        if (window.self !== window.top) {
+            setTimeout(loadLivePatientData, 300);
+        } else {
+            // โหลดข้อมูลตัวอย่างเมื่อเปิดหน้าเดี่ยว
+            setTimeout(loadLivePatientData, 300);
+        }
+
+    </script>
+
+    <!-- Modern Modal Alert Dialog (HTML Structure) -->
+    <div id="clinicModernModal" class="clinic-modal-backdrop" style="display:none;" onclick="closeModernPopup(event)">
+        <div class="clinic-modal-card" onclick="event.stopPropagation()">
+            <button type="button" class="clinic-modal-close" onclick="closeModernPopup()" title="ປິດ">
+                <i class="ph ph-x"></i>
+            </button>
+            <div class="clinic-modal-icon-wrapper info" id="clinicModalIconWrapper">
+                <i class="ph-fill ph-info" id="clinicModalIcon"></i>
+            </div>
+            <h4 class="clinic-modal-title" id="clinicModalTitle">ຍັງບໍ່ມີປະຫວັດການກວດ</h4>
+            <p class="clinic-modal-message" id="clinicModalMessage">ຜູ້ປ່ວຍລາຍນີ້ຍັງບໍ່ເຄີຍເຂົ້າຮັບການກວດປິ່ນປົວໃນລະບົບ</p>
+            <div class="clinic-modal-hint" id="clinicModalHint">
+                <i class="ph ph-lightbulb text-warning fs-5 flex-shrink-0"></i>
+                <span id="clinicModalHintText">ທ່ານສາມາດກົດປຸ່ມ <strong>Timeline</strong> ເພື່ອຕິດຕາມສະຖານະຂັ້ນຕອນ</span>
+            </div>
+            <div class="d-flex justify-content-center">
+                <button type="button" class="clinic-modal-btn" id="clinicModalBtn" onclick="closeModernPopup()">
+                    ຮັບຊາບ
+                </button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
