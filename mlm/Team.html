@@ -375,9 +375,14 @@
                 };
 
                 let supabasePayload = {
+                    user_id: finalData.id,
                     username: (finalData.username || finalData.id).toLowerCase(),
                     password_hash: finalData.password || '1234',
                     name: finalData.name,
+                    business_team: finalData.team || finalData.businessTeam || 'T01',
+                    permission_role: finalData.role || 'พนักงานการตลาด',
+                    status: finalData.status || 'ทำงานอยู่',
+                    sponsor_id: finalData.referrer || finalData.sponsorId || '',
                     id_card_url: finalData.profileUrl || finalData.idCardDocUrl || '',
                     phone_number: finalData.phone || finalData.phoneNumber || '',
                     email: finalData.email || '',
@@ -386,17 +391,9 @@
                     bank_name: finalData.bankName || '',
                     bank_account_no: finalData.bankAccountNo || '',
                     bank_account_name: finalData.bankAccountName || '',
+                    bank_account_status: finalData.bankAccountStatus || 'รอตรวจสอบ',
+                    accumulated_pv: finalData.accumulatedPv || finalData.accumulatedPV || 0
                 };
-
-                if (isAdmin) {
-                    supabasePayload.user_id = finalData.id;
-                    supabasePayload.business_team = finalData.team || finalData.businessTeam;
-                    supabasePayload.permission_role = finalData.role || 'พนักงานทั่วไป';
-                    supabasePayload.status = finalData.status || 'ทำงานอยู่';
-                    supabasePayload.sponsor_id = finalData.referrer || finalData.sponsorId || '';
-                    supabasePayload.bank_account_status = finalData.bankAccountStatus || 'รอตรวจสอบ';
-                    supabasePayload.accumulated_pv = finalData.accumulatedPv || finalData.accumulatedPV || 0;
-                }
 
                 if (isEditing) {
                     if (supabasePayload.user_id) delete supabasePayload.user_id; // Prevent PK update error

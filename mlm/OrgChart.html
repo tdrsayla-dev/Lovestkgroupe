@@ -393,7 +393,7 @@
                                             const pNameUpper = String(p.name || p.product_name || p.id || '').replace(/\(.*?\)/g, '').trim().toUpperCase();
                                             return pNameUpper === cleanTarget;
                                         });
-                                        feePerBox = Number(found?.[`level${sellerLevel}Fee`] || found?.[`level_${sellerLevel}_fee`] || 0) || catInfo.l1Rate || catMap[targetKey].l1Rate || 200000;
+                                        feePerBox = Number(found?.[`level${sellerLevel}Fee`] || found?.[`level_${sellerLevel}_fee`] || 0);
                                     }
                                 } else {
                                     feePerBox = 0;
