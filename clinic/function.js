@@ -672,15 +672,44 @@ window.initClinicRealtimeHub = initClinicRealtimeHub;
 // Network Status Listeners for seamless auto-reconnect
 window.addEventListener('online', () => {
     console.log('🌐 Internet Reconnected: Re-syncing clinic data and real-time channels...');
+    if (typeof Swal !== 'undefined') {
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 3000,
+            timerProgressBar: true
+        });
+        Toast.fire({
+            icon: 'success',
+            title: 'เชื่อมต่ออินเทอร์เน็ตแล้ว (Online)'
+        });
+    }
     try {
         if (typeof initClinicRealtimeHub === 'function') initClinicRealtimeHub();
         if (typeof loadBills === 'function') loadBills();
         if (typeof updateDashboardStats === 'function') updateDashboardStats();
+        if (typeof loadDoctorQueue === 'function') loadDoctorQueue();
+        if (typeof loadTriage === 'function') loadTriage();
+        if (typeof loadPatients === 'function') loadPatients();
     } catch (e) { }
 });
 
 window.addEventListener('offline', () => {
     console.warn('⚠️ Internet Disconnected: Clinic is currently operating in offline-safe cache mode.');
+    if (typeof Swal !== 'undefined') {
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 4000,
+            timerProgressBar: true
+        });
+        Toast.fire({
+            icon: 'warning',
+            title: 'อินเทอร์เน็ตหลุด (Offline): ไม่สามารถซิงค์ข้อมูลกับคลาวด์ได้ชั่วคราว'
+        });
+    }
 });
 
 function generateId(prefix) {
@@ -793,20 +822,23 @@ document.addEventListener("DOMContentLoaded", function () {
                     try { currentUser = JSON.parse(localStorage.getItem('clinicUser') || 'null'); } catch (e) { }
                 }
 
-                // รวบรวมข้อมูลระบุตัวตนของผู้ใช้ที่ล็อกอินอยู่ทั้งหมด
-                const myIdentifiers = [];
-                if (currentUser) {
-                    if (currentUser.name) myIdentifiers.push(String(currentUser.name).trim().toLowerCase());
-                    if (currentUser.full_name) myIdentifiers.push(String(currentUser.full_name).trim().toLowerCase());
-                    if (currentUser.fullname) myIdentifiers.push(String(currentUser.fullname).trim().toLowerCase());
-                    if (currentUser.email) {
-                        const em = String(currentUser.email).trim().toLowerCase();
-                        myIdentifiers.push(em);
-                        const emPrefix = em.split('@')[0].trim();
-                        if (emPrefix) myIdentifiers.push(emPrefix);
+                // ดึงรหัสพนักงาน (emp_code) ของคนที่ Login อยู่
+                let userEmpCode = currentUser && currentUser.emp_code ? String(currentUser.emp_code).trim() : '';
+                if (!userEmpCode && currentUser && Array.isArray(window.allEmployeesData)) {
+                    const foundEmp = window.allEmployeesData.find(e => {
+                        const eMail = (e.email || '').toLowerCase().trim();
+                        const curMail = (currentUser.email || '').toLowerCase().trim();
+                        if (curMail && eMail && curMail === eMail) return true;
+
+                        const eName = (e.full_name || e.name || '').toLowerCase().trim();
+                        const curName = (currentUser.name || currentUser.full_name || '').toLowerCase().trim();
+                        if (curName && eName && (eName.includes(curName) || curName.includes(eName))) return true;
+
+                        return false;
+                    });
+                    if (foundEmp && foundEmp.emp_code) {
+                        userEmpCode = String(foundEmp.emp_code).trim();
                     }
-                    if (currentUser.emp_code) myIdentifiers.push(String(currentUser.emp_code).trim().toLowerCase());
-                    if (currentUser.id) myIdentifiers.push(String(currentUser.id).trim().toLowerCase());
                 }
 
                 // โหลดรายชื่อผู้ป่วยทั้งหมดจาก Supabase (เรียงตามล่าสุด)
@@ -827,7 +859,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (recentVisits && recentVisits.length > 0) {
                     // ผูก visit_status ล่าสุดให้กับคนไข้แต่ละคน
                     allPatients.forEach(p => {
-                        const pVisits = recentVisits.filter(v => (p.hn && v.hn === p.hn) || (v.patient_name && p.patient_name && v.patient_name.trim() === p.patient_name.trim()));
+                        const pVisits = recentVisits.filter(v => (p.hn && v.hn === p.hn) || (!p.hn && v.patient_name && p.patient_name && v.patient_name.trim() === p.patient_name.trim()));
                         if (pVisits.length > 0) {
                             p.latest_visit_id = pVisits[0].visit_id;
                             p.latest_visit_date = new Date(pVisits[0].created_at).toLocaleString('lo-LA');
@@ -842,7 +874,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 // ตรวจสอบสิทธิ์ว่าเป็น Admin หรือไม่
                 const permissions = currentUser && Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
                 const userRole = (currentUser && currentUser.role ? String(currentUser.role) : '').trim().toLowerCase();
-                const userEmp = (currentUser && currentUser.emp_code ? String(currentUser.emp_code) : '').trim().toLowerCase();
+                const userEmp = userEmpCode.toLowerCase();
                 const userName = (currentUser && (currentUser.name || currentUser.full_name) ? String(currentUser.name || currentUser.full_name) : '').trim().toLowerCase();
 
                 const isAdmin = userRole === 'admin' || 
@@ -852,46 +884,68 @@ document.addEventListener("DOMContentLoaded", function () {
                                 userEmp === 'admin01' || 
                                 userName.includes('admin');
 
-                // 🌟 เงื่อนไขเฉพาะบุคคล:
-                // ถ้าเป็น Admin -> แสดงผู้ป่วยทั้งหมดในระบบ (ยกเว้น Admin ไม่ต้องกรอง)
-                // ถ้าไม่ใช่ Admin -> กรองให้เห็นเฉพาะผู้ป่วยที่ตนเองลงทะเบียน (created_by หรือ referred_by)
-                let userFilteredPatients = allPatients;
-                if (!isAdmin && myIdentifiers.length > 0) {
-                    userFilteredPatients = allPatients.filter(p => {
-                        // 1. เช็ค created_by
-                        if (p.created_by) {
-                            const c = String(p.created_by).trim().toLowerCase();
-                            if (myIdentifiers.some(id => c === id || c.includes(id) || id.includes(c))) {
-                                return true;
-                            }
-                        }
-                        // 2. เช็ค referred_by
-                        if (p.referred_by) {
-                            const r = String(p.referred_by).trim().toLowerCase();
-                            if (myIdentifiers.some(id => r === id || r.includes(id) || id.includes(r))) {
-                                return true;
-                            }
-                        }
-                        // 3. เช็คจาก clinic_patient_referrers ที่เก็บไว้ในระบบ
-                        try {
-                            const refMap = JSON.parse(localStorage.getItem('clinic_patient_referrers') || '{}');
-                            if (p.hn && refMap[p.hn]) {
-                                const mr = String(refMap[p.hn]).trim().toLowerCase();
-                                if (myIdentifiers.some(id => mr === id || mr.includes(id) || id.includes(mr))) {
-                                    return true;
-                                }
-                            }
-                        } catch (e) { }
+                // 🌟 ฟังก์ชันตรวจสอบว่าคนไข้คนนี้เป็นของ User คนที่ Login หรือไม่
+                // โดยยึดจาก 1. User Login และ 2. ผู้แนะนำ (referred_by) เช่น ถ้าเลือก 92091957 - SIENG MR ก็จะโผล่ที่หน้าของนาย Sieng เท่านั้น
+                const isPatientReferredByUser = function(p) {
+                    if (!currentUser && !userEmpCode) return false;
 
-                        return false;
-                    });
-                }
+                    const refStr = (p.referred_by || '').trim().toLowerCase();
+                    const createdStr = (p.created_by || '').trim().toLowerCase();
+
+                    // 1. ตรวจสอบรหัสพนักงาน (emp_code) เช่น '92091957', 'U001', 'ADMIN01'
+                    if (userEmpCode) {
+                        const cleanEmp = userEmpCode.toLowerCase().trim();
+                        if (refStr && (refStr === cleanEmp || refStr.includes(cleanEmp))) return true;
+                        if (createdStr && (createdStr === cleanEmp || createdStr.includes(cleanEmp))) return true;
+                    }
+
+                    // 2. ตรวจสอบชื่อพนักงาน (name / full_name) เช่น 'sieng mr'
+                    const names = [currentUser.name, currentUser.full_name, currentUser.fullname].filter(Boolean);
+                    for (const n of names) {
+                        const cleanN = String(n).trim().toLowerCase();
+                        if (!cleanN) continue;
+                        if (refStr && (refStr === cleanN || refStr.includes(cleanN))) return true;
+                        if (createdStr && (createdStr === cleanN || createdStr.includes(cleanN))) return true;
+                    }
+
+                    // 3. ตรวจสอบอีเมล (email)
+                    if (currentUser.email) {
+                        const cleanEmail = String(currentUser.email).trim().toLowerCase();
+                        const prefix = cleanEmail.split('@')[0].trim();
+                        if (refStr && (refStr === cleanEmail || refStr.includes(cleanEmail))) return true;
+                        if (createdStr && (createdStr === cleanEmail || createdStr.includes(cleanEmail))) return true;
+                        if (prefix && prefix.length >= 3) {
+                            if (refStr && refStr.includes(prefix)) return true;
+                            if (createdStr && createdStr.includes(prefix)) return true;
+                        }
+                    }
+
+                    // 4. ตรวจสอบจาก clinic_patient_referrers ที่เก็บไว้ใน localStorage
+                    try {
+                        const refMap = JSON.parse(localStorage.getItem('clinic_patient_referrers') || '{}');
+                        if (p.hn && refMap[p.hn]) {
+                            const mr = String(refMap[p.hn]).trim().toLowerCase();
+                            if (userEmpCode && mr.includes(userEmpCode.toLowerCase().trim())) return true;
+                            for (const n of names) {
+                                const cleanN = String(n).trim().toLowerCase();
+                                if (cleanN && mr.includes(cleanN)) return true;
+                            }
+                        }
+                    } catch (e) { }
+
+                    return false;
+                };
+
+                const myPatients = allPatients.filter(p => isPatientReferredByUser(p));
 
                 if (event.source) {
                     event.source.postMessage({ 
                         type: 'PATIENTS_DATA', 
-                        patients: userFilteredPatients,
+                        patients: isAdmin ? allPatients : myPatients,
+                        allPatients: allPatients,
+                        myPatients: myPatients,
                         isAdmin: isAdmin,
+                        currentUserCode: userEmpCode,
                         currentUserName: currentUser ? (currentUser.name || currentUser.full_name || currentUser.email) : '',
                         targetHn: event.data.targetHn || null
                     }, '*');
@@ -1991,7 +2045,7 @@ async function loadQueueList() {
     let queueQuery = _supabase
         .from('visits')
         .select('*')
-        .in('status', ['รอจัดคิว', 'รออ่านผล', 'กำลังคุยกับแพทย์']);
+        .in('status', ['รอจัดคิว', 'รออ่านผล', 'กำลังคุยกับแพทย์', 'รอผลแล็บเพิ่มเติม', 'ผลออกบางส่วน']);
 
     if (startDate) {
         const startIso = new Date(startDate + 'T00:00:00').toISOString();
@@ -2105,7 +2159,7 @@ async function loadQueueList() {
     queue.forEach((row, idx) => {
         let actionColumnHtml = '';
 
-        if (row.status === 'รอจัดคิว') {
+        if (row.status === 'รอจัดคิว' || row.status === 'รอผลแล็บเพิ่มเติม' || row.status === 'ผลออกบางส่วน') {
             // สถานะปกติ: ให้เลือกหมอและกดส่งได้
             actionColumnHtml = `
                 <td class="py-3">
@@ -2991,7 +3045,12 @@ async function showLabDetails(visitId, hn, patientName, testsString, labNote = '
     // 1. ดึงอายุและที่อยู่จากประวัติผู้ป่วย
     let pat = null;
     if (window.allPatients) {
-        pat = window.allPatients.find(p => (hn && hn !== '-' && p.hn === hn) || (patientName && patientName !== 'ผู้ป่วย' && p.patient_name === patientName));
+        if (hn && hn !== '-') {
+            pat = window.allPatients.find(p => p.hn === hn);
+        }
+        if (!pat && patientName && patientName !== 'ผู้ป่วย') {
+            pat = window.allPatients.find(p => p.patient_name === patientName);
+        }
     }
 
     if (typeof _supabase !== 'undefined') {
@@ -3438,7 +3497,9 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
     let patientSymptom = '-';
 
     if (hn || patientName) {
-        const pat = (window.allPatients || []).find(p => (hn && p.hn === hn) || (patientName && p.patient_name === patientName));
+        let pat = null;
+        if (hn && hn !== '-') pat = (window.allPatients || []).find(p => p.hn === hn);
+        if (!pat && patientName && patientName !== 'ผู้ป่วย') pat = (window.allPatients || []).find(p => p.patient_name === patientName);
         if (pat) {
             patientPhone = pat.phone || pat.emergency_tel || '-';
         }
@@ -3721,7 +3782,9 @@ function printPaymentInvoice(visitId, hn, patientName, testsString, discountVal)
     let patientSymptom = '-';
 
     if (window.allPatients) {
-        const pat = window.allPatients.find(p => (hn && p.hn === hn) || (patientName && p.patient_name === patientName));
+        let pat = null;
+        if (hn && hn !== '-') pat = window.allPatients.find(p => p.hn === hn);
+        if (!pat && patientName && patientName !== 'ผู้ป่วย') pat = window.allPatients.find(p => p.patient_name === patientName);
         if (pat) {
             patientAge = pat.age ? pat.age + ' ປີ' : '-';
             patientPhone = pat.phone || pat.emergency_tel || '-';
@@ -4694,7 +4757,9 @@ function printBillDetail(billId) {
     let patientSymptom = '-';
 
     if (window.allPatients) {
-        const pat = window.allPatients.find(p => (hn && p.hn === hn) || (patientName && p.patient_name === patientName));
+        let pat = null;
+        if (hn && hn !== '-') pat = window.allPatients.find(p => p.hn === hn);
+        if (!pat && patientName && patientName !== 'ผู้ป่วย') pat = window.allPatients.find(p => p.patient_name === patientName);
         if (pat) {
             patientAge = pat.age ? pat.age + ' ປີ' : '-';
             patientPhone = pat.phone || pat.emergency_tel || '-';
@@ -5290,6 +5355,36 @@ function openAddPatientModal() {
         patRefSelect.removeAttribute('readonly');
         patRefSelect.style.pointerEvents = 'auto';
         patRefSelect.classList.remove('bg-light');
+
+        // 🌟 Auto-select ผู้แนะนำตามผู้ใช้งานที่กำลัง Login อยู่
+        let cur = window.currentUser;
+        if (!cur) {
+            try { cur = JSON.parse(localStorage.getItem('clinicUser') || 'null'); } catch (e) { }
+        }
+        if (cur) {
+            let matchedRef = '';
+            const allEmp = window.allEmployeesData || [];
+            const empCode = (cur.emp_code || '').trim().toLowerCase();
+            const curName = (cur.name || cur.full_name || '').trim().toLowerCase();
+
+            const found = allEmp.find(e => {
+                const c = (e.emp_code || '').toLowerCase().trim();
+                const n = (e.full_name || '').toLowerCase().trim();
+                if (empCode && c && c === empCode) return true;
+                if (curName && n && (n.includes(curName) || curName.includes(n))) return true;
+                return false;
+            });
+
+            if (found) {
+                matchedRef = `${found.emp_code} - ${found.full_name}`;
+            } else if (cur.emp_code && (cur.name || cur.full_name)) {
+                matchedRef = `${cur.emp_code} - ${cur.name || cur.full_name}`;
+            }
+
+            if (matchedRef) {
+                patRefSelect.value = matchedRef;
+            }
+        }
     }
     if (lockHint) lockHint.style.display = 'none';
 
@@ -5473,6 +5568,15 @@ async function openTriageModal(visitId) {
 }
 
 async function submitTriage() {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'สัญญาณอินเทอร์เน็ตขาดหาย (Offline)',
+            text: 'อุปกรณ์ขาดการเชื่อมต่ออินเทอร์เน็ต กรุณาตรวจสอบ Wi-Fi หรือการเชื่อมต่อเครือข่ายก่อนส่งข้อมูลเข้าห้องตรวจ'
+        });
+        return;
+    }
+
     const form = document.getElementById('triageForm');
     const visitId = document.getElementById('triageVisitId')?.value || form?.visitId?.value;
 
@@ -5643,12 +5747,25 @@ async function loadLabQueue() {
     const tbody = document.querySelector('#labTable tbody');
     if (!tbody) return;
 
+    // 🌟 ตั้งค่าเริ่มต้นตัวกรองวันที่ของห้อง Lab ให้เป็นวันปัจจุบัน (Today) หากยังไม่ได้เลือกช่วงวันที่
+    const startInput = document.getElementById('labStartDate');
+    const endInput = document.getElementById('labEndDate');
+    if (startInput && endInput && !startInput.value && !endInput.value && !window._labFilterExplicitAll) {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const todayStr = `${year}-${month}-${day}`;
+        startInput.value = todayStr;
+        endInput.value = todayStr;
+    }
+
     tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูล...</td></tr>';
 
     const { data, error } = await _supabase
         .from('visits')
         .select('*')
-        .in('status', ['รอผลแล็บ', 'รอผลตรวจ Lab'])
+        .in('status', ['รอผลแล็บ', 'รอผลตรวจ Lab', 'รอผลแล็บเพิ่มเติม', 'ผลออกบางส่วน'])
         .order('created_at', { ascending: true });
 
     if (error) {
@@ -5657,6 +5774,62 @@ async function loadLabQueue() {
     }
 
     let processedData = data || [];
+
+    // 🌟 ดึงเคสที่เป็น "รอผลแล็บเพิ่มเติม" (Partial Lab) เข้ามาแสดงในห้อง Lab ด้วย
+    window._clinicPartialLabsMap = {};
+    try {
+        window._clinicPartialLabsMap = JSON.parse(localStorage.getItem('clinic_partial_labs') || '{}');
+    } catch (e) { }
+
+    try {
+        const existingIds = new Set(processedData.map(r => r.visit_id));
+
+        // 1. ดึงจาก Supabase ที่มีคำว่า รอผลแล็บเพิ่มเติม ใน lab_note
+        const { data: partialDbData } = await _supabase
+            .from('visits')
+            .select('*')
+            .like('lab_note', '%รอผลแล็บเพิ่มเติม%')
+            .neq('status', 'ຍົກເລີກ');
+
+        if (partialDbData && partialDbData.length > 0) {
+            partialDbData.forEach(pRow => {
+                // ซิงค์สถานะใน DB ให้เป็น 'รอผลแล็บเพิ่มเติม' ถ้ายังเป็น 'รอจัดคิว'
+                if (pRow.status === 'รอจัดคิว') {
+                    pRow.status = 'รอผลแล็บเพิ่มเติม';
+                    _supabase.from('visits').update({ status: 'รอผลแล็บเพิ่มเติม' }).eq('visit_id', pRow.visit_id).then(() => { });
+                }
+                if (!existingIds.has(pRow.visit_id)) {
+                    existingIds.add(pRow.visit_id);
+                    processedData.push(pRow);
+                }
+            });
+        }
+
+        // 2. ตรวจสอบเคสที่มีใน LocalStorage clinic_partial_labs เพื่อความรวดเร็วและทนทาน
+        const localPartialIds = Object.keys(window._clinicPartialLabsMap || {}).filter(vid => !existingIds.has(vid));
+        if (localPartialIds.length > 0) {
+            const { data: localDbVisits } = await _supabase
+                .from('visits')
+                .select('*')
+                .in('visit_id', localPartialIds)
+                .neq('status', 'ຍົກເລີກ');
+
+            if (localDbVisits && localDbVisits.length > 0) {
+                localDbVisits.forEach(lpRow => {
+                    if (lpRow.status === 'รอจัดคิว') {
+                        lpRow.status = 'รอผลแล็บเพิ่มเติม';
+                        _supabase.from('visits').update({ status: 'รอผลแล็บเพิ่มเติม' }).eq('visit_id', lpRow.visit_id).then(() => { });
+                    }
+                    if (!existingIds.has(lpRow.visit_id)) {
+                        existingIds.add(lpRow.visit_id);
+                        processedData.push(lpRow);
+                    }
+                });
+            }
+        }
+    } catch (errPartial) {
+        console.warn('loadLabQueue partial check warning:', errPartial);
+    }
 
     // ดึงข้อมูลทะเบียนผู้ป่วยทั้งหมดมาเตรียมไว้สำหรับการจับคู่ HN
     let allPatientsList = window.allPatients || [];
@@ -5722,21 +5895,32 @@ window.setLabDateFilter = function (mode) {
     const endInput = document.getElementById('labEndDate');
     const now = new Date();
 
+    const formatDate = function (d) {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
     if (mode === 'today') {
-        const todayStr = now.toISOString().split('T')[0];
+        window._labFilterExplicitAll = false;
+        const todayStr = formatDate(now);
         if (startInput) startInput.value = todayStr;
         if (endInput) endInput.value = todayStr;
     } else if (mode === 'month') {
-        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
-        if (startInput) startInput.value = firstDay;
-        if (endInput) endInput.value = lastDay;
+        window._labFilterExplicitAll = false;
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        if (startInput) startInput.value = formatDate(firstDay);
+        if (endInput) endInput.value = formatDate(lastDay);
     } else if (mode === 'year') {
-        const firstDay = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
-        const lastDay = new Date(now.getFullYear(), 11, 31).toISOString().split('T')[0];
-        if (startInput) startInput.value = firstDay;
-        if (endInput) endInput.value = lastDay;
+        window._labFilterExplicitAll = false;
+        const firstDay = new Date(now.getFullYear(), 0, 1);
+        const lastDay = new Date(now.getFullYear(), 11, 31);
+        if (startInput) startInput.value = formatDate(firstDay);
+        if (endInput) endInput.value = formatDate(lastDay);
     } else if (mode === 'all') {
+        window._labFilterExplicitAll = true;
         if (startInput) startInput.value = '';
         if (endInput) endInput.value = '';
     }
@@ -5754,9 +5938,22 @@ window.filterLabTable = function () {
     const endDateStr = document.getElementById('labEndDate')?.value;
 
     if (startDateStr || endDateStr) {
+        window._labFilterExplicitAll = false;
         filtered = filtered.filter(row => {
+            // 🌟 เคสที่เป็น Partial Lab (รอผลเพิ่มเติม) ให้แสดงเสมอ แม้ว่าวันที่ส่งตรวจจะเป็นวันก่อนหน้า (เช่น 3 วันที่แล้ว)
+            const isPartial = row.status === 'รอผลแล็บเพิ่มเติม' ||
+                row.status === 'ผลออกบางส่วน' ||
+                (row.lab_note && row.lab_note.includes('รอผลแล็บเพิ่มเติม')) ||
+                (window._clinicPartialLabsMap && window._clinicPartialLabsMap[row.visit_id]);
+            if (isPartial) return true;
+
             if (!row.created_at) return true;
-            const rowDate = new Date(row.created_at).toISOString().split('T')[0];
+            const d = new Date(row.created_at);
+            const rowYear = d.getFullYear();
+            const rowMonth = String(d.getMonth() + 1).padStart(2, '0');
+            const rowDay = String(d.getDate()).padStart(2, '0');
+            const rowDate = `${rowYear}-${rowMonth}-${rowDay}`;
+
             let pass = true;
             if (startDateStr && rowDate < startDateStr) pass = false;
             if (endDateStr && rowDate > endDateStr) pass = false;
@@ -5864,14 +6061,35 @@ window.renderLabTable = function (page = window.labCurrentPage) {
 
         if (vascText) {
             allResultButtons.push(`
-                <button class="btn btn-sm btn-outline-primary me-1 mb-1" onclick="viewVascularResult('${row.visit_id}')">
-                    <i class="bi bi-activity me-1"></i> ผลวินิจฉัย
+                <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມລາຍງານ PDF" onclick="openVascularReportPopup('${row.visit_id}')">
+                    <i class="bi bi-file-earmark-pdf me-1"></i> ຜົນວິນິດໄສ (PDF)
                 </button>
             `);
         }
 
         let allResultDisplay = allResultButtons.length > 0 ? allResultButtons.join(' ') : `<span class="text-muted">-</span>`;
-        let queueBtnHtml = `<button class="btn btn-sm btn-outline-primary ms-1" onclick="sendToReportQueue('${row.visit_id}')">จัดคิวอ่านผลตรวจ</button>`;
+
+        // 🌟 ตรวจสอบว่าเป็นเคสที่รอผลแล็บเพิ่มเติม (Partial Lab) หรือไม่
+        const isPartialLab = row.status === 'รอผลแล็บเพิ่มเติม' ||
+            row.status === 'ผลออกบางส่วน' ||
+            (row.lab_note && row.lab_note.includes('รอผลแล็บเพิ่มเติม')) ||
+            (window._clinicPartialLabsMap && window._clinicPartialLabsMap[row.visit_id]);
+
+        let statusBadgeHtml = `<span class="badge-soft-warning">${pendingLabel}</span>`;
+        if (isPartialLab) {
+            let partialNoteText = 'ລໍຖ້າຜົນເພີ່ມເຕີມ';
+            if (row.lab_note && row.lab_note.includes('รอผลแล็บเพิ่มเติม')) {
+                const m = row.lab_note.match(/\[รอผลแล็บเพิ่มเติม(?::\s*([^\]]*))?\]/);
+                if (m && m[1]) partialNoteText = m[1].trim();
+            } else if (window._clinicPartialLabsMap && window._clinicPartialLabsMap[row.visit_id]) {
+                partialNoteText = window._clinicPartialLabsMap[row.visit_id].pendingNote || partialNoteText;
+            }
+            statusBadgeHtml = `<span class="badge" style="background-color: #f59e0b; color: #fff; font-size: 11.5px; padding: 5px 9px; border-radius: 6px; font-weight: 600;" title="${partialNoteText}"><i class="bi bi-hourglass-split me-1"></i>${partialNoteText}</span>`;
+        }
+
+        let queueBtnHtml = isPartialLab
+            ? `<button class="btn btn-sm btn-warning text-dark fw-bold ms-1 shadow-sm" onclick="sendToReportQueue('${row.visit_id}')"><i class="bi bi-check2-all me-1"></i>ສົ່ງອ່ານຜົນຄົບຖ້ວນ</button>`
+            : `<button class="btn btn-sm btn-outline-primary ms-1" onclick="sendToReportQueue('${row.visit_id}')">ຈັດຄິວອ່ານຜົນກວດ</button>`;
 
         tbody.innerHTML += `
             <tr>
@@ -5881,7 +6099,7 @@ window.renderLabTable = function (page = window.labCurrentPage) {
                 <td class="fw-bold">${row.patient_name}</td>
                 <td>${labDetailsHtml}</td>
                 <td class="text-center">${allResultDisplay}</td>
-                <td><span class="badge-soft-warning">${pendingLabel}</span></td>
+                <td>${statusBadgeHtml}</td>
                 <td class="text-center text-nowrap">
                     <button class="btn btn-sm btn-primary px-3" onclick="openLabUploadModal('${row.visit_id}')"><i class="bi bi-upload"></i> ${uploadLabel}</button>
                     ${queueBtnHtml}
@@ -6866,38 +7084,211 @@ async function getLabFilesForVisitAsync(visitId, rowPdfUrl) {
 }
 
 /**
- * ฟังก์ชันสำหรับเปลี่ยนสถานะและส่งผู้ป่วยไปยังห้องจัดคิวอ่านผล
+ * ฟังก์ชันสำหรับเปลี่ยนสถานะและส่งผู้ป่วยไปยังห้องจัดคิวอ่านผล (รองรับทั้งส่งครบถ้วน และ ส่งผลบางส่วน)
  */
 async function sendToReportQueue(visitId) {
-    const result = await Swal.fire({
-        title: 'ยืนยันการจัดคิว?',
-        text: `ต้องการส่งผู้ป่วยเคส ${visitId} ไปรอจัดคิวอ่านผลใช่หรือไม่?`,
-        icon: 'question',
+    if (!visitId) return;
+
+    // ตรวจสอบว่าเคสนี้เป็น Partial Lab อยู่ก่อนหรือไม่
+    let isCurrentlyPartial = false;
+    let currentPendingNote = '';
+
+    let partialMap = {};
+    try { partialMap = JSON.parse(localStorage.getItem('clinic_partial_labs') || '{}'); } catch (e) { }
+    if (partialMap[visitId]) {
+        isCurrentlyPartial = true;
+        currentPendingNote = partialMap[visitId].pendingNote || '';
+    }
+
+    // ดึงข้อมูล lab_note และสถานะปัจจุบันจาก Supabase
+    let currentLabNote = '';
+    try {
+        const { data: vData } = await _supabase.from('visits').select('lab_note, status').eq('visit_id', visitId).maybeSingle();
+        if (vData) {
+            currentLabNote = vData.lab_note || '';
+            if (currentLabNote.includes('[รอผลแล็บเพิ่มเติม]')) {
+                isCurrentlyPartial = true;
+                const match = currentLabNote.match(/\[รอผลแล็บเพิ่มเติม(?::\s*([^\]]*))?\]/);
+                if (match && match[1]) currentPendingNote = match[1];
+            }
+        }
+    } catch (e) { }
+
+    const isLao = (window.currentLang || localStorage.getItem('clinic_lang') || 'la') === 'la';
+
+    // แสดงหน้าต่างเลือกรูปแบบการจัดคิว
+    const modalTitle = isLao ? 'ເລືອກຮູບແບບການສົ່ງຜົນກວດ' : 'เลือกรูปแบบการส่งผลตรวจ';
+    const modalText = isLao
+        ? `ລະຫັດ VISIT: <strong>${visitId}</strong>`
+        : `รหัส VISIT: <strong>${visitId}</strong>`;
+
+    await Swal.fire({
+        title: modalTitle,
+        html: `
+            <div class="text-start mb-2">
+                <p class="text-secondary small mb-3">${modalText}</p>
+                <div class="d-grid gap-2">
+                    <button type="button" id="swalBtnComplete" class="btn btn-outline-success text-start p-3 rounded-3 border-2 d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="fw-bold fs-6 text-success"><i class="bi bi-check-circle-fill me-2"></i>1. ຜົນອອກຄົບໝົດແລ້ວ (ສົ່ງອ່ານຜົນ)</div>
+                            <div class="small text-muted mt-1">ສົ່ງຄິວໃຫ້ທ່ານໝໍອ່ານຜົນ ແລະ ປົດເຄສອອກຈາກຫ້ອງ Lab ຢ່າງສົມບູນ</div>
+                        </div>
+                        <i class="bi bi-arrow-right-circle text-success fs-5"></i>
+                    </button>
+                    <button type="button" id="swalBtnPartial" class="btn btn-outline-warning text-start p-3 rounded-3 border-2 d-flex align-items-center justify-content-between" style="border-color: #f59e0b;">
+                        <div>
+                            <div class="fw-bold fs-6" style="color: #d97706 !important;"><i class="bi bi-hourglass-split me-2"></i>2. ຜົນອອກບາງສ່ວນ (ຍັງລໍຖ້າຜົນເພີ່ມເຕີມ)</div>
+                            <div class="small text-muted mt-1">ສົ່ງຜົນຕົວທີ່ອອກກ່ອນໃຫ້ທ່ານໝໍ, ແຕ່ເຄສຍັງຄົງຄ້າງຢູ່ໃນຫ້ອງ Lab ເພື່ອລໍຖ້າຜົນຕໍ່ໄປ (ເຊັ່ນ: ລໍຖ້າອີກ 3 ວັນ)</div>
+                        </div>
+                        <i class="bi bi-arrow-right-circle text-warning fs-5"></i>
+                    </button>
+                </div>
+            </div>
+        `,
+        showConfirmButton: false,
         showCancelButton: true,
-        confirmButtonColor: '#0b3c73',
+        cancelButtonText: isLao ? 'ຍົກເລີກ' : 'ยกเลิก',
         cancelButtonColor: '#64748b',
-        confirmButtonText: 'ยืนยัน',
-        cancelButtonText: 'ยกเลิก'
+        width: '580px',
+        didOpen: () => {
+            const btnComplete = document.getElementById('swalBtnComplete');
+            const btnPartial = document.getElementById('swalBtnPartial');
+
+            if (btnComplete) {
+                btnComplete.addEventListener('click', () => {
+                    Swal.close();
+                    handleCompleteLabSend(visitId, currentLabNote);
+                });
+            }
+            if (btnPartial) {
+                btnPartial.addEventListener('click', () => {
+                    Swal.close();
+                    handlePartialLabSend(visitId, currentLabNote, currentPendingNote);
+                });
+            }
+        }
     });
+}
 
-    if (!result.isConfirmed) return;
+/**
+ * จัดการส่งผลแล็บแบบครบถ้วน (ออกจากห้องแล็บ)
+ */
+async function handleCompleteLabSend(visitId, currentLabNote) {
+    Swal.fire({ title: 'ກຳລັງບັນທຶກ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
-    Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    // 1. ล้างแท็ก [รอผลแล็บเพิ่มเติม] ออกจาก lab_note
+    let updatedNote = (currentLabNote || '')
+        .replace(/\[รอผลแล็บเพิ่มเติม(?::\s*[^\]]*)?\]/g, '')
+        .trim();
 
+    // 2. อัปเดต visits ใน Supabase ให้เป็น "รอจัดคิว"
     const { error } = await _supabase
         .from('visits')
-        .update({ status: 'รอจัดคิว' }) // อัปเดตสถานะให้เป็น "รอจัดคิว"
+        .update({
+            status: 'รอจัดคิว',
+            lab_note: updatedNote
+        })
         .eq('visit_id', visitId);
 
     if (error) {
-        Swal.fire('ข้อผิดพลาด', error.message, 'error');
-    } else {
-        Swal.fire('สำเร็จ', 'ส่งผู้ป่วยไปห้องจัดคิวเรียบร้อยแล้ว', 'success');
-        // รีเฟรชตารางห้องแล็บเพื่อนำรายการที่จัดคิวแล้วออก
-        if (typeof loadLabQueue === 'function') loadLabQueue();
-        // รีเฟรชตารางห้องจัดคิวเตรียมพร้อมไว้
-        if (typeof loadQueueList === 'function') loadQueueList();
+        Swal.fire('ຂໍ້ຜິດພາດ', error.message, 'error');
+        return;
     }
+
+    // 3. ล้างออกจาก LocalStorage clinic_partial_labs
+    try {
+        let partialMap = JSON.parse(localStorage.getItem('clinic_partial_labs') || '{}');
+        delete partialMap[visitId];
+        localStorage.setItem('clinic_partial_labs', JSON.stringify(partialMap));
+        if (window._clinicPartialLabsMap) delete window._clinicPartialLabsMap[visitId];
+    } catch (e) { }
+
+    Swal.fire({
+        title: 'ສຳເລັດ!',
+        html: `ສົ່ງຜົນກວດຄົບຖ້ວນຂອງເຄສ <strong>${visitId}</strong> ໄປຫ້ອງຈັດຄິວອ່ານຜົນແລ້ວ<br><span class="small text-muted">ເຄສນີ້ໄດ້ອອກຈາກຫ້ອງ Lab ຮຽບຮ້ອຍແລ້ວ</span>`,
+        icon: 'success',
+        confirmButtonColor: '#0b3c73'
+    });
+
+    // รีเฟรชตารางห้องแล็บ และห้องจัดคิว
+    if (typeof loadLabQueue === 'function') loadLabQueue();
+    if (typeof loadQueueList === 'function') loadQueueList();
+}
+
+/**
+ * จัดการส่งผลแล็บแบบบางส่วน (ยังคงค้างอยู่ในห้องแล็บ)
+ */
+async function handlePartialLabSend(visitId, currentLabNote, currentPendingNote) {
+    const isLao = (window.currentLang || localStorage.getItem('clinic_lang') || 'la') === 'la';
+
+    // ให้ระบุหมายเหตุสั้นๆ ว่ารอผลอะไร หรือรออีกกี่วัน
+    const { value: pendingText, isConfirmed } = await Swal.fire({
+        title: isLao ? 'ລະບຸລາຍລະອຽດຜົນກວດທີ່ຍັງລໍຖ້າ' : 'ระบุรายละเอียดผลตรวจที่ยังรอ',
+        input: 'text',
+        inputLabel: isLao ? 'ລາຍການທີ່ຍັງລໍຖ້າ ຫຼື ຈຳນວນມື້ (ຕົວຢ່າງ: ລໍຖ້າຜົນກວດ 3 ວັນ, ລໍຖ້າຜົນຊິ້ນຊີ້ນ):' : 'รายการที่ยังรอ หรือจำนวนวัน (ตัวอย่าง: รอผลตรวจ 3 วัน, รอผลชิ้นเนื้อ):',
+        inputValue: currentPendingNote || (isLao ? 'ລໍຖ້າຜົນກວດເພີ່ມເຕີມ 3 ວັນ' : 'รอผลตรวจเพิ่มเติม 3 วัน'),
+        showCancelButton: true,
+        confirmButtonColor: '#f59e0b',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: isLao ? 'ຢືນຢັນສົ່ງຜົນບາງສ່ວນ' : 'ยืนยันส่งผลบางส่วน',
+        cancelButtonText: isLao ? 'ຍົກເລີກ' : 'ยกเลิก'
+    });
+
+    if (!isConfirmed) return;
+
+    Swal.fire({ title: 'ກຳລັງບັນທຶກ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    const noteTag = `[รอผลแล็บเพิ่มเติม: ${pendingText ? pendingText.trim() : 'รอผลตรวจเพิ่มเติม'}]`;
+
+    // ลบแท็กเก่าออกก่อน (ถ้ามี) แล้วต่อท้ายอันใหม่
+    let cleanedNote = (currentLabNote || '')
+        .replace(/\[รอผลแล็บเพิ่มเติม(?::\s*[^\]]*)?\]/g, '')
+        .trim();
+    let finalNote = cleanedNote ? `${cleanedNote}\n${noteTag}` : noteTag;
+
+    // 1. อัปเดต Supabase: เปลี่ยนสถานะเป็น "รอผลแล็บเพิ่มเติม" เพื่อให้ค้างอยู่ในห้อง Lab และห้องจัดคิว
+    const { error } = await _supabase
+        .from('visits')
+        .update({
+            status: 'รอผลแล็บเพิ่มเติม',
+            lab_note: finalNote
+        })
+        .eq('visit_id', visitId);
+
+    if (error) {
+        Swal.fire('ຂໍ້ຜິດພາດ', error.message, 'error');
+        return;
+    }
+
+    // 2. บันทึกลง LocalStorage clinic_partial_labs
+    try {
+        let partialMap = JSON.parse(localStorage.getItem('clinic_partial_labs') || '{}');
+        partialMap[visitId] = {
+            visitId: visitId,
+            pendingNote: pendingText ? pendingText.trim() : 'รอผลตรวจเพิ่มเติม',
+            updatedAt: new Date().toISOString()
+        };
+        localStorage.setItem('clinic_partial_labs', JSON.stringify(partialMap));
+        if (window._clinicPartialLabsMap) window._clinicPartialLabsMap[visitId] = partialMap[visitId];
+    } catch (e) { }
+
+    Swal.fire({
+        title: isLao ? 'ສົ່ງຜົນກວດບາງສ່ວນສຳເລັດ!' : 'ส่งผลตรวจบางส่วนสำเร็จ!',
+        html: `
+            <div class="text-start">
+                <p>ສົ່ງຜົນກວດຕົວທຳອິດຂອງເຄສ <strong>${visitId}</strong> ໄປໃຫ້ທ່ານໝໍອ່ານຜົນຮຽບຮ້ອຍແລ້ວ</p>
+                <div class="alert alert-warning py-2 px-3 small border-0" style="background-color: #fef3c7; color: #92400e;">
+                    <i class="bi bi-info-circle-fill me-1"></i> <strong>ຫມາຍເຫດ:</strong> ເຄສນີ້ຈະຍັງຄົງສະແດງຢູ່ໃນຫ້ອງ Lab ພ້ອມປ້າຍ <strong>"ລໍຖ້າຜົນເພີ່ມເຕີມ"</strong> ເພື່ອໃຫ້ທ່ານກັບມາອັບໂຫຼດຜົນທີ່ເຫຼືອເມື່ອຮອດກຳນົດ
+                </div>
+            </div>
+        `,
+        icon: 'success',
+        confirmButtonColor: '#0b3c73'
+    });
+
+    // รีเฟรชตารางห้องแล็บ และห้องจัดคิว
+    if (typeof loadLabQueue === 'function') loadLabQueue();
+    if (typeof loadQueueList === 'function') loadQueueList();
 }
 function openLabUploadModal(visitId) {
     try {
@@ -7568,7 +7959,9 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
     let patientSymptom = '-';
 
     if (hn || patientName) {
-        const pat = (window.allPatients || []).find(p => (hn && p.hn === hn) || (patientName && p.patient_name === patientName));
+        let pat = null;
+        if (hn && hn !== '-') pat = (window.allPatients || []).find(p => p.hn === hn);
+        if (!pat && patientName && patientName !== 'ผู้ป่วย') pat = (window.allPatients || []).find(p => p.patient_name === patientName);
         if (pat) {
             patientPhone = pat.phone || pat.emergency_tel || '-';
         }
@@ -7741,8 +8134,8 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
 
         if (hasVasc) {
             allResultButtons.push(`
-                <button type="button" class="btn btn-sm btn-outline-primary me-1 mb-1 fw-semibold" onclick="viewVascularResult('${visitId}')">
-                    <i class="bi bi-activity me-1"></i> ผลวินิจฉัย
+                <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມລາຍງານ PDF" onclick="openVascularReportPopup('${visitId}')">
+                    <i class="bi bi-file-earmark-pdf me-1"></i> ຜົນວິນິດໄສ (PDF)
                 </button>
             `);
         }
@@ -10229,21 +10622,60 @@ async function showHistoryDetails(visitId) {
     setSafeText('histPhone', patientPhone);
     // --- จบโค้ดส่วนที่เพิ่มใหม่ ---
 
-    // 🌟 ส่วนที่ 1: ประมวลผลและแสดงผลข้อมูลผู้แนะนำ (Referrer)
-    let refId = row.referred_by;
-    if (!refId && row.hn) {
-        const pat = (window.allPatients || []).find(p => p.hn === row.hn || p.patient_name === row.patient_name);
+    // 🌟 ส่วนที่ 1: ประมวลผลและแสดงผลข้อมูลผู้แนะนำ (Referrer) - ยึด HN และเบอร์โทรเป็นหลัก
+    let refId = null;
+
+    // 1. ค้นหาจาก HN ในตาราง patients ก่อนเสมอเป็นอันดับ 1 (Strictly Match by HN)
+    if (row.hn && row.hn !== '-' && window.allPatients) {
+        const pat = window.allPatients.find(p => p.hn === row.hn);
         if (pat && pat.referred_by) refId = pat.referred_by;
     }
+
+    // 2. ดึงตรงจาก Supabase patients table ด้วย HN เพื่อความแม่นยำ 100%
+    if (!refId && row.hn && row.hn !== '-' && typeof _supabase !== 'undefined') {
+        try {
+            const { data: pDb } = await _supabase.from('patients').select('referred_by, phone').eq('hn', row.hn).maybeSingle();
+            if (pDb && pDb.referred_by) {
+                refId = pDb.referred_by;
+            }
+        } catch (e) { }
+    }
+
+    // 3. ถ้ายังไม่พบ และมีเบอร์โทร ให้ค้นหาจากเบอร์โทร (Match by Phone)
+    if (!refId && (patientPhone || row.phone) && window.allPatients) {
+        const ph = String(patientPhone || row.phone).trim();
+        if (ph && ph !== '-') {
+            const patByPhone = window.allPatients.find(p => (p.phone && String(p.phone).trim() === ph) || (p.emergency_tel && String(p.emergency_tel).trim() === ph));
+            if (patByPhone && patByPhone.referred_by) refId = patByPhone.referred_by;
+        }
+    }
+
+    // 4. ถ้าไม่มี HN และเบอร์โทร หรือยังไม่พบ ให้ดึงจากข้อมูล visit
+    if (!refId && row.referred_by) {
+        refId = row.referred_by;
+    }
+
+    // 5. ตรวจสอบจากการนัดหมาย
     if (!refId && row.appointment_id) {
         const appt = (window.allAppointments || []).find(a => a.appointment_id === row.appointment_id);
         if (appt && appt.referred_by) refId = appt.referred_by;
     }
-    if (!refId) {
+
+    // 6. ตรวจสอบจาก persistent localStorage maps โดยยึด HN ก่อน
+    if (!refId && row.hn && row.hn !== '-') {
         refId = (window.hnReferrerMap && window.hnReferrerMap[row.hn])
-            || (window.patientReferrersMap && window.patientReferrersMap[row.hn])
-            || (window.nameReferrerMap && window.nameReferrerMap[row.patient_name])
-            || (window.appointmentReferrersMap && row.appointment_id && window.appointmentReferrersMap[row.appointment_id]);
+            || (window.patientReferrersMap && window.patientReferrersMap[row.hn]);
+    }
+
+    // 7. กรณีสุดท้าย: หากไม่มี HN และไม่มีเบอร์โทรจริงๆ ถึงจะค้นหาด้วยชื่อผู้ป่วย
+    if (!refId && (!row.hn || row.hn === '-')) {
+        const patByName = (window.allPatients || []).find(p => p.patient_name && p.patient_name === row.patient_name);
+        if (patByName && patByName.referred_by) refId = patByName.referred_by;
+
+        if (!refId) {
+            refId = (window.nameReferrerMap && window.nameReferrerMap[row.patient_name])
+                || (window.appointmentReferrersMap && row.appointment_id && window.appointmentReferrersMap[row.appointment_id]);
+        }
     }
 
     if (refId && refId !== '-' && refId !== 'undefined' && refId !== 'null') {
@@ -10371,8 +10803,8 @@ async function showHistoryDetails(visitId) {
     // 4. ถ้ามีผลวินิจฉัยตรวจหลอดเลือด ให้ใส่ปุ่ม "ผลวินิจฉัย"
     if (vascText) {
         allResultButtons.push(`
-            <button type="button" class="btn btn-sm btn-outline-primary me-1 mb-1 fw-semibold" onclick="viewVascularResult('${row.visit_id}')">
-                <i class="bi bi-activity me-1"></i> ผลวินิจฉัย
+            <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມລາຍງານ PDF" onclick="openVascularReportPopup('${row.visit_id}')">
+                <i class="bi bi-file-earmark-pdf me-1"></i> ຜົນວິນິດໄສ (PDF)
             </button>
         `);
     }
@@ -10435,31 +10867,27 @@ async function showHistoryDetails(visitId) {
     const hasNote = (row.lab_note && row.lab_note.trim() !== '') || vascText;
     const hasFiles = allResultButtons.length > 0;
 
-    if (hasTests || hasNote || hasFiles) {
-        setSafeDisplay('histLabContainer', true);
-        setSafeText('histLabTests', row.lab_tests || 'ไม่ได้ระบุชื่อรายการส่งแล็บ');
+    setSafeDisplay('histLabContainer', true);
+    setSafeText('histLabTests', row.lab_tests || 'ไม่ได้ระบุชื่อรายการส่งแล็บ');
 
-        let noteContentText = (row.lab_note || vascText || '').trim();
-        noteContentText = noteContentText.replace(/\[เอกสารผลตรวจ[^\]]*\]/gi, '').trim();
-        noteContentText = noteContentText.replace(/\[เอกสารแนบ[^\]]*\]/gi, '').trim();
-        noteContentText = noteContentText.replace(/\[ไฟล์แนบ[^\]]*\]/gi, '').trim();
+    let noteContentText = (row.lab_note || vascText || '').trim();
+    noteContentText = noteContentText.replace(/\[เอกสารผลตรวจ[^\]]*\]/gi, '').trim();
+    noteContentText = noteContentText.replace(/\[เอกสารแนบ[^\]]*\]/gi, '').trim();
+    noteContentText = noteContentText.replace(/\[ไฟล์แนบ[^\]]*\]/gi, '').trim();
 
-        if (noteContentText) {
-            setSafeText('histLabNoteText', noteContentText);
-            setSafeDisplay('histLabNoteContent', true);
-        } else {
-            setSafeDisplay('histLabNoteContent', false);
-        }
-
-        if (hasFiles) {
-            setSafeHtml('histLabFilesButtons', allResultButtons.join(' '));
-            setSafeDisplay('histLabFilesContent', true);
-        } else {
-            setSafeDisplay('histLabFilesContent', false);
-        }
+    if (noteContentText) {
+        setSafeText('histLabNoteText', noteContentText);
+        setSafeDisplay('histLabNoteContent', true);
     } else {
-        setSafeDisplay('histLabContainer', false);
+        setSafeDisplay('histLabNoteContent', false);
     }
+
+    if (hasFiles) {
+        setSafeHtml('histLabFilesButtons', allResultButtons.join(' '));
+    } else {
+        setSafeHtml('histLabFilesButtons', '<span class="text-muted small">ยังไม่มีเอกสารผลตรวจ</span>');
+    }
+    setSafeDisplay('histLabFilesContent', true);
 
     // 🌟 แสดงรายการสั่งจ่ายยา/อาหารเสริม
     const medsTbody = document.querySelector('#histMedsTable tbody') || document.querySelector('#histMedsTable');
@@ -10538,17 +10966,70 @@ async function showHistoryDetails(visitId) {
     }
 }
 
-// ฟังก์ชันสำหรับ "ต่อยา" (สั่งยาเดิมซ้ำจากประวัติการตรวจรักษา - Instant Flow)
+// ฟังก์ชันสำหรับเปิดหน้าต่างอัปโหลดผลตรวจจากหน้าประวัติการรักษา (ปุ่ม "ເພີ່ມຜົນກວດ")
+window.openLabUploadFromHistory = function (targetVisitId) {
+    const visitId = targetVisitId || (window.currentHistoryDetailVisit ? window.currentHistoryDetailVisit.visit_id : document.getElementById('histVisitId')?.innerText?.trim());
+    if (!visitId || visitId === '-') {
+        Swal.fire('ข้อผิดพลาด', 'ไม่พบรหัสการตรวจ (Visit ID)', 'error');
+        return;
+    }
+
+    window._openedLabFromHistoryVisitId = visitId;
+
+    // ติดตั้ง listener ให้เมื่อปิด labUploadModal จะเปิดหน้าประวัติกลับมาอัตโนมัติ
+    const labModalEl = document.getElementById('labUploadModal');
+    if (labModalEl && !labModalEl._hasHistDismissListener) {
+        labModalEl._hasHistDismissListener = true;
+        labModalEl.addEventListener('hidden.bs.modal', function () {
+            if (window._openedLabFromHistoryVisitId) {
+                const reOpenVisitId = window._openedLabFromHistoryVisitId;
+                window._openedLabFromHistoryVisitId = null;
+                setTimeout(async () => {
+                    if (typeof _supabase !== 'undefined') {
+                        try {
+                            const { data } = await _supabase.from('visits').select('*').eq('visit_id', reOpenVisitId).maybeSingle();
+                            if (data) {
+                                window.currentHistoryDetailVisit = data;
+                                if (window.allHistoryVisits) {
+                                    const idx = window.allHistoryVisits.findIndex(v => v.visit_id === reOpenVisitId);
+                                    if (idx !== -1) window.allHistoryVisits[idx] = data;
+                                }
+                            }
+                        } catch (e) { }
+                    }
+                    if (typeof viewHistoryDetail === 'function') {
+                        viewHistoryDetail(reOpenVisitId);
+                    }
+                }, 300);
+            }
+        });
+    }
+
+    // ซ่อน modal ประวัติชั่วคราว
+    const histModalEl = document.getElementById('historyDetailModal');
+    if (histModalEl) {
+        const histInst = bootstrap.Modal.getInstance(histModalEl);
+        if (histInst) histInst.hide();
+    }
+
+    setTimeout(() => {
+        if (typeof openLabUploadModal === 'function') {
+            openLabUploadModal(visitId);
+        }
+    }, 250);
+};
+
+// ฟังก์ชันสำหรับ "ต่อยา / สั่งยา" (สั่งยาเดิมซ้ำ หรือสั่งยาใหม่จากประวัติการตรวจรักษา - Instant Flow)
 function repeatPrescriptionFromHistory(targetVisitId) {
     const visitId = targetVisitId || (window.currentHistoryDetailVisit ? window.currentHistoryDetailVisit.visit_id : document.getElementById('histVisitId')?.innerText);
     const row = (window.allHistoryVisits || []).find(v => v.visit_id === visitId) || window.currentHistoryDetailVisit;
 
     if (!row) {
-        Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลการตรวจรักษาสำหรับทำการต่อยา', 'error');
+        Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลการตรวจรักษาสำหรับทำการต่อยา/สั่งยา', 'error');
         return;
     }
 
-    // 1. ดึงรายการยาเดิมจากประวัติ
+    // 1. ดึงรายการยาเดิมจากประวัติ (หากไม่มี ให้เป็น array ว่างเพื่อเปิดสั่งยาใหม่ได้ทันที)
     let medsList = [];
     if (row.meds) {
         try {
@@ -10567,14 +11048,8 @@ function repeatPrescriptionFromHistory(targetVisitId) {
         }
     }
 
-    if (!medsList || !Array.isArray(medsList) || medsList.length === 0) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'ไม่มีรายการยาเดิม',
-            text: `ผู้ป่วย ${row.patient_name || row.hn} ในรอบการตรวจนี้ (${row.visit_id}) ไม่มีรายการยาหรืออาหารเสริมที่สั่งจ่ายไว้`,
-            confirmButtonColor: '#004b93'
-        });
-        return;
+    if (!Array.isArray(medsList)) {
+        medsList = [];
     }
 
     // 2. คำนวณลำดับชุดที่ต่อยา (ชุดที่ 2, ชุดที่ 3, ชุดที่ 4...)
@@ -10605,10 +11080,10 @@ function repeatPrescriptionFromHistory(targetVisitId) {
         if (modalInst) modalInst.hide();
     }
 
-    // 4. สร้าง Visit ID ใหม่สำหรับการต่อยา
+    // 4. สร้าง Visit ID ใหม่สำหรับการต่อยา/สั่งยา
     const newVisitId = `VIS-${Date.now().toString().slice(-6)}`;
 
-    // 5. เปิด Prescribe Modal พร้อมใส่รายการยาเดิมลงใน Cart ทันที
+    // 5. เปิด Prescribe Modal พร้อมใส่รายการยาลงใน Cart (หากไม่มีรายการยาเดิม Cart จะว่างและพร้อมให้เลือกสั่งยาใหม่ได้ทันที)
     openPrescribeModal(newVisitId, row.hn, row.patient_name, row.pdf_url || '', medsList, batchTag);
 
     // 6. Toast แจ้งเตือนแบบ Real-time ไม่ขัดจังหวะการทำงาน
@@ -10621,7 +11096,9 @@ function repeatPrescriptionFromHistory(targetVisitId) {
     });
     Toast.fire({
         icon: 'success',
-        title: `เปิดสั่งจ่ายต่อยา ${batchTag} (${medsList.length} รายการ) เรียบร้อย`
+        title: medsList.length > 0 
+            ? `เปิดสั่งจ่ายต่อยา ${batchTag} (${medsList.length} รายการ) เรียบร้อย`
+            : `เปิดหน้าต่างสั่งยาสำหรับ ${row.patient_name || row.hn} เรียบร้อย`
     });
 }
 
@@ -14729,9 +15206,15 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
         const patientHn = visitRecord.hn || '';
         const patientName = visitRecord.patient_name || '';
 
-        // ค้นหาในหน่วยความจำ allPatients ก่อนเพื่อความเร็วและไม่เกิด 400 Bad Request
+        // ค้นหาในหน่วยความจำ allPatients ก่อนเพื่อความเร็วและไม่เกิด 400 Bad Request (ยึด HN เป็นหลัก)
         if (Array.isArray(window.allPatients)) {
-            const patObj = window.allPatients.find(p => (patientHn && p.hn === patientHn) || (patientName && p.patient_name === patientName));
+            let patObj = null;
+            if (patientHn && patientHn !== '-') {
+                patObj = window.allPatients.find(p => p.hn === patientHn || p.HN === patientHn || p.id === patientHn);
+            }
+            if (!patObj && patientName && patientName !== 'ผู้ป่วย') {
+                patObj = window.allPatients.find(p => p.patient_name === patientName || p.FullName === patientName);
+            }
             if (patObj) {
                 referrerCode = patObj.referrer || patObj.ref_code || patObj.referred_by || '';
             }
@@ -14741,7 +15224,7 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
     let referrerId = referrerCode || null;
     let patientName = visitRecord.patient_name || 'ผู้ป่วย';
 
-    // 2. ค้นหาจาก LocalStorage Maps สำรอง
+    // 2. ค้นหาจาก LocalStorage Maps สำรอง (ยึด HN ก่อน)
     const patMap = JSON.parse(localStorage.getItem('clinic_patient_referrers') || '{}');
     if (!referrerId && visitRecord.hn && patMap[visitRecord.hn]) {
         referrerId = patMap[visitRecord.hn];
@@ -14752,12 +15235,15 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
         referrerId = apptMap[visitRecord.appointment_id];
     }
 
-    // 3. ค้นหาใน memory cache ของผู้ป่วย (patients) สำรอง
+    // 3. ค้นหาใน memory cache ของผู้ป่วย (patients) สำรอง (ยึด HN ก่อน)
     if (!referrerId && (visitRecord.hn || visitRecord.patient_name)) {
-        const pat = (window.allPatients || []).find(p =>
-            (visitRecord.hn && (p.hn === visitRecord.hn || p.HN === visitRecord.hn || p.id === visitRecord.hn)) ||
-            (visitRecord.patient_name && (p.patient_name === visitRecord.patient_name || p.FullName === visitRecord.patient_name))
-        );
+        let pat = null;
+        if (visitRecord.hn && visitRecord.hn !== '-') {
+            pat = (window.allPatients || []).find(p => p.hn === visitRecord.hn || p.HN === visitRecord.hn || p.id === visitRecord.hn);
+        }
+        if (!pat && visitRecord.patient_name && visitRecord.patient_name !== 'ผู้ป่วย') {
+            pat = (window.allPatients || []).find(p => p.patient_name === visitRecord.patient_name || p.FullName === visitRecord.patient_name);
+        }
         if (pat && (pat.referrer || pat.ref_code || pat.referred_by)) {
             referrerId = pat.referrer || pat.ref_code || pat.referred_by;
         }
@@ -18153,6 +18639,11 @@ function previewLabFile(input) {
 
 // 1. ฟังก์ชันเปิด Modal ตรวจหลอดเลือด พร้อมดึงข้อมูลจาก Database หรือใช้ข้อมูลจำลอง (Mock Data)
 async function openVascularCheckModal(targetVisitId) {
+    // ปิดหน้าต่าง Swal รายงานผลตรวจก่อน (หากเปิดค้างอยู่) เพื่อให้ Modal แก้ไขขึ้นมาด้านหน้าทันที
+    if (typeof Swal !== 'undefined' && Swal.isVisible()) {
+        Swal.close();
+    }
+
     const visitId = targetVisitId || document.getElementById('uploadVisitId')?.value || document.getElementById('vascVisitId')?.value || '';
 
     // ล้างค่าเก่าในฟอร์ม
@@ -18240,7 +18731,38 @@ async function openVascularCheckModal(targetVisitId) {
     if (elRef) elRef.innerText = patientData.referred_by || '-';
 
     const elDoc = document.getElementById('vascDoctor');
-    if (elDoc) elDoc.innerText = patientData.doctor_name || patientData.patient_name || '-';
+    if (elDoc) elDoc.innerText = patientData.doctor_name || '-';
+
+    const elDocInput = document.getElementById('vascDoctorInput');
+    if (elDocInput) {
+        elDocInput.value = (patientData.doctor_name && patientData.doctor_name !== '-') ? patientData.doctor_name : '';
+    }
+
+    // 🌟 โหลดรายชื่อแพทย์ลง datalist เพื่อให้เลือกง่ายหรือพิมพ์เองได้
+    try {
+        const dl = document.getElementById('vascDoctorDatalist');
+        if (dl) {
+            dl.innerHTML = '';
+            let docList = [];
+            if (typeof _supabase !== 'undefined') {
+                const { data: dUsers } = await _supabase.from('staff_users').select('full_name, emp_code').in('role', ['doctor', 'แพทย์']);
+                if (dUsers && dUsers.length > 0) {
+                    docList = dUsers.map(d => d.full_name || d.emp_code).filter(Boolean);
+                }
+            }
+            if (docList.length === 0 && window.clinicDoctors && Array.isArray(window.clinicDoctors)) {
+                docList = window.clinicDoctors.map(d => d.name || d.full_name).filter(Boolean);
+            }
+            if (!docList.includes('Soulsakhone DOUNGVIENGXAY')) docList.push('Soulsakhone DOUNGVIENGXAY');
+            docList.forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                dl.appendChild(opt);
+            });
+        }
+    } catch (e) {
+        console.warn('Populate doctor datalist error:', e);
+    }
 
     const elTemp = document.getElementById('vascTemp');
     if (elTemp) elTemp.innerText = patientData.temp ? patientData.temp + ' °C' : '-';
@@ -18295,10 +18817,531 @@ async function openVascularCheckModal(targetVisitId) {
     }
 }
 
-// 2. ฟังก์ชันบันทึกข้อมูลตรวจหลอดเลือด (ให้ไปลงคอลัมน์ "ผลตรวจทั้งหมด")
+// =========================================================================
+// 🌟 ระบบรายงานและส่งออก PDF ตรวจหลอดเลือด (Vascular Examination PDF Export)
+// =========================================================================
+
+// สร้าง HTML สำหรับใบรายงานผลการตรวจหลอดเลือด A4 พร้อมพิมพ์ / Export PDF (ພາສາລາວທັງໝົດ)
+function generateVascularReportHtmlContent(patientData, checkedLevels, notes) {
+    function renderLevelCell(lvl, selectedList) {
+        const isChecked = selectedList.includes(String(lvl));
+        if (isChecked) {
+            return `
+                <td style="width: 20%; background: #0b3c73; border: 2px solid #0284c7; border-radius: 6px; padding: 10px 4px; text-align: center; color: #ffffff;">
+                    <div style="font-size: 15px; font-weight: 700;">✓ ລະດັບ ${lvl}</div>
+                    <div style="font-size: 10px; color: #bae6fd; margin-top: 2px; font-weight: 500;">ກວດພົບ (Detected)</div>
+                </td>
+            `;
+        } else {
+            return `
+                <td style="width: 20%; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 4px; text-align: center; color: #94a3b8;">
+                    <div style="font-size: 14px; font-weight: 600;">ລະດັບ ${lvl}</div>
+                    <div style="font-size: 10px; color: #cbd5e1; margin-top: 2px;">ປົກກະຕິ (Normal)</div>
+                </td>
+            `;
+        }
+    }
+
+    const row1 = [1, 2, 3, 4, 5].map(lvl => renderLevelCell(lvl, checkedLevels)).join('');
+    const row2 = [6, 7, 8, 9, 10].map(lvl => renderLevelCell(lvl, checkedLevels)).join('');
+    const detectedText = checkedLevels.length > 0 ? `ລະດັບ ${checkedLevels.join(', ')}` : 'ປົກກະຕິ / ບໍ່ພົບຄວາມຜິດປົກກະຕິ';
+
+    // ວັນທີພາສາລາວ (ປີ ຄ.ສ.)
+    const now = new Date();
+    const laoMonths = ['ມັງກອນ', 'ກຸມພາ', 'ມີນາ', 'ເມສາ', 'ພຶດສະພາ', 'ມິຖຸນາ', 'ກໍລະກົດ', 'ສິງຫາ', 'ກັນຍາ', 'ຕຸລາ', 'ພະຈິກ', 'ທັນວາ'];
+    const dateStr = `${now.getDate()} ${laoMonths[now.getMonth()]} ${now.getFullYear()}`;
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    // ຈັດການຊື່ທ່ານໝໍ ຫາກບໍ່ມີ ບໍ່ໃຫ້ສະແດງ (-)
+    const rawDoc = (patientData.doctor_name || '').trim();
+    const hasValidDoctor = rawDoc && rawDoc !== '-' && rawDoc !== 'null' && rawDoc !== 'undefined';
+    const cleanDoctorName = hasValidDoctor ? rawDoc : '-';
+    const docSignatureText = hasValidDoctor ? `( ${rawDoc} )` : `( .................................................. )`;
+
+    // ຈັດການສະແດງອາຍຸ
+    let patientAgeDisplay = '-';
+    if (patientData.age && String(patientData.age).trim() !== '' && String(patientData.age).trim() !== '-') {
+        const rawAge = String(patientData.age).trim();
+        patientAgeDisplay = rawAge.includes('ປີ') ? rawAge : `${rawAge} ປີ`;
+    }
+
+    return `
+    <div style="font-family: 'Noto Sans Lao', 'Kanit', sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto; color: #1e293b; background: #ffffff; width: 100%; box-sizing: border-box;">
+        <!-- HEADER -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px;">
+            <tr>
+                <td style="vertical-align: middle; width: 62%;">
+                    <div style="font-size: 22px; font-weight: 700; color: #0b3c73; line-height: 1.2;">LOVE STK CLINIC</div>
+                    <div style="font-size: 12.5px; font-weight: 600; color: #0284c7; letter-spacing: 0.5px; margin-top: 2px;">LONGEVITY & WELLNESS MEDICAL CENTER</div>
+                    <div style="font-size: 12px; color: #475569; margin-top: 4px; font-weight: 500;">ຜົນກວດເສັ້ນເລືອດ (Vascular Examination Report)</div>
+                </td>
+                <td style="vertical-align: middle; text-align: right; width: 38%;">
+                    <div style="display: inline-block; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 14px; text-align: left; font-size: 11.5px; line-height: 1.5;">
+                        <div><strong style="color: #475569;">ລະຫັດ VISIT:</strong> <span style="color: #0b3c73; font-weight: 700; font-size: 12.5px;">${patientData.visit_id || '-'}</span></div>
+                        <div><strong style="color: #475569;">ລະຫັດຄົນເຈັບ (HN):</strong> <span style="font-weight: 700; color: #0284c7;">${patientData.hn || '-'}</span></div>
+                        <div><strong style="color: #475569;">ວັນທີກວດ:</strong> <span style="color: #334155;">${dateStr} ${timeStr} ໂມງ</span></div>
+                    </div>
+                </td>
+            </tr>
+        </table>
+
+        <!-- DIVIDER GRADIENT -->
+        <div style="height: 3px; background: linear-gradient(90deg, #0b3c73 0%, #0284c7 50%, #38bdf8 100%); margin-bottom: 14px; border-radius: 2px;"></div>
+
+        <!-- PATIENT INFO CARD (ຕັດ HN ອອກ ແລະ ເພີ່ມ ອາຍຸ, ບ້ານ, ເມືອງ, ແຂວງ) -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; font-size: 12.5px;">
+            <tr>
+                <td colspan="4" style="background: #e2e8f0; padding: 6px 12px; font-weight: 700; color: #0b3c73; font-size: 13px;">
+                    <span style="color: #0b3c73; font-weight: bold; margin-right: 4px;">●</span> ຂໍ້ມູນຄົນເຈັບ (Patient Information)
+                </td>
+            </tr>
+            <tr>
+                <td colspan="3" style="padding: 8px 12px; width: 75%; border-bottom: 1px solid #f1f5f9;">
+                    <span style="color: #64748b;">ຊື່ ແລະ ນາມສະກຸນ:</span> <strong style="color: #0f172a; font-size: 13.5px;">${patientData.patient_name || '-'}</strong>
+                </td>
+                <td style="padding: 8px 12px; width: 25%; border-bottom: 1px solid #f1f5f9;">
+                    <span style="color: #64748b;">ອາຍຸ:</span> <strong style="color: #0f172a; font-size: 13px;">${patientAgeDisplay}</strong>
+                </td>
+            </tr>
+            <tr>
+                <td style="padding: 8px 12px; width: 33.33%; border-bottom: 1px solid #f1f5f9;">
+                    <span style="color: #64748b;">ບ້ານ:</span> <strong style="color: #0f172a;">${patientData.village || '-'}</strong>
+                </td>
+                <td style="padding: 8px 12px; width: 33.33%; border-bottom: 1px solid #f1f5f9;">
+                    <span style="color: #64748b;">ເມືອງ:</span> <strong style="color: #0f172a;">${patientData.district || '-'}</strong>
+                </td>
+                <td colspan="2" style="padding: 8px 12px; width: 33.34%; border-bottom: 1px solid #f1f5f9;">
+                    <span style="color: #64748b;">ແຂວງ:</span> <strong style="color: #0f172a;">${patientData.province || '-'}</strong>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="4" style="padding: 8px 12px;">
+                    <span style="color: #64748b;">ທ່ານໝໍຜູ້ກວດ:</span> <strong style="color: #0284c7;">${cleanDoctorName}</strong>
+                </td>
+            </tr>
+        </table>
+
+        <!-- VITAL SIGNS CARD (ສັນຍານຊີບ & ອາການເບື້ອງຕົ້ນ) -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 14px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; font-size: 12px;">
+            <tr>
+                <td colspan="4" style="background: #f1f5f9; padding: 6px 12px; font-weight: 700; color: #0284c7; font-size: 13px;">
+                    <span style="color: #0284c7; font-weight: bold; margin-right: 4px;">●</span> ສັນຍານຊີບ & ອາການເບື້ອງຕົ້ນ (Vital Signs & Physical Status)
+                </td>
+            </tr>
+            <tr>
+                <td style="padding: 7px 10px; width: 25%; border: 1px solid #f1f5f9;">
+                    <span style="color: #64748b;">ອຸນຫະພູມ:</span> <strong style="color: #0f172a;">${patientData.temp || '-'}</strong>
+                </td>
+                <td style="padding: 7px 10px; width: 25%; border: 1px solid #f1f5f9;">
+                    <span style="color: #64748b;">ຄວາມດັນເລືອດ (BP):</span> <strong style="color: #0f172a;">${patientData.bp || '-'}</strong>
+                </td>
+                <td style="padding: 7px 10px; width: 25%; border: 1px solid #f1f5f9;">
+                    <span style="color: #64748b;">ກຳມະຈອນ:</span> <strong style="color: #0f172a;">${patientData.pulse || '-'}</strong>
+                </td>
+                <td style="padding: 7px 10px; width: 25%; border: 1px solid #f1f5f9;">
+                    <span style="color: #64748b;">SpO2:</span> <strong style="color: #0f172a;">${patientData.spo2 || '-'}</strong>
+                </td>
+            </tr>
+            <tr>
+                <td style="padding: 7px 10px; border: 1px solid #f1f5f9;">
+                    <span style="color: #64748b;">ນ້ຳໜັກ:</span> <strong style="color: #0f172a;">${patientData.weight || '-'}</strong>
+                </td>
+                <td style="padding: 7px 10px; border: 1px solid #f1f5f9;">
+                    <span style="color: #64748b;">ລວງສູງ:</span> <strong style="color: #0f172a;">${patientData.height || '-'}</strong>
+                </td>
+                <td style="padding: 7px 10px; border: 1px solid #f1f5f9;">
+                    <span style="color: #64748b;">BMI:</span> <strong style="color: #0f172a;">${patientData.bmi || '-'}</strong>
+                </td>
+                <td style="padding: 7px 10px; border: 1px solid #f1f5f9;">
+                    <span style="color: #64748b;">ອາການເບື້ອງຕົ້ນ:</span> <strong style="color: #0f172a;">${patientData.symptom || '-'}</strong>
+                </td>
+            </tr>
+        </table>
+
+        <!-- VASCULAR LEVELS 1-10 (ຜົນການກວດວິເຄາະລະດັບເສັ້ນເລືອດ) -->
+        <div style="margin-bottom: 6px; font-weight: 700; color: #0b3c73; font-size: 13.5px;">
+            <span style="color: #0b3c73; font-weight: bold; margin-right: 4px;">●</span> ຜົນການກວດວິເຄາະລະດັບເສັ້ນເລືອດ (Vascular Microcirculation Analysis)
+        </div>
+        <table style="width: 100%; border-collapse: separate; border-spacing: 5px; margin-bottom: 12px;">
+            <tr>${row1}</tr>
+            <tr>${row2}</tr>
+        </table>
+
+        <!-- SUMMARY OF DETECTED LEVELS -->
+        <div style="background: #e0f2fe; border: 1px solid #bae6fd; border-left: 5px solid #0284c7; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px;">
+            <span style="color: #0369a1; font-weight: 600;">ລະດັບເສັ້ນເລືອດທີ່ກວດພົບ:</span>
+            <span style="color: #0b3c73; font-weight: 700; font-size: 14px; margin-left: 6px;">${detectedText}</span>
+        </div>
+
+        <!-- DOCTOR'S RECOMMENDATIONS (ຄຳແນະນຳຂອງທ່ານໝໍ) -->
+        <div style="margin-bottom: 6px; font-weight: 700; color: #0b3c73; font-size: 13.5px;">
+            <span style="color: #0b3c73; font-weight: bold; margin-right: 4px;">●</span> ຄຳແນະນຳຂອງທ່ານໝໍ (Doctor's Recommendations & Clinical Advice)
+        </div>
+        <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 14px; min-height: 75px; font-size: 12.5px; line-height: 1.6; color: #1e293b; margin-bottom: 24px; white-space: pre-wrap;">
+            ${notes || 'ບໍ່ມີຂໍ້ກຳນົດເພີ່ມເຕີມຈາກທ່ານໝໍ'}
+        </div>
+
+        <!-- SIGNATURE FOOTER (ຊ່ອນຂໍ້ຄວາມລະບົບດ້ານຊ້າຍ ແລະ ປັບແຖບລາຍເຊັນບໍ່ໃຫ້ຕິດ (-)) -->
+        <table style="width: 100%; border-collapse: collapse; margin-top: 25px; font-size: 12px;">
+            <tr>
+                <td style="width: 55%; vertical-align: bottom;">
+                    <!-- ຊ່ອນຂໍ້ຄວາມລະບົບດ້ານຊ້າຍຕາມທີ່ວົງສີແດງ -->
+                </td>
+                <td style="width: 45%; text-align: center; vertical-align: top;">
+                    <div style="border-bottom: 1px dotted #94a3b8; width: 200px; margin: 0 auto 8px auto; height: 35px;"></div>
+                    <div style="font-weight: 600; color: #0f172a; font-size: 12.5px;">${docSignatureText}</div>
+                    <div style="color: #64748b; font-size: 11px; margin-top: 2px;">ທ່ານໝໍຜູ້ກວດ / ຜູ້ລາຍງານຜົນ</div>
+                    <div style="color: #94a3b8; font-size: 10.5px; margin-top: 2px;">ວັນທີ: ${dateStr}</div>
+                </td>
+            </tr>
+        </table>
+    </div>
+    `;
+}
+
+// 🌟 ดึงและรวบรวมข้อมูลสำหรับจัดทำรายงานผลตรวจหลอดเลือด
+async function getVascularPatientData(visitId) {
+    let patientData = {
+        visit_id: visitId,
+        hn: '-',
+        patient_name: '-',
+        age: '',
+        village: '',
+        district: '',
+        province: '',
+        referred_by: '-',
+        doctor_name: '-',
+        temp: '-',
+        bp: '-',
+        pulse: '-',
+        spo2: '-',
+        weight: '-',
+        height: '-',
+        bmi: '-',
+        symptom: '-'
+    };
+    let checkedLevels = [];
+    let notes = '';
+
+    // 1. ดึงจากหน้า Modal (หากเปิดอยู่)
+    const modalEl = document.getElementById('vascularCheckModal');
+    if (modalEl && modalEl.classList.contains('show')) {
+        patientData.hn = document.getElementById('vascHN')?.innerText || patientData.hn;
+        patientData.patient_name = document.getElementById('vascPatientName')?.innerText || patientData.patient_name;
+        patientData.referred_by = document.getElementById('vascReferredBy')?.innerText || patientData.referred_by;
+        const currentDocInput = document.getElementById('vascDoctorInput')?.value.trim();
+        patientData.doctor_name = currentDocInput || document.getElementById('vascDoctor')?.innerText || patientData.doctor_name;
+        patientData.temp = document.getElementById('vascTemp')?.innerText || patientData.temp;
+        patientData.bp = document.getElementById('vascBP')?.innerText || patientData.bp;
+        patientData.pulse = document.getElementById('vascPulse')?.innerText || patientData.pulse;
+        patientData.spo2 = document.getElementById('vascSpo2')?.innerText || patientData.spo2;
+        patientData.weight = document.getElementById('vascWeight')?.innerText || patientData.weight;
+        patientData.height = document.getElementById('vascHeight')?.innerText || patientData.height;
+        patientData.bmi = document.getElementById('vascBMI')?.innerText || patientData.bmi;
+        patientData.symptom = document.getElementById('vascSymptom')?.innerText || patientData.symptom;
+
+        checkedLevels = Array.from(document.querySelectorAll('input[name="vascLevel"]:checked')).map(cb => cb.value);
+        notes = document.getElementById('vascNotes')?.value.trim() || '';
+    }
+
+    // 2. ดึงจาก LocalStorage Cache
+    try {
+        const cachedMap = JSON.parse(localStorage.getItem('clinic_vascular_results') || '{}');
+        const cVasc = cachedMap[visitId];
+        if (cVasc) {
+            if (checkedLevels.length === 0 && Array.isArray(cVasc.checkedLevels)) checkedLevels = cVasc.checkedLevels;
+            if (!notes && cVasc.notes) notes = cVasc.notes;
+        }
+    } catch (e) { }
+
+    // 3. ดึงจาก memory cache (window.labQueueData หรือ window.labRowCache)
+    if (window.labQueueData && Array.isArray(window.labQueueData)) {
+        const row = window.labQueueData.find(r => r.visit_id === visitId);
+        if (row) {
+            if (row.hn) patientData.hn = row.hn;
+            if (row.patient_name) patientData.patient_name = row.patient_name;
+            if (row.age) patientData.age = row.age;
+            if (row.village) patientData.village = row.village;
+            if (row.district) patientData.district = row.district;
+            if (row.province) patientData.province = row.province;
+            if (row.referred_by) patientData.referred_by = row.referred_by;
+            if (row.doctor_name || row.doctor) patientData.doctor_name = row.doctor_name || row.doctor;
+            if (row.temp) patientData.temp = row.temp + ' °C';
+            if (row.bp) patientData.bp = row.bp + ' mmHg';
+            if (row.pulse) patientData.pulse = row.pulse + ' ຄັ້ງ/ນາທີ';
+            if (row.spo2) patientData.spo2 = row.spo2 + ' %';
+            if (row.weight) patientData.weight = row.weight + ' ກກ.';
+            if (row.height) patientData.height = row.height + ' ຊມ.';
+            if (row.bmi) patientData.bmi = row.bmi;
+            if (row.symptom) patientData.symptom = row.symptom;
+
+            if (checkedLevels.length === 0 && row.lab_note && row.lab_note.includes('[ผลตรวจหลอดเลือด]')) {
+                const noteStr = row.lab_note.substring(row.lab_note.indexOf('[ผลตรวจหลอดเลือด]'));
+                const matchLevels = noteStr.match(/ระดับที่พบ:\s*([^\n]+)/);
+                if (matchLevels && matchLevels[1]) {
+                    checkedLevels = matchLevels[1].split(',').map(s => s.trim()).filter(Boolean);
+                }
+                const matchAdvice = noteStr.match(/คำแนะนำแพทย์:\s*([\s\S]+)/);
+                if (matchAdvice && matchAdvice[1] && matchAdvice[1].trim() !== '-') {
+                    notes = matchAdvice[1].trim();
+                }
+            }
+        }
+    }
+
+    // 4. ดึงสดจาก Supabase DB visits table
+    if (typeof _supabase !== 'undefined') {
+        try {
+            const { data: vData } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
+            if (vData) {
+                if (vData.hn) patientData.hn = vData.hn;
+                if (vData.patient_name) patientData.patient_name = vData.patient_name;
+                if (vData.age) patientData.age = vData.age;
+                if (vData.village) patientData.village = vData.village;
+                if (vData.district) patientData.district = vData.district;
+                if (vData.province) patientData.province = vData.province;
+                if (vData.referred_by) patientData.referred_by = vData.referred_by;
+                if (vData.doctor_name || vData.doctor) patientData.doctor_name = vData.doctor_name || vData.doctor;
+                if (vData.temp) patientData.temp = vData.temp + ' °C';
+                if (vData.bp) patientData.bp = vData.bp + ' mmHg';
+                if (vData.pulse) patientData.pulse = vData.pulse + ' ຄັ້ງ/ນາທີ';
+                if (vData.spo2) patientData.spo2 = vData.spo2 + ' %';
+                if (vData.weight) patientData.weight = vData.weight + ' ກກ.';
+                if (vData.height) patientData.height = vData.height + ' ຊມ.';
+                if (vData.bmi) patientData.bmi = vData.bmi;
+                if (vData.symptom) patientData.symptom = vData.symptom;
+
+                // ดึงผลตรวจและคำแนะนำจาก lab_note หากยังไม่มีระดับ
+                if (checkedLevels.length === 0 && vData.lab_note && vData.lab_note.includes('[ผลตรวจหลอดเลือด]')) {
+                    const noteStr = vData.lab_note.substring(vData.lab_note.indexOf('[ผลตรวจหลอดเลือด]'));
+                    const matchLevels = noteStr.match(/ระดับที่พบ:\s*([^\n]+)/);
+                    if (matchLevels && matchLevels[1]) {
+                        checkedLevels = matchLevels[1].split(',').map(s => s.trim()).filter(Boolean);
+                    }
+                    const matchAdvice = noteStr.match(/คำแนะนำแพทย์:\s*([\s\S]+)/);
+                    if (matchAdvice && matchAdvice[1] && matchAdvice[1].trim() !== '-') {
+                        notes = matchAdvice[1].trim();
+                    }
+                }
+            }
+        } catch (dbErr) {
+            console.warn('Fetch visit for vascular report error:', dbErr);
+        }
+    }
+
+    // 5. ดึงข้อมูลคนไข้ (อายุ, บ้าน, เมือง, แขวง) จากทะเบียนผู้ป่วย patients
+    // โดยค้นหาจาก HN เป็นหลัก (ถ้าไม่มี HN ให้ค้นจากชื่อผู้ป่วย)
+    if (window.allPatients && Array.isArray(window.allPatients)) {
+        const pat = window.allPatients.find(p => (patientData.hn && patientData.hn !== '-' && p.hn === patientData.hn) || (patientData.patient_name && patientData.patient_name !== '-' && p.patient_name === patientData.patient_name));
+        if (pat) {
+            if (!patientData.age && pat.age) patientData.age = pat.age;
+            if (!patientData.age && pat.dob) {
+                const bYear = new Date(pat.dob).getFullYear();
+                if (!isNaN(bYear)) patientData.age = new Date().getFullYear() - bYear;
+            }
+            if (!patientData.village && pat.village) patientData.village = pat.village;
+            if (!patientData.district && pat.district) patientData.district = pat.district;
+            if (!patientData.province && pat.province) patientData.province = pat.province;
+            if ((!patientData.referred_by || patientData.referred_by === '-') && pat.referred_by) {
+                patientData.referred_by = pat.referred_by;
+            }
+        }
+    }
+
+    // ดึงสดจาก Supabase patients table เพื่อความครบถ้วน 100%
+    if (typeof _supabase !== 'undefined') {
+        try {
+            let pDb = null;
+            if (patientData.hn && patientData.hn !== '-') {
+                const { data } = await _supabase.from('patients').select('age, dob, village, district, province, patient_name, referred_by').eq('hn', patientData.hn).maybeSingle();
+                pDb = data;
+            }
+            if (!pDb && patientData.patient_name && patientData.patient_name !== '-') {
+                const { data } = await _supabase.from('patients').select('age, dob, village, district, province, patient_name, referred_by').eq('patient_name', patientData.patient_name).maybeSingle();
+                pDb = data;
+            }
+            if (pDb) {
+                if (!patientData.age && pDb.age) patientData.age = pDb.age;
+                if (!patientData.age && pDb.dob) {
+                    const bYear = new Date(pDb.dob).getFullYear();
+                    if (!isNaN(bYear)) patientData.age = new Date().getFullYear() - bYear;
+                }
+                if (!patientData.village && pDb.village) patientData.village = pDb.village;
+                if (!patientData.district && pDb.district) patientData.district = pDb.district;
+                if (!patientData.province && pDb.province) patientData.province = pDb.province;
+                if ((!patientData.referred_by || patientData.referred_by === '-') && pDb.referred_by) {
+                    patientData.referred_by = pDb.referred_by;
+                }
+                if (pDb.patient_name && (!patientData.patient_name || patientData.patient_name === '-')) {
+                    patientData.patient_name = pDb.patient_name;
+                }
+            }
+        } catch (pe) {
+            console.warn('Fetch patient details for vascular report error:', pe);
+        }
+    }
+
+    // 6. Fallback ดึงผู้แนะนำจาก Local Cache Map
+    if ((!patientData.referred_by || patientData.referred_by === '-') && patientData.hn && window.patientReferrersMap && window.patientReferrersMap[patientData.hn]) {
+        patientData.referred_by = window.patientReferrersMap[patientData.hn];
+    }
+
+    return { patientData, checkedLevels, notes };
+}
+
+// 🌟 ฟังก์ชันพิมพ์ / บันทึกเอกสารเป็น PDF คุณภาพสูง (Vector PDF 100% ພາສາລາວ)
+async function printVascularReportDoc(visitId) {
+    let htmlContent = '';
+    const printArea = document.getElementById('vascularPrintArea');
+    if (printArea) {
+        htmlContent = printArea.innerHTML;
+    }
+    if (!htmlContent) {
+        const { patientData, checkedLevels, notes } = await getVascularPatientData(visitId);
+        htmlContent = generateVascularReportHtmlContent(patientData, checkedLevels, notes);
+    }
+
+    const printWin = window.open('', '_blank', 'width=880,height=950');
+    if (printWin) {
+        printWin.document.open();
+        printWin.document.write(`<!DOCTYPE html>
+        <html>
+        <head>
+            <title>Vascular_Report_${visitId}</title>
+            <meta charset="UTF-8">
+            <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700&family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+            <style>
+                * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                body { font-family: 'Noto Sans Lao', 'Kanit', sans-serif; color: #1e293b; background: #fff; padding: 15px; }
+                @media print {
+                    body { padding: 0; background: #fff; }
+                    @page { size: A4 portrait; margin: 8mm; }
+                }
+            </style>
+        </head>
+        <body>
+            ${htmlContent}
+            <script>
+                window.onload = function() {
+                    window.focus();
+                    setTimeout(function() {
+                        window.print();
+                    }, 350);
+                };
+            <\/script>
+        </body>
+        </html>`);
+        printWin.document.close();
+    } else {
+        // Fallback พิมพ์ผ่าน iframe หากเบราว์เซอร์บล็อก popup
+        let printFrame = document.getElementById('printVascularIframe');
+        if (!printFrame) {
+            printFrame = document.createElement('iframe');
+            printFrame.id = 'printVascularIframe';
+            printFrame.style.position = 'fixed';
+            printFrame.style.right = '0';
+            printFrame.style.bottom = '0';
+            printFrame.style.width = '0';
+            printFrame.style.height = '0';
+            printFrame.style.border = 'none';
+            document.body.appendChild(printFrame);
+        }
+        const doc = printFrame.contentWindow.document;
+        doc.open();
+        doc.write(`<!DOCTYPE html><html><head><title>Vascular Report - ${visitId}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700&family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        <style>
+            * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            body { font-family: 'Noto Sans Lao', 'Kanit', sans-serif; padding: 15px; }
+            @media print { body { padding: 0; } @page { size: A4 portrait; margin: 8mm; } }
+        </style></head><body>${htmlContent}</body></html>`);
+        doc.close();
+        setTimeout(() => {
+            printFrame.contentWindow.focus();
+            printFrame.contentWindow.print();
+        }, 500);
+    }
+}
+window.printVascularReportDoc = printVascularReportDoc;
+
+// 🌟 ฟังก์ชันหลัก: เปิด Pop-up แสดงตัวอย่างเอกสารรายงานผลตรวจหลอดเลือดบนหน้าจอทันที
+async function openVascularReportPopup(visitId) {
+    if (!visitId) {
+        visitId = document.getElementById('vascVisitId')?.value || '';
+    }
+    if (!visitId) {
+        Swal.fire('ຂໍ້ຜິດພາດ', 'ບໍ່ພົບລະຫັດ VISIT ສຳລັບເປີດເບິ່ງລາຍງານ', 'warning');
+        return;
+    }
+
+    Swal.fire({
+        title: 'ກຳລັງກຽມເອກະສານລາຍງານ...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    const { patientData, checkedLevels, notes } = await getVascularPatientData(visitId);
+    const htmlContent = generateVascularReportHtmlContent(patientData, checkedLevels, notes);
+
+    // แสดงหน้าต่าง Pop-up สวยงาม ชัดเจน บนหน้าจอทันที
+    Swal.fire({
+        title: '',
+        html: `
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge fs-6 px-3 py-2 text-white" style="background-color: #0b3c73 !important;">
+                        <i class="bi bi-file-earmark-medical me-1"></i> ຜົນກວດເສັ້ນເລືອດ
+                    </span>
+                    <span class="text-secondary small">ລະຫັດ VISIT: <strong>${visitId}</strong></span>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm fw-semibold" onclick="editVascularFromReport('${visitId}')">
+                        <i class="bi bi-pencil-square me-1"></i> ແກ້ໄຂຜົນກວດ
+                    </button>
+                    <button type="button" class="btn btn-primary btn-sm fw-bold px-3 shadow-sm text-white" style="background-color: #0b3c73; border-color: #0b3c73;" onclick="printVascularReportDoc('${visitId}')">
+                        <i class="bi bi-printer-fill me-1"></i> ພິມ / ບັນທຶກເປັນ PDF
+                    </button>
+                    <button type="button" class="btn btn-light btn-sm border px-2" title="ປິດ" onclick="Swal.close()">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="vascularPrintArea" class="bg-white border rounded-3 p-4 text-start shadow-sm" style="max-height: 72vh; overflow-y: auto; color: #1e293b;">
+                ${htmlContent}
+            </div>
+        `,
+        width: '900px',
+        padding: '1.25rem',
+        showCloseButton: false,
+        showConfirmButton: false,
+        showDenyButton: false,
+        showCancelButton: true,
+        cancelButtonColor: '#64748b',
+        cancelButtonText: 'ປິດໜ້າຕ່າງ',
+        customClass: {
+            popup: 'rounded-4 shadow-lg'
+        }
+    });
+}
+window.openVascularReportPopup = openVascularReportPopup;
+window.exportVascularCheckPdf = openVascularReportPopup; // ผูกเป็น Alias เพื่อให้ทุกปุ่มเปิด Pop-up ได้ทันที
+
+// ฟังก์ชันเปิด Modal แก้ไขผลตรวจหลอดเลือด โดยปิด Pop-up รายงานก่อนและนำ Modal ขึ้นมาด้านหน้าทันที
+function editVascularFromReport(visitId) {
+    if (typeof Swal !== 'undefined') {
+        Swal.close();
+    }
+    setTimeout(() => {
+        openVascularCheckModal(visitId);
+    }, 150);
+}
+window.editVascularFromReport = editVascularFromReport;
+
+// 2. ฟังก์ชันบันทึกข้อมูลตรวจหลอดเลือด (บันทึกเสร็จ เปิด Pop-up แสดงรายงานทันที)
 async function submitVascularCheck() {
     const visitId = document.getElementById('vascVisitId')?.value || '';
     const notes = document.getElementById('vascNotes')?.value.trim() || '';
+    const inputDoctor = document.getElementById('vascDoctorInput')?.value.trim() || '';
 
     // เก็บระดับหลอดเลือดที่ถูกเลือก (1-10)
     const checkedLevels = Array.from(document.querySelectorAll('input[name="vascLevel"]:checked')).map(cb => cb.value);
@@ -18314,6 +19357,7 @@ async function submitVascularCheck() {
                 visitId: visitId,
                 checkedLevels: checkedLevels,
                 notes: notes,
+                doctor_name: inputDoctor,
                 resultText: vascularResultText,
                 updatedAt: new Date().toISOString()
             };
@@ -18334,12 +19378,25 @@ async function submitVascularCheck() {
                     newLabNote = `${cleanDocNote}\n\n${vascularResultText}`;
                 }
             }
+            const updatePayload = {
+                lab_note: newLabNote
+            };
+            if (inputDoctor) {
+                updatePayload.doctor_name = inputDoctor;
+            }
             await _supabase
                 .from('visits')
-                .update({
-                    lab_note: newLabNote
-                })
+                .update(updatePayload)
                 .eq('visit_id', visitId);
+
+            // อัปเดตในหน่วยความจำของหน้าจอทันที
+            if (window.labQueueData && Array.isArray(window.labQueueData)) {
+                const row = window.labQueueData.find(r => r.visit_id === visitId);
+                if (row && inputDoctor) row.doctor_name = inputDoctor;
+            }
+            if (document.getElementById('vascDoctor') && inputDoctor) {
+                document.getElementById('vascDoctor').innerText = inputDoctor;
+            }
         } catch (err) {
             console.warn('อัปเดต Supabase ล้มเหลว:', err);
         }
@@ -18357,15 +19414,7 @@ async function submitVascularCheck() {
         return;
     }
 
-    Swal.fire({
-        icon: 'success',
-        title: 'บันทึกผลวินิจฉัยเรียบร้อยแล้ว',
-        text: 'ผลตรวจหลอดเลือดถูกบันทึกเข้าคอลัมน์ "ผลตรวจทั้งหมด" เรียบร้อยแล้ว',
-        timer: 1800,
-        showConfirmButton: false
-    });
-
-    // ปิด Modal ตรวจหลอดเลือด
+    // ปิด Modal บันทึกผลตรวจ
     const vascularModalEl = document.getElementById('vascularCheckModal');
     if (vascularModalEl) {
         const modal = bootstrap.Modal.getInstance(vascularModalEl);
@@ -18375,75 +19424,17 @@ async function submitVascularCheck() {
     // อัปเดตตารางห้อง Lab ทันทีเพื่อโชว์ปุ่มในคอลัมน์ "ผลตรวจทั้งหมด"
     if (typeof loadLabQueue === 'function') loadLabQueue();
     if (typeof loadQueueList === 'function') loadQueueList();
+
+    // 4. 🌟 แสดง Pop-up ตัวอย่างรายงานผลตรวจหลอดเลือดทันที พร้อมปุ่มพิมพ์ / บันทึก PDF
+    setTimeout(() => {
+        openVascularReportPopup(visitId);
+    }, 300);
 }
 
-// 3. 🌟 ฟังก์ชันสำหรับคลิกดูรายละเอียดผลวินิจฉัยหลอดเลือดจากคอลัมน์ "ผลตรวจทั้งหมด" (รองรับทุกเครื่อง)
+// 3. 🌟 ฟังก์ชันสำหรับคลิกดูรายละเอียดผลวินิจฉัยหลอดเลือดจากคอลัมน์ "ผลตรวจทั้งหมด" (เปิด Pop-up รายงานทันที)
 async function viewVascularResult(visitId) {
-    let resultText = '';
-
-    // 1. ดึงจาก LocalStorage (ถ้ามีในเครื่องนี้)
-    try {
-        const cachedVascularMap = JSON.parse(localStorage.getItem('clinic_vascular_results') || '{}');
-        const cachedVasc = cachedVascularMap[visitId];
-        if (cachedVasc && cachedVasc.resultText) {
-            resultText = cachedVasc.resultText;
-        }
-    } catch (e) { }
-
-    // 2. ดึงจาก memory cache (window.labRowCache)
-    if (!resultText && window.labRowCache && window.labRowCache[visitId] && window.labRowCache[visitId].labNote) {
-        const note = window.labRowCache[visitId].labNote;
-        if (note.includes('[ผลตรวจหลอดเลือด]')) {
-            resultText = note.substring(note.indexOf('[ผลตรวจหลอดเลือด]'));
-        }
-    }
-
-    // 3. ดึงจาก window.allHistoryVisits
-    if (!resultText && window.allHistoryVisits) {
-        const histVisit = window.allHistoryVisits.find(v => v.visit_id === visitId);
-        if (histVisit && histVisit.lab_note && histVisit.lab_note.includes('[ผลตรวจหลอดเลือด]')) {
-            resultText = histVisit.lab_note.substring(histVisit.lab_note.indexOf('[ผลตรวจหลอดเลือด]'));
-        }
-    }
-
-    // 4. 🌟 ดึงสดจาก Supabase DB visits table เพื่อให้เครื่องอื่นๆ เปิดดูได้ 100%
-    if (!resultText && visitId && typeof _supabase !== 'undefined') {
-        try {
-            const { data } = await _supabase.from('visits').select('lab_note').eq('visit_id', visitId).maybeSingle();
-            if (data && data.lab_note && data.lab_note.includes('[ผลตรวจหลอดเลือด]')) {
-                resultText = data.lab_note.substring(data.lab_note.indexOf('[ผลตรวจหลอดเลือด]'));
-            }
-        } catch (e) {
-            console.warn('Fetch vascular note from Supabase error:', e);
-        }
-    }
-
-    // 5. หากไม่มีผลตรวจเดิม ให้เปิดหน้าต่างกรอกผลตรวจใหม่
-    if (!resultText) {
-        openVascularCheckModal(visitId);
-        return;
-    }
-
-    // 6. 🌟 แสดงหน้าต่าง Popup "ผลวินิจฉัยตรวจหลอดเลือด" สวยงามเหมือนกันทุกเครื่อง
-    Swal.fire({
-        title: 'ผลวินิจฉัยตรวจหลอดเลือด',
-        html: `
-            <div class="text-start p-3 bg-light rounded border" style="white-space: pre-line; font-size: 0.95rem; line-height: 1.6;">
-                <div class="fw-bold text-primary mb-2"><i class="bi bi-clipboard-check me-1"></i> รหัส VISIT: ${visitId}</div>
-                ${resultText}
-            </div>
-        `,
-        icon: 'info',
-        showCancelButton: true,
-        confirmButtonColor: '#0b3c73',
-        cancelButtonColor: '#64748b',
-        confirmButtonText: '<i class="bi bi-pencil-square me-1"></i> แก้ไขผลวินิจฉัย',
-        cancelButtonText: 'ปิด'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            openVascularCheckModal(visitId);
-        }
-    });
+    if (!visitId) return;
+    openVascularReportPopup(visitId);
 }
 
 // ===============================================
@@ -19770,15 +20761,13 @@ window.renderTriageHistoryTable = function (page = window.triageHistoryCurrentPa
 
         let vitalsHtml = vitals.join('') || '<span class="text-muted small">ไม่ได้ระบุ</span>';
 
-        const phoneDisplay = row.phone ? `<div class="text-muted small fw-normal mt-0.5"><i class="bi bi-telephone text-primary me-1"></i>${row.phone}</div>` : '';
-
+        // ซ่อนเบอร์โทรเฉพาะตารางประวัติการคัดกรองเบื้องต้นตามที่ผู้ใช้กำหนด (คงไว้เฉพาะชื่อ-นามสกุล)
         tbody.innerHTML += `
             <tr class="border-bottom">
                 <td class="ps-4 fw-bold text-dark align-middle py-2" style="font-size: 0.92rem;">${row.visit_id || '-'}</td>
                 <td class="text-muted align-middle py-2" style="font-size: 0.88rem;">${row.hn || '-'}</td>
                 <td class="align-middle fw-bold text-dark py-2" style="font-size: 0.92rem;">
                     ${row.patient_name || '-'}
-                    ${phoneDisplay}
                 </td>
                 <td class="align-middle py-2">${vitalsHtml}</td>
                 <td class="text-center align-middle py-2">

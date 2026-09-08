@@ -538,8 +538,19 @@
     <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
         <div>
             <div class="text-success fw-bold" style="font-size: 11px; letter-spacing: 1px;">PATIENT DIRECTORY</div>
-            <h3 class="fw-bold mb-1" id="page-patient-title" style="color: #0b3c73;">ຜູ້ປ່ວຍຂອງຂ້ອຍ</h3>
-            <p class="text-muted mb-0" id="page-patient-subtitle" style="font-size: 13px;">ສະແດງສະເພາະຜູ້ປ່ວຍທີ່ທ່ານເປັນຜູ້ລົງທະບຽນ</p>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <h3 class="fw-bold mb-0" id="page-patient-title" style="color: #0b3c73;">ຜູ້ປ່ວຍຂອງຂ້ອຍ</h3>
+                <!-- Toggle Mode สำหรับ Admin สลับดูทั้งหมด หรือเฉพาะของฉัน -->
+                <div id="adminViewToggle" class="btn-group btn-group-sm ms-2 shadow-sm" style="display: none; border-radius: 20px; overflow: hidden;">
+                    <button type="button" class="btn btn-outline-primary btn-sm px-2.5 py-1 active fw-semibold" id="btnAdminViewAll" onclick="setAdminPatientView('all')" style="font-size: 12px;">
+                        <i class="ph ph-globe me-1"></i>ທັງໝົດ (Admin)
+                    </button>
+                    <button type="button" class="btn btn-outline-primary btn-sm px-2.5 py-1 fw-semibold" id="btnAdminViewMy" onclick="setAdminPatientView('my')" style="font-size: 12px;">
+                        <i class="ph ph-user me-1"></i>ສະເພາະຂອງຂ້ອຍ
+                    </button>
+                </div>
+            </div>
+            <p class="text-muted mb-0 mt-1" id="page-patient-subtitle" style="font-size: 13px;">ສະແດງສະເພາະຜູ້ປ່ວຍທີ່ທ່ານເປັນຜູ້ແນະນຳ</p>
         </div>
         
         <!-- Horizontal Tab Navigation & Action Buttons (Modern Minimal) -->
@@ -1197,10 +1208,10 @@
             // ອັບເດດຂໍ້ຄວາມສະແດງຈຳນວນໃນ Subtitle ໃຫ້ຕົງກັບຂໍ້ມູນທີ່ກັ່ນຕອງຈິງ
             const subTitleEl = document.getElementById('page-patient-subtitle');
             if (subTitleEl) {
-                if (isCurrentUserAdmin) {
+                if (isCurrentUserAdmin && currentAdminViewMode === 'all') {
                     subTitleEl.innerHTML = `ສະແດງລາຍຊື່ຜູ້ປ່ວຍ (ສິດທິ Admin) - <strong>${filterLabel}</strong>: ພົບ <strong>${filteredPatientsData.length}</strong> ລາຍການ`;
                 } else {
-                    subTitleEl.innerHTML = `ສະແດງສະເພາະຄົນໄຂ້ຂອງທ່ານ - <strong>${filterLabel}</strong>: ພົບ <strong>${filteredPatientsData.length}</strong> ຄົນ`;
+                    subTitleEl.innerHTML = `ສະແດງສະເພາະຄົນໄຂ້ທີ່ທ່ານເປັນຜູ້ແນະນຳ - <strong>${filterLabel}</strong>: ພົບ <strong>${filteredPatientsData.length}</strong> ຄົນ`;
                 }
             }
 
@@ -1830,23 +1841,72 @@
             }
         }
 
+        let currentAdminViewMode = 'all'; // 'all' หรือ 'my'
+        let rawAllPatients = [];
+        let rawMyPatients = [];
+
+        function setAdminPatientView(mode) {
+            currentAdminViewMode = mode;
+            const btnAll = document.getElementById('btnAdminViewAll');
+            const btnMy = document.getElementById('btnAdminViewMy');
+            if (btnAll && btnMy) {
+                if (mode === 'all') {
+                    btnAll.classList.add('active');
+                    btnMy.classList.remove('active');
+                } else {
+                    btnMy.classList.add('active');
+                    btnAll.classList.remove('active');
+                }
+            }
+
+            if (mode === 'my') {
+                allPatientsData = [...rawMyPatients];
+            } else {
+                allPatientsData = [...rawAllPatients];
+            }
+
+            const titleEl = document.getElementById('page-patient-title');
+            if (titleEl) {
+                if (isCurrentUserAdmin && currentAdminViewMode === 'all') {
+                    titleEl.innerHTML = `ຜູ້ປ່ວຍທັງໝົດ <span class="badge bg-danger-subtle text-danger fs-6 fw-semibold px-2.5 py-1 ms-1" style="border-radius:8px;"><i class="ph ph-shield-check me-1"></i>Admin Mode</span>`;
+                } else {
+                    titleEl.innerHTML = `ຜູ້ປ່ວຍຂອງຂ້ອຍ <span class="badge bg-primary-subtle text-primary fs-6 fw-semibold px-2.5 py-1 ms-1" style="border-radius:8px;"><i class="ph ph-user me-1"></i>${currentUserNameGlobal || 'ສະເພາະຂອງຂ້ອຍ'}</span>`;
+                }
+            }
+
+            applyFilters();
+        }
+
         // ฟังการตอบกลับจาก function.js (parent)
         window.addEventListener('message', function(event) {
             if (event.data && event.data.type === 'PATIENTS_DATA') {
                 const wasManualRefresh = isRefreshing;
-                const patients = event.data.patients || [];
-                allPatientsData = patients;
-
-                currentUserNameGlobal = event.data.currentUserName || '';
+                rawAllPatients = event.data.allPatients || event.data.patients || [];
+                rawMyPatients = event.data.myPatients || [];
                 isCurrentUserAdmin = !!event.data.isAdmin;
+
+                const userCode = event.data.currentUserCode || '';
+                const userName = event.data.currentUserName || '';
+                const displayUser = userCode ? `${userCode} - ${userName}` : userName;
+                currentUserNameGlobal = displayUser;
+
+                const toggleEl = document.getElementById('adminViewToggle');
+                if (toggleEl) {
+                    toggleEl.style.display = isCurrentUserAdmin ? 'inline-flex' : 'none';
+                }
+
+                if (isCurrentUserAdmin) {
+                    allPatientsData = currentAdminViewMode === 'my' ? [...rawMyPatients] : [...rawAllPatients];
+                } else {
+                    allPatientsData = [...(event.data.patients || rawMyPatients)];
+                }
+
                 const titleEl = document.getElementById('page-patient-title');
                 if (titleEl) {
-                    if (isCurrentUserAdmin) {
+                    if (isCurrentUserAdmin && currentAdminViewMode === 'all') {
                         titleEl.innerHTML = `ຜູ້ປ່ວຍທັງໝົດ <span class="badge bg-danger-subtle text-danger fs-6 fw-semibold px-2.5 py-1 ms-1" style="border-radius:8px;"><i class="ph ph-shield-check me-1"></i>Admin Mode</span>`;
                     } else {
-                        titleEl.innerHTML = currentUserNameGlobal 
-                            ? `ຜູ້ປ່ວຍຂອງຂ້ອຍ <span class="badge bg-primary-subtle text-primary fs-6 fw-semibold px-2.5 py-1 ms-1" style="border-radius:8px;"><i class="ph ph-user me-1"></i>${currentUserNameGlobal}</span>`
-                            : `ຜູ້ປ່ວຍຂອງຂ້ອຍ`;
+                        titleEl.innerHTML = `ຜູ້ປ່ວຍຂອງຂ້ອຍ <span class="badge bg-primary-subtle text-primary fs-6 fw-semibold px-2.5 py-1 ms-1" style="border-radius:8px;"><i class="ph ph-user me-1"></i>${displayUser || 'ສະເພາະຂອງຂ້ອຍ'}</span>`;
                     }
                 }
 
@@ -1856,7 +1916,7 @@
                     try { storedHn = localStorage.getItem('selected_timeline_hn'); } catch(e) {}
                     const targetHn = event.data.targetHn || urlParams.get('hn') || storedHn;
                     if (targetHn) {
-                        const target = patients.find(p => p.hn === targetHn);
+                        const target = allPatientsData.find(p => p.hn === targetHn);
                         if (target) currentSelectedPatient = target;
                     }
 

@@ -4482,9 +4482,20 @@
                             </div>
                         </div>
                         <div id="histLabFilesContent" class="mt-2 pt-2 border-top" style="display: none;">
-                            <small class="fw-bold text-muted d-block mb-1"><i
-                                    class="bi bi-paperclip me-1"></i>เอกสารผลตรวจทั้งหมด:</small>
-                            <div id="histLabFilesButtons"></div>
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <div>
+                                    <small class="fw-bold text-muted d-block mb-1"><i
+                                            class="bi bi-paperclip me-1"></i>เอกสารผลตรวจทั้งหมด:</small>
+                                    <div id="histLabFilesButtons" class="d-inline-flex flex-wrap align-items-center"></div>
+                                </div>
+                                <div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary fw-semibold shadow-sm px-3"
+                                        id="btnHistAddLabResult" onclick="openLabUploadFromHistory()"
+                                        style="border-radius: 8px;">
+                                        <i class="bi bi-plus-circle me-1"></i> ເພີ່ມຜົນກວດ
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -4512,7 +4523,7 @@
                         <button type="button" class="btn px-4 fw-bold text-white shadow-sm" id="btnRepeatPrescription"
                             onclick="repeatPrescriptionFromHistory()"
                             style="background-color: #004b93; border-color: #004b93; border-radius: 8px;">
-                            <i class="bi bi-capsule-pill me-1"></i> ต่อยา
+                            <i class="bi bi-capsule-pill me-1"></i> ต่อยา / สั่งยา
                         </button>
                         <button type="button" class="btn btn-primary px-4 fw-bold" data-bs-dismiss="modal"
                             style="border-radius: 8px;">ปิดหน้าต่าง</button>
@@ -4676,7 +4687,7 @@
         </div>
     </div>
     <!-- Modal: ตรวจหลอดเลือด (Vascular Check) -->
-    <div class="modal fade" id="vascularCheckModal" tabindex="-1">
+    <div class="modal fade" id="vascularCheckModal" tabindex="-1" style="z-index: 1065;">
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content"
                 style="border-radius: 16px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.12);">
@@ -4830,12 +4841,23 @@
                                 style="border-radius: 10px; padding: 12px; border-color: #cbd5e1;"></textarea>
                         </div>
 
-                        <!-- ปุ่มจัดการ -->
-                        <div class="d-flex justify-content-end gap-2 border-top pt-3">
-                            <button type="button" class="btn btn-light border px-4 fw-semibold" data-bs-dismiss="modal"
-                                style="border-radius: 8px;">ยกเลิก</button>
-                            <button type="submit" class="btn btn-primary px-5 fw-bold"
-                                style="border-radius: 8px; background-color: #0b3c73; border-color: #0b3c73;">บันทึกผลวินิจฉัย</button>
+                        <!-- ปุ่มจัดการ และ ช่องใส่ชื่อหมอผู้ตรวจ -->
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 border-top pt-3">
+                            <div class="d-flex align-items-center gap-2" style="flex: 1; min-width: 250px; max-width: 380px;">
+                                <label for="vascDoctorInput" class="fw-bold text-nowrap text-dark mb-0 small">
+                                    <i class="bi bi-person-badge-fill text-primary me-1"></i>ທ່ານໝໍຜູ້ກວດ:
+                                </label>
+                                <input type="text" id="vascDoctorInput" list="vascDoctorDatalist" class="form-control custom-input"
+                                    placeholder="ໃສ່ຊື່ ທ່ານໝໍຜູ້ກວດ..."
+                                    style="border-radius: 8px; padding: 7px 12px; border-color: #cbd5e1; font-weight: 500;">
+                                <datalist id="vascDoctorDatalist"></datalist>
+                            </div>
+                            <div class="d-flex gap-2 ms-auto">
+                                <button type="button" class="btn btn-light border px-4 fw-semibold" data-bs-dismiss="modal"
+                                    style="border-radius: 8px;">ยกเลิก</button>
+                                <button type="submit" class="btn btn-primary px-4 fw-bold"
+                                    style="border-radius: 8px; background-color: #0b3c73; border-color: #0b3c73;"><i class="bi bi-file-earmark-pdf me-1"></i> บันทึกและออก PDF</button>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -4984,7 +5006,7 @@
             document.write('<script src="../config.js"><\/script>');
         }
     </script>
-    <script src="function.js?v=3.7.3"></script>
+    <script src="function.js?v=3.9.2"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
     <script>
         document.addEventListener("DOMContentLoaded", function () {
