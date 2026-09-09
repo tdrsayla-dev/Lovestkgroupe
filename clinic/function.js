@@ -326,7 +326,7 @@ function showPage(pageId, element) {
                     const allMenuKeys = [
                         'dashboard', 'appointments', 'booking', 'registration', 'triage', 'doctor',
                         'payment', 'lab', 'queue', 'prescription', 'pharmacy', 'history',
-                        'billing', 'expenses', 'services', 'stock-drugs', 'stock-equip', 'staff', 'referrals', 'daily-reports'
+                        'billing', 'expenses', 'doctor-reports', 'services', 'stock-drugs', 'stock-equip', 'staff', 'referrals', 'daily-reports', 'clinic-settings'
                     ];
                     const firstAllowed = allMenuKeys.find(key => permissions.some(p => p.startsWith(key)));
 
@@ -360,7 +360,7 @@ function showPage(pageId, element) {
     targetPage.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important;';
 
     // 4. อัปเดตสถานะเมนูด้านซ้ายมือให้เป็น Active
-    document.querySelectorAll('#sidebarNav .nav-link').forEach(l => l.classList.remove('active'));
+    document.querySelectorAll('#sidebarNav .nav-link, .sidebar a.nav-link').forEach(l => l.classList.remove('active'));
     if (element) {
         element.classList.add('active');
     } else {
@@ -418,6 +418,20 @@ function showPage(pageId, element) {
         } else if (pageId === 'daily-reports') {
             if (typeof loadDailyReport === 'function') loadDailyReport();
             if (typeof loadDailyClinicReport === 'function') loadDailyClinicReport();
+        } else if (pageId === 'clinic-settings') {
+            try {
+                const frame = document.getElementById('settingFrame');
+                if (frame && frame.contentWindow && typeof frame.contentWindow.loadSettings === 'function') {
+                    frame.contentWindow.loadSettings();
+                }
+            } catch (sErr) { }
+        } else if (pageId === 'doctor-reports') {
+            try {
+                const frame = document.getElementById('doctorReportFrame');
+                if (frame && frame.contentWindow && typeof frame.contentWindow.loadReportData === 'function') {
+                    frame.contentWindow.loadReportData();
+                }
+            } catch (rErr) { }
         } else if (pageId === 'appointments') {
             if (typeof loadAppointments === 'function') loadAppointments();
         } else if (pageId === 'services') {
@@ -1316,6 +1330,7 @@ async function loadPatients() {
 
 window.patientFilteredData = []; // เก็บข้อมูลผู้ป่วยที่ถูกค้นหา/กรองแล้ว
 window.patientCurrentPage = 1;   // เก็บหน้าปัจจุบัน
+window.patientTriageFilter = 'all'; // เก็บสถานะตัวกรองคัดกรอง: 'all' | 'pending' | 'sent'
 const PATIENTS_PER_PAGE = 10;    // แสดง 10 รายการต่อหน้า
 
 // 1. ฟังก์ชันกรองข้อมูลผู้ป่วย
@@ -1359,6 +1374,31 @@ function filterPatients() {
                 (row.village && row.village.toLowerCase().includes(q)) ||
                 (row.allergies && row.allergies.toLowerCase().includes(q)) ||
                 (row.referred_by && row.referred_by.toLowerCase().includes(q));
+        });
+    }
+
+    // Filter by Triage Status
+    const triageFilter = window.patientTriageFilter || 'all';
+    if (triageFilter !== 'all') {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const latestVisitMap = window.latestVisitMap || {};
+        filtered = filtered.filter(row => {
+            const latestVisit = latestVisitMap[row.hn];
+            const vStatus = latestVisit ? latestVisit.status : null;
+            let visitDateStr = '';
+            if (latestVisit && latestVisit.created_at) {
+                visitDateStr = new Date(latestVisit.created_at).toISOString().split('T')[0];
+            }
+            const isFromPreviousDay = Boolean(visitDateStr && visitDateStr < todayStr);
+            const isOngoingTreatment = !isFromPreviousDay && latestVisit && (
+                vStatus === 'รอคัดกรอง' || vStatus === 'รอตรวจ' || vStatus === 'รอผลแล็บ' ||
+                vStatus === 'รอผลตรวจ Lab' || vStatus === 'รอจัดคิว' || vStatus === 'รออ่านผล' ||
+                vStatus === 'กำลังคุยกับแพทย์' || vStatus === 'กำลังตรวจ' || vStatus === 'กำลังตรวจอยู่' ||
+                vStatus === 'รอชำระเงิน' || vStatus === 'รอจัดยา' || vStatus === 'รอจ่ายยา'
+            );
+            if (triageFilter === 'pending') return !isOngoingTreatment;
+            if (triageFilter === 'sent')    return isOngoingTreatment;
+            return true;
         });
     }
 
@@ -1583,6 +1623,33 @@ function clearPatientDateFilter() {
 
 window.setPatientTodayFilter = setPatientTodayFilter;
 window.clearPatientDateFilter = clearPatientDateFilter;
+
+// =====================================
+// Triage Status Filter (ຍັງບໍ່ໄດ້ຄັດກອງ / ສົ່ງຄັດກອງແລ້ວ)
+// =====================================
+function setTriageFilter(mode) {
+    window.patientTriageFilter = mode; // 'all' | 'pending' | 'sent'
+
+    // Update button active states
+    const btnAll     = document.getElementById('btnTriageFilterAll');
+    const btnPending = document.getElementById('btnTriageFilterPending');
+    const btnSent    = document.getElementById('btnTriageFilterSent');
+
+    if (btnAll && btnPending && btnSent) {
+        // Reset all to outline
+        btnAll.className     = 'btn btn-sm btn-outline-primary fw-semibold rounded-pill px-3';
+        btnPending.className = 'btn btn-sm btn-outline-secondary fw-semibold rounded-pill px-3';
+        btnSent.className    = 'btn btn-sm btn-outline-info fw-semibold rounded-pill px-3';
+
+        // Activate the selected one
+        if (mode === 'all')     btnAll.className     = 'btn btn-sm btn-primary fw-semibold rounded-pill px-3';
+        if (mode === 'pending') btnPending.className = 'btn btn-sm btn-secondary fw-semibold rounded-pill px-3';
+        if (mode === 'sent')    btnSent.className    = 'btn btn-sm btn-info fw-semibold rounded-pill px-3';
+    }
+
+    filterPatients();
+}
+window.setTriageFilter = setTriageFilter;
 
 const LAOS_ADDRESS_DATA = {
     "ນະຄອນຫຼວງວຽງຈັນ": [
@@ -10605,22 +10672,50 @@ async function showHistoryDetails(visitId) {
     setSafeText('histPatientName', row.patient_name);
     setSafeText('histHN', row.hn);
 
-    // --- เริ่มโค้ดส่วนที่เพิ่มใหม่: ดึงและแสดงเบอร์โทรศัพท์ ---
+    // --- ดึงและแสดงเบอร์โทรศัพท์ + ข้อมูลที่อยู่ผู้ป่วย ---
     let patientPhone = '-';
-    // ตรวจสอบว่าในตาราง visits (ตัวแปร row) มีข้อมูลเบอร์โทรหรือไม่
-    if (row.phone) {
-        patientPhone = row.phone;
-    }
-    // หากไม่มี ให้ไปค้นหาเบอร์โทรจากประวัติผู้ป่วย (ตาราง patients) โดยอ้างอิงจากรหัส HN
-    else if (row.hn && window.allPatients) {
+    let patientAge = '-';
+    let patientVillage = '-';
+    let patientDistrict = '-';
+    let patientProvince = '-';
+
+    // ค้นหาจาก allPatients cache ก่อน
+    if (row.hn && window.allPatients) {
         const pat = window.allPatients.find(p => p.hn === row.hn);
-        if (pat && pat.phone) {
-            patientPhone = pat.phone;
+        if (pat) {
+            if (pat.phone) patientPhone = pat.phone;
+            if (pat.age) patientAge = pat.age + ' ปี';
+            if (pat.village) patientVillage = pat.village;
+            if (pat.district) patientDistrict = pat.district;
+            if (pat.province) patientProvince = pat.province;
         }
     }
-    // ส่งข้อมูลเบอร์โทรศัพท์ไปแสดงที่ช่อง ID 'histPhone' ใน HTML
+    // ถ้ายังไม่ได้ข้อมูลที่อยู่ ให้ดึงจาก Supabase patients table โดยตรง
+    if ((patientAge === '-' || patientVillage === '-') && row.hn && row.hn !== '-' && typeof _supabase !== 'undefined') {
+        try {
+            const { data: pDb } = await _supabase
+                .from('patients')
+                .select('phone, age, village, district, province')
+                .eq('hn', row.hn)
+                .maybeSingle();
+            if (pDb) {
+                if (pDb.phone && patientPhone === '-') patientPhone = pDb.phone;
+                if (pDb.age) patientAge = pDb.age + ' ปี';
+                if (pDb.village) patientVillage = pDb.village;
+                if (pDb.district) patientDistrict = pDb.district;
+                if (pDb.province) patientProvince = pDb.province;
+            }
+        } catch (e) { console.warn('Fetch patient address warning:', e); }
+    }
+    // ถ้า phone ยังไม่ได้ ให้ตรวจ row.phone
+    if (patientPhone === '-' && row.phone) patientPhone = row.phone;
+
     setSafeText('histPhone', patientPhone);
-    // --- จบโค้ดส่วนที่เพิ่มใหม่ ---
+    setSafeText('histAge', patientAge);
+    setSafeText('histVillage', patientVillage);
+    setSafeText('histDistrict', patientDistrict);
+    setSafeText('histProvince', patientProvince);
+    // --- จบโค้ดส่วนที่อยู่ผู้ป่วย ---
 
     // 🌟 ส่วนที่ 1: ประมวลผลและแสดงผลข้อมูลผู้แนะนำ (Referrer) - ยึด HN และเบอร์โทรเป็นหลัก
     let refId = null;
@@ -12644,7 +12739,21 @@ window.saveReferralLocalData = function (data) {
             if (typeof _supabase !== 'undefined') {
                 const logsToSync = data || window.commissionLogs;
                 if (Array.isArray(logsToSync) && logsToSync.length > 0) {
-                    const sanitizedLogs = logsToSync.slice(0, 30).map(l => ({
+                    const seenVIds = new Set();
+                    const seenLIds = new Set();
+                    const uniqueLogs = [];
+                    for (const l of logsToSync) {
+                        if (l.visit_id) {
+                            if (seenVIds.has(l.visit_id)) continue;
+                            seenVIds.add(l.visit_id);
+                        }
+                        if (l.id) {
+                            if (seenLIds.has(l.id)) continue;
+                            seenLIds.add(l.id);
+                        }
+                        uniqueLogs.push(l);
+                    }
+                    const sanitizedLogs = uniqueLogs.slice(0, 50).map(l => ({
                         id: String(l.id),
                         referrer_id: l.referrer_id ? String(l.referrer_id) : null,
                         referrer_name: l.referrer_name || null,
@@ -12654,6 +12763,7 @@ window.saveReferralLocalData = function (data) {
                         amount: l.amount ? parseFloat(l.amount) : 0,
                         base_amount: l.base_amount !== undefined ? parseFloat(l.base_amount) : (l.item_amount ? (parseFloat(l.amount) - parseFloat(l.item_amount)) : parseFloat(l.amount)),
                         item_amount: l.item_amount ? parseFloat(l.item_amount) : 0,
+                        item_details: l.item_details || null,
                         status: l.status || 'pending',
                         paid_at: l.paid_at || null,
                         payout_method: l.payout_method || null,
@@ -12727,7 +12837,19 @@ async function loadReferralData(isManualClick = false) {
         try {
             const parsedLogs = JSON.parse(localLogs);
             if (Array.isArray(parsedLogs) && parsedLogs.length > 0) {
-                window.commissionLogs = parsedLogs;
+                const seenV = new Set();
+                const seenId = new Set();
+                window.commissionLogs = parsedLogs.filter(item => {
+                    if (item.visit_id) {
+                        if (seenV.has(item.visit_id)) return false;
+                        seenV.add(item.visit_id);
+                    }
+                    if (item.id) {
+                        if (seenId.has(item.id)) return false;
+                        seenId.add(item.id);
+                    }
+                    return true;
+                });
             }
         } catch (e) { }
     }
@@ -12747,8 +12869,20 @@ async function loadReferralData(isManualClick = false) {
         if (typeof _supabase !== 'undefined') {
             const resLogs = await _supabase.from('commission_logs').select('*').order('created_at', { ascending: false });
             if (resLogs && resLogs.data) {
-                window.commissionLogs = resLogs.data;
-                window.safeSetLocalStorage('clinic_commission_logs', (window.commissionLogs || []).slice(0, 30));
+                const seenV = new Set();
+                const seenId = new Set();
+                window.commissionLogs = resLogs.data.filter(item => {
+                    if (item.visit_id) {
+                        if (seenV.has(item.visit_id)) return false;
+                        seenV.add(item.visit_id);
+                    }
+                    if (item.id) {
+                        if (seenId.has(item.id)) return false;
+                        seenId.add(item.id);
+                    }
+                    return true;
+                });
+                window.safeSetLocalStorage('clinic_commission_logs', (window.commissionLogs || []).slice(0, 50));
             }
         }
     } catch (e) { }
@@ -13655,6 +13789,21 @@ function renderCommissionLogsTable() {
 
     let logs = [...window.commissionLogs];
 
+    // Defensive Deduplication: Ensure each visit_id or id is unique in the displayed table
+    const seenVisitIds = new Set();
+    const seenLogIds = new Set();
+    logs = logs.filter(l => {
+        if (l.visit_id) {
+            if (seenVisitIds.has(l.visit_id)) return false;
+            seenVisitIds.add(l.visit_id);
+        }
+        if (l.id) {
+            if (seenLogIds.has(l.id)) return false;
+            seenLogIds.add(l.id);
+        }
+        return true;
+    });
+
     // Filter out logs for visits that are currently unpaid at Cashier
     const unpaidVisitIds = new Set();
     const allVis = (window.clinicVisits || []).concat(window.allPaymentQueue || []);
@@ -13715,12 +13864,16 @@ function renderCommissionLogsTable() {
             const refName = (l.referrer_name || '').toLowerCase();
             const patName = (l.patient_name || '').toLowerCase();
             const logId = (l.id || '').toLowerCase();
+            const visitId = (l.visit_id || '').toLowerCase();
+            const itemDetails = (l.item_details || '').toLowerCase();
             const payoutMethod = (l.payout_method || '').toLowerCase();
             const payoutRef = (l.payout_ref || '').toLowerCase();
 
             return refName.includes(searchText) ||
                 patName.includes(searchText) ||
                 logId.includes(searchText) ||
+                visitId.includes(searchText) ||
+                itemDetails.includes(searchText) ||
                 payoutMethod.includes(searchText) ||
                 payoutRef.includes(searchText);
         });
@@ -13749,7 +13902,7 @@ function renderCommissionLogsTable() {
     let totalItemSum = 0;
 
     if (logs.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="12" class="text-center text-muted py-5">ไม่มีประวัติรายการเงินปันผล/คอมมิชชั่น</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-5">ไม่มีประวัติรายการเงินปันผล/คอมมิชชั่น</td></tr>';
     } else {
         logs.forEach((l, index) => {
             let dateStr = l.created_at ? new Date(l.created_at).toLocaleDateString('th-TH') : '-';
@@ -13780,6 +13933,30 @@ function renderCommissionLogsTable() {
             let isChecked = window.selectedCommLogIds.has(String(l.id));
             let checkAttr = isChecked ? 'checked' : '';
 
+            // Resolve HN and Visit ID
+            let resolvedHn = '';
+            const allVisits = (window.clinicVisits || []).concat(window.allVisitsCache || []);
+            const matchedVisit = allVisits.find(v => (v.visit_id || v.id) === l.visit_id);
+            if (matchedVisit && matchedVisit.hn) {
+                resolvedHn = matchedVisit.hn;
+            } else if (l.patient_name && l.patient_name.includes(' - ')) {
+                const parts = l.patient_name.split(' - ');
+                if (parts[0] && parts[0].length >= 3 && parts[0].length <= 15) {
+                    resolvedHn = parts[0].trim();
+                }
+            }
+            if (!resolvedHn && window.allPatients && Array.isArray(window.allPatients)) {
+                const cleanName = (l.patient_name || '').replace(/^[A-Za-z0-9_-]+\s*-\s*/, '').trim().toLowerCase();
+                const matchedPat = window.allPatients.find(p =>
+                    (p.patient_name || p.name || '').trim().toLowerCase() === cleanName ||
+                    (p.patient_name || p.name || '').trim().toLowerCase() === (l.patient_name || '').trim().toLowerCase()
+                );
+                if (matchedPat && matchedPat.hn) resolvedHn = matchedPat.hn;
+            }
+
+            let visitBadge = l.visit_id ? `<span class="badge bg-light text-secondary border px-1.5 py-0.5 me-1" style="font-size: 0.7rem; font-weight: 500;" title="Visit ID"><i class="bi bi-tag me-1"></i>${l.visit_id}</span>` : '';
+            let hnBadge = resolvedHn ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-1.5 py-0.5 me-1" style="font-size: 0.7rem; font-weight: 600;" title="HN ผู้ป่วย">HN: ${resolvedHn}</span>` : '';
+
             tbody.innerHTML += `
                 <tr class="${l.status === 'pending' ? 'table-warning-subtle fw-semibold' : ''}">
                     <td class="text-center ps-3" style="width: 40px;">
@@ -13788,7 +13965,13 @@ function renderCommissionLogsTable() {
                     <td class="ps-2 fw-bold text-muted" style="width: 50px;">${index + 1}</td>
                     <td class="small text-muted">${dateStr}</td>
                     <td class="fw-bold text-dark">${l.referrer_name || '-'}</td>
-                    <td class="fw-medium">${l.patient_name || '-'} ${bonusBadge}</td>
+                    <td class="fw-medium">
+                        <div class="fw-semibold text-dark">${l.patient_name || '-'} ${bonusBadge}</div>
+                        <div class="d-flex align-items-center gap-1 mt-1 flex-wrap">
+                            ${hnBadge}
+                            ${visitBadge}
+                        </div>
+                    </td>
                     <td class="fw-semibold text-dark">${formatCommissionAmount(invoiceVal)}</td>
                     <td class="text-end">
                         <div class="fw-bold text-success fs-6">${overallText}</div>
@@ -13796,7 +13979,7 @@ function renderCommissionLogsTable() {
                     </td>
                     <td class="text-end">
                         <div class="fw-bold text-success fs-6">${itemText}</div>
-                        <div class="extra-small text-muted font-monospace" style="font-size: 0.72rem;">รายรายการ: ${itemText}</div>
+                        ${l.item_details ? `<div class="extra-small text-muted text-truncate" style="font-size: 0.72rem; max-width: 200px; margin-left: auto;" title="${l.item_details}"><i class="bi bi-card-checklist me-1"></i>${l.item_details}</div>` : `<div class="extra-small text-muted font-monospace" style="font-size: 0.72rem;">รายรายการ: ${itemText}</div>`}
                     </td>
                     <td class="text-end bg-light-subtle">
                         <div class="fw-bold text-success fs-6">${totalText}</div>
@@ -15427,8 +15610,59 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
         return;
     }
 
+    // Deterministic ID based on visitId if available to prevent duplicate entries
+    const logId = visitId ? ('COM-' + visitId) : generateId('COM');
+
+    const existingIdx = window.commissionLogs.findIndex(l => (visitId && l.visit_id === visitId) || l.id === logId);
+    if (existingIdx !== -1) {
+        // If already paid, do not overwrite or reset payout status
+        if (window.commissionLogs[existingIdx].status === 'paid') {
+            return;
+        }
+        // Update in-place
+        window.commissionLogs[existingIdx] = {
+            ...window.commissionLogs[existingIdx],
+            total_invoice: totalInvoice,
+            base_amount: overallComm,
+            item_amount: itemCommSum,
+            item_details: itemDetailsArr.join(', '),
+            amount: commAmount,
+            patient_name: patientName || window.commissionLogs[existingIdx].patient_name,
+            referrer_id: referrerId,
+            referrer_name: refName,
+            is_bonus: isBonusApplied
+        };
+        const updatedLog = window.commissionLogs[existingIdx];
+        if (!isBatch) {
+            saveReferralLocalData();
+            updateReferralSummaryCards();
+            if (typeof renderReferrersTable === 'function') renderReferrersTable();
+            if (typeof renderCommissionLogsTable === 'function') renderCommissionLogsTable();
+
+            try {
+                if (typeof _supabase !== 'undefined') {
+                    const { error: comErr } = await _supabase.from('commission_logs').upsert([updatedLog], { onConflict: 'id' });
+                    if (comErr) {
+                        const coreLog = {
+                            id: updatedLog.id,
+                            referrer_id: updatedLog.referrer_id,
+                            referrer_name: updatedLog.referrer_name,
+                            patient_name: updatedLog.patient_name,
+                            visit_id: updatedLog.visit_id,
+                            amount: updatedLog.amount,
+                            status: updatedLog.status,
+                            created_at: updatedLog.created_at
+                        };
+                        await _supabase.from('commission_logs').upsert([coreLog], { onConflict: 'id' });
+                    }
+                }
+            } catch (e) { }
+        }
+        return;
+    }
+
     const newLog = {
-        id: generateId('COM'),
+        id: logId,
         referrer_id: referrerId,
         referrer_name: refName,
         patient_name: patientName,

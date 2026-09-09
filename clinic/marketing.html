@@ -105,6 +105,35 @@
             color: #ffffff;
         }
 
+        .action-btn-order {
+            height: 40px;
+            min-height: 40px;
+            background-color: #10b981;
+            color: #ffffff;
+            border-radius: 12px;
+            padding: 0 18px;
+            font-size: 13.5px;
+            font-weight: 600;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
+        }
+        .action-btn-order:hover {
+            background-color: #059669;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+            transform: translateY(-1px);
+        }
+        .action-btn-order:active {
+            transform: translateY(0);
+        }
+
         .action-btn-outline {
             height: 40px;
             min-height: 40px;
@@ -569,6 +598,9 @@
             <div class="d-flex align-items-center gap-2 flex-shrink-0">
                 <button type="button" class="action-btn-primary" onclick="try { window.parent.postMessage('openAddPatientModal', '*'); } catch(e) { console.warn(e); }">
                     <i class="ph ph-user-plus"></i> ລົງທະບຽນຜູ້ປ່ວຍ
+                </button>
+                <button type="button" class="action-btn-order" id="btnOrderNutrient" onclick="handleOrderAction()" title="ສັ່ງຊື້ (Order)">
+                    <i class="ph ph-shopping-bag"></i> ສັ່ງຊື້ "Order"
                 </button>
                 <button type="button" class="action-btn-outline" id="btnRefreshData" onclick="refreshPatientData()" title="ກົດເພື່ອຣີເຟຣຊຂໍ້ມູນໃໝ່ລ່າສຸດ">
                     <i class="ph ph-arrows-clockwise" id="refreshIcon"></i>
@@ -2041,6 +2073,28 @@
             } catch (e) {
                 console.warn('viewVisit postMessage error:', e);
             }
+        }
+
+        function handleOrderAction() {
+            try {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage('openOrderModal', '*');
+                    window.parent.postMessage({ type: 'OPEN_ORDER', action: 'order' }, '*');
+                    if (typeof window.parent.openOrderModal === 'function') {
+                        window.parent.openOrderModal();
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.warn('handleOrderAction error:', e);
+            }
+            showModernPopup({
+                type: 'info',
+                title: 'ລະບົບສັ່ງຊື້ "Order"',
+                message: 'ກຳລັງເປີດລະບົບສັ່ງຊື້...',
+                hint: 'ທ່ານສາມາດເລືອກສິນຄ້າ ຫຼື ສັ່ງອາຫານເສີມໃຫ້ຜູ້ປ່ວຍໄດ້',
+                btnText: 'ຮັບຊາບ'
+            });
         }
 
         // โหลดข้อมูลอัตโนมัติเมื่อเปิดหน้า

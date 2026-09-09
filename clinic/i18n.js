@@ -49,6 +49,8 @@ const CLINIC_I18N_DICTIONARY = {
         sidebar_pharmacy: "ຫ້ອງຈ່າຍຢາ",
         sidebar_history: "ປະຫວັດຜູ້ປ່ວຍ",
         sidebar_billing: "ລະບົບ ໃບບິນ / ໃບເສັດ",
+        sidebar_expenses: "ສະຫລຸບລາຍຈ່າຍແລບນອກ",
+        sidebar_doctor_reports: "ລາຍງານທ່ານໝໍ",
         sidebar_backend: "ຈັດການລະບົບຫຼັງບ້ານ",
         sidebar_services: "ຕັ້ງຄ່າລາຍການກວດ",
         sidebar_stock_drugs: "ຄັງຢາ",
@@ -56,6 +58,7 @@ const CLINIC_I18N_DICTIONARY = {
         sidebar_staff: "ຈັດການພະນັກງານ",
         sidebar_referrals: "ລະບົບປັນຜົນ/ຜູ້ແນະນຳ",
         sidebar_reports: "ບົດລາຍງານສະຫຼຸບ",
+        sidebar_clinic_settings: "ຕັ້ງຄ່າ Clinic",
 
         // Roles
         role_admin: "ຜູ້ດູແລລະບົບ",
@@ -397,6 +400,8 @@ const CLINIC_I18N_DICTIONARY = {
         sidebar_pharmacy: "ห้องจ่ายยา",
         sidebar_history: "ประวัติผู้ป่วย",
         sidebar_billing: "ระบบ Bill / ใบเสร็จ",
+        sidebar_expenses: "สรุปรายจ่ายแล็บนอก",
+        sidebar_doctor_reports: "รายงานแพทย์ (ລາຍງານທ່ານໝໍ)",
         sidebar_backend: "จัดการระบบหลังบ้าน",
         sidebar_services: "ตั้งค่ารายการตรวจ",
         sidebar_stock_drugs: "คลังยา",
@@ -404,6 +409,7 @@ const CLINIC_I18N_DICTIONARY = {
         sidebar_staff: "จัดการพนักงาน",
         sidebar_referrals: "ระบบปันผล/ผู้แนะนำ",
         sidebar_reports: "รายงานสรุป",
+        sidebar_clinic_settings: "ตั้งค่า Clinic",
 
         // Roles
         role_admin: "ผู้ดูแลระบบ",
@@ -744,6 +750,8 @@ const CLINIC_I18N_DICTIONARY = {
         sidebar_pharmacy: "Pharmacy",
         sidebar_history: "Patient History",
         sidebar_billing: "Invoices & Billing",
+        sidebar_expenses: "Outside Lab Expenses",
+        sidebar_doctor_reports: "Doctor Reports",
         sidebar_backend: "Backend Management",
         sidebar_services: "Lab Services Settings",
         sidebar_stock_drugs: "Drug Inventory",
@@ -751,6 +759,7 @@ const CLINIC_I18N_DICTIONARY = {
         sidebar_staff: "Staff Management",
         sidebar_referrals: "Referrals & Dividends",
         sidebar_reports: "Reports & Summary",
+        sidebar_clinic_settings: "Clinic Settings",
 
         // Roles
         role_admin: "Administrator",

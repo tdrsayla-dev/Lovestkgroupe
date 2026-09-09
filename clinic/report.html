@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="la">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ລາຍງານສະຫຼຸບ & ວິເຄາະຂໍ້ມູນຄລີນິກ - Clinic Analytics & Reports</title>
+  
+  <!-- CDNs & Fonts -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/fill/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&family=Kanit:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js?v=1.0"></script>
+  
+  <!-- Custom Reporting Stylesheet -->
+  <link rel="stylesheet" href="report.css?v=3.2">
+</head>
+<body>
+
+  <!-- Loading Overlay -->
+  <div class="loader" id="loader">
+    <div class="spin"></div>
+  </div>
+
+  <!-- Print-Only Header (Appears only on A4 print) -->
+  <div class="print-header">
+    <div class="d-flex align-items-center justify-content-center gap-3 mb-2">
+      <img id="printClinicLogo" src="" alt="Clinic Logo" style="height: 54px; display: none; object-fit: contain;">
+      <h2 id="printClinicName" class="m-0 fw-bold" style="font-family: 'Kanit', sans-serif;">ຄລີນິກປິ່ນປົວ & ວິເຄາະພະຍາດ</h2>
+    </div>
+    <p id="printClinicInfo" class="text-muted m-0 small"></p>
+    <div class="mt-2 pt-2 border-top border-dark d-flex justify-content-between small text-muted">
+      <span id="printPeriodText">ຊ່ວງເວລາ: -</span>
+      <span>ວັນທີພິມເອກະສານ: <script>document.write(new Date().toLocaleDateString('en-GB'))</script></span>
+    </div>
+  </div>
+
+  <!-- Main Screen Header -->
+  <header class="r-header no-print">
+    <div class="r-header-left">
+      <h1>
+        <i class="ph-fill ph-pill text-primary"></i>
+        <span id="headerPageTitle">ລາຍງານການສັ່ງອາຫານເສີມ & ຈ່າຍຢາ</span>
+      </h1>
+      <p id="reportClinicName">Clinic Analytics & Management Overview</p>
+    </div>
+    <div class="r-header-actions">
+      <button type="button" class="btn btn-sm btn-light border" onclick="loadReportData()" title="ໂຫຼດຂໍ້ມູນຄືນໃໝ່">
+        <i class="bi bi-arrow-clockwise"></i>
+      </button>
+      <a href="Clinic.html" class="btn-back" id="btnBackDirect">
+        <i class="bi bi-arrow-left-short fs-5"></i> ກັບຄືນ
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Navigation Tabs (ສັ່ງອາຫານເສີມ, ຜູ້ປ່ວຍ) -->
+  <div class="report-nav-tabs no-print">
+    <button type="button" class="r-nav-tab active" data-tab="nutrients" onclick="switchReportTab('nutrients')">
+      <i class="ph-fill ph-pill"></i>
+      <span>ສັ່ງອາຫານເສີມ & ຈ່າຍຢາ</span>
+    </button>
+    <button type="button" class="r-nav-tab" data-tab="patients" onclick="switchReportTab('patients')">
+      <i class="ph-fill ph-users-three"></i>
+      <span>ຜູ້ປ່ວຍ</span>
+    </button>
+  </div>
+
+  <!-- Filter Toolbar (Interactive & Presets) -->
+  <div class="filter-toolbar no-print">
+    <!-- Preset Pills -->
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <span class="text-muted small fw-semibold"><i class="bi bi-calendar3 text-primary"></i> ເລືອກຊ່ວງເວລາ:</span>
+      <div class="date-preset-group">
+        <button type="button" class="date-preset-btn" data-preset="today" onclick="setDatePreset('today'); loadReportData();">ມື້ນີ້</button>
+        <button type="button" class="date-preset-btn" data-preset="week" onclick="setDatePreset('week'); loadReportData();">ອາທິດນີ້</button>
+        <button type="button" class="date-preset-btn active" data-preset="month" onclick="setDatePreset('month'); loadReportData();">ເດືອນນີ້</button>
+        <button type="button" class="date-preset-btn" data-preset="year" onclick="setDatePreset('year'); loadReportData();">ປີນີ້</button>
+        <button type="button" class="date-preset-btn" data-preset="all" onclick="setDatePreset('all'); loadReportData();">ທັງໝົດ</button>
+      </div>
+    </div>
+
+    <!-- Custom Date Range -->
+    <div class="d-flex align-items-center gap-2">
+      <div class="date-custom-capsule">
+        <input type="date" id="startDate" onchange="onCustomDateChange()">
+        <span class="text-muted">ຫາ</span>
+        <input type="date" id="endDate" onchange="onCustomDateChange()">
+      </div>
+      <button type="button" class="btn btn-primary btn-sm px-3 rounded-pill" onclick="onCustomDateChange()">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </div>
+  <!-- ================================================================
+       TAB 1: ສັ່ງອາຫານເສີມ & ສັ່ງຈ່າຍຢາ (Prescriptions & Nutrient Orders Report)
+       ================================================================ -->
+  <div id="tabNutrients" class="r-tab-content active">
+    <!-- Nutrients & Prescriptions KPI Grid (Hidden on Print) -->
+    <section class="kpi-grid no-print">
+      <!-- 1. Total Prescriptions / Orders -->
+      <div class="kpi-card revenue">
+        <div class="kpi-header">
+          <span class="kpi-title">ໃບສັ່ງຢາ & ອໍເດີທັງໝົດ</span>
+          <div class="kpi-icon-box"><i class="ph-fill ph-clipboard-text"></i></div>
+        </div>
+        <div class="kpi-value" id="kpiNutrientOrders">0</div>
+        <div class="kpi-footer">
+          <span>ລາຍການສັ່ງຢາ/ອາຫານເສີມໃນຊ່ວງນີ້</span>
+        </div>
+      </div>
+
+      <!-- 2. Total Meds / Items Prescribed -->
+      <div class="kpi-card profit">
+        <div class="kpi-header">
+          <span class="kpi-title">ຈຳນວນຢາທີ່ສັ່ງທັງໝົດ</span>
+          <div class="kpi-icon-box"><i class="ph-fill ph-pill"></i></div>
+        </div>
+        <div class="kpi-value" id="kpiNutrientItemsCount">0</div>
+        <div class="kpi-footer">
+          <span>ຈຳນວນຊິ້ນ / ເມັດ ທີ່ທ່ານໝໍສັ່ງ</span>
+        </div>
+      </div>
+
+      <!-- 3. Prescribing Doctors Count -->
+      <div class="kpi-card visits">
+        <div class="kpi-header">
+          <span class="kpi-title">ທ່ານໝໍທີ່ສັ່ງຢາ</span>
+          <div class="kpi-icon-box"><i class="ph-fill ph-stethoscope"></i></div>
+        </div>
+        <div class="kpi-value" id="kpiNutrientDoctorsCount">0 ທ່ານ</div>
+        <div class="kpi-footer">
+          <span>ທ່ານໝໍທີ່ມີລາຍການສັ່ງຢາໃນລະບົບ</span>
+        </div>
+      </div>
+
+      <!-- 4. Pending Dispensing -->
+      <div class="kpi-card expense">
+        <div class="kpi-header">
+          <span class="kpi-title">ລໍຖ້າຈັດຢາ / ກຳລັງຈັດ</span>
+          <div class="kpi-icon-box"><i class="ph-fill ph-clock-countdown"></i></div>
+        </div>
+        <div class="kpi-value" id="kpiNutrientPending" style="color:#d97706;">0</div>
+        <div class="kpi-footer">
+          <span>ອໍເດີທີ່ຍັງບໍ່ທັນໄດ້ຈ່າຍ/ຈັດສົ່ງ</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Doctor Filter & Search Toolbar (ຫມາຍເລກ 1 - Hidden on Print) -->
+    <div class="r-card mb-4 no-print">
+      <div class="r-card-body py-3">
+        <div class="row g-3 align-items-center">
+          <div class="col-md-6">
+            <label class="form-label small fw-bold text-muted mb-1">
+              <i class="ph-fill ph-user-circle-gear text-primary fs-6"></i> ເລືອກທ່ານໝໍ / ຜູ້ສັ່ງຢາ (Doctor / Prescriber):
+            </label>
+            <select id="filterDoctorSelect" class="form-select rounded-pill shadow-xs" onchange="onDoctorSelectChange()">
+              <option value="all">-- ທ່ານໝໍທຸກທ່ານ (All Doctors) --</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-bold text-muted mb-1">
+              <i class="ph-fill ph-magnifying-glass text-primary fs-6"></i> ຄົ້ນຫາລາຍການຢາ / ອາຫານເສີມ:
+            </label>
+            <input type="text" id="searchNutrientInput" class="form-control rounded-pill px-3 shadow-xs" 
+              placeholder="ພິມຊື່ຢາ, ຊື່ທ່ານໝໍ..." onkeyup="onDoctorSelectChange()">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Doctor Prescribing Stats Cards (ຫມາຍເລກ 2 - ສະແດງຂໍ້ມູນທ່ານໝໍທີ່ເລືອກ) -->
+    <div class="mb-4" id="doctorStatsContainer">
+      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <h6 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+          <i class="ph-fill ph-stethoscope text-primary fs-5"></i>
+          <span>ຂໍ້ມູນການຈັດຢາ ແລະ ລາຍການຢາຕາມທ່ານໝໍ (Doctor Medication Breakdown)</span>
+        </h6>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <button type="button" class="btn-print" onclick="printReport()">
+            <i class="bi bi-printer"></i> ພິມລາຍງານ A4
+          </button>
+          <button type="button" class="btn-export" onclick="exportCSV()">
+            <i class="bi bi-file-earmark-excel"></i> Export CSV
+          </button>
+          <span class="badge bg-light text-primary border px-3 py-1" id="doctorFilterStatusBadge">ສະແດງທຸກທ່ານໝໍ</span>
+        </div>
+      </div>
+      <div class="row g-3" id="doctorStatsRow">
+        <!-- Injected via JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       TAB 3: ຜູ້ປ່ວຍ (Patients & Visits Report by Doctor)
+       ================================================================ -->
+  <div id="tabPatients" class="r-tab-content">
+    <!-- Patients KPI Grid (Hidden on Print) -->
+    <section class="kpi-grid no-print">
+      <!-- 1. Total Patients -->
+      <div class="kpi-card visits">
+        <div class="kpi-header">
+          <span class="kpi-title">ຄົນເຈັບທັງໝົດ (Total Patients)</span>
+          <div class="kpi-icon-box"><i class="ph-fill ph-users-three"></i></div>
+        </div>
+        <div class="kpi-value" id="kpiTotalPatients">0</div>
+        <div class="kpi-footer">
+          <span id="kpiPeriodVisitsSub">0 ເທື່ອກວດ (Visits)</span>
+        </div>
+      </div>
+
+      <!-- 2. New Patients -->
+      <div class="kpi-card profit">
+        <div class="kpi-header">
+          <span class="kpi-title">ຜູ້ປ່ວຍໃໝ່ (New Patients)</span>
+          <div class="kpi-icon-box"><i class="ph-fill ph-user-plus"></i></div>
+        </div>
+        <div class="kpi-value" id="kpiNewPatients" style="color: #16a34a;">0</div>
+        <div class="kpi-footer">
+          <span id="kpiNewPatientsPct">0% ຂອງຄົນເຈັບ</span>
+        </div>
+      </div>
+
+      <!-- 3. Old / Returning Patients -->
+      <div class="kpi-card revenue">
+        <div class="kpi-header">
+          <span class="kpi-title">ຜູ້ປ່ວຍເກົ່າ (Returning Patients)</span>
+          <div class="kpi-icon-box"><i class="ph-fill ph-arrows-counter-clockwise"></i></div>
+        </div>
+        <div class="kpi-value" id="kpiOldPatients" style="color: #2563eb;">0</div>
+        <div class="kpi-footer">
+          <span id="kpiOldPatientsPct">0% ຂອງຄົນເຈັບ</span>
+        </div>
+      </div>
+
+      <!-- 4. Treating Doctors -->
+      <div class="kpi-card expense">
+        <div class="kpi-header">
+          <span class="kpi-title">ທ່ານໝໍທີ່ໃຫ້ການປິ່ນປົວ</span>
+          <div class="kpi-icon-box"><i class="ph-fill ph-stethoscope"></i></div>
+        </div>
+        <div class="kpi-value" id="kpiTreatingDoctors">0 ທ່ານ</div>
+        <div class="kpi-footer">
+          <span>ທ່ານໝໍທີ່ມີບັນທຶກກວດຄົນເຈັບ</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Doctor Filter & Search Toolbar for Patients (Hidden on Print) -->
+    <div class="r-card mb-4 no-print">
+      <div class="r-card-body py-3">
+        <div class="row g-3 align-items-center">
+          <div class="col-md-6">
+            <label class="form-label small fw-bold text-muted mb-1">
+              <i class="ph-fill ph-user-circle-gear text-primary fs-6"></i> ເລືອກທ່ານໝໍ / ຜູ້ກວດ (Doctor / Examiner):
+            </label>
+            <select id="filterPatientDoctorSelect" class="form-select rounded-pill shadow-xs" onchange="onPatientDoctorSelectChange()">
+              <option value="all">-- ທ່ານໝໍທຸກທ່ານ (All Doctors) --</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-bold text-muted mb-1">
+              <i class="ph-fill ph-magnifying-glass text-primary fs-6"></i> ຄົ້ນຫາຄົນເຈັບ / ພະຍາດ / ອາການ:
+            </label>
+            <input type="text" id="searchPatientDoctorInput" class="form-control rounded-pill px-3 shadow-xs" 
+              placeholder="ພິມຊື່ຄົນເຈັບ, HN, ພະຍາດ, ອາການ..." onkeyup="onPatientDoctorSelectChange()">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Doctor Patient Consultation Cards (ສະແດງຂໍ້ມູນຕາມທ່ານໝໍ) -->
+    <div class="mb-4" id="doctorPatientsContainer">
+      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <h6 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+          <i class="ph-fill ph-users-three text-primary fs-5"></i>
+          <span>ຂໍ້ມູນການກວດ ແລະ ປິ່ນປົວຄົນເຈັບຕາມທ່ານໝໍ (Doctor Patient Consultations & Diagnosis)</span>
+        </h6>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <button type="button" class="btn-print" onclick="printReport()">
+            <i class="bi bi-printer"></i> ພິມລາຍງານ A4
+          </button>
+          <button type="button" class="btn-export" onclick="exportCSV()">
+            <i class="bi bi-file-earmark-excel"></i> Export CSV
+          </button>
+          <span class="badge bg-light text-primary border px-3 py-1" id="doctorPatientFilterStatusBadge">ສະແດງທຸກທ່ານໝໍ</span>
+        </div>
+      </div>
+      <div class="row g-3" id="doctorPatientsRow">
+        <!-- Injected via JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Report Logic -->
+  <script src="report.js?v=3.3"></script>
+</body>
+</html>

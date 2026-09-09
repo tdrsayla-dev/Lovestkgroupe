@@ -188,6 +188,8 @@
                     class="ph ph-receipt"></i> <span data-i18n="sidebar_billing">ระบบ Bill / ใบเสร็จ</span></a>
             <a href="javascript:void(0);" class="nav-link" id="nav-expenses" onclick="showPage('expenses', this)"><i
                     class="bi bi-wallet2"></i> <span data-i18n="sidebar_expenses">ສະຫລຸບລາຍຈ່າຍແລບນອກ</span></a>
+            <a href="javascript:void(0);" class="nav-link" id="nav-doctor-reports" onclick="showPage('doctor-reports', this)"><i
+                    class="ph ph-chart-line-up"></i> <span data-i18n="sidebar_doctor_reports">ລາຍງານທ່ານໝໍ</span></a>
 
             <a class="nav-link d-flex justify-content-between align-items-center mt-2" data-bs-toggle="collapse"
                 href="#backendMenu" role="button">
@@ -211,8 +213,12 @@
             </div>
         </nav>
 
-        <!-- ปุ่มออกจากระบบด้านล่างสุด -->
+        <!-- ปุ่มตั้งค่า Clinic และ ออกจากระบบด้านล่างสุด -->
         <div class="mt-auto pb-3 px-2">
+            <a href="javascript:void(0);" class="nav-link d-flex align-items-center gap-2 mb-1" id="nav-clinic-settings"
+                onclick="showPage('clinic-settings', this)" style="border-radius: 8px; font-weight: 500;">
+                <i class="ph ph-gear-six fs-5"></i> <span data-i18n="sidebar_clinic_settings">ຕັ້ງຄ່າ Clinic</span>
+            </a>
             <a href="javascript:void(0);" class="nav-link text-danger d-flex align-items-center gap-2"
                 onclick="logoutUser()" style="border-radius: 8px; font-weight: 500;">
                 <i class="ph ph-sign-out fs-5"></i> <span data-i18n="logout">ออกจากระบบ</span>
@@ -899,6 +905,22 @@
                         <button type="button"
                             class="btn btn-sm btn-link text-decoration-none p-0 text-secondary fw-semibold small"
                             onclick="clearPatientDateFilter()" title="แสดงทั้งหมด" data-i18n="all">ทั้งหมด</button>
+                    </div>
+
+                    <!-- Triage Status Filter Buttons -->
+                    <div class="d-flex align-items-center gap-1" id="triageFilterBtnGroup">
+                        <button type="button" id="btnTriageFilterAll"
+                            class="btn btn-sm btn-primary fw-semibold rounded-pill px-3"
+                            onclick="setTriageFilter('all')"
+                            title="ສະແດງທັງໝົດ" data-i18n="all">ທັງໝົດ</button>
+                        <button type="button" id="btnTriageFilterPending"
+                            class="btn btn-sm btn-outline-secondary fw-semibold rounded-pill px-3"
+                            onclick="setTriageFilter('pending')"
+                            title="ຍັງບໍ່ໄດ້ຄັດກອງ">ຍັງບໍ່ໄດ້ຄັດກອງ</button>
+                        <button type="button" id="btnTriageFilterSent"
+                            class="btn btn-sm btn-outline-info fw-semibold rounded-pill px-3"
+                            onclick="setTriageFilter('sent')"
+                            title="ສົ່ງຄັດກອງແລ້ວ">ສົ່ງຄັດກອງແລ້ວ</button>
                     </div>
 
                     <!-- Search Input Box with Search Icon -->
@@ -3341,6 +3363,22 @@
         </div>
         <!-- END EXPENSES PAGE -->
 
+        <!-- 15. Clinic Settings Page -->
+        <div id="clinic-settings" class="page-section"
+            style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%;">
+            <iframe id="settingFrame" src="setting.html"
+                style="width: 100%; height: calc(100vh - 25px); border: none; min-height: 850px; display: block; border-radius: 16px;"
+                title="Clinic Settings"></iframe>
+        </div>
+
+        <!-- 16. Doctor Reports Page (ລາຍງານທ່ານໝໍ) -->
+        <div id="doctor-reports" class="page-section"
+            style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%;">
+            <iframe id="doctorReportFrame" src="report.html"
+                style="width: 100%; height: calc(100vh - 25px); border: none; min-height: 850px; display: block; border-radius: 16px;"
+                title="Doctor Reports"></iframe>
+        </div>
+
     </div>
 
     <!-- MODALS -->
@@ -4429,6 +4467,14 @@
                                 <p class="mb-1 text-muted">ชื่อ-นามสกุล: <strong id="histPatientName"
                                         class="text-dark">-</strong></p>
                                 <p class="mb-1 text-muted">HN (รหัสผู้ป่วย): <strong id="histHN"
+                                        class="text-dark">-</strong></p>
+                                <p class="mb-1 text-muted">ອາຍຸ / อายุ: <strong id="histAge"
+                                        class="text-dark">-</strong></p>
+                                <p class="mb-1 text-muted">ບ້ານ / บ้าน: <strong id="histVillage"
+                                        class="text-dark">-</strong></p>
+                                <p class="mb-1 text-muted">ເມືອງ / เมือง: <strong id="histDistrict"
+                                        class="text-dark">-</strong></p>
+                                <p class="mb-1 text-muted">ແຂວງ / แขวง: <strong id="histProvince"
                                         class="text-dark">-</strong></p>
                                 <p class="mb-1 text-muted">เบอร์โทรศัพท์: <strong id="histPhone"
                                         class="text-dark">-</strong></p>
