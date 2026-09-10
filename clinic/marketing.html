@@ -1057,6 +1057,341 @@
             background-color: #047857;
             color: #ffffff;
         }
+
+        /* ==========================================================
+           Smartphone UI/UX Responsiveness (All Smartphone Sizes)
+           ========================================================== */
+        @media (max-width: 767.98px) {
+            body {
+                padding: 10px !important;
+            }
+
+            body.in-iframe {
+                padding: 8px !important;
+            }
+
+            /* Header & Top Bar Layout */
+            .top-nav-bar {
+                width: 100%;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+
+            .horizontal-tab-nav {
+                width: 100%;
+                justify-content: center;
+                background: #f1f5f9;
+                padding: 4px;
+                border-radius: 14px;
+            }
+
+            .tab-btn {
+                flex: 1;
+                height: 40px;
+                min-height: 40px;
+                padding: 0 10px;
+                font-size: 13px;
+            }
+
+            .top-nav-bar .d-flex.align-items-center {
+                width: 100%;
+                justify-content: space-between;
+                gap: 6px !important;
+                flex-wrap: wrap;
+            }
+
+            .action-btn-primary,
+            .action-btn-order,
+            .action-btn-outline {
+                flex: 1 1 auto;
+                height: 42px;
+                min-height: 42px;
+                padding: 0 10px;
+                font-size: 12.5px;
+                justify-content: center;
+                border-radius: 10px;
+            }
+
+            /* Timeline Stepper for Smartphones */
+            .timeline-stepper {
+                padding: 10px 0 14px 0;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: thin;
+            }
+
+            .timeline-row {
+                min-width: 660px;
+                padding: 0 8px;
+            }
+
+            .step-circle {
+                width: 40px;
+                height: 40px;
+                font-size: 18px;
+                border-width: 2px;
+            }
+
+            .step-circle.active {
+                box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.18);
+            }
+
+            .step-item::after {
+                top: 20px;
+                height: 2px;
+            }
+
+            .step-indicator {
+                width: 15px;
+                height: 15px;
+                font-size: 9px;
+                bottom: -6px;
+            }
+
+            .step-num-text {
+                font-size: 10px;
+            }
+
+            .step-title-text {
+                font-size: 11px;
+                word-break: break-word;
+            }
+
+            /* Filter & Search Bar Responsiveness */
+            #patientSearchContainer,
+            .position-relative[style*="width: 280px"],
+            .position-relative[style*="width: 250px"] {
+                width: 100% !important;
+            }
+
+            .date-filter-capsule {
+                width: 100%;
+                justify-content: space-between;
+                padding: 6px 12px;
+            }
+
+            .date-filter-capsule input[type="date"] {
+                width: 105px !important;
+                font-size: 12.5px;
+            }
+
+            .btn-group[role="group"] {
+                width: 100%;
+            }
+
+            .btn-group[role="group"] .btn {
+                flex: 1;
+            }
+
+            /* Patient Info Card Mobile Layout */
+            .patient-info-card {
+                padding: 14px;
+                flex-direction: column;
+                align-items: stretch !important;
+                gap: 12px !important;
+            }
+
+            .patient-info-card .ms-auto {
+                margin-left: 0 !important;
+                width: 100%;
+                flex-wrap: wrap;
+                gap: 10px !important;
+                border-top: 1px dashed #bbf7d0;
+                padding-top: 10px;
+            }
+
+            .patient-info-card .ms-auto > div {
+                flex: 1 1 45%;
+                min-width: 120px;
+            }
+
+            .patient-info-card .border-start {
+                border-left: none !important;
+                padding-left: 0 !important;
+            }
+
+            /* Modals Responsiveness (Order Modal & SweetAlert) */
+            .order-modal-backdrop {
+                padding: 6px !important;
+                align-items: flex-start !important;
+                padding-top: 10px !important;
+                overflow-x: hidden !important;
+            }
+
+            .order-modal-dialog {
+                padding: 16px 12px 14px 12px !important;
+                border-radius: 18px !important;
+                max-height: 95vh !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                box-sizing: border-box !important;
+                overflow-x: hidden !important;
+                overflow-y: auto !important;
+            }
+
+            .order-modal-title {
+                font-size: 1.1rem !important;
+            }
+
+            .order-customer-box {
+                padding: 12px 10px !important;
+            }
+
+            .order-input,
+            .order-textarea,
+            .addr-picker-input,
+            input.form-control,
+            select.form-select {
+                font-size: 14px !important; /* Prevents mobile iOS Safari auto-zoom */
+                height: 42px !important;
+            }
+
+            .order-med-header {
+                flex-direction: column;
+                align-items: flex-start !important;
+                gap: 8px;
+            }
+
+            .order-pill-group {
+                width: 100%;
+                overflow-x: auto;
+                white-space: nowrap;
+                -webkit-overflow-scrolling: touch;
+                padding-bottom: 4px;
+            }
+
+            .order-control-bar {
+                flex-direction: column;
+                align-items: stretch !important;
+                gap: 8px;
+            }
+
+            .order-btn-add {
+                width: 100%;
+                height: 42px;
+                justify-content: center;
+            }
+
+            .order-bottom-grid {
+                flex-direction: column !important;
+                gap: 12px !important;
+            }
+
+            .order-calc-col {
+                width: 100% !important;
+            }
+
+            /* Footer Bar & Action Buttons Fix for Mobile */
+            .order-footer-bar {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 12px !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+                padding-top: 12px !important;
+            }
+
+            .order-footer-bar > div:first-child {
+                width: 100% !important;
+                max-width: 100% !important;
+                flex-direction: column !important;
+                gap: 10px !important;
+            }
+
+            .order-footer-bar > div:first-child > div {
+                min-width: 0 !important;
+                width: 100% !important;
+                flex: 1 1 100% !important;
+            }
+
+            .order-footer-bar .ms-auto {
+                margin-left: 0 !important;
+                margin-top: 4px !important;
+                width: 100% !important;
+                display: flex !important;
+                flex-direction: row !important;
+                gap: 8px !important;
+                justify-content: space-between !important;
+                box-sizing: border-box !important;
+            }
+
+            .order-btn-cancel {
+                flex: 1 1 35% !important;
+                max-width: 38% !important;
+                height: 44px !important;
+                padding: 0 8px !important;
+                font-size: 13.5px !important;
+                font-weight: 600 !important;
+                border-radius: 10px !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                text-align: center !important;
+                white-space: nowrap !important;
+                box-sizing: border-box !important;
+            }
+
+            .order-btn-save {
+                flex: 1 1 65% !important;
+                height: 44px !important;
+                padding: 0 8px !important;
+                font-size: 12.5px !important;
+                font-weight: 600 !important;
+                border-radius: 10px !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                text-align: center !important;
+                white-space: nowrap !important;
+                box-sizing: border-box !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+            }
+
+            .clinic-modal-card {
+                padding: 24px 18px 18px !important;
+                border-radius: 20px !important;
+            }
+
+            .table-responsive {
+                border-radius: 12px !important;
+            }
+
+            .table-modern th,
+            .table-modern td {
+                padding: 10px 8px !important;
+                font-size: 12.5px !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 6px !important;
+            }
+
+            .step-title-text {
+                font-size: 10px;
+            }
+
+            .action-btn-primary,
+            .action-btn-order,
+            .action-btn-outline {
+                font-size: 11.5px;
+                padding: 0 6px;
+            }
+
+            .patient-avatar {
+                width: 42px;
+                height: 42px;
+                font-size: 20px;
+            }
+
+            .order-summary-box {
+                font-size: 12.5px;
+                padding: 8px 12px;
+            }
+        }
     </style>
 </head>
 

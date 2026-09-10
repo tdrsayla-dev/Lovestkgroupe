@@ -3042,3 +3042,19 @@ body.login-page {
         gap: 16px;
     }
 }
+
+/* ==========================================================
+   Booking Section Iframe Mobile Responsiveness
+   ========================================================== */
+@media (max-width: 767.98px) {
+    #booking #marketingFrame {
+        height: calc(100vh - 65px) !important;
+        min-height: 520px !important;
+        border-radius: 10px !important;
+    }
+    #booking {
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+    }
+}
