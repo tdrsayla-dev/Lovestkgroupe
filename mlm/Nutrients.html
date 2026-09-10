@@ -467,6 +467,7 @@
                 phone: order.phone,
                 disease: order.disease,
                 recorded_by: order.recorded_by,
+                closer_dr: order.closer_dr || '',
                 items: order.items
               };
               localStorage.setItem('stk_pending_sale', JSON.stringify(pendingSale));

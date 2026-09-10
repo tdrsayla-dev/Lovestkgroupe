@@ -230,8 +230,13 @@
 
   const fallbackProductsList = ['SESAMIN', 'APPLE', 'KING_GOLD'];
   const fallbackCustomerTypes = [
-    { id: 'T001', name: 'ลูกค้าใหม่', status: 'ใช้งาน' },
-    { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'ใช้งาน' }
+    { id: 'T001', name: 'ลูกค้าใหม่มาตรวจ', status: 'ใช้งาน' },
+    { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'ใช้งาน' },
+    { id: 'T003', name: 'ลูกค้าใหม่นำผลตรวจมาปรึกษา', status: 'ใช้งาน' },
+    { id: 'T004', name: 'โทรปิดการขายลูกค้าใหม่', status: 'ใช้งาน' },
+    { id: 'T005', name: 'ลูกค้านำผลตรวจมาปรึกษา', status: 'ใช้งาน' },
+    { id: 'T006', name: 'โทรปิดการขายลูกค้าเก่า', status: 'ใช้งาน' },
+    { id: 'T007', name: 'ส่วนกลางใหม่', status: 'ใช้งาน' }
   ];
 
   const safeUpper = (str) => String(str || '').trim().toUpperCase();

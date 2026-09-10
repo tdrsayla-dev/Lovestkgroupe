@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -54,92 +54,145 @@
 
   <script type="text/babel">
     const { useState, useMemo, useEffect, useRef, useCallback } = React;
-    // ðŸ›¡ï¸ GLOBAL ICONS DESTRUCTURING: à¸›à¸¥à¸­à¸”à¸ à¸±à¸¢à¸ˆà¸²à¸à¸•à¸±à¸§à¹à¸›à¸£à¸‹à¹‰à¸³à¸‹à¹‰à¸­à¸™ à¹à¸¥à¸°à¸”à¸¶à¸‡à¹‚à¸¡à¸”à¸¹à¸¥à¹à¸¥à¸°à¸„à¸­à¸¡à¹‚à¸žà¹€à¸™à¸™à¸•à¹Œà¸¡à¸²à¸„à¸£à¸šà¸–à¹‰à¸§à¸™
-    const { LayoutDashboard, ShoppingCart, Users, Contact, Headset, BarChart3, Plus, Edit, Trash2, UserCircle, Menu, X, Save, Info, PackageIcon, Package, Target, Trophy, Activity, Eye, Tags, CheckCircle, GitBranch, Archive, ChevronDown, FileText, SettingsIcon, Coins, ShieldCheck, AlertTriangle, AlertCircle, LoginModal, Toast, Sidebar, Header, ConfirmModal, EditModal, DonutChart, AutoSuggestInput, SearchIcon } = window;
-    
-    
+    const { 
+      LayoutDashboard, ShoppingCart, Users, Contact, Headset, BarChart3, Plus, Edit, Trash2, 
+      UserCircle, Menu, X, Save, Info, PackageIcon, Target, Trophy, Activity, Eye, Tags, 
+      CheckCircle, GitBranch, Archive, ChevronDown, FileText, SettingsIcon, Coins, ShieldCheck, 
+      LoginModal, Toast, Sidebar, Header, ConfirmModal, EditModal, DonutChart, AutoSuggestInput, 
+      SearchIcon 
+    } = window;
 
-    const fallbackCustomerTypes = window.fallbackCustomerTypes || [
-       { id: 'T001', name: 'ลูกค้าใหม่', status: 'ใช้งาน' },
-       { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'ใช้งาน' }
+    const Search = SearchIcon || (({ size = 18, className = "" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    ));
+
+    const Tag = Tags || (({ size = 20, className = "" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
+    ));
+
+    const AlertTriangle = window.AlertTriangle || (({ size = 24, className = "" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    ));
+
+    const fallbackCustomerTypes = [
+      { id: 'T001', name: 'ลูกค้าใหม่มาตรวจ', status: 'ใช้งาน' },
+      { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'ใช้งาน' },
+      { id: 'T003', name: 'ลูกค้าใหม่นำผลตรวจมาปรึกษา', status: 'ใช้งาน' },
+      { id: 'T004', name: 'โทรปิดการขายลูกค้าใหม่', status: 'ใช้งาน' },
+      { id: 'T005', name: 'ลูกค้านำผลตรวจมาปรึกษา', status: 'ใช้งาน' },
+      { id: 'T006', name: 'โทรปิดการขายลูกค้าเก่า', status: 'ใช้งาน' },
+      { id: 'T007', name: 'ส่วนกลางใหม่', status: 'ใช้งาน' }
     ];
 
-    // ==========================================
-    // 📌 Customer Types Management View Component
-    // ==========================================
+    const boxWrapper = "bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5";
+    const btnClassPrimary = "inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-sm transition-all text-sm";
+    const tableHeaderClass = "py-3.5 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider bg-slate-50 border-b border-slate-200";
+    const tableCellClass = "py-3.5 px-4 text-sm font-medium text-slate-700 border-b border-slate-100";
+
     const CustomerTypesManagementView = ({ customerTypes, setCustomerTypes, isAdmin, showToast }) => {
-        const [showForm, setShowForm] = useState(false);
-        const [isEditing, setIsEditing] = useState(false);
-        const [isSubmitting, setIsSubmitting] = useState(false);
-        const [searchTerm, setSearchTerm] = useState(''); 
+        const [searchTerm, setSearchTerm] = useState('');
+        const [showModal, setShowModal] = useState(false);
+        const [editingItem, setEditingItem] = useState(null);
+        const [formData, setFormData] = useState({ id: '', name: '', status: 'ใช้งาน' });
         const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null, title: '' });
-        
-        const initialFormState = { id: '', name: '', status: 'ใช้งาน' };
-        const [formData, setFormData] = useState(initialFormState);
+
+        const filteredTypes = useMemo(() => {
+          if (!customerTypes) return [];
+          return customerTypes.filter(t => 
+            (t.id && t.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (t.name && t.name.toLowerCase().includes(searchTerm.toLowerCase()))
+          );
+        }, [customerTypes, searchTerm]);
 
         const handleOpenAdd = () => {
-          setIsEditing(false); let nextIdNum = 1;
-          const pIds = (customerTypes || []).map(p => { const match = p && p.id && p.id.match(/^T(\d+)$/i); return match ? parseInt(match[1], 10) : 0; });
-          if (pIds.length > 0) nextIdNum = Math.max(0, ...pIds) + 1;
-          setFormData({ ...initialFormState, id: "T" + nextIdNum.toString().padStart(3, '0') });
-          setShowForm(true);
+          const usedNums = new Set((customerTypes || []).map(t => {
+            const m = String(t.id || '').match(/\d+/);
+            return m ? parseInt(m[0], 10) : 0;
+          }));
+          let nextNum = 1;
+          while (usedNums.has(nextNum)) nextNum++;
+          const nextIdStr = 'T' + nextNum.toString().padStart(3, '0');
+          setFormData({ id: nextIdStr, name: '', status: 'ใช้งาน' });
+          setEditingItem(null);
+          setShowModal(true);
         };
-        const handleOpenEdit = (type) => { setIsEditing(true); setFormData({ ...type }); setShowForm(true); };
 
-        const handleSave = (e) => {
-           e.preventDefault(); 
-           if (!formData.id || !formData.name) return; 
-           setIsSubmitting(true);
-           
-           if (window.SUPABASE_REST_URL) {
-              const supaData = { type_id: formData.id, name: formData.name, status: formData.status };
-              const req = isEditing 
-                ? supabaseUpdate('stk_customer_types', formData.id, supaData, 'type_id')
-                : supabaseInsert('stk_customer_types', supaData);
+        const handleOpenEdit = (item) => {
+          setFormData({ id: item.id, name: item.name, status: item.status || 'ใช้งาน' });
+          setEditingItem(item);
+          setShowModal(true);
+        };
 
-              req.then(() => {
-                 if(isEditing) setCustomerTypes((customerTypes || []).map(p => p && safeUpper(p.id) === safeUpper(formData.id) ? formData : p)); 
-                 else setCustomerTypes([...(customerTypes || []), formData]); 
-                 setShowForm(false); 
-                 setIsSubmitting(false); 
-                 showToast(isEditing ? 'แก้ไขประเภทลูกค้าสำเร็จ' : 'เพิ่มประเภทลูกค้าสำเร็จ', 'success');
-              }).catch(err => {
-                 setIsSubmitting(false);
-                 showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
+        const handleSave = async (e) => {
+          e.preventDefault();
+          if (!formData.name.trim()) {
+            showToast('กรุณากรอกชื่อประเภทลูกค้า', 'error');
+            return;
+          }
+
+          try {
+            if (editingItem) {
+              await supabaseUpdate('stk_customer_types', formData.id, {
+                name: formData.name,
+                status: formData.status
+              }, 'type_id').catch(() => {
+                return supabaseUpdate('customer_types', formData.id, {
+                  name: formData.name,
+                  status: formData.status
+                }, 'id');
               });
-           }
+
+              setCustomerTypes(prev => prev.map(t => t.id === formData.id ? { ...formData } : t));
+              showToast('อัปเดตข้อมูลสำเร็จ', 'success');
+            } else {
+              await supabaseInsert('stk_customer_types', {
+                type_id: formData.id,
+                name: formData.name,
+                status: formData.status
+              }).catch(() => {
+                return supabaseInsert('customer_types', {
+                  id: formData.id,
+                  name: formData.name,
+                  status: formData.status
+                });
+              });
+
+              setCustomerTypes(prev => [...prev, { ...formData }]);
+              showToast('เพิ่มประเภทลูกค้าสำเร็จ', 'success');
+            }
+            setShowModal(false);
+          } catch (err) {
+            console.error(err);
+            showToast('บันทึกข้อมูลไม่สำเร็จ: ' + err.message, 'error');
+          }
         };
 
-        const executeDelete = () => { 
-            const id = confirmDelete.id; 
-            supabaseDelete('stk_customer_types', id, 'type_id').then(() => {
-               setCustomerTypes((customerTypes || []).filter(p => p && p.id !== id)); 
-               showToast('ลบประเภทลูกค้าสำเร็จ', 'success');
-            }).catch(err => {
-               showToast('ลบล้มเหลว: ' + err.message, 'error');
+        const executeDelete = async (id) => {
+          try {
+            await supabaseDelete('stk_customer_types', id, 'type_id').catch(() => {
+              return supabaseDelete('customer_types', id, 'id');
             });
+            setCustomerTypes(prev => prev.filter(t => t.id !== id));
+            showToast('ลบข้อมูลสำเร็จ', 'success');
+            setConfirmDelete({ show: false, id: null, title: '' });
+          } catch (err) {
+            console.error(err);
+            showToast('ลบข้อมูลไม่สำเร็จ: ' + err.message, 'error');
+          }
         };
-
-        const filteredTypes = (customerTypes || []).filter(p => p && ((p.id && String(p.id).toLowerCase().includes(searchTerm.toLowerCase())) || (p.name && String(p.name).toLowerCase().includes(searchTerm.toLowerCase()))));
 
         return (
-          <div className="space-y-6 animation-fade-in relative w-full">
-            <ConfirmModal isOpen={confirmDelete.show} onClose={() => setConfirmDelete({show: false, id: null, title: ''})} onConfirm={executeDelete} title="ยืนยันการลบประเภทลูกค้า" message={`คุณต้องการลบประเภทลูกค้า "${confirmDelete.title}" ใช่หรือไม่?`} />
-            
-            <EditModal isOpen={showForm} onClose={() => setShowForm(false)} title={isEditing ? 'แก้ไขประเภทลูกค้า' : 'เพิ่มประเภทลูกค้าใหม่'} icon={Tags}>
-                <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div><label className={labelClassHud}>รหัสประเภท</label><input type="text" disabled={isEditing} className={inputClassHud} value={formData.id} onChange={e=>setFormData({...formData,id:e.target.value})}/></div>
-                  <div><label className={labelClassHud}>ชื่อประเภทลูกค้า</label><input type="text" required className={inputClassHud} value={formData.name} onChange={e=>setFormData({...formData,name:e.target.value})}/></div>
-                  <div><label className={labelClassHud}>สถานะ</label><select className={inputClassHud} value={formData.status} onChange={e=>setFormData({...formData,status:e.target.value})}><option value="ใช้งาน">ใช้งาน</option><option value="ไม่ใช้งาน">ไม่ใช้งาน</option></select></div>
-                  <div className="md:col-span-3 text-right pt-4 border-t border-slate-100 mt-2 flex justify-end gap-3"><button type="button" onClick={()=>setShowForm(false)} className={btnClassSecondary}>ยกเลิก</button><button type="submit" disabled={isSubmitting} className={btnClassPrimary}>{isSubmitting ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</button></div>
-                </form>
-            </EditModal>
-
+          <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-               <h2 className="text-2xl font-bold text-slate-800">จัดการประเภทลูกค้า (Customer Types)</h2>
-               <div className="flex w-full sm:w-auto items-center gap-3">
-                 <div className="flex items-center bg-slate-50/30 focus-within:bg-white border border-slate-200 rounded-xl px-3 shadow-sm focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 transition-all duration-300 flex-1 sm:w-72 h-[38px] sm:h-[40px]">
-                    <SearchIcon size={18} className="text-slate-400 shrink-0" />
+               <div>
+                  <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                     <Tag className="text-blue-600" size={28}/> ประเภทลูกค้า (Customer Types)
+                  </h1>
+                  <p className="text-slate-500 text-sm mt-1">จัดการประเภทลูกค้าเพื่อกำหนดกลุ่มและรายงานสถิติ</p>
+               </div>
+               <div className="flex items-center gap-3 w-full sm:w-auto">
+                 <div className="relative flex-1 sm:w-64 bg-white border border-slate-200 rounded-xl px-3 py-2 flex items-center shadow-sm">
+                    <Search size={18} className="text-slate-400 shrink-0"/>
                     <input type="text" placeholder="ค้นหารหัส หรือ ชื่อประเภท..." className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                  </div>
                  <button onClick={handleOpenAdd} className={`${btnClassPrimary} shrink-0`}><Plus size={18}/> เพิ่มประเภทลูกค้า</button>
@@ -176,6 +229,54 @@
                 </table>
               </div>
             </div>
+
+            {/* Modal Edit/Add */}
+            {showModal && (
+              <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-3xl shadow-xl max-w-md w-full p-6 space-y-4">
+                  <div className="flex justify-between items-center border-b pb-3">
+                    <h3 className="font-bold text-lg text-slate-800">{editingItem ? 'แก้ไขประเภทลูกค้า' : 'เพิ่มประเภทลูกค้าใหม่'}</h3>
+                    <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+                  </div>
+                  <form onSubmit={handleSave} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">รหัสประเภท</label>
+                      <input type="text" disabled value={formData.id} className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-500 font-bold" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">ชื่อประเภทลูกค้า *</label>
+                      <input type="text" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="เช่น ลูกค้าใหม่มาตรวจ, สมาชิกVIP" className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">สถานะ</label>
+                      <select value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })} className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none">
+                        <option value="ใช้งาน">ใช้งาน</option>
+                        <option value="ระงับ">ระงับ</option>
+                      </select>
+                    </div>
+                    <div className="flex justify-end gap-3 pt-3">
+                      <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-xl">ยกเลิก</button>
+                      <button type="submit" className={btnClassPrimary}>บันทึก</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* Confirm Delete */}
+            {confirmDelete.show && (
+              <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-3xl shadow-xl max-w-sm w-full p-6 text-center space-y-4">
+                  <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto"><AlertTriangle size={24}/></div>
+                  <h3 className="font-bold text-lg text-slate-800">ยืนยันการลบ?</h3>
+                  <p className="text-sm text-slate-600">คุณต้องการลบประเภทลูกค้า <span className="font-bold text-red-600">"{confirmDelete.title}"</span> ใช่หรือไม่?</p>
+                  <div className="flex justify-center gap-3 pt-2">
+                    <button onClick={() => setConfirmDelete({ show: false, id: null, title: '' })} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-xl">ยกเลิก</button>
+                    <button onClick={() => executeDelete(confirmDelete.id)} className="px-4 py-2 text-sm font-bold bg-red-600 hover:bg-red-700 text-white rounded-xl">ลบข้อมูล</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         );
     };

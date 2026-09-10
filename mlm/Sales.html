@@ -149,8 +149,13 @@
 
 
         const fallbackCustomerTypes = window.fallbackCustomerTypes || [
-            { id: 'T001', name: 'ลูกค้าใหม่', status: 'ใช้งาน' },
-            { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'ใช้งาน' }
+            { id: 'T001', name: 'ลูกค้าใหม่มาตรวจ', status: 'ใช้งาน' },
+            { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'ใช้งาน' },
+            { id: 'T003', name: 'ลูกค้าใหม่นำผลตรวจมาปรึกษา', status: 'ใช้งาน' },
+            { id: 'T004', name: 'โทรปิดการขายลูกค้าใหม่', status: 'ใช้งาน' },
+            { id: 'T005', name: 'ลูกค้านำผลตรวจมาปรึกษา', status: 'ใช้งาน' },
+            { id: 'T006', name: 'โทรปิดการขายลูกค้าเก่า', status: 'ใช้งาน' },
+            { id: 'T007', name: 'ส่วนกลางใหม่', status: 'ใช้งาน' }
         ];
         const fallbackProductsList = window.fallbackProductsList || ['SESAMIN', 'APPLE', 'KING_GOLD'];
 
@@ -972,6 +977,74 @@
                 return null;
             }, [products]);
 
+            const loadCustomerFromPending = (pending) => {
+                if (!pending) return;
+                const pendingHn = String(pending.hn || '').trim();
+                const pendingPhone = String(pending.phone || '').trim();
+                const pendingName = String(pending.customer_name || '').trim();
+
+                let foundExistingCust = (customers || []).find(c => {
+                    if (!c) return false;
+                    if (pendingHn && safeUpper(c.id) === safeUpper(pendingHn)) return true;
+                    if (pendingPhone && c.phone && String(c.phone).trim() === pendingPhone) return true;
+                    if (pendingName && c.name && String(c.name).trim().toLowerCase() === pendingName.toLowerCase()) return true;
+                    return false;
+                });
+
+                let pastSymptom = pending.disease || '';
+                if (!pastSymptom && foundExistingCust) {
+                    pastSymptom = foundExistingCust.symptom || '';
+                    if (!pastSymptom && Array.isArray(sales)) {
+                        const pastSale = sales.find(s => s && safeUpper(s.customerId) === safeUpper(foundExistingCust.id) && (s.symptom || s.symptom_disease));
+                        if (pastSale) pastSymptom = pastSale.symptom || pastSale.symptom_disease || '';
+                    }
+                }
+
+                let resolvedCloser = '';
+                let resolvedCloserTeam = '';
+                if (pending.closer_dr) {
+                    const drStr = String(pending.closer_dr).trim();
+                    const matchedCloser = (allClosersPool || []).find(c =>
+                        safeUpper(c.id) === safeUpper(drStr) ||
+                        String(c.name || '').trim().toLowerCase() === drStr.toLowerCase() ||
+                        String(c.name || '').includes(drStr) ||
+                        drStr.includes(String(c.name || ''))
+                    );
+                    if (matchedCloser) {
+                        resolvedCloser = `${matchedCloser.id} - ${matchedCloser.name}`;
+                        resolvedCloserTeam = matchedCloser.team || 'Center';
+                    } else {
+                        resolvedCloser = drStr;
+                        resolvedCloserTeam = 'Center';
+                    }
+                }
+
+                if (foundExistingCust) {
+                    setCustMode(foundExistingCust.type || 'ลูกค้าเก่า');
+                    setCustData(prev => ({
+                        ...prev,
+                        id: foundExistingCust.id,
+                        name: foundExistingCust.name || pendingName || prev.name || '',
+                        phone: foundExistingCust.phone || pendingPhone || prev.phone || '',
+                        lineId: foundExistingCust.lineId || prev.lineId || '',
+                        symptom: pastSymptom || prev.symptom || '',
+                        closer: resolvedCloser || foundExistingCust.closer || prev.closer || '',
+                        closerTeam: resolvedCloserTeam || (foundExistingCust.closerTeam === 'Team A' ? 'Marketing' : foundExistingCust.closerTeam === 'Team B' ? 'Center' : foundExistingCust.closerTeam) || prev.closerTeam || ''
+                    }));
+                } else {
+                    setCustMode('ลูกค้าใหม่มาตรวจ');
+                    setCustData(prev => ({
+                        ...prev,
+                        id: pendingHn || prev.id || '',
+                        name: pendingName || prev.name || '',
+                        phone: pendingPhone || prev.phone || '',
+                        symptom: pastSymptom || prev.symptom || '',
+                        closer: resolvedCloser || prev.closer || '',
+                        closerTeam: resolvedCloserTeam || prev.closerTeam || ''
+                    }));
+                }
+            };
+
             useEffect(() => {
                 if (Array.isArray(products) && products.length > 0 && Array.isArray(cart) && cart.length > 0) {
                     let updated = false;
@@ -1018,7 +1091,7 @@
                             setPaymentNote(`VISIT: ${pending.visit_id}`);
                         }
 
-                        if (pending && (pending.hn || pending.customer_name)) {
+                        if (pending && (pending.hn || pending.customer_name || pending.phone)) {
                             setCustData(prev => ({
                                 ...prev,
                                 id: pending.hn || prev.id || '',
@@ -1026,7 +1099,8 @@
                                 phone: pending.phone || prev.phone || '',
                                 symptom: pending.disease || prev.symptom || ''
                             }));
-                            setCustMode('ลูกค้าใหม่');
+                            loadCustomerFromPending(pending);
+                            // mode set in loadCustomerFromPending
                         }
 
                         if (pending && Array.isArray(pending.items) && pending.items.length > 0) {
@@ -1488,6 +1562,7 @@
             const handleCancelEdit = () => {
                 setEditingSaleId(null);
                 setCart([]);
+                setCustMode('');
                 setCustData({ id: '', name: '', phone: '', lineId: '', symptom: '', closer: '', closerTeam: '' });
                 setMemberIdInput('');
                 setFormData({ date: getLocalISODate() });
@@ -1688,7 +1763,6 @@
 
                                     if (typeof supabaseUpdate === 'function' && realProductId) {
                                         await supabaseUpdate('stk_products', realProductId, { current_stock: newStock }, 'product_id').catch(() => { });
-                                        await supabaseUpdate('products', realProductId, { stock: newStock }).catch(() => { });
                                     }
 
                                     if (typeof supabaseInsert === 'function' && realProductId) {
@@ -1945,7 +2019,7 @@
                     }
 
                     if (originalCust.closer !== custData.closer || originalCust.type !== custMode || originalCust.phone !== custData.phone || originalCust.lineId !== custData.lineId || originalCust.symptom !== custData.symptom) {
-                        const updatedCust = { ...originalCust, closer: custData.closer, type: custMode, phone: custData.phone, lineId: custData.lineId, symptom: custData.symptom };
+                        const updatedCust = { ...originalCust, closer: custData.closer, type: custMode, phone: custData.phone, lineId: custData.lineId, symptom: custData.symptom, isExistingCustomer: true };
                         newCustomerObj = updatedCust;
                     }
                 }
@@ -2058,7 +2132,7 @@
                 }
 
                 if (payMode === 'สด' || payMode === 'สด+โอน') {
-                    if (cTHB > 0) paymentSummaryParts.push(`สด:${cTHB}`);
+                    if (cTHB > 0) paymentSummaryParts.push(`สดบาท:${cTHB}`);
                     if (cLAK > 0) paymentSummaryParts.push(`สดกีบ:${cLAK}`);
                 }
 
@@ -2068,7 +2142,16 @@
                     if (tLaosLAK > 0) paymentSummaryParts.push(`โอนลาวกีบ(${payTransferLaosBankLAK}):${tLaosLAK}`);
                 }
 
-                const paymentSummaryStr = paymentSummaryParts.length > 0 ? paymentSummaryParts.join(' | ') : `${payMode}`;
+                let paymentSummaryStr = '';
+                if (paymentSummaryParts.length > 0) {
+                    paymentSummaryStr = paymentSummaryParts.join(' | ');
+                } else if (cartTotals.amount > 0) {
+                    if (payMode === 'สด') paymentSummaryStr = `สดบาท:${cartTotals.amount}`;
+                    else if (payMode === 'โอน') paymentSummaryStr = `โอนไทย(${payTransferThaiBank || 'กสิกรไทย'}):${cartTotals.amount}`;
+                    else paymentSummaryStr = `สดบาท:${cartTotals.amount}`;
+                } else {
+                    paymentSummaryStr = payMode === 'สด' ? 'สดบาท:0' : payMode === 'โอน' ? 'โอนไทย:0' : `${payMode}`;
+                }
                 const newRecord = {
                     customerName: (newCustomerObj ? newCustomerObj.name : custData.name || ''),
                     customerType: custMode || '',
@@ -2158,39 +2241,56 @@
                     if (editingSaleId) {
                         newRecord.id = editingSaleId;
                         if (newCustomerObj && typeof supabaseInsert === 'function') {
-                            let success = false;
-                            let retryCount = 0;
-                            let currentCustId = newCustomerObj.id;
-                            let custNum = parseInt(currentCustId.replace('C', ''), 10);
-
-                            while (!success && retryCount < 10) {
-                                const custPayload = {
-                                    customer_id: currentCustId,
-                                    name: newCustomerObj.name,
+                            if (newCustomerObj.isExistingCustomer) {
+                                const custUpdatePayload = {
                                     phone: newCustomerObj.phone,
                                     line_id: newCustomerObj.lineId || '',
                                     customer_type: newCustomerObj.type,
                                     symptom_disease: newCustomerObj.symptom,
-                                    owner_member_id: newCustomerObj.memberId,
-                                    closer_id: newCustomerObj.closer,
-                                    extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName },
-                                    status: 'Active'
+                                    closer_id: newCustomerObj.closer
                                 };
+                                if (typeof supabaseUpdate === 'function') {
+                                    try {
+                                        await supabaseUpdate('stk_customers', newCustomerObj.id, custUpdatePayload, 'customer_id');
+                                    } catch (errUp) {
+                                        console.warn('Customer update failed in edit mode:', errUp);
+                                    }
+                                }
+                            } else {
+                                let success = false;
+                                let retryCount = 0;
+                                let currentCustId = newCustomerObj.id;
+                                let custNum = parseInt(currentCustId.replace('C', ''), 10);
 
-                                try {
-                                    await supabaseInsert('stk_customers', custPayload);
-                                    success = true;
-                                    newCustomerObj.id = currentCustId;
-                                    newRecord.customerId = currentCustId;
-                                } catch (err) {
-                                    const errMsg = String(err.message || '').toLowerCase();
-                                    if (errMsg.includes('duplicate') || errMsg.includes('409') || errMsg.includes('already exists')) {
-                                        custNum++;
-                                        currentCustId = "C" + custNum.toString().padStart(3, '0');
-                                        retryCount++;
-                                    } else {
-                                        console.error('Database customer insert failed:', err);
-                                        break;
+                                while (!success && retryCount < 10) {
+                                    const custPayload = {
+                                        customer_id: currentCustId,
+                                        name: newCustomerObj.name,
+                                        phone: newCustomerObj.phone,
+                                        line_id: newCustomerObj.lineId || '',
+                                        customer_type: newCustomerObj.type,
+                                        symptom_disease: newCustomerObj.symptom,
+                                        owner_member_id: newCustomerObj.memberId,
+                                        closer_id: newCustomerObj.closer,
+                                        extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName },
+                                        status: 'Active'
+                                    };
+
+                                    try {
+                                        await supabaseInsert('stk_customers', custPayload);
+                                        success = true;
+                                        newCustomerObj.id = currentCustId;
+                                        newRecord.customerId = currentCustId;
+                                    } catch (err) {
+                                        const errMsg = String(err.message || '').toLowerCase();
+                                        if (errMsg.includes('duplicate') || errMsg.includes('409') || errMsg.includes('already exists')) {
+                                            custNum++;
+                                            currentCustId = "C" + custNum.toString().padStart(3, '0');
+                                            retryCount++;
+                                        } else {
+                                            console.error('Database customer insert failed:', err);
+                                            break;
+                                        }
                                     }
                                 }
                             }
@@ -2272,7 +2372,6 @@
 
                                     const newStock = Math.max(0, currentStockNum - diff);
                                     await supabaseUpdate('stk_products', pid, { current_stock: newStock }, 'product_id').catch(() => { });
-                                    await supabaseUpdate('products', pid, { stock: newStock }).catch(() => { });
 
                                     if (typeof supabaseInsert === 'function') {
                                         await supabaseInsert('stk_stock_movements', {
@@ -2380,73 +2479,90 @@
                     if (!saleInsertSuccess) throw new Error("รหัสบิลชนกันหลายครั้ง ระบบไม่สามารถบันทึกได้ กรุณากดบันทึกใหม่อีกครั้ง");
 
                     if (newCustomerObj) {
-                        let custInsertSuccess = false;
-                        let custRetryCount = 0;
-                        let currentCustId = newCustomerObj.id;
-                        let custNum = parseInt(currentCustId.replace('C', ''), 10);
-
-                        while (!custInsertSuccess && custRetryCount < 10) {
-                            const custPayload = {
-                                customer_id: currentCustId,
-                                name: newCustomerObj.name,
+                        if (newCustomerObj.isExistingCustomer) {
+                            const custUpdatePayload = {
                                 phone: newCustomerObj.phone,
                                 line_id: newCustomerObj.lineId || '',
                                 customer_type: newCustomerObj.type,
                                 symptom_disease: newCustomerObj.symptom,
-                                owner_member_id: newCustomerObj.memberId,
-                                closer_id: newCustomerObj.closer,
-                                extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName },
-                                status: 'Active'
+                                closer_id: newCustomerObj.closer
                             };
-                            try {
-                                await supabaseInsert('stk_customers', custPayload);
-                                custInsertSuccess = true;
-                                newCustomerObj.id = currentCustId;
-                                newRecord.customerId = currentCustId;
-                            } catch (err) {
-                                const errMsg = String(err.message || '').toLowerCase();
-                                if (errMsg.includes('duplicate') || errMsg.includes('409') || errMsg.includes('already exists')) {
-                                    if (currentCustId.match(/^C\d+$/i)) {
-                                        custNum++;
-                                        currentCustId = "C" + custNum.toString().padStart(3, '0');
-                                        custRetryCount++;
-                                    } else {
-                                        // เป็นลูกค้าจาก Clinic (เช่น รหัส HN) ที่เคยมีประวัติบันทึกใน stk_customers แล้ว
-                                        // ให้ถือว่าสำเร็จและใช้รหัสเดิมได้เลย
-                                        custInsertSuccess = true;
-                                        newCustomerObj.id = currentCustId;
-                                        newRecord.customerId = currentCustId;
-                                        break;
-                                    }
-                                } else {
-                                    const fallbackCust = { ...custPayload };
-                                    delete fallbackCust.extra_details_json;
-                                    try {
-                                        await supabaseInsert('stk_customers', fallbackCust);
-                                        custInsertSuccess = true;
-                                        newCustomerObj.id = currentCustId;
-                                        newRecord.customerId = currentCustId;
-                                    } catch (e2) {
-                                        const e2Msg = String(e2.message || '').toLowerCase();
-                                        if (e2Msg.includes('duplicate') || e2Msg.includes('409') || e2Msg.includes('already exists')) {
-                                            if (currentCustId.match(/^C\d+$/i)) {
-                                                custNum++;
-                                                currentCustId = "C" + custNum.toString().padStart(3, '0');
-                                                custRetryCount++;
-                                            } else {
-                                                custInsertSuccess = true;
-                                                newCustomerObj.id = currentCustId;
-                                                newRecord.customerId = currentCustId;
-                                                break;
-                                            }
+                            if (typeof supabaseUpdate === 'function') {
+                                try {
+                                    await supabaseUpdate('stk_customers', newCustomerObj.id, custUpdatePayload, 'customer_id');
+                                } catch (errUp) {
+                                    console.warn('Customer update failed:', errUp);
+                                }
+                            }
+                        } else {
+                            let custInsertSuccess = false;
+                            let custRetryCount = 0;
+                            let currentCustId = newCustomerObj.id;
+                            let custNum = parseInt(currentCustId.replace('C', ''), 10);
+
+                            while (!custInsertSuccess && custRetryCount < 10) {
+                                const custPayload = {
+                                    customer_id: currentCustId,
+                                    name: newCustomerObj.name,
+                                    phone: newCustomerObj.phone,
+                                    line_id: newCustomerObj.lineId || '',
+                                    customer_type: newCustomerObj.type,
+                                    symptom_disease: newCustomerObj.symptom,
+                                    owner_member_id: newCustomerObj.memberId,
+                                    closer_id: newCustomerObj.closer,
+                                    extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName },
+                                    status: 'Active'
+                                };
+                                try {
+                                    await supabaseInsert('stk_customers', custPayload);
+                                    custInsertSuccess = true;
+                                    newCustomerObj.id = currentCustId;
+                                    newRecord.customerId = currentCustId;
+                                } catch (err) {
+                                    const errMsg = String(err.message || '').toLowerCase();
+                                    if (errMsg.includes('duplicate') || errMsg.includes('409') || errMsg.includes('already exists')) {
+                                        if (currentCustId.match(/^C\d+$/i)) {
+                                            custNum++;
+                                            currentCustId = "C" + custNum.toString().padStart(3, '0');
+                                            custRetryCount++;
                                         } else {
-                                            throw e2;
+                                            // เป็นลูกค้าจาก Clinic (เช่น รหัส HN) ที่เคยมีประวัติบันทึกใน stk_customers แล้ว
+                                            // ให้ถือว่าสำเร็จและใช้รหัสเดิมได้เลย
+                                            custInsertSuccess = true;
+                                            newCustomerObj.id = currentCustId;
+                                            newRecord.customerId = currentCustId;
+                                            break;
+                                        }
+                                    } else {
+                                        const fallbackCust = { ...custPayload };
+                                        delete fallbackCust.extra_details_json;
+                                        try {
+                                            await supabaseInsert('stk_customers', fallbackCust);
+                                            custInsertSuccess = true;
+                                            newCustomerObj.id = currentCustId;
+                                            newRecord.customerId = currentCustId;
+                                        } catch (e2) {
+                                            const e2Msg = String(e2.message || '').toLowerCase();
+                                            if (e2Msg.includes('duplicate') || e2Msg.includes('409') || e2Msg.includes('already exists')) {
+                                                if (currentCustId.match(/^C\d+$/i)) {
+                                                    custNum++;
+                                                    currentCustId = "C" + custNum.toString().padStart(3, '0');
+                                                    custRetryCount++;
+                                                } else {
+                                                    custInsertSuccess = true;
+                                                    newCustomerObj.id = currentCustId;
+                                                    newRecord.customerId = currentCustId;
+                                                    break;
+                                                }
+                                            } else {
+                                                throw e2;
+                                            }
                                         }
                                     }
                                 }
                             }
+                            if (!custInsertSuccess) throw new Error("รหัสลูกค้าชนกันหลายครั้ง ระบบไม่สามารถบันทึกได้ กรุณากดบันทึกใหม่อีกครั้ง");
                         }
-                        if (!custInsertSuccess) throw new Error("รหัสลูกค้าชนกันหลายครั้ง ระบบไม่สามารถบันทึกได้ กรุณากดบันทึกใหม่อีกครั้ง");
                     }
 
                     // ⚡ FIX: ตัดสต็อกเปิดบิลใหม่ ดึงค่าสดจากฐานข้อมูลเช่นกัน
@@ -2472,7 +2588,6 @@
 
                                 if (typeof supabaseUpdate === 'function') {
                                     await supabaseUpdate('stk_products', pid, { current_stock: newStock }, 'product_id').catch(() => { });
-                                    await supabaseUpdate('products', pid, { stock: newStock }).catch(() => { });
                                 }
                                 if (typeof supabaseInsert === 'function') {
                                     await supabaseInsert('stk_stock_movements', {
@@ -2783,7 +2898,16 @@
                                 <React.Fragment>
                                     <div className="grid grid-cols-3 gap-1.5 mb-1.5">
                                         {['สด', 'โอน', 'สด+โอน'].map(mode => (
-                                            <button key={mode} type="button" onClick={() => setPayMode(mode)}
+                                            <button key={mode} type="button" onClick={() => {
+                                                setPayMode(mode);
+                                                if (cartTotals.amount > 0) {
+                                                    if (mode === 'สด' && !payCashTHB && !payCashLAK) {
+                                                        setPayCashTHB(String(cartTotals.amount));
+                                                    } else if (mode === 'โอน' && !payTransferThaiTHB && !payTransferLaosTHB && !payTransferLaosLAK) {
+                                                        setPayTransferThaiTHB(String(cartTotals.amount));
+                                                    }
+                                                }
+                                            }}
                                                 className={`py-1.5 px-1 rounded-md text-[11px] font-black border transition-all shadow-sm ${payMode === mode ? 'bg-blue-600 border-blue-500 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-800'}`}
                                             >{mode === 'สด' ? '💵 สด' : mode === 'โอน' ? '📱 โอน' : '💵+📱 สด+โอน'}</button>
                                         ))}
@@ -2791,7 +2915,15 @@
 
                                     {(payMode === 'สด' || payMode === 'สด+โอน') && (
                                         <div className="bg-green-50/50 p-2 rounded-lg border border-green-200 space-y-1 mb-1.5">
-                                            <label className="text-[9px] font-black text-green-700 flex items-center gap-1"><Coins size={10} /> รับเงินสด (บาท/กีบ)</label>
+                                            <div className="flex justify-between items-center">
+                                                <label className="text-[9px] font-black text-green-700 flex items-center gap-1"><Coins size={10} /> รับเงินสด (สดบาท / สดกีบ)</label>
+                                                {cartTotals.amount > 0 && (
+                                                    <div className="flex gap-1">
+                                                        <button type="button" onClick={() => { setPayCashTHB(String(cartTotals.amount)); setPayCashLAK(''); }} className="text-[9px] font-bold bg-green-200/70 hover:bg-green-300 text-green-800 px-1.5 py-0.5 rounded transition-colors">สดบาทเต็ม</button>
+                                                        <button type="button" onClick={() => { setPayCashLAK(String(Math.round(cartTotals.amount * exchangeRate))); setPayCashTHB(''); }} className="text-[9px] font-bold bg-emerald-200/70 hover:bg-emerald-300 text-emerald-800 px-1.5 py-0.5 rounded transition-colors">สดกีบเต็ม</button>
+                                                    </div>
+                                                )}
+                                            </div>
                                             <div className="flex gap-2">
                                                 <div className="flex-1 relative">
                                                     <span className="absolute left-2.5 top-1 text-[10px] text-slate-400 font-bold">฿</span>

@@ -106,10 +106,15 @@
   <script src="CommonComponents.js"></script>
   <script>
     window.addEventListener('DOMContentLoaded', function() {
-      setTimeout(function() {
-        var loader = document.getElementById('initial-loader');
-        if (loader) loader.style.display = 'none';
-      }, 600);
+      // ซ่อน loader เร็วขึ้นทันทีเมื่อ DOM พร้อม
+      var loader = document.getElementById('initial-loader');
+      if (loader) {
+        loader.style.transition = 'opacity 0.2s ease-out';
+        setTimeout(function() {
+          loader.style.opacity = '0';
+          setTimeout(function() { loader.style.display = 'none'; }, 200);
+        }, 100);
+      }
     });
   </script>
   <!-- <?!= include('Includes'); ?> -->
@@ -156,8 +161,13 @@
     };
 
     const fallbackCustomerTypes = window.fallbackCustomerTypes || [
-       { id: 'T001', name: 'ลูกค้าใหม่', status: 'ใช้งาน' },
-       { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'ใช้งาน' }
+       { id: 'T001', name: 'ลูกค้าใหม่มาตรวจ', status: 'ใช้งาน' },
+       { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'ใช้งาน' },
+       { id: 'T003', name: 'ลูกค้าใหม่นำผลตรวจมาปรึกษา', status: 'ใช้งาน' },
+       { id: 'T004', name: 'โทรปิดการขายลูกค้าใหม่', status: 'ใช้งาน' },
+       { id: 'T005', name: 'ลูกค้านำผลตรวจมาปรึกษา', status: 'ใช้งาน' },
+       { id: 'T006', name: 'โทรปิดการขายลูกค้าเก่า', status: 'ใช้งาน' },
+       { id: 'T007', name: 'ส่วนกลางใหม่', status: 'ใช้งาน' }
     ];
     const fallbackProductsList = window.fallbackProductsList || ['SESAMIN', 'APPLE', 'KING_GOLD'];
 
@@ -179,7 +189,7 @@
     // ==========================================
     // 📌 Dashboard View Component
     // ==========================================
-    const DashboardView = ({ sales, members, customers, isAdmin, activeCustomerTypes, businessTeams, initialTargetHistory, fetchSalesForPeriod, fetchFreshData }) => {
+    const DashboardView = ({ sales, members, customers, isAdmin, activeCustomerTypes, businessTeams, initialTargetHistory, fetchSalesForPeriod, fetchFreshData, isSyncing }) => {
         const todayStr = getLocalISODate();
         const firstDayOfMonthStr = `${todayStr.substring(0, 7)}-01`;
         const getDefaultMonthRange = () => {
@@ -514,7 +524,7 @@
                             cType = String(cust.type || cust.customer_type || cust.customerType || '').trim();
                         }
                     }
-                    const isNew = (cType.includes('ใหม่') || cType.includes('ตรวจ') || cType.includes('ปรึกษา') || cType.includes('New')) && !cType.includes('ไม่มาตรวจ') && !cType.includes('เก่า');
+                    const isNew = (cType.includes('ตรวจ') || cType.includes('ปรึกษา') || (cType.includes('ใหม่') && !cType.includes('ไม่มาตรวจ'))) && !cType.includes('เก่า');
                     
                     if (isNew && custId) {
                         map[targetTeamId].newCustSet.add(custId);
@@ -551,7 +561,7 @@
             const sCustName = safeUpper(s?.customerName || s?.customer_name || '');
             return (customersList || []).find(c => {
                 if (!c) return false;
-                const cId = safeUpper(c.id || c.hn || '');
+                const cId = safeUpper(c.id || c.customer_id || c.hn || '');
                 const cName = safeUpper(c.name || c.customer_name || '');
                 if (sCustId && cId && sCustId === cId) return true;
                 if (sCustName && cName && sCustName === cName) return true;
@@ -624,6 +634,9 @@
             let mStats = {};
             (members || []).forEach(m => {
                 if (m && (m.id || m.user_id)) {
+                    const role = String(m.role || '').trim();
+                    // นับเฉพาะพนักงานการตลาดเท่านั้น ไม่นับพนักงานทั่วไปหรือรหัสบริษัท
+                    if (role && role !== 'พนักงานการตลาด') return;
                     const key = safeUpper(m.id || m.user_id);
                     mStats[key] = { id: m.id || m.user_id, name: m.name || m.id, profileUrl: m.profileUrl, newCustSet: new Set() };
                 }
@@ -638,8 +651,8 @@
                 if (!memberId) return;
                 const key = safeUpper(memberId);
                 if (!mStats[key]) {
-                    const mem = (members || []).find(m => m && safeUpper(m.id || m.user_id) === key);
-                    mStats[key] = { id: memberId, name: mem ? mem.name : (s.memberName || s.member_name || memberId), profileUrl: mem?.profileUrl, newCustSet: new Set() };
+                    // ข้าม memberId ที่ไม่ใช่นักการตลาดในระบบ (เช่น รหัสบริษัท)
+                    return;
                 }
                 const cust = findSaleCustomer(s, customers);
                 let cType = cust ? String(cust.type || cust.customer_type || cust.customerType || '').trim() : '';
@@ -647,7 +660,7 @@
                     cType = String(s.customerType || s.customer_type).trim();
                 }
                 const sCustId = s.customerId || s.customer_id || s.hn || s.customerName || s.customer_name;
-                const isNew = (cType.includes('ใหม่') || cType.includes('ตรวจ') || cType.includes('ปรึกษา') || cType.includes('New')) && !cType.includes('ไม่มาตรวจ') && !cType.includes('เก่า');
+                const isNew = (cType.includes('ตรวจ') || cType.includes('ปรึกษา') || (cType.includes('ใหม่') && !cType.includes('ไม่มาตรวจ'))) && !cType.includes('เก่า');
                 
                 if (isNew && sCustId) {
                     mStats[key].newCustSet.add(sCustId);
@@ -802,6 +815,8 @@
                     if (s.customerType || s.customer_type) cType = String(s.customerType || s.customer_type).trim();
                     else cType = 'ไม่ระบุ';
                 }
+                // normalize ชื่อเก่า → ชื่อใหม่
+                if (cType === 'ลูกค้าใหม่') cType = 'ลูกค้าใหม่มาตรวจ';
 
                 foundTypes.add(cType);
 
@@ -1000,6 +1015,7 @@
                         <div className="flex flex-col mb-4 gap-0.5 shrink-0 relative z-10 text-center">
                             <h3 className="text-lg sm:text-xl font-black text-white flex items-center justify-center gap-2"><Users size={20} className="text-emerald-400 drop-shadow-md"/> ยอดพาคนมาตรวจ (Top Checkups)</h3>
                             <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium">จัดอันดับ 1-3 ตามจำนวนคนมาตรวจ</p>
+                            {isSyncing && <div className="flex items-center justify-center gap-1 mt-1"><div className="w-3 h-3 border-2 border-emerald-400/40 border-t-emerald-400 rounded-full animate-spin"></div><span className="text-[9px] text-emerald-400 font-medium">กำลังอัปเดต...</span></div>}
                         </div>
                         <div className="flex justify-center items-end gap-1 w-full pt-1 pb-1 relative z-10 min-h-[14rem]">
                             {checkupPodiumData.map((m) => {
@@ -1703,7 +1719,14 @@
       const [businessTeams, setBusinessTeams] = useState([]);
       const [systemUsers, setSystemUsers] = useState([]);
       const [targetHistory, setTargetHistory] = useState([]);
-      const [isAppLoading, setIsAppLoading] = useState(true);
+      const [isAppLoading, setIsAppLoading] = useState(() => {
+        try {
+          return !localStorage.getItem('stk_app_cache_data');
+        } catch(e) {
+          return true;
+        }
+      });
+      const [isSyncing, setIsSyncing] = useState(false);
       const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
         try {
           return localStorage.getItem('stk_sidebar_collapsed') === 'true';
@@ -1892,12 +1915,13 @@
 
             const fetchFreshData = (isBackground = false) => {
         if (!isBackground) setIsAppLoading(true);
+        if (isBackground) setIsSyncing(true);
         Promise.all([
           supabaseSelect('stk_products').catch(() => []),
           supabaseSelect('stk_customer_types').catch(() => []),
           supabaseSelect('stk_closers').catch(() => []),
           supabaseSelect('stk_members').catch(() => []),
-          supabaseSelect('stk_customers', 'limit=10000').catch(() => []),
+          supabaseSelect('stk_customers', 'select=customer_id,name,customer_type,owner_member_id&limit=10000').catch(() => supabaseSelect('stk_customers', 'limit=10000').catch(() => [])),
           (async () => {
               const now = new Date();
               const y = now.getFullYear();
@@ -1932,7 +1956,59 @@
           console.error("Supabase load error:", err);
         }).finally(() => {
           if (!isBackground) setIsAppLoading(false);
+          setIsSyncing(false);
         });
+      };
+
+      const processSalesRows = (rawSales) => {
+          if (!Array.isArray(rawSales)) return [];
+          return rawSales.map(s => {
+              let sumF = 0, sumP = 0, sumZ = 0, sumM = 0;
+              let itemsList = [];
+              if (s.items_json) {
+                  try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
+              }
+              
+              if (Array.isArray(itemsList) && itemsList.length > 0) {
+                  itemsList.forEach(it => {
+                      const typeStr = String(it.type || '').trim();
+                      const qtyNum = Number(it.qty || it.quantity || 1);
+                      const pName = String(it.prod || it.productName || it.name || 'Unknown').trim();
+                      s[`${pName}_${typeStr}`] = qtyNum;
+                      if (typeStr === 'ราคาเต็ม') sumF += qtyNum;
+                      else if (typeStr === 'ราคาสมาชิก') sumM += qtyNum;
+                      else if (typeStr === 'ราคาโปร' || typeStr === 'โปรโมชั่น') sumP += qtyNum;
+                      else if (typeStr === 'ราคาศูนย์') sumZ += qtyNum;
+                      else sumM += qtyNum;
+                  });
+              } else {
+                  Object.keys(s).forEach(k => {
+                      if (k !== 'รวมชิ้นราคาเต็ม' && k !== 'รวมชิ้นราคาโปร' && k !== 'รวมชิ้นราคาศูนย์' && k !== 'ยอดรวมชิ้นทั้งหมด') {
+                          if (k.endsWith('_ราคาเต็ม')) sumF += (parseInt(s[k]) || 0);
+                          else if (k.endsWith('_ราคาโปร')) sumP += (parseInt(s[k]) || 0);
+                          else if (k.endsWith('_ราคาศูนย์')) sumZ += (parseInt(s[k]) || 0);
+                          else if (k.endsWith('_ราคาสมาชิก')) sumM += (parseInt(s[k]) || 0);
+                      }
+                  });
+              }
+              s['รวมชิ้นราคาเต็ม'] = sumF; s['รวมชิ้นราคาโปร'] = sumP; s['รวมชิ้นราคาศูนย์'] = sumZ; s['รวมชิ้นราคาสมาชิก'] = sumM;
+              s['ยอดรวมชิ้นทั้งหมด'] = sumF + sumM + sumP + sumZ;
+              s['memberId'] = s.memberId || s.sellerId || s.seller_id || s.seller || s.marketing_name || s.marketing;
+              s['sellerId'] = s.sellerId || s.seller_id || s.seller || s.memberId || s.marketing_name || s.marketing;
+              return {
+                  ...s,
+                  id: s.id || s.sale_id || s.order_id,
+                  orderId: s.order_id || s.id,
+                  date: s.date || s.sale_date,
+                  marketing: s.marketing_name || s.marketing || s.seller_id,
+                  seller: s.seller_id || s.marketing_name || s.marketing || s.seller || s.memberId,
+                  sellerId: s.seller_id || s.memberId,
+                  memberId: s.memberId || s.seller_id || s.seller,
+                  customerId: s.customer_id || s.customerId || s.hn || '',
+                  customerName: s.customer_name || s.customerName || '',
+                  customerType: s.customer_type || s.customerType || ''
+              };
+          });
       };
 
       const fetchSalesForPeriod = async (start, end) => {
@@ -1945,9 +2021,10 @@
               } else {
                   salesData = await supabaseSelect('stk_sales', `date=gte.${start}&date=lte.${end}&limit=100000`).catch(()=>[]);
               }
-              setSales(salesData || []);
+              const processed = processSalesRows(salesData || []);
+              setSales(processed);
               const currentCache = (() => { try { return JSON.parse(localStorage.getItem('stk_app_cache_data')) || {}; } catch(e) { return {}; } })();
-              currentCache.sales = salesData || [];
+              currentCache.sales = processed;
               try { localStorage.setItem('stk_app_cache_data', JSON.stringify(currentCache)); } catch(e){}
           } catch(e) {
               console.error(e);
@@ -2028,49 +2105,7 @@
            if (Array.isArray(response.targetHistory)) setTargetHistory(response.targetHistory);
            
            if (Array.isArray(response.sales)) {
-               const processedSales = response.sales.map(s => {
-                   let sumF = 0, sumP = 0, sumZ = 0, sumM = 0;
-                   let itemsList = [];
-                   if (s.items_json) {
-                       try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
-                   }
-                   
-                   if (Array.isArray(itemsList) && itemsList.length > 0) {
-                       itemsList.forEach(it => {
-                           const typeStr = String(it.type || '').trim();
-                           const qtyNum = Number(it.qty || it.quantity || 1);
-                           const pName = String(it.prod || it.productName || it.name || 'Unknown').trim();
-                           s[`${pName}_${typeStr}`] = qtyNum;
-                           if (typeStr === 'ราคาเต็ม') sumF += qtyNum;
-                           else if (typeStr === 'ราคาสมาชิก') sumM += qtyNum;
-                           else if (typeStr === 'ราคาโปร' || typeStr === 'โปรโมชั่น') sumP += qtyNum;
-                           else if (typeStr === 'ราคาศูนย์') sumZ += qtyNum;
-                           else sumM += qtyNum;
-                       });
-                   } else {
-                       Object.keys(s).forEach(k => {
-                           if (k !== 'รวมชิ้นราคาเต็ม' && k !== 'รวมชิ้นราคาโปร' && k !== 'รวมชิ้นราคาศูนย์' && k !== 'ยอดรวมชิ้นทั้งหมด') {
-                               if (k.endsWith('_ราคาเต็ม')) sumF += (parseInt(s[k]) || 0);
-                               else if (k.endsWith('_ราคาโปร')) sumP += (parseInt(s[k]) || 0);
-                               else if (k.endsWith('_ราคาศูนย์')) sumZ += (parseInt(s[k]) || 0);
-                               else if (k.endsWith('_ราคาสมาชิก')) sumM += (parseInt(s[k]) || 0);
-                           }
-                       });
-                   }
-                   s['รวมชิ้นราคาเต็ม'] = sumF; s['รวมชิ้นราคาโปร'] = sumP; s['รวมชิ้นราคาศูนย์'] = sumZ; s['รวมชิ้นราคาสมาชิก'] = sumM;
-                   s['ยอดรวมชิ้นทั้งหมด'] = sumF + sumM + sumP + sumZ;
-                   s['memberId'] = s.memberId || s.sellerId || s.seller_id || s.seller || s.marketing_name || s.marketing;
-                   s['sellerId'] = s.sellerId || s.seller_id || s.seller || s.memberId || s.marketing_name || s.marketing;
-                   return {
-                       ...s,
-                       id: s.id || s.sale_id,
-                       date: s.date || s.sale_date,
-                       marketing: s.marketing_name || s.marketing || s.seller_id,
-                       seller: s.seller_id || s.marketing_name || s.marketing || s.seller || s.memberId,
-                       customerName: s.customer_name || s.customerName, customerType: s.customer_type || s.customerType || ''
-                   };
-               });
-               setSales(processedSales);
+               setSales(processSalesRows(response.sales));
            }
       };
 
@@ -2176,13 +2211,7 @@
               <React.Fragment>
                 <div className="p-3 sm:p-6 flex-1 w-full relative z-0">
                   <div className="w-full relative z-10">
-                    {isAppLoading && (
-                      <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-slate-50/80 backdrop-blur-sm animation-fade-in min-h-[500px] rounded-xl">
-                        <div className="w-16 h-16 border-[4px] border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
-                        <h2 className="text-lg font-bold text-slate-700">กำลังซิงค์ข้อมูลกับฐานข้อมูล...</h2>
-                        <p className="text-slate-500 text-sm">กรุณารอสักครู่ ระบบกำลังดึงข้อมูลล่าสุด</p>
-                      </div>
-                    )}
+
                       <DashboardView 
                         sales={sales} 
                         fetchFreshData={fetchFreshData}
@@ -2193,6 +2222,7 @@
                         activeCustomerTypes={activeCustomerTypes}
                         businessTeams={businessTeams}
                         initialTargetHistory={targetHistory}
+                        isSyncing={isSyncing}
                       />
 
                   </div>

@@ -1,4 +1,4 @@
-﻿﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -974,7 +974,6 @@
                                 
                                 if (typeof supabaseUpdate === 'function' && realProductId) {
                                     await supabaseUpdate('stk_products', realProductId, { current_stock: newStock }, 'product_id').catch(() => {});
-                                    await supabaseUpdate('products', realProductId, { stock: newStock }).catch(() => {});
                                 }
                                 
                                 if (typeof supabaseInsert === 'function' && realProductId) {
@@ -1587,7 +1586,7 @@
                            <tr key={index} className="hover:bg-slate-50/80 transition-colors">
                               <td className="py-3 px-3.5 align-top border-r border-slate-100 overflow-hidden">
                                  <div className="font-bold text-blue-700 text-sm leading-tight mb-1 truncate flex justify-between items-center" title={rs.customerId}>
-                                    <span className="truncate mr-1">👤 {rs.customerId || ''} <span className="text-[11px] font-bold text-slate-700">({cName || 'ลูกค้าใหม่'})</span></span>
+                                    <span className="truncate mr-1">👤 {rs.customerId || ''} <span className="text-[11px] font-bold text-slate-700">({cName || 'ลูกค้าใหม่มาตรวจ'})</span></span>
                                     <div className="flex items-center gap-1.5 shrink-0">
     <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md border border-blue-200 font-bold shadow-xs text-center">บิล: <span className="font-black">{rs.id}</span></span>
     {formatOrderTime(rs) && (

@@ -78,8 +78,13 @@
     const Settings = ({size=20}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>;
 
     const fallbackCustomerTypes = window.fallbackCustomerTypes || [
-       { id: 'T001', name: 'ลูกค้าใหม่', status: 'เข้าใช้งาน' },
-       { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'เข้าใช้งาน' }
+       { id: 'T001', name: 'ลูกค้าใหม่มาตรวจ', status: 'ใช้งาน' },
+       { id: 'T002', name: 'ลูกค้าเก่ากลับมาต่อยา', status: 'ใช้งาน' },
+       { id: 'T003', name: 'ลูกค้าใหม่นำผลตรวจมาปรึกษา', status: 'ใช้งาน' },
+       { id: 'T004', name: 'โทรปิดการขายลูกค้าใหม่', status: 'ใช้งาน' },
+       { id: 'T005', name: 'ลูกค้านำผลตรวจมาปรึกษา', status: 'ใช้งาน' },
+       { id: 'T006', name: 'โทรปิดการขายลูกค้าเก่า', status: 'ใช้งาน' },
+       { id: 'T007', name: 'ส่วนกลางใหม่', status: 'ใช้งาน' }
     ];
     const fallbackProductsList = window.fallbackProductsList || ['SESAMIN', 'APPLE', 'KING_GOLD'];
 
@@ -1236,7 +1241,7 @@
                 const catName = newCategoryVal.trim();
                 const newCatId = 'CAT' + Math.floor(Math.random()*10000);
                 const mockCat = { id: newCatId, name: catName, status: 'เข้าใช้งาน', commissionMode: newCategoryMode };
-                const supaCat = { category_id: newCatId, name: catName, status: 'เข้าใช้งาน', commission_mode: newCategoryMode };
+                const supaCat = { id: newCatId, name: catName, status: 'เข้าใช้งาน', commission_mode: newCategoryMode };
                 supabaseInsert('stk_product_categories', supaCat).then(() => {
                     setProductCategories(prev => [...prev, mockCat]);
                     saveProductCore(catName);
@@ -1928,7 +1933,7 @@
         if (!editName.trim()) { showToast('กรุณาระบุชื่อหมวดหมู่', 'error'); return; }
         setIsSubmitting(true);
         if (window.SUPABASE_REST_URL) {
-           supabaseUpdate('stk_product_categories', catId, { name: editName.trim(), commission_mode: editMode }, 'category_id').then(() => {
+           supabaseUpdate('stk_product_categories', catId, { name: editName.trim(), commission_mode: editMode }, 'id').then(() => {
               setProductCategories(prev => prev.map(c => c.id === catId ? { ...c, name: editName.trim(), commissionMode: editMode } : c));
               setEditingId(null);
               setIsSubmitting(false);
@@ -1945,7 +1950,7 @@
         setIsSubmitting(true);
         if (window.SUPABASE_REST_URL) {
           const newCatId = 'CAT' + Math.floor(Math.random() * 1000);
-          const newCat = { category_id: newCatId, name: newName.trim(), status: 'เข้าใช้งาน', commission_mode: newMode };
+          const newCat = { id: newCatId, name: newName.trim(), status: 'เข้าใช้งาน', commission_mode: newMode };
           supabaseInsert('stk_product_categories', newCat).then(() => {
             setProductCategories(prev => [...prev, { id: newCatId, name: newName.trim(), status: 'เข้าใช้งาน', commissionMode: newMode }]);
             setNewName('');
@@ -1960,7 +1965,7 @@
 
       const handleDeleteCategory = (catId) => {
         setIsSubmitting(true);
-        supabaseDelete('stk_product_categories', catId, 'category_id').then(() => {
+        supabaseDelete('stk_product_categories', catId, 'id').then(() => {
           setProductCategories(prev => prev.filter(c => c.id !== catId));
           setConfirmDelete({ show: false, id: null, name: '' });
           setIsSubmitting(false);
