@@ -3425,11 +3425,13 @@
                 try {
                     const client = getMlmSupabaseClient();
                     if (client) {
-                        // ລອງ query ແບບມີ order ກ່ອນ
+                        const selectCols = 'product_id, name, category, current_stock, price_full, price_member, price_promo, status';
+                        // ລອງ query ແບບມີ order ກ່ອນ (ດຶງສະເພາະສິນຄ້າທີ່ມີສະຕັອກ > 0)
                         try {
                             const { data, error } = await client
                                 .from('stk_products')
-                                .select('*')
+                                .select(selectCols)
+                                .gt('current_stock', 0)
                                 .order('product_id', { ascending: true });
                             if (!error && Array.isArray(data) && data.length > 0) {
                                 rawData = data;
@@ -3440,7 +3442,8 @@
                         if (!rawData || rawData.length === 0) {
                             const { data: data2, error: err2 } = await client
                                 .from('stk_products')
-                                .select('*');
+                                .select(selectCols)
+                                .gt('current_stock', 0);
                             if (!err2 && Array.isArray(data2) && data2.length > 0) {
                                 rawData = data2;
                             }
@@ -3449,10 +3452,11 @@
                 } catch (e) { /* suppress */ }
             }
 
-            // 3. Fallback: ດຶງຜ່ານ REST API ຂອງ Supabase (ບໍ່ໃສ່ order ເພື່ອຫຼີກລ່ຽງ 500)
+            // 3. Fallback: ດຶງຜ່ານ REST API ຂອງ Supabase (ສະເພາະຄໍລຳທີ່ຈຳເປັນ ແລະ current_stock > 0)
             if (!rawData || rawData.length === 0) {
                 try {
-                    const restUrl = `${url.replace(/\/$/, '')}/rest/v1/stk_products?select=*`;
+                    const selectCols = 'product_id,name,category,current_stock,price_full,price_member,price_promo,status';
+                    const restUrl = `${url.replace(/\/$/, '')}/rest/v1/stk_products?select=${selectCols}&current_stock=gt.0`;
                     const resp = await fetch(restUrl, {
                         headers: {
                             'apikey': key,
@@ -3493,8 +3497,10 @@
                 ];
             }
 
-            // ແປງຂໍ້ມູນຈາກ stk_products: ລະຫັດ, ຊື່, ລາຄາ, ຈຳນວນ/ສະຕັອກ
-            orderAvailableMedicines = rawData.map(item => {
+            // ແປງຂໍ້ມູນຈາກ stk_products: ລະຫັດ, ຊື່, ລາຄາ, ຈຳນວນ/ສະຕັອກ (ກັ່ນຕອງສະເພາະຈຳນວນ > 0)
+            orderAvailableMedicines = (rawData || [])
+                .filter(item => Number(item.current_stock ?? item.stock ?? item.quantity ?? 0) > 0)
+                .map(item => {
                 const code = item.product_id || item.code || item.id || '';
                 const name = item.name || item.product_name || 'ບໍ່ມີຊື່';
                 const cat = (item.category || item.type || 'ອາຫານເສີມ').trim();
@@ -4169,12 +4175,21 @@
                     safeSetStorage('clinic_bills', cachedBills, 30);
                 } catch (e) { }
 
-                // ບັນທຶກລົງ Supabase ຢ່າງປອດໄພ ປ້ອງກັນ Error 400 ແລະ 409 ດ້ວຍ atomic upsert
+                // ບັນທຶກລົງ Supabase ຢ່າງປອດໄພ: ຕ້ອງບັນທຶກ patients ກ່ອນ ເພື່ອບໍ່ໃຫ້ຕິດ Foreign Key Constraint 409 ໃນ visits!
                 if (clinicClient) {
+                    // 1. Patient Payload FIRST (Foreign Key Parent)
+                    if (hn && hn !== '-') {
+                        try {
+                            await clinicClient.from('patients').upsert(cleanPatientPayload, { onConflict: 'hn' });
+                        } catch (pe) { /* suppress */ }
+                    }
+
+                    // 2. Visit Payload SECOND (Child of patients)
                     try {
                         await clinicClient.from('visits').upsert(cleanVisitPayload, { onConflict: 'visit_id' });
                     } catch (ve) { /* suppress */ }
 
+                    // 3. Bill Payload THIRD (Child of visits & patients)
                     try {
                         const { error: bErr } = await clinicClient.from('bills').upsert(cleanBillPayload, { onConflict: 'bill_id' });
                         if (bErr) {
@@ -4183,12 +4198,6 @@
                             await clinicClient.from('bills').upsert(simpleBill, { onConflict: 'bill_id' });
                         }
                     } catch (be) { /* suppress */ }
-
-                    if (hn && hn !== '-') {
-                        try {
-                            await clinicClient.from('patients').upsert(cleanPatientPayload, { onConflict: 'hn' });
-                        } catch (pe) { /* suppress */ }
-                    }
                 }
                 console.log('✅ Successfully created Visit, Bill, and Patient in Clinic database!');
             } catch (err) {

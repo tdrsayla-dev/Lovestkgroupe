@@ -906,9 +906,27 @@ document.addEventListener("DOMContentLoaded", function () {
                                 status: 'เสร็จสิ้น',
                                 created_at: orderData.created_at || new Date().toISOString()
                             };
+                            // 1. บันทึกข้อมูลคนไข้ลง patients ก่อน เพื่อให้ตาราง visits และ bills อ้างอิง HN ได้อย่างสมบูรณ์ ไม่ติด Foreign Key 409
+                            if (orderData.hn) {
+                                try {
+                                    await _supabase.from('patients').upsert({
+                                        hn: String(orderData.hn),
+                                        patient_name: orderData.customer_name || orderData.patient_name,
+                                        phone: orderData.customer_phone || '',
+                                        age: orderData.age || null,
+                                        province: orderData.province || '',
+                                        district: orderData.district || '',
+                                        village: orderData.village || '',
+                                        referred_by: orderData.recorded_by || '',
+                                        created_at: orderData.created_at || new Date().toISOString()
+                                    }, { onConflict: 'hn' });
+                                } catch (pe) { }
+                            }
+
+                            // 2. บันทึกข้อมูลคิวตรวจลง visits
                             await _supabase.from('visits').upsert(visitPayload, { onConflict: 'visit_id' });
 
-                            // บันทึกบิลลงตาราง bills เพื่อให้ผ่านเงื่อนไข activeBillVisits ในหน้าประวัติผู้ป่วย
+                            // 3. บันทึกบิลลงตาราง bills เพื่อให้ผ่านเงื่อนไข activeBillVisits ในหน้าประวัติผู้ป่วย
                             const billPayload = {
                                 bill_id: 'BILL-' + String(orderData.order_id || Date.now()).replace(/^ORD-/, ''),
                                 visit_id: String(orderData.visit_id),
@@ -945,22 +963,6 @@ document.addEventListener("DOMContentLoaded", function () {
                                 cachedBills.unshift(billPayload);
                                 window.safeSetLocalStorage('clinic_bills', cachedBills);
                             } catch (e) { }
-
-                            if (orderData.hn) {
-                                try {
-                                    await _supabase.from('patients').upsert({
-                                        hn: String(orderData.hn),
-                                        patient_name: orderData.customer_name || orderData.patient_name,
-                                        phone: orderData.customer_phone || '',
-                                        age: orderData.age || null,
-                                        province: orderData.province || '',
-                                        district: orderData.district || '',
-                                        village: orderData.village || '',
-                                        referred_by: orderData.recorded_by || '',
-                                        created_at: orderData.created_at || new Date().toISOString()
-                                    }, { onConflict: 'hn' });
-                                } catch (pe) { }
-                            }
 
                             // รีเฟรชประวัติผู้ป่วยทันทีหากเปิดหน้าประวัติอยู่
                             if (typeof loadPatientHistory === 'function') {
@@ -7994,11 +7996,13 @@ async function loadMlmProducts(isRealtimeUpdate = false) {
     let data = null;
     try {
         if (_mlmSupabase) {
-            // ลอง query แบบมี order ก่อน
+            const selectCols = 'product_id, name, category, current_stock, price_full, price_member, price_promo, status';
+            // ลอง query แบบมี order ก่อน (ดึงเฉพาะสินค้าที่มีสต็อก > 0)
             try {
                 const { data: resData, error } = await _mlmSupabase
                     .from('stk_products')
-                    .select('*')
+                    .select(selectCols)
+                    .gt('current_stock', 0)
                     .order('product_id', { ascending: true });
                 if (!error && resData && resData.length > 0) {
                     data = resData;
@@ -8010,7 +8014,8 @@ async function loadMlmProducts(isRealtimeUpdate = false) {
                 try {
                     const { data: resData2, error: err2 } = await _mlmSupabase
                         .from('stk_products')
-                        .select('*');
+                        .select(selectCols)
+                        .gt('current_stock', 0);
                     if (!err2 && resData2 && resData2.length > 0) {
                         data = resData2;
                     }
@@ -8018,10 +8023,11 @@ async function loadMlmProducts(isRealtimeUpdate = false) {
             }
         }
 
-        // Direct REST fallback (ไม่ใส่ order เพื่อหลีกเลี่ยง 500)
+        // Direct REST fallback (เฉพาะคอลัมน์ที่จำเป็น และ current_stock > 0)
         if (!data || data.length === 0) {
             try {
-                const restUrl = `${mlmSupabaseUrl}/rest/v1/stk_products?select=*`;
+                const selectCols = 'product_id,name,category,current_stock,price_full,price_member,price_promo,status';
+                const restUrl = `${mlmSupabaseUrl}/rest/v1/stk_products?select=${selectCols}&current_stock=gt.0`;
                 const resp = await fetch(restUrl, {
                     headers: {
                         'apikey': mlmSupabaseKey,
@@ -8052,7 +8058,9 @@ async function loadMlmProducts(isRealtimeUpdate = false) {
         try { localStorage.setItem('mlm_stk_products_cache', JSON.stringify(data)); } catch (e) { }
     }
 
-    window.allMlmProducts = data.map(item => ({
+    window.allMlmProducts = (data || [])
+        .filter(item => Number(item.current_stock ?? item.stock ?? item.quantity ?? 0) > 0)
+        .map(item => ({
         id: item.product_id || item.id,
         name: item.name,
         type: item.category || 'อาหารเสริม',
@@ -11879,43 +11887,107 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
             }
         }
 
-        if (Array.isArray(medsList) && medsList.length > 0) {
-            let rowsHtml = '';
-            medsList.forEach(m => {
-                let tierText = m.tierName || 'ປົກກະຕິ';
-                let badgeClass = 'bg-secondary-subtle text-dark border';
-                if (m.tier === 'promo' || tierText.includes('ໂປຣ') || tierText.includes('โปร')) {
-                    tierText = 'ໂປຣໂມຊັ່ນ';
-                    badgeClass = 'bg-warning-subtle text-warning-emphasis border border-warning';
-                } else if (m.tier === 'high' || tierText.includes('ສະມາຊິກ') || tierText.includes('สมาชิก')) {
-                    tierText = 'ສະມາຊິກ/ສົ່ງ';
-                    badgeClass = 'bg-primary-subtle text-primary-emphasis border border-primary';
-                } else if (m.tier === 'free' || tierText.includes('ແຖມ') || tierText.includes('ฟรี')) {
-                    tierText = 'ແຖມຟຣີ';
-                    badgeClass = 'bg-danger-subtle text-danger-emphasis border border-danger';
+        // 4. 🌟 DB Fallback: ดึงจาก bills (Clinic Supabase) และ stk_nutrient_orders (MLM Supabase) เมื่อหาใน local/memory ไม่พบ
+        if (medsList.length === 0 && row.visit_id) {
+            try {
+                // 4.1 ดึงจากตาราง bills (Clinic Supabase) ก่อน
+                if (typeof _supabase !== 'undefined' && _supabase) {
+                    const { data: billData } = await _supabase
+                        .from('bills')
+                        .select('items, subtotal, discount, payable_amount, note')
+                        .eq('visit_id', row.visit_id)
+                        .maybeSingle();
+                    if (billData) {
+                        let billItems = billData.items;
+                        if (typeof billItems === 'string') { try { billItems = JSON.parse(billItems); } catch (e) { billItems = null; } }
+                        if (Array.isArray(billItems) && billItems.length > 0) {
+                            medsList = billItems.map(it => ({
+                                name: it.name || it.product_name || 'ສິນຄ້າ',
+                                qty: Number(it.qty || 1),
+                                tier: it.tier || 'normal',
+                                tierName: it.tierName || it.priceType || 'ປົກກະຕິ',
+                                price: Number(it.price || 0),
+                                total: Number(it.total || (Number(it.price || 0) * Number(it.qty || 1))),
+                                source: it.source || 'mlm'
+                            }));
+                            // อัปเดต matchedOrderData ด้วยข้อมูลจาก DB
+                            if (!matchedOrderData) matchedOrderData = {};
+                            if (!matchedOrderData.subtotal) matchedOrderData.subtotal = billData.subtotal;
+                            if (!matchedOrderData.discount) matchedOrderData.discount = billData.discount;
+                            if (!matchedOrderData.grandTotal) matchedOrderData.grandTotal = billData.payable_amount;
+                            if (!matchedOrderData.notes && billData.note) matchedOrderData.notes = billData.note;
+                        }
+                    }
                 }
+            } catch (e) { console.warn('DB fallback bills fetch warning:', e); }
 
-                let cleanName = m.name || String(m);
-                if (cleanName.endsWith(' (โปร)')) cleanName = cleanName.replace(' (โปร)', '');
-                else if (cleanName.endsWith(' (ส่ง/สมาชิก)')) cleanName = cleanName.replace(' (ส่ง/สมาชิก)', '');
-                else if (cleanName.endsWith(' (แถมฟรี)')) cleanName = cleanName.replace(' (แถมฟรี)', '');
-
-                let srcBadge = (m.source === 'mlm' || !m.source)
-                    ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size: 0.68rem;">STK MLM</span>'
-                    : '<span class="badge bg-info-subtle text-info border border-info-subtle ms-1" style="font-size: 0.68rem;">ຄັງຢາ</span>';
-
-                rowsHtml += `
-                    <tr>
-                        <td class="ps-3 align-middle text-dark fw-medium">${cleanName} ${srcBadge}</td>
-                        <td class="text-center align-middle"><span class="badge ${badgeClass}" style="font-size: 0.75rem;">${tierText}</span></td>
-                        <td class="text-center align-middle fw-bold text-primary">${m.qty || 1}</td>
-                    </tr>
-                `;
-            });
-            medsTbody.innerHTML = rowsHtml;
-        } else {
-            medsTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">ບໍ່ມີລາຍການຢາ/ອາຫານເສີມສັ່ງຈ່າຍ</td></tr>';
+            // 4.2 ถ้ายังไม่ได้ ดึงจาก stk_nutrient_orders (MLM Supabase)
+            if (medsList.length === 0 && typeof _mlmSupabase !== 'undefined' && _mlmSupabase) {
+                try {
+                    const { data: nOrder } = await _mlmSupabase
+                        .from('stk_nutrient_orders')
+                        .select('items_json, status')
+                        .eq('visit_id', row.visit_id)
+                        .maybeSingle();
+                    if (nOrder) {
+                        let nItems = nOrder.items_json;
+                        if (typeof nItems === 'string') { try { nItems = JSON.parse(nItems); } catch (e) { nItems = null; } }
+                        if (Array.isArray(nItems) && nItems.length > 0) {
+                            medsList = nItems.map(it => ({
+                                name: it.name || it.product_name || 'ສິນຄ້າ',
+                                qty: Number(it.qty || 1),
+                                tier: it.tier || 'normal',
+                                tierName: it.tierName || it.priceType || 'ປົກກະຕິ',
+                                price: Number(it.price || 0),
+                                total: Number(it.total || (Number(it.price || 0) * Number(it.qty || 1))),
+                                source: 'mlm'
+                            }));
+                        }
+                    }
+                } catch (e) { console.warn('DB fallback stk_nutrient_orders fetch warning:', e); }
+            }
         }
+
+        const renderMedsList = (medsList) => {
+            if (Array.isArray(medsList) && medsList.length > 0) {
+                let rowsHtml = '';
+                medsList.forEach(m => {
+                    let tierText = m.tierName || 'ປົກກະຕິ';
+                    let badgeClass = 'bg-secondary-subtle text-dark border';
+                    if (m.tier === 'promo' || tierText.includes('ໂປຣ') || tierText.includes('โปร')) {
+                        tierText = 'ໂປຣໂມຊັ່ນ';
+                        badgeClass = 'bg-warning-subtle text-warning-emphasis border border-warning';
+                    } else if (m.tier === 'high' || tierText.includes('ສະມາຊິກ') || tierText.includes('สมาชิก')) {
+                        tierText = 'ສະມາຊິກ/ສົ່ງ';
+                        badgeClass = 'bg-primary-subtle text-primary-emphasis border border-primary';
+                    } else if (m.tier === 'free' || tierText.includes('ແຖມ') || tierText.includes('ฟรี')) {
+                        tierText = 'ແຖມຟຣີ';
+                        badgeClass = 'bg-danger-subtle text-danger-emphasis border border-danger';
+                    }
+
+                    let cleanName = m.name || String(m);
+                    if (cleanName.endsWith(' (โปร)')) cleanName = cleanName.replace(' (โปร)', '');
+                    else if (cleanName.endsWith(' (ส่ง/สมาชิก)')) cleanName = cleanName.replace(' (ส่ง/สมาชิก)', '');
+                    else if (cleanName.endsWith(' (แถมฟรี)')) cleanName = cleanName.replace(' (แถมฟรี)', '');
+
+                    let srcBadge = (m.source === 'mlm' || !m.source)
+                        ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size: 0.68rem;">STK MLM</span>'
+                        : '<span class="badge bg-info-subtle text-info border border-info-subtle ms-1" style="font-size: 0.68rem;">ຄັງຢາ</span>';
+
+                    rowsHtml += `
+                        <tr>
+                            <td class="ps-3 align-middle text-dark fw-medium">${cleanName} ${srcBadge}</td>
+                            <td class="text-center align-middle"><span class="badge ${badgeClass}" style="font-size: 0.75rem;">${tierText}</span></td>
+                            <td class="text-center align-middle fw-bold text-primary">${m.qty || 1}</td>
+                        </tr>
+                    `;
+                });
+                medsTbody.innerHTML = rowsHtml;
+            } else {
+                medsTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">ບໍ່ມີລາຍການຢາ/ອາຫານເສີມສັ່ງຈ່າຍ</td></tr>';
+            }
+        };
+        renderMedsList(medsList);
     }
 
     // 🌟 แสดงกล่องสรุปยอดเงินสำหรับออเดอร์ (histOrderSummaryBox)
@@ -11932,17 +12004,36 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
             noteText = matchedOrderData.notes || matchedOrderData.note || matchedOrderData.symptom || '-';
         }
 
-        if (!grandTotal) {
+        if (!grandTotal && row.visit_id) {
+            // 🌟 ดึงยอดเงินจาก bills (Clinic Supabase) แทนการพึ่ง localStorage
             try {
-                const localBills = JSON.parse(localStorage.getItem('clinic_bills') || '[]');
-                const b = localBills.find(x => x.visit_id === row.visit_id || (row.order_id && x.bill_id && x.bill_id.includes(String(row.order_id).replace(/\D/g, ''))));
-                if (b) {
-                    subtotal = Number(b.subtotal || b.payable_amount || 0);
-                    discount = Number(b.discount || 0);
-                    grandTotal = Number(b.payable_amount || (subtotal - discount));
-                    if (b.note) noteText = b.note;
+                if (typeof _supabase !== 'undefined' && _supabase) {
+                    const { data: billAmt } = await _supabase
+                        .from('bills')
+                        .select('subtotal, discount, payable_amount, note')
+                        .eq('visit_id', row.visit_id)
+                        .maybeSingle();
+                    if (billAmt) {
+                        subtotal = Number(billAmt.subtotal || billAmt.payable_amount || 0);
+                        discount = Number(billAmt.discount || 0);
+                        grandTotal = Number(billAmt.payable_amount || (subtotal - discount));
+                        if (billAmt.note) noteText = billAmt.note;
+                    }
                 }
             } catch (e) { }
+            // LocalStorage cache fallback (เพื่อ offline)
+            if (!grandTotal) {
+                try {
+                    const localBills = JSON.parse(localStorage.getItem('clinic_bills') || '[]');
+                    const b = localBills.find(x => x.visit_id === row.visit_id || (row.order_id && x.bill_id && x.bill_id.includes(String(row.order_id).replace(/\D/g, ''))));
+                    if (b) {
+                        subtotal = Number(b.subtotal || b.payable_amount || 0);
+                        discount = Number(b.discount || 0);
+                        grandTotal = Number(b.payable_amount || (subtotal - discount));
+                        if (b.note) noteText = b.note;
+                    }
+                } catch (e) { }
+            }
         }
 
         if ((!noteText || noteText === '-') && displaySymptom && displaySymptom !== 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ' && displaySymptom !== 'ไม่มีระบุ') {
