@@ -1,21 +1,41 @@
 <!DOCTYPE html>
 <html lang="lo">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clinic Booking - Timeline</title>
-    
+
     <!-- นำเข้า Bootstrap & Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- Config & Supabase Client (For Realtime stk_products) -->
+    <script src="config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
         body {
             background-color: #f8fafc;
             font-family: 'Noto Sans Lao', sans-serif;
             color: #1e293b;
+        }
+
+        .order-stock-hint {
+            font-size: 11.5px;
+            color: #334155;
+            background: #f1f5f9;
+            border: 1px dashed #94a3b8;
+            border-radius: 6px;
+            padding: 4px 10px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            animation: orderModalFadeIn 0.2s ease;
         }
 
         /* ---------------- Horizontal Tab Navigation (Modern Minimal) ---------------- */
@@ -29,6 +49,7 @@
             scrollbar-width: none;
             max-width: 100%;
         }
+
         .top-nav-bar::-webkit-scrollbar {
             display: none;
         }
@@ -100,6 +121,7 @@
             cursor: pointer;
             transition: all 0.2s ease;
         }
+
         .action-btn-primary:hover {
             background-color: #072b54;
             color: #ffffff;
@@ -124,12 +146,14 @@
             transition: all 0.2s ease;
             box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
         }
+
         .action-btn-order:hover {
             background-color: #059669;
             color: #ffffff;
             box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
             transform: translateY(-1px);
         }
+
         .action-btn-order:active {
             transform: translateY(0);
         }
@@ -152,19 +176,28 @@
             cursor: pointer;
             transition: all 0.2s ease;
         }
+
         .action-btn-outline:hover:not(:disabled) {
             background-color: rgba(224, 242, 254, 0.5);
             color: #0b3c73;
             border-color: #bae6fd;
         }
+
         .action-btn-outline:disabled {
             opacity: 0.6;
             cursor: not-allowed;
         }
+
         @keyframes spin-anim {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
         }
+
         .icon-spin {
             animation: spin-anim 0.8s linear infinite;
             display: inline-block;
@@ -177,6 +210,7 @@
             border-radius: 12px;
             padding: 16px;
         }
+
         .patient-avatar {
             width: 50px;
             height: 50px;
@@ -221,7 +255,8 @@
         .step-item::after {
             content: '';
             position: absolute;
-            top: 24px; /* Center of 48px circle */
+            top: 24px;
+            /* Center of 48px circle */
             left: 50%;
             width: 100%;
             height: 3px;
@@ -255,7 +290,7 @@
             position: relative;
             z-index: 4;
             color: #94a3b8;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
             transition: all 0.3s;
         }
 
@@ -338,42 +373,50 @@
             color: #64748b;
             line-height: 1.3;
         }
+
         .search-dropdown-item {
             padding: 10px 14px;
             cursor: pointer;
             border-bottom: 1px solid #f1f5f9;
             transition: all 0.15s;
         }
-        .search-dropdown-item:hover, .search-dropdown-item.active {
+
+        .search-dropdown-item:hover,
+        .search-dropdown-item.active {
             background-color: #f0fdf4;
         }
+
         .search-dropdown-item.is-selected {
             background-color: #ecfdf5;
             border-left: 3px solid #10b981;
         }
+
         .btn-group .btn.active {
             background-color: #0b3c73 !important;
             color: #ffffff !important;
             border-color: #0b3c73 !important;
         }
+
         .btn-group .btn.active i {
             color: #ffffff !important;
         }
+
         .date-filter-capsule {
             background: #ffffff;
             border: 1px solid #e2e8f0;
             border-radius: 50rem;
             padding: 4px 12px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
             display: flex;
             align-items: center;
             gap: 6px;
         }
+
         .date-filter-capsule input[type="date"]::-webkit-calendar-picker-indicator {
             cursor: pointer;
             opacity: 0.7;
         }
-        
+
         /* Custom path using SVG overlay for perfection (optional, but CSS borders work for now) */
         .svg-timeline-path {
             position: absolute;
@@ -384,7 +427,7 @@
             z-index: 1;
             pointer-events: none;
         }
-        
+
         /* ---------------- ตาราง ---------------- */
         .table-modern th {
             background-color: #f8fafc;
@@ -394,6 +437,7 @@
             border-bottom: 2px solid #e2e8f0;
             white-space: nowrap;
         }
+
         .table-modern td {
             vertical-align: middle;
             font-size: 13px;
@@ -418,10 +462,12 @@
             visibility: hidden;
             transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s cubic-bezier(0.16, 1, 0.3, 1);
         }
+
         .clinic-modal-backdrop.show {
             opacity: 1;
             visibility: visible;
         }
+
         .clinic-modal-card {
             background: #ffffff;
             border-radius: 24px;
@@ -434,9 +480,11 @@
             transform: scale(0.92) translateY(12px);
             transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
+
         .clinic-modal-backdrop.show .clinic-modal-card {
             transform: scale(1) translateY(0);
         }
+
         .clinic-modal-close {
             position: absolute;
             top: 16px;
@@ -454,11 +502,13 @@
             font-size: 16px;
             transition: all 0.2s ease;
         }
+
         .clinic-modal-close:hover {
             background: #e2e8f0;
             color: #0f172a;
             transform: rotate(90deg);
         }
+
         .clinic-modal-icon-wrapper {
             width: 68px;
             height: 68px;
@@ -470,21 +520,25 @@
             font-size: 34px;
             position: relative;
         }
+
         .clinic-modal-icon-wrapper.info {
             background: #e0f2fe;
             color: #0284c7;
             box-shadow: 0 0 0 8px #f0f9ff;
         }
+
         .clinic-modal-icon-wrapper.warning {
             background: #fef3c7;
             color: #d97706;
             box-shadow: 0 0 0 8px #fffbeb;
         }
+
         .clinic-modal-icon-wrapper.success {
             background: #dcfce7;
             color: #16a34a;
             box-shadow: 0 0 0 8px #f0fdf4;
         }
+
         .clinic-modal-title {
             font-size: 19px;
             font-weight: 700;
@@ -492,12 +546,14 @@
             margin-bottom: 8px;
             line-height: 1.35;
         }
+
         .clinic-modal-message {
             font-size: 14px;
             color: #64748b;
             line-height: 1.6;
             margin-bottom: 18px;
         }
+
         .clinic-modal-hint {
             background: #f8fafc;
             border: 1px dashed #cbd5e1;
@@ -511,6 +567,7 @@
             gap: 10px;
             text-align: left;
         }
+
         .clinic-modal-btn {
             background: linear-gradient(135deg, #0b3c73 0%, #0284c7 100%);
             color: #ffffff;
@@ -523,6 +580,7 @@
             box-shadow: 0 6px 18px rgba(11, 60, 115, 0.28);
             transition: all 0.2s ease;
         }
+
         .clinic-modal-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 8px 24px rgba(11, 60, 115, 0.4);
@@ -535,6 +593,7 @@
             backdrop-filter: blur(8px) !important;
             background: rgba(15, 23, 42, 0.45) !important;
         }
+
         div.swal2-popup.clinic-swal-popup {
             border-radius: 24px !important;
             padding: 28px 24px 22px !important;
@@ -544,12 +603,14 @@
             width: 440px !important;
             max-width: 92% !important;
         }
+
         .clinic-swal-title {
             font-size: 1.25rem !important;
             font-weight: 700 !important;
             color: #0f172a !important;
             margin-top: 10px !important;
         }
+
         .clinic-swal-btn {
             background: linear-gradient(135deg, #0b3c73 0%, #0284c7 100%) !important;
             border-radius: 50rem !important;
@@ -559,8 +620,446 @@
             box-shadow: 0 6px 18px rgba(11, 60, 115, 0.28) !important;
             border: none !important;
         }
+
+        /* ==========================================================
+           Order Modal Styles (100% Match with Reference Screenshot)
+           ========================================================== */
+        .order-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            z-index: 999999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            overflow-y: auto;
+        }
+
+        .order-modal-backdrop.show {
+            display: flex;
+        }
+
+        .order-modal-dialog {
+            background: #ffffff;
+            border-radius: 18px;
+            box-shadow: 0 25px 60px -12px rgba(15, 23, 42, 0.4);
+            width: 100%;
+            max-width: 1060px;
+            padding: 26px 30px 24px 30px;
+            position: relative;
+            animation: orderModalFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+            border: 1px solid #cbd5e1;
+            font-family: 'Noto Sans Lao', 'Kanit', sans-serif;
+        }
+
+        @keyframes orderModalFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.96) translateY(-8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .order-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .order-modal-title-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .order-modal-icon-badge {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: #e0f2fe;
+            color: #0284c7;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .order-modal-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #0b3c73;
+            margin: 0;
+        }
+
+        .order-modal-close-btn {
+            background: #f1f5f9;
+            border: none;
+            border-radius: 50%;
+            width: 34px;
+            height: 34px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            font-size: 16px;
+        }
+
+        .order-modal-close-btn:hover {
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+
+        /* Section 1: ຂໍ້ມູນລູກຄ້າ */
+        .order-customer-box {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 14px 18px;
+            margin-bottom: 16px;
+            background: #ffffff;
+        }
+
+        .order-customer-box-title {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: #0284c7;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .order-input {
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 8px !important;
+            font-size: 13.5px !important;
+            padding: 6px 10px !important;
+            color: #1e293b !important;
+            background-color: #ffffff !important;
+            height: 38px !important;
+        }
+
+        .order-input:focus {
+            border-color: #0284c7 !important;
+            box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15) !important;
+        }
+
+        .order-label {
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 3px;
+            display: block;
+        }
+
+        /* Section 2: ລາຍການຢາ */
+        .order-med-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .order-med-title {
+            font-size: 14.5px;
+            font-weight: 700;
+            color: #0284c7;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin: 0;
+        }
+
+        .order-pill-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .order-filter-pill {
+            border-radius: 20px;
+            padding: 4px 14px;
+            font-size: 12.5px;
+            font-weight: 600;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #475569;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.15s ease;
+        }
+
+        .order-filter-pill.active {
+            background: #0284c7;
+            color: #ffffff;
+            border-color: #0284c7;
+            box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);
+        }
+
+        /* Address Dropdown Picker */
+        .addr-picker-wrapper {
+            position: relative;
+        }
+
+        .addr-picker-input {
+            cursor: pointer !important;
+            background-color: #ffffff !important;
+        }
+
+        .addr-picker-wrapper i.addr-caret {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .addr-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 1060;
+            display: none;
+            padding: 4px;
+        }
+
+        .addr-dropdown-menu-up {
+            top: auto !important;
+            bottom: calc(100% + 6px) !important;
+            box-shadow: 0 -10px 25px -5px rgba(0, 0, 0, 0.15), 0 -8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+        }
+
+        .addr-dropdown-item {
+            padding: 8px 12px;
+            font-size: 13px;
+            color: #1e293b;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.12s ease;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .addr-dropdown-item:hover {
+            background-color: #f0f9ff;
+            color: #0284c7;
+            font-weight: 600;
+        }
+
+        .addr-dropdown-item.is-selected {
+            background-color: #e0f2fe;
+            color: #0369a1;
+            font-weight: 700;
+        }
+
+        .addr-dropdown-header {
+            padding: 6px 10px 4px 10px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #f1f5f9;
+            margin-bottom: 2px;
+        }
+
+        .order-control-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .order-btn-add {
+            background-color: #072b54;
+            color: #ffffff;
+            border: none;
+            border-radius: 8px;
+            height: 38px;
+            padding: 0 18px;
+            font-size: 13.5px;
+            font-weight: 600;
+            white-space: nowrap;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: background-color 0.15s;
+        }
+
+        .order-btn-add:hover {
+            background-color: #0b3c73;
+        }
+
+        /* Table */
+        .order-table-container {
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 16px;
+            background: #ffffff;
+        }
+
+        .order-table {
+            width: 100%;
+            margin-bottom: 0;
+            border-collapse: collapse;
+        }
+
+        .order-table th {
+            background: #f8fafc;
+            color: #334155;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 10px 12px;
+            border-bottom: 1px solid #e2e8f0;
+            white-space: nowrap;
+        }
+
+        .order-table td {
+            font-size: 13.5px;
+            padding: 9px 12px;
+            vertical-align: middle;
+            border-bottom: 1px solid #f1f5f9;
+            color: #1e293b;
+        }
+
+        .order-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .order-btn-del {
+            background: none;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: background-color 0.15s;
+        }
+
+        .order-btn-del:hover {
+            background: #fee2e2;
+        }
+
+        /* Section 3: Summary & Notes */
+        .order-bottom-grid {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .order-notes-col {
+            flex: 1;
+        }
+
+        .order-textarea {
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 10px !important;
+            font-size: 13px !important;
+            padding: 8px 12px !important;
+            width: 100% !important;
+            height: 92px !important;
+            resize: none !important;
+            color: #1e293b !important;
+        }
+
+        .order-textarea:focus {
+            border-color: #0284c7 !important;
+            box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15) !important;
+        }
+
+        .order-calc-col {
+            width: 320px;
+            flex-shrink: 0;
+        }
+
+        .order-summary-box {
+            background: #fff8f8;
+            border: 1px solid #fecdd3;
+            border-radius: 12px;
+            padding: 10px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 13.5px;
+        }
+
+        .order-summary-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* Bottom Action Buttons */
+        .order-footer-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 14px;
+            border-top: 1px solid #f1f5f9;
+        }
+
+        .order-btn-cancel {
+            background-color: #0284c7;
+            color: #ffffff;
+            border-radius: 8px;
+            padding: 8px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.15s;
+        }
+
+        .order-btn-cancel:hover {
+            background-color: #0369a1;
+            color: #ffffff;
+        }
+
+        .order-btn-save {
+            background-color: #059669;
+            color: #ffffff;
+            border-radius: 8px;
+            padding: 8px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background-color 0.15s;
+        }
+
+        .order-btn-save:hover {
+            background-color: #047857;
+            color: #ffffff;
+        }
     </style>
 </head>
+
 <body class="p-4">
 
     <!-- 1. ส่วนหัวข้อและแท็บเมนู -->
@@ -570,18 +1069,22 @@
             <div class="d-flex align-items-center gap-2 flex-wrap">
                 <h3 class="fw-bold mb-0" id="page-patient-title" style="color: #0b3c73;">ຜູ້ປ່ວຍຂອງຂ້ອຍ</h3>
                 <!-- Toggle Mode สำหรับ Admin สลับดูทั้งหมด หรือเฉพาะของฉัน -->
-                <div id="adminViewToggle" class="btn-group btn-group-sm ms-2 shadow-sm" style="display: none; border-radius: 20px; overflow: hidden;">
-                    <button type="button" class="btn btn-outline-primary btn-sm px-2.5 py-1 active fw-semibold" id="btnAdminViewAll" onclick="setAdminPatientView('all')" style="font-size: 12px;">
+                <div id="adminViewToggle" class="btn-group btn-group-sm ms-2 shadow-sm"
+                    style="display: none; border-radius: 20px; overflow: hidden;">
+                    <button type="button" class="btn btn-outline-primary btn-sm px-2.5 py-1 active fw-semibold"
+                        id="btnAdminViewAll" onclick="setAdminPatientView('all')" style="font-size: 12px;">
                         <i class="ph ph-globe me-1"></i>ທັງໝົດ (Admin)
                     </button>
-                    <button type="button" class="btn btn-outline-primary btn-sm px-2.5 py-1 fw-semibold" id="btnAdminViewMy" onclick="setAdminPatientView('my')" style="font-size: 12px;">
+                    <button type="button" class="btn btn-outline-primary btn-sm px-2.5 py-1 fw-semibold"
+                        id="btnAdminViewMy" onclick="setAdminPatientView('my')" style="font-size: 12px;">
                         <i class="ph ph-user me-1"></i>ສະເພາະຂອງຂ້ອຍ
                     </button>
                 </div>
             </div>
-            <p class="text-muted mb-0 mt-1" id="page-patient-subtitle" style="font-size: 13px;">ສະແດງສະເພາະຜູ້ປ່ວຍທີ່ທ່ານເປັນຜູ້ແນະນຳ</p>
+            <p class="text-muted mb-0 mt-1" id="page-patient-subtitle" style="font-size: 13px;">
+                ສະແດງສະເພາະຜູ້ປ່ວຍທີ່ທ່ານເປັນຜູ້ແນະນຳ</p>
         </div>
-        
+
         <!-- Horizontal Tab Navigation & Action Buttons (Modern Minimal) -->
         <div class="top-nav-bar">
             <!-- กลุ่มแท็บสลับหน้า Horizontal Tab Navigation -->
@@ -593,16 +1096,19 @@
                     <i class="ph ph-clock-counter-clockwise"></i> ປະຫວັດຜູ້ປ່ວຍ
                 </button>
             </nav>
-            
+
             <!-- กลุ่มปุ่ม Action -->
             <div class="d-flex align-items-center gap-2 flex-shrink-0">
-                <button type="button" class="action-btn-primary" onclick="try { window.parent.postMessage('openAddPatientModal', '*'); } catch(e) { console.warn(e); }">
+                <button type="button" class="action-btn-primary"
+                    onclick="try { window.parent.postMessage('openAddPatientModal', '*'); } catch(e) { console.warn(e); }">
                     <i class="ph ph-user-plus"></i> ລົງທະບຽນຜູ້ປ່ວຍ
                 </button>
-                <button type="button" class="action-btn-order" id="btnOrderNutrient" onclick="handleOrderAction()" title="ສັ່ງຊື້ (Order)">
+                <button type="button" class="action-btn-order" id="btnOrderNutrient" onclick="handleOrderAction()"
+                    title="ສັ່ງຊື້ (Order)">
                     <i class="ph ph-shopping-bag"></i> ສັ່ງຊື້ "Order"
                 </button>
-                <button type="button" class="action-btn-outline" id="btnRefreshData" onclick="refreshPatientData()" title="ກົດເພື່ອຣີເຟຣຊຂໍ້ມູນໃໝ່ລ່າສຸດ">
+                <button type="button" class="action-btn-outline" id="btnRefreshData" onclick="refreshPatientData()"
+                    title="ກົດເພື່ອຣີເຟຣຊຂໍ້ມູນໃໝ່ລ່າສຸດ">
                     <i class="ph ph-arrows-clockwise" id="refreshIcon"></i>
                     <span id="refreshBtnText">ຣີເຟຣຊຂໍ້ມູນ</span>
                 </button>
@@ -615,7 +1121,7 @@
     <!-- ========================================== -->
     <div id="content-timeline" class="card border-0 shadow-sm" style="border-radius: 16px;">
         <div class="card-body p-4">
-            
+
             <!-- ส่วนค้นหาและตัวกรอง -->
             <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom flex-wrap gap-3">
                 <div>
@@ -625,35 +1131,53 @@
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     <!-- ปุ่มเลือกเวลาด่วน: ມື້ນີ້ / ທັງໝົດ -->
                     <div class="btn-group btn-group-sm shadow-sm" role="group" style="border-radius: 50rem;">
-                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary" id="btnFilterToday" onclick="setDateFilterMode('today')">
+                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary"
+                            id="btnFilterToday" onclick="setDateFilterMode('today')">
                             <i class="ph ph-calendar-check me-1 text-primary"></i>ມື້ນີ້
                         </button>
-                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary active" id="btnFilterAll" onclick="setDateFilterMode('all')">
+                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary active"
+                            id="btnFilterAll" onclick="setDateFilterMode('all')">
                             ທັງໝົດ
                         </button>
                     </div>
 
                     <!-- แคปซูลเลือกช่วงเวลา (ເລືອກຊ່ວງເວລາ) -->
                     <div class="date-filter-capsule">
-                        <span class="text-muted small fw-semibold d-flex align-items-center"><i class="ph ph-calendar-blank text-primary me-1"></i>ເລືອກຊ່ວງເວລາ:</span>
-                        <input type="date" id="dateFilterStart" class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none" style="width: 115px; font-size: 13px;" onchange="onCustomDateChange()">
+                        <span class="text-muted small fw-semibold d-flex align-items-center"><i
+                                class="ph ph-calendar-blank text-primary me-1"></i>ເລືອກຊ່ວງເວລາ:</span>
+                        <input type="date" id="dateFilterStart"
+                            class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none"
+                            style="width: 115px; font-size: 13px;" onchange="onCustomDateChange()">
                         <span class="text-muted small fw-bold">ຫາ</span>
-                        <input type="date" id="dateFilterEnd" class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none" style="width: 115px; font-size: 13px;" onchange="onCustomDateChange()">
-                        <button type="button" class="btn btn-link btn-sm text-muted p-0 ms-1 text-decoration-none" title="ລ້າງວັນທີ" onclick="setDateFilterMode('all')">
+                        <input type="date" id="dateFilterEnd"
+                            class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none"
+                            style="width: 115px; font-size: 13px;" onchange="onCustomDateChange()">
+                        <button type="button" class="btn btn-link btn-sm text-muted p-0 ms-1 text-decoration-none"
+                            title="ລ້າງວັນທີ" onclick="setDateFilterMode('all')">
                             <i class="ph ph-x-circle fs-6"></i>
                         </button>
                     </div>
 
                     <!-- กล่องค้นหา/เลือกผู้ป่วย (พิมพ์ หรือ เลือกได้) -->
                     <div class="position-relative" style="width: 280px;" id="patientSearchContainer">
-                        <div class="input-group shadow-sm" style="border-radius: 50rem; overflow: hidden; border: 1px solid #cbd5e1; background: #ffffff;">
-                            <span class="input-group-text bg-white border-0 text-muted ps-3 pe-1"><i class="ph ph-magnifying-glass fs-6"></i></span>
-                            <input type="text" id="patientSearchInput" class="form-control bg-white border-0 shadow-none ps-1 pe-1" placeholder="ພິມ ຫຼື ຄລິກເລືອກຜູ້ປ່ວຍ..." autocomplete="off" style="font-size: 13.5px; cursor: pointer;">
-                            <button class="btn btn-link text-muted border-0 p-0 pe-3 text-decoration-none d-flex align-items-center" type="button" id="btnToggleDropdown" onclick="toggleSearchDropdown()" title="ກົດເພື່ອເລືອກຜູ້ປ່ວຍ">
+                        <div class="input-group shadow-sm"
+                            style="border-radius: 50rem; overflow: hidden; border: 1px solid #cbd5e1; background: #ffffff;">
+                            <span class="input-group-text bg-white border-0 text-muted ps-3 pe-1"><i
+                                    class="ph ph-magnifying-glass fs-6"></i></span>
+                            <input type="text" id="patientSearchInput"
+                                class="form-control bg-white border-0 shadow-none ps-1 pe-1"
+                                placeholder="ພິມ ຫຼື ຄລິກເລືອກຜູ້ປ່ວຍ..." autocomplete="off"
+                                style="font-size: 13.5px; cursor: pointer;">
+                            <button
+                                class="btn btn-link text-muted border-0 p-0 pe-3 text-decoration-none d-flex align-items-center"
+                                type="button" id="btnToggleDropdown" onclick="toggleSearchDropdown()"
+                                title="ກົດເພື່ອເລືອກຜູ້ປ່ວຍ">
                                 <i class="ph ph-caret-down fs-6 text-secondary" id="searchDropdownCaret"></i>
                             </button>
                         </div>
-                        <div id="patientSearchDropdown" class="dropdown-menu shadow-lg p-0 mt-1" style="display:none; position:absolute; top:100%; right:0; min-width: 320px; max-height:360px; overflow-y:auto; z-index:1060; border-radius:14px; border:1px solid #cbd5e1; background:#ffffff;"></div>
+                        <div id="patientSearchDropdown" class="dropdown-menu shadow-lg p-0 mt-1"
+                            style="display:none; position:absolute; top:100%; right:0; min-width: 320px; max-height:360px; overflow-y:auto; z-index:1060; border-radius:14px; border:1px solid #cbd5e1; background:#ffffff;">
+                        </div>
                     </div>
                 </div>
             </div>
@@ -665,7 +1189,8 @@
                     <div>
                         <h6 class="fw-bold mb-1">ທ້າວ ສະຫວັນ ຈັນທະວົງ</h6>
                         <div class="text-muted small">
-                            <span class="me-2"><i class="ph ph-identification-card me-1"></i>ເລກປະຈຳຕົວ: <strong>PT202600123</strong></span>
+                            <span class="me-2"><i class="ph ph-identification-card me-1"></i>ເລກປະຈຳຕົວ:
+                                <strong>PT202600123</strong></span>
                         </div>
                         <div class="text-muted small mt-1">
                             <span class="me-3"><i class="ph ph-phone me-1"></i>020 5066 7758</span>
@@ -677,22 +1202,28 @@
                 <div class="ms-auto d-flex align-items-center gap-4">
                     <div>
                         <div class="text-muted small mb-1">ວັນທີຮັບບໍລິການ</div>
-                        <div class="fw-bold text-dark"><i class="ph ph-calendar-check text-primary me-1"></i> 01/09/2026 <span class="text-muted fw-normal ms-1">08:26</span></div>
+                        <div class="fw-bold text-dark"><i class="ph ph-calendar-check text-primary me-1"></i> 01/09/2026
+                            <span class="text-muted fw-normal ms-1">08:26</span>
+                        </div>
                     </div>
                     <div class="border-start ps-4">
                         <div class="text-muted small mb-1">ແພດຜູ້ດູແລ</div>
-                        <div class="fw-bold text-dark"><i class="ph ph-user-circle text-info me-1"></i> ທ່ານ ໝໍ ສຸລິນ ວິລະພັນ <br><small class="text-muted fw-normal">ແພດທົ່ວໄປ</small></div>
+                        <div class="fw-bold text-dark"><i class="ph ph-user-circle text-info me-1"></i> ທ່ານ ໝໍ ສຸລິນ
+                            ວິລະພັນ <br><small class="text-muted fw-normal">ແພດທົ່ວໄປ</small></div>
                     </div>
                     <div class="border-start ps-4">
                         <div class="text-muted small mb-1">ສະຖານະປະຈຸບັນ</div>
-                        <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill"><i class="ph ph-circle-fill me-1"></i>ກຳລັງຮັບບໍລິການ</span>
+                        <span
+                            class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill"><i
+                                class="ph ph-circle-fill me-1"></i>ກຳລັງຮັບບໍລິການ</span>
                     </div>
                 </div>
             </div>
 
             <!-- แผนภาพ 9 ขั้นตอน -->
-            <h6 class="fw-bold mb-3 text-primary"><i class="ph ph-navigation-arrow me-2"></i>ເສັ້ນທາງການຮັບບໍລິການ (Timeline)</h6>
-            
+            <h6 class="fw-bold mb-3 text-primary"><i class="ph ph-navigation-arrow me-2"></i>ເສັ້ນທາງການຮັບບໍລິການ
+                (Timeline)</h6>
+
             <div class="timeline-stepper mb-4">
                 <div class="timeline-row">
                     <!-- Step 01 -->
@@ -706,7 +1237,7 @@
                             <div class="step-desc-text">ລົງທະບຽນ ແລະ ກວດສອບຂໍ້ມູນຜູ້ປ່ວຍ</div>
                         </div>
                     </div>
-                    
+
                     <!-- Step 02 -->
                     <div class="step-item">
                         <div class="step-circle"><i class="ph ph-heartbeat"></i>
@@ -718,7 +1249,7 @@
                             <div class="step-desc-text">ວັດສັນຍານຊີບ ແລະ ຄັດກອງເບື້ອງຕົ້ນ</div>
                         </div>
                     </div>
-                    
+
                     <!-- Step 03 -->
                     <div class="step-item">
                         <div class="step-circle"><i class="ph ph-stethoscope"></i>
@@ -730,7 +1261,7 @@
                             <div class="step-desc-text">ພົບແພດ ແລະ ກວດວິນິດໄສ</div>
                         </div>
                     </div>
-                    
+
                     <!-- Step 04 -->
                     <div class="step-item">
                         <div class="step-circle"><i class="ph ph-credit-card"></i>
@@ -742,7 +1273,7 @@
                             <div class="step-desc-text">ຊຳລະເງິນກ່ອນສົ່ງກວດ Lab</div>
                         </div>
                     </div>
-                    
+
                     <!-- Step 05 -->
                     <div class="step-item">
                         <div class="step-circle"><i class="ph ph-flask"></i>
@@ -766,7 +1297,7 @@
                             <div class="step-desc-text">ລໍຖ້າຮັບຜົນແລັບ ແລະ ເອີ້ນພົບ</div>
                         </div>
                     </div>
-                    
+
                     <!-- Step 07 -->
                     <div class="step-item">
                         <div class="step-circle"><i class="ph ph-file-text"></i>
@@ -778,7 +1309,7 @@
                             <div class="step-desc-text">ແພດອ່ານຜົນ Lab ແລະ ສັ່ງຢາ</div>
                         </div>
                     </div>
-                    
+
                     <!-- Step 08 -->
                     <div class="step-item">
                         <div class="step-circle"><i class="ph ph-first-aid"></i>
@@ -790,7 +1321,7 @@
                             <div class="step-desc-text">ຈ່າຍຢາ ແລະ ແນະນຳການໃຊ້ຢາ</div>
                         </div>
                     </div>
-                    
+
                     <!-- Step 09 -->
                     <div class="step-item">
                         <div class="step-circle"><i class="ph ph-check-circle"></i>
@@ -807,8 +1338,10 @@
 
         </div>
         <div class="card-footer bg-light border-top py-3 d-flex justify-content-between align-items-center">
-            <div id="timeline-footer-status" class="text-success small fw-bold"><i class="ph ph-check-circle me-1"></i>ກຳລັງດຳເນີນການປິ່ນປົວ</div>
-            <button class="btn btn-sm btn-link text-decoration-none" onclick="switchTab('history')">ເບິ່ງປະຫວັດທັງໝົດ <i class="ph ph-caret-right"></i></button>
+            <div id="timeline-footer-status" class="text-success small fw-bold"><i
+                    class="ph ph-check-circle me-1"></i>ກຳລັງດຳເນີນການປິ່ນປົວ</div>
+            <button class="btn btn-sm btn-link text-decoration-none" onclick="switchTab('history')">ເບິ່ງປະຫວັດທັງໝົດ <i
+                    class="ph ph-caret-right"></i></button>
         </div>
     </div>
 
@@ -819,46 +1352,62 @@
         <div class="card-body p-4">
             <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom flex-wrap gap-3">
                 <div>
-                    <h5 class="fw-bold text-dark mb-0"><i class="ph ph-clock-counter-clockwise text-primary me-2"></i>ປະຫວັດການເຂົ້າກວດຜູ້ປ່ວຍ</h5>
+                    <h5 class="fw-bold text-dark mb-0"><i
+                            class="ph ph-clock-counter-clockwise text-primary me-2"></i>ປະຫວັດການເຂົ້າກວດຜູ້ປ່ວຍ</h5>
                     <small class="text-muted" id="history-subtitle">ລາຍການປະຫວັດການກວດ ແລະ ການຮັບບໍລິການທັງໝົດ</small>
                 </div>
-                
+
                 <!-- ຕົວເລືອກເວລາ ແລະ ຊ່ອງຄົ້ນຫາໃນໜ້າປະຫວັດຜູ້ປ່ວຍ -->
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     <!-- ປຸ່ມເລືອກເວລາດ່ວນ: ມື້ນີ້ / ທັງໝົດ -->
                     <div class="btn-group btn-group-sm shadow-sm" role="group" style="border-radius: 50rem;">
-                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary" id="btnFilterTodayHistory" onclick="setDateFilterMode('today')">
+                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary"
+                            id="btnFilterTodayHistory" onclick="setDateFilterMode('today')">
                             <i class="ph ph-calendar-check me-1 text-primary"></i>ມື້ນີ້
                         </button>
-                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary active" id="btnFilterAllHistory" onclick="setDateFilterMode('all')">
+                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary active"
+                            id="btnFilterAllHistory" onclick="setDateFilterMode('all')">
                             ທັງໝົດ
                         </button>
                     </div>
 
                     <!-- ແຄບຊູນເລືອກຊ່ວງເວລາ (ເລືອກຊ່ວງເວລາ) -->
                     <div class="date-filter-capsule">
-                        <span class="text-muted small fw-semibold d-flex align-items-center"><i class="ph ph-calendar-blank text-primary me-1"></i>ເລືອກຊ່ວງເວລາ:</span>
-                        <input type="date" id="dateFilterStartHistory" class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none" style="width: 115px; font-size: 13px;" onchange="onCustomDateChangeHistory()">
+                        <span class="text-muted small fw-semibold d-flex align-items-center"><i
+                                class="ph ph-calendar-blank text-primary me-1"></i>ເລືອກຊ່ວງເວລາ:</span>
+                        <input type="date" id="dateFilterStartHistory"
+                            class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none"
+                            style="width: 115px; font-size: 13px;" onchange="onCustomDateChangeHistory()">
                         <span class="text-muted small fw-bold">ຫາ</span>
-                        <input type="date" id="dateFilterEndHistory" class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none" style="width: 115px; font-size: 13px;" onchange="onCustomDateChangeHistory()">
-                        <button type="button" class="btn btn-link btn-sm text-muted p-0 ms-1 text-decoration-none" title="ລ້າງວັນທີ" onclick="setDateFilterMode('all')">
+                        <input type="date" id="dateFilterEndHistory"
+                            class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none"
+                            style="width: 115px; font-size: 13px;" onchange="onCustomDateChangeHistory()">
+                        <button type="button" class="btn btn-link btn-sm text-muted p-0 ms-1 text-decoration-none"
+                            title="ລ້າງວັນທີ" onclick="setDateFilterMode('all')">
                             <i class="ph ph-x-circle fs-6"></i>
                         </button>
                     </div>
 
                     <!-- ຊ່ອງຄົ້ນຫາໃນຕາຕະລາງປະຫວັດ -->
                     <div class="position-relative" style="width: 250px;">
-                        <div class="input-group shadow-sm" style="border-radius: 50rem; overflow: hidden; border: 1px solid #cbd5e1; background: #ffffff;">
-                            <span class="input-group-text bg-white border-0 text-muted ps-3 pe-1"><i class="ph ph-magnifying-glass fs-6"></i></span>
-                            <input type="text" id="historySearchInput" class="form-control bg-white border-0 shadow-none ps-1 pe-2" placeholder="ຄົ້ນຫາ (ຊື່, HN, Visit...)" autocomplete="off" style="font-size: 13.5px;" oninput="applyHistoryTableSearch()">
-                            <button class="btn btn-link text-muted border-0 p-0 pe-3 text-decoration-none d-none" type="button" id="btnClearHistorySearch" onclick="clearHistorySearch()" title="ລ້າງການຄົ້ນຫາ">
+                        <div class="input-group shadow-sm"
+                            style="border-radius: 50rem; overflow: hidden; border: 1px solid #cbd5e1; background: #ffffff;">
+                            <span class="input-group-text bg-white border-0 text-muted ps-3 pe-1"><i
+                                    class="ph ph-magnifying-glass fs-6"></i></span>
+                            <input type="text" id="historySearchInput"
+                                class="form-control bg-white border-0 shadow-none ps-1 pe-2"
+                                placeholder="ຄົ້ນຫາ (ຊື່, HN, Visit...)" autocomplete="off" style="font-size: 13.5px;"
+                                oninput="applyHistoryTableSearch()">
+                            <button class="btn btn-link text-muted border-0 p-0 pe-3 text-decoration-none d-none"
+                                type="button" id="btnClearHistorySearch" onclick="clearHistorySearch()"
+                                title="ລ້າງການຄົ້ນຫາ">
                                 <i class="ph ph-x-circle fs-6"></i>
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
-            
+
             <div class="table-responsive border rounded-3">
                 <table class="table table-modern mb-0">
                     <thead>
@@ -883,7 +1432,7 @@
                     </tbody>
                 </table>
             </div>
-            
+
             <!-- Pagination -->
             <div class="d-flex justify-content-between align-items-center mt-3 px-2 flex-wrap gap-2">
                 <small id="pagination-info" class="text-muted">ສະແດງ 0 ລາຍການ</small>
@@ -1014,13 +1563,13 @@
                 const stepNum = index + 1;
                 const circle = step.querySelector('.step-circle');
                 const indicator = step.querySelector('.step-indicator');
-                
+
                 // Reset classes
                 step.className = 'step-item';
                 circle.className = 'step-circle';
                 indicator.className = 'step-indicator';
                 indicator.innerHTML = '';
-                
+
                 if (stepNum < currentStep) {
                     step.classList.add('is-completed');
                     circle.classList.add('completed');
@@ -1115,7 +1664,7 @@
             const inputEnd = document.getElementById('dateFilterEnd');
             const inputStartH = document.getElementById('dateFilterStartHistory');
             const inputEndH = document.getElementById('dateFilterEndHistory');
-            
+
             if (inputStart && inputEnd) {
                 if (inputStart.value && !inputEnd.value) {
                     inputEnd.value = inputStart.value;
@@ -1134,7 +1683,7 @@
             const inputEnd = document.getElementById('dateFilterEnd');
             const inputStartH = document.getElementById('dateFilterStartHistory');
             const inputEndH = document.getElementById('dateFilterEndHistory');
-            
+
             if (inputStartH && inputEndH) {
                 if (inputStartH.value && !inputEndH.value) {
                     inputEndH.value = inputStartH.value;
@@ -1343,7 +1892,7 @@
             currentSelectedPatient = pt;
             try {
                 localStorage.setItem('selected_timeline_hn', pt.hn || '');
-            } catch(e) {}
+            } catch (e) { }
 
             const currentStep = mapStatusToStep(pt.visit_status || pt.status || pt.status_id);
             const stepConf = STEP_CONFIG[currentStep] || STEP_CONFIG[1];
@@ -1457,7 +2006,7 @@
                                 <button class="btn btn-sm btn-primary rounded-pill px-2.5 py-1 fw-semibold" onclick="viewPatientTimeline('${p.hn}')" title="ເບິ່ງ Timeline">
                                     <i class="ph ph-chart-line-up me-1"></i>Timeline
                                 </button>
-                                <button class="btn btn-sm btn-outline-secondary rounded-pill px-2 py-1 fw-semibold" onclick="viewVisit('${visitId}')" title="ເບິ່ງລາຍລະອຽດ">
+                                <button class="btn btn-sm btn-outline-secondary rounded-pill px-2 py-1 fw-semibold" onclick="viewVisit('${visitId}', '${p.hn || ''}', '${encodeURIComponent(p.patient_name || '')}')" title="ເບິ່ງລາຍລະອຽດ">
                                     <i class="ph ph-eye"></i>
                                 </button>
                             </div>
@@ -1542,7 +2091,7 @@
                 return;
             }
 
-            const matches = filteredPatientsData.filter(p => 
+            const matches = filteredPatientsData.filter(p =>
                 (p.patient_name && p.patient_name.toLowerCase().includes(val)) ||
                 (p.hn && p.hn.toLowerCase().includes(val)) ||
                 (p.phone && p.phone.toLowerCase().includes(val)) ||
@@ -1654,7 +2203,7 @@
                 return;
             }
 
-            let matches = sourcePool.filter(p => 
+            let matches = sourcePool.filter(p =>
                 (p.patient_name && p.patient_name.toLowerCase().includes(q)) ||
                 (p.hn && p.hn.toLowerCase().includes(q)) ||
                 (p.phone && p.phone.toLowerCase().includes(q)) ||
@@ -1722,32 +2271,32 @@
             if (!searchInput) return;
 
             // ເມື່ອກົດ ຫຼື focus ໃນຊ່ອງ input ໃຫ້ເປີດ dropdown ທັນທີ (ພິມ ຫຼື ເລືອກໄດ້)
-            searchInput.addEventListener('click', function() {
+            searchInput.addEventListener('click', function () {
                 openSearchDropdown();
                 this.select();
             });
 
-            searchInput.addEventListener('focus', function() {
+            searchInput.addEventListener('focus', function () {
                 openSearchDropdown();
             });
 
             // ເມື່ອພິມຂໍ້ຄວາມ ໃຫ້ກັ່ນຕອງທັນທີ
-            searchInput.addEventListener('input', function() {
+            searchInput.addEventListener('input', function () {
                 filterAndRenderDropdown(this.value);
             });
 
             // ຮອງຮັບປຸ່ມ Enter
-            searchInput.addEventListener('keydown', function(e) {
+            searchInput.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter') {
                     const val = this.value.trim().toLowerCase();
                     const sourcePool = filteredPatientsData.length > 0 ? filteredPatientsData : allPatientsData;
-                    let match = sourcePool.find(p => 
+                    let match = sourcePool.find(p =>
                         (p.patient_name && p.patient_name.toLowerCase().includes(val)) ||
                         (p.hn && p.hn.toLowerCase().includes(val)) ||
                         (p.phone && p.phone.toLowerCase().includes(val))
                     );
                     if (!match) {
-                        match = allPatientsData.find(p => 
+                        match = allPatientsData.find(p =>
                             (p.patient_name && p.patient_name.toLowerCase().includes(val)) ||
                             (p.hn && p.hn.toLowerCase().includes(val)) ||
                             (p.phone && p.phone.toLowerCase().includes(val))
@@ -1762,7 +2311,7 @@
             });
 
             // ເມື່ອກົດນອກກ່ອງຄົ້ນຫາ ໃຫ້ປິດ dropdown
-            document.addEventListener('click', function(e) {
+            document.addEventListener('click', function (e) {
                 if (container && !container.contains(e.target) && searchDropdown && !searchDropdown.contains(e.target)) {
                     closeSearchDropdown();
                 }
@@ -1824,6 +2373,7 @@
                 showRefreshToast('ອັບເດດຂໍ້ມູນລ່າສຸດສຳເລັດແລ້ວ');
             }
         }
+
 
         function showRefreshToast(msg) {
             let toastEl = document.getElementById('customRefreshToast');
@@ -1910,7 +2460,7 @@
         }
 
         // ฟังการตอบกลับจาก function.js (parent)
-        window.addEventListener('message', function(event) {
+        window.addEventListener('message', function (event) {
             if (event.data && event.data.type === 'PATIENTS_DATA') {
                 const wasManualRefresh = isRefreshing;
                 rawAllPatients = event.data.allPatients || event.data.patients || [];
@@ -1945,7 +2495,7 @@
                 try {
                     const urlParams = new URLSearchParams(window.location.search);
                     let storedHn = null;
-                    try { storedHn = localStorage.getItem('selected_timeline_hn'); } catch(e) {}
+                    try { storedHn = localStorage.getItem('selected_timeline_hn'); } catch (e) { }
                     const targetHn = event.data.targetHn || urlParams.get('hn') || storedHn;
                     if (targetHn) {
                         const target = allPatientsData.find(p => p.hn === targetHn);
@@ -2049,56 +2599,1877 @@
         }
 
         // ປິດ Pop-up ເມື່ອກົດປຸ່ມ Escape
-        document.addEventListener('keydown', function(e) {
+        document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') {
                 closeModernPopup();
             }
         });
 
-        function viewVisit(visitId) {
-            if (!visitId || visitId === '-') {
-                showModernPopup({
-                    type: 'info',
-                    title: 'ຍັງບໍ່ມີປະຫວັດການກວດ',
-                    message: 'ຜູ້ປ່ວຍລາຍນີ້ຍັງບໍ່ເຄີຍເຂົ້າຮັບການກວດປິ່ນປົວໃນລະບົບ',
-                    hint: 'ທ່ານສາມາດກົດປຸ່ມ <strong>"Timeline"</strong> ເພື່ອຕິດຕາມສະຖານະ ຫຼື ລົງທະບຽນເຂົ້າກວດໄດ້',
-                    btnText: 'ຮັບຊາບ'
-                });
+        function viewVisit(visitId, hn, encName) {
+            const pName = encName ? decodeURIComponent(encName).trim() : '';
+
+            // 🌟 1. ຖ້າຢູ່ໃນ iframe ຂອງ Clinic.html ໃຫ້ສົ່ງ Message ໄປຫາ parent ທັນທີ
+            // ເພື່ອໃຫ້ເປີດ Modal ປະຫວັດຫຼັກ (showHistoryDetails) ເຊິ່ງເປັນ Modal ດຽວກັນ ແລະ ຂໍ້ມູນຕົງກັນ 100%
+            // ຮອງຮັບທັງຄົນທີ່ "ມາตรวจ" (ສະແດງຜົນກວດ/ສັນຍານຊີບ/ແລັບ) ແລະ "ແຄ່ສົ່ງ Order" (ສະແດງສະເພາະອໍເດີ)
+            if (window.parent && window.parent !== window) {
+                try {
+                    window.parent.postMessage({
+                        type: 'SHOW_VISIT_DETAIL',
+                        visitId: (visitId && visitId !== '-') ? visitId : null,
+                        hn: (hn && hn !== '-') ? hn : null,
+                        patientName: pName || null
+                    }, '*');
+                    return;
+                } catch (e) {
+                    console.warn('viewVisit postMessage to parent failed:', e);
+                }
+            }
+
+            // 🌟 2. Fallback ກໍລະນີເປີດໜ້າ marketing.html ແບບ Standalone (ບໍ່ໄດ້ຢູ່ໃນ iframe)
+            let localOrders = [];
+            try { localOrders = JSON.parse(localStorage.getItem('clinic_orders') || '[]'); } catch (e) { }
+            let localStkOrders = [];
+            try { localStkOrders = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]'); } catch (e) { }
+            const allLocalOrders = localOrders.concat(localStkOrders);
+
+            let matchedOrder = allLocalOrders.find(o =>
+                (visitId && visitId !== '-' && (o.visitId === visitId || o.visit_id === visitId || o.orderId === visitId || o.order_id === visitId)) ||
+                (hn && hn !== '-' && (o.hn === hn || String(o.hn) === String(hn)))
+            );
+
+            const pt = (allPatientsData || []).find(p => (hn && p.hn === hn) || (pName && p.patient_name && p.patient_name.trim().toLowerCase() === pName.toLowerCase()));
+
+            if (matchedOrder || (pt && pt.order_data)) {
+                showOrderDetailPopup(matchedOrder || (pt ? pt.order_data : null));
                 return;
             }
-            try {
-                if (window.parent) {
-                    window.parent.postMessage({ type: 'SHOW_VISIT_DETAIL', visitId: visitId }, '*');
-                }
-            } catch (e) {
-                console.warn('viewVisit postMessage error:', e);
-            }
-        }
 
-        function handleOrderAction() {
-            try {
-                if (window.parent && window.parent !== window) {
-                    window.parent.postMessage('openOrderModal', '*');
-                    window.parent.postMessage({ type: 'OPEN_ORDER', action: 'order' }, '*');
-                    if (typeof window.parent.openOrderModal === 'function') {
-                        window.parent.openOrderModal();
-                        return;
-                    }
-                }
-            } catch (e) {
-                console.warn('handleOrderAction error:', e);
-            }
             showModernPopup({
                 type: 'info',
-                title: 'ລະບົບສັ່ງຊື້ "Order"',
-                message: 'ກຳລັງເປີດລະບົບສັ່ງຊື້...',
-                hint: 'ທ່ານສາມາດເລືອກສິນຄ້າ ຫຼື ສັ່ງອາຫານເສີມໃຫ້ຜູ້ປ່ວຍໄດ້',
+                title: 'ຍັງບໍ່ມີປະຫວັດການກວດ',
+                message: 'ຜູ້ປ່ວຍລາຍນີ້ຍັງບໍ່ເຄີຍເຂົ້າຮັບການກວດປິ່ນປົວ ຫຼື ສັ່ງຊື້ຢາໃນລະບົບ',
+                hint: 'ທ່ານສາມາດກົດປຸ່ມ <strong>"Timeline"</strong> ເພື່ອຕິດຕາມສະຖານະ ຫຼື ລົງທະບຽນເຂົ້າກວດ/ສັ່ງ Order ໄດ້',
                 btnText: 'ຮັບຊາບ'
             });
         }
 
+        function showOrderDetailPopup(order) {
+            if (!order) return;
+            const modal = document.getElementById('orderDetailModalBackdrop');
+            if (!modal) return;
+
+            const visitId = order.visitId || order.visit_id || order.latest_visit_id || '-';
+            const custName = order.patient_name || order.customer_name || '-';
+            const hn = order.hn || '-';
+            const phone = order.phone || order.customer_phone || '-';
+            const age = order.age ? (order.age + ' ປີ') : '-';
+            const gender = order.gender || '-';
+            const ageGender = (age !== '-' || gender !== '-') ? `${age} / ${gender}` : '-';
+
+            const addressParts = [order.village, order.district, order.province].filter(Boolean);
+            const address = addressParts.length > 0 ? addressParts.join(', ') : '-';
+
+            const docName = order.doctor_advice || order.closer_dr || order.doctor_name || 'ແພດປະຈຳຄລີນິກ';
+            const assistantName = order.assistant_advice || order.recorded_by || order.referred_by || '-';
+            const symptom = order.symptom || order.latest_symptom || 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ';
+            const notes = order.notes || '-';
+
+            const rawDate = order.created_at || order.order_date || order.date || new Date().toISOString();
+            const dateStr = new Date(rawDate).toLocaleString('lo-LA');
+
+            // Header info
+            document.getElementById('odmHeaderSubtitle').innerText = `ລະຫັດ VISIT: ${visitId} | ວັນທີ: ${dateStr}`;
+            document.getElementById('odmCustName').innerText = custName;
+            document.getElementById('odmCustHN').innerText = hn;
+            document.getElementById('odmCustPhone').innerText = phone;
+            document.getElementById('odmCustAgeGender').innerText = ageGender;
+            document.getElementById('odmCustAddress').innerText = address;
+
+            document.getElementById('odmDocName').innerText = docName;
+            document.getElementById('odmAssistantName').innerText = assistantName;
+            document.getElementById('odmSymptom').innerText = symptom;
+            document.getElementById('odmNotes').innerText = notes;
+
+            // Items table
+            const tbody = document.getElementById('odmItemsTableBody');
+            let items = order.items || order.items_json || [];
+
+            if (typeof items === 'string' && items.trim()) {
+                try {
+                    items = JSON.parse(items);
+                } catch (e) {
+                    items = items.split(',').map(s => {
+                        const mMatch = s.trim().match(/^(.*?)(?:\s+[xX*](\d+))?$/);
+                        return {
+                            name: mMatch ? mMatch[1].trim() : s.trim(),
+                            qty: mMatch && mMatch[2] ? parseInt(mMatch[2], 10) : 1,
+                            tier: 'normal',
+                            tierName: 'ປົກກະຕິ',
+                            price: 0,
+                            total: 0
+                        };
+                    });
+                }
+            }
+
+            if ((!items || items.length === 0) && order.meds) {
+                try {
+                    items = JSON.parse(order.meds);
+                } catch (e) {
+                    if (typeof order.meds === 'string') {
+                        items = order.meds.split(',').map(s => {
+                            const mMatch = s.trim().match(/^(.*?)(?:\s+[xX*](\d+))?$/);
+                            return {
+                                name: mMatch ? mMatch[1].trim() : s.trim(),
+                                qty: mMatch && mMatch[2] ? parseInt(mMatch[2], 10) : 1,
+                                tier: 'normal',
+                                tierName: 'ປົກກະຕິ',
+                                price: 0,
+                                total: 0
+                            };
+                        });
+                    }
+                }
+            }
+
+            if (!items || items.length === 0) {
+                try {
+                    const localBills = JSON.parse(localStorage.getItem('clinic_bills') || '[]');
+                    const b = localBills.find(x => (visitId && visitId !== '-' && x.visit_id === visitId) || (hn && hn !== '-' && x.hn === hn));
+                    if (b && Array.isArray(b.items) && b.items.length > 0) items = b.items;
+                } catch (e) { }
+            }
+
+            const formatMoney = (n) => Number(n || 0).toLocaleString('th-TH');
+
+            let subtotal = Number(order.subtotal || 0);
+            let discount = Number(order.discount || 0);
+            let grandTotal = Number(order.grandTotal || order.total_amount || 0);
+
+            if (Array.isArray(items) && items.length > 0) {
+                let calcSubtotal = 0;
+                tbody.innerHTML = items.map((it, idx) => {
+                    const itName = it.name || it.product_name || '-';
+                    const itQty = Number(it.qty || 1);
+                    const itPrice = Number(it.price || 0);
+                    const itTotal = Number(it.total || (itPrice * itQty));
+                    calcSubtotal += itTotal;
+
+                    let tierText = it.tierName || it.priceType || 'ປົກກະຕິ';
+                    let badgeClass = 'bg-secondary-subtle text-dark border';
+                    if (it.tier === 'promo' || tierText.includes('ໂປຣ') || tierText.includes('โปร')) {
+                        tierText = 'ໂປຣໂມຊັ່ນ';
+                        badgeClass = 'bg-warning-subtle text-warning-emphasis border border-warning';
+                    } else if (it.tier === 'high' || tierText.includes('ສະມາຊິກ') || tierText.includes('สมาชิก')) {
+                        tierText = 'ສະມາຊິກ/ສົ່ງ';
+                        badgeClass = 'bg-primary-subtle text-primary-emphasis border border-primary';
+                    } else if (it.tier === 'free' || tierText.includes('ແຖມ') || tierText.includes('ฟรี')) {
+                        tierText = 'ແຖມຟຣີ';
+                        badgeClass = 'bg-danger-subtle text-danger-emphasis border border-danger';
+                    }
+
+                    return `
+                        <tr>
+                            <td class="ps-3 text-muted">${idx + 1}</td>
+                            <td class="fw-semibold text-dark">${itName} <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size: 0.65rem;">STK MLM</span></td>
+                            <td class="text-center"><span class="badge ${badgeClass}" style="font-size: 0.75rem;">${tierText}</span></td>
+                            <td class="text-center fw-bold text-primary">${itQty}</td>
+                            <td class="text-end font-monospace text-secondary">${formatMoney(itPrice)} ฿</td>
+                            <td class="text-end pe-3 font-monospace fw-bold text-dark">${formatMoney(itTotal)} ฿</td>
+                        </tr>
+                    `;
+                }).join('');
+
+                if (!subtotal) subtotal = calcSubtotal;
+                if (!grandTotal) grandTotal = Math.max(0, subtotal - discount);
+            } else {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">ບໍ່ມີລາຍລະອຽດສິນຄ້າ</td></tr>';
+            }
+
+            document.getElementById('odmSubtotal').innerText = formatMoney(subtotal) + ' ฿';
+            document.getElementById('odmDiscount').innerText = formatMoney(discount) + ' ฿';
+            document.getElementById('odmGrandTotal').innerText = formatMoney(grandTotal) + ' ฿';
+
+            modal.classList.add('show');
+            modal.style.display = 'flex';
+        }
+
+        function closeOrderDetailModal(e) {
+            if (e && e.target && e.target.id !== 'orderDetailModalBackdrop') return;
+            const modal = document.getElementById('orderDetailModalBackdrop');
+            if (modal) {
+                modal.classList.remove('show');
+                modal.style.display = 'none';
+            }
+        }
+
+        // ==========================================================
+        // 🇱🇦 Laos Province & District Pop-up Picker Data & Logic
+        // ==========================================================
+        const LAOS_PROVINCE_DISTRICT_DATA = {
+            "ນະຄອນຫຼວງວຽງຈັນ": [
+                "ເມືອງຈັນທະບູລີ", "ເມືອງສີໂຄດຕະບອງ", "ເມືອງໄຊເສດຖາ", "ເມືອງສີສັດຕະນາກ",
+                "ເມືອງນາຊາຍທອງ", "ເມືອງໄຊທານີ", "ເມືອງຮາດຊາຍຟອງ", "ເມືອງສັງທອງ", "ເມືອງປາກງື່ມ"
+            ],
+            "ແຂວງຜົ້ງສາລີ": [
+                "ເມືອງຜົ້ງສາລີ", "ເມືອງໃໝ່", "ເມືອງຂວາ", "ເມືອງສຳພັນ", "ເມືອງບຸນເນື້ອ", "ເມືອງຍອດອູ", "ເມືອງບຸນໃຕ້"
+            ],
+            "ແຂວງຫຼວງນ້ຳທາ": [
+                "ເມືອງຫຼວງນ້ຳທາ", "ເມືອງສິງ", "ເມືອງລອງ", "ເມືອງວຽງພູຄາ", "ເມືອງນາແລ"
+            ],
+            "ແຂວງອຸດົມໄຊ": [
+                "ເມືອງໄຊ", "ເມືອງຫຼາ", "ເມືອງນາໝໍ້", "ເມືອງງາ", "ເມືອງແບ່ງ", "ເມືອງຮຸນ", "ເມືອງປາກແບ່ງ"
+            ],
+            "ແຂວງບໍ່ແກ້ວ": [
+                "ເມືອງຫ້ວຍຊາຍ", "ເມືອງຕົ້ນເຜິ້ງ", "ເມືອງເມິງ", "ເມືອງຜາອຸດົມ", "ເມືອງປາກທາ"
+            ],
+            "ແຂວງຫຼວງພະບາງ": [
+                "ນະຄອນຫຼວງພະບາງ", "ເມືອງຊຽງເງິນ", "ເມືອງນານ", "ເມືອງປາກອູ", "ເມືອງນ້ຳບາກ",
+                "ເມືອງງອຍ", "ເມືອງປາກແຊງ", "ເມືອງໂພນໄຊ", "ເມືອງຈອມເພັດ", "ເມືອງວຽງຄຳ", "ເມືອງພູຄູນ", "ເມືອງໂພນທອງ"
+            ],
+            "ແຂວງຫົວພັນ": [
+                "ເມືອງຊຳເໜືອ", "ເມືອງຊຽງຄໍ້", "ເມືອງເວີນໄຊ", "ເມືອງວຽງໄຊ", "ເມືອງຊຳໃຕ້",
+                "ເມືອງຫົວເມືອງ", "ເມືອງແອດ", "ເມືອງໂສບເບົາ", "ເມືອງພັນທອງ", "ເມືອງກວັນ"
+            ],
+            "ແຂວງໄຊຍະບູລີ": [
+                "ເມືອງໄຊຍະບູລີ", "ເມືອງຄອບ", "ເມືອງຫົງສາ", "ເມືອງເງິນ", "ເມືອງຊຽງຮ່ອນ",
+                "ເມືອງພຽງ", "ເມືອງປາກລາຍ", "ເມືອງແກ່ນທ້າວ", "ເມືອງບໍ່ແຕນ", "ເມືອງທົ່ງມີໄຊ", "ເມືອງໄຊສະຖານ"
+            ],
+            "ແຂວງຊຽງຂວາງ": [
+                "ເມືອງແປກ (ໂພນສະຫວັນ)", "ເມືອງຄຳ", "ເມືອງໜອງແຮດ", "ເມືອງຄູນ", "ເມືອງໝອກໄໝ່", "ເມືອງພູກູດ", "ເມືອງຜາໄຊ"
+            ],
+            "ແຂວງວຽງຈັນ": [
+                "ເມືອງໂພນໂຮງ", "ເມືອງທຸລະຄົມ", "ເມືອງແກ້ວອຸດົມ", "ເມືອງກາສີ", "ເມືອງວັງວຽງ",
+                "ເມືອງເຟືອງ", "ເມືອງຊະນະຄາມ", "ເມືອງແມດ", "ເມືອງວຽງຄຳ", "ເມືອງຫີນເຫີບ", "ເມືອງໝື່ນ"
+            ],
+            "ແຂວງບໍລິຄຳໄຊ": [
+                "ເມືອງປາກຊັນ", "ເມືອງທ່າພະບາດ", "ເມືອງປາກກະດິງ", "ເມືອງບໍລິຄັນ", "ເມືອງຄຳເກີດ", "ເມືອງວຽງທອງ", "ເມືອງໄຊຈຳພອນ"
+            ],
+            "ແຂວງຄຳມ່ວນ": [
+                "ເມືອງທ່າແຂກ", "ເມືອງມະຫາໄຊ", "ເມືອງໜອງບົກ", "ເມືອງຫີນບູນ", "ເມືອງຍົມມະລາດ",
+                "ເມືອງບົວລະພາ", "ເມືອງນາກາຍ", "ເມືອງເຊບັ້ງໄຟ", "ເມືອງໄຊບົວທອງ", "ເມືອງຄູນຄຳ"
+            ],
+            "ແຂວງສະຫວັນນະເຂດ": [
+                "ນະຄອນໄກສອນ ພົມວິຫານ", "ເມືອງອຸທຸມພອນ", "ເມືອງອາສະພັງທອງ", "ເມືອງພີນ", "ເມືອງເຊໂປນ",
+                "ເມືອງນອງ", "ເມືອງທ່າປາງທອງ", "ເມືອງຈຳພອນ", "ເມືອງຊົນນະບູລີ", "ເມືອງໄຊບູລີ",
+                "ເມືອງວີລະບູລີ", "ເມືອງອາສະພອນ", "ເມືອງໄຊພູທອງ", "ເມືອງພະລານໄຊ", "ເມືອງສອງຄອນ"
+            ],
+            "ແຂວງໄຊສົມບູນ": [
+                "ເມືອງອນຸວົງ", "ເມືອງທ່າໂທມ", "ເມືອງລ້ອງຊານ", "ເມືອງຮົມ", "ເມືອງລ້ອງແຈ້ງ"
+            ],
+            "ແຂວງສາລະວັນ": [
+                "ເມືອງສາລະວັນ", "ເມືອງຕະໂອ້ຍ", "ເມືອງຕຸ້ມລານ", "ເມືອງລະຄອນເພັງ", "ເມືອງວາປີ", "ເມືອງຄົງເຊໂດນ", "ເມືອງເລົ່າງາມ", "ເມືອງສະໝ້ວຍ"
+            ],
+            "ແຂວງເຊກອງ": [
+                "ເມືອງລະມາມ", "ເມືອງກະເລິມ", "ເມືອງດັກຈຶງ", "ເມືອງທ່າແຕງ"
+            ],
+            "ແຂວງຈຳປາສັກ": [
+                "ນະຄອນປາກເຊ", "ເມືອງຊະນະສົມບູນ", "ເມືອງບາຈຽງເຈີນສຸກ", "ເມືອງປາກຊ່ອງ", "ເມືອງປະທຸມພອນ",
+                "ເມືອງໂພນທອງ", "ເມືອງຈຳປາສັກ", "ເມືອງສຸຂຸມາ", "ເມືອງມູນລະປະໂມກ", "ເມືອງໂຂງ"
+            ],
+            "ແຂວງອັດຕະປື": [
+                "ເມືອງສາມັກຄີໄຊ", "ເມືອງໄຊເສດຖາ", "ເມືອງສະໜາມໄຊ", "ເມືອງສານໄຊ", "ເມືອງພູວົງ"
+            ]
+        };
+
+        function toggleProvinceDropdown(e) {
+            if (e) e.stopPropagation();
+            const pDrop = document.getElementById('orderProvinceDropdown');
+            const dDrop = document.getElementById('orderDistrictDropdown');
+            if (dDrop) dDrop.style.display = 'none';
+
+            if (!pDrop) return;
+            if (pDrop.style.display === 'block') {
+                pDrop.style.display = 'none';
+                return;
+            }
+
+            const currentProv = (document.getElementById('orderCustProvince')?.value || '').trim();
+            let html = '<div class="addr-dropdown-header">ເລືອກແຂວງ (18 ແຂວງທົ່ວປະເທດ)</div>';
+            let idx = 1;
+            for (const prov in LAOS_PROVINCE_DISTRICT_DATA) {
+                const isSel = (currentProv === prov);
+                html += `
+                    <div class="addr-dropdown-item ${isSel ? 'is-selected' : ''}" onclick="selectOrderProvince('${prov}')">
+                        <span>${idx}. ${prov}</span>
+                        ${isSel ? '<i class="ph-fill ph-check-circle text-primary"></i>' : ''}
+                    </div>
+                `;
+                idx++;
+            }
+            pDrop.innerHTML = html;
+            pDrop.style.display = 'block';
+        }
+
+        function selectOrderProvince(prov) {
+            const pInput = document.getElementById('orderCustProvince');
+            const dInput = document.getElementById('orderCustDistrict');
+            const pDrop = document.getElementById('orderProvinceDropdown');
+
+            if (pInput) pInput.value = prov;
+            if (pDrop) pDrop.style.display = 'none';
+
+            // ເຄຼຍເມືອງເກົ່າ ຖ້າປ່ຽນແຂວງໃໝ່
+            if (dInput) dInput.value = '';
+
+            // ເປີດ Dropdown ເມືອງຕໍ່ທັນທີເພື່ອຄວາມສະດວກ
+            setTimeout(() => {
+                toggleDistrictDropdown();
+            }, 100);
+        }
+
+        function toggleDistrictDropdown(e) {
+            if (e) e.stopPropagation();
+            const pDrop = document.getElementById('orderProvinceDropdown');
+            const dDrop = document.getElementById('orderDistrictDropdown');
+            if (pDrop) pDrop.style.display = 'none';
+
+            if (!dDrop) return;
+            if (dDrop.style.display === 'block') {
+                dDrop.style.display = 'none';
+                return;
+            }
+
+            const prov = (document.getElementById('orderCustProvince')?.value || '').trim();
+            if (!prov || !LAOS_PROVINCE_DISTRICT_DATA[prov]) {
+                dDrop.innerHTML = `
+                    <div class="p-3 text-center text-muted" style="font-size: 12.5px;">
+                        <i class="ph ph-info me-1"></i> ກະລຸນາເລືອກແຂວງກ່ອນ
+                    </div>
+                `;
+                dDrop.style.display = 'block';
+                return;
+            }
+
+            const currentDist = (document.getElementById('orderCustDistrict')?.value || '').trim();
+            const districts = LAOS_PROVINCE_DISTRICT_DATA[prov] || [];
+            let html = `<div class="addr-dropdown-header">ເມືອງໃນ ${prov} (${districts.length} ເມືອງ)</div>`;
+            districts.forEach((d, i) => {
+                const isSel = (currentDist === d);
+                html += `
+                    <div class="addr-dropdown-item ${isSel ? 'is-selected' : ''}" onclick="selectOrderDistrict('${d}')">
+                        <span>${i + 1}. ${d}</span>
+                        ${isSel ? '<i class="ph-fill ph-check-circle text-primary"></i>' : ''}
+                    </div>
+                `;
+            });
+            dDrop.innerHTML = html;
+            dDrop.style.display = 'block';
+        }
+
+        function selectOrderDistrict(dist) {
+            const dInput = document.getElementById('orderCustDistrict');
+            const dDrop = document.getElementById('orderDistrictDropdown');
+            if (dInput) dInput.value = dist;
+            if (dDrop) dDrop.style.display = 'none';
+        }
+
+        // ==========================================================
+        // 👥 stk_members Pop-up Picker Logic (ພິມເອງ ຫຼື ເລືອກໄດ້)
+        // ==========================================================
+        let allStkMembers = [];
+
+        async function loadStkMembersCatalog() {
+            // 1. ກວດສອບຈາກ parent window
+            try {
+                if (window.parent && window.parent !== window && Array.isArray(window.parent.allMlmMembers) && window.parent.allMlmMembers.length > 0) {
+                    allStkMembers = window.parent.allMlmMembers;
+                    return;
+                }
+            } catch (e) { }
+
+            // 2. ດຶງຈາກ Supabase Client
+            try {
+                const client = getMlmSupabaseClient();
+                if (client) {
+                    const { data, error } = await client
+                        .from('stk_members')
+                        .select('user_id, username, name, business_team, status')
+                        .order('name', { ascending: true });
+                    if (!error && data && data.length > 0) {
+                        allStkMembers = data;
+                        try { localStorage.setItem('stk_members_cache', JSON.stringify(data)); } catch (e) { }
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.warn('Supabase stk_members fetch error:', e);
+            }
+
+            // 3. ດຶງຜ່ານ REST API
+            try {
+                const url = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_URL) || window.MLM_SUPABASE_URL || 'https://mfpkeyrykqnrywyksyqp.supabase.co';
+                const key = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_ANON_KEY) || window.MLM_SUPABASE_ANON_KEY || 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
+                const restUrl = `${url.replace(/\/$/, '')}/rest/v1/stk_members?select=user_id,username,name,business_team,status&order=name.asc`;
+                const resp = await fetch(restUrl, {
+                    headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (Array.isArray(data) && data.length > 0) {
+                        allStkMembers = data;
+                        try { localStorage.setItem('stk_members_cache', JSON.stringify(data)); } catch (e) { }
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.warn('REST stk_members fetch error:', e);
+            }
+
+            // 4. ດຶງຈາກ localStorage Cache
+            try {
+                const cached = localStorage.getItem('stk_members_cache') || localStorage.getItem('stk_members');
+                if (cached) {
+                    allStkMembers = JSON.parse(cached);
+                }
+            } catch (e) { }
+        }
+
+        function renderAssistantDropdown(filter = '') {
+            const dropdown = document.getElementById('orderAssistantDropdown');
+            if (!dropdown) return;
+
+            const q = (filter || '').trim().toLowerCase();
+            let matches = allStkMembers;
+            if (q) {
+                matches = allStkMembers.filter(m => {
+                    const id = (m.user_id || m.username || '').toLowerCase();
+                    const name = (m.name || '').toLowerCase();
+                    const team = (m.business_team || '').toLowerCase();
+                    return id.includes(q) || name.includes(q) || team.includes(q);
+                });
+            }
+
+            const headerHTML = `<div class="addr-dropdown-header">ສະມາຊິກ (stk_members) ${matches.length} ຄົນ</div>`;
+            if (matches.length === 0) {
+                dropdown.innerHTML = headerHTML + `
+                    <div class="p-3 text-center text-muted" style="font-size: 12px;">
+                        ບໍ່ພົບລາຍຊື່ທີ່ກົງກັບ "${filter}" (ທ່ານສາມາດພິມເອງໄດ້)
+                    </div>
+                `;
+                dropdown.style.display = 'block';
+                return;
+            }
+
+            let itemsHTML = '';
+            matches.slice(0, 50).forEach(m => {
+                const memberId = m.user_id || m.username || '';
+                const memberName = m.name || '-';
+                const team = m.business_team ? ` [${m.business_team}]` : '';
+                const display = memberId ? `${memberId} - ${memberName}${team}` : memberName;
+
+                itemsHTML += `
+                    <div class="addr-dropdown-item" onclick="selectAssistantMember('${memberId}', '${memberName.replace(/'/g, "\\'")}')">
+                        <div>
+                            <span class="fw-bold text-dark">${memberName}</span>
+                            ${memberId ? `<span class="badge bg-light text-secondary border ms-1 font-monospace" style="font-size: 10.5px;">${memberId}</span>` : ''}
+                            ${m.business_team ? `<span class="text-muted small ms-1" style="font-size: 11px;">(${m.business_team})</span>` : ''}
+                        </div>
+                        <i class="ph ph-plus text-primary fs-6"></i>
+                    </div>
+                `;
+            });
+
+            dropdown.innerHTML = headerHTML + itemsHTML;
+            dropdown.style.display = 'block';
+        }
+
+        function openAssistantDropdown() {
+            if (allStkMembers.length === 0) {
+                loadStkMembersCatalog().then(() => {
+                    const input = document.getElementById('orderAssistantAdvice');
+                    renderAssistantDropdown(input ? input.value : '');
+                });
+            } else {
+                const input = document.getElementById('orderAssistantAdvice');
+                renderAssistantDropdown(input ? input.value : '');
+            }
+        }
+
+        function toggleAssistantDropdown(e) {
+            if (e) e.stopPropagation();
+            const dropdown = document.getElementById('orderAssistantDropdown');
+            if (dropdown && dropdown.style.display === 'block') {
+                dropdown.style.display = 'none';
+            } else {
+                openAssistantDropdown();
+            }
+        }
+
+        function filterAssistantDropdown(query) {
+            renderAssistantDropdown(query);
+        }
+
+        function selectAssistantMember(id, name) {
+            const input = document.getElementById('orderAssistantAdvice');
+            const dropdown = document.getElementById('orderAssistantDropdown');
+            if (input) {
+                input.value = id ? `${id} - ${name}` : name;
+            }
+            if (dropdown) dropdown.style.display = 'none';
+        }
+
+        // ==========================================================
+        // 🩺 Doctor Pop-up Picker Logic (ດຶງຂໍ້ມູນທ່ານໝໍ: ພິມເອງ ຫຼື ເລືອກໄດ້)
+        // ==========================================================
+        let allClinicDoctors = [];
+
+        async function loadDoctorsCatalog() {
+            // 1. ກວດສອບຈາກ parent window ຫຼື cache
+            try {
+                if (window.parent && window.parent !== window) {
+                    if (Array.isArray(window.parent.allDoctors) && window.parent.allDoctors.length > 0) {
+                        allClinicDoctors = window.parent.allDoctors.map(d => typeof d === 'string' ? { name: d } : d);
+                        return;
+                    }
+                    if (Array.isArray(window.parent.allStaffUsers) && window.parent.allStaffUsers.length > 0) {
+                        const docs = window.parent.allStaffUsers.filter(s => s.role === 'doctor' || s.role === 'แพทย์');
+                        if (docs.length > 0) {
+                            allClinicDoctors = docs.map(d => ({ name: d.full_name || d.emp_code || d.email, role: d.role }));
+                            return;
+                        }
+                    }
+                }
+            } catch (e) { }
+
+            // 2. ດຶງຈາກ Supabase Database (ຕາຕະລາງ staff_users ຫຼື staff ຫຼື visits ທີ່ຜ່ານມາ)
+            try {
+                if (typeof _supabase !== 'undefined' && _supabase) {
+                    const { data: docData } = await _supabase
+                        .from('staff_users')
+                        .select('full_name, emp_code, role')
+                        .in('role', ['doctor', 'แพทย์']);
+                    if (docData && docData.length > 0) {
+                        allClinicDoctors = docData.map(d => ({ name: d.full_name || d.emp_code, role: 'ທ່ານໝໍ' }));
+                        return;
+                    }
+
+                    const { data: staffData } = await _supabase
+                        .from('staff')
+                        .select('name, role')
+                        .eq('role', 'แพทย์');
+                    if (staffData && staffData.length > 0) {
+                        allClinicDoctors = staffData.map(d => ({ name: d.name, role: 'ທ່ານໝໍ' }));
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.warn('Error fetching doctors from db:', e);
+            }
+
+            // 3. ດຶງຈາກລາຍຊື່ທ່ານໝໍທີ່ເຄີຍກວດໃນ allPatientsData
+            try {
+                const docSet = new Set();
+                (allPatientsData || []).forEach(p => {
+                    if (p.doctor_name && p.doctor_name !== '-' && p.doctor_name !== 'null') {
+                        docSet.add(p.doctor_name.trim());
+                    }
+                });
+                if (docSet.size > 0) {
+                    allClinicDoctors = Array.from(docSet).map(d => ({ name: d, role: 'ທ່ານໝໍ' }));
+                    return;
+                }
+            } catch (e) { }
+
+            // 4. Default ທ່ານໝໍປະຈຳຄລີນິກ (ຖ້າ Database ຍັງບໍ່ມີຂໍ້ມູນ)
+            if (allClinicDoctors.length === 0) {
+                allClinicDoctors = [
+                    { name: 'ແພດປະຈຳຄລີນິກ', role: 'ແພດທົ່ວໄປ' },
+                    { name: 'ດຣ. ສົມພອນ ພອນປະເສີດ', role: 'ແພດຊ່ຽວຊານ' },
+                    { name: 'ດຣ. ວິໄລພອນ ໄຊຍະວົງ', role: 'ແພດຊ່ຽວຊານ' }
+                ];
+            }
+        }
+
+        function renderDoctorDropdown(filter = '') {
+            const dropdown = document.getElementById('orderDocDropdown');
+            if (!dropdown) return;
+
+            const q = (filter || '').trim().toLowerCase();
+            let matches = allClinicDoctors;
+            if (q) {
+                matches = allClinicDoctors.filter(d => (d.name || '').toLowerCase().includes(q));
+            }
+
+            const headerHTML = `<div class="addr-dropdown-header">ລາຍຊື່ທ່ານໝໍ (${matches.length} ທ່ານ)</div>`;
+            if (matches.length === 0) {
+                dropdown.innerHTML = headerHTML + `
+                    <div class="p-3 text-center text-muted" style="font-size: 12px;">
+                        ບໍ່ພົບທ່ານໝໍທີ່ກົງກັບ "${filter}" (ທ່ານສາມາດພິມເອງໄດ້)
+                    </div>
+                `;
+                dropdown.style.display = 'block';
+                return;
+            }
+
+            let itemsHTML = '';
+            matches.forEach(d => {
+                const docName = d.name || '';
+                itemsHTML += `
+                    <div class="addr-dropdown-item" onclick="selectDoctorMember('${docName.replace(/'/g, "\\'")}')">
+                        <div>
+                            <i class="ph-fill ph-stethoscope text-info me-1"></i>
+                            <span class="fw-bold text-dark">${docName}</span>
+                            ${d.role ? `<span class="badge bg-light text-secondary border ms-1" style="font-size: 10.5px;">${d.role}</span>` : ''}
+                        </div>
+                        <i class="ph ph-plus text-primary fs-6"></i>
+                    </div>
+                `;
+            });
+
+            dropdown.innerHTML = headerHTML + itemsHTML;
+            dropdown.style.display = 'block';
+        }
+
+        function openDoctorDropdown() {
+            if (allClinicDoctors.length === 0) {
+                loadDoctorsCatalog().then(() => {
+                    const input = document.getElementById('orderDocAdvice');
+                    renderDoctorDropdown(input ? input.value : '');
+                });
+            } else {
+                const input = document.getElementById('orderDocAdvice');
+                renderDoctorDropdown(input ? input.value : '');
+            }
+        }
+
+        function toggleDoctorDropdown(e) {
+            if (e) e.stopPropagation();
+            const dropdown = document.getElementById('orderDocDropdown');
+            if (dropdown && dropdown.style.display === 'block') {
+                dropdown.style.display = 'none';
+            } else {
+                openDoctorDropdown();
+            }
+        }
+
+        function filterDoctorDropdown(query) {
+            renderDoctorDropdown(query);
+        }
+
+        function selectDoctorMember(name) {
+            const input = document.getElementById('orderDocAdvice');
+            const dropdown = document.getElementById('orderDocDropdown');
+            if (input) input.value = name;
+            if (dropdown) dropdown.style.display = 'none';
+        }
+
+        // ==========================================================
+        // 👤 Customer / Patient Pop-up Picker Logic (ພິມເອງ ຫຼື ເລືອກໄດ້)
+        // ==========================================================
+        function renderCustDropdown(filter = '') {
+            const dropdown = document.getElementById('orderCustDropdown');
+            if (!dropdown) return;
+
+            const q = (filter || '').trim().toLowerCase();
+            const pool = allPatientsData || [];
+            let matches = pool;
+            if (q) {
+                matches = pool.filter(p => {
+                    const name = (p.patient_name || '').toLowerCase();
+                    const hn = (p.hn || '').toLowerCase();
+                    const phone = (p.phone || '').toLowerCase();
+                    const vill = (p.village || '').toLowerCase();
+                    return name.includes(q) || hn.includes(q) || phone.includes(q) || vill.includes(q);
+                });
+            }
+
+            const headerHTML = `<div class="addr-dropdown-header">ລາຍຊື່ຜູ້ປ່ວຍ (${matches.length} ຄົນ)</div>`;
+            if (matches.length === 0) {
+                dropdown.innerHTML = headerHTML + `
+                    <div class="p-3 text-center text-muted" style="font-size: 12px;">
+                        ບໍ່ພົບລາຍຊື່ທີ່ກົງກັບ "${filter}" (ທ່ານສາມາດພິມເອງໄດ້)
+                    </div>
+                `;
+                dropdown.style.display = 'block';
+                return;
+            }
+
+            let itemsHTML = '';
+            matches.slice(0, 50).forEach(p => {
+                const hn = p.hn || '';
+                const name = p.patient_name || '-';
+                const phone = p.phone ? ` | ໂທ: ${p.phone}` : '';
+                const age = p.age ? ` (${p.age} ປີ)` : '';
+
+                itemsHTML += `
+                    <div class="addr-dropdown-item" onclick="selectCustPatient('${hn}')">
+                        <div>
+                            <span class="fw-bold text-dark">${name}</span>${age}
+                            ${hn ? `<span class="badge bg-light text-secondary border ms-1 font-monospace" style="font-size: 10.5px;">${hn}</span>` : ''}
+                            <span class="text-muted small ms-1" style="font-size: 11px;">${phone}</span>
+                        </div>
+                        <i class="ph ph-plus text-primary fs-6"></i>
+                    </div>
+                `;
+            });
+
+            dropdown.innerHTML = headerHTML + itemsHTML;
+            dropdown.style.display = 'block';
+        }
+
+        function openCustDropdown() {
+            const input = document.getElementById('orderCustName');
+            renderCustDropdown(input ? input.value : '');
+        }
+
+        function toggleCustDropdown(e) {
+            if (e) e.stopPropagation();
+            const dropdown = document.getElementById('orderCustDropdown');
+            if (dropdown && dropdown.style.display === 'block') {
+                dropdown.style.display = 'none';
+            } else {
+                openCustDropdown();
+            }
+        }
+
+        function filterCustDropdown(query) {
+            renderCustDropdown(query);
+        }
+
+        function selectCustPatient(hn) {
+            const pt = (allPatientsData || []).find(p => p.hn === hn);
+            if (!pt) return;
+            const nameEl = document.getElementById('orderCustName');
+            const ageEl = document.getElementById('orderCustAge');
+            const genderEl = document.getElementById('orderCustGender');
+            const provEl = document.getElementById('orderCustProvince');
+            const distEl = document.getElementById('orderCustDistrict');
+            const villEl = document.getElementById('orderCustVillage');
+            const phoneEl = document.getElementById('orderCustPhone');
+
+            if (nameEl) nameEl.value = pt.patient_name || '';
+            if (ageEl) ageEl.value = pt.age || '';
+            if (genderEl) {
+                genderEl.value = pt.symptoms || pt.disease || pt.chief_complaint || pt.diagnosis || pt.gender || '';
+            }
+            if (provEl) provEl.value = pt.province || '';
+            if (distEl) distEl.value = pt.district || '';
+            if (villEl) villEl.value = pt.village || '';
+            if (phoneEl) phoneEl.value = pt.phone || '';
+
+            const dropdown = document.getElementById('orderCustDropdown');
+            if (dropdown) dropdown.style.display = 'none';
+        }
+
+        // ປິດ Pop-up Dropdowns ທັງໝົດເມື່ອຄລິກບ່ອນອື່ນນອກ Dropdown (Click Outside Handler)
+        window.addEventListener('click', function (e) {
+            const dropdownConfigs = [
+                { wrapper: 'orderCustWrapper', dropdown: 'orderCustDropdown' },
+                { wrapper: 'orderProvinceWrapper', dropdown: 'orderProvinceDropdown' },
+                { wrapper: 'orderDistrictWrapper', dropdown: 'orderDistrictDropdown' },
+                { wrapper: 'orderAssistantWrapper', dropdown: 'orderAssistantDropdown' },
+                { wrapper: 'orderDocWrapper', dropdown: 'orderDocDropdown' }
+            ];
+
+            dropdownConfigs.forEach(cfg => {
+                const wrapEl = document.getElementById(cfg.wrapper);
+                const dropEl = document.getElementById(cfg.dropdown);
+                if (wrapEl && dropEl && dropEl.style.display === 'block') {
+                    if (!wrapEl.contains(e.target)) {
+                        dropEl.style.display = 'none';
+                    }
+                }
+            });
+        }, true);
+
+        // ປິດ Dropdown ເມື່ອກົດປຸ່ມ Escape
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                ['orderCustDropdown', 'orderDocDropdown', 'orderAssistantDropdown', 'orderProvinceDropdown', 'orderDistrictDropdown'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el && el.style.display === 'block') {
+                        el.style.display = 'none';
+                    }
+                });
+            }
+        });
+
+        // ==========================================================
+        // 🛒 Order Modal Management & Business Logic (100% Match)
+        // ເຊື່ອມຕໍ່ດຶງຂໍ້ມູນຈາກຕາຕະລາງ stk_products (ຊື່, ລາຄາ, ຈຳນວນ/ສະຕັອກ)
+        // ==========================================================
+        let currentOrderItems = [];
+        let orderAvailableMedicines = [];
+        let mlmSupabaseOrderClient = null;
+
+        function getMlmSupabaseClient() {
+            if (mlmSupabaseOrderClient) return mlmSupabaseOrderClient;
+            try {
+                const url = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_URL) || window.MLM_SUPABASE_URL || 'https://mfpkeyrykqnrywyksyqp.supabase.co';
+                const key = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_ANON_KEY) || window.MLM_SUPABASE_ANON_KEY || 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
+                if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+                    mlmSupabaseOrderClient = supabase.createClient(url, key);
+                }
+            } catch (err) {
+                console.warn('Init MLM client error:', err);
+            }
+            return mlmSupabaseOrderClient;
+        }
+
+        async function loadOrderMedicinesCatalog() {
+            const url = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_URL) || window.MLM_SUPABASE_URL || 'https://mfpkeyrykqnrywyksyqp.supabase.co';
+            const key = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_ANON_KEY) || window.MLM_SUPABASE_ANON_KEY || 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
+
+            let rawData = null;
+
+            // 1. ກວດສອບຈາກ Parent Window (ຖ້າ Function.js ໂຫຼດ stk_products ໄວ້ແລ້ວ)
+            try {
+                if (window.parent && window.parent !== window && Array.isArray(window.parent.allMlmProducts) && window.parent.allMlmProducts.length > 0) {
+                    rawData = window.parent.allMlmProducts;
+                }
+            } catch (e) { }
+
+            // 2. ດຶງໂດຍກົງຜ່ານ Supabase Client ຈາກຕາຕະລາງ stk_products
+            if (!rawData || rawData.length === 0) {
+                try {
+                    const client = getMlmSupabaseClient();
+                    if (client) {
+                        // ລອງ query ແບບມີ order ກ່ອນ
+                        try {
+                            const { data, error } = await client
+                                .from('stk_products')
+                                .select('*')
+                                .order('product_id', { ascending: true });
+                            if (!error && Array.isArray(data) && data.length > 0) {
+                                rawData = data;
+                            }
+                        } catch (e1) { /* fallthrough */ }
+
+                        // ຖ້າ 500 ໃຫ້ລອງ query ໂດຍບໍ່ມີ order
+                        if (!rawData || rawData.length === 0) {
+                            const { data: data2, error: err2 } = await client
+                                .from('stk_products')
+                                .select('*');
+                            if (!err2 && Array.isArray(data2) && data2.length > 0) {
+                                rawData = data2;
+                            }
+                        }
+                    }
+                } catch (e) { /* suppress */ }
+            }
+
+            // 3. Fallback: ດຶງຜ່ານ REST API ຂອງ Supabase (ບໍ່ໃສ່ order ເພື່ອຫຼີກລ່ຽງ 500)
+            if (!rawData || rawData.length === 0) {
+                try {
+                    const restUrl = `${url.replace(/\/$/, '')}/rest/v1/stk_products?select=*`;
+                    const resp = await fetch(restUrl, {
+                        headers: {
+                            'apikey': key,
+                            'Authorization': `Bearer ${key}`
+                        }
+                    });
+                    if (resp.ok) {
+                        const json = await resp.json();
+                        if (Array.isArray(json) && json.length > 0) {
+                            rawData = json;
+                        }
+                    }
+                } catch (e) { /* suppress */ }
+            }
+
+            // 4. Fallback: ດຶງຈາກ Local Storage Cache
+            if (!rawData || rawData.length === 0) {
+                try {
+                    const cached = localStorage.getItem('mlm_stk_products_cache');
+                    if (cached) rawData = JSON.parse(cached);
+                } catch (e) { }
+            }
+
+            // 5. ບັນທຶກ Cache ໄວ້ໃຊ້ຄັ້ງຕໍ່ໄປ
+            if (rawData && rawData.length > 0) {
+                try {
+                    localStorage.setItem('mlm_stk_products_cache', JSON.stringify(rawData));
+                } catch (e) { }
+            } else {
+                // ຂໍ້ມູນຕົວຢ່າງເລີ່ມຕົ້ນກໍລະນີອອຟລາຍ
+                rawData = [
+                    { product_id: 'STK-001', name: 'Paracetamol 500mg (ແກ້ປວດ/ລົດໄຂ້)', category: 'ຢາ', current_stock: 120, price_full: 15000, price_member: 12000, price_promo: 10000, unit: 'ແຜງ' },
+                    { product_id: 'STK-002', name: 'Amoxicillin 500mg (ຢາຂ້າເຊື້ອ)', category: 'ຢາ', current_stock: 45, price_full: 35000, price_member: 30000, price_promo: 28000, unit: 'ແຜງ' },
+                    { product_id: 'STK-003', name: 'Cetirizine 10mg (ຢາແກ້ແພ້/ຫຼຸດນ້ຳມູກ)', category: 'ຢາ', current_stock: 80, price_full: 20000, price_member: 18000, price_promo: 15000, unit: 'ແຜງ' },
+                    { product_id: 'STK-004', name: 'Vitamin C 1000mg Plus (ວິຕາມິນຊີ)', category: 'ອາຫານເສີມ', current_stock: 65, price_full: 120000, price_member: 95000, price_promo: 89000, unit: 'ກະປຸກ' },
+                    { product_id: 'STK-005', name: 'Calcium + D3 Plus (ບຳລຸງກະດູກ)', category: 'ອາຫານເສີມ', current_stock: 30, price_full: 180000, price_member: 150000, price_promo: 140000, unit: 'ກະປຸກ' },
+                    { product_id: 'STK-006', name: 'Omega-3 Fish Oil (ນ້ຳມັນປາ)', category: 'ອາຫານເສີມ', current_stock: 25, price_full: 210000, price_member: 175000, price_promo: 160000, unit: 'ກະປຸກ' }
+                ];
+            }
+
+            // ແປງຂໍ້ມູນຈາກ stk_products: ລະຫັດ, ຊື່, ລາຄາ, ຈຳນວນ/ສະຕັອກ
+            orderAvailableMedicines = rawData.map(item => {
+                const code = item.product_id || item.code || item.id || '';
+                const name = item.name || item.product_name || 'ບໍ່ມີຊື່';
+                const cat = (item.category || item.type || 'ອາຫານເສີມ').trim();
+                const isMed = (cat.includes('ยา') || cat.includes('ຢາ'));
+                const stock = Number(item.current_stock ?? item.stock ?? item.quantity ?? 0);
+                const priceNormal = parseFloat(item.price_full || item.price_normal || item.price || 0);
+                const priceMember = parseFloat(item.price_member || item.price_high || Math.round(priceNormal * 0.85));
+                const pricePromo = parseFloat(item.price_promo || Math.round(priceNormal * 0.8));
+                const unit = item.unit || 'ຊິ້ນ';
+
+                return {
+                    id: code || name,
+                    code: code,
+                    name: name,
+                    category: cat,
+                    type: isMed ? 'ຢາ' : 'ອາຫານເສີມ',
+                    stock: stock,
+                    price_normal: priceNormal,
+                    price_member: priceMember,
+                    price_promo: pricePromo,
+                    unit: unit
+                };
+            });
+
+            // 🌟 ແຍກໝວດໝູ່ອັດຕະໂນມັດຕາມ Database ຈິງຂອງ stk_products
+            updateOrderCategoriesUI();
+        }
+
+        let orderUniqueCategories = [];
+        let currentActiveCategory = 'all';
+
+        function getCategoryIcon(catName) {
+            if (!catName) return '📦';
+            const s = catName.toLowerCase();
+            if (s.includes('ยา') || s.includes('ຢາ') || s.includes('med')) return '💊';
+            if (s.includes('กาแฟ') || s.includes('ก๊าแฟ') || s.includes('ກາເຟ') || s.includes('ດື່ມ') || s.includes('coffee') || s.includes('tea')) return '☕';
+            if (s.includes('เสริม') || s.includes('ເສີມ') || s.includes('supplement') || s.includes('วิตามิน') || s.includes('vitamin')) return '🍃';
+            if (s.includes('ผิว') || s.includes('ครีม') || s.includes('ຄຣີມ') || s.includes('สกิน') || s.includes('skin') || s.includes('beauty') || s.includes('งาม')) return '✨';
+            if (s.includes('โปร') || s.includes('โปล') || s.includes('ໂປຣ') || s.includes('เซ็ต') || s.includes('set') || s.includes('promo')) return '🎁';
+            if (s.includes('อุปกรณ์') || s.includes('ເຄື່ອງມື') || s.includes('device')) return '🩺';
+            return '🏷️';
+        }
+
+        function updateOrderCategoriesUI() {
+            // 1. ດຶງໝວດໝູ່ທີ່ບໍ່ຊ້ຳກັນຈາກ Database ຈິງ
+            const rawCategories = orderAvailableMedicines.map(m => (m.category || 'ທົ່ວໄປ').trim()).filter(Boolean);
+            orderUniqueCategories = Array.from(new Set(rawCategories));
+
+            // 2. ອັບເດດ Dropdown ເລືອກໝວດໝູ່
+            const catSelect = document.getElementById('orderItemCategory');
+            if (catSelect) {
+                let catHtml = '<option value="all">ທັງໝົດ (All)</option>';
+                orderUniqueCategories.forEach(cat => {
+                    const icon = getCategoryIcon(cat);
+                    catHtml += `<option value="${cat}">${icon} ${cat}</option>`;
+                });
+                catSelect.innerHTML = catHtml;
+                if (orderUniqueCategories.includes(currentActiveCategory)) {
+                    catSelect.value = currentActiveCategory;
+                } else {
+                    catSelect.value = 'all';
+                    currentActiveCategory = 'all';
+                }
+            }
+
+            // 3. ສະແດງລາຍການສິນຄ້າໃນ Dropdown ໂດຍແຍກຕາມ optgroup ຂອງ Database
+            populateOrderMedsDropdown(currentActiveCategory);
+        }
+
+        function populateOrderMedsDropdown(categoryFilter = 'all') {
+            const select = document.getElementById('orderItemSelect');
+            if (!select) return;
+
+            let filtered = orderAvailableMedicines;
+            if (categoryFilter && categoryFilter !== 'all') {
+                filtered = orderAvailableMedicines.filter(m => (m.category || 'ທົ່ວໄປ').trim() === categoryFilter);
+            }
+
+            // ຈັດກຸ່ມສິນຄ້າຕາມໝວດໝູ່ (Category) ຕົວຈິງຈາກ Database
+            const grouped = {};
+            filtered.forEach(m => {
+                const cat = (m.category || 'ທົ່ວໄປ').trim();
+                if (!grouped[cat]) grouped[cat] = [];
+                grouped[cat].push(m);
+            });
+
+            let html = '<option value="">-- ເລືອກລາຍການສິນຄ້າ / ຢາ (stk_products) --</option>';
+
+            // ສ້າງ <optgroup> ແຍກຕາມແຕ່ລະໝວດໝູ່ທີ່ດຶງມາຈາກ Database
+            Object.keys(grouped).forEach(cat => {
+                const items = grouped[cat];
+                const icon = getCategoryIcon(cat);
+                html += `<optgroup label="${icon} ໝວດ: ${cat} (${items.length} ລາຍການ)">`;
+                items.forEach(m => {
+                    const code = m.code ? `[${m.code}] ` : '';
+                    const stock = m.stock <= 0 ? `(ໝົດສະຕັອກ)` : `(ຄົງເຫຼືອ: ${m.stock} ${m.unit})`;
+                    html += `<option value="${m.id}">${code}${m.name} ${stock}</option>`;
+                });
+                html += '</optgroup>';
+            });
+
+            select.innerHTML = html;
+            onOrderItemSelectChange();
+        }
+
+        function setOrderCategory(category) {
+            currentActiveCategory = category;
+
+            // ອັບເດດ Dropdown ເລືອກໝວດ
+            const catSelect = document.getElementById('orderItemCategory');
+            if (catSelect) catSelect.value = category;
+
+            populateOrderMedsDropdown(category);
+        }
+
+        function setOrderCategoryPill(category) {
+            setOrderCategory(category);
+        }
+
+        function onOrderCategoryChange() {
+            const catSelect = document.getElementById('orderItemCategory');
+            if (!catSelect) return;
+            setOrderCategory(catSelect.value);
+        }
+
+        function updateOrderPriceTierOptions(med) {
+            const tierSelect = document.getElementById('orderPriceTier');
+            if (!tierSelect) return;
+
+            const currentTier = tierSelect.value || 'normal';
+            if (!med) {
+                tierSelect.innerHTML = `
+                    <option value="normal">ລາຄາປົກກະຕິ</option>
+                    <option value="member">ລາຄາສະມາຊິກ</option>
+                    <option value="promo">ລາຄາໂປຣ</option>
+                    <option value="free">ແຖມຟຣີ (0 ฿)</option>
+                `;
+                tierSelect.value = currentTier;
+                return;
+            }
+
+            const pNormal = (med.price_normal || 0).toLocaleString();
+            const pMember = (med.price_member || 0).toLocaleString();
+            const pPromo = (med.price_promo || 0).toLocaleString();
+
+            tierSelect.innerHTML = `
+                <option value="normal">ລາຄາປົກກະຕິ (${pNormal} ฿)</option>
+                <option value="member">ລາຄາສະມາຊິກ (${pMember} ฿)</option>
+                <option value="promo">ລາຄາໂປຣ (${pPromo} ฿)</option>
+                <option value="free">ແຖມຟຣີ (0 ฿)</option>
+            `;
+            tierSelect.value = currentTier;
+        }
+
+        function onOrderItemSelectChange() {
+            const select = document.getElementById('orderItemSelect');
+            const hint = document.getElementById('orderItemStockHint');
+            const qtyInput = document.getElementById('orderItemQty');
+            const tierSelect = document.getElementById('orderPriceTier');
+
+            if (!select || !select.value) {
+                if (hint) { hint.style.display = 'none'; hint.innerHTML = ''; }
+                if (qtyInput) qtyInput.max = '';
+                updateOrderPriceTierOptions(null);
+                return;
+            }
+
+            const med = orderAvailableMedicines.find(m => m.id === select.value);
+            if (!med) {
+                updateOrderPriceTierOptions(null);
+                return;
+            }
+
+            // ອັບເດດລາຄາຕົວຈິງໃນ Dropdown ປະເພດລາຄາ
+            updateOrderPriceTierOptions(med);
+
+            const selectedTier = tierSelect ? tierSelect.value : 'normal';
+            let currentPrice = med.price_normal;
+            let tierName = 'ລາຄາປົກກະຕິ';
+            if (selectedTier === 'member') { currentPrice = med.price_member; tierName = 'ລາຄາສະມາຊິກ'; }
+            else if (selectedTier === 'promo') { currentPrice = med.price_promo; tierName = 'ລາຄາໂປຣ'; }
+            else if (selectedTier === 'free') { currentPrice = 0; tierName = 'ແຖມຟຣີ'; }
+
+            if (hint) {
+                const isOutOfStock = med.stock <= 0;
+                const stockText = isOutOfStock
+                    ? `<span class="fw-bold text-danger">ໝົດສະຕັອກ (0 ${med.unit})</span>`
+                    : `<span class="fw-bold text-success">${med.stock} ${med.unit}</span>`;
+
+                hint.innerHTML = `
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                        <span>📦 <strong>${med.code ? `[${med.code}] ` : ''}${med.name}</strong></span>
+                        <span class="text-secondary">| ສະຕັອກຄົງເຫຼືອ: ${stockText}</span>
+                        <span class="text-secondary">| ລາຄາ: <strong class="text-primary">${currentPrice.toLocaleString()} ฿</strong> (${tierName})</span>
+                    </div>
+                    <div>
+                        <span class="badge ${isOutOfStock ? 'bg-danger-subtle text-danger' : 'bg-success-subtle text-success'} border" style="font-size: 11px;">
+                            ${isOutOfStock ? 'ສິນຄ້າໝົດ' : 'ພ້ອມສົ່ງ'}
+                        </span>
+                    </div>
+                `;
+                hint.style.display = 'flex';
+            }
+
+            if (qtyInput) {
+                qtyInput.max = med.stock > 0 ? med.stock : 1;
+            }
+        }
+
+        function onOrderPriceTierChange() {
+            const select = document.getElementById('orderItemSelect');
+            const hint = document.getElementById('orderItemStockHint');
+            const tierSelect = document.getElementById('orderPriceTier');
+
+            if (!select || !select.value) return;
+            const med = orderAvailableMedicines.find(m => m.id === select.value);
+            if (!med) return;
+
+            const selectedTier = tierSelect ? tierSelect.value : 'normal';
+            let currentPrice = med.price_normal;
+            let tierName = 'ລາຄາປົກກະຕິ';
+            if (selectedTier === 'member') { currentPrice = med.price_member; tierName = 'ລາຄາສະມາຊິກ'; }
+            else if (selectedTier === 'promo') { currentPrice = med.price_promo; tierName = 'ລາຄາໂປຣ'; }
+            else if (selectedTier === 'free') { currentPrice = 0; tierName = 'ແຖມຟຣີ'; }
+
+            if (hint) {
+                const isOutOfStock = med.stock <= 0;
+                const stockText = isOutOfStock
+                    ? `<span class="fw-bold text-danger">ໝົດສະຕັອກ (0 ${med.unit})</span>`
+                    : `<span class="fw-bold text-success">${med.stock} ${med.unit}</span>`;
+
+                hint.innerHTML = `
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                        <span>📦 <strong>${med.code ? `[${med.code}] ` : ''}${med.name}</strong></span>
+                        <span class="text-secondary">| ສະຕັອກຄົງເຫຼືອ: ${stockText}</span>
+                        <span class="text-secondary">| ລາຄາ: <strong class="text-primary">${currentPrice.toLocaleString()} ฿</strong> (${tierName})</span>
+                    </div>
+                    <div>
+                        <span class="badge ${isOutOfStock ? 'bg-danger-subtle text-danger' : 'bg-success-subtle text-success'} border" style="font-size: 11px;">
+                            ${isOutOfStock ? 'ສິນຄ້າໝົດ' : 'ພ້ອມສົ່ງ'}
+                        </span>
+                    </div>
+                `;
+            }
+        }
+
+        function addOrderItem() {
+            const medSelect = document.getElementById('orderItemSelect');
+            const tierSelect = document.getElementById('orderPriceTier');
+            const qtyInput = document.getElementById('orderItemQty');
+
+            if (!medSelect || !medSelect.value) {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'ແຈ້ງເຕືອນ',
+                        text: 'ກະລຸນາເລືອກລາຍການຢາ ຫຼື ອາຫານເສີມກ່ອນ',
+                        confirmButtonText: 'ຮັບຊາບ'
+                    });
+                } else {
+                    alert('ກະລຸນາເລືອກລາຍການຢາ ຫຼື ອາຫານເສີມກ່ອນ');
+                }
+                return;
+            }
+
+            const medId = medSelect.value;
+            const med = orderAvailableMedicines.find(m => m.id === medId);
+            if (!med) return;
+
+            // ກວດສອບສະຕັອກສິນຄ້າ
+            if (med.stock <= 0) {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'ສິນຄ້າໝົດສະຕັອກ',
+                        text: `ລາຍການ "${med.name}" ໃນລະບົບ stk_products ໝົດສະຕັອກແລ້ວ (0 ${med.unit}) ບໍ່ສາມາດສັ່ງໄດ້`,
+                        confirmButtonText: 'ຮັບຊາບ'
+                    });
+                } else {
+                    alert(`ລາຍການ "${med.name}" ໝົດສະຕັອກແລ້ວ`);
+                }
+                return;
+            }
+
+            const tier = tierSelect ? tierSelect.value : 'normal';
+            const qty = parseInt(qtyInput ? qtyInput.value : 1, 10) || 1;
+
+            if (qty > med.stock) {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'ຈຳນວນເກີນສະຕັອກ',
+                        text: `ສິນຄ້ານີ້ມີສະຕັອກພຽງ ${med.stock} ${med.unit} (ທ່ານເລືອກສັ່ງ ${qty} ${med.unit})`,
+                        confirmButtonText: 'ຮັບຊາບ'
+                    });
+                } else {
+                    alert(`ສິນຄ້ານີ້ມີສະຕັອກພຽງ ${med.stock} ${med.unit}`);
+                }
+                return;
+            }
+
+            let price = 0;
+            let tierName = 'ລາຄາປົກກະຕິ';
+
+            if (tier === 'normal') {
+                price = med.price_normal || med.price || 0;
+                tierName = 'ລາຄາປົກກະຕິ';
+            } else if (tier === 'member') {
+                price = med.price_member || Math.round((med.price_normal || 0) * 0.85);
+                tierName = 'ລາຄາສະມາຊິກ';
+            } else if (tier === 'promo') {
+                price = med.price_promo || Math.round((med.price_normal || 0) * 0.8);
+                tierName = 'ລາຄາໂປຣ';
+            } else if (tier === 'free') {
+                price = 0;
+                tierName = 'ແຖມຟຣີ';
+            }
+
+            // ຖ້າມີລາຍການເດີມຢູ່ໃນຕາຕະລາງ ໃຫ້ເພີ່ມຈຳນວນ
+            const existingIndex = currentOrderItems.findIndex(item => item.id === medId && item.tier === tier);
+            if (existingIndex >= 0) {
+                const newQty = currentOrderItems[existingIndex].qty + qty;
+                if (newQty > med.stock) {
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'ຈຳນວນລວມເກີນສະຕັອກ',
+                            text: `ຈຳນວນລວມໃນອໍເດີ (${newQty}) ເກີນສະຕັອກທີ່ມີ (${med.stock} ${med.unit})`,
+                            confirmButtonText: 'ຮັບຊາບ'
+                        });
+                    }
+                    return;
+                }
+                currentOrderItems[existingIndex].qty = newQty;
+                currentOrderItems[existingIndex].total = currentOrderItems[existingIndex].qty * currentOrderItems[existingIndex].price;
+            } else {
+                currentOrderItems.push({
+                    id: med.id,
+                    code: med.code,
+                    name: med.name,
+                    tier: tier,
+                    tierName: tierName,
+                    price: price,
+                    qty: qty,
+                    stock: med.stock,
+                    unit: med.unit,
+                    total: price * qty
+                });
+            }
+
+            // Reset input
+            if (qtyInput) qtyInput.value = 1;
+            renderOrderTable();
+            calculateOrderTotals();
+        }
+
+        function removeOrderItem(index) {
+            currentOrderItems.splice(index, 1);
+            renderOrderTable();
+            calculateOrderTotals();
+        }
+
+        function renderOrderTable() {
+            const tbody = document.getElementById('orderTableBody');
+            if (!tbody) return;
+
+            if (currentOrderItems.length === 0) {
+                tbody.innerHTML = `
+                    <tr id="orderEmptyRow">
+                        <td colspan="6" class="text-center py-4 text-muted" style="font-size: 13px;">
+                            ຍັງບໍ່ມີລາຍການຢາ/ອາຫານເສີມ
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            let html = '';
+            currentOrderItems.forEach((item, idx) => {
+                const codeBadge = item.code ? `<span class="badge bg-secondary-subtle text-secondary me-1 font-monospace" style="font-size: 11px;">${item.code}</span>` : '';
+                html += `
+                    <tr>
+                        <td style="text-align: left; padding-left: 14px;">
+                            ${codeBadge}<span class="fw-semibold text-dark">${item.name}</span>
+                        </td>
+                        <td style="text-align: center;">
+                            <span class="badge bg-light text-secondary border px-2 py-1">${item.tierName}</span>
+                        </td>
+                        <td style="text-align: right;">
+                            ${item.price.toLocaleString()} ฿
+                        </td>
+                        <td style="text-align: center;">
+                            <span class="fw-bold text-dark">${item.qty}</span>
+                        </td>
+                        <td style="text-align: right;" class="fw-bold text-dark">
+                            ${item.total.toLocaleString()} ฿
+                        </td>
+                        <td style="text-align: center;">
+                            <button type="button" class="order-btn-del" onclick="removeOrderItem(${idx})" title="ລຶບລາຍການ">
+                                <i class="ph-bold ph-trash" style="font-size: 15px;"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        function calculateOrderTotals() {
+            const subtotal = currentOrderItems.reduce((sum, item) => sum + (item.total || 0), 0);
+            const discountInput = document.getElementById('orderDiscountInput');
+            const discount = Math.max(0, parseInt(discountInput ? discountInput.value : 0, 10) || 0);
+            const grandTotal = Math.max(0, subtotal - discount);
+
+            const subtotalEl = document.getElementById('orderSubtotalText');
+            const grandTotalEl = document.getElementById('orderGrandTotalText');
+
+            if (subtotalEl) subtotalEl.innerText = `${subtotal.toLocaleString()} ฿`;
+            if (grandTotalEl) grandTotalEl.innerText = `${grandTotal.toLocaleString()} ฿`;
+        }
+
+        function openOrderModal() {
+            const backdrop = document.getElementById('orderModalBackdrop');
+            if (!backdrop) return;
+
+            loadOrderMedicinesCatalog();
+            loadStkMembersCatalog();
+            loadDoctorsCatalog();
+
+            // 1. ເວລາເຂົ້າໜ້າຟອມ ຂໍ້ມູນລູກຄ້າຕ້ອງວ່າງເປົ່າກ່ອນ ຈົນກວ່າຈະມີການເລືອກ
+            const nameEl = document.getElementById('orderCustName');
+            const ageEl = document.getElementById('orderCustAge');
+            const genderEl = document.getElementById('orderCustGender');
+            const dateEl = document.getElementById('orderCustDate');
+            const provEl = document.getElementById('orderCustProvince');
+            const distEl = document.getElementById('orderCustDistrict');
+            const villEl = document.getElementById('orderCustVillage');
+            const phoneEl = document.getElementById('orderCustPhone');
+
+            const todayStr = new Date().toISOString().split('T')[0];
+            if (dateEl) dateEl.value = todayStr;
+
+            if (nameEl) nameEl.value = '';
+            if (ageEl) ageEl.value = '';
+            if (genderEl) genderEl.value = '';
+            if (provEl) provEl.value = '';
+            if (distEl) distEl.value = '';
+            if (villEl) villEl.value = '';
+            if (phoneEl) phoneEl.value = '';
+
+            // Reset medicines dropdown & filter to all categories
+            setOrderCategoryPill('all');
+
+            const qtyInput = document.getElementById('orderItemQty');
+            if (qtyInput) qtyInput.value = 1;
+
+            const notesEl = document.getElementById('orderNotes');
+            if (notesEl) notesEl.value = '';
+
+            const docAdviceEl = document.getElementById('orderDocAdvice');
+            if (docAdviceEl) docAdviceEl.value = '';
+
+            const assistantAdviceEl = document.getElementById('orderAssistantAdvice');
+            if (assistantAdviceEl) assistantAdviceEl.value = '';
+
+            // ປິດ Pop-up Dropdowns ທັງໝົດເມື່ອເປີດ Modal ໃໝ່
+            ['orderCustDropdown', 'orderDocDropdown', 'orderAssistantDropdown', 'orderProvinceDropdown', 'orderDistrictDropdown'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = 'none';
+            });
+
+            const discountInput = document.getElementById('orderDiscountInput');
+            if (discountInput) discountInput.value = 0;
+
+            // Reset order items table
+            currentOrderItems = [];
+            renderOrderTable();
+            calculateOrderTotals();
+
+            backdrop.style.display = 'flex';
+            requestAnimationFrame(() => {
+                backdrop.classList.add('show');
+            });
+        }
+
+        function closeOrderModal(e) {
+            if (e && e.target && e.target !== e.currentTarget && !e.target.closest('.order-modal-close-btn') && !e.target.closest('.order-btn-cancel')) {
+                return;
+            }
+            const backdrop = document.getElementById('orderModalBackdrop');
+            if (backdrop) {
+                backdrop.classList.remove('show');
+                setTimeout(() => {
+                    backdrop.style.display = 'none';
+                }, 200);
+            }
+        }
+
+        function getClinicSupabaseClient() {
+            try {
+                const url = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_URL) || window.SUPABASE_URL || 'https://fpmstumpobbjozflkola.supabase.co';
+                const key = (typeof CONFIG !== 'undefined' && CONFIG.SUPABASE_ANON_KEY) || window.SUPABASE_ANON_KEY || 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7';
+                if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+                    return supabase.createClient(url, key);
+                }
+            } catch (err) {
+                console.warn('Init Clinic client error:', err);
+            }
+            return null;
+        }
+
+        async function saveOrderToStkNutrientOrders(cleanPayload) {
+            let isSaved = false;
+
+            // 🌟 ตรวจสอบและคัดกรองเฉพาะคอลัมน์ที่มีอยู่จริงในตาราง public.stk_nutrient_orders เพื่อป้องกัน error schema cache
+            const dbPayload = {
+                order_id: String(cleanPayload.order_id),
+                visit_id: cleanPayload.visit_id ? String(cleanPayload.visit_id) : null,
+                hn: cleanPayload.hn ? String(cleanPayload.hn) : null,
+                customer_name: cleanPayload.customer_name || cleanPayload.patient_name || null,
+                customer_phone: cleanPayload.customer_phone || cleanPayload.phone || null,
+                recorded_by: cleanPayload.recorded_by || cleanPayload.assistant_advice || 'Staff',
+                date: cleanPayload.date || cleanPayload.order_date || (new Date().toISOString().split('T')[0]),
+                status: cleanPayload.status || 'รอดำเนินการ',
+                items_json: cleanPayload.items_json || cleanPayload.items || [],
+                created_at: cleanPayload.created_at || new Date().toISOString()
+            };
+
+            // 1. ລອງບັນທຶກຜ່ານ Supabase Client ໄປຍັງຖານຂໍ້ມູນ MLM (mfpkeyrykqnrywyksyqp.supabase.co)
+            try {
+                const client = getMlmSupabaseClient();
+                if (client) {
+                    const { data, error } = await client
+                        .from('stk_nutrient_orders')
+                        .upsert(dbPayload, { onConflict: 'order_id' });
+                    if (!error) {
+                        console.log('✅ stk_nutrient_orders saved via MLM Supabase Client!');
+                        isSaved = true;
+                    } else {
+                        console.warn('Supabase client insert error:', error);
+                    }
+                }
+            } catch (e) {
+                console.warn('MLM Supabase client error:', e);
+            }
+
+            // 2. Fallback: ບັນທຶກຜ່ານ REST API ຂອງ MLM Supabase
+            if (!isSaved) {
+                try {
+                    const url = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_URL) || window.MLM_SUPABASE_URL || 'https://mfpkeyrykqnrywyksyqp.supabase.co';
+                    const key = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_ANON_KEY) || window.MLM_SUPABASE_ANON_KEY || 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
+                    const restUrl = `${url.replace(/\/$/, '')}/rest/v1/stk_nutrient_orders`;
+                    const resp = await fetch(restUrl, {
+                        method: 'POST',
+                        headers: {
+                            'apikey': key,
+                            'Authorization': `Bearer ${key}`,
+                            'Content-Type': 'application/json',
+                            'Prefer': 'resolution=merge-duplicates,return=representation'
+                        },
+                        body: JSON.stringify(dbPayload)
+                    });
+                    if (resp.ok) {
+                        console.log('✅ stk_nutrient_orders saved via REST API!');
+                        isSaved = true;
+                    } else {
+                        console.warn('REST API save status:', resp.status);
+                    }
+                } catch (e) {
+                    console.warn('REST API exception:', e);
+                }
+            }  // 3. ບັນທຶກ Cache ໃນ LocalStorage ຢ່າງປອດໄພ
+            try {
+                const localList = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
+                localList.unshift(cleanPayload);
+                safeSetStorage('stk_nutrient_orders', localList, 30);
+            } catch (e) { }
+
+            return isSaved;
+        }
+
+        function safeSetStorage(key, value, maxItems = 20) {
+            // Delegate to the robust version in function.js (window.safeSetLocalStorage)
+            if (typeof window.safeSetLocalStorage === 'function') {
+                const trimmed = (Array.isArray(value) && maxItems > 0) ? value.slice(0, maxItems) : value;
+                window.safeSetLocalStorage(key, trimmed);
+                return;
+            }
+            // Inline fallback if function.js is not loaded yet
+            try {
+                const dataToSave = (Array.isArray(value) && maxItems > 0) ? value.slice(0, maxItems) : value;
+                localStorage.setItem(key, typeof dataToSave === 'string' ? dataToSave : JSON.stringify(dataToSave));
+            } catch (e) {
+                try {
+                    ['clinic_login_bg_url', 'mlm_stk_products_cache', 'clinic_lab_files_meta', 'clinic_commission_logs', 'clinic_bills_cache', 'stk_nutrient_orders', 'clinic_orders', 'clinic_bills', 'clinic_visits_queue'].forEach(k => {
+                        if (k !== key) { try { localStorage.removeItem(k); } catch (re) { } }
+                    });
+                    const slim = (Array.isArray(value)) ? value.slice(0, 10) : value;
+                    localStorage.setItem(key, typeof slim === 'string' ? slim : JSON.stringify(slim));
+                } catch (e2) { /* suppress */ }
+            }
+        }
+
+        async function saveOrderToClinicVisits(orderData, cleanItems) {
+            try {
+                const clinicClient = getClinicSupabaseClient();
+                const visitId = String(orderData.visitId || orderData.visit_id);
+                const hn = String(orderData.hn);
+                const custName = orderData.patient_name || orderData.customer_name;
+                const grandTotal = Number(orderData.grandTotal || orderData.total_amount || 0);
+
+                // 1. Visit Payload ທີ່ຖືກຕ້ອງຕາມ Schema ຂອງຕາຕະລາງ visits 100%
+                const cleanVisitPayload = {
+                    visit_id: visitId,
+                    hn: hn,
+                    patient_name: custName,
+                    doctor_name: orderData.doctor_advice || orderData.closer_dr || 'ແພດປະຈຳຄລີນິກ',
+                    symptom: 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ' + (orderData.notes ? ` (${orderData.notes})` : ''),
+                    status: 'เสร็จสิ้น',
+                    created_at: orderData.created_at || new Date().toISOString()
+                };
+
+                // 2. Bill Payload ທີ່ຖືກຕ້ອງຕາມ Schema ຂອງຕາຕະລາງ bills 100%
+                const cleanBillPayload = {
+                    bill_id: 'BILL-' + String(orderData.orderId || orderData.order_id || Date.now()).replace(/^ORD-/, ''),
+                    visit_id: visitId,
+                    hn: hn,
+                    patient_name: custName,
+                    items: cleanItems || [],
+                    subtotal: Number(orderData.subtotal || grandTotal),
+                    discount: Number(orderData.discount || 0),
+                    payable_amount: grandTotal,
+                    currency: 'THB',
+                    status: 'ชำระแล้ว',
+                    created_by: orderData.assistant_advice || orderData.recorded_by || 'Staff',
+                    note: orderData.notes || 'ສັ່ງຊື້ຜ່ານລະບົບ Booking/Order',
+                    created_at: orderData.created_at || new Date().toISOString()
+                };
+
+                // 3. Patient Payload ທີ່ຖືກຕ້ອງຕາມ Schema ຂອງຕາຕະລາງ patients 100%
+                const cleanPatientPayload = {
+                    hn: hn,
+                    patient_name: custName,
+                    phone: orderData.phone || '',
+                    age: orderData.age ? String(orderData.age).replace(/\D/g, '') || null : null,
+                    province: orderData.province || '',
+                    district: orderData.district || '',
+                    village: orderData.village || '',
+                    referred_by: orderData.assistant_advice || orderData.recorded_by || '',
+                    created_at: orderData.created_at || new Date().toISOString()
+                };
+
+                // ບັນທຶກ LocalStorage ຢ່າງປອດໄພ
+                try {
+                    let cachedVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
+                    if (!Array.isArray(cachedVisits)) cachedVisits = [];
+                    cachedVisits.unshift({
+                        ...cleanVisitPayload,
+                        phone: orderData.phone || '',
+                        age: orderData.age || '',
+                        gender: orderData.gender || '',
+                        province: orderData.province || '',
+                        district: orderData.district || '',
+                        village: orderData.village || ''
+                    });
+                    safeSetStorage('clinic_visits_queue', cachedVisits, 30);
+
+                    let cachedBills = JSON.parse(localStorage.getItem('clinic_bills') || '[]');
+                    if (!Array.isArray(cachedBills)) cachedBills = [];
+                    cachedBills.unshift(cleanBillPayload);
+                    safeSetStorage('clinic_bills', cachedBills, 30);
+                } catch (e) { }
+
+                // ບັນທຶກລົງ Supabase ຢ່າງປອດໄພ ປ້ອງກັນ Error 400 ແລະ 409 ດ້ວຍ atomic upsert
+                if (clinicClient) {
+                    try {
+                        await clinicClient.from('visits').upsert(cleanVisitPayload, { onConflict: 'visit_id' });
+                    } catch (ve) { /* suppress */ }
+
+                    try {
+                        const { error: bErr } = await clinicClient.from('bills').upsert(cleanBillPayload, { onConflict: 'bill_id' });
+                        if (bErr) {
+                            const simpleBill = { ...cleanBillPayload };
+                            delete simpleBill.items;
+                            await clinicClient.from('bills').upsert(simpleBill, { onConflict: 'bill_id' });
+                        }
+                    } catch (be) { /* suppress */ }
+
+                    if (hn && hn !== '-') {
+                        try {
+                            await clinicClient.from('patients').upsert(cleanPatientPayload, { onConflict: 'hn' });
+                        } catch (pe) { /* suppress */ }
+                    }
+                }
+                console.log('✅ Successfully created Visit, Bill, and Patient in Clinic database!');
+            } catch (err) {
+                console.warn('Sync order notice:', err);
+            }
+        }
+
+        let isSubmittingOrder = false;
+        async function saveAndSubmitOrder() {
+            if (isSubmittingOrder) return;
+            const nameEl = document.getElementById('orderCustName');
+            const custName = nameEl ? nameEl.value.trim() : '';
+
+            if (!custName) {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'ກະລຸນາລະບຸຊື່ລູກຄ້າ',
+                        text: 'ຕ້ອງປ້ອນ ຊື່ ແລະ ນາມສະກຸນ ຂອງລູກຄ້າກ່ອນສົ່ງອໍເດີ',
+                        confirmButtonText: 'ຮັບຊາບ'
+                    });
+                } else {
+                    alert('ກະລຸນາລະບຸຊື່ລູກຄ້າກ່ອນສົ່ງອໍເດີ');
+                }
+                return;
+            }
+
+            if (currentOrderItems.length === 0) {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'ບໍ່ມີລາຍການສິນຄ້າ',
+                        text: 'ກະລຸນາເລືອກຢາ ຫຼື ອາຫານເສີມຢ່າງໜ້ອຍ 1 ລາຍການ',
+                        confirmButtonText: 'ຮັບຊາບ'
+                    });
+                } else {
+                    alert('ກະລຸນາເລືອກຢາ ຫຼື ອາຫານເສີມຢ່າງໜ້ອຍ 1 ລາຍການ');
+                }
+                return;
+            }
+
+            isSubmittingOrder = true;
+            const saveBtn = document.querySelector('.order-btn-save');
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.style.opacity = '0.6';
+            }
+
+            try {
+
+            const age = document.getElementById('orderCustAge')?.value || '';
+            const gender = document.getElementById('orderCustGender')?.value || 'ຊາຍ';
+            const orderDate = document.getElementById('orderCustDate')?.value || new Date().toISOString().split('T')[0];
+            const province = document.getElementById('orderCustProvince')?.value || '';
+            const district = document.getElementById('orderCustDistrict')?.value || '';
+            const village = document.getElementById('orderCustVillage')?.value || '';
+            const phone = document.getElementById('orderCustPhone')?.value || '';
+            const notes = document.getElementById('orderNotes')?.value || '';
+            const docAdvice = document.getElementById('orderDocAdvice')?.value || '';
+            const assistantAdvice = document.getElementById('orderAssistantAdvice')?.value || '';
+
+            const subtotal = currentOrderItems.reduce((sum, item) => sum + (item.total || 0), 0);
+            const discount = parseInt(document.getElementById('orderDiscountInput')?.value || 0, 10) || 0;
+            const grandTotal = Math.max(0, subtotal - discount);
+
+            // ກວດສອບຜູ້ປ່ວຍວ່າເຄີຍມີໃນລະບົບຫຼືບໍ່ (Match ຈາກ HN ຫຼື ຊື່)
+            const matchedPt = (allPatientsData || []).find(p =>
+                (p.patient_name && p.patient_name.trim().toLowerCase() === custName.toLowerCase()) ||
+                (currentSelectedPatient && currentSelectedPatient.patient_name && currentSelectedPatient.patient_name.trim().toLowerCase() === custName.toLowerCase())
+            );
+
+            const hn = matchedPt && matchedPt.hn && matchedPt.hn !== '-' ? matchedPt.hn : ('HN-' + Math.floor(100000 + Math.random() * 900000));
+            const visit_id = 'VIS-' + Math.floor(100000 + Math.random() * 900000);
+            const order_id = 'ORD-' + Date.now();
+
+            // 1. 🌟 Payload ບັນທຶກລົງຕາຕະລາງ `stk_nutrient_orders` ໃນ Supabase MLM
+            const cleanItems = currentOrderItems.map(item => ({
+                id: item.id || item.code || 'ITEM',
+                code: item.code || '',
+                name: item.name,
+                type: item.tierName || 'ລາຄາປົກກະຕິ',
+                priceType: item.tierName || 'ລາຄາປົກກະຕິ',
+                tier: item.tier || 'normal',
+                qty: Number(item.qty || 1),
+                price: Number(item.price || 0),
+                total: Number(item.total || 0),
+                unit: item.unit || 'ຊິ້ນ'
+            }));
+
+            const nutrientPayload = {
+                order_id: String(order_id),
+                visit_id: String(visit_id),
+                hn: String(hn),
+                customer_name: custName,
+                customer_phone: phone || null,
+                age: age || null,
+                gender: gender || null,
+                province: province || null,
+                district: district || null,
+                village: village || null,
+                closer_dr: docAdvice || 'ແພດປະຈຳຄລີນິກ',
+                recorded_by: assistantAdvice || 'Staff',
+                symptom: 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ' + (notes ? ` (${notes})` : ''),
+                date: orderDate,
+                status: 'รอดำเนินการ',
+                items_json: cleanItems,
+                created_at: new Date().toISOString()
+            };
+
+            const orderPayload = {
+                orderId: order_id,
+                visitId: visit_id,
+                hn: hn,
+                patient_name: custName,
+                age: age,
+                gender: gender,
+                order_date: orderDate,
+                province: province,
+                district: district,
+                village: village,
+                phone: phone,
+                items: currentOrderItems,
+                notes: notes,
+                doctor_advice: docAdvice,
+                assistant_advice: assistantAdvice,
+                subtotal: subtotal,
+                discount: discount,
+                grandTotal: grandTotal,
+                created_at: new Date().toISOString()
+            };
+
+            // 🌟 1. ບັນທຶກລົງຕາຕະລາງ stk_nutrient_orders ໃນ Database (Dual-save)
+            await saveOrderToStkNutrientOrders(nutrientPayload);
+
+            // 🌟 2. ບັນທຶກລົງຕາຕະລາງ visits, bills ແລະ patients ໃນ Clinic Supabase ເພື່ອໃຫ້ສະແດງໃນໜ້າປະຫວັດທັນທີ
+            await saveOrderToClinicVisits(orderPayload, cleanItems);
+
+            // Save order locally safely
+            try {
+                const existingOrders = JSON.parse(localStorage.getItem('clinic_orders') || '[]');
+                existingOrders.unshift(orderPayload);
+                safeSetStorage('clinic_orders', existingOrders, 40);
+            } catch (e) {
+                console.warn('Save order to localStorage failed:', e);
+            }
+
+            // 🌟 3. ອັບເດດຂໍ້ມູນເຂົ້າຕາຕະລາງໜ້າປະຫວັດ (Patient History) ທັນທີ
+            let histRecord;
+            const existingPtIndex = (allPatientsData || []).findIndex(p =>
+                (p.hn && p.hn === hn) ||
+                (p.patient_name && p.patient_name.trim().toLowerCase() === custName.toLowerCase())
+            );
+
+            if (existingPtIndex >= 0) {
+                histRecord = {
+                    ...allPatientsData[existingPtIndex],
+                    latest_visit_id: visit_id,
+                    latest_visit_date: new Date().toLocaleString('lo-LA'),
+                    latest_visit_raw_date: new Date().toISOString(),
+                    latest_symptom: 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ' + (notes ? ` (${notes})` : ''),
+                    visit_status: '08 ຫ້ອງຈ່າຍຢາ',
+                    doctor_name: docAdvice || allPatientsData[existingPtIndex].doctor_name || 'ແພດປະຈຳຄລີນິກ',
+                    assistant_name: assistantAdvice || allPatientsData[existingPtIndex].assistant_name || '-',
+                    phone: phone || allPatientsData[existingPtIndex].phone || '',
+                    province: province || allPatientsData[existingPtIndex].province || '',
+                    district: district || allPatientsData[existingPtIndex].district || '',
+                    village: village || allPatientsData[existingPtIndex].village || '',
+                    has_order: true,
+                    order_data: orderPayload
+                };
+                allPatientsData.splice(existingPtIndex, 1);
+                allPatientsData.unshift(histRecord);
+            } else {
+                histRecord = {
+                    hn: hn,
+                    patient_name: custName,
+                    age: age || '-',
+                    gender: gender || '-',
+                    province: province || '',
+                    district: district || '',
+                    village: village || '',
+                    phone: phone || '-',
+                    created_at: new Date().toISOString(),
+                    latest_visit_id: visit_id,
+                    latest_visit_date: new Date().toLocaleString('lo-LA'),
+                    latest_visit_raw_date: new Date().toISOString(),
+                    latest_symptom: 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ' + (notes ? ` (${notes})` : ''),
+                    visit_status: '08 ຫ້ອງຈ່າຍຢາ',
+                    doctor_name: docAdvice || 'ແພດປະຈຳຄລີນິກ',
+                    assistant_name: assistantAdvice || '-',
+                    has_order: true,
+                    order_data: orderPayload
+                };
+                allPatientsData.unshift(histRecord);
+            }
+
+            if (Array.isArray(rawAllPatients)) {
+                const rawIdx = rawAllPatients.findIndex(p => p.hn === hn || (p.patient_name && p.patient_name.trim().toLowerCase() === custName.toLowerCase()));
+                if (rawIdx >= 0) rawAllPatients.splice(rawIdx, 1);
+                rawAllPatients.unshift(histRecord);
+            }
+            if (Array.isArray(rawMyPatients)) {
+                const myIdx = rawMyPatients.findIndex(p => p.hn === hn || (p.patient_name && p.patient_name.trim().toLowerCase() === custName.toLowerCase()));
+                if (myIdx >= 0) rawMyPatients.splice(myIdx, 1);
+                rawMyPatients.unshift(histRecord);
+            }
+
+            currentSelectedPatient = histRecord;
+
+            // ອັບເດດການສະແດງຜົນໃນຕາຕະລາງ ແລະ Timeline ທັນທີ
+            applyFilters();
+
+            // Post to parent window if available
+            try {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({
+                        type: 'ORDER_CREATED',
+                        order: {
+                            ...nutrientPayload,
+                            grandTotal: grandTotal,
+                            subtotal: subtotal,
+                            discount: discount,
+                            notes: notes,
+                            doctor_advice: docAdvice,
+                            assistant_advice: assistantAdvice
+                        },
+                        patient: histRecord
+                    }, '*');
+                }
+            } catch (e) { }
+
+            closeOrderModal();
+
+            // ສະຫຼັບໄປແທັບ ປະຫວັດຜູ້ປ່ວຍ (Tab 2) ທັນທີເພື່ອໃຫ້ເຫັນລາຍການທີ່ຫາກໍ່ສັ່ງຊື້ຢູ່ເທິງສຸດ
+            switchTab('history');
+
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'ສັ່ງຊື້ອໍເດີສຳເລັດ!',
+                    html: `
+                        <div class="text-start" style="font-size: 13.5px; line-height: 1.6;">
+                            <div class="mb-1 text-success fw-bold"><i class="ph-bold ph-check-circle me-1"></i> ບັນທຶກລົງ <strong>stk_nutrient_orders</strong> ຮຽບຮ້ອຍ</div>
+                            <div class="mb-2 text-primary fw-bold"><i class="ph-bold ph-check-circle me-1"></i> ສະແດງລາຍການໃນ <strong>ໜ້າປະຫວັດຜູ້ປ່ວຍ</strong> ແລ້ວ</div>
+                            <div class="p-2.5 rounded-3 bg-light border text-secondary" style="font-size: 12.5px;">
+                                <div>• ລູກຄ້າ: <strong>${custName}</strong> (${hn})</div>
+                                <div>• ລະຫັດ Visit: <span class="badge bg-primary-subtle text-primary font-monospace">${visit_id}</span></div>
+                                <div>• ຍອດລວມສຸດທິ: <strong class="text-dark">${grandTotal.toLocaleString()} ฿</strong></div>
+                            </div>
+                        </div>
+                    `,
+                    timer: 3500,
+                    showConfirmButton: true,
+                    confirmButtonText: 'ຕົກລົງ'
+                });
+            } else {
+                showModernPopup({
+                    type: 'success',
+                    title: 'ສັ່ງຊື້ອໍເດີສຳເລັດ!',
+                    message: `ບັນທຶກລົງ stk_nutrient_orders ແລະ ສະແດງໃນໜ້າປະຫວັດສຳລັບ ${custName} (ຍອດລວມ ${grandTotal.toLocaleString()} ฿) ຮຽບຮ້ອຍແລ້ວ`,
+                    btnText: 'ຕົກລົງ'
+                });
+            }
+        } finally {
+            isSubmittingOrder = false;
+            const saveBtn = document.querySelector('.order-btn-save');
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.style.opacity = '1';
+            }
+        }
+    }
+
+        // เชื่อมโยงปุ่ม สั่งซื้อ Order
+        function handleOrderAction() {
+            openOrderModal();
+        }
+
         // โหลดข้อมูลอัตโนมัติเมื่อเปิดหน้า
         setupSearch();
+        loadOrderMedicinesCatalog(); // โหลดคลังสินค้า stk_products ล่วงหน้า
         if (window.self !== window.top) {
             setTimeout(loadLivePatientData, 300);
         } else {
@@ -2107,6 +4478,341 @@
         }
 
     </script>
+
+    <!-- ==========================================================
+         🛒 Order Modal Form (100% Match with Reference Screenshot)
+         ========================================================== -->
+    <div id="orderModalBackdrop" class="order-modal-backdrop" onclick="closeOrderModal(event)">
+        <div class="order-modal-dialog">
+            <!-- Modal Header -->
+            <div class="order-modal-header">
+                <div class="order-modal-title-wrap">
+                    <div class="order-modal-icon-badge">
+                        <i class="ph-bold ph-receipt"></i>
+                    </div>
+                    <h4 class="order-modal-title">ລາຍການສັ່ງ Order</h4>
+                </div>
+                <button type="button" class="order-modal-close-btn" onclick="closeOrderModal()" title="ປິດ">
+                    <i class="ph ph-x"></i>
+                </button>
+            </div>
+
+            <!-- 1. ຂໍ້ມູນລູກຄ້າ -->
+            <div class="order-customer-box">
+                <div class="order-customer-box-title">
+                    <i class="ph-bold ph-user-circle"></i> ຂໍ້ມູນລູກຄ້າ
+                </div>
+                <!-- Row 1 -->
+                <div class="row g-2 mb-2">
+                    <div class="col-md-5 col-12">
+                        <label class="order-label">ຊື່ ແລະ ນາມສະກຸນ</label>
+                        <div class="addr-picker-wrapper" id="orderCustWrapper">
+                            <input type="text" id="orderCustName" class="form-control order-input"
+                                placeholder="ພິມເອງ ຫຼື ເລືອກຜູ້ປ່ວຍ..." autocomplete="off" onfocus="openCustDropdown()"
+                                oninput="filterCustDropdown(this.value)">
+                            <i class="ph ph-caret-down addr-caret" style="cursor: pointer; pointer-events: auto;"
+                                onclick="toggleCustDropdown(event)"></i>
+                            <div class="addr-dropdown-menu" id="orderCustDropdown"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="order-label">ອາຍຸ</label>
+                        <input type="text" id="orderCustAge" class="form-control order-input" placeholder="ອາຍຸ">
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="order-label">ອາການ / ພະຍາດ</label>
+                        <input type="text" id="orderCustGender" class="form-control order-input"
+                            placeholder="ອາການ / ພະຍາດ">
+                    </div>
+                    <div class="col-md-3 col-4">
+                        <label class="order-label">ວັນທີ</label>
+                        <input type="date" id="orderCustDate" class="form-control order-input">
+                    </div>
+                </div>
+                <!-- Row 2 -->
+                <div class="row g-2">
+                    <div class="col-md-3 col-6">
+                        <label class="order-label">ແຂວງ</label>
+                        <div class="addr-picker-wrapper" id="orderProvinceWrapper">
+                            <input type="text" id="orderCustProvince" class="form-control order-input addr-picker-input"
+                                placeholder="-- ເລືອກແຂວງ --" autocomplete="off" readonly
+                                onclick="toggleProvinceDropdown(event)">
+                            <i class="ph ph-caret-down addr-caret"></i>
+                            <div class="addr-dropdown-menu" id="orderProvinceDropdown"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <label class="order-label">ເມືອງ</label>
+                        <div class="addr-picker-wrapper" id="orderDistrictWrapper">
+                            <input type="text" id="orderCustDistrict" class="form-control order-input addr-picker-input"
+                                placeholder="-- ເລືອກເມືອງ --" autocomplete="off" readonly
+                                onclick="toggleDistrictDropdown(event)">
+                            <i class="ph ph-caret-down addr-caret"></i>
+                            <div class="addr-dropdown-menu" id="orderDistrictDropdown"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <label class="order-label">ບ້ານ</label>
+                        <input type="text" id="orderCustVillage" class="form-control order-input" placeholder="ບ້ານ">
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <label class="order-label">ເບີໂທ</label>
+                        <input type="text" id="orderCustPhone" class="form-control order-input"
+                            placeholder="ເບີໂທລະສັບ">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. ລາຍການຢາ -->
+            <div>
+                <!-- Section Header -->
+                <div class="order-med-header">
+                    <div class="order-med-title">
+                        <i class="ph-bold ph-pill"></i> ລາຍການຢາ / ສິນຄ້າ
+                    </div>
+                </div>
+
+                <!-- Add Items Row -->
+                <div class="order-control-bar">
+                    <select id="orderItemCategory" class="form-select order-input" style="width: 140px; flex-shrink: 0;"
+                        onchange="onOrderCategoryChange()">
+                        <option value="all">ທັງໝົດ</option>
+                        <option value="ຢາ">ຢາ</option>
+                        <option value="ອາຫານເສີມ">ອາຫານເສີມ</option>
+                    </select>
+                    <select id="orderItemSelect" class="form-select order-input flex-grow-1"
+                        onchange="onOrderItemSelectChange()">
+                        <option value="">-- ເລືອກລາຍການຢາ / ອາຫານເສີມ --</option>
+                    </select>
+                    <select id="orderPriceTier" class="form-select order-input"
+                        style="min-width: 175px; max-width: 220px; flex-shrink: 0;" onchange="onOrderPriceTierChange()">
+                        <option value="normal">ລາຄາປົກກະຕິ</option>
+                        <option value="member">ລາຄາສະມາຊິກ</option>
+                        <option value="promo">ລາຄາໂປຣ</option>
+                        <option value="free">ແຖມຟຣີ (0 ฿)</option>
+                    </select>
+                    <input type="number" id="orderItemQty" class="form-control order-input text-center"
+                        style="width: 65px; flex-shrink: 0;" value="1" min="1">
+                    <button type="button" class="order-btn-add" onclick="addOrderItem()">
+                        <i class="ph-bold ph-plus"></i> ເພີ່ມລາຍການ
+                    </button>
+                </div>
+                <!-- Live Product & Stock Info (ດຶງຈາກ stk_products) -->
+                <div id="orderItemStockHint" class="order-stock-hint" style="display: none;"></div>
+
+                <!-- Table -->
+                <div class="order-table-container">
+                    <table class="order-table">
+                        <thead>
+                            <tr>
+                                <th style="text-align: left; padding-left: 14px;">ຊື່ຢາ/ລາຍການສິນຄ້າ</th>
+                                <th style="text-align: center; width: 130px;">ປະເພດລາຄາ</th>
+                                <th style="text-align: right; width: 120px;">ລາຄາ/ຊິ້ນ</th>
+                                <th style="text-align: center; width: 80px;">ຈຳນວນ</th>
+                                <th style="text-align: right; width: 120px;">ລວມ</th>
+                                <th style="text-align: center; width: 50px;">ລຶບ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orderTableBody">
+                            <tr id="orderEmptyRow">
+                                <td colspan="6" class="text-center py-4 text-muted" style="font-size: 13px;">
+                                    ຍັງບໍ່ມີລາຍການຢາ/ອາຫານເສີມ
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 3. ໝາຍເຫດ ແລະ ສະຫຼຸບຍອດ -->
+            <div class="order-bottom-grid">
+                <div class="order-notes-col">
+                    <label class="order-label">ໝາຍເຫດ:</label>
+                    <textarea id="orderNotes" class="order-textarea"
+                        placeholder="ລະບຸລາຍລະອຽດການຮັກສາ, ວິທີຮັບປະທານ ຫຼືຂໍ້ມູນເພີ່ມເຕີມ..."></textarea>
+                </div>
+                <div class="order-calc-col">
+                    <div class="order-summary-box">
+                        <div class="order-summary-row text-muted">
+                            <span>ຍອດລວມ</span>
+                            <span id="orderSubtotalText" class="fw-semibold text-dark">0 ฿</span>
+                        </div>
+                        <div class="order-summary-row text-muted">
+                            <span>ສ່ວນຫຼຸດ (฿)</span>
+                            <input type="number" id="orderDiscountInput"
+                                class="form-control form-control-sm order-input text-end"
+                                style="width: 100px; height: 28px !important; padding: 2px 8px !important;" value="0"
+                                min="0" oninput="calculateOrderTotals()">
+                        </div>
+                        <div class="order-summary-row border-top pt-1 mt-1">
+                            <span class="fw-bold text-dark">ຍອດລວມສຸດທິ</span>
+                            <span id="orderGrandTotalText" class="fw-bold fs-6 text-primary">0 ฿</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Buttons -->
+            <div class="order-footer-bar">
+                <div class="d-flex align-items-center gap-3 flex-wrap" style="flex: 1; max-width: 620px;">
+                    <div style="flex: 1; min-width: 180px;">
+                        <label class="order-label mb-1"
+                            style="font-size: 12px; font-weight: 600; color: #475569;">ແນະນຳຜ່ານຫມໍ</label>
+                        <div class="addr-picker-wrapper" id="orderDocWrapper">
+                            <input type="text" id="orderDocAdvice" class="form-control order-input"
+                                placeholder="ພິມເອງ ຫຼື ເລືອກທ່ານໝໍ..." style="height: 36px;" autocomplete="off"
+                                onfocus="openDoctorDropdown()" oninput="filterDoctorDropdown(this.value)">
+                            <i class="ph ph-caret-down addr-caret" style="cursor: pointer; pointer-events: auto;"
+                                onclick="toggleDoctorDropdown(event)"></i>
+                            <div class="addr-dropdown-menu addr-dropdown-menu-up" id="orderDocDropdown"></div>
+                        </div>
+                    </div>
+                    <div style="flex: 1; min-width: 180px;">
+                        <label class="order-label mb-1"
+                            style="font-size: 12px; font-weight: 600; color: #475569;">ແນະນຳຜ່ານຜູ້ຊ່ວຍ</label>
+                        <div class="addr-picker-wrapper" id="orderAssistantWrapper">
+                            <input type="text" id="orderAssistantAdvice" class="form-control order-input"
+                                placeholder="ພິມເອງ ຫຼື ເລືອກສະມາຊິກ (stk_members)..." style="height: 36px;"
+                                autocomplete="off" onfocus="openAssistantDropdown()"
+                                oninput="filterAssistantDropdown(this.value)">
+                            <i class="ph ph-caret-down addr-caret" style="cursor: pointer; pointer-events: auto;"
+                                onclick="toggleAssistantDropdown(event)"></i>
+                            <div class="addr-dropdown-menu addr-dropdown-menu-up" id="orderAssistantDropdown"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2 ms-auto">
+                    <button type="button" class="order-btn-cancel" onclick="closeOrderModal()">
+                        ຍົກເລີກ
+                    </button>
+                    <button type="button" class="order-btn-save" onclick="saveAndSubmitOrder()">
+                        <i class="ph-bold ph-floppy-disk"></i> ບັນທຶກ & ກົດສົ່ງອໍເດີ
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================================
+         👁️ Order Detail Modal (ປະຫວັດການສັ່ງຊື້ຢາ/ອາຫານເສີມ)
+         ========================================================== -->
+    <div id="orderDetailModalBackdrop" class="order-modal-backdrop" onclick="closeOrderDetailModal(event)">
+        <div class="order-modal-dialog" style="max-width: 960px;" onclick="event.stopPropagation()">
+            <!-- Modal Header -->
+            <div class="order-modal-header border-bottom pb-3 mb-3">
+                <div class="order-modal-title-wrap">
+                    <div class="order-modal-icon-badge" style="background: rgba(37, 99, 235, 0.1); color: #2563eb;">
+                        <i class="ph-bold ph-receipt"></i>
+                    </div>
+                    <div>
+                        <h4 class="order-modal-title mb-0" style="font-size: 1.15rem;">ລາຍລະອຽດປະຫວັດການສັ່ງ Order</h4>
+                        <span class="text-muted small" id="odmHeaderSubtitle">-</span>
+                    </div>
+                </div>
+                <button type="button" class="order-modal-close-btn" onclick="closeOrderDetailModal()" title="ປິດ">
+                    <i class="ph ph-x"></i>
+                </button>
+            </div>
+
+            <!-- Customer & Order Info Cards -->
+            <div class="row g-3 mb-3">
+                <div class="col-md-7 col-12">
+                    <div class="p-3 rounded-3 border bg-light h-100">
+                        <div class="fw-bold text-primary mb-2 small d-flex align-items-center gap-1">
+                            <i class="ph-bold ph-user-circle fs-5"></i> ຂໍ້ມູນລູກຄ້າ / ຜູ້ປ່ວຍ
+                        </div>
+                        <div class="row g-2 small">
+                            <div class="col-sm-7 col-12 text-muted">ຊື່ ແລະ ນາມສະກຸນ: <strong class="text-dark"
+                                    id="odmCustName">-</strong></div>
+                            <div class="col-sm-5 col-12 text-muted">ລະຫັດ HN: <strong class="text-dark font-monospace"
+                                    id="odmCustHN">-</strong></div>
+                            <div class="col-sm-7 col-12 text-muted">ເບີໂທລະສັບ: <strong class="text-dark"
+                                    id="odmCustPhone">-</strong></div>
+                            <div class="col-sm-5 col-12 text-muted">ອາຍຸ / ເພດ: <strong class="text-dark"
+                                    id="odmCustAgeGender">-</strong></div>
+                            <div class="col-12 text-muted">ທີ່ຢູ່: <strong class="text-dark"
+                                    id="odmCustAddress">-</strong></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-5 col-12">
+                    <div class="p-3 rounded-3 border bg-light h-100">
+                        <div class="fw-bold text-primary mb-2 small d-flex align-items-center gap-1">
+                            <i class="ph-bold ph-stethoscope fs-5"></i> ແພດ & ຜູ້ແນະນຳ
+                        </div>
+                        <div class="small mb-1 text-muted">
+                            ທ່ານໝໍ (ແພດໃຫ້ຄຳປຶກສາ): <br><strong class="text-primary fs-6" id="odmDocName">-</strong>
+                        </div>
+                        <div class="small text-muted mt-2">
+                            ຜູ້ຊ່ວຍ (ຜູ້ບັນທຶກ/ແນະນຳ): <br><strong class="text-dark" id="odmAssistantName">-</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Symptom & Notes -->
+            <div class="p-2.5 px-3 rounded-3 border mb-3 small d-flex flex-wrap align-items-center justify-content-between gap-2"
+                style="background-color: #f8fafc;">
+                <div>
+                    <span class="text-muted">ອາການ / ພະຍາດ:</span>
+                    <strong class="text-dark ms-1" id="odmSymptom">-</strong>
+                </div>
+                <div>
+                    <span class="text-muted">ໝາຍເຫດ:</span>
+                    <span class="text-secondary ms-1" id="odmNotes">-</span>
+                </div>
+            </div>
+
+            <!-- Meds / Nutrient Items Table -->
+            <div class="fw-bold text-dark mb-2 small d-flex align-items-center gap-1">
+                <i class="ph-bold ph-pill text-primary fs-5"></i> ລາຍການຢາ / ອາຫານເສີມທີ່ສັ່ງຊື້
+            </div>
+            <div class="table-responsive border rounded-3 mb-3" style="max-height: 220px; overflow-y: auto;">
+                <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.88rem;">
+                    <thead class="table-light text-muted">
+                        <tr>
+                            <th class="ps-3" style="width: 40px;">#</th>
+                            <th>ຊື່ສິນຄ້າ / ຢາ</th>
+                            <th class="text-center" style="width: 140px;">ປະເພດລາຄາ</th>
+                            <th class="text-center" style="width: 80px;">ຈຳນວນ</th>
+                            <th class="text-end" style="width: 120px;">ລາຄາ/ໜ່ວຍ</th>
+                            <th class="text-end pe-3" style="width: 130px;">ລວມ (฿)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="odmItemsTableBody">
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-3">ບໍ່ມີລາຍການສິນຄ້າ</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Summary & Footer -->
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 pt-3 border-top">
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1.5 fw-semibold"
+                        onclick="window.print()">
+                        <i class="ph ph-printer me-1"></i> ພິມລາຍການ
+                    </button>
+                </div>
+                <div class="d-flex align-items-center gap-4">
+                    <div class="text-end small">
+                        <div class="text-muted">ຍອດລວມ: <strong class="text-dark" id="odmSubtotal">0 ฿</strong></div>
+                        <div class="text-muted">ສ່ວນຫຼຸດ: <strong class="text-danger" id="odmDiscount">0 ฿</strong>
+                        </div>
+                    </div>
+                    <div class="p-2 px-3 rounded-3 border bg-success-subtle text-success text-end">
+                        <div class="small fw-semibold">ຍອດຊຳລະສຸດທິ</div>
+                        <div class="fs-5 fw-bold" id="odmGrandTotal">0 ฿</div>
+                    </div>
+                    <button type="button" class="btn btn-secondary rounded-pill px-4 py-2 fw-semibold"
+                        onclick="closeOrderDetailModal()">
+                        ປິດໜ້າຕ່າງ
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Modern Modal Alert Dialog (HTML Structure) -->
     <div id="clinicModernModal" class="clinic-modal-backdrop" style="display:none;" onclick="closeModernPopup(event)">
@@ -2118,10 +4824,12 @@
                 <i class="ph-fill ph-info" id="clinicModalIcon"></i>
             </div>
             <h4 class="clinic-modal-title" id="clinicModalTitle">ຍັງບໍ່ມີປະຫວັດການກວດ</h4>
-            <p class="clinic-modal-message" id="clinicModalMessage">ຜູ້ປ່ວຍລາຍນີ້ຍັງບໍ່ເຄີຍເຂົ້າຮັບການກວດປິ່ນປົວໃນລະບົບ</p>
+            <p class="clinic-modal-message" id="clinicModalMessage">ຜູ້ປ່ວຍລາຍນີ້ຍັງບໍ່ເຄີຍເຂົ້າຮັບການກວດປິ່ນປົວໃນລະບົບ
+            </p>
             <div class="clinic-modal-hint" id="clinicModalHint">
                 <i class="ph ph-lightbulb text-warning fs-5 flex-shrink-0"></i>
-                <span id="clinicModalHintText">ທ່ານສາມາດກົດປຸ່ມ <strong>Timeline</strong> ເພື່ອຕິດຕາມສະຖານະຂັ້ນຕອນ</span>
+                <span id="clinicModalHintText">ທ່ານສາມາດກົດປຸ່ມ <strong>Timeline</strong>
+                    ເພື່ອຕິດຕາມສະຖານະຂັ້ນຕອນ</span>
             </div>
             <div class="d-flex justify-content-center">
                 <button type="button" class="clinic-modal-btn" id="clinicModalBtn" onclick="closeModernPopup()">
@@ -2131,4 +4839,5 @@
         </div>
     </div>
 </body>
+
 </html>

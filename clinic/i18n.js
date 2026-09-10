@@ -9,8 +9,17 @@ const CLINIC_I18N_DICTIONARY = {
     // -------------------------------------
     la: {
         // App Title & General
-        app_title: "ລະບົບການຈັດການຄລີນິກ (Clinic System)",
-        app_name: "ລະບົບຄລີນິກ",
+        app_title: "ຄລີນິກ ເລີຟ ເອັສທີເຄ",
+        login_subtitle: "ລົງຊື່ເຂົ້າໃຊ້ດ້ວຍອີເມວ ແລະ ລະຫັດຜ່ານພະນັກງານ",
+        staff_email: "ອີເມວພະນັກງານ",
+        login_email_placeholder: "example@clinic.com",
+        staff_password: "ລະຫັດຜ່ານ",
+        login_password_placeholder: "••••••••",
+        remember_me: "ຈົດຈຳຂ້ອຍໄວ້ (Remember Me)",
+        login_button: "ເຂົ້າສູ່ລະບົບ",
+        login_checking: "ກຳລັງກວດສອບຄວາມປອດໄພ...",
+        lockout_title: "ລະງັບການເຂົ້າສູ່ລະບົບຊົ່ວຄາວ",
+        app_name: "ຄລີນິກ ເລີຟ ເອັສທີເຄ",
         logout: "ອອກຈາກລະບົບ",
         refresh: "ຣີເຟຣຊຂໍ້ມູນ",
         save: "ບັນທຶກ",
@@ -360,8 +369,17 @@ const CLINIC_I18N_DICTIONARY = {
     // -------------------------------------
     th: {
         // App Title & General
-        app_title: "ระบบจัดการคลินิก (Clinic System)",
-        app_name: "ระบบคลินิก",
+        app_title: "คลินิก เลิฟ เอสทีเค",
+        login_subtitle: "ลงชื่อเข้าใช้ด้วยอีเมลและรหัสผ่านพนักงาน",
+        staff_email: "อีเมลพนักงาน",
+        login_email_placeholder: "example@clinic.com",
+        staff_password: "รหัสผ่าน",
+        login_password_placeholder: "••••••••",
+        remember_me: "จดจำฉันไว้ (Remember Me)",
+        login_button: "เข้าสู่ระบบ",
+        login_checking: "กำลังตรวจสอบความปลอดภัย...",
+        lockout_title: "ระงับการเข้าสู่ระบบชั่วคราว",
+        app_name: "คลินิก เลิฟ เอสทีเค",
         logout: "ออกจากระบบ",
         refresh: "รีเฟรชข้อมูล",
         save: "บันทึก",
@@ -710,8 +728,17 @@ const CLINIC_I18N_DICTIONARY = {
     // -------------------------------------
     en: {
         // App Title & General
-        app_title: "Clinic Management System",
-        app_name: "Clinic System",
+        app_title: "Love STK Clinic",
+        login_subtitle: "Sign in with staff email and password",
+        staff_email: "Staff Email",
+        login_email_placeholder: "example@clinic.com",
+        staff_password: "Password",
+        login_password_placeholder: "••••••••",
+        remember_me: "Remember Me",
+        login_button: "Sign In",
+        login_checking: "Verifying security...",
+        lockout_title: "Login Temporarily Suspended",
+        app_name: "Love STK Clinic",
         logout: "Log Out",
         refresh: "Refresh Data",
         save: "Save",
