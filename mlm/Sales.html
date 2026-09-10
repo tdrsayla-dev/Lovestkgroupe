@@ -264,15 +264,29 @@
                         if (!trimmed.includes(':')) return;
                         const colonIdx = trimmed.indexOf(':');
                         const key = trimmed.substring(0, colonIdx).trim().toLowerCase();
-                        const val = parseFloat(trimmed.substring(colonIdx + 1).replace(/,/g, '')) || 0;
+                        const val = parseFloat(trimmed.substring(colonIdx + 1).replace(/[^\d.]/g, '')) || 0;
 
                         if (key === 'เรท' || key === 'rate' || key === 'อัตรา') return;
 
-                        if (key.includes('กีบ') || key.includes('lak') || key === 'สดกีบ' || (key.includes('ลาว') && !key.includes('บาท'))) {
+                        const isKeyLak = key.includes('กีบ') || key.includes('lak') || key.includes('kip') || key === 'สดกีบ' || 
+                                         (key.includes('ลาว') && !key.includes('บาท')) ||
+                                         (val >= 70000 && !key.includes('ไทย') && !key.includes('thb') && !key.includes('สดบาท'));
+
+                        if (isKeyLak) {
                             lakAmt += val;
                             hasParsedLAK = true;
-                        }
-                        else if (key === 'สด' || key.includes('ไทย') || key.includes('บาท') || key.includes('thb') || key.includes('โอน')) {
+                        } else if (key.includes('บาท') || key.includes('thb') || key === 'สด' || key.includes('สดบาท') || key.includes('ไทย') || key.includes('โอน')) {
+                            if (val >= 70000 && (key.includes('ลาว') || key.includes('bcel') || key.includes('jdb') || key.includes('ldb'))) {
+                                lakAmt += val;
+                                hasParsedLAK = true;
+                            } else {
+                                thbAmt += val;
+                                hasParsedTHB = true;
+                            }
+                        } else if (val >= 70000) {
+                            lakAmt += val;
+                            hasParsedLAK = true;
+                        } else {
                             thbAmt += val;
                             hasParsedTHB = true;
                         }
@@ -284,11 +298,12 @@
                 }
 
                 const lowerPMode = pModeStr.toLowerCase();
-                const isLakBill = lowerPMode.includes('กีบ') || lowerPMode.includes('lak') || (lowerPMode.includes('ลาว') && !lowerPMode.includes('บาท'));
+                const isLakBill = lowerPMode.includes('กีบ') || lowerPMode.includes('lak') || lowerPMode.includes('kip') || 
+                                  (lowerPMode.includes('ลาว') && !lowerPMode.includes('บาท')) || rawAmt >= 70000;
 
                 if (isLakBill) {
                     let amt = Number(s.total_amount_lak || s.totalAmountLak || 0);
-                    if (!amt || amt <= 0) amt = rawAmt * exRate;
+                    if (!amt || amt <= 0) amt = rawAmt >= 70000 ? rawAmt : (rawAmt * exRate);
                     return { lakAmt: amt, thbAmt: 0, isLakBill: true, isThbBill: false };
                 }
 

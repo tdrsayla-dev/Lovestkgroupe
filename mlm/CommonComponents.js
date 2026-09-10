@@ -27,21 +27,18 @@
           animation: stkFadeIn 0.3s ease-out forwards !important;
         }
         aside, nav, .no-print {
-          transition: all 0.25s ease-in-out;
-        }
-        /* ซ่อน scrollbar ส่วนเกินในขณะสลับหน้า */
-        body {
-          scroll-behavior: smooth;
-        }
-        /* บังคับให้ทุก fixed overlay ครอบ viewport เต็ม และ center modal */
-        .fixed.inset-0 {
-          position: fixed !important;
-          top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
-        }
-        .fixed.inset-0.flex {
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
+        /* ซ่อนส่วนหัวและแถบเมนูทั้งหมดตอนพิมพ์เอกสาร */
+        @media print {
+          aside, nav, header, .no-print, .print-hide,
+          div.lg\\:hidden, div.fixed.bottom-0, [class*="sticky top-0"], [class*="fixed bottom-0"] {
+            display: none !important;
+            visibility: hidden !important;
+          }
+          main {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+          }
         }
       `;
       document.head.appendChild(styleTag);
@@ -267,17 +264,66 @@
     return debouncedValue;
   }
 
-  const exportToCSV = (filename, rows) => {
+  const exportToCSV = (arg1, arg2) => {
+    let filename = 'export.xls';
+    let rows = [];
+    if (Array.isArray(arg1)) {
+      rows = arg1;
+      filename = typeof arg2 === 'string' ? arg2 : 'export.xls';
+    } else if (Array.isArray(arg2)) {
+      rows = arg2;
+      filename = typeof arg1 === 'string' ? arg1 : 'export.xls';
+    } else {
+      return;
+    }
+    if (!rows || !rows.length) return;
+
+    // ถ้ายังเป็นนามสกุล .csv ให้แปลงเป็น .xls เพื่อให้เปิดบน Excel ภาษาไทยไม่เพี้ยนและฟอร์แมตสมบูรณ์
+    let outFilename = filename;
+    if (outFilename.toLowerCase().endsWith('.csv')) {
+      outFilename = outFilename.substring(0, outFilename.length - 4) + '.xls';
+    } else if (!outFilename.toLowerCase().endsWith('.xls') && !outFilename.toLowerCase().endsWith('.xlsx')) {
+      outFilename += '.xls';
+    }
+    
+    // ถ้าตั้งชื่อไฟล์เป็น .xls หรือ .xlsx หรือต้องการเปิดใน Excel ให้สร้างตาราง HTML Spreadsheet ที่เปิดใน Excel ได้ 100% ภาษาไทยไม่เพี้ยน คอลัมน์ไม่แตก
+    if (isXls) {
+      let tableHtml = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
+      tableHtml += '<head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Sheet1</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body><table border="1">';
+      for (let i = 0; i < rows.length; i++) {
+        tableHtml += '<tr>';
+        const row = rows[i] || [];
+        for (let j = 0; j < row.length; j++) {
+          const val = (row[j] === null || row[j] === undefined) ? '' : String(row[j]);
+          const tag = (i === 0) ? 'th' : 'td';
+          tableHtml += `<${tag} style="mso-number-format:'\\@';">${val.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</${tag}>`;
+        }
+        tableHtml += '</tr>';
+      }
+      tableHtml += '</table></body></html>';
+      const blob = new Blob(['\uFEFF' + tableHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", outFilename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      return;
+    }
+
     const processRow = function (row) {
       let finalVal = '';
       for (let j = 0; j < row.length; j++) {
         let innerValue = row[j] === null || row[j] === undefined ? '' : row[j].toString();
         let result = innerValue.replace(/"/g, '""');
-        if (result.search(/("|,|\n)/g) >= 0) result = '"' + result + '"';
+        if (result.search(/("|,|\n|\r)/g) >= 0) result = '"' + result + '"';
         if (j > 0) finalVal += ',';
         finalVal += result;
       }
-      return finalVal + '\n';
+      return finalVal + '\r\n';
     };
     let csvFile = '\uFEFF';
     for (let i = 0; i < rows.length; i++) { csvFile += processRow(rows[i]); }
@@ -290,6 +336,7 @@
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {

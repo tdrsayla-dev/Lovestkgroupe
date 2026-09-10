@@ -146,15 +146,29 @@
                     if (!trimmed.includes(':')) return;
                     const colonIdx = trimmed.indexOf(':');
                     const key = trimmed.substring(0, colonIdx).trim().toLowerCase();
-                    const val = parseFloat(trimmed.substring(colonIdx + 1).replace(/,/g, '')) || 0;
+                    const val = parseFloat(trimmed.substring(colonIdx + 1).replace(/[^\d.]/g, '')) || 0;
 
                     if (key === 'เรท' || key === 'rate' || key === 'อัตรา') return;
 
-                    if (key.includes('กีบ') || key.includes('lak') || key === 'สดกีบ' || (key.includes('ลาว') && !key.includes('บาท'))) {
+                    const isKeyLak = key.includes('กีบ') || key.includes('lak') || key.includes('kip') || key === 'สดกีบ' || 
+                                     (key.includes('ลาว') && !key.includes('บาท')) ||
+                                     (val >= 70000 && !key.includes('ไทย') && !key.includes('thb') && !key.includes('สดบาท'));
+
+                    if (isKeyLak) {
                         lakAmt += val;
                         hasParsedLAK = true;
-                    }
-                    else if (key === 'สด' || key.includes('ไทย') || key.includes('บาท') || key.includes('thb') || key.includes('โอน')) {
+                    } else if (key.includes('บาท') || key.includes('thb') || key === 'สด' || key.includes('สดบาท') || key.includes('ไทย') || key.includes('โอน')) {
+                        if (val >= 70000 && (key.includes('ลาว') || key.includes('bcel') || key.includes('jdb') || key.includes('ldb'))) {
+                            lakAmt += val;
+                            hasParsedLAK = true;
+                        } else {
+                            thbAmt += val;
+                            hasParsedTHB = true;
+                        }
+                    } else if (val >= 70000) {
+                        lakAmt += val;
+                        hasParsedLAK = true;
+                    } else {
                         thbAmt += val;
                         hasParsedTHB = true;
                     }
@@ -166,11 +180,12 @@
             }
 
             const lowerPMode = pModeStr.toLowerCase();
-            const isLakBill = lowerPMode.includes('กีบ') || lowerPMode.includes('lak') || (lowerPMode.includes('ลาว') && !lowerPMode.includes('บาท'));
+            const isLakBill = lowerPMode.includes('กีบ') || lowerPMode.includes('lak') || lowerPMode.includes('kip') || 
+                              (lowerPMode.includes('ลาว') && !lowerPMode.includes('บาท')) || rawAmt >= 70000;
 
             if (isLakBill) {
                 let amt = Number(s.total_amount_lak || s.totalAmountLak || 0);
-                if (!amt || amt <= 0) amt = rawAmt * exRate;
+                if (!amt || amt <= 0) amt = rawAmt >= 70000 ? rawAmt : (rawAmt * exRate);
                 return { lakAmt: amt, thbAmt: 0, isLakBill: true, isThbBill: false };
             }
 
@@ -1141,8 +1156,7 @@
             
             const recordedBottles = parseInt(record.total_bottles || record.totalBottles) || 0;
             const totalQtyInRow = calculatedQty > 0 ? calculatedQty : recordedBottles;
-
-            const exchangeRate = Number(systemSettings?.exchange_rate || 700);
+const exchangeRate = Number(systemSettings?.exchange_rate || 700);
             const { lakAmt: rLakAmt, thbAmt: rThbAmt } = parseSaleCurrencyAmounts(record, exchangeRate);
 
             let formattedVal;
@@ -1154,10 +1168,10 @@
                 formattedVal = `฿${(rThbAmt % 1 === 0 ? rThbAmt.toLocaleString() : rThbAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}))}`;
             }
 
-            const renderList = (items, textClass) => {
-                if(items.length === 0) return <span className="text-slate-300 text-xs text-center block">-</span>;
+            const renderList = (items, textClass, badgeBg) => {
+                if(items.length === 0) return <span className="text-slate-300 text-xs font-semibold text-center block py-1">-</span>;
                 return (
-                    <div className="flex flex-col gap-1 w-full">
+                    <div className="flex flex-col gap-1.5 w-full">
                         {items.map((it, i) => {
                             const pObj = prodMap[it.name] || {};
                             const isBundle = pObj && (pObj.isBundle || pObj.is_bundle);
@@ -1165,11 +1179,13 @@
                             const unitLabel = isBundle ? 'เซ็ต' : 'กล่อง';
                             
                             return (
-                                <div key={i} className="flex justify-between items-center text-[11px] bg-white px-2.5 py-1 rounded-xl shadow-xs border border-slate-100">
+                                <div key={i} className="flex justify-between items-center text-[11px] bg-white/95 px-2.5 py-1.5 rounded-xl shadow-xs border border-slate-200/70 hover:border-slate-300 transition-all">
                                     <span className="font-bold text-slate-700 truncate mr-2" title={it.name}>
                                         {it.name} {isBundle && multiplier > 1 ? <span className="text-[10px] text-blue-500 font-bold ml-1">({multiplier * it.qty} กล่อง)</span> : ''}
                                     </span>
-                                    <span className={`font-black ${textClass}`}>x{it.qty} {unitLabel}</span>
+                                    <span className={`font-black shrink-0 px-1.5 py-0.5 rounded-lg text-[10px] ${badgeBg} ${textClass}`}>
+                                        x{it.qty} {unitLabel}
+                                    </span>
                                 </div>
                             );
                         })}
@@ -1179,17 +1195,17 @@
 
             return (
               <React.Fragment>
-                  <td className="p-3 bg-green-50/20 border-l border-slate-100 align-top">{renderList(fullItems, 'text-green-600')}</td>
-                  <td className="p-3 bg-purple-50/20 border-l border-slate-100 align-top">{renderList(memberItems, 'text-purple-600')}</td>
-                  {!isMarketing && <td className="p-3 bg-orange-50/20 border-l border-slate-100 align-top">{renderList(proItems, 'text-orange-600')}</td>}
-                  {!isMarketing && <td className="p-3 bg-slate-50/40 border-l border-slate-100 align-top">{renderList(zeroItems, 'text-slate-600')}</td>}
-                  <td className="p-4 align-middle text-center border-l border-blue-200 bg-blue-50/40 min-w-[200px]">
+                  <td className="p-3 bg-emerald-50/20 border-l border-slate-100 align-top">{renderList(fullItems, 'text-emerald-700', 'bg-emerald-50')}</td>
+                  <td className="p-3 bg-purple-50/20 border-l border-slate-100 align-top">{renderList(memberItems, 'text-purple-700', 'bg-purple-50')}</td>
+                  {!isMarketing && <td className="p-3 bg-amber-50/20 border-l border-slate-100 align-top">{renderList(proItems, 'text-amber-700', 'bg-amber-50')}</td>}
+                  {!isMarketing && <td className="p-3 bg-slate-50/50 border-l border-slate-100 align-top">{renderList(zeroItems, 'text-slate-600', 'bg-slate-100')}</td>}
+                  <td className="p-3.5 align-middle text-center border-l border-blue-100 bg-blue-50/30 w-[160px] min-w-[150px]">
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">รวมทั้งหมด</div>
-                    <div className="font-black text-3xl text-blue-700 drop-shadow-xs leading-none">
-                        {totalQtyInRow.toLocaleString()} <span className="text-[13px] font-bold text-blue-500">กล่อง</span>
+                    <div className="font-black text-2xl text-blue-700 leading-tight">
+                        {totalQtyInRow.toLocaleString()} <span className="text-xs font-bold text-blue-500">กล่อง</span>
                     </div>
                     {!isMarketing && (
-                        <div className="text-[11px] font-black text-emerald-700 mt-2 bg-white py-1.5 px-2.5 rounded-xl border border-emerald-200 shadow-xs whitespace-nowrap inline-block">
+                        <div className="text-[11px] font-black text-emerald-700 mt-2 bg-white py-1 px-2.5 rounded-xl border border-emerald-200/80 shadow-xs whitespace-nowrap inline-block">
                             {formattedVal}
                         </div>
                     )}
@@ -1199,7 +1215,6 @@
         };
         return (
           <div className="w-full flex flex-col gap-6 animation-fade-in">
-                          {/* 🗑️ MODAL: ประวัติและไทม์ไลน์บิลที่ถูกลบ/ยกเลิก (Deleted Bills Audit Log) */}
              <EditModal 
                 isOpen={showDeletedModal} 
                 onClose={() => setShowDeletedModal(false)} 
@@ -1247,111 +1262,111 @@
                                             }
                                         });
                                     }}
-                                    className="px-3 py-2 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 font-bold text-xs rounded-xl transition-all shrink-0 cursor-pointer"
+                                    className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-xs font-bold transition-colors shrink-0"
                                 >
-                                    🗑️ ล้างประวัติ
+                                    ล้างประวัติ
                                 </button>
                             )}
                         </div>
                     </div>
 
-                    <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-                        <div className="overflow-x-auto max-h-[60vh]">
-                            <table className="w-full text-left border-collapse text-xs">
-                                <thead className="bg-slate-900 text-white sticky top-0 font-bold">
-                                    <tr>
-                                        <th className="p-3">เลขที่บิล</th>
-                                        <th className="p-3">เวลาที่ลบบิล (Timestamp)</th>
-                                        <th className="p-3">ลูกค้า / ผู้ขาย</th>
-                                        <th className="p-3">รายการสินค้าเดิม</th>
-                                        <th className="p-3 text-right">ยอดเงินรวม</th>
-                                        <th className="p-3 text-center">ผู้กดลบบิล</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {deletedOrdersLog.filter(log => {
-                                        if (!deletedSearchTerm.trim()) return true;
-                                        const term = deletedSearchTerm.toUpperCase();
+                    <div className="overflow-x-auto max-h-[60vh] rounded-2xl border border-slate-200">
+                        <table className="w-full text-left text-xs border-collapse">
+                            <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
+                                <tr>
+                                    <th className="p-3 font-black text-slate-600">เลขที่บิล</th>
+                                    <th className="p-3 font-black text-slate-600">เวลายกเลิก</th>
+                                    <th className="p-3 font-black text-slate-600">ลูกค้า / ผู้ขาย</th>
+                                    <th className="p-3 font-black text-slate-600">รายการสินค้า</th>
+                                    <th className="p-3 font-black text-slate-600 text-right">ยอดรวม</th>
+                                    <th className="p-3 font-black text-slate-600">ผู้ลบ</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 bg-white">
+                                {(() => {
+                                    const filteredLogs = deletedOrdersLog.filter(l => {
+                                        if (!deletedSearchTerm) return true;
+                                        const term = deletedSearchTerm.toLowerCase();
+                                        return String(l.id || '').toLowerCase().includes(term) ||
+                                               String(l.customer_name || '').toLowerCase().includes(term) ||
+                                               String(l.deleted_by || '').toLowerCase().includes(term);
+                                    });
+
+                                    if (filteredLogs.length === 0) {
                                         return (
-                                            String(log.id || '').toUpperCase().includes(term) ||
-                                            String(log.customer_name || '').toUpperCase().includes(term) ||
-                                            String(log.member_name || '').toUpperCase().includes(term) ||
-                                            String(log.deleted_by || '').toUpperCase().includes(term)
-                                        );
-                                    }).length === 0 ? (
-                                        <tr>
-                                            <td colSpan={6} className="py-10 text-center text-slate-400 font-bold">
-                                                ไม่พบประวัติการลบบิลในระบบ
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        deletedOrdersLog.filter(log => {
-                                            if (!deletedSearchTerm.trim()) return true;
-                                            const term = deletedSearchTerm.toUpperCase();
-                                            return (
-                                                String(log.id || '').toUpperCase().includes(term) ||
-                                                String(log.customer_name || '').toUpperCase().includes(term) ||
-                                                String(log.member_name || '').toUpperCase().includes(term) ||
-                                                String(log.deleted_by || '').toUpperCase().includes(term)
-                                            );
-                                        }).map((log, idx) => (
-                                            <tr key={idx} className="hover:bg-rose-50/30 transition-colors">
-                                                <td className="p-3 font-bold text-blue-600 font-mono">{log.id}</td>
-                                                <td className="p-3 text-slate-600 font-medium">
-                                                    <div>{formatDbDateForFilter(log.deleted_at)}</div>
-                                                    <div className="text-[10px] text-amber-700 font-bold">
-                                                        ⏰ {formatOrderTime(log.deleted_at)}
-                                                    </div>
-                                                </td>
-                                                <td className="p-3">
-                                                    <div className="font-bold text-slate-800">👤 {log.customer_name}</div>
-                                                    <div className="text-[10px] text-slate-500">ผู้ขาย: {log.member_name}</div>
-                                                </td>
-                                                <td className="p-3 text-slate-700 max-w-xs truncate" title={log.items_summary}>
-                                                    {log.items_summary || '-'}
-                                                </td>
-                                                <td className="p-3 text-right font-black text-rose-600 font-mono">
-                                                    {Number(log.total_amount || 0).toLocaleString()} K
-                                                </td>
-                                                <td className="p-3 text-center">
-                                                    <span className="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-300">
-                                                        👤 {log.deleted_by}
-                                                    </span>
+                                            <tr>
+                                                <td colSpan="6" className="text-center py-8 text-slate-400 font-bold">
+                                                    {deletedOrdersLog.length === 0 ? 'ยังไม่มีประวัติการยกเลิกบิล' : 'ไม่พบข้อมูลที่ตรงกับคำค้นหา'}
                                                 </td>
                                             </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                                        );
+                                    }
+
+                                    return filteredLogs.map((log, idx) => (
+                                        <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                            <td className="p-3 font-mono font-bold text-rose-600">{log.id}</td>
+                                            <td className="p-3 text-slate-500 whitespace-nowrap">
+                                                {log.deleted_at ? new Date(log.deleted_at).toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'}) + ' น.' : '-'}
+                                            </td>
+                                            <td className="p-3">
+                                                <div className="font-bold text-slate-800">{log.customer_name}</div>
+                                                <div className="text-[10px] text-slate-400">ผู้ขาย: {log.member_name}</div>
+                                            </td>
+                                            <td className="p-3 text-slate-600 max-w-xs truncate" title={log.items_summary}>
+                                                {log.items_summary}
+                                            </td>
+                                            <td className="p-3 text-right font-black text-slate-800 whitespace-nowrap">
+                                                ฿{Number(log.total_amount || 0).toLocaleString()}
+                                            </td>
+                                            <td className="p-3">
+                                                <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-bold text-[10px]">
+                                                    {log.deleted_by}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ));
+                                })()}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
              </EditModal>
 
-             <ConfirmModal isOpen={confirmDelete.show} onClose={() => setConfirmDelete({show: false, id: null, title: ''})} onConfirm={executeDeleteSale} title="ยืนยันการลบประวัติการขาย" message={'คุณต้องการลบข้อมูลบิล "' + confirmDelete.title + '" ใช่หรือไม่? (ไม่สามารถกู้คืนได้)'} />
+             <ConfirmModal 
+                isOpen={confirmDelete.show} 
+                onClose={() => setConfirmDelete({show: false, id: null, title: ''})} 
+                onConfirm={executeDeleteSale} 
+                title="ยืนยันการลบประวัติการขาย" 
+                message={'คุณต้องการลบข้อมูลบิล "' + confirmDelete.title + '" ใช่หรือไม่? (ไม่สามารถกู้คืนได้ และจะคืนสต๊อกสินค้าเข้าคลัง)'} 
+             />
 
-             <EditModal isOpen={viewBillDetail !== null} onClose={() => setViewBillDetail(null)} title={'รายละเอียดบิล ' + (viewBillDetail?.id || '')} icon={FileText} maxWidthClass="max-w-2xl">
+             <EditModal 
+                isOpen={Boolean(viewBillDetail)} 
+                onClose={() => setViewBillDetail(null)} 
+                title="🧾 รายละเอียดบิลคำสั่งซื้อ" 
+                icon={FileText} 
+                maxWidthClass="max-w-xl"
+             >
                 {viewBillDetail && (
-                    <div className="flex flex-col gap-5 p-2">
+                    <div className="space-y-4 p-1">
                         <div className="flex justify-between items-center bg-blue-50 p-4 rounded-2xl border border-blue-100">
                             <div>
                                 <span className="text-xs text-blue-600 font-bold">เลขที่บิล:</span>
                                 <h3 className="text-lg font-black text-slate-800">{viewBillDetail.id}</h3>
                                 <p className="text-sm font-bold text-slate-700 flex items-center gap-2">
-    <span>{formatDbDateForFilter(viewBillDetail.date)}</span>
-    {formatOrderTime(viewBillDetail) && (
-        <span className="text-xs font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md border border-amber-200">
-            ⏰ {formatOrderTime(viewBillDetail)}
-        </span>
-    )}
-</p>
+                                    <span>{formatDbDateForFilter(viewBillDetail.date)}</span>
+                                    {formatOrderTime(viewBillDetail) && (
+                                        <span className="text-xs font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md border border-amber-200">
+                                            ⏰ {formatOrderTime(viewBillDetail)}
+                                        </span>
+                                    )}
+                                </p>
                             </div>
                         </div>
 
                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2 text-xs font-semibold">
                            <div className="flex justify-between"><span className="text-slate-500">ลูกค้า:</span> <span className="font-bold text-slate-800">{viewBillDetail.customerName || viewBillDetail.customerId}</span></div>
                            
-                           {/* เพิ่มเบอร์โทร และอาการโรค ตรงนี้ */}
                            {(() => {
                                const cObj = (customers || []).find(c => c && c.id === viewBillDetail.customerId);
                                if (!cObj) return null;
@@ -1483,6 +1498,7 @@
                 )}
              </EditModal>
 
+             {/* Page Header Banner */}
              <div className="bg-white p-6 rounded-3xl shadow-xs border border-slate-200/80 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                    <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
@@ -1511,58 +1527,61 @@
                 </div>
              </div>
 
-             <div className="bg-white p-6 sm:p-7 rounded-3xl shadow-xs border border-slate-200/80 w-full">
-                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-6 border-b border-slate-100 pb-4">
-                   <div className="flex items-center gap-2">
-                      <span className="bg-blue-50 text-blue-700 font-black px-3 py-1 rounded-xl text-xs border border-blue-200">
-                         ทั้งหมด {tableTotals.count} รายการ
-                      </span>
-                   </div>
+             {/* Table Card Container */}
+             <div className="bg-white p-5 sm:p-7 rounded-3xl shadow-xs border border-slate-200/80 w-full">
+                 <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-3 mb-5 pb-4 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                       <span className="bg-blue-50/80 text-blue-700 font-extrabold px-3 py-1.5 rounded-xl text-xs border border-blue-200/60 shadow-2xs">
+                          ทั้งหมด {tableTotals.count} รายการ
+                       </span>
+                    </div>
 
-                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full xl:w-auto">
-                      {/* ⚡ NEW: กล่องฟิลเตอร์ผู้คีย์บิล */}
-                      <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200/80 shadow-xs w-full sm:w-auto">
-                          <span className="text-[12px] font-bold text-slate-500 pl-1 shrink-0">ผู้คีย์บิล:</span>
-                          <select 
-                              className="bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 py-1.5 text-[12px] font-bold text-indigo-700 outline-none shadow-xs cursor-pointer"
-                              value={filterRecordedBy}
-                              onChange={e => setFilterRecordedBy(e.target.value)}
-                          >
-                              <option value="ALL">-- ทุกคน --</option>
-                              {uniqueRecorders.map(name => (
-                                  <option key={name} value={name}>{name}</option>
-                              ))}
-                          </select>
-                      </div>
+                    <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                       {/* กล่องฟิลเตอร์ผู้คีย์บิล */}
+                       <div className="flex items-center gap-2 bg-slate-50/90 px-3 py-1.5 rounded-xl border border-slate-200/80 shadow-2xs grow sm:grow-0">
+                           <span className="text-xs font-bold text-slate-500 shrink-0">ผู้คีย์:</span>
+                           <select 
+                               className="bg-white border border-slate-200 focus:border-indigo-500 rounded-lg px-2.5 py-1 text-xs font-bold text-indigo-700 outline-none shadow-2xs cursor-pointer transition-all"
+                               value={filterRecordedBy}
+                               onChange={e => setFilterRecordedBy(e.target.value)}
+                           >
+                               <option value="ALL">-- ทุกคน --</option>
+                               {uniqueRecorders.map(name => (
+                                   <option key={name} value={name}>{name}</option>
+                               ))}
+                           </select>
+                       </div>
 
-                      <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200/80 shadow-xs w-full sm:w-auto overflow-x-auto">
-                          <span className="text-[12px] font-bold text-slate-500 pl-1 shrink-0">ช่วงวันที่:</span>
-                          <input type="date" className="bg-white border border-slate-200 focus:border-blue-500 rounded-xl px-3 py-1.5 text-[12px] font-bold text-blue-600 outline-none shadow-xs" value={historyStartDate} onChange={e => setHistoryStartDate(e.target.value)} />
-                         <span className="text-[12px] font-bold text-slate-400">-</span>
-                         <input type="date" className="bg-white border border-slate-200 focus:border-blue-500 rounded-xl px-3 py-1.5 text-[12px] font-bold text-blue-600 outline-none shadow-xs" value={historyEndDate} onChange={e => setHistoryEndDate(e.target.value)} />
-                          {isFetchingHistory && <span className="text-xs text-blue-600 animate-pulse font-bold ml-2">กำลังโหลด...</span>}
-                      </div>
-                      <div className="flex items-center bg-slate-50 border border-slate-200/80 rounded-2xl px-3 shadow-xs focus-within:border-blue-500 focus-within:bg-white transition-all flex-1 sm:w-64 h-[40px]">
-                         <SearchIcon size={18} className="text-slate-400 shrink-0" />
-                         <input type="text" placeholder="ค้นหาเลขบิล, ชื่อลูกค้า, พนักงาน..." className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={salesSearchTerm} onChange={e => setSalesSearchTerm(e.target.value)} />
-                      </div>
-                   </div>
-                </div>
+                       {/* ช่วงวันที่ */}
+                       <div className="flex items-center gap-2 bg-slate-50/90 px-3 py-1.5 rounded-xl border border-slate-200/80 shadow-2xs grow sm:grow-0 overflow-x-auto">
+                           <span className="text-xs font-bold text-slate-500 shrink-0">ช่วงวันที่:</span>
+                           <input type="date" className="bg-white border border-slate-200 focus:border-blue-500 rounded-lg px-2.5 py-1 text-xs font-bold text-blue-600 outline-none shadow-2xs cursor-pointer transition-all" value={historyStartDate} onChange={e => setHistoryStartDate(e.target.value)} />
+                           <span className="text-xs font-bold text-slate-400">-</span>
+                           <input type="date" className="bg-white border border-slate-200 focus:border-blue-500 rounded-lg px-2.5 py-1 text-xs font-bold text-blue-600 outline-none shadow-2xs cursor-pointer transition-all" value={historyEndDate} onChange={e => setHistoryEndDate(e.target.value)} />
+                           {isFetchingHistory && <span className="text-xs text-blue-600 animate-pulse font-bold ml-1">กำลังโหลด...</span>}
+                       </div>
 
-                <div className="w-full overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-xs mb-4">
-                  <table className="w-full text-left min-w-[1000px] border-collapse relative">
-                     <thead className="bg-slate-50/90 border-b border-slate-200">
-                       <tr>
-                         <th className="p-3.5 text-xs font-black text-slate-700 uppercase tracking-wider">ข้อมูลบิล / ลูกค้า</th>
-                         <th className="p-3 text-xs font-black text-center text-green-700 uppercase tracking-wider border-l border-slate-200 w-[12%]">กล่อง (ราคาเต็ม)</th>
-                         <th className="p-3 text-xs font-black text-center text-purple-700 uppercase tracking-wider border-l border-slate-200 w-[12%]">กล่อง (ราคาสมาชิก)</th>
-                         {!isMarketing && <th className="p-3 text-xs font-black text-center text-orange-700 uppercase tracking-wider border-l border-slate-200 w-[12%]">กล่อง (ราคาโปร)</th>}
-                          {!isMarketing && <th className="p-3 text-xs font-black text-center text-slate-500 uppercase tracking-wider border-l border-slate-200 w-[12%]">กล่อง (ราคาศูนย์)</th>}
-                         <th className="p-3 text-xs font-black text-center text-blue-900 uppercase tracking-wider border-l border-slate-200 bg-blue-50/80 w-[180px]">ยอดรวม</th>
-                         
-                       </tr>
-                     </thead>
-                     <tbody className="divide-y divide-slate-100">
+                       {/* ค้นหา */}
+                       <div className="flex items-center bg-slate-50/90 border border-slate-200/80 rounded-xl px-3 shadow-2xs focus-within:border-blue-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all flex-1 sm:w-64 h-[38px]">
+                          <SearchIcon size={16} className="text-slate-400 shrink-0" />
+                          <input type="text" placeholder="ค้นหาเลขบิล, ชื่อลูกค้า, ผู้ขาย..." className="w-full bg-transparent border-none outline-none text-xs font-medium text-slate-800 placeholder-slate-400 pl-2.5 h-full" value={salesSearchTerm} onChange={e => setSalesSearchTerm(e.target.value)} />
+                       </div>
+                    </div>
+                 </div>
+
+                 <div className="w-full overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-2xs mb-4">
+                   <table className="w-full text-left min-w-[1000px] border-collapse relative">
+                      <thead className="bg-slate-50/90 border-b border-slate-200/80">
+                        <tr>
+                          <th className="p-3.5 text-xs font-black text-slate-700 uppercase tracking-wider">ข้อมูลบิล / ลูกค้า</th>
+                          <th className="p-3 text-xs font-black text-center text-emerald-700 uppercase tracking-wider border-l border-slate-100 bg-emerald-50/40 w-[13%]">กล่อง (ราคาเต็ม)</th>
+                          <th className="p-3 text-xs font-black text-center text-purple-700 uppercase tracking-wider border-l border-slate-100 bg-purple-50/40 w-[13%]">กล่อง (ราคาสมาชิก)</th>
+                          {!isMarketing && <th className="p-3 text-xs font-black text-center text-amber-700 uppercase tracking-wider border-l border-slate-100 bg-amber-50/40 w-[13%]">กล่อง (ราคาโปร)</th>}
+                          {!isMarketing && <th className="p-3 text-xs font-black text-center text-slate-600 uppercase tracking-wider border-l border-slate-100 bg-slate-50/60 w-[13%]">กล่อง (ราคาศูนย์)</th>}
+                          <th className="p-3 text-xs font-black text-center text-blue-900 uppercase tracking-wider border-l border-slate-100 bg-blue-50/70 w-[190px]">ยอดรวมสุทธิ</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
                        {loading ? (
                          <tr>
                            <td colSpan={isMarketing ? 4 : 6} className="py-12 text-center text-slate-400 font-semibold">
