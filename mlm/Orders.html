@@ -4,41 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ระบบจัดการบิล (Orders Management) - LOVE STK GROUPE</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
-    body { font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
-    @media (min-width: 1024px) {
-      aside.lg\:flex { display: flex !important; position: fixed !important; top: 0; left: 0; height: 100vh; z-index: 30; }
-      main.lg\:ml-64 { margin-left: 16rem !important; }
-      main.lg\:ml-20 { margin-left: 5rem !important; }
-      div.lg\:hidden { display: none !important; }
-    }
-    @media (max-width: 1023.98px) {
-      aside.hidden.lg\:flex { display: none !important; }
-      div.lg\:hidden { display: flex !important; }
-      main { margin-left: 0 !important; width: 100% !important; }
-    }
-  
-    /* Force global font-family styling to override Tailwind default sans stack */
-    body, button, input, select, textarea, .font-sans, [class*="font-"] {
-        font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif !important;
-    }
-</style>
+  <link rel="stylesheet" href="mainstyle.css">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script>
-    window.SUPABASE_URL='https://mfpkeyrykqnrywyksyqp.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
-    if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
-    async function supabaseSelect(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:window.SUPABASE_HEADERS});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();}
-    async function supabaseInsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('INSERT '+t+':'+r.status);return r.json();}
-    async function supabaseUpdate(t,id,d,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('UPDATE '+t+':'+r.status);return r.json();}
-    async function supabaseDelete(t,id,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'DELETE',headers:{apikey:window.SUPABASE_ANON_KEY,Authorization:'Bearer '+window.SUPABASE_ANON_KEY}});if(!r.ok)throw new Error('DELETE '+t+':'+r.status);return await r.text();}
-  </script>
+  <script src="config.js"></script>
   <script src="CommonComponents.js"></script>
+  <script src="companySettings.js"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
@@ -462,6 +437,10 @@
                 return;
             }
 
+            const compSettings = (typeof window.getCompanySettings === 'function') 
+                ? window.getCompanySettings() 
+                : { name: 'LOVE STK GROUPE', receiptHeaderNote: 'ใบเสร็จรับเงิน / Receipt', receiptFooterNote: 'ขอบพระคุณที่อุดหนุน LOVE STK GROUPE', showSignatures: true, sigLabel1: 'ลายเซ็นลูกค้า', sigLabel2: 'ผู้จ่ายสินค้า/ยา', sigLabel3: 'พนักงานแคชเชียร์' };
+
             const isMarketing = currentUser && (
                 String(currentUser.role).trim() === 'พนักงานการตลาด' ||
                 String(currentUser.role).trim().toLowerCase() === 'marketing'
@@ -829,8 +808,13 @@
               <div class="paper-container">
                 <div class="receipt-paper paper-thermal" id="paper">
                   <div class="header text-center">
-                    <h1>LOVE STK GROUPE</h1>
-                    <p style="margin: 3px 0; font-size: 11px; color: #475569; font-weight: 600;">ใบเสร็จรับเงิน / Receipt</p>
+                    ${compSettings.logoUrl ? `<img src="${compSettings.logoUrl}" alt="Logo" style="max-height: 50px; max-width: 120px; object-contain: contain; margin: 0 auto 6px auto; display: block;" />` : ''}
+                    <h1>${compSettings.name || 'LOVE STK GROUPE'}</h1>
+                    ${compSettings.branch ? `<p style="margin: 2px 0; font-size: 11px; color: #64748b; font-weight: 600;">${compSettings.branch}</p>` : ''}
+                    ${compSettings.address ? `<p style="margin: 1px 0; font-size: 10px; color: #64748b;">${compSettings.address}</p>` : ''}
+                    ${compSettings.phone ? `<p style="margin: 1px 0; font-size: 10px; color: #64748b;">โทร: ${compSettings.phone}</p>` : ''}
+                    ${compSettings.taxId ? `<p style="margin: 1px 0; font-size: 10px; color: #64748b; font-family: monospace;">เลขประจำตัวผู้เสียภาษี: ${compSettings.taxId}</p>` : ''}
+                    <p style="margin: 4px 0 2px 0; font-size: 11px; color: #1e3a8a; font-weight: 700;">${compSettings.receiptHeaderNote || 'ใบเสร็จรับเงิน / Receipt'}</p>
                   </div>
                   <div class="divider"></div>
                   <table class="meta-table">
@@ -864,12 +848,13 @@
                   </table>
                   ${printMetaSectionHtml}
                   
+                  ${compSettings.showSignatures !== false ? `
                   <div class="signatures">
-                      <div class="sig-box"><div class="sig-line"></div>ลายเซ็นลูกค้า</div>
-                      <div class="sig-box"><div class="sig-line"></div>ผู้จ่ายสินค้า/ยา</div>
-                      <div class="sig-box"><div class="sig-line"></div>พนักงานแคชเชียร์</div>
-                  </div>
-                  <div class="text-center" style="font-size: 11px; margin-top: 20px; color: #475569;"><p class="bold" style="color: #0f172a; margin:0;">ขอบพระคุณที่อุดหนุน LOVE STK GROUPE</p></div>
+                      <div class="sig-box"><div class="sig-line"></div>${compSettings.sigLabel1 || 'ลายเซ็นลูกค้า'}</div>
+                      <div class="sig-box"><div class="sig-line"></div>${compSettings.sigLabel2 || 'ผู้จ่ายสินค้า/ยา'}</div>
+                      <div class="sig-box"><div class="sig-line"></div>${compSettings.sigLabel3 || 'พนักงานแคชเชียร์'}</div>
+                  </div>` : ''}
+                  <div class="text-center" style="font-size: 11px; margin-top: 20px; color: #475569;"><p class="bold" style="color: #0f172a; margin:0;">${compSettings.receiptFooterNote || 'ขอบพระคุณที่อุดหนุน LOVE STK GROUPE'}</p></div>
                 </div>
               </div>
 
@@ -1195,17 +1180,17 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
 
             return (
               <React.Fragment>
-                  <td className="p-3 bg-emerald-50/20 border-l border-slate-100 align-top">{renderList(fullItems, 'text-emerald-700', 'bg-emerald-50')}</td>
-                  <td className="p-3 bg-purple-50/20 border-l border-slate-100 align-top">{renderList(memberItems, 'text-purple-700', 'bg-purple-50')}</td>
-                  {!isMarketing && <td className="p-3 bg-amber-50/20 border-l border-slate-100 align-top">{renderList(proItems, 'text-amber-700', 'bg-amber-50')}</td>}
-                  {!isMarketing && <td className="p-3 bg-slate-50/50 border-l border-slate-100 align-top">{renderList(zeroItems, 'text-slate-600', 'bg-slate-100')}</td>}
-                  <td className="p-3.5 align-middle text-center border-l border-blue-100 bg-blue-50/30 w-[160px] min-w-[150px]">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">รวมทั้งหมด</div>
-                    <div className="font-black text-2xl text-blue-700 leading-tight">
-                        {totalQtyInRow.toLocaleString()} <span className="text-xs font-bold text-blue-500">กล่อง</span>
+                  <td className="p-2 bg-emerald-50/20 border-l border-slate-100 align-top">{renderList(fullItems, 'text-emerald-700', 'bg-emerald-50')}</td>
+                  <td className="p-2 bg-purple-50/20 border-l border-slate-100 align-top">{renderList(memberItems, 'text-purple-700', 'bg-purple-50')}</td>
+                  {!isMarketing && <td className="p-2 bg-amber-50/20 border-l border-slate-100 align-top">{renderList(proItems, 'text-amber-700', 'bg-amber-50')}</td>}
+                  {!isMarketing && <td className="p-2 bg-slate-50/50 border-l border-slate-100 align-top">{renderList(zeroItems, 'text-slate-600', 'bg-slate-100')}</td>}
+                  <td className="p-2 align-middle text-center border-l border-blue-100 bg-blue-50/30">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">รวมทั้งหมด</div>
+                    <div className="font-black text-xl text-blue-700 leading-tight">
+                        {totalQtyInRow.toLocaleString()} <span className="text-[11px] font-bold text-blue-500">กล่อง</span>
                     </div>
                     {!isMarketing && (
-                        <div className="text-[11px] font-black text-emerald-700 mt-2 bg-white py-1 px-2.5 rounded-xl border border-emerald-200/80 shadow-xs whitespace-nowrap inline-block">
+                        <div className="text-[10px] font-black text-emerald-700 mt-1 bg-white py-0.5 px-1.5 rounded-lg border border-emerald-200/80 shadow-2xs whitespace-nowrap inline-block">
                             {formattedVal}
                         </div>
                     )}
@@ -1528,20 +1513,20 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
              </div>
 
              {/* Table Card Container */}
-             <div className="bg-white p-5 sm:p-7 rounded-3xl shadow-xs border border-slate-200/80 w-full">
-                 <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-3 mb-5 pb-4 border-b border-slate-100">
+             <div className="bg-white p-3 sm:p-5 rounded-3xl shadow-xs border border-slate-200/80 w-full">
+                 <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-3 mb-4 pb-3 border-b border-slate-100">
                     <div className="flex items-center gap-2">
                        <span className="bg-blue-50/80 text-blue-700 font-extrabold px-3 py-1.5 rounded-xl text-xs border border-blue-200/60 shadow-2xs">
                           ทั้งหมด {tableTotals.count} รายการ
                        </span>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                    <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
                        {/* กล่องฟิลเตอร์ผู้คีย์บิล */}
-                       <div className="flex items-center gap-2 bg-slate-50/90 px-3 py-1.5 rounded-xl border border-slate-200/80 shadow-2xs grow sm:grow-0">
+                       <div className="flex items-center gap-1.5 bg-slate-50/90 px-2.5 py-1.5 rounded-xl border border-slate-200/80 shadow-2xs grow sm:grow-0">
                            <span className="text-xs font-bold text-slate-500 shrink-0">ผู้คีย์:</span>
                            <select 
-                               className="bg-white border border-slate-200 focus:border-indigo-500 rounded-lg px-2.5 py-1 text-xs font-bold text-indigo-700 outline-none shadow-2xs cursor-pointer transition-all"
+                               className="bg-white border border-slate-200 focus:border-indigo-500 rounded-lg px-2 py-1 text-xs font-bold text-indigo-700 outline-none shadow-2xs cursor-pointer transition-all"
                                value={filterRecordedBy}
                                onChange={e => setFilterRecordedBy(e.target.value)}
                            >
@@ -1553,32 +1538,32 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                        </div>
 
                        {/* ช่วงวันที่ */}
-                       <div className="flex items-center gap-2 bg-slate-50/90 px-3 py-1.5 rounded-xl border border-slate-200/80 shadow-2xs grow sm:grow-0 overflow-x-auto">
+                       <div className="flex items-center gap-1.5 bg-slate-50/90 px-2.5 py-1.5 rounded-xl border border-slate-200/80 shadow-2xs grow sm:grow-0 overflow-x-auto">
                            <span className="text-xs font-bold text-slate-500 shrink-0">ช่วงวันที่:</span>
-                           <input type="date" className="bg-white border border-slate-200 focus:border-blue-500 rounded-lg px-2.5 py-1 text-xs font-bold text-blue-600 outline-none shadow-2xs cursor-pointer transition-all" value={historyStartDate} onChange={e => setHistoryStartDate(e.target.value)} />
+                           <input type="date" className="bg-white border border-slate-200 focus:border-blue-500 rounded-lg px-2 py-1 text-xs font-bold text-blue-600 outline-none shadow-2xs cursor-pointer transition-all" value={historyStartDate} onChange={e => setHistoryStartDate(e.target.value)} />
                            <span className="text-xs font-bold text-slate-400">-</span>
-                           <input type="date" className="bg-white border border-slate-200 focus:border-blue-500 rounded-lg px-2.5 py-1 text-xs font-bold text-blue-600 outline-none shadow-2xs cursor-pointer transition-all" value={historyEndDate} onChange={e => setHistoryEndDate(e.target.value)} />
+                           <input type="date" className="bg-white border border-slate-200 focus:border-blue-500 rounded-lg px-2 py-1 text-xs font-bold text-blue-600 outline-none shadow-2xs cursor-pointer transition-all" value={historyEndDate} onChange={e => setHistoryEndDate(e.target.value)} />
                            {isFetchingHistory && <span className="text-xs text-blue-600 animate-pulse font-bold ml-1">กำลังโหลด...</span>}
                        </div>
 
                        {/* ค้นหา */}
-                       <div className="flex items-center bg-slate-50/90 border border-slate-200/80 rounded-xl px-3 shadow-2xs focus-within:border-blue-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all flex-1 sm:w-64 h-[38px]">
-                          <SearchIcon size={16} className="text-slate-400 shrink-0" />
-                          <input type="text" placeholder="ค้นหาเลขบิล, ชื่อลูกค้า, ผู้ขาย..." className="w-full bg-transparent border-none outline-none text-xs font-medium text-slate-800 placeholder-slate-400 pl-2.5 h-full" value={salesSearchTerm} onChange={e => setSalesSearchTerm(e.target.value)} />
+                       <div className="flex items-center bg-slate-50/90 border border-slate-200/80 rounded-xl px-2.5 shadow-2xs focus-within:border-blue-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all flex-1 sm:w-56 h-[36px]">
+                          <SearchIcon size={15} className="text-slate-400 shrink-0" />
+                          <input type="text" placeholder="ค้นหาเลขบิล, ลูกค้า, ผู้ขาย..." className="w-full bg-transparent border-none outline-none text-xs font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={salesSearchTerm} onChange={e => setSalesSearchTerm(e.target.value)} />
                        </div>
                     </div>
                  </div>
 
                  <div className="w-full overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-2xs mb-4">
-                   <table className="w-full text-left min-w-[1000px] border-collapse relative">
+                   <table className="w-full text-left border-collapse table-fixed min-w-[760px] md:min-w-0">
                       <thead className="bg-slate-50/90 border-b border-slate-200/80">
                         <tr>
-                          <th className="p-3.5 text-xs font-black text-slate-700 uppercase tracking-wider">ข้อมูลบิล / ลูกค้า</th>
-                          <th className="p-3 text-xs font-black text-center text-emerald-700 uppercase tracking-wider border-l border-slate-100 bg-emerald-50/40 w-[13%]">กล่อง (ราคาเต็ม)</th>
-                          <th className="p-3 text-xs font-black text-center text-purple-700 uppercase tracking-wider border-l border-slate-100 bg-purple-50/40 w-[13%]">กล่อง (ราคาสมาชิก)</th>
-                          {!isMarketing && <th className="p-3 text-xs font-black text-center text-amber-700 uppercase tracking-wider border-l border-slate-100 bg-amber-50/40 w-[13%]">กล่อง (ราคาโปร)</th>}
-                          {!isMarketing && <th className="p-3 text-xs font-black text-center text-slate-600 uppercase tracking-wider border-l border-slate-100 bg-slate-50/60 w-[13%]">กล่อง (ราคาศูนย์)</th>}
-                          <th className="p-3 text-xs font-black text-center text-blue-900 uppercase tracking-wider border-l border-slate-100 bg-blue-50/70 w-[190px]">ยอดรวมสุทธิ</th>
+                          <th className="p-2.5 text-xs font-black text-slate-700 uppercase tracking-wider w-[36%]">ข้อมูลบิล / ลูกค้า</th>
+                          <th className="p-2 text-xs font-black text-center text-emerald-700 uppercase tracking-wider border-l border-slate-100 bg-emerald-50/40 w-[13%]">กล่อง (ราคาเต็ม)</th>
+                          <th className="p-2 text-xs font-black text-center text-purple-700 uppercase tracking-wider border-l border-slate-100 bg-purple-50/40 w-[13%]">กล่อง (ราคาสมาชิก)</th>
+                          {!isMarketing && <th className="p-2 text-xs font-black text-center text-amber-700 uppercase tracking-wider border-l border-slate-100 bg-amber-50/40 w-[13%]">กล่อง (ราคาโปร)</th>}
+                          {!isMarketing && <th className="p-2 text-xs font-black text-center text-slate-600 uppercase tracking-wider border-l border-slate-100 bg-slate-50/60 w-[13%]">กล่อง (ราคาศูนย์)</th>}
+                          <th className="p-2 text-xs font-black text-center text-blue-900 uppercase tracking-wider border-l border-slate-100 bg-blue-50/70 w-[12%]">ยอดรวม</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1603,7 +1588,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                            const closerName = (closers || []).find(cl => cl && (String(cl.id).trim() === closerId || String(cl.name).trim() === closerId))?.name || closerId || '-';
                           return (
                            <tr key={index} className="hover:bg-slate-50/80 transition-colors">
-                              <td className="py-3 px-3.5 align-top border-r border-slate-100 overflow-hidden">
+                              <td className="py-2.5 px-3 align-top border-r border-slate-100 overflow-hidden">
                                  <div className="font-bold text-blue-700 text-sm leading-tight mb-1 truncate flex justify-between items-center" title={rs.customerId}>
                                     <span className="truncate mr-1">👤 {rs.customerId || ''} <span className="text-[11px] font-bold text-slate-700">({cName || 'ลูกค้าใหม่มาตรวจ'})</span></span>
                                     <div className="flex items-center gap-1.5 shrink-0">
@@ -1618,7 +1603,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                                  </div>
                                  <div className="text-[10px] font-bold text-slate-400 mb-0.5 truncate">ผู้ขาย: <span className="text-slate-700 font-semibold">{mName} ({rs.memberId})</span></div>
 
-                                  <div className="flex flex-col gap-1 mt-2.5">
+                                  <div className="flex flex-col gap-1 mt-2">
                                     <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 w-fit">🩺 ผู้ปิดการขาย (หมอ): <span className="font-black">{closerName}</span></div>
                                     <div className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 w-fit">ผู้คีย์บิล: {rs.recordedBy || 'Admin'}</div>
                                   </div>
@@ -1629,27 +1614,27 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                                      </div>
                                  )}
 
-                                <div className="mt-3 border-t border-slate-100 pt-2.5 flex flex-wrap gap-1.5">
+                                <div className="mt-2.5 border-t border-slate-100 pt-2 flex flex-wrap gap-1.5">
                                      <button 
                                         type="button"
                                         onClick={() => setViewBillDetail(rs)} 
-                                        className="flex items-center justify-center bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-2.5 py-1.5 rounded-lg transition-all shadow-sm gap-1.5 text-[10px] font-bold" 
+                                        className="flex items-center justify-center bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-2 py-1 rounded-lg transition-all shadow-sm gap-1 text-[10px] font-bold" 
                                      >
                                         <Eye className="text-blue-500" size={12}/> รายละเอียด
                                      </button>
                                      <button 
                                         type="button"
                                         onClick={() => handlePrintReceiptPopup(rs)} 
-                                        className="flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 px-2.5 py-1.5 rounded-lg transition-all shadow-sm gap-1.5 text-[10px] font-bold" 
+                                        className="flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 px-2 py-1 rounded-lg transition-all shadow-sm gap-1 text-[10px] font-bold" 
                                      >
                                         <PrinterIcon size={12}/> พิมพ์บิล
                                      </button>
                                    {isAdmin && (
                                      <React.Fragment>
-                                        <button onClick={() => window.location.href = 'Sales.html?editId=' + rs.id} className="flex items-center justify-center bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 px-2.5 py-1.5 rounded-lg transition-all shadow-sm gap-1.5 text-[10px] font-bold" title="แก้ไขบิล">
+                                        <button onClick={() => window.location.href = 'Sales.html?editId=' + rs.id} className="flex items-center justify-center bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 px-2 py-1 rounded-lg transition-all shadow-sm gap-1 text-[10px] font-bold" title="แก้ไขบิล">
                                             <Edit size={12}/> แก้ไข
                                         </button>
-                                        <button onClick={() => setConfirmDelete({show: true, id: rs.id, customerId: rs.customerId, title: 'บิล ' + rs.id + ' ลูกค้า ' + rs.customerId})} className="flex items-center justify-center bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 px-2.5 py-1.5 rounded-lg transition-all shadow-sm gap-1.5 text-[10px] font-bold" title="ลบบิล">
+                                        <button onClick={() => setConfirmDelete({show: true, id: rs.id, customerId: rs.customerId, title: 'บิล ' + rs.id + ' ลูกค้า ' + rs.customerId})} className="flex items-center justify-center bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 px-2 py-1 rounded-lg transition-all shadow-sm gap-1 text-[10px] font-bold" title="ลบบิล">
                                             <Trash2 size={12}/> ลบ
                                         </button>
                                      </React.Fragment>
@@ -1664,34 +1649,34 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                      {!loading && (
   <tfoot className="bg-blue-50/50 border-t-2 border-blue-100">
     <tr>
-      <td className="p-4 text-right font-black text-slate-600 uppercase">รวมจำนวนชิ้นทั้งหมด:</td>
+      <td className="p-3 text-right font-black text-xs text-slate-600 uppercase">รวมจำนวนชิ้นทั้งหมด:</td>
       
       {/* ยอดรวม ราคาเต็ม */}
-      <td className="p-4 text-center font-black text-xl text-green-700">
+      <td className="p-3 text-center font-black text-lg text-green-700">
         {tableTotals.totalFull.toLocaleString()}
       </td>
       
       {/* ยอดรวม ราคาสมาชิก */}
-      <td className="p-4 text-center font-black text-xl text-purple-700">
+      <td className="p-3 text-center font-black text-lg text-purple-700">
         {tableTotals.totalMember.toLocaleString()}
       </td>
       
       {/* ยอดรวม ราคาโปร (ซ่อนถ้าเป็น Marketing) */}
       {!isMarketing && (
-        <td className="p-4 text-center font-black text-xl text-orange-700">
+        <td className="p-3 text-center font-black text-lg text-orange-700">
           {tableTotals.totalPro.toLocaleString()}
         </td>
       )}
       
       {/* ยอดรวม ราคาศูนย์ (ซ่อนถ้าเป็น Marketing) */}
       {!isMarketing && (
-        <td className="p-4 text-center font-black text-xl text-slate-600">
+        <td className="p-3 text-center font-black text-lg text-slate-600">
           {tableTotals.totalZero.toLocaleString()}
         </td>
       )}
       
       {/* ยอดรวมสุทธิทั้งหมด */}
-      <td className="p-4 text-center font-black text-2xl text-blue-700 bg-blue-100/50 rounded-br-xl border-x border-blue-100/50">
+      <td className="p-3 text-center font-black text-xl text-blue-700 bg-blue-100/50 rounded-br-xl border-x border-blue-100/50">
         {tableTotals.grandTotal.toLocaleString()}
       </td>
     </tr>
@@ -1845,22 +1830,26 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
         } catch (e) { console.warn("Cache error", e); }
 
        // ⚡ REAL-TIME SYNC & QUICK MOUNT:
-        const doSalesRefresh = async () => {
+        // ⚡ REAL-TIME SYNC & QUICK MOUNT:
+        let lastSalesRefreshTime = 0;
+        const doSalesRefresh = async (force = false) => {
+            const now = Date.now();
+            if (!force && now - lastSalesRefreshTime < 25000) {
+                return; // Throttled: ไม่รีเฟรชซ้ำถ้าเพิ่งดึงไปไม่ถึง 25 วินาที
+            }
+            lastSalesRefreshTime = now;
             try {
-                // ⚡ FIX: สั่งเคลียร์แคชและบังคับดึงข้อมูลสด (nocache=true) เพื่อให้ได้บิลล่าสุดเสมอ
-                if (typeof window.clearDbCache === 'function') window.clearDbCache();
-
-                let query = `order=order_id.desc&limit=800&nocache=true`;
+                let query = `order=order_id.desc&limit=800`;
                 const usr = JSON.parse(localStorage.getItem('stk_current_user') || '{}');
                 
                 if (usr && (String(usr.role).trim() === 'พนักงานการตลาด' || String(usr.role).trim().toLowerCase() === 'marketing')) {
                     query += `&seller_id=eq.${String(usr.id || '').toUpperCase()}`;
                 }
 
-                // ⚡ FIX: เรียงลำดับลูกค้าตามวันที่สร้าง (created_at.desc) แทนรหัส เพื่อรับประกันว่าลูกค้าที่เพิ่งสร้างใหม่จะติดมาด้วยเสมอ
+                // ⚡ FIX: ดึงเฉพาะคอลัมน์ที่จำเป็น และเรียงลำดับลูกค้าตามวันที่สร้าง
                 const [saleRes, custRes] = await Promise.all([
                     supabaseSelect('stk_sales', query).catch(() => []),
-                    supabaseSelect('stk_customers', 'order=created_at.desc&limit=1500&nocache=true').catch(() => [])
+                    supabaseSelect('stk_customers', 'select=customer_id,name,phone,customer_type,extra_details_json,owner_member_id,closer_id,symptom_disease,line_id&order=created_at.desc&limit=1000').catch(() => [])
                 ]);
                 
                 if (Array.isArray(saleRes)) {
@@ -1909,12 +1898,13 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
         };
 
         // 🟢 ฝังตัวรับสัญญาณแบบ Real-time ให้หน้าจอดึงข้อมูลใหม่ทันที
-        window.addEventListener('focus', doSalesRefresh);
-        window.addEventListener('pageshow', doSalesRefresh);
+        const onTabFocus = () => doSalesRefresh(false);
+        window.addEventListener('focus', onTabFocus);
+        window.addEventListener('pageshow', onTabFocus);
 
         const handleMessageEvent = (e) => {
             if (e.data === 'refresh_data' || (e.data && e.data.type === 'new_sale_toast')) {
-                doSalesRefresh();
+                doSalesRefresh(true);
             }
         };
         window.addEventListener('message', handleMessageEvent);
@@ -1924,7 +1914,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
             bc = new BroadcastChannel('stk_mlm_channel');
             bc.onmessage = (e) => {
                 if (e.data === 'refresh_data' || (e.data && e.data.type === 'new_sale_toast')) {
-                    doSalesRefresh();
+                    doSalesRefresh(true);
                 }
             };
         }
@@ -1935,18 +1925,18 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                 const trigger1 = localStorage.getItem('stk_refresh_trigger');
                 if (trigger1 && Number(trigger1) > lastPollTime) {
                     lastPollTime = Number(trigger1);
-                    doSalesRefresh();
+                    doSalesRefresh(true);
                 }
                 const trigger2 = localStorage.getItem('stk_new_sale_trigger');
                 if (trigger2) {
                     const parsed = JSON.parse(trigger2);
                     if (parsed && parsed.timestamp && parsed.timestamp > lastPollTime) {
                         lastPollTime = parsed.timestamp;
-                        doSalesRefresh();
+                        doSalesRefresh(true);
                     }
                 }
             } catch(e) {}
-        }, 1000);
+        }, 1500);
 
         // ดึงข้อมูลโหลดแรกสุด
         let salesQuery = `order=order_id.desc&limit=800`;
@@ -1956,14 +1946,15 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
         }
 
         Promise.all([
-          supabaseSelect('stk_members').catch(() => supabaseSelect('members')).catch(() => []),
+          supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status,accumulated_pv,phone_number').catch(() => supabaseSelect('members')).catch(() => []),
           // ⚡ เรียงลำดับ created_at.desc เพื่อดึงลูกค้าใหม่ล่าสุดก่อนเสมอ
-          supabaseSelect('stk_customers', 'order=created_at.desc&limit=1500').catch(() => supabaseSelect('customers')).catch(() => []), 
-          supabaseSelect('stk_products').catch(() => supabaseSelect('products')).catch(() => []),
+          supabaseSelect('stk_customers', 'select=customer_id,name,phone,customer_type,extra_details_json,owner_member_id,closer_id,symptom_disease,line_id&order=created_at.desc&limit=1000').catch(() => supabaseSelect('customers')).catch(() => []), 
+          supabaseSelect('stk_products', 'select=product_id,name,current_stock,price_full,price_member,price_promo,give_pv,status,category').catch(() => supabaseSelect('products')).catch(() => []),
           supabaseSelect('stk_system_settings').catch(() => supabaseSelect('system_settings')).catch(() => []),
           supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')).catch(() => []),
           supabaseSelect('stk_sales', salesQuery).catch(() => supabaseSelect('sales', salesQuery)).catch(() => [])
         ]).then(([memRes, custRes, prodRes, setRes, closerRes, saleRes]) => {
+           lastSalesRefreshTime = Date.now();
            const settingsObj = { exchange_rate: 700 };
            if (Array.isArray(setRes)) setRes.forEach(s => settingsObj[s.key || s.setting_key] = s.value || s.setting_value);
 
@@ -1979,21 +1970,29 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
            applyDataToStates(resObj);
            
            try {
-               localStorage.setItem('stk_app_cache_data', JSON.stringify(resObj));
+               const cleanCache = {
+                   members: memRes,
+                   customers: (custRes || []).slice(0, 500),
+                   products: prodRes,
+                   systemSettings: settingsObj,
+                   closers: closerRes,
+                   sales: (saleRes || []).slice(0, 500)
+               };
+               localStorage.setItem('stk_app_cache_data', JSON.stringify(cleanCache));
                localStorage.setItem('stk_app_cache_time', String(Date.now()));
            } catch(e){}
         }).catch(err => console.error(err))
           .finally(() => setIsAppLoading(false));
 
         const refreshInterval = setInterval(() => {
-            doSalesRefresh();
-        }, 60000);
+            doSalesRefresh(true);
+        }, 90000);
 
         return () => {
             clearInterval(refreshInterval);
             clearInterval(fastPollInterval);
-            window.removeEventListener('focus', doSalesRefresh);
-            window.removeEventListener('pageshow', doSalesRefresh);
+            window.removeEventListener('focus', onTabFocus);
+            window.removeEventListener('pageshow', onTabFocus);
             window.removeEventListener('message', handleMessageEvent);
             if (bc) bc.close();
         };
@@ -2031,7 +2030,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
             setIsSidebarCollapsed={setIsSidebarCollapsed}
           />
           
-          <main className={'flex-1 flex flex-col min-h-screen bg-slate-50 transition-all duration-300 relative ' + (isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64') + ' w-full overflow-x-hidden p-4 lg:p-8'}>
+          <main className={'flex-1 flex flex-col min-h-screen bg-slate-50 transition-all duration-300 relative ' + (isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64') + ' w-full max-w-full overflow-x-hidden p-3 sm:p-5 lg:p-6 box-border'}>
              {toast.show && ReactDOM.createPortal(
               <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-[999999] flex items-center justify-center p-4">
                  <div className={'bg-white rounded-3xl shadow-xl p-8 max-w-sm w-full text-center border-t-4 ' + (toast.type === 'error' ? 'border-red-500' : 'border-emerald-500')}>

@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ตั้งค่าข้อมูลบริษัท / หัวบิลเอกสาร - LOVE STK GROUPE</title>
+  <link rel="stylesheet" href="mainstyle.css">
+  <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="CommonComponents.js"></script>
+  <script src="companySettings.js"></script>
+</head>
+<body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white bg-slate-50">
+
+  <div id="initial-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999;">
+    <div style="width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 24px;"></div>
+    <style>@keyframes initial-spin { to { transform: rotate(360deg); } }</style>
+    <h2 style="font-size: 1.75rem; font-weight: 800; color: #1e40af; margin: 0; letter-spacing: -0.025em;">LOVE <span style="color: #475569;">STK GROUPE</span></h2>
+    <p style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 8px;">กำลังโหลดระบบตั้งค่าข้อมูลบริษัท...</p>
+  </div>
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+    const { Sidebar, LoginModal, Toast, Building2, Save, FileText, CheckCircle, Info } = window;
+
+    const CompanySettingsView = ({ showToast, currentUser, isAdmin }) => {
+      const [formData, setFormData] = useState(() => {
+        if (typeof window.getCompanySettings === 'function') {
+          return window.getCompanySettings();
+        }
+        return {
+          name: 'LOVE STK GROUPE',
+          branch: 'สำนักงานใหญ่ / คลินิกเวชกรรม',
+          address: 'เวียงจันทน์, สปป.ลาว (Vientiane, Lao PDR)',
+          phone: '+856 20 5555 9999',
+          taxId: '',
+          logoUrl: '',
+          receiptHeaderNote: 'ใบเสร็จรับเงิน / Receipt',
+          receiptFooterNote: 'ขอบพระคุณที่อุดหนุน LOVE STK GROUPE',
+          showSignatures: true,
+          sigLabel1: 'ลายเซ็นลูกค้า',
+          sigLabel2: 'ผู้จ่ายสินค้า/ยา',
+          sigLabel3: 'พนักงานแคชเชียร์'
+        };
+      });
+
+      const [isSaving, setIsSaving] = useState(false);
+      const fileInputRef = useRef(null);
+
+      useEffect(() => {
+        if (typeof window.syncCompanySettingsFromSupabase === 'function') {
+          window.syncCompanySettingsFromSupabase().then(res => {
+            if (res) setFormData(res);
+          });
+        }
+      }, []);
+
+      const handleChange = (field, val) => {
+        setFormData(prev => ({ ...prev, [field]: val }));
+      };
+
+      // จัดการอัปโหลดไฟล์รูปภาพโลโก้ แปลงเป็น Base64 Data URL (หรือ URL)
+      const handleImageUpload = async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+
+        showToast('à¸à¸³à¸¥à¸±à¸‡à¸šà¸µà¸šà¸­à¸±à¸”à¸£à¸¹à¸›à¸ à¸²à¸žà¹‚à¸¥à¹‚à¸à¹‰...', 'info');
+        const compressed = typeof window.compressImageFile === 'function'
+          ? await window.compressImageFile(file, 400, 400, 0.8)
+          : await new Promise(r => { const reader = new FileReader(); reader.onload = ev => r(ev.target.result); reader.readAsDataURL(file); });
+        handleChange('logoUrl', compressed);
+        showToast('à¹€à¸¥à¸·à¸­à¸à¹à¸¥à¸°à¸šà¸µà¸šà¸­à¸±à¸”à¸£à¸¹à¸›à¸ à¸²à¸žà¹‚à¸¥à¹‚à¸à¹‰à¹€à¸£à¸µà¸¢à¸šà¸£à¹‰à¸­à¸¢', 'success');
+      };
+
+      const handleSave = async (e) => {
+        if (e) e.preventDefault();
+        if (!formData.name.trim()) {
+          showToast('กรุณาระบุชื่อบริษัท / องค์กร', 'error');
+          return;
+        }
+
+        setIsSaving(true);
+        try {
+          if (typeof window.saveCompanySettings === 'function') {
+            await window.saveCompanySettings(formData);
+          } else {
+            localStorage.setItem('stk_company_settings', JSON.stringify(formData));
+          }
+          showToast('บันทึกข้อมูลบริษัทและหัวบิลเรียบร้อยแล้ว!', 'success');
+        } catch (err) {
+          showToast('บันทึกล้มเหลว: ' + err.message, 'error');
+        } finally {
+          setIsSaving(false);
+        }
+      };
+
+      return (
+        <div className="w-full max-w-7xl mx-auto space-y-6">
+          {/* Header Banner */}
+          <div className="bg-white p-5 sm:p-7 rounded-3xl shadow-xs border border-slate-200/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 shrink-0">
+                <Building2 size={32} />
+              </div>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                  ข้อมูลบริษัท & หัวบิลเอกสาร
+                </h2>
+                <p className="text-xs sm:text-sm font-semibold text-slate-400 mt-0.5">
+                  กำหนดชื่อบริษัท โลโก้ ข้อมูลติดต่อ และข้อความหัว-ท้ายสำหรับใบเสร็จรับเงิน/เอกสารทุกหน้า
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+            >
+              <Save size={18} />
+              <span>{isSaving ? 'กำลังบันทึกข้อมูล...' : 'บันทึกการตั้งค่า'}</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Form Settings (Left Side - 7 Cols) */}
+            <div className="lg:col-span-7 space-y-6">
+              {/* 1. ข้อมูลทั่วไป & โลโก้ */}
+              <div className="bg-white p-6 rounded-3xl shadow-xs border border-slate-200/80 space-y-5">
+                <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+                  <span className="text-base font-black text-slate-800">🏢 ข้อมูลองค์กรและโลโก้</span>
+                </div>
+
+                {/* อัปโหลดโลโก้ */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
+                    โลโก้บริษัท (Company Logo)
+                  </label>
+                  <div className="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-2xl bg-slate-50 border border-dashed border-slate-300">
+                    <div className="w-24 h-24 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
+                      {formData.logoUrl ? (
+                        <img src={formData.logoUrl} alt="Logo" className="w-full h-full object-contain p-1" />
+                      ) : (
+                        <div className="text-center p-2 text-slate-300">
+                          <Building2 size={32} className="mx-auto" />
+                          <span className="text-[10px] block mt-1 font-bold">ไม่มีโลโก้</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-2 text-center sm:text-left flex-1">
+                      <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          onChange={handleImageUpload}
+                          accept="image/*"
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                          className="px-4 py-2 bg-white hover:bg-slate-100 text-blue-600 border border-blue-200 text-xs font-bold rounded-xl transition-all shadow-2xs cursor-pointer"
+                        >
+                          📷 เลือกรูปภาพโลโก้
+                        </button>
+                        {formData.logoUrl && (
+                          <button
+                            type="button"
+                            onClick={() => handleChange('logoUrl', '')}
+                            className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-bold rounded-xl transition-all shadow-2xs cursor-pointer"
+                          >
+                            ลบรูป
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400 font-medium leading-relaxed">
+                        รองรับไฟล์ PNG, JPG, WebP ขนาดไม่เกิน 2MB (แนะนำภาพพื้นหลังโปร่งใสหรือสี่เหลี่ยมจัตุรัส)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ชื่อบริษัท */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                    ชื่อบริษัท / ร้านค้า / คลินิก <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-4 py-2.5 bg-slate-50 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl text-sm font-bold text-slate-800 outline-none transition-all shadow-2xs focus:ring-2 focus:ring-blue-100"
+                    placeholder="เช่น LOVE STK GROUPE"
+                    value={formData.name}
+                    onChange={e => handleChange('name', e.target.value)}
+                  />
+                </div>
+
+                {/* สาขา */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                    สาขา / แผนก
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-4 py-2.5 bg-slate-50 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl text-sm font-bold text-slate-800 outline-none transition-all shadow-2xs focus:ring-2 focus:ring-blue-100"
+                    placeholder="เช่น สำนักงานใหญ่ / สาขาเวียงจันทน์"
+                    value={formData.branch}
+                    onChange={e => handleChange('branch', e.target.value)}
+                  />
+                </div>
+
+                {/* ที่อยู่ */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                    ที่อยู่สถานประกอบการ
+                  </label>
+                  <textarea
+                    rows={2}
+                    className="w-full px-4 py-2.5 bg-slate-50 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl text-xs font-semibold text-slate-800 outline-none transition-all shadow-2xs focus:ring-2 focus:ring-blue-100 resize-none"
+                    placeholder="เช่น นครหลวงเวียงจันทน์ สปป.ลาว"
+                    value={formData.address}
+                    onChange={e => handleChange('address', e.target.value)}
+                  />
+                </div>
+
+                {/* เบอร์โทรศัพท์ & เลขผู้เสียภาษี */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                      เบอร์โทรศัพท์ติดต่อ
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full px-4 py-2.5 bg-slate-50 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl text-xs font-bold text-slate-800 outline-none transition-all shadow-2xs focus:ring-2 focus:ring-blue-100"
+                      placeholder="เช่น +856 20 5555 9999"
+                      value={formData.phone}
+                      onChange={e => handleChange('phone', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                      เลขประจำตัวผู้เสียภาษี (ถ้ามี)
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full px-4 py-2.5 bg-slate-50 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl text-xs font-bold text-slate-800 outline-none transition-all shadow-2xs focus:ring-2 focus:ring-blue-100 font-mono"
+                      placeholder="เช่น 01055xxxxxxxx"
+                      value={formData.taxId}
+                      onChange={e => handleChange('taxId', e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. การตั้งค่าบนหัวบิลและท้ายบิลใบเสร็จ */}
+              <div className="bg-white p-6 rounded-3xl shadow-xs border border-slate-200/80 space-y-5">
+                <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+                  <span className="text-base font-black text-slate-800">🧾 การตั้งค่าหัวบิล / ท้ายบิลใบเสร็จ</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                    ข้อความกำกับหัวบิล (Header Subtitle)
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-4 py-2.5 bg-slate-50 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl text-xs font-bold text-slate-800 outline-none transition-all shadow-2xs focus:ring-2 focus:ring-blue-100"
+                    placeholder="เช่น ใบเสร็จรับเงิน / Receipt"
+                    value={formData.receiptHeaderNote}
+                    onChange={e => handleChange('receiptHeaderNote', e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                    ข้อความขอบคุณท้ายบิล (Footer Message)
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-4 py-2.5 bg-slate-50 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl text-xs font-bold text-slate-800 outline-none transition-all shadow-2xs focus:ring-2 focus:ring-blue-100"
+                    placeholder="เช่น ขอบพระคุณที่อุดหนุน LOVE STK GROUPE"
+                    value={formData.receiptFooterNote}
+                    onChange={e => handleChange('receiptFooterNote', e.target.value)}
+                  />
+                </div>
+
+                {/* ลายเซ็นท้ายบิล */}
+                <div className="pt-2 border-t border-slate-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-slate-800">แสดงช่องลายเซ็นท้ายใบเสร็จ</div>
+                      <div className="text-[11px] text-slate-400 font-medium">เปิด/ปิด หรือแก้ไขชื่อกำกับช่องลายเซ็น 3 ช่อง</div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.showSignatures !== false}
+                        onChange={e => handleChange('showSignatures', e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+
+                  {formData.showSignatures !== false && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">ช่องที่ 1</label>
+                        <input
+                          type="text"
+                          className="w-full px-3 py-1.5 bg-slate-50 focus:bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none"
+                          value={formData.sigLabel1}
+                          onChange={e => handleChange('sigLabel1', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">ช่องที่ 2</label>
+                        <input
+                          type="text"
+                          className="w-full px-3 py-1.5 bg-slate-50 focus:bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none"
+                          value={formData.sigLabel2}
+                          onChange={e => handleChange('sigLabel2', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">ช่องที่ 3</label>
+                        <input
+                          type="text"
+                          className="w-full px-3 py-1.5 bg-slate-50 focus:bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none"
+                          value={formData.sigLabel3}
+                          onChange={e => handleChange('sigLabel3', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Live Receipt Preview (Right Side - 5 Cols) */}
+            <div className="lg:col-span-5 sticky top-6">
+              <div className="bg-white p-5 rounded-3xl shadow-xs border border-slate-200/80 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <FileText size={18} className="text-blue-600" />
+                    <span className="text-sm font-black text-slate-800">ตัวอย่างใบเสร็จจริง (Live Preview)</span>
+                  </div>
+                  <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full font-bold border border-emerald-100">
+                    อัปเดตทันที
+                  </span>
+                </div>
+
+                {/* Receipt Paper Simulation */}
+                <div className="p-4 sm:p-6 bg-slate-50/60 rounded-2xl border border-slate-200/80 font-sans shadow-inner">
+                  <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm max-w-sm mx-auto text-center space-y-3">
+                    {/* Logo Preview */}
+                    {formData.logoUrl && (
+                      <div className="w-16 h-16 mx-auto mb-1 flex items-center justify-center">
+                        <img src={formData.logoUrl} alt="Company Logo" className="max-h-full max-w-full object-contain" />
+                      </div>
+                    )}
+
+                    {/* Company Name & Details */}
+                    <div>
+                      <h3 className="font-black text-slate-900 text-base leading-tight tracking-tight">
+                        {formData.name || 'LOVE STK GROUPE'}
+                      </h3>
+                      {formData.branch && (
+                        <p className="text-[11px] font-bold text-slate-500 mt-0.5">{formData.branch}</p>
+                      )}
+                      {formData.address && (
+                        <p className="text-[10px] text-slate-400 mt-0.5">{formData.address}</p>
+                      )}
+                      {formData.phone && (
+                        <p className="text-[10px] text-slate-400">โทร: {formData.phone}</p>
+                      )}
+                      {formData.taxId && (
+                        <p className="text-[10px] text-slate-400 font-mono">เลขผู้เสียภาษี: {formData.taxId}</p>
+                      )}
+                      <p className="text-[11px] font-extrabold text-blue-700 mt-2 bg-blue-50 py-1 rounded-lg border border-blue-100">
+                        {formData.receiptHeaderNote || 'ใบเสร็จรับเงิน / Receipt'}
+                      </p>
+                    </div>
+
+                    <div className="border-t border-dashed border-slate-300 my-2"></div>
+
+                    {/* Sample Mock Table */}
+                    <div className="text-left text-[11px] space-y-1.5">
+                      <div className="flex justify-between font-bold text-slate-700">
+                        <span>เลขที่บิล: 20260911-001</span>
+                        <span>10:30 น.</span>
+                      </div>
+                      <div className="flex justify-between text-slate-500">
+                        <span>ลูกค้า: สมชาย ใจดี</span>
+                        <span>หมอ: Dr. Hatkeo</span>
+                      </div>
+                      <div className="border-t border-slate-200 my-1"></div>
+                      <div className="flex justify-between font-semibold text-slate-800">
+                        <span>Coffee Arabica x2</span>
+                        <span>฿500.00</span>
+                      </div>
+                      <div className="flex justify-between font-semibold text-slate-800">
+                        <span>King Gold x1</span>
+                        <span>฿1,200.00</span>
+                      </div>
+                      <div className="border-t border-slate-200 my-1"></div>
+                      <div className="flex justify-between font-black text-slate-900 text-xs">
+                        <span>ยอดรวมสุทธิ:</span>
+                        <span className="text-blue-700">฿1,700.00</span>
+                      </div>
+                    </div>
+
+                    {/* Signatures Preview */}
+                    {formData.showSignatures !== false && (
+                      <div className="pt-4 border-t border-dashed border-slate-300 grid grid-cols-3 gap-1 text-[9px] text-slate-400 text-center">
+                        <div>
+                          <div className="border-b border-dashed border-slate-300 h-6 mb-1"></div>
+                          <span>{formData.sigLabel1 || 'ลูกค้า'}</span>
+                        </div>
+                        <div>
+                          <div className="border-b border-dashed border-slate-300 h-6 mb-1"></div>
+                          <span>{formData.sigLabel2 || 'ผู้จ่ายยา'}</span>
+                        </div>
+                        <div>
+                          <div className="border-b border-dashed border-slate-300 h-6 mb-1"></div>
+                          <span>{formData.sigLabel3 || 'แคชเชียร์'}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Footer Note */}
+                    <div className="pt-2 text-[10px] font-bold text-slate-600">
+                      {formData.receiptFooterNote || 'ขอบพระคุณที่อุดหนุน LOVE STK GROUPE'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2 bg-blue-50/70 p-3 rounded-xl border border-blue-100 text-[11px] text-blue-700">
+                  <Info size={16} className="shrink-0 mt-0.5" />
+                  <span>เมื่อกดบันทึก ข้อมูลนี้จะถูกดึงไปแสดงที่หัวบิลและท้ายบิลในหน้าพิมพ์บิลคำสั่งซื้อ (Orders) และหน้าคีย์ขาย (Sales) อัตโนมัติ</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const App = () => {
+      const [isLoggedIn, setIsLoggedIn] = useState(false);
+      const [currentUser, setCurrentUser] = useState(null);
+      const [showLoginModal, setShowLoginModal] = useState(false);
+      const [isAppLoading, setIsAppLoading] = useState(true);
+      const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+        try { return localStorage.getItem('stk_sidebar_collapsed') === 'true'; } catch(e) { return false; }
+      });
+      const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
+      const showToast = (msg, type = 'success') => {
+        setToast({ show: true, message: msg, type });
+        if (type === 'success') {
+          setTimeout(() => setToast(prev => ({ ...prev, show: false })), 2500);
+        }
+      };
+
+      const pagePerm = window.getUserPagePermission ? window.getUserPagePermission(currentUser, 'company_settings') : 'none';
+      const isAdmin = currentUser && (
+        String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
+        String(currentUser.role).trim().toLowerCase().includes('admin') || 
+        String(currentUser.role).trim().includes('แอดมิน') ||
+        pagePerm === 'full'
+      );
+
+      useEffect(() => {
+        try {
+          const savedUser = localStorage.getItem('stk_current_user');
+          if (savedUser) {
+            setCurrentUser(JSON.parse(savedUser));
+            setIsLoggedIn(true);
+          } else {
+            setShowLoginModal(true);
+          }
+        } catch(e) {}
+
+        const initialLoader = document.getElementById('initial-loader');
+        if (initialLoader) initialLoader.style.display = 'none';
+        setIsAppLoading(false);
+      }, []);
+
+      const handleLoginSuccess = (user) => {
+        localStorage.setItem('stk_current_user', JSON.stringify(user));
+        setCurrentUser(user);
+        setIsLoggedIn(true);
+        setShowLoginModal(false);
+        showToast('เข้าสู่ระบบสำเร็จ!', 'success');
+      };
+
+      const handleLogout = () => {
+        localStorage.removeItem('stk_current_user');
+        setCurrentUser(null);
+        setIsLoggedIn(false);
+        window.location.href = 'Mlm.html';
+      };
+
+      return (
+        <div className="min-h-screen flex flex-col lg:flex-row font-sans bg-slate-50">
+          <Sidebar
+            activePage="company_settings"
+            isLoggedIn={isLoggedIn}
+            currentUser={currentUser}
+            currentUserProfileUrl={currentUser?.profileUrl || ''}
+            isAdmin={isAdmin}
+            onLogout={handleLogout}
+            showLoginModal={showLoginModal}
+            setShowLoginModal={setShowLoginModal}
+            SCRIPT_URL=""
+            setIsAppLoading={setIsAppLoading}
+            isSidebarCollapsed={isSidebarCollapsed}
+            setIsSidebarCollapsed={setIsSidebarCollapsed}
+          />
+
+          <main className={'flex-1 flex flex-col min-h-screen bg-slate-50 transition-all duration-300 relative ' + (isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64') + ' w-full max-w-full overflow-x-hidden p-4 sm:p-6 lg:p-8 box-border'}>
+            <Toast toast={toast} setToast={setToast} />
+
+            <CompanySettingsView
+              showToast={showToast}
+              currentUser={currentUser}
+              isAdmin={isAdmin}
+            />
+          </main>
+
+          <LoginModal
+            isOpen={showLoginModal}
+            onClose={() => setShowLoginModal(false)}
+            onLoginSuccess={handleLoginSuccess}
+          />
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

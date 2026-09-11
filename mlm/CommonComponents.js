@@ -224,6 +224,15 @@
     React.createElement('circle', { cx: "9", cy: "7", r: "4" }),
     React.createElement('polyline', { points: "16 11 18 13 22 9" })
   );
+  const Building2 = ({ size = 20, className = "" }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", className: className, ...IconProps },
+    React.createElement('path', { d: "M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" }),
+    React.createElement('path', { d: "M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" }),
+    React.createElement('path', { d: "M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" }),
+    React.createElement('path', { d: "M10 6h4" }),
+    React.createElement('path', { d: "M10 10h4" }),
+    React.createElement('path', { d: "M10 14h4" }),
+    React.createElement('path', { d: "M10 18h4" })
+  );
 
   const fallbackProductsList = ['SESAMIN', 'APPLE', 'KING_GOLD'];
   const fallbackCustomerTypes = [
@@ -561,7 +570,8 @@
         'customer_types': 'CustomerTypes.html',
         'closers': 'Closers.html',
         'exchange_rate': 'ExchangeRate.html',
-        'notification_settings': 'NotificationSettings.html'
+        'notification_settings': 'NotificationSettings.html',
+        'company_settings': 'CompanySettings.html'
       };
       for (const [p, file] of Object.entries(pageFileMap)) {
         if (href.includes(`page=${p}`)) {
@@ -598,7 +608,8 @@
       'customer_types': hasHtmlExt ? 'CustomerTypes.html' : 'CustomerTypes',
       'closers': hasHtmlExt ? 'Closers.html' : 'Closers',
       'exchange_rate': hasHtmlExt ? 'ExchangeRate.html' : 'ExchangeRate',
-      'notification_settings': hasHtmlExt ? 'NotificationSettings.html' : 'NotificationSettings'
+      'notification_settings': hasHtmlExt ? 'NotificationSettings.html' : 'NotificationSettings',
+      'company_settings': hasHtmlExt ? 'CompanySettings.html' : 'CompanySettings'
     };
 
     for (const [p, file] of Object.entries(pageFileMap)) {
@@ -706,11 +717,12 @@
     const canClosers = getUserPagePermission(currentUser, 'closers') !== 'none';
     const canExRate = getUserPagePermission(currentUser, 'exchange_rate') !== 'none';
     const canNotif = getUserPagePermission(currentUser, 'notification_settings') !== 'none';
+    const canCompany = isAdmin || getUserPagePermission(currentUser, 'company_settings') !== 'none';
 
-    const hasAnySettings = canSysUsers || canTeam || canBusTeams || canStock || canCustTypes || canClosers || canExRate || canNotif;
+    const hasAnySettings = canSysUsers || canTeam || canBusTeams || canStock || canCustTypes || canClosers || canExRate || canNotif || canCompany;
     if (!hasAnySettings) return null;
 
-    const settingsPages = ['system_users', 'team', 'business_teams', 'stock', 'customer_types', 'closers', 'exchange_rate', 'notification_settings'];
+    const settingsPages = ['system_users', 'team', 'business_teams', 'stock', 'customer_types', 'closers', 'exchange_rate', 'notification_settings', 'company_settings'];
     const isPageInSettings = settingsPages.includes(activeTab);
     const [isOpen, setIsOpen] = React.useState(isPageInSettings);
 
@@ -722,6 +734,7 @@
 
     if (isSidebarCollapsed) {
       return React.createElement(React.Fragment, null,
+        canCompany ? React.createElement(SidebarItem, { icon: Building2, label: "ข้อมูลบริษัท / หัวบิล", id: "company_settings", activeTab: activeTab, href: SCRIPT_URL + '?page=company_settings', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
         canSysUsers ? React.createElement(SidebarItem, { icon: UserCircle, label: "สิทธิ์เข้าใช้งานระบบ", id: "system_users", activeTab: activeTab, href: SCRIPT_URL + '?page=system_users', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
         canTeam ? React.createElement(SidebarItem, { icon: Users, label: "ข้อมูลพนักงาน", id: "team", activeTab: activeTab, href: SCRIPT_URL + '?page=team', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
         canStock ? React.createElement(SidebarItem, { icon: Archive, label: "คลังสินค้า & สต๊อก", id: "stock", activeTab: activeTab, href: SCRIPT_URL + '?page=stock', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
@@ -745,6 +758,7 @@
         React.createElement('div', { className: `transition-transform duration-300 ${isOpen ? 'rotate-180' : ''} text-slate-500` }, React.createElement(ChevronDown, { size: 16 }))
       ),
       isOpen ? React.createElement('div', { className: "pl-4 ml-5 border-l border-slate-800 space-y-1 relative animation-slide-down", style: { animationDuration: '0.2s' } },
+        canCompany ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=company_settings'), onClick: handleTabClick, className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'company_settings' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}` }, "ข้อมูลบริษัท / หัวบิล") : null,
         canSysUsers ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=system_users'), onClick: handleTabClick, className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'system_users' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}` }, "สิทธิ์เข้าใช้งานระบบ") : null,
         canTeam ? React.createElement('a', {
           href: resolvePageUrl(SCRIPT_URL + '?page=team'),
@@ -1164,6 +1178,52 @@
   window.Save = Save;
   window.Info = Info;
   window.PackageIcon = PackageIcon;
+
+  // ðŸ–¼ï¸ AUTO IMAGE COMPRESSION UTILITY: à¸šà¸µà¸šà¸­à¸±à¸”à¸£à¸¹à¸›à¸ à¸²à¸žà¹ƒà¸«à¹‰à¸¡à¸µà¸‚à¸™à¸²à¸”à¹€à¸¥à¹‡à¸à¸ªà¸¸à¸” (à¸¥à¸”à¸‚à¸™à¸²à¸”à¹„à¸Ÿà¸¥à¹Œ 95-99%) à¹€à¸žà¸·à¹ˆà¸­à¹ƒà¸«à¹‰à¹‚à¸«à¸¥à¸”à¸«à¸™à¹‰à¸²à¹€à¸§à¹‡à¸šà¹„à¸”à¹‰à¹€à¸£à¹‡à¸§
+  window.compressImageFile = function (file, maxWidth = 500, maxHeight = 500, quality = 0.75) {
+    return new Promise((resolve) => {
+      if (!file || !file.type || !file.type.startsWith('image/')) {
+        return resolve('');
+      }
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const img = new Image();
+        img.onload = function () {
+          try {
+            let width = img.width;
+            let height = img.height;
+            if (width > height) {
+              if (width > maxWidth) {
+                height = Math.round((height * maxWidth) / width);
+                width = maxWidth;
+              }
+            } else {
+              if (height > maxHeight) {
+                width = Math.round((width * maxHeight) / height);
+                height = maxHeight;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressed = canvas.toDataURL('image/jpeg', quality);
+            resolve(compressed);
+          } catch (err) {
+            console.warn('Image compression fallback:', err);
+            resolve(e.target.result);
+          }
+        };
+        img.onerror = () => resolve(e.target.result);
+        img.src = e.target.result;
+      };
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
+  };
   window.Target = Target;
   window.Trophy = Trophy;
   window.Activity = Activity;
@@ -1200,6 +1260,7 @@
   window.MessageSquare = MessageSquare;
   window.Bell = Bell;
   window.UserCheck = UserCheck;
+  window.Building2 = Building2;
   const Toast = ({ toast, setToast }) => {
     if (!toast || !toast.show) return null;
     React.useEffect(() => {

@@ -5,48 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ระบบแดชบอร์ด (Dashboard) - LOVE STK GROUPE</title>
   <!-- Standalone & GAS Libraries -->
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
-    body { font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
-    @media (min-width: 1024px) {
-      aside.lg\:flex { display: flex !important; position: fixed !important; top: 0; left: 0; height: 100vh; z-index: 30; }
-      main.lg\:ml-64 { margin-left: 16rem !important; }
-      main.lg\:ml-20 { margin-left: 5rem !important; }
-      div.lg\:hidden { display: none !important; }
-    }
-    @media (max-width: 1023.98px) {
-      aside.hidden.lg\:flex { display: none !important; }
-      div.lg\:hidden { display: flex !important; }
-      main { margin-left: 0 !important; width: 100% !important; }
-    }
-    
-    /* 📌 เอฟเฟคเส้นพลังงานหมุนรอบกราฟวงกลม (Smooth Glowing Lines Orbit) */
-    @keyframes orbit-cw {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
-    @keyframes orbit-ccw {
-        0% { transform: rotate(360deg); }
-        100% { transform: rotate(0deg); }
-    }
-    .animate-orbit-cw {
-        animation: orbit-cw 6s linear infinite;
-        transform-origin: 18px 18px;
-    }
-    .animate-orbit-ccw {
-        animation: orbit-ccw 9s linear infinite;
-        transform-origin: 18px 18px;
-    }
-    @keyframes floatCard { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
-    .animate-float-1 { animation: floatCard 3s ease-in-out infinite; }
-    .animate-float-2 { animation: floatCard 3.5s ease-in-out infinite 0.5s; }
-    .animate-float-3 { animation: floatCard 4s ease-in-out infinite 1s; }
-  
-    /* Force global font-family styling to override Tailwind default sans stack */
-    body, button, input, select, textarea, .font-sans, [class*="font-"] {
-        font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif !important;
-    }
-</style>
+  <link rel="stylesheet" href="mainstyle.css">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
@@ -55,54 +14,7 @@
   <!-- ✅ Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <!-- ✅ STK Supabase Config -->
-  <script>
-    // =====================================================================
-    // STK GROUPE - Supabase Config (MLM / Sales System Phase 2.3)
-    // =====================================================================
-    window.SUPABASE_URL      = 'https://mfpkeyrykqnrywyksyqp.supabase.co';
-    window.SUPABASE_ANON_KEY = 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
-    window.SUPABASE_REST_URL = window.SUPABASE_URL + '/rest/v1';
-    window.SUPABASE_HEADERS  = {
-      'Content-Type' : 'application/json',
-      'apikey'       : window.SUPABASE_ANON_KEY,
-      'Authorization': 'Bearer ' + window.SUPABASE_ANON_KEY,
-      'Prefer'       : 'return=representation'
-    };
-    // Initialize Supabase client (available globally as window.supabaseClient)
-    if (typeof supabase !== 'undefined') {
-      window.supabaseClient = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
-      console.log('%c✅ Supabase Connected!', 'color:green;font-weight:bold', window.SUPABASE_URL);
-    }
-    // ---- REST Helper Functions ----
-    async function supabaseSelect(table, query) {
-      var url = window.SUPABASE_REST_URL + '/' + table + (query ? '?' + query : '');
-      var res = await fetch(url, { method: 'GET', headers: window.SUPABASE_HEADERS });
-      if (!res.ok) { var t = await res.text(); throw new Error('SELECT ' + table + ': ' + res.status + ' ' + t); }
-      return res.json();
-    }
-    async function supabaseInsert(table, data) {
-      var res = await fetch(window.SUPABASE_REST_URL + '/' + table, { method: 'POST', headers: window.SUPABASE_HEADERS, body: JSON.stringify(data) });
-      if (!res.ok) { var t = await res.text(); throw new Error('INSERT ' + table + ': ' + res.status + ' ' + t); }
-      return res.json();
-    }
-    async function supabaseUpdate(table, id, data) {
-      var res = await fetch(window.SUPABASE_REST_URL + '/' + table + '?id=eq.' + encodeURIComponent(id), { method: 'PATCH', headers: window.SUPABASE_HEADERS, body: JSON.stringify(data) });
-      if (!res.ok) { var t = await res.text(); throw new Error('UPDATE ' + table + ': ' + res.status + ' ' + t); }
-      return res.json();
-    }
-    async function supabaseDelete(table, id) {
-      var h = Object.assign({}, window.SUPABASE_HEADERS, { 'Prefer': 'return=minimal' });
-      var res = await fetch(window.SUPABASE_REST_URL + '/' + table + '?id=eq.' + encodeURIComponent(id), { method: 'DELETE', headers: h });
-      if (!res.ok) { var t = await res.text(); throw new Error('DELETE ' + table + ': ' + res.status + ' ' + t); }
-      return true;
-    }
-    async function supabaseUpsert(table, data) {
-      var h = Object.assign({}, window.SUPABASE_HEADERS, { 'Prefer': 'resolution=merge-duplicates,return=representation' });
-      var res = await fetch(window.SUPABASE_REST_URL + '/' + table, { method: 'POST', headers: h, body: JSON.stringify(data) });
-      if (!res.ok) { var t = await res.text(); throw new Error('UPSERT ' + table + ': ' + res.status + ' ' + t); }
-      return res.json();
-    }
-  </script>
+  <script src="config.js"></script>
   <script src="CommonComponents.js"></script>
   <script>
     window.addEventListener('DOMContentLoaded', function() {

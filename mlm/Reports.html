@@ -5,71 +5,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>รายงานสรุปและผลประโยชน์ (Reports) - LOVE STK GROUPE</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&display=swap');
-    body { font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 0; width: 100%; max-width: 100vw; overflow-x: hidden; }
-    @media (min-width: 1024px) {
-      aside.lg\:flex { display: flex !important; position: fixed !important; top: 0; left: 0; height: 100vh; z-index: 30; }
-      main.lg\:ml-64 { margin-left: 16rem !important; }
-      main.lg\:ml-20 { margin-left: 5rem !important; }
-      div.lg\:hidden { display: none !important; }
-    }
-    @media (max-width: 1023.98px) {
-      aside.hidden.lg\:flex { display: none !important; }
-      div.lg\:hidden { display: flex !important; }
-      main { margin-left: 0 !important; width: 100% !important; }
-    }
-    
-    @media print {
-      html, body, #root, main { 
-        height: auto !important; 
-        overflow: visible !important; 
-        background-color: white !important; 
-        margin: 0 !important;
-        padding: 0 !important;
-      }
-      /* ซ่อนเมนูทั้งหมด ทั้งเดสก์ท็อปและมือถือ รวมถึงส่วนหัวและท้ายเว็บ */
-      aside, aside.lg\:flex, header, nav, .no-print, .print-hide,
-      div.lg\:hidden, div.fixed.bottom-0, [class*="sticky top-0"], [class*="fixed bottom-0"] { 
-        display: none !important; 
-        visibility: hidden !important;
-      }
-      main, main.lg\:ml-64, main.lg\:ml-20, .lg\:ml-64, .lg\:ml-20 { 
-        margin-left: 0 !important; 
-        margin-top: 0 !important;
-        width: 100% !important; 
-        max-width: 100% !important; 
-        padding: 0 !important; 
-      }
-      .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-inner { box-shadow: none !important; }
-      table { border-collapse: collapse !important; width: 100% !important; page-break-inside: auto; }
-      tr { page-break-inside: avoid; page-break-after: auto; }
-      th, td { border: 1px solid #cbd5e1 !important; }
-      thead { display: table-header-group !important; }
-      tfoot { display: table-row-group !important; }
-      .overflow-x-auto, .overflow-hidden, .overflow-y-auto { overflow: visible !important; height: auto !important; max-height: none !important; }
-      .bg-white { border: none !important; box-shadow: none !important; }
-      @page { size: auto; margin: 10mm; }
-    }
-
-    /* Force global font-family styling to override Tailwind default sans stack */
-    body, button, input, select, textarea, .font-sans, [class*="font-"] {
-        font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif !important;
-    }
-</style>
+  <link rel="stylesheet" href="mainstyle.css">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script>
-    window.SUPABASE_URL='https://mfpkeyrykqnrywyksyqp.supabase.co';window.SUPABASE_ANON_KEY='sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';window.SUPABASE_REST_URL=window.SUPABASE_URL+'/rest/v1';window.SUPABASE_HEADERS={'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY,'Authorization':'Bearer '+window.SUPABASE_ANON_KEY,'Prefer':'return=representation'};
-    if(typeof supabase!=='undefined'){window.supabaseClient=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);console.log('%c✅ Supabase Connected!','color:green;font-weight:bold',window.SUPABASE_URL);}
-    async function supabaseSelect(t,q){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+(q?'?'+q:''),{method:'GET',headers:window.SUPABASE_HEADERS});if(!r.ok)throw new Error('SELECT '+t+':'+r.status);return r.json();}
-    async function supabaseInsert(t,d){var r=await fetch(window.SUPABASE_REST_URL+'/'+t,{method:'POST',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('INSERT '+t+':'+r.status);return r.json();}
-    async function supabaseUpdate(t,id,d,pk='id'){var r=await fetch(window.SUPABASE_REST_URL+'/'+t+'?'+pk+'=eq.'+encodeURIComponent(id),{method:'PATCH',headers:window.SUPABASE_HEADERS,body:JSON.stringify(d)});if(!r.ok)throw new Error('UPDATE '+t+':'+r.status);return r.json();}
-  </script>
+  <script src="config.js"></script>
   <script src="CommonComponents.js"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
@@ -3382,19 +3325,36 @@
         const [currentUser, setCurrentUser] = useState(null);
         const [showLoginModal, setShowLoginModal] = useState(false);
 
-        const [systemSettings, setSystemSettings] = useState({ exchange_rate: 700, commission_levels: 6 });
-        const [products, setProducts] = useState([]);
-        const [customerTypes, setCustomerTypes] = useState(fallbackCustomerTypes);
-        const [closers, setClosers] = useState([]);
-        const [businessTeams, setBusinessTeams] = useState([]);
-        const [members, setMembers] = useState([]);
-        const [customers, setCustomers] = useState([]);
-        const [sales, setSales] = useState([]);
+        // ⚡ INSTANT MOUNT CACHE INJECTION: เปิดหน้าปุ๊บ แสดงข้อมูลจาก Cache ทันที ไม่ต้องรอหมุนติ้ว
+        const initialCache = (() => {
+            try { 
+                const data = localStorage.getItem('stk_reports_cache_data') || localStorage.getItem('stk_app_cache_data'); 
+                return data ? JSON.parse(data) : null; 
+            } catch(e) { return null; }
+        })();
+
+        const [systemSettings, setSystemSettings] = useState(() => {
+            try {
+                const saved = localStorage.getItem('stk_system_settings');
+                return saved ? JSON.parse(saved) : (initialCache?.systemSettings || { exchange_rate: 700, commission_levels: 6 });
+            } catch(e) {
+                return { exchange_rate: 700, commission_levels: 6 };
+            }
+        });
+        const [products, setProducts] = useState(() => initialCache && Array.isArray(initialCache.products) ? initialCache.products : []);
+        const [customerTypes, setCustomerTypes] = useState(() => initialCache && Array.isArray(initialCache.customerTypes) ? initialCache.customerTypes : fallbackCustomerTypes);
+        const [closers, setClosers] = useState(() => initialCache && Array.isArray(initialCache.closers) ? initialCache.closers : []);
+        const [businessTeams, setBusinessTeams] = useState(() => initialCache && Array.isArray(initialCache.businessTeams) ? initialCache.businessTeams : []);
+        const [members, setMembers] = useState(() => initialCache && Array.isArray(initialCache.members) ? initialCache.members : []);
+        const [customers, setCustomers] = useState(() => initialCache && Array.isArray(initialCache.customers) ? initialCache.customers : []);
+        const [sales, setSales] = useState(() => initialCache && Array.isArray(initialCache.sales) ? initialCache.sales : []);
         const [stockMovements, setStockMovements] = useState([]);
         const [systemUsers, setSystemUsers] = useState([]);
-        const [payoutLogs, setPayoutLogs] = useState([]);
-        const [isAppLoading, setIsAppLoading] = useState(true);
-        const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+        const [payoutLogs, setPayoutLogs] = useState(() => initialCache && Array.isArray(initialCache.payoutLogs) ? initialCache.payoutLogs : []);
+        const [isAppLoading, setIsAppLoading] = useState(() => !initialCache);
+        const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+            try { return localStorage.getItem('stk_sidebar_collapsed') === 'true'; } catch (e) { return false; }
+        });
 
         const pagePerm = window.getUserPagePermission ? window.getUserPagePermission(currentUser, 'reports') : 'none';
       const isAdmin = currentUser && (
@@ -3409,33 +3369,16 @@
         }, [customerTypes]);
 
         const fetchAllData = useCallback(async () => {
-            try {
-                const cachedData = localStorage.getItem('stk_app_cache_data');
-                if (cachedData) {
-                    try {
-                        const parsedData = JSON.parse(cachedData);
-                        if (parsedData.products) setProducts(parsedData.products);
-                        if (parsedData.customerTypes) setCustomerTypes(parsedData.customerTypes);
-                        if (parsedData.closers) setClosers(parsedData.closers);
-                        if (parsedData.members) setMembers(parsedData.members);
-                        if (parsedData.customers) setCustomers(parsedData.customers);
-                        if (parsedData.businessTeams) setBusinessTeams(parsedData.businessTeams);
-                        if (parsedData.sales) setSales(parsedData.sales);
-                        // We set loading to false immediately to show UI fast!
-                        setIsAppLoading(false);
-                    } catch(e) {}
-                }
-            } catch(err) {}
 
             try {
-                // ⚡ SPEED OPTIMIZATION: ดึงเฉพาะข้อมูลที่จำเป็น และกำหนด limit ให้เหมาะสม
+                // ⚡ SPEED OPTIMIZATION: ดึงเฉพาะคอลัมน์ที่ต้องใช้จริง ไม่ดึงรูปภาพ และจำกัด limit พอดีกับรายงาน
                 const [pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes, settingsRes, payRes] = await Promise.all([
-                    supabaseSelect('stk_products').catch(() => []),
+                    supabaseSelect('stk_products', 'select=product_id,name,current_stock,price_full,price_member,price_promo,give_pv,status,category').catch(() => []),
                     supabaseSelect('stk_customer_types').catch(() => fallbackCustomerTypes),
                     supabaseSelect('stk_closers').catch(() => []),
-                    supabaseSelect('stk_members').catch(() => []),
-                    supabaseSelect('stk_customers', 'order=customer_id.desc&limit=5000').catch(() => []),
-                    supabaseSelect('stk_sales', 'order=order_id.desc&limit=5000').catch(() => []),
+                    supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status,accumulated_pv,phone_number').catch(() => []),
+                    supabaseSelect('stk_customers', 'select=customer_id,name,customer_type,closer_id,owner_member_id,extra_details_json&order=customer_id.desc&limit=2000').catch(() => []),
+                    supabaseSelect('stk_sales', 'order=order_id.desc&limit=2500').catch(() => []),
                     supabaseSelect('stk_business_teams').catch(() => []),
                     supabaseSelect('stk_system_settings').catch(() => []),
                     supabaseSelect('stk_payout_logs', 'order=payout_id.desc&limit=500').catch(() => [])
@@ -3482,7 +3425,7 @@
                     ...p,
                     id: String(p.id || p.product_id || p.Product_ID || p.code || '').trim(),
                     name: String(p.name || p.product_name || p.Product_Name || p.id || '').trim(),
-                    stock: Number(p.stock !== undefined ? p.stock : (p.quantity !== undefined ? p.quantity : (p.qty !== undefined ? p.qty : (p.Stock !== undefined ? p.Stock : 0))))
+                    stock: Number(p.stock !== undefined ? p.stock : (p.quantity !== undefined ? p.quantity : (p.qty !== undefined ? p.qty : (p.Stock !== undefined ? p.Stock : (p.current_stock !== undefined ? p.current_stock : 0)))))
                 }));
                 setProducts(formattedProducts);
                 setCustomerTypes(typeRes);
@@ -3637,17 +3580,18 @@
                 
                 setPayoutLogs(payRes);
 
-                // ⚡ บันทึกข้อมูลลงใน Cache เพื่อให้เปิดหน้านี้ครั้งถัดไปเร็วทันที
+                // ⚡ บันทึกข้อมูลลงใน Cache เพื่อให้เปิดหน้านี้ครั้งถัดไปเร็วทันที (ตัดทอนเฉพาะฟิลด์ที่จำเป็นเพื่อป้องกัน localStorage เต็ม)
                 try {
                     const cachePayload = {
                         products: formattedProducts,
                         customerTypes: typeRes,
                         closers: cloRes,
                         members: formattedMembers,
-                        customers: formattedCustomers,
+                        customers: formattedCustomers.slice(0, 1000).map(c => ({ id: c.id, name: c.name, type: c.type, closer: c.closer, memberId: c.memberId })),
                         businessTeams: formattedTeams,
-                        sales: processedSales
+                        sales: processedSales.slice(0, 1000)
                     };
+                    localStorage.setItem('stk_reports_cache_data', JSON.stringify(cachePayload));
                     localStorage.setItem('stk_app_cache_data', JSON.stringify(cachePayload));
                 } catch(e){}
             } catch (err) {
