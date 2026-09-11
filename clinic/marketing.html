@@ -662,7 +662,7 @@
 
         .order-modal-dialog {
             background: #ffffff;
-            border-radius: 20px;
+            border-radius: 10px;
             box-shadow: 0 25px 60px -12px rgba(15, 23, 42, 0.45);
             width: 100%;
             max-width: 1080px;
@@ -1462,9 +1462,11 @@
 
             /* Modals Responsiveness (Order Modal & SweetAlert) */
             .order-modal-backdrop {
-                padding: 6px !important;
-                padding-top: 66px !important;
-                padding-bottom: 96px !important;
+                padding: 4px 2px 72px 2px !important;
+                padding-top: 4px !important;
+                padding-bottom: 72px !important;
+                padding-left: 2px !important;
+                padding-right: 2px !important;
                 align-items: flex-start !important;
                 overflow-x: hidden !important;
                 overflow-y: auto !important;
@@ -1472,10 +1474,10 @@
             }
 
             .order-modal-dialog {
-                padding: 16px 12px 20px 12px !important;
-                border-radius: 18px !important;
-                max-height: calc(100dvh - 175px) !important;
-                margin-bottom: 24px !important;
+                padding: 14px 10px 18px 10px !important;
+                border-radius: 8px !important;
+                max-height: calc(100dvh - 80px) !important;
+                margin: 0 auto 12px auto !important;
                 width: 100% !important;
                 max-width: 100% !important;
                 box-sizing: border-box !important;
@@ -2067,12 +2069,31 @@
             .mobile-nav-btn.order.active span {
                 color: #ffffff !important;
             }
-            .order-modal-dialog, .clinic-modal-card { border-radius: 22px !important; }
+            .order-modal-dialog, .clinic-modal-card { border-radius: 8px !important; }
         }
 
         @media (max-width: 480px) {
             body, body.in-iframe {
                 padding: 10px 8px calc(76px + env(safe-area-inset-bottom, 8px)) 8px !important;
+            }
+
+            .order-modal-backdrop {
+                padding: 3px 1px 70px 1px !important;
+                padding-left: 1px !important;
+                padding-right: 1px !important;
+            }
+
+            .order-modal-dialog {
+                border-radius: 8px !important;
+                padding: 12px 6px 16px 6px !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 auto 10px auto !important;
+            }
+
+            .order-customer-box,
+            .order-product-card {
+                border-radius: 8px !important;
             }
 
             .mobile-bottom-nav {
