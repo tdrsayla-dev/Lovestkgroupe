@@ -620,9 +620,7 @@
 
                 let fallbackSelfFee = 250000;
                 let fallbackL1Fee = 200000;
-                if (target.includes('COFFEE') || target.includes('ARABICA')) { fallbackSelfFee = 20000; fallbackL1Fee = 10000; }
-                else if (target.includes('SERUM') || target.includes('SUNCREAM') || target.includes('TONER') || target.includes('CREAM') || target.includes('APPLE') || target.includes('ZINC')) { fallbackSelfFee = 70000; fallbackL1Fee = 30000; }
-                else if (target.includes('GLUTA') || target.includes('COLLAGEN') || target.includes('BALANCE') || target.includes('KUT-SO') || target.includes('LIPO') || target.includes('LUTEIN') || target.includes('ORYZA')) { fallbackSelfFee = 150000; fallbackL1Fee = 50000; }
+        
 
                 const isMemberPrice = pTypeStr.includes('สมาชิก') || pTypeStr.toLowerCase().includes('member');
 
@@ -838,9 +836,7 @@
 
                 let fallbackSelfFee = 250000;
                 let fallbackL1Fee = 200000;
-                if (target.includes('COFFEE') || target.includes('ARABICA')) { fallbackSelfFee = 20000; fallbackL1Fee = 10000; }
-                else if (target.includes('SERUM') || target.includes('SUNCREAM') || target.includes('TONER') || target.includes('CREAM') || target.includes('APPLE') || target.includes('ZINC')) { fallbackSelfFee = 70000; fallbackL1Fee = 30000; }
-                else if (target.includes('GLUTA') || target.includes('COLLAGEN') || target.includes('BALANCE') || target.includes('KUT-SO') || target.includes('LIPO') || target.includes('LUTEIN') || target.includes('ORYZA')) { fallbackSelfFee = 150000; fallbackL1Fee = 50000; }
+                
 
                 const computePayout = (levelIdx) => {
                     let feePerBox = 0; let feePercent = 0;
@@ -994,9 +990,7 @@
 
                 let fallbackSelfFee = 250000;
                 let fallbackL1Fee = 200000;
-                if (target.includes('COFFEE') || target.includes('ARABICA')) { fallbackSelfFee = 20000; fallbackL1Fee = 10000; }
-                else if (target.includes('SERUM') || target.includes('SUNCREAM') || target.includes('TONER') || target.includes('CREAM') || target.includes('APPLE') || target.includes('ZINC')) { fallbackSelfFee = 70000; fallbackL1Fee = 30000; }
-                else if (target.includes('GLUTA') || target.includes('COLLAGEN') || target.includes('BALANCE') || target.includes('KUT-SO') || target.includes('LIPO') || target.includes('LUTEIN') || target.includes('ORYZA')) { fallbackSelfFee = 150000; fallbackL1Fee = 50000; }
+    
 
                 const isMemberPrice = pTypeStr.includes('สมาชิก') || pTypeStr.toLowerCase().includes('member');
 
@@ -3373,7 +3367,7 @@
             try {
                 // ⚡ SPEED OPTIMIZATION: ดึงเฉพาะคอลัมน์ที่ต้องใช้จริง ไม่ดึงรูปภาพ และจำกัด limit พอดีกับรายงาน
                 const [pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes, settingsRes, payRes] = await Promise.all([
-                    supabaseSelect('stk_products', 'select=product_id,name,current_stock,price_full,price_member,price_promo,give_pv,status,category').catch(() => []),
+                    supabaseSelect('stk_products').catch(() => []),
                     supabaseSelect('stk_customer_types').catch(() => fallbackCustomerTypes),
                     supabaseSelect('stk_closers').catch(() => []),
                     supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status,accumulated_pv,phone_number').catch(() => []),
