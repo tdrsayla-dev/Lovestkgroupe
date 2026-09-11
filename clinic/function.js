@@ -12933,6 +12933,11 @@ const SYSTEM_FUNCTIONS = [
     { key: 'billing', label: 'ລະບົບ ໃບບິນ / ໃບເສັດ (Billing)', category: 'งานการเงิน & ยา', icon: 'bi-receipt' },
     { key: 'expenses', label: 'ລະບົບລາຍຈ່າຍປະຈຳວັນ / ระบบรายจ่ายประจำวัน (Daily Expenses)', category: 'งานการเงิน & ยา', icon: 'bi-wallet2' },
 
+    // ລາຍງານການສັ່ງອາຫານເສີມ & ຈ່າຍຢາ (ລາຍງານທ່ານໝໍ)
+    { key: 'doctor-reports', label: 'ລາຍງານການສັ່ງອາຫານເສີມ & ຈ່າຍຢາ (หลัก) / ລາຍງານທ່ານໝໍ', category: 'งานรายงาน & สรุปผล', icon: 'bi-file-earmark-medical-fill' },
+    { key: 'doctor-reports-nutrients', label: 'ລາຍງານການສັ່ງອາຫານເສີມ & ຈ່າຍຢາ', category: 'ย่อยรายงาน', icon: 'bi-capsule', parentKey: 'doctor-reports', isSub: true },
+    { key: 'doctor-reports-patients', label: 'ລາຍງານສະຖິຕິຜູ້ປ່ວຍ (คนไข้)', category: 'ย่อยรายงาน', icon: 'bi-people-fill', parentKey: 'doctor-reports', isSub: true },
+
     // ระบบปันผล/ผู้แนะนำ และฟังก์ชันย่อย
     { key: 'referrals', label: 'ລະບົບປັນຜົນ/ຜູ້ແນະນຳ (หลัก) / ระบบปันผล', category: 'ระบบหลังบ้าน', icon: 'bi-hand-thumbs-up-fill' },
     { key: 'referrals-logs', label: 'ຄ່າຄອມມິດຊັ່ນ / ປັນຜົນ', category: 'ย่อยปันผล', icon: 'bi-receipt-cutoff', parentKey: 'referrals', isSub: true },
@@ -12957,7 +12962,10 @@ const SYSTEM_FUNCTIONS = [
     // รายงานสรุป และฟังก์ชันย่อย
     { key: 'daily-reports', label: 'ລາຍງານສະຫຼຸບປະຈຳວັນ/ເດືອນ (หลัก) / รายงานสรุป', category: 'ระบบหลังบ้าน', icon: 'bi-bar-chart-line-fill' },
     { key: 'daily-reports-exam', label: 'ສະຫຼຸບການກວດລາຍວັນ (สรุปตรวจรายวัน)', category: 'ย่อยรายงาน', icon: 'bi-file-earmark-bar-graph', parentKey: 'daily-reports', isSub: true },
-    { key: 'daily-reports-monthly', label: 'ລາຍງານສະຫຼຸບປະຈຳເດືອນ (สรุปรายเดือน)', category: 'ย่อยรายงาน', icon: 'bi-graph-up-arrow', parentKey: 'daily-reports', isSub: true }
+    { key: 'daily-reports-monthly', label: 'ລາຍງານສະຫຼຸບປະຈຳເດືອນ (สรุปรายเดือน)', category: 'ย่อยรายงาน', icon: 'bi-graph-up-arrow', parentKey: 'daily-reports', isSub: true },
+
+    // ຕັ້ງຄ່າຂໍ້ມູນຄລີນິກ
+    { key: 'clinic-settings', label: 'ຕັ້ງຄ່າຂໍ້ມູນຄລີນິກ / ຕັ້ງຄ່າ Clinic (Clinic Settings)', category: 'ระบบหลังบ้าน', icon: 'bi-gear-wide-connected' }
 ];
 
 let allStaffUsers = [];
@@ -13100,11 +13108,11 @@ function onUserRoleChange(role) {
     if (!role) return;
     const roleDefaults = {
         admin: ['all'],
-        doctor: ['doctor', 'triage', 'prescription', 'history', 'lab'],
+        doctor: ['doctor', 'triage', 'prescription', 'history', 'lab', 'doctor-reports'],
         nurse: ['registration', 'triage', 'queue', 'appointments', 'history'],
-        pharmacist: ['prescription', 'pharmacy', 'stock-drugs', 'stock-drugs-list', 'stock-drugs-intake', 'history'],
+        pharmacist: ['prescription', 'pharmacy', 'stock-drugs', 'stock-drugs-list', 'stock-drugs-intake', 'history', 'doctor-reports'],
         lab: ['lab', 'doctor', 'history'],
-        marketing: ['referrals', 'referrals-logs', 'referrals-members', 'referrals-daily', 'appointments', 'registration', 'booking'],
+        marketing: ['referrals', 'referrals-logs', 'referrals-members', 'referrals-daily', 'appointments', 'registration', 'booking', 'doctor-reports'],
         staff: ['appointments', 'registration', 'triage', 'queue', 'payment', 'billing', 'expenses']
     };
     if (role === 'admin') {
@@ -13611,7 +13619,7 @@ function applyUserPermissions(currentUser) {
     const allMenuKeys = [
         'dashboard', 'appointments', 'booking', 'registration', 'triage', 'doctor',
         'payment', 'lab', 'queue', 'prescription', 'pharmacy', 'history',
-        'billing', 'expenses', 'services', 'stock-drugs', 'stock-equip', 'staff', 'referrals', 'daily-reports'
+        'billing', 'expenses', 'doctor-reports', 'services', 'stock-drugs', 'stock-equip', 'staff', 'referrals', 'daily-reports', 'clinic-settings'
     ];
 
     let firstAllowedPage = null;
@@ -13750,7 +13758,9 @@ function hideUnauthorizedButtons(permissions) {
 
         { key: 'referrals:create', selectors: ['button[onclick*="addReferrerModal"]'] },
         { key: 'referrals:edit', selectors: ['button[onclick*="editReferrer"]'] },
-        { key: 'referrals:delete', selectors: ['button[onclick*="deleteReferrer"]'] }
+        { key: 'referrals:delete', selectors: ['button[onclick*="deleteReferrer"]'] },
+
+        { key: 'clinic-settings:edit', selectors: ['button#btnSave', 'button[onclick*="saveSettings"]'] }
     ];
 
     actionMap.forEach(action => {
