@@ -3044,24 +3044,48 @@ body.login-page {
 }
 
 /* ==========================================================
-   Booking Section Iframe Mobile Responsiveness
+   Booking Section Iframe Responsiveness (Desktop & Mobile)
    ========================================================== */
+@media (min-width: 992px) {
+    #booking #marketingFrame {
+        width: 100%;
+        height: calc(100vh - 100px);
+        min-height: 750px;
+        border: none;
+        display: block;
+        border-radius: 16px;
+    }
+}
+
 @media (max-width: 991.98px) {
+    body.page-is-booking {
+        overflow: hidden !important;
+    }
+
     body.page-is-booking .content-area,
+    .content-area.is-booking-active,
     .content-area:has(#booking.active) {
         padding: 0 !important;
         margin: 0 !important;
         margin-top: 56px !important;
         height: calc(100dvh - 56px) !important;
+        max-height: calc(100dvh - 56px) !important;
         overflow: hidden !important;
     }
 
     #booking.active {
-        width: 100% !important;
-        height: 100% !important;
+        position: fixed !important;
+        top: 56px !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100vw !important;
+        height: calc(100dvh - 56px) !important;
+        max-height: calc(100dvh - 56px) !important;
         padding: 0 !important;
         margin: 0 !important;
         overflow: hidden !important;
+        z-index: 1020 !important;
     }
 
     #booking #marketingFrame {
@@ -3072,6 +3096,8 @@ body.login-page {
         border: none !important;
         border-radius: 0 !important;
         display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
 }
 

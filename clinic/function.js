@@ -414,7 +414,21 @@ function showPage(pageId, element) {
 
     // 3. แสดงเฉพาะหน้าที่ได้รับอนุญาต
     targetPage.classList.add('active');
-    targetPage.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important;';
+    if (pageId === 'booking') {
+        if (window.innerWidth <= 991.98) {
+            targetPage.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; position: fixed !important; top: 56px !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100vw !important; height: calc(100dvh - 56px) !important; max-height: calc(100dvh - 56px) !important; padding: 0 !important; margin: 0 !important; overflow: hidden !important; z-index: 1020 !important;';
+            const frame = document.getElementById('marketingFrame');
+            if (frame) {
+                frame.style.cssText = 'width: 100% !important; height: 100% !important; min-height: 100% !important; max-height: 100% !important; border: none !important; margin: 0 !important; padding: 0 !important; display: block !important; border-radius: 0 !important;';
+            }
+        } else {
+            targetPage.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; width: 100% !important; height: 100% !important; padding: 0 !important; margin: 0 !important;';
+            const frame = document.getElementById('marketingFrame');
+            if (frame) frame.style.cssText = '';
+        }
+    } else {
+        targetPage.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important;';
+    }
 
     // 4. อัปเดตสถานะเมนูด้านซ้ายมือให้เป็น Active
     document.querySelectorAll('#sidebarNav .nav-link, .sidebar a.nav-link').forEach(l => l.classList.remove('active'));
@@ -443,6 +457,13 @@ function showPage(pageId, element) {
     // 5.1 ควบคุมการล็อกหน้าจอสำหรับหน้า Booking บนมือถือ (ป้องกัน Double Scroll)
     if (document.body) {
         document.body.classList.toggle('page-is-booking', pageId === 'booking');
+    }
+    const contentAreaEl = document.querySelector('.content-area');
+    if (contentAreaEl) {
+        contentAreaEl.classList.toggle('is-booking-active', pageId === 'booking');
+        if (pageId === 'booking') {
+            contentAreaEl.scrollTop = 0;
+        }
     }
 
     // 6. ปิดเมนู Sidebar บนสมาร์ทโฟนเมื่อกดเลือกหน้า
