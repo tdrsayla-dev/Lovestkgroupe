@@ -852,33 +852,44 @@ document.addEventListener("DOMContentLoaded", function () {
         };
     }
 
-    loadAppointments();
-    loadPatients();
-    loadTriage();
+    // ⚡ Phase 1: โหลดคิวหลักและ Realtime ทันทีเพื่อให้ UI พร้อมใช้งานเร็วที่สุด
     loadDoctorQueue();
     loadPaymentQueue();
-    loadLabQueue();
+    loadPharmacyQueue();
     loadQueueList();
-    loadPrescriptionList();
     loadMedicines();
     loadMlmProducts();
     initMlmRealtimeSubscription();
     initClinicRealtimeHub();
-    loadPharmacyQueue();
-    loadPatientHistory();
-    loadSupplyItems();
-    loadSupplyRequests();
-    loadServicesData();
-    loadReferralData();
-    loadStaffUsers();
-    loadBills();
-    loadExpenses();
+
+    // ⚡ Phase 2: ทยอยโหลดข้อมูลย้อนหลัง/ประวัติ/คลังสินค้าใน background หลัง 200ms ไม่ให้แย่ง Network Connections
+    setTimeout(() => {
+        loadAppointments();
+        loadPatients();
+        loadTriage();
+        loadLabQueue();
+        loadPrescriptionList();
+        loadPatientHistory();
+        loadSupplyItems();
+        loadSupplyRequests();
+        loadServicesData();
+        loadReferralData();
+        loadStaffUsers();
+        loadBills();
+        loadExpenses();
+    }, 200);
 
     // Listen for messages from iframes (e.g. marketing.html) to circumvent CORS issues
     window.addEventListener('message', async function (event) {
         if (event.data === 'openAddPatientModal') {
             if (typeof openAddPatientModal === 'function') {
                 openAddPatientModal();
+            }
+        } else if (event.data === 'closeAddPatientModal') {
+            const modalEl = document.getElementById('addPatientModal');
+            if (modalEl) {
+                const inst = bootstrap.Modal.getOrCreateInstance(modalEl);
+                if (inst) inst.hide();
             }
         } else if (event.data && event.data.type === 'SHOW_VISIT_DETAIL') {
             if (typeof showHistoryDetails === 'function') {
@@ -926,42 +937,12 @@ document.addEventListener("DOMContentLoaded", function () {
                             // 2. บันทึกข้อมูลคิวตรวจลง visits
                             await _supabase.from('visits').upsert(visitPayload, { onConflict: 'visit_id' });
 
-                            // 3. บันทึกบิลลงตาราง bills เพื่อให้ผ่านเงื่อนไข activeBillVisits ในหน้าประวัติผู้ป่วย
-                            const billPayload = {
-                                bill_id: 'BILL-' + String(orderData.order_id || Date.now()).replace(/^ORD-/, ''),
-                                visit_id: String(orderData.visit_id),
-                                hn: orderData.hn ? String(orderData.hn) : null,
-                                patient_name: orderData.customer_name || orderData.patient_name,
-                                items: Array.isArray(orderData.items_json) ? orderData.items_json : [],
-                                subtotal: Number(orderData.subtotal || grandTotal),
-                                discount: Number(orderData.discount || 0),
-                                payable_amount: grandTotal,
-                                currency: 'LAK',
-                                status: 'ชำระแล้ว',
-                                created_by: orderData.recorded_by || 'Staff',
-                                note: orderData.notes || 'ສັ່ງຊື້ຜ່ານລະບົບ Booking/Order',
-                                created_at: orderData.created_at || new Date().toISOString()
-                            };
-                            // Use safe upsert to prevent 400 and 409 conflict errors
-                            try {
-                                const { error: bErr } = await _supabase.from('bills').upsert(billPayload, { onConflict: 'bill_id' });
-                                if (bErr) {
-                                    const simpleBill = { ...billPayload };
-                                    delete simpleBill.items;
-                                    await _supabase.from('bills').upsert(simpleBill, { onConflict: 'bill_id' });
-                                }
-                            } catch (billErr) { console.warn('Bill save notice:', billErr); }
-
-                            // บันทึกลง LocalStorage ใช้ safeSetLocalStorage เพื่อป้องกัน QuotaExceededError
+                            // บันทึกลง LocalStorage ใช้ safeSetLocalStorage เพื่อป้องกัน QuotaExceededError (เฉพาะ visits ไม่สร้าง bills)
                             try {
                                 let cachedVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
                                 if (!Array.isArray(cachedVisits)) cachedVisits = [];
                                 cachedVisits.unshift(visitPayload);
                                 window.safeSetLocalStorage('clinic_visits_queue', cachedVisits);
-                                let cachedBills = JSON.parse(localStorage.getItem('clinic_bills') || '[]');
-                                if (!Array.isArray(cachedBills)) cachedBills = [];
-                                cachedBills.unshift(billPayload);
-                                window.safeSetLocalStorage('clinic_bills', cachedBills);
                             } catch (e) { }
 
                             // รีเฟรชประวัติผู้ป่วยทันทีหากเปิดหน้าประวัติอยู่
@@ -1548,13 +1529,19 @@ function filterPatients() {
             // ถ้าผู้ป่วยคนไหนไม่ได้ระบุวันที่นัดมาตรวจไว้ เมื่อมีการใช้ตัวกรองวันที่ ระบบจะซ่อนผู้ป่วยคนนั้น (return false)
             if (!row.next_appointment_date) return false;
 
-            // แปลงรูปแบบวันที่ให้อยู่ในฟอร์แมตมาตรฐาน YYYY-MM-DD เพื่อใช้เปรียบเทียบ
-            const rowDate = new Date(row.next_appointment_date).toISOString().split('T')[0];
+            // แปลงรูปแบบวันที่ให้อยู่ในฟอร์แมตมาตรฐาน YYYY-MM-DD เพื่อใช้เปรียบเทียบ (พร้อม Safe Check กัน RangeError)
+            try {
+                const parsedDate = new Date(row.next_appointment_date);
+                if (isNaN(parsedDate.getTime())) return false;
+                const rowDate = parsedDate.toISOString().split('T')[0];
 
-            let pass = true;
-            if (startDateStr && rowDate < startDateStr) pass = false;
-            if (endDateStr && rowDate > endDateStr) pass = false;
-            return pass;
+                let pass = true;
+                if (startDateStr && rowDate < startDateStr) pass = false;
+                if (endDateStr && rowDate > endDateStr) pass = false;
+                return pass;
+            } catch (dErr) {
+                return false;
+            }
         });
     }
 
@@ -1579,14 +1566,21 @@ function filterPatients() {
     // Filter by Triage Status
     const triageFilter = window.patientTriageFilter || 'all';
     if (triageFilter !== 'all') {
-        const todayStr = new Date().toISOString().split('T')[0];
+        // ใช้เวลา Local Time (UTC+7) เพื่อป้องกันปัญหาวันที่เหลื่อมช่วงหลังเที่ยงคืน - 07:00 น.
+        const _now = new Date();
+        const todayStr = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`;
         const latestVisitMap = window.latestVisitMap || {};
         filtered = filtered.filter(row => {
             const latestVisit = latestVisitMap[row.hn];
             const vStatus = latestVisit ? latestVisit.status : null;
             let visitDateStr = '';
             if (latestVisit && latestVisit.created_at) {
-                visitDateStr = new Date(latestVisit.created_at).toISOString().split('T')[0];
+                try {
+                    const _vDate = new Date(latestVisit.created_at);
+                    if (!isNaN(_vDate.getTime())) {
+                        visitDateStr = `${_vDate.getFullYear()}-${String(_vDate.getMonth() + 1).padStart(2, '0')}-${String(_vDate.getDate()).padStart(2, '0')}`;
+                    }
+                } catch (e) { }
             }
             const isFromPreviousDay = Boolean(visitDateStr && visitDateStr < todayStr);
             const isOngoingTreatment = !isFromPreviousDay && latestVisit && (
@@ -5627,7 +5621,41 @@ function openAddPatientModal() {
     const modalTitle = document.querySelector('#addPatientModal .modal-title');
     if (modalTitle) modalTitle.textContent = 'ເພີ່ມປະຫວັດຜູ້ປ່ວຍໃໝ່';
 
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('addPatientModal')).show();
+    const patModalEl = document.getElementById('addPatientModal');
+    if (patModalEl && !patModalEl.dataset.frameBound) {
+        patModalEl.dataset.frameBound = 'true';
+        patModalEl.addEventListener('click', function (e) {
+            if (e.target === this) {
+                bootstrap.Modal.getOrCreateInstance(this).hide();
+            }
+        });
+        patModalEl.addEventListener('shown.bs.modal', function () {
+            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            try {
+                const frame = document.getElementById('marketingFrame');
+                if (frame && frame.contentWindow) {
+                    frame.contentWindow.postMessage('addPatientModalOpened', '*');
+                }
+            } catch (e) { }
+        });
+        patModalEl.addEventListener('hidden.bs.modal', function () {
+            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('padding-right');
+            try {
+                const frame = document.getElementById('marketingFrame');
+                if (frame && frame.contentWindow) {
+                    frame.contentWindow.postMessage('addPatientModalClosed', '*');
+                }
+            } catch (e) { }
+        });
+    }
+
+    if (patModalEl) {
+        bootstrap.Modal.getOrCreateInstance(patModalEl).show();
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+    }
 }
 
 function openRegisterFromAppointment(appId, name, phone) {
@@ -7996,7 +8024,7 @@ async function loadMlmProducts(isRealtimeUpdate = false) {
     let data = null;
     try {
         if (_mlmSupabase) {
-            const selectCols = 'product_id, name, category, current_stock, price_full, price_member, price_promo, status';
+            const selectCols = 'product_id, name, category, current_stock, price_full, price_member, price_promo, status, image_url, base_product';
             // ลอง query แบบมี order ก่อน (ดึงเฉพาะสินค้าที่มีสต็อก > 0)
             try {
                 const { data: resData, error } = await _mlmSupabase
@@ -8026,7 +8054,7 @@ async function loadMlmProducts(isRealtimeUpdate = false) {
         // Direct REST fallback (เฉพาะคอลัมน์ที่จำเป็น และ current_stock > 0)
         if (!data || data.length === 0) {
             try {
-                const selectCols = 'product_id,name,category,current_stock,price_full,price_member,price_promo,status';
+                const selectCols = 'product_id,name,category,current_stock,price_full,price_member,price_promo,status,image_url,base_product';
                 const restUrl = `${mlmSupabaseUrl}/rest/v1/stk_products?select=${selectCols}&current_stock=gt.0`;
                 const resp = await fetch(restUrl, {
                     headers: {
@@ -18138,6 +18166,17 @@ async function loadBills(forceReload = false) {
             deletedBills.includes('VIS-' + strId);
     };
 
+    const isBookingOrderBill = (b) => {
+        if (!b) return false;
+        const billId = String(b.bill_id || b.id || '').trim();
+        const note = String(b.note || b.payment_note || '').trim();
+        const symptom = String(b.symptom || '').trim();
+        if (billId.startsWith('BILL-1789') || note.includes('Booking/Order') || note.includes('ສັ່ງຊື້ຜ່ານລະບົບ') || symptom.includes('ສັ່ງຊື້ຢາ')) {
+            return true;
+        }
+        return false;
+    };
+
     // 1. ดึงข้อมูลจากตาราง bills และ visits ใน Supabase พร้อมกัน
     try {
         if (typeof _supabase !== 'undefined') {
@@ -18146,7 +18185,17 @@ async function loadBills(forceReload = false) {
                 _supabase.from('visits').select('*').order('created_at', { ascending: false })
             ]);
             if (bData && Array.isArray(bData)) {
-                billsList = bData.filter(b => !isDeleted(b.bill_id) && !isDeleted(b.visit_id) && !isDeleted(b.id)).map(b => {
+                // ลบคำสั่งซื้อ Order เก่าที่เคยหลุดเข้าตาราง bills ออกอัตโนมัติ
+                const staleOrderBillIds = bData.filter(isBookingOrderBill).map(b => b.bill_id).filter(Boolean);
+                if (staleOrderBillIds.length > 0) {
+                    try {
+                        _supabase.from('bills').delete().in('bill_id', staleOrderBillIds).then(() => {
+                            console.log('✅ Auto-cleaned booking order bills from bills table:', staleOrderBillIds);
+                        });
+                    } catch (e) { }
+                }
+
+                billsList = bData.filter(b => !isDeleted(b.bill_id) && !isDeleted(b.visit_id) && !isDeleted(b.id) && !isBookingOrderBill(b)).map(b => {
                     const labItems = (Array.isArray(b.items) ? b.items : []).filter(i => i && i.type !== 'med');
                     return { ...b, items: labItems };
                 });
@@ -18165,7 +18214,7 @@ async function loadBills(forceReload = false) {
         const localBills = JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]');
         if (Array.isArray(localBills) && localBills.length > 0) {
             localBills.forEach(lb => {
-                if (lb && (lb.bill_id || lb.visit_id) && !isDeleted(lb.bill_id) && !isDeleted(lb.visit_id)) {
+                if (lb && (lb.bill_id || lb.visit_id) && !isDeleted(lb.bill_id) && !isDeleted(lb.visit_id) && !isBookingOrderBill(lb)) {
                     const exists = billsList.some(b => b.bill_id === lb.bill_id || (lb.visit_id && b.visit_id === lb.visit_id));
                     if (!exists) billsList.push(lb);
                 }
@@ -18179,6 +18228,12 @@ async function loadBills(forceReload = false) {
         if (!v) return false;
         const vId = v.visit_id || v.id;
         if (isDeleted(vId) || isDeleted(`BILL-${String(vId).replace(/^VIS-/, '')}`)) return false;
+
+        // ไม่รวม Visit ที่มาจากการสั่งซื้อ Order ในระบบ Booking
+        const isOrderVisit = (v.symptom && (v.symptom.includes('ສັ່ງຊື້ຢາ') || v.symptom.includes('Booking/Order'))) ||
+            (v.note && (v.note.includes('Booking/Order') || v.note.includes('ສັ່ງຊື້ຜ່ານລະບົບ')));
+        if (isOrderVisit) return false;
+
         const st = (v.status || '').trim();
         const pSt = (v.payment_status || '').trim();
         if (st === 'ยกเลิก' || st === 'ຍົກເລີກ' || pSt === 'deleted' || pSt === 'cancelled' || pSt === 'unpaid') return false;
