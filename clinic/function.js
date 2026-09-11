@@ -12004,6 +12004,108 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
             }
         }
 
+        // 🌟 5. ฟังก์ชันค้นหาราคาสำหรับรายการที่ราคาเป็น 0 (Auto Price Resolver)
+        const resolveItemPrice = (item) => {
+            let p = Number(item.price || 0);
+            if (p > 0) return p;
+
+            const itemName = String(item.name || item.product_name || item.prod || '').trim();
+            if (!itemName) return 0;
+
+            let allProds = [];
+            if (Array.isArray(window.allMlmProducts) && window.allMlmProducts.length > 0) {
+                allProds = allProds.concat(window.allMlmProducts);
+            }
+            if (Array.isArray(window.DEFAULT_MLM_PRODUCTS)) {
+                allProds = allProds.concat(window.DEFAULT_MLM_PRODUCTS);
+            }
+            if (Array.isArray(window.allMedicines)) {
+                allProds = allProds.concat(window.allMedicines);
+            }
+            try {
+                const cachedMlm = JSON.parse(localStorage.getItem('mlm_stk_products_cache') || '[]');
+                if (Array.isArray(cachedMlm)) allProds = allProds.concat(cachedMlm);
+            } catch (e) { }
+
+            const cleanStr = (s) => String(s || '').replace(/\s*\(.*?\)/g, '').replace(/[^a-zA-Z0-9\u0E80-\u0EFF\u0E00-\u0E7F]/g, '').toLowerCase();
+            const normItem = cleanStr(itemName);
+            const itemTokens = itemName.toLowerCase().replace(/[^a-zA-Z0-9\u0E80-\u0EFF\u0E00-\u0E7F\s]/g, ' ').split(/\s+/).filter(w => w.length >= 3);
+
+            let match = null;
+
+            // 1. ค้นหาจาก id / code
+            if (item.id) {
+                const targetId = String(item.id).trim().toLowerCase();
+                match = allProds.find(pr => {
+                    if (!pr) return false;
+                    const prId = String(pr.id || pr.product_id || pr.code || '').trim().toLowerCase();
+                    return prId && prId === targetId;
+                });
+            }
+
+            // 2. ค้นหาจากชื่อตรงกันเป๊ะ
+            if (!match) {
+                const lowerItem = itemName.toLowerCase();
+                match = allProds.find(pr => {
+                    if (!pr) return false;
+                    const prName = String(pr.name || pr.product_name || '').trim().toLowerCase();
+                    return prName === lowerItem;
+                });
+            }
+
+            // 3. ค้นหาจากชื่อแบบ Normalized
+            if (!match && normItem) {
+                match = allProds.find(pr => {
+                    if (!pr) return false;
+                    const normPr = cleanStr(pr.name || pr.product_name);
+                    return normPr && (normPr === normItem || normPr.includes(normItem) || normItem.includes(normPr));
+                });
+            }
+
+            // 4. ค้นหาจากคำสำคัญ (tokens เช่น cordesta, zinc, collagen, oryza)
+            if (!match && itemTokens.length > 0) {
+                match = allProds.find(pr => {
+                    if (!pr) return false;
+                    const pStr = cleanStr(pr.name || pr.product_name);
+                    return itemTokens.some(tok => pStr.includes(tok));
+                });
+            }
+
+            if (match) {
+                const pNormal = Number(match.price_normal || match.price_full || match.price || 0);
+                const pMember = Number(match.price_member || match.price_high || Math.round(pNormal * 0.85));
+                const pPromo = Number(match.price_promo || Math.round(pNormal * 0.8));
+
+                const tier = String(item.tier || '').toLowerCase();
+                const tierName = String(item.tierName || item.priceType || item.type || '').toLowerCase();
+
+                if (tier === 'free' || tierName.includes('ແຖມ') || tierName.includes('ฟรี') || tierName.includes('ຟຣີ')) {
+                    return 0;
+                } else if (tier === 'promo' || tierName.includes('ໂປຣ') || tierName.includes('โปร')) {
+                    return pPromo || pNormal;
+                } else if (tier === 'high' || tierName.includes('ສະມາຊິກ') || tierName.includes('สมาชิก') || tierName.includes('ສົ່ງ') || tierName.includes('ส่ง')) {
+                    return pMember || pNormal;
+                } else {
+                    return pNormal || pMember;
+                }
+            }
+
+            return 0;
+        };
+
+        // ทำการคำนวณและดึงราคาของทุกรายการใน medsList ให้ถูกต้องสมบูรณ์
+        medsList.forEach(m => {
+            if (!m.price || Number(m.price) === 0) {
+                const resolved = resolveItemPrice(m);
+                if (resolved > 0) {
+                    m.price = resolved;
+                }
+            }
+            if (!m.total || Number(m.total) === 0) {
+                m.total = Number(m.price || 0) * Number(m.qty || 1);
+            }
+        });
+
         const renderMedsList = (medsList) => {
             if (Array.isArray(medsList) && medsList.length > 0) {
                 let rowsHtml = '';
@@ -12013,10 +12115,10 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
                     if (m.tier === 'promo' || tierText.includes('ໂປຣ') || tierText.includes('โปร')) {
                         tierText = 'ໂປຣໂມຊັ່ນ';
                         badgeClass = 'bg-warning-subtle text-warning-emphasis border border-warning';
-                    } else if (m.tier === 'high' || tierText.includes('ສະມາຊິກ') || tierText.includes('สมาชิก')) {
+                    } else if (m.tier === 'high' || tierText.includes('ສະມາຊິກ') || tierText.includes('สมาชิก') || tierText.includes('ສົ່ງ') || tierText.includes('ส่ง')) {
                         tierText = 'ສະມາຊິກ/ສົ່ງ';
                         badgeClass = 'bg-primary-subtle text-primary-emphasis border border-primary';
-                    } else if (m.tier === 'free' || tierText.includes('ແຖມ') || tierText.includes('ฟรี')) {
+                    } else if (m.tier === 'free' || tierText.includes('ແຖມ') || tierText.includes('ฟรี') || tierText.includes('ຟຣີ')) {
                         tierText = 'ແຖມຟຣີ';
                         badgeClass = 'bg-danger-subtle text-danger-emphasis border border-danger';
                     }
@@ -12030,17 +12132,26 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
                         ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size: 0.68rem;">STK MLM</span>'
                         : '<span class="badge bg-info-subtle text-info border border-info-subtle ms-1" style="font-size: 0.68rem;">ຄັງຢາ</span>';
 
+                    const unitPrice = Number(m.price || 0);
+                    const qty = Number(m.qty || 1);
+                    const lineTotal = Number(m.total || (unitPrice * qty));
+
+                    const unitPriceText = unitPrice > 0 ? unitPrice.toLocaleString('th-TH') + ' ฿' : '-';
+                    const lineTotalText = lineTotal > 0 ? lineTotal.toLocaleString('th-TH') + ' ฿' : '-';
+
                     rowsHtml += `
                         <tr>
                             <td class="ps-3 align-middle text-dark fw-medium">${cleanName} ${srcBadge}</td>
                             <td class="text-center align-middle"><span class="badge ${badgeClass}" style="font-size: 0.75rem;">${tierText}</span></td>
-                            <td class="text-center align-middle fw-bold text-primary">${m.qty || 1}</td>
+                            <td class="text-end align-middle text-muted small">${unitPriceText}</td>
+                            <td class="text-center align-middle fw-bold text-primary">${qty}</td>
+                            <td class="text-end pe-3 align-middle fw-semibold text-dark">${lineTotalText}</td>
                         </tr>
                     `;
                 });
                 medsTbody.innerHTML = rowsHtml;
             } else {
-                medsTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">ບໍ່ມີລາຍການຢາ/ອາຫານເສີມສັ່ງຈ່າຍ</td></tr>';
+                medsTbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">ບໍ່ມີລາຍການຢາ/ອາຫານເສີມສັ່ງຈ່າຍ</td></tr>';
             }
         };
         renderMedsList(medsList);
@@ -12089,6 +12200,24 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
                         if (b.note) noteText = b.note;
                     }
                 } catch (e) { }
+            }
+        }
+
+        // 🌟 ถ้ายอดเงินยังเป็น 0 ให้คำนวณจากรายการยา/อาหารเสริม (medsList) อัตโนมัติ
+        const medsTbodyRef = document.querySelector('#histMedsTable tbody') || document.querySelector('#histMedsTable');
+        if ((!grandTotal || grandTotal === 0) && medsTbodyRef) {
+            const trs = medsTbodyRef.querySelectorAll('tr');
+            let sumFromRows = 0;
+            trs.forEach(tr => {
+                const tdTotal = tr.querySelector('td:last-child');
+                if (tdTotal) {
+                    const num = parseFloat(tdTotal.innerText.replace(/[^\d.-]/g, '')) || 0;
+                    sumFromRows += num;
+                }
+            });
+            if (sumFromRows > 0) {
+                if (!subtotal || subtotal === 0) subtotal = sumFromRows;
+                grandTotal = Math.max(0, subtotal - discount);
             }
         }
 
