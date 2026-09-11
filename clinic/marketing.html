@@ -1789,30 +1789,36 @@
             }
 
             html, body {
+                height: 100%;
                 min-height: 100%;
                 background: var(--app-bg);
                 overflow-x: hidden;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
             }
 
             body, body.in-iframe {
-                padding: 76px 12px 96px !important;
+                padding: 74px 10px calc(86px + env(safe-area-inset-bottom, 10px)) 10px !important;
             }
 
             .desktop-page-header { display: none !important; }
 
             .mobile-app-header {
-                position: fixed;
-                inset: 0 0 auto 0;
-                height: 64px;
-                z-index: 1050;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                padding: 10px 14px;
-                background: rgba(255,255,255,.96);
-                border-bottom: 1px solid #e2e8f0;
-                box-shadow: 0 4px 18px rgba(15,23,42,.06);
-                backdrop-filter: blur(14px);
+                position: fixed !important;
+                inset: 0 0 auto 0 !important;
+                height: 60px !important;
+                z-index: 2400000 !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: space-between !important;
+                padding: 8px 14px !important;
+                background: rgba(255,255,255,.98) !important;
+                border-bottom: 1px solid #e2e8f0 !important;
+                box-shadow: 0 4px 18px rgba(15,23,42,.06) !important;
+                backdrop-filter: blur(14px) !important;
+                -webkit-backdrop-filter: blur(14px) !important;
+                transform: translateZ(0) !important;
+                -webkit-transform: translateZ(0) !important;
             }
 
             .mobile-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -2020,19 +2026,26 @@
             #content-history .table-modern td[colspan]::before { display: none; }
 
             .mobile-bottom-nav {
-                position: fixed;
-                inset: auto 10px 10px 10px;
+                position: fixed !important;
+                left: 10px !important;
+                right: 10px !important;
+                bottom: max(10px, env(safe-area-inset-bottom, 10px)) !important;
+                top: auto !important;
                 z-index: 2500000 !important;
-                height: 72px;
+                height: 70px;
                 display: grid !important;
                 grid-template-columns: repeat(4,1fr);
                 align-items: center;
-                padding: 7px;
-                border: 1px solid rgba(203,213,225,.8);
-                border-radius: 22px;
-                background: rgba(255,255,255,.96);
-                box-shadow: 0 14px 35px rgba(15,23,42,.18);
+                padding: 6px;
+                border: 1px solid rgba(203,213,225,.85);
+                border-radius: 20px;
+                background: rgba(255,255,255,.98);
+                box-shadow: 0 12px 32px rgba(15,23,42,.2);
                 backdrop-filter: blur(16px);
+                -webkit-backdrop-filter: blur(16px);
+                transform: translateZ(0) !important;
+                -webkit-transform: translateZ(0) !important;
+                pointer-events: auto !important;
             }
             .mobile-nav-btn {
                 height: 58px;
@@ -2070,8 +2083,15 @@
         }
 
         @media (max-width: 480px) {
-            body {
-                padding: 74px 9px 92px !important;
+            body, body.in-iframe {
+                padding: 72px 8px calc(86px + env(safe-area-inset-bottom, 10px)) 8px !important;
+            }
+
+            .mobile-bottom-nav {
+                left: 8px !important;
+                right: 8px !important;
+                bottom: max(8px, env(safe-area-inset-bottom, 8px)) !important;
+                height: 68px;
             }
 
             .step-title-text {
@@ -2642,7 +2662,10 @@
             style.textContent = `
                 body.in-iframe { background: #f8fafc !important; padding: 16px !important; }
                 @media (max-width: 767.98px) {
-                    body.in-iframe { background: #eef4f8 !important; padding: 76px 12px 96px !important; }
+                    body.in-iframe { background: #eef4f8 !important; padding: 74px 10px calc(86px + env(safe-area-inset-bottom, 10px)) 10px !important; }
+                }
+                @media (max-width: 480px) {
+                    body.in-iframe { padding: 72px 8px calc(86px + env(safe-area-inset-bottom, 10px)) 8px !important; }
                 }
             `;
             document.head.appendChild(style);
@@ -5583,8 +5606,8 @@
                     hn: hn,
                     patient_name: custName,
                     doctor_name: orderData.doctor_advice || orderData.closer_dr || 'ແພດປະຈຳຄລີນິກ',
-                    symptom: 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ' + (orderData.notes ? ` (${orderData.notes})` : ''),
-                    status: 'เสร็จสิ้น',
+                    symptom: 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ [Order]' + (orderData.notes ? ` (${orderData.notes})` : ''),
+                    status: 'ສັ່ງຊື້ສິນຄ້າ',
                     created_at: orderData.created_at || new Date().toISOString()
                 };
 
@@ -5702,7 +5725,7 @@
             );
 
             const hn = matchedPt && matchedPt.hn && matchedPt.hn !== '-' ? matchedPt.hn : ('HN-' + Math.floor(100000 + Math.random() * 900000));
-            const visit_id = 'VIS-' + Math.floor(100000 + Math.random() * 900000);
+            const visit_id = 'VIS-ORD-' + Date.now();
             const order_id = 'ORD-' + Date.now();
 
             // 1. 🌟 Payload ບັນທຶກລົງຕາຕະລາງ `stk_nutrient_orders` ໃນ Supabase MLM
@@ -5732,7 +5755,7 @@
                 village: village || null,
                 closer_dr: docAdvice || 'ແພດປະຈຳຄລີນິກ',
                 recorded_by: assistantAdvice || 'Staff',
-                symptom: 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ' + (notes ? ` (${notes})` : ''),
+                symptom: 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ [Order]' + (notes ? ` (${notes})` : ''),
                 date: orderDate,
                 status: 'รอดำเนินการ',
                 items_json: cleanItems,

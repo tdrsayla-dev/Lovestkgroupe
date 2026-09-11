@@ -440,6 +440,11 @@ function showPage(pageId, element) {
         }
     }
 
+    // 5.1 ควบคุมการล็อกหน้าจอสำหรับหน้า Booking บนมือถือ (ป้องกัน Double Scroll)
+    if (document.body) {
+        document.body.classList.toggle('page-is-booking', pageId === 'booking');
+    }
+
     // 6. ปิดเมนู Sidebar บนสมาร์ทโฟนเมื่อกดเลือกหน้า
     if (typeof closeMobileSidebar === 'function') closeMobileSidebar();
 
@@ -908,13 +913,15 @@ document.addEventListener("DOMContentLoaded", function () {
                     if (typeof _supabase !== 'undefined' && _supabase && orderData.visit_id) {
                         try {
                             const grandTotal = Number(orderData.grandTotal || orderData.total_amount || 0);
+                            const rawVId = String(orderData.visit_id || orderData.visitId || ('VIS-ORD-' + Date.now()));
+                            const cleanVId = rawVId.startsWith('VIS-ORD-') ? rawVId : ('VIS-ORD-' + rawVId.replace(/^VIS-/, ''));
                             const visitPayload = {
-                                visit_id: String(orderData.visit_id),
+                                visit_id: cleanVId,
                                 hn: orderData.hn ? String(orderData.hn) : null,
                                 patient_name: orderData.customer_name || orderData.patient_name,
                                 doctor_name: orderData.closer_dr || orderData.doctor_advice || 'ແພດປະຈຳຄລີນິກ',
-                                symptom: 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ' + (orderData.notes ? ` (${orderData.notes})` : (orderData.symptom ? ` (${orderData.symptom})` : '')),
-                                status: 'เสร็จสิ้น',
+                                symptom: 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ [Order]' + (orderData.notes ? ` (${orderData.notes})` : (orderData.symptom ? ` (${orderData.symptom})` : '')),
+                                status: 'ສັ່ງຊື້ສິນຄ້າ',
                                 created_at: orderData.created_at || new Date().toISOString()
                             };
                             // 1. บันทึกข้อมูลคนไข้ลง patients ก่อน เพื่อให้ตาราง visits และ bills อ้างอิง HN ได้อย่างสมบูรณ์ ไม่ติด Foreign Key 409
@@ -18169,11 +18176,27 @@ async function loadBills(forceReload = false) {
     const isBookingOrderBill = (b) => {
         if (!b) return false;
         const billId = String(b.bill_id || b.id || '').trim();
+        const visitId = String(b.visit_id || '').trim();
         const note = String(b.note || b.payment_note || '').trim();
         const symptom = String(b.symptom || '').trim();
-        if (billId.startsWith('BILL-1789') || note.includes('Booking/Order') || note.includes('ສັ່ງຊື້ຜ່ານລະບົບ') || symptom.includes('ສັ່ງຊື້ຢາ')) {
+        const combinedText = `${billId} ${visitId} ${note} ${symptom}`.toLowerCase();
+
+        // 1. ตรวจสอบรหัสที่ขึ้นต้นด้วย Order หรือ Timestamp รูปแบบต่างๆ
+        if (billId.includes('ORD') || visitId.startsWith('VIS-ORD') || /^BILL-\d{10,}/.test(billId) || billId.startsWith('BILL-178') || billId.startsWith('BILL-179')) {
             return true;
         }
+
+        // 2. ตรวจสอบคีย์เวิร์ด Order ทั้งภาษาลาว ไทย และอังกฤษ
+        const orderKeywords = ['booking', 'order', 'ສັ່ງຊື້', 'สั่งซื้อ', 'อาหารเสริม', 'ອາຫານເສີມ', 'nutrient', 'stk_'];
+        if (orderKeywords.some(k => combinedText.includes(k))) {
+            return true;
+        }
+
+        // 3. ตรวจสอบโครงสร้างสินค้า MLM Tier
+        if (Array.isArray(b.items) && b.items.some(i => i && (i.tier || i.tierName || i.priceType))) {
+            return true;
+        }
+
         return false;
     };
 
@@ -18209,15 +18232,15 @@ async function loadBills(forceReload = false) {
         console.warn('Load bills Supabase notice:', e);
     }
 
-    // 2. ดึงจาก Local Storage เพิ่มเติม
+    // 2. ดึงจาก Local Storage เพิ่มเติม (พร้อมทำความสะอาดแคช)
     try {
         const localBills = JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]');
         if (Array.isArray(localBills) && localBills.length > 0) {
-            localBills.forEach(lb => {
-                if (lb && (lb.bill_id || lb.visit_id) && !isDeleted(lb.bill_id) && !isDeleted(lb.visit_id) && !isBookingOrderBill(lb)) {
-                    const exists = billsList.some(b => b.bill_id === lb.bill_id || (lb.visit_id && b.visit_id === lb.visit_id));
-                    if (!exists) billsList.push(lb);
-                }
+            const cleanLocal = localBills.filter(lb => lb && (lb.bill_id || lb.visit_id) && !isDeleted(lb.bill_id) && !isDeleted(lb.visit_id) && !isBookingOrderBill(lb));
+            localStorage.setItem('clinic_bills_cache', JSON.stringify(cleanLocal));
+            cleanLocal.forEach(lb => {
+                const exists = billsList.some(b => b.bill_id === lb.bill_id || (lb.visit_id && b.visit_id === lb.visit_id));
+                if (!exists) billsList.push(lb);
             });
         }
     } catch (e) { }
@@ -18229,10 +18252,15 @@ async function loadBills(forceReload = false) {
         const vId = v.visit_id || v.id;
         if (isDeleted(vId) || isDeleted(`BILL-${String(vId).replace(/^VIS-/, '')}`)) return false;
 
-        // ไม่รวม Visit ที่มาจากการสั่งซื้อ Order ในระบบ Booking
-        const isOrderVisit = (v.symptom && (v.symptom.includes('ສັ່ງຊື້ຢາ') || v.symptom.includes('Booking/Order'))) ||
-            (v.note && (v.note.includes('Booking/Order') || v.note.includes('ສັ່ງຊື້ຜ່ານລະບົບ')));
-        if (isOrderVisit) return false;
+        // ไม่รวม Visit ที่มาจากการสั่งซื้อ Order ในระบบ Booking อย่างเด็ดขาด 100%
+        const vIdStr = String(vId || '');
+        const vSym = String(v.symptom || '').toLowerCase();
+        const vNote = String(v.note || v.payment_note || '').toLowerCase();
+        const vSt = (v.status || '').trim();
+
+        if (vIdStr.startsWith('VIS-ORD') || vSt === 'ສັ່ງຊື້ສິນຄ້າ' || vSt === 'Order' || vSt === 'ສັ່ງຊື້') return false;
+        if (vSym.includes('ສັ່ງຊື້') || vSym.includes('สั่งซื้อ') || vSym.includes('order') || vSym.includes('ອາຫານເສີມ') || vSym.includes('อาหารเสริม') || vSym.includes('nutrient')) return false;
+        if (vNote.includes('booking') || vNote.includes('order') || vNote.includes('ສັ່ງຊື້') || vNote.includes('สั่งซื้อ')) return false;
 
         const st = (v.status || '').trim();
         const pSt = (v.payment_status || '').trim();
