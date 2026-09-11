@@ -1119,6 +1119,68 @@
             background: #f8fafc;
         }
 
+        .order-qty-stepper {
+            display: inline-flex;
+            align-items: center;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            background: #ffffff;
+            height: 38px;
+            overflow: hidden;
+            flex-shrink: 0;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+        }
+
+        .order-qty-btn {
+            width: 32px;
+            height: 100%;
+            border: none;
+            background: #f1f5f9;
+            color: #334155;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.15s ease;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            padding: 0;
+        }
+
+        .order-qty-btn:hover {
+            background: #e2e8f0;
+            color: #0b3c73;
+        }
+
+        .order-qty-btn:active {
+            background: #cbd5e1;
+            transform: scale(0.95);
+        }
+
+        .order-qty-input {
+            width: 44px !important;
+            height: 100% !important;
+            border: none !important;
+            border-left: 1px solid #e2e8f0 !important;
+            border-right: 1px solid #e2e8f0 !important;
+            border-radius: 0 !important;
+            padding: 0 !important;
+            text-align: center !important;
+            font-weight: 700 !important;
+            font-size: 14px !important;
+            color: #0f172a !important;
+            background: #ffffff !important;
+            box-shadow: none !important;
+            -moz-appearance: textfield;
+        }
+
+        .order-qty-input::-webkit-outer-spin-button,
+        .order-qty-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
         .order-btn-add {
             background-color: #072b54;
             color: #ffffff;
@@ -1540,12 +1602,37 @@
 
             .order-catalog-selection {
                 display: grid !important;
-                grid-template-columns: minmax(0, 1fr) 70px;
+                grid-template-columns: minmax(0, 1fr) auto !important;
+                gap: 8px !important;
             }
 
-            .order-catalog-selection #orderPriceTier { max-width: none !important; width: 100% !important; }
-            .order-catalog-selection #orderItemQty { width: 100% !important; }
-            .order-catalog-selection .order-btn-add { grid-column: 1 / -1; }
+            .order-catalog-selection #orderPriceTier {
+                max-width: none !important;
+                width: 100% !important;
+                height: 42px !important;
+            }
+
+            .order-catalog-selection .order-qty-stepper {
+                height: 42px !important;
+                border-radius: 10px !important;
+            }
+
+            .order-catalog-selection .order-qty-btn {
+                width: 38px !important;
+                font-size: 16px !important;
+            }
+
+            .order-catalog-selection .order-qty-input {
+                width: 44px !important;
+                font-size: 15px !important;
+                height: 42px !important;
+            }
+
+            .order-catalog-selection .order-btn-add {
+                grid-column: 1 / -1 !important;
+                height: 42px !important;
+                border-radius: 10px !important;
+            }
 
             /* Selected order items become mobile cards so Delete is always visible */
             .order-table-container {
@@ -5214,6 +5301,34 @@
             }
         }
 
+        function changeOrderQty(delta) {
+            const qtyInput = document.getElementById('orderItemQty');
+            if (!qtyInput) return;
+            let current = parseInt(qtyInput.value, 10);
+            if (isNaN(current) || current < 1) current = 1;
+            let next = current + delta;
+            if (next < 1) next = 1;
+
+            // ກວດສອບບໍ່ໃຫ້ເກີນສະຕັອກສິນຄ້າ ຖ້າມີການເລືອກສິນຄ້າໄວ້
+            const select = document.getElementById('orderItemSelect');
+            if (select && select.value && typeof orderAvailableMedicines !== 'undefined') {
+                const med = orderAvailableMedicines.find(m => m.id === select.value);
+                if (med && med.stock > 0 && next > med.stock) {
+                    next = med.stock;
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'ຮອດຂີດຈຳກັດສະຕັອກ',
+                            text: `ສິນຄ້ານີ້ມີສະຕັອກພຽງ ${med.stock} ${med.unit}`,
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
+                    }
+                }
+            }
+            qtyInput.value = next;
+        }
+
         function addOrderItem() {
             const medSelect = document.getElementById('orderItemSelect');
             const tierSelect = document.getElementById('orderPriceTier');
@@ -6106,8 +6221,16 @@
                         <option value="promo">ລາຄາໂປຣ</option>
                         <option value="free">ແຖມຟຣີ (0 ฿)</option>
                     </select>
-                    <input type="number" id="orderItemQty" class="form-control order-input text-center"
-                        style="width: 65px; flex-shrink: 0;" value="1" min="1">
+                    <div class="order-qty-stepper">
+                        <button type="button" class="order-qty-btn" onclick="changeOrderQty(-1)" title="ຫຼຸດຈຳນວນ" aria-label="Decrease quantity">
+                            <i class="ph-bold ph-minus"></i>
+                        </button>
+                        <input type="number" id="orderItemQty" class="form-control order-input text-center order-qty-input"
+                            value="1" min="1" step="1" oninput="if(this.value && parseInt(this.value,10) < 1) this.value = 1;">
+                        <button type="button" class="order-qty-btn" onclick="changeOrderQty(1)" title="ເພີ່ມຈຳນວນ" aria-label="Increase quantity">
+                            <i class="ph-bold ph-plus"></i>
+                        </button>
+                    </div>
                     <button type="button" class="order-btn-add" onclick="addOrderItem()">
                         <i class="ph-bold ph-plus"></i> ເພີ່ມລາຍການ
                     </button>
