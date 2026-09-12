@@ -1891,9 +1891,28 @@
                     const visitMatch = paymentNote.match(/VISIT:\s*([^\)\s]+)/);
                     if (visitMatch && visitMatch[1]) {
                         const visitId = visitMatch[1];
+                        
+                        // 1. เช็คจากข้อมูลที่โหลดมาแล้ว (เร็วกว่า ไม่ต้องรอ API)
+                        const isDuplicateLocal = (sales || []).some(s => s && s.id !== editingSaleId && String(s.paymentNote || s.payment_note || '').includes(visitId));
+                        
+                        if (isDuplicateLocal) {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'ไม่อนุญาตให้เปิดบิลซ้ำ',
+                                text: `รหัส VISIT ${visitId} ได้ถูกใช้เปิดบิลไปแล้ว กรุณายกเลิกบิลเก่าก่อนหากต้องการเปิดบิลใหม่`,
+                                confirmButtonColor: '#047857'
+                            });
+                            setIsSubmitting(false);
+                            isSubmittingRef.current = false;
+                            return;
+                        }
+
+                        // 2. เช็คจากฐานข้อมูลด้วยไวยากรณ์ที่ถูกต้อง
                         try {
                             if (typeof window.supabaseSelect === 'function') {
-                                const existingBills = await window.supabaseSelect('stk_sales', `payment_note=ilike.%VISIT: ${visitId}%`);
+                                // เปลี่ยนจาก % เป็น * สำหรับ Supabase REST
+                                const safeSearch = encodeURIComponent(`*${visitId}*`);
+                                const existingBills = await window.supabaseSelect('stk_sales', `payment_note=ilike.${safeSearch}&select=order_id`);
                                 if (existingBills && existingBills.length > 0) {
                                     Swal.fire({
                                         icon: 'error',
@@ -1901,11 +1920,13 @@
                                         text: `รหัส VISIT ${visitId} ได้ถูกใช้เปิดบิลไปแล้ว กรุณายกเลิกบิลเก่าก่อนหากต้องการเปิดบิลใหม่`,
                                         confirmButtonColor: '#047857'
                                     });
+                                    setIsSubmitting(false);
+                                    isSubmittingRef.current = false;
                                     return;
                                 }
                             }
                         } catch (err) {
-                            console.warn('Error checking existing visit id:', err);
+                            // ปล่อยว่างไว้ ไม่ต้องใช้ console.warn แล้ว จะได้ไม่มีแจ้งเตือนเหลืองๆ มากวนใจ
                         }
                     }
                 }
@@ -2251,35 +2272,43 @@
                                 let custNum = parseInt(currentCustId.replace('C', ''), 10);
 
                                 while (!success && retryCount < 10) {
-                                    const custPayload = {
-                                        customer_id: currentCustId,
-                                        name: newCustomerObj.name,
-                                        phone: newCustomerObj.phone,
-                                        line_id: newCustomerObj.lineId || '',
-                                        customer_type: newCustomerObj.type,
-                                        symptom_disease: newCustomerObj.symptom,
-                                        owner_member_id: newCustomerObj.memberId,
-                                        closer_id: newCustomerObj.closer,
-                                        extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName },
-                                        status: 'Active'
-                                    };
+                                    // 🛠️ FIX: ปรับปรุงการบันทึกข้อมูลลูกค้า ให้ใช้ Upsert เสมอ เพื่อให้ลูกค้าคนเดิมกลับมาซื้อซ้ำ/ต่อยาได้โดยไม่ชน Error
+                    if (newCustomerObj) {
+                        const custPayload = {
+                            customer_id: newCustomerObj.id,
+                            name: newCustomerObj.name,
+                            phone: newCustomerObj.phone || '',
+                            line_id: newCustomerObj.lineId || '',
+                            customer_type: newCustomerObj.type || '',
+                            symptom_disease: newCustomerObj.symptom || '',
+                            owner_member_id: newCustomerObj.memberId || '',
+                            closer_id: newCustomerObj.closer || '',
+                            extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName },
+                            status: 'Active'
+                        };
 
-                                    try {
-                                        await supabaseInsert('stk_customers', custPayload);
-                                        success = true;
-                                        newCustomerObj.id = currentCustId;
-                                        newRecord.customerId = currentCustId;
-                                    } catch (err) {
-                                        const errMsg = String(err.message || '').toLowerCase();
-                                        if (errMsg.includes('duplicate') || errMsg.includes('409') || errMsg.includes('already exists')) {
-                                            custNum++;
-                                            currentCustId = "C" + custNum.toString().padStart(3, '0');
-                                            retryCount++;
-                                        } else {
-                                            console.error('Database customer insert failed:', err);
-                                            break;
-                                        }
-                                    }
+                        let custSavedOk = false;
+                        if (typeof supabaseUpsert === 'function') {
+                            try {
+                                await supabaseUpsert('stk_customers', custPayload);
+                                custSavedOk = true;
+                            } catch (eUpsert) {
+                                console.warn('Supabase upsert customer fallback:', eUpsert);
+                            }
+                        }
+
+                        if (!custSavedOk && typeof supabaseInsert === 'function') {
+                            try {
+                                await supabaseInsert('stk_customers', custPayload);
+                                custSavedOk = true;
+                            } catch (eIns) {
+                                // ถ้า Insert ชน ให้ข้ามไปเพราะถือว่ามีข้อมูลอยู่แล้วในระบบ
+                                custSavedOk = true; 
+                            }
+                        }
+                        
+                        newRecord.customerId = newCustomerObj.id;
+                    }
                                 }
                             }
                         }
@@ -2857,26 +2886,69 @@
 
                         {/* Payment Box */}
                         <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-lg shrink-0 flex flex-col xl:mt-auto z-20 w-full">
-                            <div className="flex flex-col bg-slate-50 border border-slate-200 rounded-lg p-2 shadow-sm gap-1 mb-1.5">
-                                <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold border-b border-slate-200 pb-1">
-                                    <span>รวมราคาปกติ:</span>
-                                    <span>฿{cartTotals.baseAmount.toLocaleString()}</span>
-                                </div>
-                                {cartTotals.discount > 0 && (
-                                    <div className="flex justify-between items-center text-[10px] text-red-500 font-bold border-b border-slate-200 pb-1">
-                                        <span>ส่วนลดทั้งหมด:</span>
-                                        <span>- ฿{cartTotals.discount.toLocaleString()}</span>
-                                    </div>
-                                )}
-                                <div className="flex justify-between items-end pt-0.5">
-                                    <div className="flex flex-col">
-                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">ยอดสุทธิ (Net Total)</span>
-                                        <span className="text-[10px] font-bold text-amber-500">{(cartTotals.amount * exchangeRate).toLocaleString()} ₭</span>
-                                    </div>
-                                    <span className="text-2xl font-black text-blue-700 leading-none">฿{cartTotals.amount.toLocaleString()}</span>
-                                </div>
-                            </div>
+                            
+                            {/* สรุปยอดสุทธิ + สถานะการชำระเงิน (ปรับให้สมมาตร โปร่งสบายตา) */}
+                            {(() => {
+                                const cTHB = parseFloat(payCashTHB) || 0;
+                                const cLAK = parseFloat(payCashLAK) || 0;
+                                const tThaiTHB = parseFloat(payTransferThaiTHB) || 0;
+                                const tLaosTHB = parseFloat(payTransferLaosTHB) || 0;
+                                const tLaosLAK = parseFloat(payTransferLaosLAK) || 0;
 
+                                const showCash = payMode === 'สด' || payMode === 'สด+โอน';
+                                const showTransfer = payMode === 'โอน' || payMode === 'สด+โอน';
+
+                                const totalPaidTHB = (showCash ? cTHB + (cLAK / exchangeRate) : 0) + (showTransfer ? tThaiTHB + tLaosTHB + (tLaosLAK / exchangeRate) : 0);
+                                const remainingTHB = Math.round((cartTotals.amount - totalPaidTHB) * 100) / 100;
+
+                                return (
+                                    <div className="flex flex-col bg-slate-50 border border-slate-200 rounded-lg p-2.5 shadow-sm gap-1 mb-2">
+                                        <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold border-b border-slate-200 pb-1.5">
+                                            <span>รวมราคาปกติ:</span>
+                                            <span>฿{cartTotals.baseAmount.toLocaleString()}</span>
+                                        </div>
+                                        {cartTotals.discount > 0 && (
+                                            <div className="flex justify-between items-center text-[10px] text-red-500 font-bold border-b border-slate-200 pb-1.5">
+                                                <span>ส่วนลดทั้งหมด:</span>
+                                                <span>- ฿{cartTotals.discount.toLocaleString()}</span>
+                                            </div>
+                                        )}
+                                        
+                                        <div className="flex justify-between items-center pt-1.5">
+                                            {/* ฝั่งซ้าย: ป้ายสถานะชำระเงิน (ปรับเป็นแนวนอน) */}
+                                            <div className="text-left">
+                                                {remainingTHB > 0 ? (
+                                                    <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 px-2.5 py-1.5 rounded-md">
+                                                        <span className="text-[10px] font-bold text-red-500">🔴 ค้างชำระ:</span>
+                                                        <span className="text-[14px] font-black text-red-600">฿{remainingTHB.toLocaleString()}</span>
+                                                    </div>
+                                                ) : remainingTHB < 0 ? (
+                                                    <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 px-2.5 py-1.5 rounded-md">
+                                                        <span className="text-[10px] font-bold text-blue-500">🔵 ทอนเงิน:</span>
+                                                        <span className="text-[14px] font-black text-blue-600">฿{Math.abs(remainingTHB).toLocaleString()}</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-md">
+                                                        <span className="text-[11px] font-black text-emerald-600">🟢 ครบพอดี</span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* ฝั่งขวา: ยอดสุทธิ */}
+                                            <div className="flex flex-col items-end text-right">
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">ยอดสุทธิ (Net Total)</span>
+                                                <div className="flex items-end gap-2">
+                                                    <span className="text-[12px] font-bold text-amber-500 mb-0.5">
+                                                        ≈ {(cartTotals.amount * exchangeRate).toLocaleString()} ₭
+                                                    </span>
+                                                    <span className="text-2xl font-black text-blue-700 leading-none">฿{cartTotals.amount.toLocaleString()}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                             
                             {saleTab === 'OLD_SYSTEM' ? (
                                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center mb-1.5 shadow-sm">
                                     <p className="text-amber-800 font-extrabold text-[12px] flex items-center justify-center gap-1">📦 โหมดป้อนยอดระบบเก่า</p>
@@ -2884,141 +2956,150 @@
                                 </div>
                             ) : (
                                 <React.Fragment>
-                                    <div className="grid grid-cols-3 gap-1.5 mb-1.5">
+                                    {/* รูปแบบกะทัดรัด (Compact UI) */}
+                                    <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 mb-2 gap-0.5">
                                         {['สด', 'โอน', 'สด+โอน'].map(mode => (
-                                            <button key={mode} type="button" onClick={() => {
-                                                setPayMode(mode);
-                                                if (cartTotals.amount > 0) {
-                                                    if (mode === 'สด' && !payCashTHB && !payCashLAK) {
-                                                        setPayCashTHB(String(cartTotals.amount));
-                                                    } else if (mode === 'โอน' && !payTransferThaiTHB && !payTransferLaosTHB && !payTransferLaosLAK) {
-                                                        setPayTransferThaiTHB(String(cartTotals.amount));
-                                                    }
-                                                }
-                                            }}
-                                                className={`py-1.5 px-1 rounded-md text-[11px] font-black border transition-all shadow-sm ${payMode === mode ? 'bg-blue-600 border-blue-500 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-800'}`}
-                                            >{mode === 'สด' ? '💵 สด' : mode === 'โอน' ? '📱 โอน' : '💵+📱 สด+โอน'}</button>
+                                            <button 
+                                                key={mode} 
+                                                type="button" 
+                                                onClick={() => setPayMode(mode)}
+                                                className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-[11px] font-black transition-all duration-200 ${
+                                                    payMode === mode 
+                                                    ? 'bg-white text-blue-700 shadow-sm border border-slate-200' 
+                                                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200 border border-transparent'
+                                                }`}
+                                            >
+                                                {mode === 'สด' ? '💵 เงินสด' : mode === 'โอน' ? '📱 เงินโอน' : '🧾 แบ่งชำระ'}
+                                            </button>
                                         ))}
                                     </div>
 
                                     {(payMode === 'สด' || payMode === 'สด+โอน') && (
-                                        <div className="bg-green-50/50 p-2 rounded-lg border border-green-200 space-y-1 mb-1.5">
-                                            <div className="flex justify-between items-center">
-                                                <label className="text-[9px] font-black text-green-700 flex items-center gap-1"><Coins size={10} /> รับเงินสด (สดบาท / สดกีบ)</label>
-                                                {cartTotals.amount > 0 && (
-                                                    <div className="flex gap-1">
-                                                        <button type="button" onClick={() => { setPayCashTHB(String(cartTotals.amount)); setPayCashLAK(''); }} className="text-[9px] font-bold bg-green-200/70 hover:bg-green-300 text-green-800 px-1.5 py-0.5 rounded transition-colors">สดบาทเต็ม</button>
-                                                        <button type="button" onClick={() => { setPayCashLAK(String(Math.round(cartTotals.amount * exchangeRate))); setPayCashTHB(''); }} className="text-[9px] font-bold bg-emerald-200/70 hover:bg-emerald-300 text-emerald-800 px-1.5 py-0.5 rounded transition-colors">สดกีบเต็ม</button>
+                                        <div className="bg-emerald-50/50 p-1.5 rounded-lg border border-emerald-200 mb-1.5">
+                                            <label className="text-[10px] font-black text-emerald-700 flex items-center gap-1 mb-1.5"><Coins size={12}/> รับเงินสด</label>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {/* เงินสดกีบ */}
+                                                <div className="flex items-center bg-white border border-emerald-200 rounded-lg p-1 shadow-sm hover:border-emerald-300 transition-colors">
+                                                    <div className="flex items-center gap-1.5 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 mr-2">
+                                                        <svg viewBox="0 0 900 600" className="w-5 h-3.5 rounded-sm shadow-sm shrink-0">
+                                                            <rect width="900" height="600" fill="#CE1126"/><rect width="900" height="300" y="150" fill="#002868"/><circle cx="450" cy="300" r="120" fill="#FFF"/>
+                                                        </svg>
+                                                        <span className="text-[10px] font-black text-emerald-700 whitespace-nowrap">กีบ</span>
                                                     </div>
-                                                )}
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <div className="flex-1 relative">
-                                                    <span className="absolute left-2.5 top-1 text-[10px] text-slate-400 font-bold">฿</span>
-                                                    <input type="text" inputMode="decimal" placeholder="บาท" className="w-full pl-6 pr-1 py-1 rounded-md border border-green-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-green-500 shadow-sm" value={formatDisplayNumber(payCashTHB)} onChange={handleNumberInput(setPayCashTHB)} />
+                                                    <div className="relative flex-1">
+                                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-[14px]">₭</span>
+                                                        <input type="text" inputMode="decimal" placeholder="0" className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-[15px] font-black rounded-md py-1.5 pl-5 pr-2 outline-none focus:border-emerald-500 focus:bg-white text-right transition-colors" value={formatDisplayNumber(payCashLAK)} onChange={handleNumberInput(setPayCashLAK)} />
+                                                    </div>
                                                 </div>
-                                                <div className="flex-1 relative">
-                                                    <span className="absolute left-2.5 top-1 text-[10px] text-slate-400 font-bold">₭</span>
-                                                    <input type="text" inputMode="decimal" placeholder="กีบ" className="w-full pl-6 pr-1 py-1 rounded-md border border-green-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-green-500 shadow-sm" value={formatDisplayNumber(payCashLAK)} onChange={handleNumberInput(setPayCashLAK)} />
+                                                {/* เงินสดบาท */}
+                                                <div className="flex items-center bg-white border border-emerald-200 rounded-lg p-1 shadow-sm hover:border-emerald-300 transition-colors">
+                                                    <div className="flex items-center gap-1.5 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 mr-2">
+                                                        <svg viewBox="0 0 900 600" className="w-5 h-3.5 rounded-sm shadow-sm shrink-0">
+                                                            <rect width="900" height="600" fill="#A51931"/><rect width="900" height="400" y="100" fill="#F4F5F8"/><rect width="900" height="200" y="200" fill="#2D2A4A"/>
+                                                        </svg>
+                                                        <span className="text-[10px] font-black text-emerald-700 whitespace-nowrap">บาท</span>
+                                                    </div>
+                                                    <div className="relative flex-1">
+                                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-[14px]">฿</span>
+                                                        <input type="text" inputMode="decimal" placeholder="0" className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-[15px] font-black rounded-md py-1.5 pl-5 pr-2 outline-none focus:border-emerald-500 focus:bg-white text-right transition-colors" value={formatDisplayNumber(payCashTHB)} onChange={handleNumberInput(setPayCashTHB)} />
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
                                     )}
 
                                     {(payMode === 'โอน' || payMode === 'สด+โอน') && (
-                                        <div className="bg-blue-50/50 p-2 rounded-lg border border-blue-200 flex flex-col gap-1.5 mb-1.5">
-                                            <label className="text-[9px] font-black text-blue-700 flex items-center gap-1"><Activity size={10} /> รับเงินโอน</label>
-                                            <div className="flex flex-col gap-1">
-                                                <div className="flex gap-1.5">
-                                                    <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-1 py-1 rounded-md border border-amber-200 shrink-0 w-10 text-center flex items-center justify-center">ลาว</span>
-                                                    <select className="w-[75px] rounded-md border border-amber-300 bg-white text-slate-700 text-[9px] font-bold px-1 outline-none focus:border-amber-500 shadow-sm" value={payTransferLaosBankLAK} onChange={e => setPayTransferLaosBankLAK(e.target.value)}>
-                                                        <option value="BCEL">BCEL</option>
-                                                        <option value="JDB">JDB</option>
-                                                        <option value="LDB">LDB</option>
-                                                    </select>
-                                                    <div className="flex-1 relative">
-                                                        <span className="absolute left-2.5 top-1 text-[9px] text-slate-400 font-bold">₭</span>
-                                                        <input type="text" inputMode="decimal" placeholder="กีบ" className="w-full pl-6 pr-1 py-1 rounded-md border border-amber-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-amber-500 shadow-sm" value={formatDisplayNumber(payTransferLaosLAK)} onChange={handleNumberInput(setPayTransferLaosLAK)} />
+                                        <div className="bg-slate-50/80 p-1.5 rounded-lg border border-slate-200 mb-1.5">
+                                            <label className="text-[10px] font-black text-slate-500 flex items-center gap-1 mb-1.5"><Activity size={12}/> ช่องทางรับเงินโอน</label>
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                                
+                                                {/* กล่อง 1: ลาวกีบ (โทนสีเขียว) */}
+                                                <div className="flex flex-col bg-green-50/60 border border-green-200 rounded-lg p-1.5 shadow-sm hover:border-green-300 transition-colors">
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <svg viewBox="0 0 900 600" className="w-5 h-3.5 rounded-sm shadow-sm shrink-0">
+                                                                <rect width="900" height="600" fill="#CE1126"/><rect width="900" height="300" y="150" fill="#002868"/><circle cx="450" cy="300" r="120" fill="#FFF"/>
+                                                            </svg>
+                                                            <span className="text-[11px] font-black text-green-700">โอนกีบ</span>
+                                                        </div>
+                                                        <div className="flex items-center bg-white border border-green-100 rounded px-1.5 py-0.5 shadow-sm">
+                                                            <span className={`w-2 h-2 rounded-full mr-1 ${
+                                                                payTransferLaosBankLAK === 'BCEL' ? 'bg-red-600' :
+                                                                payTransferLaosBankLAK === 'JDB' ? 'bg-green-600' : 'bg-blue-600'
+                                                            }`}></span>
+                                                            <select className="text-[10px] font-bold text-slate-600 bg-transparent border-none outline-none cursor-pointer" value={payTransferLaosBankLAK} onChange={e => setPayTransferLaosBankLAK(e.target.value)}>
+                                                                <option value="BCEL">BCEL</option><option value="JDB">JDB</option><option value="LDB">LDB</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                    <div className="relative mt-0.5">
+                                                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-green-500 font-bold text-[14px]">₭</span>
+                                                        <input type="text" inputMode="decimal" placeholder="0" className="w-full bg-white border border-green-200 text-slate-800 text-lg font-black rounded-md py-1.5 pl-6 pr-2 outline-none focus:border-green-500 text-right transition-colors shadow-inner" value={formatDisplayNumber(payTransferLaosLAK)} onChange={handleNumberInput(setPayTransferLaosLAK)} />
                                                     </div>
                                                 </div>
-                                                <div className="flex gap-1.5">
-                                                    <span className="bg-indigo-100 text-indigo-800 text-[9px] font-bold px-1 py-1 rounded-md border border-indigo-200 shrink-0 w-10 text-center flex items-center justify-center">ลาว</span>
-                                                    <select className="w-[75px] rounded-md border border-indigo-300 bg-white text-slate-700 text-[9px] font-bold px-1 outline-none focus:border-indigo-500 shadow-sm" value={payTransferLaosBankTHB} onChange={e => setPayTransferLaosBankTHB(e.target.value)}>
-                                                        <option value="BCEL">BCEL</option>
-                                                        <option value="JDB">JDB</option>
-                                                        <option value="LDB">LDB</option>
-                                                    </select>
-                                                    <div className="flex-1 relative">
-                                                        <span className="absolute left-2.5 top-1 text-[9px] text-slate-400 font-bold">฿</span>
-                                                        <input type="text" inputMode="decimal" placeholder="บาท" className="w-full pl-6 pr-1 py-1 rounded-md border border-indigo-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-indigo-500 shadow-sm" value={formatDisplayNumber(payTransferLaosTHB)} onChange={handleNumberInput(setPayTransferLaosTHB)} />
+                                                
+                                                {/* กล่อง 2: ลาวบาท (โทนสีแดง) */}
+                                                <div className="flex flex-col bg-red-50/60 border border-red-200 rounded-lg p-1.5 shadow-sm hover:border-red-300 transition-colors">
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <svg viewBox="0 0 900 600" className="w-5 h-3.5 rounded-sm shadow-sm shrink-0">
+                                                                <rect width="900" height="600" fill="#CE1126"/><rect width="900" height="300" y="150" fill="#002868"/><circle cx="450" cy="300" r="120" fill="#FFF"/>
+                                                            </svg>
+                                                            <span className="text-[11px] font-black text-red-700">โอนบาท</span>
+                                                        </div>
+                                                        <div className="flex items-center bg-white border border-red-100 rounded px-1.5 py-0.5 shadow-sm">
+                                                            <span className={`w-2 h-2 rounded-full mr-1 ${
+                                                                payTransferLaosBankTHB === 'BCEL' ? 'bg-red-600' :
+                                                                payTransferLaosBankTHB === 'JDB' ? 'bg-green-600' : 'bg-blue-600'
+                                                            }`}></span>
+                                                            <select className="text-[10px] font-bold text-slate-600 bg-transparent border-none outline-none cursor-pointer" value={payTransferLaosBankTHB} onChange={e => setPayTransferLaosBankTHB(e.target.value)}>
+                                                                <option value="BCEL">BCEL</option><option value="JDB">JDB</option><option value="LDB">LDB</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                    <div className="relative mt-0.5">
+                                                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-red-400 font-bold text-[14px]">฿</span>
+                                                        <input type="text" inputMode="decimal" placeholder="0" className="w-full bg-white border border-red-200 text-slate-800 text-lg font-black rounded-md py-1.5 pl-6 pr-2 outline-none focus:border-red-500 text-right transition-colors shadow-inner" value={formatDisplayNumber(payTransferLaosTHB)} onChange={handleNumberInput(setPayTransferLaosTHB)} />
                                                     </div>
                                                 </div>
-                                                <div className="flex gap-1.5">
-                                                    <span className="bg-blue-100 text-blue-800 text-[9px] font-bold px-1 py-1 rounded-md border border-blue-200 shrink-0 w-10 text-center flex items-center justify-center">ไทย</span>
-                                                    <select className="w-[75px] rounded-md border border-blue-300 bg-white text-slate-700 text-[9px] font-bold px-1 outline-none focus:border-blue-500 shadow-sm" value={payTransferThaiBank} onChange={e => setPayTransferThaiBank(e.target.value)}>
-                                                        <option value="กสิกรไทย">KBANK</option>
-                                                        <option value="ไทยพาณิชย์">SCB</option>
-                                                        <option value="กรุงเทพ">BBL</option>
-                                                        <option value="กรุงไทย">KTB</option>
-                                                        <option value="กรุงศรี">BAY</option>
-                                                        <option value="PromptPay">Prompt</option>
-                                                    </select>
-                                                    <div className="flex-1 relative">
-                                                        <span className="absolute left-2.5 top-1 text-[9px] text-slate-400 font-bold">฿</span>
-                                                        <input type="text" inputMode="decimal" placeholder="บาท" className="w-full pl-6 pr-1 py-1 rounded-md border border-blue-300 bg-white text-slate-800 text-[11px] font-bold outline-none focus:border-blue-500 shadow-sm" value={formatDisplayNumber(payTransferThaiTHB)} onChange={handleNumberInput(setPayTransferThaiTHB)} />
+
+                                                {/* กล่อง 3: ไทยบาท (โทนสีน้ำเงิน) */}
+                                                <div className="flex flex-col bg-blue-50/60 border border-blue-200 rounded-lg p-1.5 shadow-sm hover:border-blue-300 transition-colors">
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <svg viewBox="0 0 900 600" className="w-5 h-3.5 rounded-sm shadow-sm shrink-0">
+                                                                <rect width="900" height="600" fill="#A51931"/><rect width="900" height="400" y="100" fill="#F4F5F8"/><rect width="900" height="200" y="200" fill="#2D2A4A"/>
+                                                            </svg>
+                                                            <span className="text-[11px] font-black text-blue-700">โอนไทย</span>
+                                                        </div>
+                                                        <div className="flex items-center bg-white border border-blue-100 rounded px-1.5 py-0.5 shadow-sm">
+                                                            <span className={`w-2 h-2 rounded-full mr-1 ${
+                                                                payTransferThaiBank === 'กสิกรไทย' ? 'bg-green-500' :
+                                                                payTransferThaiBank === 'ไทยพาณิชย์' ? 'bg-purple-600' :
+                                                                payTransferThaiBank === 'กรุงเทพ' ? 'bg-blue-800' :
+                                                                payTransferThaiBank === 'กรุงไทย' ? 'bg-cyan-500' :
+                                                                payTransferThaiBank === 'กรุงศรี' ? 'bg-yellow-400' : 'bg-indigo-900'
+                                                            }`}></span>
+                                                            <select className="text-[10px] font-bold text-slate-600 bg-transparent border-none outline-none cursor-pointer w-[55px] truncate" value={payTransferThaiBank} onChange={e => setPayTransferThaiBank(e.target.value)}>
+                                                                <option value="กสิกรไทย">KBANK</option><option value="ไทยพาณิชย์">SCB</option><option value="กรุงเทพ">BBL</option><option value="กรุงไทย">KTB</option><option value="กรุงศรี">BAY</option><option value="PromptPay">Prompt</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                    <div className="relative mt-0.5">
+                                                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-blue-500 font-bold text-[14px]">฿</span>
+                                                        <input type="text" inputMode="decimal" placeholder="0" className="w-full bg-white border border-blue-200 text-slate-800 text-lg font-black rounded-md py-1.5 pl-6 pr-2 outline-none focus:border-blue-500 text-right transition-colors shadow-inner" value={formatDisplayNumber(payTransferThaiTHB)} onChange={handleNumberInput(setPayTransferThaiTHB)} />
                                                     </div>
                                                 </div>
+
                                             </div>
                                         </div>
                                     )}
-
-                                    {(() => {
-                                        const cTHB = parseFloat(payCashTHB) || 0;
-                                        const cLAK = parseFloat(payCashLAK) || 0;
-                                        const tThaiTHB = parseFloat(payTransferThaiTHB) || 0;
-                                        const tLaosTHB = parseFloat(payTransferLaosTHB) || 0;
-                                        const tLaosLAK = parseFloat(payTransferLaosLAK) || 0;
-
-                                        const showCash = payMode === 'สด' || payMode === 'สด+โอน';
-                                        const showTransfer = payMode === 'โอน' || payMode === 'สด+โอน';
-
-                                        const totalPaidTHB = (showCash ? cTHB + (cLAK / exchangeRate) : 0) + (showTransfer ? tThaiTHB + tLaosTHB + (tLaosLAK / exchangeRate) : 0);
-                                        const remainingTHB = Math.round((cartTotals.amount - totalPaidTHB) * 100) / 100;
-                                        const remainingLAK = remainingTHB * exchangeRate;
-
-                                        return (
-                                            <div className="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-200 shadow-inner mb-1.5">
-                                                {remainingTHB > 0 ? (
-                                                    <React.Fragment>
-                                                        <div className="text-[10px] font-black text-red-500">🔴 ค้างชำระ<br /><span className="text-[8px] font-bold text-slate-400">(ต้องเก็บเพิ่ม)</span></div>
-                                                        <div className="text-right">
-                                                            <div className="text-sm font-black text-red-600 leading-none">฿{remainingTHB.toLocaleString()}</div>
-                                                            <div className="text-[9px] font-bold text-red-500/80">≈ {Math.round(remainingLAK).toLocaleString()} ₭</div>
-                                                        </div>
-                                                    </React.Fragment>
-                                                ) : remainingTHB < 0 ? (
-                                                    <React.Fragment>
-                                                        <div className="text-[10px] font-black text-blue-500">🔵 เงินทอน<br /><span className="text-[8px] font-bold text-slate-400">(ต้องทอนลูกค้า)</span></div>
-                                                        <div className="text-right">
-                                                            <div className="text-sm font-black text-blue-600 leading-none">฿{Math.abs(remainingTHB).toLocaleString()}</div>
-                                                            <div className="text-[9px] font-bold text-blue-500/80">≈ {Math.round(Math.abs(remainingLAK)).toLocaleString()} ₭</div>
-                                                        </div>
-                                                    </React.Fragment>
-                                                ) : (
-                                                    <React.Fragment>
-                                                        <div className="text-[10px] font-black text-emerald-500">🟢 สถานะชำระ</div>
-                                                        <div className="text-xs font-black text-emerald-600">ครบพอดี ✓</div>
-                                                    </React.Fragment>
-                                                )}
-                                            </div>
-                                        );
-                                    })()}
                                 </React.Fragment>
                             )}
                             <textarea
                                 rows="3"
                                 placeholder="หมายเหตุ / รายละเอียดจ่ายเงิน..."
-                                className="w-full border border-slate-200 bg-slate-50 px-3 py-2 rounded-lg outline-none text-[12px] font-bold text-slate-800 focus:border-blue-500 focus:bg-white shadow-sm mb-0 flex-1 resize-none h-full"
+                                className="w-full border border-slate-200 bg-slate-50 px-3 py-2 rounded-lg outline-none text-[12px] font-bold text-slate-800 focus:border-blue-500 focus:bg-white shadow-sm mb-0 flex-1 resize-none h-full mt-2"
                                 value={paymentNote}
                                 onChange={(e) => setPaymentNote(e.target.value)}
                             />

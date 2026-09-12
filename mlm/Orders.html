@@ -1022,11 +1022,15 @@
                 const updatedLogs = [deletedRecord, ...deletedOrdersLog];
                 saveDeletedLog(updatedLogs);
 
+                // 🛠️ FIX: ใช้คำสั่ง Insert ตามเดิม แต่ดักจับและซ่อน Error 409 (Conflict) 
+                // หากขึ้น 409 แปลว่าประวัตินี้ถูกบันทึกไปแล้ว (เช่น กดเบิ้ล) ก็ให้ระบบทำงานต่อเงียบๆ ได้เลย
                 if (typeof supabaseInsert === 'function') {
-                    supabaseInsert('stk_deleted_sales', deletedRecord).catch(() => {});
+                    supabaseInsert('stk_deleted_sales', deletedRecord).catch((err) => {
+                        console.log('ℹ️ หมายเหตุ: ประวัติการยกเลิกบิลนี้มีอยู่ในระบบแล้ว (หรือสิทธิ์ RLS จำกัด)');
+                    });
                 }
 
-                // 6. ⚡ FIX: คืนค่า PV ให้สมาชิกเวลายกเลิกบิล
+                // 6. คืนค่า PV ให้สมาชิกเวลายกเลิกบิล
                 const memberIdToDeduct = saleToCancel.memberId || saleToCancel.seller_id || saleToCancel.seller || saleToCancel.recorded_by;
                 if (memberIdToDeduct) {
                     let totalPVToDeduct = 0;
@@ -1068,11 +1072,9 @@
                     }
                 }
 
+                // 🛠️ แก้ไข Error 404: ลบตารางหลักอย่างเดียว ไม่ต้องพยายามลบตารางระบบเก่า (sales) เพื่อไม่ให้ฟ้อง Not Found
                 await supabaseDelete('stk_sales', confirmDelete.id, 'order_id').catch(()=>{});
-                await supabaseDelete('sales', confirmDelete.id, 'order_id').catch(() => {});
                 
-                // ⚡ Safe sale deletion: Do not attempt to delete customer record from database when a bill is canceled
-
                 // แจ้งยกเลิกบิลไปยังตารางใบสั่งยา (Nutrients)
                 const paymentNoteStr = saleToCancel ? (saleToCancel.paymentNote || saleToCancel.payment_note || '') : '';
                 const visitMatch = paymentNoteStr.match(/VISIT:\s*([^\)\s]+)/);

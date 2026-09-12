@@ -28,7 +28,6 @@
 
   <script type="text/babel">
     const { useState, useMemo, useEffect } = React;
-    // ðŸ›¡ï¸ GLOBAL ICONS DESTRUCTURING: à¸›à¸¥à¸­à¸”à¸ à¸±à¸¢à¸ˆà¸²à¸à¸•à¸±à¸§à¹à¸›à¸£à¸‹à¹‰à¸³à¸‹à¹‰à¸­à¸™ à¹à¸¥à¸°à¸”à¸¶à¸‡à¹‚à¸¡à¸”à¸¹à¸¥à¹à¸¥à¸°à¸„à¸­à¸¡à¹‚à¸žà¹€à¸™à¸™à¸•à¹Œà¸¡à¸²à¸„à¸£à¸šà¸–à¹‰à¸§à¸™
     const { LayoutDashboard, ShoppingCart, Users, Contact, Headset, BarChart3, Plus, Edit, Trash2, UserCircle, Menu, X, Save, Info, PackageIcon, Package, Target, Trophy, Activity, Eye, Tags, GitBranch, Archive, ChevronDown, FileText, SettingsIcon, Coins, ShieldCheck, AlertTriangle, AlertCircle, LoginModal, Toast, Sidebar, Header, ConfirmModal, EditModal, DonutChart, AutoSuggestInput } = window;
     
     
@@ -334,13 +333,20 @@
         });
       }, [orders, searchTerm, startDate, endDate]);
 
-      const pendingOrders = useMemo(() => {
-        return filteredOrders.filter(ord => ord.status !== 'ขายสำเร็จแล้ว' && ord.status !== 'บิลถูกยกเลิก');
-      }, [filteredOrders]);
+      // เพิ่ม State ควบคุมแท็บ
+const [activeTab, setActiveTab] = useState('pending'); // 'pending', 'completed', 'canceled'
 
-      const completedOrders = useMemo(() => {
-        return filteredOrders.filter(ord => ord.status === 'ขายสำเร็จแล้ว' || ord.status === 'บิลถูกยกเลิก');
-      }, [filteredOrders]);
+const pendingOrders = useMemo(() => {
+  return filteredOrders.filter(ord => ord.status !== 'ขายสำเร็จแล้ว' && ord.status !== 'บิลถูกยกเลิก');
+}, [filteredOrders]);
+
+const completedOrders = useMemo(() => {
+  return filteredOrders.filter(ord => ord.status === 'ขายสำเร็จแล้ว');
+}, [filteredOrders]);
+
+const canceledOrders = useMemo(() => {
+  return filteredOrders.filter(ord => ord.status === 'บิลถูกยกเลิก');
+}, [filteredOrders]);
 
       // ฟังก์ชันดำเนินการสร้าง "ร่างใบสั่งซื้อ" / "จ่ายยาเสร็จสิ้น"
       const handleCreateDraftOrder = async (order) => {
@@ -413,13 +419,20 @@
               <hr/>
               <p class="font-bold text-slate-700">รายการยา:</p>
               <ul class="list-disc pl-5 text-[11px] text-slate-600 space-y-1">
-                ${order.items.map(i => `<li>${i.name} (${getItemTypeLabel(i)}) x ${i.qty} = ${((Number(i.price || 1300)) * (i.qty || 1)).toLocaleString()} ฿</li>`).join('')}
-              </ul>
-              <div class="mt-3 p-2 bg-emerald-50 rounded-lg border border-emerald-200 flex justify-between items-center font-bold text-emerald-800">
-                <span>ราคารวมทั้งหมด:</span>
-                <span>${order.items.reduce((s, i) => s + ((Number(i.price || 1300)) * (i.qty || 1)), 0).toLocaleString()} ฿</span>
-              </div>
-            </div>
+  ${order.items.map(i => {
+      const price = (i.price !== undefined && i.price !== null && i.price !== '') ? Number(i.price) : 1300;
+      const qty = Number(i.qty || 1);
+      return `<li>${i.name} (${getItemTypeLabel(i)}) x ${qty} = ${(price * qty).toLocaleString()} ฿</li>`;
+  }).join('')}
+</ul>
+<div class="mt-3 p-2 bg-emerald-50 rounded-lg border border-emerald-200 flex justify-between items-center font-bold text-emerald-800">
+  <span>ราคารวมทั้งหมด:</span>
+  <span>${order.items.reduce((s, i) => {
+      const price = (i.price !== undefined && i.price !== null && i.price !== '') ? Number(i.price) : 1300;
+      const qty = Number(i.qty || 1);
+      return s + (price * qty);
+  }, 0).toLocaleString()} ฿</span>
+</div>
           `,
           icon: 'question',
           showCancelButton: true,
@@ -624,363 +637,153 @@
       };
 
       return (
-        <div class="w-full flex-1 flex flex-col">
-          {/* Header Bar */}
-          <div class="bg-white border-b border-slate-200 px-6 py-5 shadow-xs">
-            <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4 max-w-7xl mx-auto">
-              <div class="flex flex-wrap items-center gap-4">
-                <div>
-                  <h1 class="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2.5">
-                    <span class="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
-                      <PillIcon size={26} />
-                    </span>
-                    สั่งจ่ายยา
-                  </h1>
-                  <p class="text-[11px] font-semibold text-slate-500 mt-1">
-                    รายการคำสั่งจ่ายยาเสริมจากระบบคลินิก (Clinic System Integration)
-                  </p>
-                </div>
-
-                {/* 🌟 (2) Search Box - ย้ายมาอยู่ทางซ้ายข้างหัวข้อใหญ่ */}
-                <div class="relative min-w-[220px] self-center">
-                  <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                    <SearchIcon size={18} />
+      <div className="w-full flex-1 flex flex-col">
+        {/* Header Bar */}
+        <div className="bg-white border-b border-slate-200 px-6 py-5 shadow-xs">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 w-full">
+            <div className="flex flex-wrap items-center gap-4">
+              <div>
+                <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2.5">
+                  <span className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
+                    <PillIcon size={26} />
                   </span>
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="ค้นหารายการ..."
-                    class="pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent w-full shadow-xs"
-                  />
-                </div>
+                  สั่งจ่ายยา
+                </h1>
+                <p className="text-[11px] font-semibold text-slate-500 mt-1">
+                  รายการคำสั่งจ่ายยาเสริมจากระบบคลินิก (Clinic System Integration)
+                </p>
               </div>
 
-              {/* Filtering Controls */}
-              <div class="flex flex-wrap items-center gap-3">
-                {/* 🌟 (1) Quick Period Filter Buttons: วันนี้ / เดือนนี้ / ทั้งหมด - ย้ายมาอยู่ทางขวาข้างช่วงเวลา */}
-                <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs gap-1">
-                  <button
-                    onClick={() => setFilterPeriod('today')}
-                    class={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      quickFilter === 'today'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                    }`}
-                  >
-                    วันนี้
-                  </button>
-                  <button
-                    onClick={() => setFilterPeriod('month')}
-                    class={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      quickFilter === 'month'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                    }`}
-                  >
-                    เดือนนี้
-                  </button>
-                  <button
-                    onClick={() => setFilterPeriod('all')}
-                    class={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      quickFilter === 'all'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                    }`}
-                  >
-                    ทั้งหมด
-                  </button>
-                </div>
-
-                {/* Date Range Selector */}
-                <div class="flex items-center bg-white border border-slate-200 rounded-xl px-2 py-1.5 shadow-xs gap-2">
-                  <span class="text-[11px] font-bold text-slate-500 whitespace-nowrap">ช่วงเวลาตามสาย:</span>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => {
-                      setStartDate(e.target.value);
-                      setQuickFilter('custom');
-                    }}
-                    class="text-[11px] font-semibold text-slate-700 border-none bg-transparent focus:outline-none"
-                  />
-                  <span class="text-slate-400 text-[11px]">-</span>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => {
-                      setEndDate(e.target.value);
-                      setQuickFilter('custom');
-                    }}
-                    class="text-[11px] font-semibold text-slate-700 border-none bg-transparent focus:outline-none"
-                  />
-                </div>
-
-                {/* Refresh Button */}
-                <button
-                  onClick={fetchOrders}
-                  class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[11px] font-bold transition-colors border border-slate-200 shadow-xs cursor-pointer"
-                  title="รีเฟรชข้อมูล"
-                >
-                  <RefreshCw size={16} />
-                  <span>รีเฟรช</span>
-                </button>
+              {/* Search Box */}
+              <div className="relative min-w-[220px] self-center">
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <SearchIcon size={18} />
+                </span>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="ค้นหารายการ..."
+                  className="pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent w-full shadow-xs"
+                />
               </div>
+            </div>
+
+            {/* Filtering Controls */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs gap-1">
+                <button onClick={() => setFilterPeriod('today')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${quickFilter === 'today' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'}`}>วันนี้</button>
+                <button onClick={() => setFilterPeriod('month')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${quickFilter === 'month' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'}`}>เดือนนี้</button>
+                <button onClick={() => setFilterPeriod('all')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${quickFilter === 'all' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'}`}>ทั้งหมด</button>
+              </div>
+
+              <div className="flex items-center bg-white border border-slate-200 rounded-xl px-2 py-1.5 shadow-xs gap-2">
+                <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">ช่วงเวลาตามสาย:</span>
+                <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setQuickFilter('custom'); }} className="text-[11px] font-semibold text-slate-700 border-none bg-transparent focus:outline-none" />
+                <span className="text-slate-400 text-[11px]">-</span>
+                <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setQuickFilter('custom'); }} className="text-[11px] font-semibold text-slate-700 border-none bg-transparent focus:outline-none" />
+              </div>
+
+              <button onClick={fetchOrders} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[11px] font-bold transition-colors border border-slate-200 shadow-xs cursor-pointer" title="รีเฟรชข้อมูล">
+                <RefreshCw size={16} />
+                <span>รีเฟรช</span>
+              </button>
             </div>
           </div>
 
-          {/* Main Table Content */}
-          <div class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-8">
-            {/* 📋 รายการรอดำเนินการ */}
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-              <div class="p-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
-                <span class="text-sm font-bold text-slate-800 flex items-center gap-2">
-                  <span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
-                  รายการรอดำเนินการ ({pendingOrders.length})
-                </span>
-              </div>
-              <div class="overflow-x-auto custom-scrollbar">
-                <table class="w-full text-left border-collapse">
-                  <thead>
-                    <tr class="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold text-slate-700">
-                      <th class="py-1 px-2  border-r border-slate-200/60">รหัส VISIT</th>
-                      <th class="py-1 px-2  border-r border-slate-200/60">HN</th>
-                      <th class="py-1 px-2  border-r border-slate-200/60">ชื่อ-นามสกุล</th>
-                      <th class="py-1 px-2  border-r border-slate-200/60">โรค/อาการ</th>
-                      <th class="py-1 px-2  border-r border-slate-200/60">ผู้แนะนำ</th>
-                      <th class="py-1 px-2  border-r border-slate-200/60">หมอผู้สั่งจ่ายยา</th>
-                      <th class="py-1 px-2 border-r border-slate-200/60">รายการจัดสั่งจ่ายยา / จำนวน</th>
-                      <th class="py-1 px-2 text-center ">ดำเนินการ</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-slate-200 text-[11px] font-medium text-slate-800">
-                    {loading ? (
-                      <tr>
-                        <td colSpan="6" class="py-12 text-center text-slate-400 font-semibold">
-                          <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-emerald-500 border-t-transparent mb-2"></div>
-                          <p>กำลังดึงข้อมูลใบสั่งจ่ายยาจากระบบ...</p>
-                        </td>
-                      </tr>
-                    ) : pendingOrders.length === 0 ? (
-                      <tr>
-                        <td colSpan="6" class="py-16 text-center text-slate-400 font-semibold">
-                          <div class="flex flex-col items-center justify-center gap-2">
-                            <div class="p-3 bg-slate-100 text-slate-400 rounded-full mb-1">
-                              <InboxIcon size={36} />
-                            </div>
-                            <p class="text-sm font-bold text-slate-600">ไม่มีรายการรอดำเนินการ</p>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      pendingOrders.map((ord, index) => (
-                        <tr key={ord.id || index} class="hover:bg-slate-50/60 transition-colors">
-                          <td class="py-1 px-2 font-bold text-slate-900 align-middle whitespace-nowrap border-r border-slate-100">
-                            {ord.visit_id}
-                          </td>
-                          <td class="py-1 px-2 text-slate-700 font-semibold align-middle whitespace-nowrap border-r border-slate-100">
-                            {ord.hn}
-                          </td>
-                          <td class="py-1 px-2 font-bold text-slate-900 align-middle border-r border-slate-100 ">
-                            {ord.customer_name}
-                          </td>
-                          <td class="py-1 px-2 text-slate-600 align-middle border-r border-slate-100 ">
-                            {ord.disease || '-'}
-                          </td>
-                          <td class="py-1 px-2 font-bold text-slate-700 align-middle border-r border-slate-100 ">
-                            {ord.recorded_by || '-'}
-                          </td>
-                          <td class="py-1 px-2 font-bold text-emerald-700 align-middle border-r border-slate-100 ">
-                            {ord.closer_dr || '-'}
-                          </td>
-                          <td class="p-2 align-middle border-r border-slate-100">
-                            <div class="rounded-xl border border-slate-200/80 overflow-hidden bg-white shadow-xs">
-                              <table class="w-full text-left border-collapse">
-                                <thead>
-                                  <tr class="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-700">
-                                    <th class="py-1 px-1 border-r border-slate-200/60">ชื่อยา/อาหารเสริม</th>
-                                    <th class="py-1 px-1 text-center  border-r border-slate-200/60">ประเภท</th>
-                                    <th class="py-1 px-1 text-center  border-r border-slate-200/60">จำนวน</th>
-                                    <th class="py-1 px-1 text-right  border-r border-slate-200/60">ราคา</th>
-                                    <th class="py-1 px-1 text-right ">รวมราคา</th>
-                                  </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-100 text-[11px] font-semibold text-slate-700">
-                                  {ord.items && ord.items.map((item, idx) => {
-                                    const unitPrice = Number(item.price || 1300);
-                                    const qty = Number(item.qty || 1);
-                                    const subtotal = Number(item.total || (unitPrice * qty));
-                                    const itemSource = item.source || 'คลังยา';
-                                    const priceTypeBadge = getItemTypeLabel(item);
-                                    return (
-                                      <tr key={idx} class="hover:bg-slate-50/80 transition-colors">
-                                        <td class="py-1.5 px-1 border-r border-slate-100 align-middle">
-                                          <div class="flex items-center gap-2">
-                                            <span class="font-bold text-slate-800">{item.name}</span>
-                                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">
-                                              {itemSource}
-                                            </span>
-                                          </div>
-                                        </td>
-                                        <td class="py-1.5 px-1 text-center border-r border-slate-100 align-middle">
-                                          <span class={`inline-block px-2.5 py-0.5 rounded-md text-[10px] font-bold shadow-2xs ${
-                                            priceTypeBadge === 'ราคาส่ง/สมาชิก' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
-                                            priceTypeBadge === 'ราคาโปร' ? 'bg-purple-100 text-purple-800 border border-purple-200' :
-                                            priceTypeBadge === 'แถมฟรี' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
-                                            'bg-slate-100 text-slate-700 border border-slate-200'
-                                          }`}>
-                                            {priceTypeBadge}
-                                          </span>
-                                        </td>
-                                        <td class="py-1.5 px-1 text-center font-bold text-slate-800 border-r border-slate-100 align-middle">
-                                          {qty}
-                                        </td>
-                                        <td class="py-1.5 px-1 text-right text-slate-600 border-r border-slate-100 align-middle">
-                                          {unitPrice.toLocaleString()}
-                                        </td>
-                                        <td class="py-1.5 px-1 text-right font-bold text-slate-900 align-middle">
-                                          {subtotal.toLocaleString()}
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          </td>
-                          <td class="py-2 px-3 text-center align-middle whitespace-nowrap">
-                            <div class="flex items-center justify-center gap-1.5">
-                              <button
-                                onClick={() => handleCreateDraftOrder(ord)}
-                                class="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-[11px] shadow-xs shadow-emerald-200 transition-all transform active:scale-95 cursor-pointer"
-                                title="สร้างร่างใบสั่งซื้อ"
-                              >
-                                <CheckCircle size={14} />
-                                ร่างใบสั่งซื้อ
-                              </button>
-                              <button
-                                onClick={() => handleDeleteOrder(ord)}
-                                class="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 hover:border-rose-300 font-bold rounded-xl text-[11px] shadow-2xs transition-all transform active:scale-95 cursor-pointer"
-                                title="ลบรายการนี้"
-                              >
-                                <Trash2 size={14} />
-                                ลบ
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+          {/* Main Table Content - TABS */}
+          <div className="flex-1 w-full p-4 sm:p-6">
+            <div className="flex border-b border-slate-200 mb-6 gap-2 sm:gap-6 overflow-x-auto custom-scrollbar">
+              <button onClick={() => setActiveTab('pending')} className={`pb-3 text-sm font-black transition-colors border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'pending' ? 'text-amber-600 border-amber-500' : 'text-slate-500 border-transparent hover:text-slate-700'}`}>
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>รอดำเนินการ <span className={`py-0.5 px-2 rounded-full text-[10px] ${activeTab === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>{pendingOrders.length}</span>
+              </button>
+              <button onClick={() => setActiveTab('completed')} className={`pb-3 text-sm font-black transition-colors border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'completed' ? 'text-emerald-600 border-emerald-500' : 'text-slate-500 border-transparent hover:text-slate-700'}`}>
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>สำเร็จแล้ว <span className={`py-0.5 px-2 rounded-full text-[10px] ${activeTab === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{completedOrders.length}</span>
+              </button>
+              <button onClick={() => setActiveTab('canceled')} className={`pb-3 text-sm font-black transition-colors border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'canceled' ? 'text-rose-600 border-rose-500' : 'text-slate-500 border-transparent hover:text-slate-700'}`}>
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>บิลถูกยกเลิก <span className={`py-0.5 px-2 rounded-full text-[10px] ${activeTab === 'canceled' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-500'}`}>{canceledOrders.length}</span>
+              </button>
             </div>
 
-            {/* ✅ ประวัติการทำรายการสำเร็จแล้ว (Completed History) */}
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-              <div class="p-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
-                <span class="text-sm font-bold text-slate-800 flex items-center gap-2">
-                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                  ประวัติการสั่งจ่ายยาสำเร็จแล้ว ({completedOrders.length})
-                </span>
-              </div>
-              <div class="overflow-x-auto custom-scrollbar">
-                <table class="w-full text-left border-collapse">
+            {/* Table Area */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr class="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold text-slate-700">
-                      <th class="py-1 px-2  border-r border-slate-200/60">รหัส VISIT</th>
-                      <th class="py-1 px-2  border-r border-slate-200/60">HN</th>
-                      <th class="py-1 px-2  border-r border-slate-200/60">ชื่อ-นามสกุล</th>
-                      <th class="py-1 px-2  border-r border-slate-200/60">โรค/อาการ</th>
-                      <th class="py-1 px-2  border-r border-slate-200/60">ผู้แนะนำ</th>
-                      <th class="py-1 px-2  border-r border-slate-200/60">หมอผู้สั่งจ่ายยา</th>
-                      <th class="py-1 px-2 border-r border-slate-200/60">รายการที่ทำจ่ายแล้ว / จำนวน</th>
-                      <th class="py-1 px-2 text-center ">สถานะการขาย</th>
+                    <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold text-slate-700">
+                      <th className="py-3 px-3 border-r border-slate-200/60">รหัส VISIT</th>
+                      <th className="py-3 px-3 border-r border-slate-200/60">HN</th>
+                      <th className="py-3 px-3 border-r border-slate-200/60">ชื่อ-นามสกุล</th>
+                      <th className="py-3 px-3 border-r border-slate-200/60">โรค/อาการ</th>
+                      <th className="py-3 px-3 border-r border-slate-200/60">ผู้แนะนำ</th>
+                      <th className="py-3 px-3 border-r border-slate-200/60">หมอผู้สั่งจ่ายยา</th>
+                      <th className="py-3 px-3 border-r border-slate-200/60 w-[35%]">รายการจัดสั่งจ่ายยา / จำนวน</th>
+                      <th className="py-3 px-3 text-center">{activeTab === 'pending' ? 'ดำเนินการ' : 'สถานะการขาย'}</th>
                     </tr>
                   </thead>
-                  <tbody class="divide-y divide-slate-200 text-[11px] font-medium text-slate-800">
+                  <tbody className="divide-y divide-slate-200 text-[11px] font-medium text-slate-800">
                     {loading ? (
                       <tr>
-                        <td colSpan="6" class="py-12 text-center text-slate-400 font-semibold">
-                          <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-emerald-500 border-t-transparent mb-2"></div>
-                          <p>กำลังดึงข้อมูล...</p>
+                        <td colSpan="8" className="py-12 text-center text-slate-400 font-semibold">
+                          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-emerald-500 border-t-transparent mb-2"></div>
+                          <p>กำลังดึงข้อมูลจากระบบ...</p>
                         </td>
                       </tr>
-                    ) : completedOrders.length === 0 ? (
-                      <tr>
-                        <td colSpan="6" class="py-16 text-center text-slate-400 font-semibold">
-                          <div class="flex flex-col items-center justify-center gap-2">
-                            <div class="p-3 bg-slate-100 text-slate-400 rounded-full mb-1">
-                              <InboxIcon size={36} />
-                            </div>
-                            <p class="text-sm font-bold text-slate-600">ยังไม่มีประวัติการทำรายการสำเร็จ</p>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      completedOrders.map((ord, index) => (
-                        <tr key={ord.id || index} class="bg-slate-50/20 hover:bg-slate-50/60 transition-colors">
-                          <td class="py-1 px-2 font-bold text-slate-900 align-middle whitespace-nowrap border-r border-slate-100">
-                            {ord.visit_id}
-                          </td>
-                          <td class="py-1 px-2 text-slate-700 font-semibold align-middle whitespace-nowrap border-r border-slate-100">
-                            {ord.hn}
-                          </td>
-                          <td class="py-1 px-2 font-bold text-slate-900 align-middle border-r border-slate-100 ">
-                            {ord.customer_name}
-                          </td>
-                          <td class="py-1 px-2 text-slate-600 align-middle border-r border-slate-100 ">
-                            {ord.disease || '-'}
-                          </td>
-                          <td class="py-1 px-2 font-bold text-slate-700 align-middle border-r border-slate-100 ">
-                            {ord.recorded_by || '-'}
-                          </td>
-                          <td class="py-1 px-2 font-bold text-emerald-700 align-middle border-r border-slate-100 ">
-                            {ord.closer_dr || '-'}
-                          </td>
-                          <td class="p-2 align-middle border-r border-slate-100">
-                            <div class="rounded-xl border border-slate-200/80 overflow-hidden bg-white shadow-xs opacity-75">
-                              <table class="w-full text-left border-collapse">
+                    ) : (() => {
+                      const displayData = activeTab === 'pending' ? pendingOrders : activeTab === 'completed' ? completedOrders : canceledOrders;
+                      if (displayData.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan="8" className="py-16 text-center text-slate-400 font-semibold">
+                              <div className="flex flex-col items-center justify-center gap-2">
+                                <div className="p-3 bg-slate-100 text-slate-400 rounded-full mb-1"><InboxIcon size={36} /></div>
+                                <p className="text-sm font-bold text-slate-600">{activeTab === 'pending' ? 'ไม่มีรายการรอดำเนินการ' : activeTab === 'completed' ? 'ยังไม่มีประวัติการทำรายการสำเร็จ' : 'ไม่มีประวัติบิลถูกยกเลิก'}</p>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
+                      return displayData.map((ord, index) => (
+                        <tr key={ord.id || index} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="py-2 px-3 font-bold text-slate-900 align-middle whitespace-nowrap border-r border-slate-100">{ord.visit_id}</td>
+                          <td className="py-2 px-3 text-slate-700 font-semibold align-middle whitespace-nowrap border-r border-slate-100">{ord.hn}</td>
+                          <td className="py-2 px-3 font-bold text-slate-900 align-middle border-r border-slate-100 ">{ord.customer_name}</td>
+                          <td className="py-2 px-3 text-slate-600 align-middle border-r border-slate-100 ">{ord.disease || '-'}</td>
+                          <td className="py-2 px-3 font-bold text-slate-700 align-middle border-r border-slate-100 ">{ord.recorded_by || '-'}</td>
+                          <td className="py-2 px-3 font-bold text-emerald-700 align-middle border-r border-slate-100 ">{ord.closer_dr || '-'}</td>
+                          <td className="p-3 align-middle border-r border-slate-100">
+                            <div className="rounded-xl border border-slate-200/80 overflow-hidden bg-white shadow-xs">
+                              <table className="w-full text-left border-collapse">
                                 <thead>
-                                  <tr class="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-700">
-                                    <th class="py-1 px-1 border-r border-slate-200/60">ชื่อยา/อาหารเสริม</th>
-                                    <th class="py-1 px-1 text-center  border-r border-slate-200/60">ประเภท</th>
-                                    <th class="py-1 px-1 text-center  border-r border-slate-200/60">จำนวน</th>
-                                    <th class="py-1 px-1 text-right  border-r border-slate-200/60">ราคา</th>
-                                    <th class="py-1 px-1 text-right ">รวมราคา</th>
+                                  <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-700">
+                                    <th className="py-1.5 px-2 border-r border-slate-200/60">ชื่อยา/อาหารเสริม</th>
+                                    <th className="py-1.5 px-2 text-center border-r border-slate-200/60">ประเภท</th>
+                                    <th className="py-1.5 px-2 text-center border-r border-slate-200/60">จำนวน</th>
+                                    <th className="py-1.5 px-2 text-right border-r border-slate-200/60">ราคา</th>
+                                    <th className="py-1.5 px-2 text-right">รวมราคา</th>
                                   </tr>
                                 </thead>
-                                <tbody class="divide-y divide-slate-100 text-[11px] font-semibold text-slate-700">
+                                <tbody className="divide-y divide-slate-100 text-[11px] font-semibold text-slate-700">
                                   {ord.items && ord.items.map((item, idx) => {
-                                    const unitPrice = Number(item.price || 1300);
+                                    const unitPrice = (item.price !== undefined && item.price !== null && item.price !== '') ? Number(item.price) : 1300;
                                     const qty = Number(item.qty || 1);
-                                    const subtotal = Number(item.total || (unitPrice * qty));
+                                    const subtotal = (item.total !== undefined && item.total !== null && item.total !== '') ? Number(item.total) : (unitPrice * qty);
                                     const itemSource = item.source || 'คลังยา';
                                     const priceTypeBadge = getItemTypeLabel(item);
                                     return (
-                                      <tr key={idx} class="hover:bg-slate-50/80 transition-colors">
-                                        <td class="py-1.5 px-1 border-r border-slate-100 align-middle">
-                                          <div class="flex items-center gap-2">
-                                            <span class="font-bold text-slate-800">{item.name}</span>
-                                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">
-                                              {itemSource}
-                                            </span>
+                                      <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                                        <td className="py-1.5 px-2 border-r border-slate-100 align-middle">
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-bold text-slate-800">{item.name}</span>
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">{itemSource}</span>
                                           </div>
                                         </td>
-                                        <td class="py-1.5 px-1 text-center border-r border-slate-100 align-middle">
-                                          <span class={`inline-block px-2.5 py-0.5 rounded-md text-[10px] font-bold shadow-2xs bg-slate-100 text-slate-700 border border-slate-200`}>
-                                            {priceTypeBadge}
-                                          </span>
+                                        <td className="py-1.5 px-2 text-center border-r border-slate-100 align-middle">
+                                          <span className={`inline-block px-2.5 py-0.5 rounded-md text-[10px] font-bold shadow-2xs ${priceTypeBadge === 'ราคาส่ง/สมาชิก' ? 'bg-amber-100 text-amber-800 border border-amber-200' : priceTypeBadge === 'ราคาโปร' ? 'bg-purple-100 text-purple-800 border border-purple-200' : priceTypeBadge === 'แถมฟรี' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>{priceTypeBadge}</span>
                                         </td>
-                                        <td class="py-1.5 px-1 text-center font-bold text-slate-800 border-r border-slate-100 align-middle">
-                                          {qty}
-                                        </td>
-                                        <td class="py-1.5 px-1 text-right text-slate-600 border-r border-slate-100 align-middle">
-                                          {unitPrice.toLocaleString()}
-                                        </td>
-                                        <td class="py-1.5 px-1 text-right font-bold text-slate-900 align-middle">
-                                          {subtotal.toLocaleString()}
-                                        </td>
+                                        <td className="py-1.5 px-2 text-center font-bold text-slate-800 border-r border-slate-100 align-middle">{qty}</td>
+                                        <td className="py-1.5 px-2 text-right text-slate-600 border-r border-slate-100 align-middle">{unitPrice.toLocaleString()}</td>
+                                        <td className="py-1.5 px-2 text-right font-bold text-slate-900 align-middle">{subtotal.toLocaleString()}</td>
                                       </tr>
                                     );
                                   })}
@@ -988,39 +791,31 @@
                               </table>
                             </div>
                           </td>
-                          <td class="py-1 px-2 text-center align-middle whitespace-nowrap">
-                            <span class="inline-flex flex-col items-center gap-1">
-                              {ord.status === 'บิลถูกยกเลิก' ? (
-                                <span class="px-1 py-1 bg-rose-100 text-rose-800 font-bold rounded-xl text-[11px] border border-rose-200 shadow-xs">
-                                  บิลถูกยกเลิก
-                                </span>
-                              ) : (
-                                <span class="px-1 py-1 bg-emerald-100 text-emerald-800 font-bold rounded-xl text-[11px] border border-emerald-200 shadow-xs">
-                                  ขายสำเร็จแล้ว
-                                </span>
-                              )}
-                              {ord.sale_order_id && (
-                                <a 
-                                  href={window.resolvePageUrl ? window.resolvePageUrl(`Sales.html?editId=${encodeURIComponent(ord.sale_order_id)}`) : `Sales.html?editId=${encodeURIComponent(ord.sale_order_id)}`}
-                                  class="text-[10px] text-blue-600 font-bold hover:underline"
-                                  title="กดเพื่อดูประวัติการขายบิลนี้"
-                                >
-                                  บิลเลขที่: {ord.sale_order_id}
-                                </a>
-                              )}
-                            </span>
+                          <td className="py-3 px-3 text-center align-middle whitespace-nowrap">
+                            {activeTab === 'pending' ? (
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button onClick={() => handleCreateDraftOrder(ord)} className="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-[11px] shadow-xs shadow-emerald-200 transition-all transform active:scale-95 cursor-pointer" title="สร้างร่างใบสั่งซื้อ"><CheckCircle size={14} />ร่างใบสั่งซื้อ</button>
+                                <button onClick={() => handleDeleteOrder(ord)} className="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 hover:border-rose-300 font-bold rounded-xl text-[11px] shadow-2xs transition-all transform active:scale-95 cursor-pointer" title="ลบรายการนี้"><Trash2 size={14} />ลบ</button>
+                              </div>
+                            ) : (
+                              <span className="inline-flex flex-col items-center gap-1.5">
+                                {ord.status === 'บิลถูกยกเลิก' ? <span className="px-2.5 py-1 bg-rose-100 text-rose-800 font-bold rounded-xl text-[11px] border border-rose-200 shadow-xs">บิลถูกยกเลิก</span> : <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-bold rounded-xl text-[11px] border border-emerald-200 shadow-xs">ขายสำเร็จแล้ว</span>}
+                                {ord.sale_order_id && <a href={window.resolvePageUrl ? window.resolvePageUrl(`Sales.html?editId=${encodeURIComponent(ord.sale_order_id)}`) : `Sales.html?editId=${encodeURIComponent(ord.sale_order_id)}`} className="text-[10px] text-blue-600 font-bold hover:underline" title="กดเพื่อดูประวัติการขายบิลนี้">บิลเลขที่: {ord.sale_order_id}</a>}
+                              </span>
+                            )}
                           </td>
                         </tr>
-                      ))
-                    )}
+                      ));
+                    })()}
                   </tbody>
                 </table>
               </div>
             </div>
           </div>
         </div>
-      );
-    }
+        </div>
+    );
+}
 
     // Root App Wrapper Component with Sidebar & Navigation
     function App() {
