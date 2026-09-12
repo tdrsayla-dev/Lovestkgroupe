@@ -34,13 +34,17 @@
 
 body {
   background: var(--bg-main);
-  font-family: 'Sukhumvit Set', 'Outfit', 'Kanit', 'Noto Sans Lao', sans-serif;
+  font-family: 'Noto Sans Lao', 'Kanit', 'Outfit', 'Sarabun', sans-serif;
   color: var(--text-main);
   margin: 0;
   padding: 24px 32px 60px;
   min-height: 100vh;
   font-size: .92rem;
   overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6, input, select, textarea, button, table {
+  font-family: 'Noto Sans Lao', 'Kanit', 'Outfit', sans-serif;
 }
 
 /* ── Clean Top Header ────────────────────────────────────────── */
@@ -57,7 +61,7 @@ body {
   font-weight: 700;
   color: var(--primary-dark);
   margin: 0 0 3px;
-  font-family: 'Kanit', 'Outfit', sans-serif;
+  font-family: 'Noto Sans Lao', 'Kanit', 'Outfit', sans-serif;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -403,6 +407,7 @@ body {
     padding: 0 !important;
     font-size: 10pt;
     color: #000000 !important;
+    font-family: 'Noto Sans Lao', 'Kanit', sans-serif !important;
   }
   .no-print,
   .btn-back,

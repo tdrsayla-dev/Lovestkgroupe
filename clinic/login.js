@@ -448,7 +448,7 @@ if (loginForm) {
                 icon: 'success',
                 title: 'ເຂົ້າສູ່ລະບົບສຳເລັດ',
                 text: 'ຜ່ານການຢືນຢັນຮຽບຮ້ອຍແລ້ວ ກຳລັງພາທ່ານເຂົ້າສູ່ລະບົບ...',
-                timer: 1500,
+                timer: 500,
                 showConfirmButton: false
             }).then(() => {
                 window.location.href = 'Clinic.html';

@@ -919,7 +919,7 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         } else if (event.data && event.data.type === 'SHOW_VISIT_DETAIL') {
             if (typeof showHistoryDetails === 'function') {
-                showHistoryDetails(event.data.visitId, event.data.hn, event.data.patientName);
+                showHistoryDetails(event.data.visitId, event.data.hn, event.data.patientName, event.data.orderData);
             }
         } else if (event.data && event.data.type === 'ORDER_CREATED') {
             try {
@@ -934,31 +934,39 @@ document.addEventListener("DOMContentLoaded", function () {
                     if (typeof _supabase !== 'undefined' && _supabase && orderData.visit_id) {
                         try {
                             const grandTotal = Number(orderData.grandTotal || orderData.total_amount || 0);
-                            const rawVId = String(orderData.visit_id || orderData.visitId || ('VIS-ORD-' + Date.now()));
-                            const cleanVId = rawVId.startsWith('VIS-ORD-') ? rawVId : ('VIS-ORD-' + rawVId.replace(/^VIS-/, ''));
+                            const randOrderNum = Math.floor(10000 + Math.random() * 90000);
+                            const rawVId = String(orderData.visit_id || orderData.visitId || ('VIS-ORD-' + randOrderNum));
+                            const cleanVId = rawVId.startsWith('VIS-ORD-') ? rawVId : ('VIS-ORD-' + rawVId.replace(/^VIS-|^ORD-/, ''));
+                            const orderPhone = orderData.customer_phone || orderData.phone || '';
+                            const orderDisease = orderData.disease || (orderData.gender && orderData.gender !== 'ຊາຍ' && orderData.gender !== 'ຍິງ' && orderData.gender !== 'ชาย' && orderData.gender !== 'หญิง' ? orderData.gender : '');
+                            const orderSymptom = orderDisease || orderData.symptom || ('ສັ່ງຊື້ຢາ/ອາຫານເສີມ [Order]' + (orderData.notes ? ` (${orderData.notes})` : ''));
                             const visitPayload = {
                                 visit_id: cleanVId,
                                 hn: orderData.hn ? String(orderData.hn) : null,
                                 patient_name: orderData.customer_name || orderData.patient_name,
                                 doctor_name: orderData.closer_dr || orderData.doctor_advice || 'ແພດປະຈຳຄລີນິກ',
-                                symptom: 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ [Order]' + (orderData.notes ? ` (${orderData.notes})` : (orderData.symptom ? ` (${orderData.symptom})` : '')),
+                                symptom: orderSymptom,
+                                disease: orderDisease,
                                 status: 'ສັ່ງຊື້ສິນຄ້າ',
-                                created_at: orderData.created_at || new Date().toISOString()
+                                created_at: orderData.created_at || new Date().toISOString(),
+                                meds: (orderData.items_json || orderData.items) ? JSON.stringify(orderData.items_json || orderData.items) : null
                             };
                             // 1. บันทึกข้อมูลคนไข้ลง patients ก่อน เพื่อให้ตาราง visits และ bills อ้างอิง HN ได้อย่างสมบูรณ์ ไม่ติด Foreign Key 409
                             if (orderData.hn) {
                                 try {
-                                    await _supabase.from('patients').upsert({
+                                    const pUpsert = {
                                         hn: String(orderData.hn),
                                         patient_name: orderData.customer_name || orderData.patient_name,
-                                        phone: orderData.customer_phone || '',
                                         age: orderData.age || null,
                                         province: orderData.province || '',
                                         district: orderData.district || '',
                                         village: orderData.village || '',
                                         referred_by: orderData.recorded_by || '',
                                         created_at: orderData.created_at || new Date().toISOString()
-                                    }, { onConflict: 'hn' });
+                                    };
+                                    if (orderPhone) pUpsert.phone = orderPhone;
+                                    if (orderDisease) pUpsert.past_history = orderDisease;
+                                    await _supabase.from('patients').upsert(pUpsert, { onConflict: 'hn' });
                                 } catch (pe) { }
                             }
 
@@ -1059,18 +1067,15 @@ document.addEventListener("DOMContentLoaded", function () {
                     const vTime = latestV ? new Date(latestV.created_at || 0).getTime() : 0;
                     const oTime = latestO ? new Date(latestO.created_at || latestO.date || 0).getTime() : 0;
 
-                    // ตรวจสอบว่า latestO เกิดจากการสั่งจ่ายยาในคลินิก (ORD-CLINIC-) หรือเป็น visit เดียวกับ latestV หรือไม่
-                    const isClinicRxOrder = latestO && (
-                        (latestO.order_id && String(latestO.order_id).startsWith('ORD-CLINIC-')) ||
-                        (latestV && (latestO.visit_id === latestV.visit_id || latestO.visitId === latestV.visit_id))
-                    );
+                    // ตรวจสอบว่า latestO เกิดจากการสั่งจ่ายยาในคลินิก (ORD-CLINIC-) หรือไม่
+                    const isClinicRxOrder = latestO && String(latestO.order_id || '').startsWith('ORD-CLINIC-');
 
                     // ถ้าคนไข้มีประวัติมาตรวจรักษาในคลินิก (latestV ที่ไม่ใช่ออเดอร์)
                     const isRealClinicVisit = latestV && latestV.symptom && !latestV.symptom.startsWith('ສັ່ງຊື້') && !latestV.symptom.startsWith('สั่งซื้อ') && !latestV.symptom.startsWith('Order');
 
-                    if (latestO && !isClinicRxOrder && (oTime >= vTime || !latestV)) {
-                        // คนไข้แค่ส่ง Order (สั่งซื้อยา/อาหารเสริม)
-                        p.latest_visit_id = latestO.visit_id || latestO.visitId || ('VIS-' + String(latestO.order_id || latestO.orderId || '').replace(/\D/g, '').slice(-6));
+                    if (latestO && !isClinicRxOrder && (oTime >= vTime || !isRealClinicVisit)) {
+                        const rawVisitId = latestO.visit_id || latestO.visitId || ('VIS-ORD-' + String(latestO.order_id || latestO.orderId || '').replace(/\D/g, '').slice(-5));
+                        p.latest_visit_id = rawVisitId;
                         p.latest_visit_date = new Date(latestO.created_at || latestO.date).toLocaleString('lo-LA');
                         p.latest_visit_raw_date = latestO.created_at || latestO.date;
                         p.latest_symptom = 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ' + (latestO.notes ? ` (${latestO.notes})` : (latestO.symptom ? ` (${latestO.symptom})` : ''));
@@ -2550,101 +2555,145 @@ async function sendToPrescriptionWithDoc(visitId) {
     }
 }
 
-async function loadPrescriptionList() {
+async function loadPrescriptionList(triggerBtn) {
     const tbody = document.querySelector('#prescriptionTable tbody');
     if (!tbody) return;
 
-    let currentUser = window.currentUser;
-    if (!currentUser) {
-        try { currentUser = JSON.parse(localStorage.getItem('clinicUser') || 'null'); } catch (e) { }
+    const btn = triggerBtn || document.getElementById('btnRefreshPrescription') || document.querySelector('#prescription button[onclick*="loadPrescriptionList"]');
+    const icon = btn ? btn.querySelector('i') : null;
+    if (btn) btn.disabled = true;
+    if (icon) {
+        icon.classList.remove('bi-arrow-clockwise');
+        icon.classList.add('spinner-border', 'spinner-border-sm');
     }
-    const isDoc = isDoctorUser(currentUser);
 
-    // จัดการ UI Header ป้ายสถานะแพทย์ หรือตัวกรองแพทย์ (สำหรับ Admin)
-    const filterBox = document.getElementById('rxDoctorFilterBox');
-    const filterSelect = document.getElementById('rxDoctorFilterSelect');
-    const badgeBox = document.getElementById('rxDoctorPersonalBadge');
-    const badgeLabel = document.getElementById('rxDoctorPersonalLabel');
+    // 🌟 แสดงแถวสถานะกำลังโหลดเพื่อให้ผู้ใช้งานเห็นการตอบสนองทันทีที่กดปุ่ม
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูลคิวห้องตรวจแพทย์...</td></tr>';
 
-    if (isDoc) {
-        if (filterBox) filterBox.style.display = 'none';
-        if (badgeBox) badgeBox.style.display = 'inline-block';
-        if (badgeLabel) {
-            const docDisplayName = currentUser.full_name || currentUser.name || currentUser.email;
-            badgeLabel.innerHTML = `<i class="bi bi-person-check-fill me-1"></i>เฉพาะคิวตรวจของ: <strong>${docDisplayName}</strong>`;
+    try {
+        let currentUser = window.currentUser;
+        if (!currentUser) {
+            try { currentUser = JSON.parse(localStorage.getItem('clinicUser') || 'null'); } catch (e) { }
         }
-    } else {
-        if (badgeBox) badgeBox.style.display = 'none';
-        if (filterBox) filterBox.style.display = 'flex';
-    }
+        const isDoc = isDoctorUser(currentUser);
 
-    const { data, error } = await _supabase
-        .from('visits')
-        .select('*')
-        .in('status', ['รออ่านผล', 'กำลังคุยกับแพทย์'])
-        .order('created_at', { ascending: true });
+        // จัดการ UI Header ป้ายสถานะแพทย์ หรือตัวกรองแพทย์ (สำหรับ Admin)
+        const filterBox = document.getElementById('rxDoctorFilterBox');
+        const filterSelect = document.getElementById('rxDoctorFilterSelect');
+        const badgeBox = document.getElementById('rxDoctorPersonalBadge');
+        const badgeLabel = document.getElementById('rxDoctorPersonalLabel');
 
-    tbody.innerHTML = '';
-    if (error) {
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-5">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
-        return;
-    }
-
-    // เติมตัวเลือกรายชื่อแพทย์ใน Dropdown ของ Admin/Staff
-    if (!isDoc && filterSelect && filterSelect.options.length <= 1) {
-        try {
-            const { data: docList } = await _supabase.from('staff_users').select('full_name, emp_code, email').in('role', ['doctor', 'แพทย์']);
-            if (docList && docList.length > 0) {
-                docList.forEach(d => {
-                    const dName = d.full_name || d.emp_code || d.email;
-                    filterSelect.innerHTML += `<option value="${dName}">👨‍⚕️ ${dName}</option>`;
-                });
+        if (isDoc) {
+            if (filterBox) filterBox.style.display = 'none';
+            if (badgeBox) badgeBox.style.display = 'inline-block';
+            if (badgeLabel) {
+                const docDisplayName = currentUser.full_name || currentUser.name || currentUser.email;
+                badgeLabel.innerHTML = `<i class="bi bi-person-check-fill me-1"></i>เฉพาะคิวตรวจของ: <strong>${docDisplayName}</strong>`;
             }
-        } catch (e) { }
-    }
-
-    let filtered = data || [];
-
-    // 🔒 หากเป็นแพทย์: ล็อกการมองเห็นให้เห็นเฉพาะคิวที่ระบุแพทย์คนนี้เท่านั้น (หมอคนอื่นจะไม่เห็น)
-    if (isDoc) {
-        filtered = filtered.filter(row => isVisitAssignedToCurrentDoctor(row.doctor_name, currentUser));
-    } else if (filterSelect && filterSelect.value && filterSelect.value !== 'all') {
-        const selectedFilterDoc = filterSelect.value.trim().toLowerCase();
-        filtered = filtered.filter(row => (row.doctor_name || '').toLowerCase().includes(selectedFilterDoc));
-    }
-
-    if (!filtered || filtered.length === 0) {
-        const emptyMsg = isDoc
-            ? `ไม่มีรายการรออ่านผลสำหรับคุณหมอ (${currentUser.full_name || currentUser.name || 'ท่านนี้'})`
-            : 'ไม่มีรายการรออ่านผล';
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-5"><i class="bi bi-person-check me-2"></i>${emptyMsg}</td></tr>`;
-        return;
-    }
-
-    filtered.forEach((row, idx) => {
-        let statusBadge = '';
-        let actionBtn = '';
-
-        if (row.status === 'รออ่านผล') {
-            statusBadge = `<span class="badge-soft-warning">รอเรียกพบ</span>`;
-            actionBtn = `<button class="btn btn-sm btn-warning fw-bold px-3 text-white" onclick="startDoctorConsult('${row.visit_id}')"><i class="bi bi-megaphone me-1"></i>เรียกพบคนไข้</button>`;
-        } else if (row.status === 'กำลังคุยกับแพทย์') {
-            statusBadge = `<span class="badge-soft-danger">กำลังตรวจอยู่</span>`;
-            actionBtn = `<button class="btn btn-sm btn-success px-3" onclick="openPrescribeModal('${row.visit_id}')"><i class="bi bi-file-earmark-medical me-1"></i>อ่านผล & สั่งยา</button>`;
+        } else {
+            if (badgeBox) badgeBox.style.display = 'none';
+            if (filterBox) filterBox.style.display = 'flex';
         }
 
-        tbody.innerHTML += `
-        <tr>
-           <td class="ps-4 py-3 text-center fw-semibold text-secondary">${idx + 1}</td>
-           <td class="py-3 fw-bold text-primary">${row.visit_id}</td>
-           <td class="py-3">${row.hn}</td>
-           <td class="py-3 fw-bold text-dark">${row.patient_name}</td>
-           <td class="py-3 fw-bold text-info"><i class="bi bi-person-workspace text-primary"></i> ${row.doctor_name || '-'}</td>
-           <td class="py-3">${statusBadge}</td>
-           <td class="text-center py-3">${actionBtn}</td>
-        </tr>`;
-    });
+        const { data, error } = await _supabase
+            .from('visits')
+            .select('*')
+            .in('status', ['รออ่านผล', 'กำลังคุยกับแพทย์', 'กำลังตรวจ', 'กำลังตรวจอยู่'])
+            .order('created_at', { ascending: true });
+
+        if (error) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-5">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
+            return;
+        }
+
+        // เติมตัวเลือกรายชื่อแพทย์ใน Dropdown ของ Admin/Staff
+        if (!isDoc && filterSelect) {
+            try {
+                const currentVal = filterSelect.value || 'all';
+                const { data: docList } = await _supabase.from('staff_users').select('full_name, emp_code, email').in('role', ['doctor', 'แพทย์']);
+                const knownDocs = new Set();
+                if (docList && docList.length > 0) {
+                    docList.forEach(d => {
+                        const dName = d.full_name || d.emp_code || d.email;
+                        if (dName) knownDocs.add(dName.trim());
+                    });
+                }
+                (data || []).forEach(r => {
+                    if (r.doctor_name && r.doctor_name !== '-' && r.doctor_name !== 'null') {
+                        knownDocs.add(r.doctor_name.trim());
+                    }
+                });
+
+                if (knownDocs.size > 0 && filterSelect.options.length <= 1) {
+                    knownDocs.forEach(dName => {
+                        filterSelect.innerHTML += `<option value="${dName}">👨‍⚕️ ${dName}</option>`;
+                    });
+                }
+                if (currentVal && filterSelect.querySelector(`option[value="${currentVal}"]`)) {
+                    filterSelect.value = currentVal;
+                }
+            } catch (e) { }
+        }
+
+        let filtered = data || [];
+
+        // 🔒 หากเป็นแพทย์: ล็อกการมองเห็นให้เห็นเฉพาะคิวที่ระบุแพทย์คนนี้เท่านั้น (หมอคนอื่นจะไม่เห็น)
+        if (isDoc) {
+            filtered = filtered.filter(row => isVisitAssignedToCurrentDoctor(row.doctor_name, currentUser));
+        } else if (filterSelect && filterSelect.value && filterSelect.value !== 'all') {
+            const selectedFilterDoc = filterSelect.value.trim().toLowerCase();
+            filtered = filtered.filter(row => (row.doctor_name || '').toLowerCase().includes(selectedFilterDoc));
+        }
+
+        if (!filtered || filtered.length === 0) {
+            const emptyMsg = isDoc
+                ? `ไม่มีรายการรออ่านผลสำหรับคุณหมอ (${currentUser.full_name || currentUser.name || 'ท่านนี้'})`
+                : 'ไม่มีรายการรออ่านผล';
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-5"><i class="bi bi-person-check me-2"></i>${emptyMsg}</td></tr>`;
+            return;
+        }
+
+        let rowsHtml = '';
+        filtered.forEach((row, idx) => {
+            let statusBadge = '';
+            let actionBtn = '';
+
+            if (row.status === 'รออ่านผล') {
+                statusBadge = `<span class="badge-soft-warning">รอเรียกพบ</span>`;
+                actionBtn = `<button class="btn btn-sm btn-warning fw-bold px-3 text-white" onclick="startDoctorConsult('${row.visit_id}')"><i class="bi bi-megaphone me-1"></i>เรียกพบคนไข้</button>`;
+            } else if (row.status === 'กำลังคุยกับแพทย์' || row.status === 'กำลังตรวจ' || row.status === 'กำลังตรวจอยู่') {
+                statusBadge = `<span class="badge-soft-danger">กำลังตรวจอยู่</span>`;
+                actionBtn = `<button class="btn btn-sm btn-success px-3" onclick="openPrescribeModal('${row.visit_id}')"><i class="bi bi-file-earmark-medical me-1"></i>อ่านผล & สั่งยา</button>`;
+            } else {
+                statusBadge = `<span class="badge-soft-secondary">${row.status || '-'}</span>`;
+                actionBtn = `<button class="btn btn-sm btn-success px-3" onclick="openPrescribeModal('${row.visit_id}')"><i class="bi bi-file-earmark-medical me-1"></i>อ่านผล & สั่งยา</button>`;
+            }
+
+            rowsHtml += `
+            <tr>
+               <td class="ps-4 py-3 text-center fw-semibold text-secondary">${idx + 1}</td>
+               <td class="py-3 fw-bold text-primary">${row.visit_id}</td>
+               <td class="py-3">${row.hn || '-'}</td>
+               <td class="py-3 fw-bold text-dark">${row.patient_name || '-'}</td>
+               <td class="py-3 fw-bold text-info"><i class="bi bi-person-workspace text-primary"></i> ${row.doctor_name || '-'}</td>
+               <td class="py-3">${statusBadge}</td>
+               <td class="text-center py-3">${actionBtn}</td>
+            </tr>`;
+        });
+        tbody.innerHTML = rowsHtml;
+    } catch (err) {
+        console.error('loadPrescriptionList error:', err);
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-5">เกิดข้อผิดพลาดในการโหลดข้อมูล: ${err.message || err}</td></tr>`;
+    } finally {
+        if (btn) btn.disabled = false;
+        if (icon) {
+            icon.classList.remove('spinner-border', 'spinner-border-sm');
+            icon.classList.add('bi-arrow-clockwise');
+        }
+    }
 }
+window.loadPrescriptionList = loadPrescriptionList;
+window.refreshPrescriptionPage = loadPrescriptionList;
 
 async function startDoctorConsult(visitId) {
     Swal.fire({ title: 'กำลังประมวลผล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -10626,7 +10675,7 @@ window.loadPatientHistory = async function () {
                                 try { localOrdersCache = JSON.parse(localStorage.getItem('clinic_orders') || '[]'); } catch (e) { }
                                 nOrders.forEach(o => {
                                     if (!o) return;
-                                    const vId = o.visit_id || ('VIS-' + String(o.order_id || '').replace(/\D/g, '').slice(-6));
+                                    const vId = o.visit_id || ('VIS-ORD-' + String(o.order_id || '').replace(/\D/g, '').slice(-5));
                                     if (isHistDeleted(vId) || isHistDeleted(o.order_id) || o.status === 'ຍົກເລີກ' || o.status === 'ยกเลิก' || String(o.notes || '').includes('[DELETED]')) return;
                                     if (vId && !rows.some(r => r.visit_id === vId)) {
                                         const dt = o.created_at || (o.date ? new Date(o.date).toISOString() : new Date().toISOString());
@@ -10673,7 +10722,7 @@ window.loadPatientHistory = async function () {
                     if (Array.isArray(localOrders)) {
                         localOrders.forEach(o => {
                             if (!o) return;
-                            const vId = o.visitId || o.visit_id || ('VIS-' + String(o.orderId || o.order_id || '').replace(/\D/g, '').slice(-6));
+                            const vId = o.visitId || o.visit_id || ('VIS-ORD-' + String(o.orderId || o.order_id || '').replace(/\D/g, '').slice(-5));
                             if (isHistDeleted(vId) || isHistDeleted(o.orderId) || isHistDeleted(o.order_id) || o.status === 'ຍົກເລີກ' || o.status === 'ยกเลิก') return;
                             if (vId && !rows.some(r => r.visit_id === vId)) {
                                 rows.push({
@@ -10882,11 +10931,14 @@ window.renderHistoryTable = function (page = window.historyCurrentPage) {
 
         const phoneHtml = row.phone ? `<br><small class="text-muted"><i class="bi bi-telephone text-primary"></i> ${row.phone}</small>` : '';
         const symptomHtml = row.symptom || row.reason || '-';
+        const displayVisitId = (row.visit_id && String(row.visit_id).startsWith('VIS-ORD-') && String(row.visit_id).replace('VIS-ORD-', '').length > 5)
+            ? ('VIS-ORD-' + String(row.visit_id).replace('VIS-ORD-', '').slice(-5))
+            : (row.visit_id || '-');
 
         tbody.innerHTML += `
             <tr class="border-bottom">
                 <td class="ps-4 text-center align-middle fw-semibold text-secondary">${no}</td>
-                <td class="fw-bold text-dark align-middle py-2" style="font-size: 0.92rem;">${row.visit_id || '-'}</td>
+                <td class="fw-bold text-dark align-middle py-2" style="font-size: 0.92rem;">${displayVisitId}</td>
                 <td class="text-muted align-middle py-2" style="font-size: 0.88rem;">${row.hn || '-'}</td>
                 <td class="align-middle fw-bold text-dark py-2" style="font-size: 0.92rem;">${row.patient_name || '-'}${phoneHtml}</td>
                 <td class="align-middle text-muted py-2" style="font-size: 0.88rem;">${dateStr}</td>
@@ -11170,27 +11222,81 @@ async function deleteAllHistoryVisits() {
 
 
 
-async function showHistoryDetails(visitId, targetHn, targetName) {
+async function showHistoryDetails(visitId, targetHn, targetName, directOrderData) {
     let cleanVisitId = (visitId && visitId !== '-' && visitId !== 'null' && visitId !== 'undefined') ? String(visitId).trim() : null;
     let row = null;
 
-    if (cleanVisitId) {
-        row = (window.allHistoryVisits || []).find(v => v.visit_id === cleanVisitId);
+    const isMatchVisitId = (v1, v2) => {
+        if (!v1 || !v2) return false;
+        const s1 = String(v1).trim();
+        const s2 = String(v2).trim();
+        if (s1 === s2) return true;
+        const d1 = s1.replace(/\D/g, '');
+        const d2 = s2.replace(/\D/g, '');
+        if (d1 && d2 && (d1 === d2 || d1.endsWith(d2) || d2.endsWith(d1))) return true;
+        return false;
+    };
+
+    // 0. ถ้ามี directOrderData ส่งตรงมาจากหน้าจอ ให้สร้าง row ทันที
+    if (directOrderData) {
+        row = {
+            visit_id: directOrderData.visitId || directOrderData.visit_id || cleanVisitId,
+            hn: directOrderData.hn || targetHn || '-',
+            patient_name: directOrderData.customer_name || directOrderData.patient_name || targetName || '-',
+            doctor_name: directOrderData.closer_dr || directOrderData.doctor_advice || 'ແພດປະຈຳຄລີນິກ',
+            assistant_name: directOrderData.assistant_advice || directOrderData.recorded_by || '-',
+            symptom: directOrderData.disease || directOrderData.symptom || 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ',
+            disease: directOrderData.disease || null,
+            status: 'เสร็จสิ้น',
+            created_at: directOrderData.created_at || directOrderData.date || new Date().toISOString(),
+            phone: directOrderData.customer_phone || directOrderData.phone || '',
+            age: directOrderData.age || null,
+            gender: directOrderData.gender || null,
+            province: directOrderData.province || null,
+            district: directOrderData.district || null,
+            village: directOrderData.village || null,
+            order_id: directOrderData.order_id || directOrderData.orderId,
+            order_data: directOrderData,
+            items_json: directOrderData.items_json || directOrderData.items
+        };
     }
 
-    // 🌟 1. ดึงข้อมูลล่าสุดจาก Supabase visits table เผื่อมีการอัปเดตผลแล็บ/เอโก/เอ็กซเรย์/หมายเหตุเพิ่มเติม
+    if (!row && cleanVisitId) {
+        row = (window.allHistoryVisits || []).find(v => isMatchVisitId(v.visit_id, cleanVisitId));
+    }
+
+    // 🌟 1. ดึงข้อมูลล่าสุดจาก Supabase visits table ເພື່ອໃຫ້ໄດ້ຂໍ້ມູນສົດໃໝ່
     if (cleanVisitId && typeof _supabase !== 'undefined') {
         try {
-            const { data: freshVisit } = await _supabase
+            let freshVisit = null;
+            const { data: vExact } = await _supabase
                 .from('visits')
                 .select('*')
                 .eq('visit_id', cleanVisitId)
                 .maybeSingle();
+            freshVisit = vExact;
+            if (!freshVisit) {
+                const rawDigits = cleanVisitId.replace(/\D/g, '');
+                if (rawDigits) {
+                    const { data: vList } = await _supabase
+                        .from('visits')
+                        .select('*')
+                        .ilike('visit_id', `%${rawDigits}`)
+                        .limit(1);
+                    if (vList && vList[0]) freshVisit = vList[0];
+                }
+            }
             if (freshVisit) {
                 if (!row) {
                     row = freshVisit;
                 } else {
+                    const preservedItems = row.items_json || (row.order_data && (row.order_data.items_json || row.order_data.items));
+                    const preservedOrderData = row.order_data;
+                    const preservedMeds = row.meds;
                     Object.assign(row, freshVisit);
+                    if (!row.items_json && preservedItems) row.items_json = preservedItems;
+                    if (!row.order_data && preservedOrderData) row.order_data = preservedOrderData;
+                    if (!row.meds && preservedMeds) row.meds = preservedMeds;
                 }
             }
         } catch (err) {
@@ -11229,19 +11335,20 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
             const localOrders = JSON.parse(localStorage.getItem('clinic_orders') || '[]');
             const allLocalOrders = localOrders.concat(localStk);
             const foundDirectOrd = allLocalOrders.find(o =>
-                (cleanVisitId && (o.visit_id === cleanVisitId || o.visitId === cleanVisitId || o.order_id === cleanVisitId || o.orderId === cleanVisitId)) ||
+                (cleanVisitId && (isMatchVisitId(o.visit_id, cleanVisitId) || isMatchVisitId(o.visitId, cleanVisitId) || isMatchVisitId(o.order_id, cleanVisitId) || isMatchVisitId(o.orderId, cleanVisitId))) ||
                 (targetHn && targetHn !== '-' && (o.hn === targetHn || String(o.hn) === String(targetHn))) ||
                 (targetName && ((o.patient_name && o.patient_name.trim().toLowerCase() === String(targetName).trim().toLowerCase()) ||
                     (o.customer_name && o.customer_name.trim().toLowerCase() === String(targetName).trim().toLowerCase())))
             );
             if (foundDirectOrd) {
                 row = {
-                    visit_id: foundDirectOrd.visit_id || foundDirectOrd.visitId || ('VIS-' + String(foundDirectOrd.order_id || foundDirectOrd.orderId || '').replace(/\D/g, '').slice(-6)),
+                    visit_id: foundDirectOrd.visit_id || foundDirectOrd.visitId || cleanVisitId,
                     hn: foundDirectOrd.hn || targetHn || '-',
                     patient_name: foundDirectOrd.customer_name || foundDirectOrd.patient_name || targetName || '-',
                     doctor_name: foundDirectOrd.closer_dr || foundDirectOrd.doctor_advice || 'ແພດປະຈຳຄລີນິກ',
                     assistant_name: foundDirectOrd.assistant_advice || foundDirectOrd.recorded_by || '-',
-                    symptom: 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ' + (foundDirectOrd.notes ? ` (${foundDirectOrd.notes})` : (foundDirectOrd.symptom ? ` (${foundDirectOrd.symptom})` : '')),
+                    symptom: (foundDirectOrd.disease || (foundDirectOrd.gender && foundDirectOrd.gender !== 'ຊาย' && foundDirectOrd.gender !== 'ຍິງ' && foundDirectOrd.gender !== 'ชาย' && foundDirectOrd.gender !== 'หญิง' ? foundDirectOrd.gender : '')) || foundDirectOrd.symptom || ('ສັ່ງຊື້ຢາ/ອາຫານເສີມ' + (foundDirectOrd.notes ? ` (${foundDirectOrd.notes})` : '')),
+                    disease: foundDirectOrd.disease || (foundDirectOrd.gender && foundDirectOrd.gender !== 'ຊາຍ' && foundDirectOrd.gender !== 'ຍິງ' && foundDirectOrd.gender !== 'ชาย' && foundDirectOrd.gender !== 'หญิง' ? foundDirectOrd.gender : '') || null,
                     status: 'เสร็จสิ้น',
                     created_at: foundDirectOrd.created_at || (foundDirectOrd.date ? new Date(foundDirectOrd.date).toISOString() : new Date().toISOString()),
                     phone: foundDirectOrd.customer_phone || foundDirectOrd.phone || '',
@@ -11296,33 +11403,48 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
     if (!hasVitals && !hasLabData) {
         const s = (row.symptom || '').trim();
         const isExplicitOrderSymptom = s.startsWith('ສັ່ງຊື້') || s.startsWith('สั่งซื้อ') || s.startsWith('Order') || s.includes('ສັ່ງຊື້ຢາ/ອາຫານເສີມ') || s.includes('ສັ່ງຊື້ຢາ/อาหารเสริม');
-        const isOrdId = (row.visit_id && String(row.visit_id).startsWith('ORD')) || (row.order_id && String(row.order_id).startsWith('ORD-') && !String(row.order_id).startsWith('ORD-CLINIC-'));
+        const isOrdId = (row.visit_id && (String(row.visit_id).startsWith('ORD') || String(row.visit_id).includes('-ORD-'))) || (row.order_id && String(row.order_id).startsWith('ORD-') && !String(row.order_id).startsWith('ORD-CLINIC-'));
 
-        if (isExplicitOrderSymptom || isOrdId) {
+        if (isExplicitOrderSymptom || isOrdId || directOrderData) {
             isOrderVisit = true;
         }
     }
 
-    let matchedOrderData = row.order_data || null;
+    let matchedOrderData = directOrderData || row.order_data || null;
 
     // ค้นหา matchedOrderData เฉพาะที่ตรงกับ visit_id หรือ order_id ของแถวนี้เท่านั้น
     try {
         const localStk = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
         const localOrders = JSON.parse(localStorage.getItem('clinic_orders') || '[]');
         const allLocalOrders = localOrders.concat(localStk);
-        const foundDirect = allLocalOrders.find(o => 
-            (o.visit_id && (o.visit_id === row.visit_id || o.visitId === row.visit_id)) ||
-            (o.visitId && (o.visitId === row.visit_id || o.visit_id === row.visit_id)) ||
-            (row.order_id && (o.order_id === row.order_id || o.orderId === row.order_id))
-        );
+        const foundDirect = allLocalOrders.find(o => {
+            if (!o) return false;
+            const oV = o.visit_id || o.visitId;
+            const oO = o.order_id || o.orderId;
+            if (row && row.visit_id && oV && isMatchVisitId(oV, row.visit_id)) return true;
+            if (row && row.order_id && oO && isMatchVisitId(oO, row.order_id)) return true;
+            if (cleanVisitId && oV && isMatchVisitId(oV, cleanVisitId)) return true;
+            if (cleanVisitId && oO && isMatchVisitId(oO, cleanVisitId)) return true;
+            if (row && row.hn && o.hn && row.hn !== '-' && (o.hn === row.hn || String(o.hn).replace(/\D/g, '') === String(row.hn).replace(/\D/g, ''))) return true;
+            return false;
+        });
         if (foundDirect) {
-            matchedOrderData = matchedOrderData ? Object.assign({}, foundDirect, matchedOrderData) : foundDirect;
+            if (!matchedOrderData) {
+                matchedOrderData = foundDirect;
+            } else {
+                const existingItems = (matchedOrderData.items && matchedOrderData.items.length > 0) ? matchedOrderData.items : ((matchedOrderData.items_json && matchedOrderData.items_json.length > 0) ? matchedOrderData.items_json : null);
+                matchedOrderData = Object.assign({}, foundDirect, matchedOrderData);
+                if (existingItems) {
+                    matchedOrderData.items = existingItems;
+                    matchedOrderData.items_json = existingItems;
+                } else if (foundDirect.items || foundDirect.items_json) {
+                    matchedOrderData.items = foundDirect.items || foundDirect.items_json;
+                    matchedOrderData.items_json = foundDirect.items_json || foundDirect.items;
+                }
+            }
             const isClinicRxAutoSync = foundDirect.order_id && String(foundDirect.order_id).startsWith('ORD-CLINIC-');
             if (!hasVitals && !hasLabData && !isClinicRxAutoSync) {
-                const s = (row.symptom || '').trim();
-                if (s.startsWith('ສັ່ງຊື້') || s.startsWith('สั่งซื้อ') || s.startsWith('Order') || s.includes('ສັ່ງຊື້ຢາ/ອາຫານເສີມ') || s.includes('ສັ່ງຊື້ຢາ/อาหารเสริม') || String(row.visit_id).startsWith('ORD')) {
-                    isOrderVisit = true;
-                }
+                isOrderVisit = true;
             }
         }
     } catch (e) { }
@@ -11376,21 +11498,46 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
     setSafeText('histPatientName', row.patient_name);
     setSafeText('histHN', row.hn);
 
-    // --- ดึงและแสดงเบอร์โทรศัพท์ + ข้อมูลที่อยู่ผู้ป่วย (Age, Village, District, Province) ---
+    // --- ดึงและแสดงเบอร์โทรศัพท์ + ข้อมูลที่อยู่ผู้ป่วย (Age, Village, District, Province, Disease) ---
     let patientPhone = '-';
     let patientAge = '-';
     let patientVillage = '-';
     let patientDistrict = '-';
     let patientProvince = '-';
+    let patientDisease = '-';
 
-    // 1. ตรวจสอบจาก row โดยตรงก่อน
-    if (row.phone && row.phone !== '-') patientPhone = String(row.phone).trim();
-    if (row.age && row.age !== '-') patientAge = String(row.age).trim();
-    if (row.village && row.village !== '-') patientVillage = String(row.village).trim();
-    if (row.district && row.district !== '-') patientDistrict = String(row.district).trim();
-    if (row.province && row.province !== '-') patientProvince = String(row.province).trim();
+    // 1. ถ้ามีข้อมูล order โดยตรง (matchedOrderData หรือ row.order_data) ให้ดึงเบอร์และอาการ/โรคจาก order นั้นเป็นอันดับ 1
+    const ordObj = matchedOrderData || row.order_data;
+    if (ordObj) {
+        const oPhone = ordObj.customer_phone || ordObj.phone;
+        if (oPhone && oPhone !== '-' && oPhone !== 'null' && oPhone !== 'undefined') {
+            patientPhone = String(oPhone).trim();
+        }
+        if (ordObj.disease && ordObj.disease !== '-') {
+            patientDisease = ordObj.disease;
+        } else if (ordObj.gender && ordObj.gender !== 'ຊາຍ' && ordObj.gender !== 'ຍິງ' && ordObj.gender !== 'ชาย' && ordObj.gender !== 'หญิง' && ordObj.gender !== '-') {
+            patientDisease = ordObj.gender;
+        } else if (ordObj.symptom && !ordObj.symptom.startsWith('ສັ່ງຊື້') && !ordObj.symptom.startsWith('สั่งซื้อ') && !ordObj.symptom.startsWith('Order')) {
+            patientDisease = ordObj.symptom;
+        }
+        if (ordObj.age) patientAge = String(ordObj.age).trim();
+        if (ordObj.village || ordObj.customer_village) patientVillage = String(ordObj.village || ordObj.customer_village).trim();
+        if (ordObj.district || ordObj.customer_district) patientDistrict = String(ordObj.district || ordObj.customer_district).trim();
+        if (ordObj.province || ordObj.customer_province) patientProvince = String(ordObj.province || ordObj.customer_province).trim();
+        if (ordObj.address || ordObj.customer_address) patientVillage = String(ordObj.address || ordObj.customer_address).trim();
+    }
 
-    // 2. ค้นหาใน LocalStorage clinic_orders และ stk_nutrient_orders (มีข้อมูลที่อยู่และอายุครบถ้วน)
+    // 2. ตรวจสอบจาก row โดยตรง
+    if (patientPhone === '-' && row.phone && row.phone !== '-') patientPhone = String(row.phone).trim();
+    if (patientAge === '-' && row.age && row.age !== '-') patientAge = String(row.age).trim();
+    if (patientVillage === '-' && row.village && row.village !== '-') patientVillage = String(row.village).trim();
+    if (patientDistrict === '-' && row.district && row.district !== '-') patientDistrict = String(row.district).trim();
+    if (patientProvince === '-' && row.province && row.province !== '-') patientProvince = String(row.province).trim();
+    if (patientDisease === '-' && row.disease && row.disease !== '-') patientDisease = row.disease;
+    if (patientDisease === '-' && row.symptom && !row.symptom.startsWith('ສັ່ງຊື້') && !row.symptom.startsWith('สั่งซื้อ') && !row.symptom.startsWith('Order')) patientDisease = row.symptom;
+    if (patientDisease === '-' && row.past_history && row.past_history !== '-') patientDisease = row.past_history;
+
+    // 3. ค้นหาใน LocalStorage clinic_orders และ stk_nutrient_orders
     try {
         const localOrders = JSON.parse(localStorage.getItem('clinic_orders') || '[]');
         const localStk = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
@@ -11416,24 +11563,19 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
             if (patientDistrict === '-' && (matchedLocal.district || matchedLocal.customer_district)) patientDistrict = String(matchedLocal.district || matchedLocal.customer_district).trim();
             if (patientProvince === '-' && (matchedLocal.province || matchedLocal.customer_province)) patientProvince = String(matchedLocal.province || matchedLocal.customer_province).trim();
             if (patientVillage === '-' && (matchedLocal.address || matchedLocal.customer_address)) patientVillage = String(matchedLocal.address || matchedLocal.customer_address).trim();
+            if (patientDisease === '-') {
+                if (matchedLocal.disease && matchedLocal.disease !== '-') patientDisease = matchedLocal.disease;
+                else if (matchedLocal.gender && matchedLocal.gender !== 'ຊາຍ' && matchedLocal.gender !== 'ຍິງ' && matchedLocal.gender !== 'ชาย' && matchedLocal.gender !== 'หญิง' && matchedLocal.gender !== '-') patientDisease = matchedLocal.gender;
+                else if (matchedLocal.symptom && !matchedLocal.symptom.startsWith('ສັ່ງຊື້') && !matchedLocal.symptom.startsWith('สั่งซื้อ') && !matchedLocal.symptom.startsWith('Order')) patientDisease = matchedLocal.symptom;
+            }
         }
     } catch (e) { }
 
-    // 3. ค้นหาจาก matchedOrderData / row.order_data
-    const ordObj = matchedOrderData || row.order_data;
-    if (ordObj) {
-        if (patientPhone === '-' && (ordObj.phone || ordObj.customer_phone)) patientPhone = String(ordObj.phone || ordObj.customer_phone).trim();
-        if (patientAge === '-' && ordObj.age) patientAge = String(ordObj.age).trim();
-        if (patientVillage === '-' && (ordObj.village || ordObj.customer_village)) patientVillage = String(ordObj.village || ordObj.customer_village).trim();
-        if (patientDistrict === '-' && (ordObj.district || ordObj.customer_district)) patientDistrict = String(ordObj.district || ordObj.customer_district).trim();
-        if (patientProvince === '-' && (ordObj.province || ordObj.customer_province)) patientProvince = String(ordObj.province || ordObj.customer_province).trim();
-        if (patientVillage === '-' && (ordObj.address || ordObj.customer_address)) patientVillage = String(ordObj.address || ordObj.customer_address).trim();
-    }
-
-    // 4. ค้นหาจาก allPatients / allPatientsData ในหน่วยความจำ (ค้นหาทั้ง HN, เบอร์โทร, และชื่อผู้ป่วย)
+    // 4. ค้นหาจาก allPatients / allPatientsData ในหน่วยความจำ
+    let pat = null;
     const patientPool = (window.allPatients || []).concat(window.allPatientsData || []).concat(window.rawAllPatients || []);
     if (patientPool.length > 0) {
-        const pat = patientPool.find(p => {
+        pat = patientPool.find(p => {
             if (!p) return false;
             if (row.hn && row.hn !== '-' && p.hn && (p.hn === row.hn || String(p.hn).replace(/\D/g, '') === String(row.hn).replace(/\D/g, ''))) return true;
             if (patientPhone !== '-' && p.phone && String(p.phone).trim() === String(patientPhone).trim()) return true;
@@ -11443,24 +11585,27 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
             return false;
         });
         if (pat) {
-            if (patientPhone === '-' && pat.phone) patientPhone = String(pat.phone).trim();
+            if ((patientPhone === '-' || patientPhone === '00000000000') && pat.phone && pat.phone !== '00000000000') patientPhone = String(pat.phone).trim();
             if (patientAge === '-' && pat.age) patientAge = String(pat.age).trim();
             if (patientVillage === '-' && pat.village) patientVillage = String(pat.village).trim();
             if (patientDistrict === '-' && pat.district) patientDistrict = String(pat.district).trim();
             if (patientProvince === '-' && pat.province) patientProvince = String(pat.province).trim();
             if (patientVillage === '-' && pat.address) patientVillage = String(pat.address).trim();
+            if (patientDisease === '-') {
+                patientDisease = pat.disease || pat.past_history || (pat.symptom && !pat.symptom.startsWith('ສັ່ງຊື້') ? pat.symptom : '-');
+            }
         }
     }
 
-    // 5. ถ้ายังขาดข้อมูล ให้ดึงจาก Supabase patients table โดยตรง (ค้นหา HN, เบอร์โทร, หรือชื่อ)
-    if ((patientAge === '-' || patientVillage === '-' || patientDistrict === '-' || patientProvince === '-') && typeof _supabase !== 'undefined') {
+    // 5. ถ้ายังขาดข้อมูล ให้ดึงจาก Supabase patients table โดยตรง
+    let pDb = null;
+    if ((patientAge === '-' || patientVillage === '-' || patientDistrict === '-' || patientProvince === '-' || patientPhone === '-' || patientPhone === '00000000000' || patientDisease === '-') && typeof _supabase !== 'undefined') {
         try {
-            let pDb = null;
             // 5.1 ค้นหาด้วย HN
             if (row.hn && row.hn !== '-') {
                 const { data } = await _supabase
                     .from('patients')
-                    .select('phone, age, dob, village, district, province')
+                    .select('phone, age, dob, village, district, province, past_history')
                     .eq('hn', row.hn)
                     .maybeSingle();
                 pDb = data;
@@ -11471,18 +11616,18 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
                 if (rawHnDigits) {
                     const { data } = await _supabase
                         .from('patients')
-                        .select('phone, age, dob, village, district, province')
+                        .select('phone, age, dob, village, district, province, past_history')
                         .eq('hn', rawHnDigits)
                         .maybeSingle();
                     pDb = data;
                 }
             }
             // 5.3 ค้นหาด้วยเบอร์โทร
-            const searchPhone = (patientPhone && patientPhone !== '-') ? patientPhone : (row.phone || '');
-            if (!pDb && searchPhone && searchPhone !== '-') {
+            const searchPhone = (patientPhone && patientPhone !== '-' && patientPhone !== '00000000000') ? patientPhone : (row.phone || '');
+            if (!pDb && searchPhone && searchPhone !== '-' && searchPhone !== '00000000000') {
                 const { data } = await _supabase
                     .from('patients')
-                    .select('phone, age, dob, village, district, province')
+                    .select('phone, age, dob, village, district, province, past_history')
                     .eq('phone', String(searchPhone).trim())
                     .maybeSingle();
                 pDb = data;
@@ -11491,14 +11636,14 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
             if (!pDb && row.patient_name && row.patient_name !== '-') {
                 const { data } = await _supabase
                     .from('patients')
-                    .select('phone, age, dob, village, district, province')
+                    .select('phone, age, dob, village, district, province, past_history')
                     .ilike('patient_name', row.patient_name.trim())
                     .maybeSingle();
                 pDb = data;
             }
 
             if (pDb) {
-                if (patientPhone === '-' && pDb.phone) patientPhone = String(pDb.phone).trim();
+                if ((patientPhone === '-' || patientPhone === '00000000000') && pDb.phone && pDb.phone !== '00000000000') patientPhone = String(pDb.phone).trim();
                 if (patientAge === '-') {
                     if (pDb.age) {
                         patientAge = String(pDb.age).trim();
@@ -11510,6 +11655,7 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
                 if (patientVillage === '-' && pDb.village) patientVillage = String(pDb.village).trim();
                 if (patientDistrict === '-' && pDb.district) patientDistrict = String(pDb.district).trim();
                 if (patientProvince === '-' && pDb.province) patientProvince = String(pDb.province).trim();
+                if (patientDisease === '-' && pDb.past_history && pDb.past_history !== '-') patientDisease = pDb.past_history;
             }
         } catch (e) { console.warn('Fetch patient address warning:', e); }
     }
@@ -11526,6 +11672,7 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
     }
 
     setSafeText('histPhone', patientPhone);
+    setSafeText('histDisease', patientDisease);
     setSafeText('histAge', patientAge);
     setSafeText('histVillage', patientVillage);
     setSafeText('histDistrict', patientDistrict);
@@ -11666,9 +11813,12 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
     // 🌟 ดึงข้อมูล อาการแรกรับ / อาการสำคัญ
     let displaySymptom = '';
     if (isOrderVisit) {
-        // รูปที่ 1: ดึงเฉพาะข้อความอาการหรือหมายเหตุจริงที่ผู้ใช้กรอก เช่น "ตาแดง"
         let note = (matchedOrderData && (matchedOrderData.notes || matchedOrderData.note)) || '';
-        if (!note && row.symptom) {
+        if (patientDisease && patientDisease !== '-') {
+            displaySymptom = patientDisease + (note ? ` (${note})` : '');
+        } else if (note) {
+            displaySymptom = note;
+        } else if (row.symptom) {
             let s = row.symptom.trim();
             s = s.replace(/^ສັ່ງຊື້ຢາ\/ອາຫານເສີມ\s*/i, '');
             s = s.replace(/^ສັ່ງຊື້ຢາ\/อาหารเสริม\s*/i, '');
@@ -11676,9 +11826,10 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
             s = s.replace(/^สั่งซื้อยา\s*/i, '');
             s = s.replace(/^Order\s*/i, '');
             s = s.replace(/^\((.*)\)$/, '$1').trim();
-            if (s) note = s;
+            displaySymptom = s || 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ';
+        } else {
+            displaySymptom = 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ';
         }
-        displaySymptom = note || 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ';
     } else {
         // รูปที่ 2: ดึงอาการสำคัญจากการตรวจรักษาคลินิก
         const invalidSymptoms = ['สั่งจ่ายยา', 'รอจ่ายยา', 'รอตรวจ', 'เสร็จสิ้น', 'สำเร็จ', 'รอรับยา', 'กำลังตรวจ'];
@@ -11943,15 +12094,78 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
             }
         }
 
-        // 4. 🌟 DB Fallback: ดึงจาก bills (Clinic Supabase) และ stk_nutrient_orders (MLM Supabase) เมื่อหาใน local/memory ไม่พบ
-        if (medsList.length === 0 && row.visit_id) {
+        // 3.5 ค้นหาตรงจาก LocalStorage (clinic_orders, stk_nutrient_orders)
+        if (medsList.length === 0) {
+            try {
+                const localOrders = JSON.parse(localStorage.getItem('clinic_orders') || '[]');
+                const localStk = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
+                const allLocal = localOrders.concat(localStk);
+                const targetVid = row.visit_id || cleanVisitId;
+                const mOrder = allLocal.find(o => {
+                    if (!o) return false;
+                    const oV = o.visit_id || o.visitId;
+                    const oO = o.order_id || o.orderId;
+                    if (targetVid && oV && isMatchVisitId(oV, targetVid)) return true;
+                    if (targetVid && oO && isMatchVisitId(oO, targetVid)) return true;
+                    if (row.order_id && oO && isMatchVisitId(oO, row.order_id)) return true;
+                    if (row.hn && o.hn && row.hn !== '-' && (o.hn === row.hn || String(o.hn).replace(/\D/g, '') === String(row.hn).replace(/\D/g, ''))) return true;
+                    return false;
+                });
+                if (mOrder) {
+                    let mItems = mOrder.items || mOrder.items_json;
+                    if (typeof mItems === 'string') { try { mItems = JSON.parse(mItems); } catch (e) { mItems = null; } }
+                    if (Array.isArray(mItems) && mItems.length > 0) {
+                        medsList = mItems.map(it => ({
+                            name: it.name || it.product_name || 'ສິນຄ້າ',
+                            qty: Number(it.qty || 1),
+                            tier: it.tier || 'normal',
+                            tierName: it.tierName || it.priceType || 'ປົກກະຕິ',
+                            price: Number(it.price || 0),
+                            total: Number(it.total || (Number(it.price || 0) * Number(it.qty || 1))),
+                            source: it.source || 'mlm'
+                        }));
+                        if (!matchedOrderData) matchedOrderData = mOrder;
+                    }
+                }
+            } catch (e) { }
+        }
+
+        // 4. 🌟 DB Fallback: ดึงจาก visits.meds, bills (Clinic Supabase) และ stk_nutrient_orders (MLM Supabase) เมื่อหาใน local/memory ไม่พบ
+        if (medsList.length === 0 && (row.visit_id || cleanVisitId)) {
+            const targetVid = row.visit_id || cleanVisitId;
+            const rawVidDigits = String(targetVid).replace(/\D/g, '');
+
+            // 4.0 ดึงจากตาราง visits (Clinic Supabase) เผื่อมี meds บันทึกไว้
+            if (medsList.length === 0 && typeof _supabase !== 'undefined' && _supabase) {
+                try {
+                    const { data: vRow } = await _supabase.from('visits').select('meds').eq('visit_id', targetVid).maybeSingle();
+                    if (vRow && vRow.meds) {
+                        let vItems = vRow.meds;
+                        if (typeof vItems === 'string') {
+                            try { vItems = JSON.parse(vItems); } catch (e) { }
+                        }
+                        if (Array.isArray(vItems) && vItems.length > 0) {
+                            medsList = vItems.map(it => ({
+                                name: it.name || it.product_name || String(it),
+                                qty: Number(it.qty || 1),
+                                tier: it.tier || 'normal',
+                                tierName: it.tierName || it.priceType || 'ປົກກະຕິ',
+                                price: Number(it.price || 0),
+                                total: Number(it.total || (Number(it.price || 0) * Number(it.qty || 1))),
+                                source: 'mlm'
+                            }));
+                        }
+                    }
+                } catch (e) { }
+            }
+
             try {
                 // 4.1 ดึงจากตาราง bills (Clinic Supabase) ก่อน
                 if (typeof _supabase !== 'undefined' && _supabase) {
                     const { data: billData } = await _supabase
                         .from('bills')
                         .select('items, subtotal, discount, payable_amount, note')
-                        .eq('visit_id', row.visit_id)
+                        .eq('visit_id', targetVid)
                         .maybeSingle();
                     if (billData) {
                         let billItems = billData.items;
@@ -11966,7 +12180,6 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
                                 total: Number(it.total || (Number(it.price || 0) * Number(it.qty || 1))),
                                 source: it.source || 'mlm'
                             }));
-                            // อัปเดต matchedOrderData ด้วยข้อมูลจาก DB
                             if (!matchedOrderData) matchedOrderData = {};
                             if (!matchedOrderData.subtotal) matchedOrderData.subtotal = billData.subtotal;
                             if (!matchedOrderData.discount) matchedOrderData.discount = billData.discount;
@@ -11977,16 +12190,70 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
                 }
             } catch (e) { console.warn('DB fallback bills fetch warning:', e); }
 
-            // 4.2 ถ้ายังไม่ได้ ดึงจาก stk_nutrient_orders (MLM Supabase)
-            if (medsList.length === 0 && typeof _mlmSupabase !== 'undefined' && _mlmSupabase) {
-                try {
-                    const { data: nOrder } = await _mlmSupabase
-                        .from('stk_nutrient_orders')
-                        .select('items_json, status')
-                        .eq('visit_id', row.visit_id)
-                        .maybeSingle();
-                    if (nOrder) {
-                        let nItems = nOrder.items_json;
+            // 4.2 ถ้ายังไม่ได้ ดึงจาก stk_nutrient_orders (ค้นหาทั้งใน _mlmSupabase และ _supabase)
+            if (medsList.length === 0) {
+                const nutrientClients = [];
+                if (typeof _mlmSupabase !== 'undefined' && _mlmSupabase) nutrientClients.push(_mlmSupabase);
+                if (typeof _supabase !== 'undefined' && _supabase && _supabase !== _mlmSupabase) nutrientClients.push(_supabase);
+
+                const candidateOids = [];
+                if (targetVid) {
+                    candidateOids.push(targetVid);
+                    candidateOids.push(String(targetVid).replace(/^VIS-/, ''));
+                    if (String(targetVid).startsWith('VIS-ORD-')) candidateOids.push(String(targetVid).replace('VIS-ORD-', 'ORD-'));
+                }
+                if (row.order_id) candidateOids.push(row.order_id);
+                if (rawVidDigits) {
+                    candidateOids.push('ORD-' + rawVidDigits);
+                    if (rawVidDigits.length >= 5) candidateOids.push('ORD-' + rawVidDigits.slice(-5));
+                }
+
+                for (const client of nutrientClients) {
+                    if (medsList.length > 0) break;
+                    let nOrder = null;
+
+                    // A. ค้นหาด้วย order_id
+                    for (const oid of candidateOids) {
+                        if (nOrder) break;
+                        try {
+                            const { data: ord } = await client.from('stk_nutrient_orders').select('*').eq('order_id', oid).maybeSingle();
+                            if (ord && (ord.items_json || ord.items)) nOrder = ord;
+                        } catch (e) { }
+                    }
+
+                    // B. ค้นหาด้วย visit_id
+                    if (!nOrder && targetVid) {
+                        try {
+                            const { data: ord } = await client.from('stk_nutrient_orders').select('*').eq('visit_id', targetVid).maybeSingle();
+                            if (ord && (ord.items_json || ord.items)) nOrder = ord;
+                        } catch (e) { }
+                    }
+
+                    // C. ค้นหาด้วย 5 ตัวท้าย
+                    if (!nOrder && rawVidDigits && rawVidDigits.length >= 5) {
+                        const last5 = rawVidDigits.slice(-5);
+                        try {
+                            const { data: ordList } = await client.from('stk_nutrient_orders').select('*').ilike('visit_id', `%${last5}`).order('created_at', { ascending: false }).limit(1);
+                            if (ordList && ordList[0] && (ordList[0].items_json || ordList[0].items)) nOrder = ordList[0];
+                        } catch (e) { }
+                        if (!nOrder) {
+                            try {
+                                const { data: ordList } = await client.from('stk_nutrient_orders').select('*').ilike('order_id', `%${last5}`).order('created_at', { ascending: false }).limit(1);
+                                if (ordList && ordList[0] && (ordList[0].items_json || ordList[0].items)) nOrder = ordList[0];
+                            } catch (e) { }
+                        }
+                    }
+
+                    // D. ค้นหาด้วย HN
+                    if (!nOrder && row.hn && row.hn !== '-') {
+                        try {
+                            const { data: ordList } = await client.from('stk_nutrient_orders').select('*').eq('hn', row.hn).order('created_at', { ascending: false }).limit(1);
+                            if (ordList && ordList[0] && (ordList[0].items_json || ordList[0].items)) nOrder = ordList[0];
+                        } catch (e) { }
+                    }
+
+                    if (nOrder && (nOrder.items_json || nOrder.items)) {
+                        let nItems = nOrder.items_json || nOrder.items;
                         if (typeof nItems === 'string') { try { nItems = JSON.parse(nItems); } catch (e) { nItems = null; } }
                         if (Array.isArray(nItems) && nItems.length > 0) {
                             medsList = nItems.map(it => ({
@@ -11998,9 +12265,12 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
                                 total: Number(it.total || (Number(it.price || 0) * Number(it.qty || 1))),
                                 source: 'mlm'
                             }));
+                            if (!matchedOrderData) matchedOrderData = nOrder;
+                            else Object.assign(matchedOrderData, nOrder);
+                            break;
                         }
                     }
-                } catch (e) { console.warn('DB fallback stk_nutrient_orders fetch warning:', e); }
+                }
             }
         }
 
@@ -12092,6 +12362,68 @@ async function showHistoryDetails(visitId, targetHn, targetName) {
 
             return 0;
         };
+
+        // 🌟 กรองรายการตรวจแล็บ / ตรวจวิเคราะห์โรค (Lab tests / Medical services) ออกจากตารางสั่งจ่ายยา/อาหารเสริม
+        // แสดงเฉพาะรายการยาหรืออาหารเสริมเท่านั้น ไม่นำรายการตรวจแล็บมาแสดงในตารางยา
+        function isLabOrServiceItem(item, labTestsString = '') {
+            if (!item) return false;
+            const name = String(item.name || item.product_name || item || '').trim();
+            if (!name) return false;
+            const nameLower = name.toLowerCase();
+
+            // 1. ตรวจสอบจาก attribute ของ item
+            if (item.type === 'service' || item.type === 'lab' || item.is_service === true || item.service_id) return true;
+            const itemCat = String(item.category || item.group || '').toLowerCase();
+            if (itemCat.includes('lab') || itemCat.includes('ตรวจ') || itemCat.includes('บริการ') || itemCat.includes('service') || itemCat.includes('แพ็กเกจ')) {
+                return true;
+            }
+
+            // 2. ตรวจสอบว่าตรงกับรายการใน lab_tests ของ visit นี้หรือไม่ (เช่น "T4, TSH, Viral Load HBV, T3")
+            if (labTestsString && typeof labTestsString === 'string' && labTestsString.trim() !== '' && labTestsString !== '-') {
+                const tests = labTestsString.split(/[,;\n]+/).map(t => t.trim().toLowerCase()).filter(Boolean);
+                if (tests.some(t => t === nameLower || nameLower === t || nameLower.includes(t) || t.includes(nameLower))) {
+                    return true;
+                }
+            }
+
+            // 3. ตรวจสอบกับรายการ services / lab packages ของคลินิก
+            try {
+                let services = window.allServicesData || window.servicesData;
+                if (!services) {
+                    services = JSON.parse(localStorage.getItem('clinic_services_packages') || '[]');
+                }
+                if (Array.isArray(services)) {
+                    const foundService = services.find(s => {
+                        if (!s || !s.name) return false;
+                        const sName = s.name.trim().toLowerCase();
+                        return sName === nameLower || sName.replace(/\s+/g, '') === nameLower.replace(/\s+/g, '');
+                    });
+                    if (foundService) return true;
+                }
+            } catch (e) {}
+
+            // 4. ตรวจสอบชื่อรายการที่เป็นการตรวจทางห้องแล็บ / หัตถการ
+            const labKeywords = [
+                't3', 't4', 'ft3', 'ft4', 'tsh', 'hbv', 'viral load', 'hcv', 'hiv', 'anti-hiv', 'hbsag',
+                'vdrl', 'tpha', 'cbc', 'lipid', 'fbs', 'glucose', 'hba1c', 'bun', 'creatinine', 'egfr',
+                'sgot', 'sgpt', 'alk phos', 'alp', 'uric acid', 'electrolyte', 'urinalysis', 'urine',
+                'stool', 'x-ray', 'xray', 'ultrasound', 'echo', 'ekg', 'ecg', 'vascular',
+                'ตรวจเลือด', 'ตรวจสุขภาพ', 'ตรวจปัสสาวะ', 'ตรวจอุจจาระ', 'ค่าตรวจ', 'ค่าบริการ'
+            ];
+            for (const kw of labKeywords) {
+                if (nameLower === kw) return true;
+                if (nameLower.includes(kw)) {
+                    const regex = new RegExp(`(^|[\\s,;()/-])${kw.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}([\\s,;()/-]|$)`, 'i');
+                    if (regex.test(nameLower)) return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (!isOrderVisit) {
+            medsList = medsList.filter(m => !isLabOrServiceItem(m, row.lab_tests));
+        }
 
         // ทำการคำนวณและดึงราคาของทุกรายการใน medsList ให้ถูกต้องสมบูรณ์
         medsList.forEach(m => {

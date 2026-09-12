@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ระบบการทำงาน - Clinic System</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230b3c73'/><path d='M40 20h20v20h20v20H60v20H40V60H20V40h20z' fill='%23ffffff'/></svg>">
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
@@ -27,6 +28,26 @@
     <!-- สคริปต์ตรวจสอบการล็อกอิน -->
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
     <script>
+        // ป้องกัน Uncaught (in promise) AbortError เมื่อเบราว์เซอร์หรือ Extension เรียก play() แล้วโดน pause() ขัดจังหวะ
+        window.addEventListener('unhandledrejection', function (e) {
+            if (e.reason && (e.reason.name === 'AbortError' || (e.reason.message && e.reason.message.includes('interrupted by a call to pause')))) {
+                e.preventDefault();
+            }
+        });
+        if (typeof HTMLMediaElement !== 'undefined' && HTMLMediaElement.prototype && HTMLMediaElement.prototype.play) {
+            const _origPlay = HTMLMediaElement.prototype.play;
+            HTMLMediaElement.prototype.play = function () {
+                const p = _origPlay.apply(this, arguments);
+                if (p && typeof p.catch === 'function') {
+                    p.catch(err => {
+                        if (err.name === 'AbortError' || (err.message && err.message.includes('pause'))) return;
+                        console.warn('Media play intercepted:', err);
+                    });
+                }
+                return p;
+            };
+        }
+
         // ตรวจสอบการเปิดไฟล์ผ่าน file:// ซึ่งโดน Chrome/Edge บล็อก Same-Origin Security
         if (window.location.protocol === 'file:') {
             console.warn("⚠️ ตรวจพบการเปิดด้วย file:// protocol ซึ่งจะถูกบล็อกความปลอดภัย Same-Origin Policy ในการแสดง iframe / พิมพ์เอกสาร / Supabase");
@@ -1602,8 +1623,8 @@
                             <i class="bi bi-person-check-fill me-1"></i>เฉพาะคิวตรวจของคุณ
                         </span>
                     </div>
-                    <button class="btn btn-sm btn-outline-primary py-2 px-3 fw-bold shadow-2xs"
-                        style="border-radius: 10px;" onclick="loadPrescriptionList()">
+                    <button id="btnRefreshPrescription" class="btn btn-sm btn-outline-primary py-2 px-3 fw-bold shadow-2xs"
+                        style="border-radius: 10px;" onclick="loadPrescriptionList(this)">
                         <i class="bi bi-arrow-clockwise me-1"></i> <span data-i18n="refresh">รีเฟรช</span>
                     </button>
                 </div>
@@ -4648,6 +4669,8 @@
                                 <p class="mb-1 text-muted">ແຂວງ / แขวง: <strong id="histProvince"
                                         class="text-dark">-</strong></p>
                                 <p class="mb-1 text-muted">เบอร์โทรศัพท์: <strong id="histPhone"
+                                        class="text-dark">-</strong></p>
+                                <p class="mb-1 text-muted" id="histDiseaseContainer">ອາການ / ພະຍາດ: <strong id="histDisease"
                                         class="text-dark">-</strong></p>
                                 <p class="mb-1 text-muted" id="histReferrerContainer" style="display: none;">ผู้แนะนำ:
                                     <strong id="histReferrer" class="text-primary">-</strong>

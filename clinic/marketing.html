@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clinic Booking - Timeline</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230b3c73'/><path d='M40 20h20v20h20v20H60v20H40V60H20V40h20z' fill='%23ffffff'/></svg>">
 
     <!-- นำเข้า Bootstrap & Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -16,6 +17,27 @@
     <!-- Config & Supabase Client (For Realtime stk_products) -->
     <script src="config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // ป้องกัน Uncaught (in promise) AbortError เมื่อเบราว์เซอร์หรือ Extension เรียก play() แล้วโดน pause() ขัดจังหวะ
+        window.addEventListener('unhandledrejection', function (e) {
+            if (e.reason && (e.reason.name === 'AbortError' || (e.reason.message && e.reason.message.includes('interrupted by a call to pause')))) {
+                e.preventDefault();
+            }
+        });
+        if (typeof HTMLMediaElement !== 'undefined' && HTMLMediaElement.prototype && HTMLMediaElement.prototype.play) {
+            const _origPlay = HTMLMediaElement.prototype.play;
+            HTMLMediaElement.prototype.play = function () {
+                const p = _origPlay.apply(this, arguments);
+                if (p && typeof p.catch === 'function') {
+                    p.catch(err => {
+                        if (err.name === 'AbortError' || (err.message && err.message.includes('pause'))) return;
+                        console.warn('Media play intercepted:', err);
+                    });
+                }
+                return p;
+            };
+        }
+    </script>
 
     <style>
         :root {
@@ -1173,11 +1195,13 @@
             background: #ffffff !important;
             box-shadow: none !important;
             -moz-appearance: textfield;
+            appearance: textfield;
         }
 
         .order-qty-input::-webkit-outer-spin-button,
         .order-qty-input::-webkit-inner-spin-button {
             -webkit-appearance: none;
+            appearance: none;
             margin: 0;
         }
 
@@ -3271,6 +3295,9 @@
                 const autoIndex = startIdx + index + 1; // เลขลำดับ Run Auto ต่อเนื่องตามหน้า
                 const dateStr = p.created_at ? new Date(p.created_at).toLocaleString('lo-LA') : '-';
                 const visitId = p.latest_visit_id || '-';
+                const displayVisitId = (visitId && String(visitId).startsWith('VIS-ORD-') && String(visitId).replace('VIS-ORD-', '').length > 5)
+                    ? ('VIS-ORD-' + String(visitId).replace('VIS-ORD-', '').slice(-5))
+                    : visitId;
                 const visitDate = p.latest_visit_date || dateStr;
                 const symptom = p.latest_symptom || '-';
                 const stepNum = mapStatusToStep(p.visit_status || p.status || p.status_id);
@@ -3279,7 +3306,7 @@
                 return `
                     <tr>
                         <td class="text-center fw-semibold text-muted">${autoIndex}</td>
-                        <td class="fw-bold text-primary font-monospace">${visitId}</td>
+                        <td class="fw-bold text-primary font-monospace">${displayVisitId}</td>
                         <td class="fw-semibold font-monospace">${p.hn || '-'}</td>
                         <td class="fw-bold text-dark">${p.patient_name || '-'}</td>
                         <td>${visitDate}</td>
@@ -3297,6 +3324,11 @@
                                 <button class="btn btn-sm btn-outline-secondary rounded-pill px-2 py-1 fw-semibold" onclick="viewVisit('${visitId}', '${p.hn || ''}', '${encodeURIComponent(p.patient_name || '')}')" title="ເບິ່ງລາຍລະອຽດ">
                                     <i class="ph ph-eye"></i>
                                 </button>
+                                ${checkIsAdmin() ? `
+                                <button class="btn btn-sm btn-outline-danger rounded-pill px-2 py-1 fw-semibold" onclick="deletePatientRecord('${p.hn || ''}', '${encodeURIComponent(p.patient_name || '')}', '${visitId}')" title="ລຶບຂໍ້ມູນ (เฉพาะ Admin)">
+                                    <i class="ph ph-trash"></i>
+                                </button>
+                                ` : ''}
                             </div>
                         </td>
                     </tr>
@@ -3415,6 +3447,114 @@
                 const searchInput = document.getElementById('patientSearchInput');
                 if (searchInput) searchInput.value = `${target.patient_name} (${target.hn})`;
                 window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        // ตรวจสอบสิทธิ์ว่าเป็น Admin หรือไม่
+        function checkIsAdmin() {
+            if (typeof isCurrentUserAdmin !== 'undefined' && isCurrentUserAdmin) return true;
+            try {
+                const currentUserStr = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser');
+                if (currentUserStr) {
+                    const u = JSON.parse(currentUserStr);
+                    const role = String(u.role || '').toLowerCase();
+                    if (role === 'admin' || role === 'administrator' || role === 'ผู้ดูแลระบบ' || role === 'ຜູ້ດູແລລະບົບ' || role === 'superadmin') {
+                        return true;
+                    }
+                }
+            } catch (e) {}
+            return false;
+        }
+
+        // ฟังก์ชันลบประวัติผู้ป่วย (เฉพาะ Admin เท่านั้น)
+        async function deletePatientRecord(hn, encName, visitId) {
+            if (!checkIsAdmin()) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'ไม่มีสิทธิ์ดำเนินการ',
+                    text: 'ปุ่มลบเห็นและใช้งานได้เฉพาะผู้ดูแลระบบ (Admin) เท่านั้น'
+                });
+                return;
+            }
+
+            const patientName = decodeURIComponent(encName || '');
+            const confirmResult = await Swal.fire({
+                title: 'ยืนยันการลบข้อมูล?',
+                html: `คุณต้องการลบประวัติผู้ป่วย <br><b class="text-danger">HN: ${hn} (${patientName})</b> หรือไม่?<br><span class="text-muted small">การกระทำนี้ไม่สามารถย้อนกลับได้ (Admin Only)</span>`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: '<i class="ph ph-trash me-1"></i>ยืนยันลบข้อมูล',
+                cancelButtonText: 'ยกเลิก',
+                customClass: { popup: 'rounded-4 shadow-lg' }
+            });
+
+            if (!confirmResult.isConfirmed) return;
+
+            Swal.fire({
+                title: 'กำลังลบข้อมูล...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            try {
+                const clinicClient = getClinicSupabaseClient();
+                if (clinicClient) {
+                    if (visitId && visitId !== '-') {
+                        await clinicClient.from('visits').delete().eq('visit_id', visitId);
+                    }
+                    if (hn) {
+                        await clinicClient.from('visits').delete().eq('hn', hn);
+                        await clinicClient.from('patients').delete().eq('hn', hn);
+                    }
+                }
+
+                rawAllPatients = rawAllPatients.filter(p => p.hn !== hn && p.latest_visit_id !== visitId);
+                rawMyPatients = rawMyPatients.filter(p => p.hn !== hn && p.latest_visit_id !== visitId);
+                allPatientsData = allPatientsData.filter(p => p.hn !== hn && p.latest_visit_id !== visitId);
+
+                try {
+                    let cachedVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
+                    cachedVisits = cachedVisits.filter(v => v.hn !== hn && v.visit_id !== visitId);
+                    localStorage.setItem('clinic_visits_queue', JSON.stringify(cachedVisits));
+                } catch (e) {}
+
+                try {
+                    let cachedOrders = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
+                    cachedOrders = cachedOrders.filter(o => o.hn !== hn && o.visit_id !== visitId);
+                    localStorage.setItem('stk_nutrient_orders', JSON.stringify(cachedOrders));
+                } catch (e) {}
+
+                try {
+                    window.parent.postMessage({
+                        type: 'DELETE_PATIENT_RECORD',
+                        hn: hn,
+                        visitId: visitId
+                    }, '*');
+                } catch (e) {}
+
+                if (typeof applyFilters === 'function') {
+                    applyFilters();
+                } else if (typeof renderHistoryTable === 'function') {
+                    renderHistoryTable(filteredPatientsData, '', 1);
+                }
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'ลบข้อมูลสำเร็จ',
+                    text: `ลบข้อมูลผู้ป่วย HN: ${hn} เรียบร้อยแล้ว`,
+                    timer: 2000,
+                    showConfirmButton: false,
+                    customClass: { popup: 'rounded-4 shadow-lg' }
+                });
+            } catch (err) {
+                console.error('Delete patient record error:', err);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'เกิดข้อผิดพลาด',
+                    text: 'ไม่สามารถลบข้อมูลได้: ' + (err.message || err)
+                });
             }
         }
 
@@ -3612,6 +3752,58 @@
             if (isRefreshing) return;
             isRefreshing = true;
 
+            // 🌟 1. Reset ທຸກຢ່າງກັບໄປເປັນຄ່າເລີ່ມຕົ້ນ (Default Initial State) ຕາມຄວາມຕ້ອງການຂອງຜູ້ໃຊ້
+            try {
+                localStorage.removeItem('selected_timeline_hn');
+            } catch (e) { }
+
+            currentSelectedPatient = null;
+
+            // ລ້າງຊ່ອງຄົ້ນຫາຄົນໄຂ້
+            const searchInput = document.getElementById('patientSearchInput');
+            if (searchInput) searchInput.value = '';
+
+            // ລ້າງຊ່ອງຄົ້ນຫາປະຫວັດ
+            const histSearchInput = document.getElementById('historySearchInput');
+            if (histSearchInput) histSearchInput.value = '';
+            currentHistorySearchQuery = '';
+            historyCurrentPage = 1;
+
+            // ຣີເຊັດຊ່ວງເວລາການກັ່ນຕອງວັນທີກັບເປັນຄ່າເລີ່ມຕົ້ນ (ທັງໝົດ / All)
+            const inputStart = document.getElementById('dateFilterStart');
+            const inputEnd = document.getElementById('dateFilterEnd');
+            const inputStartH = document.getElementById('dateFilterStartHistory');
+            const inputEndH = document.getElementById('dateFilterEndHistory');
+            if (inputStart) inputStart.value = '';
+            if (inputEnd) inputEnd.value = '';
+            if (inputStartH) inputStartH.value = '';
+            if (inputEndH) inputEndH.value = '';
+
+            const btnToday = document.getElementById('btnFilterToday');
+            const btnAll = document.getElementById('btnFilterAll');
+            const btnTodayH = document.getElementById('btnFilterTodayHistory');
+            const btnAllH = document.getElementById('btnFilterAllHistory');
+            if (btnToday) btnToday.classList.remove('active');
+            if (btnAll) btnAll.classList.add('active');
+            if (btnTodayH) btnTodayH.classList.remove('active');
+            if (btnAllH) btnAllH.classList.add('active');
+            currentDateFilterMode = 'all';
+
+            // ສະຫຼັບກັບມາແທັບ Timeline
+            switchTab('timeline');
+
+            // ປິດ Modal ແລະ Popup ຕ່າງໆ ຖ້າເປີດຄ້າງໄວ້
+            forceCloseOrderModal();
+            if (typeof closeOrderDetailModal === 'function') closeOrderDetailModal();
+            if (typeof closeModernPopup === 'function') closeModernPopup();
+
+            // ລ້າງ URL parameter hn
+            try {
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
+            } catch (e) { }
+
             const btn = document.getElementById('btnRefreshData');
             const icon = document.getElementById('refreshIcon');
             const text = document.getElementById('refreshBtnText');
@@ -3623,7 +3815,7 @@
             let requested = false;
             try {
                 if (window.parent && window.parent !== window) {
-                    window.parent.postMessage({ type: 'FETCH_PATIENTS', isManualRefresh: true }, '*');
+                    window.parent.postMessage({ type: 'FETCH_PATIENTS', isManualRefresh: true, resetDefault: true }, '*');
                     requested = true;
                 }
             } catch (e) {
@@ -3829,11 +4021,15 @@
                 try {
                     const urlParams = new URLSearchParams(window.location.search);
                     let storedHn = null;
-                    try { storedHn = localStorage.getItem('selected_timeline_hn'); } catch (e) { }
-                    const targetHn = event.data.targetHn || urlParams.get('hn') || storedHn;
+                    if (!wasManualRefresh) {
+                        try { storedHn = localStorage.getItem('selected_timeline_hn'); } catch (e) { }
+                    }
+                    const targetHn = wasManualRefresh ? null : (event.data.targetHn || urlParams.get('hn') || storedHn);
                     if (targetHn) {
                         const target = allPatientsData.find(p => p.hn === targetHn);
                         if (target) currentSelectedPatient = target;
+                    } else if (wasManualRefresh) {
+                        currentSelectedPatient = null;
                     }
 
                     applyFilters();
@@ -3949,6 +4145,25 @@
 
         function viewVisit(visitId, hn, encName) {
             const pName = encName ? decodeURIComponent(encName).trim() : '';
+            const pt = (allPatientsData || []).find(p => (hn && p.hn === hn) || (pName && p.patient_name && p.patient_name.trim().toLowerCase() === pName.toLowerCase()));
+            let ordData = pt ? pt.order_data : null;
+
+            if (!ordData) {
+                try {
+                    const localOrders = JSON.parse(localStorage.getItem('clinic_orders') || '[]');
+                    const localStk = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
+                    const allLocal = localOrders.concat(localStk);
+                    ordData = allLocal.find(o => {
+                        if (!o) return false;
+                        const oV = o.visit_id || o.visitId;
+                        const oO = o.order_id || o.orderId;
+                        if (visitId && oV && (oV === visitId || String(oV).endsWith(visitId.replace(/\D/g, '')) || visitId.endsWith(String(oV).replace(/\D/g, '')))) return true;
+                        if (visitId && oO && (oO === visitId || String(oO).endsWith(visitId.replace(/\D/g, '')) || visitId.endsWith(String(oO).replace(/\D/g, '')))) return true;
+                        if (hn && o.hn && hn !== '-' && (o.hn === hn || String(o.hn).replace(/\D/g, '') === String(hn).replace(/\D/g, ''))) return true;
+                        return false;
+                    }) || null;
+                } catch (e) { }
+            }
 
             // 🌟 1. ຖ້າຢູ່ໃນ iframe ຂອງ Clinic.html ໃຫ້ສົ່ງ Message ໄປຫາ parent ທັນທີ
             // ເພື່ອໃຫ້ເປີດ Modal ປະຫວັດຫຼັກ (showHistoryDetails) ເຊິ່ງເປັນ Modal ດຽວກັນ ແລະ ຂໍ້ມູນຕົງກັນ 100%
@@ -3959,7 +4174,8 @@
                         type: 'SHOW_VISIT_DETAIL',
                         visitId: (visitId && visitId !== '-') ? visitId : null,
                         hn: (hn && hn !== '-') ? hn : null,
-                        patientName: pName || null
+                        patientName: pName || null,
+                        orderData: ordData || null
                     }, '*');
                     return;
                 } catch (e) {
@@ -3978,8 +4194,6 @@
                 (visitId && visitId !== '-' && (o.visitId === visitId || o.visit_id === visitId || o.orderId === visitId || o.order_id === visitId)) ||
                 (hn && hn !== '-' && (o.hn === hn || String(o.hn) === String(hn)))
             );
-
-            const pt = (allPatientsData || []).find(p => (hn && p.hn === hn) || (pName && p.patient_name && p.patient_name.trim().toLowerCase() === pName.toLowerCase()));
 
             if (matchedOrder || (pt && pt.order_data)) {
                 showOrderDetailPopup(matchedOrder || (pt ? pt.order_data : null));
@@ -4005,7 +4219,8 @@
             const hn = order.hn || '-';
             const phone = order.phone || order.customer_phone || '-';
             const age = order.age ? (order.age + ' ປີ') : '-';
-            const gender = order.gender || '-';
+            const disease = order.disease || (order.gender && order.gender !== 'ຊາຍ' && order.gender !== 'ຍິງ' && order.gender !== 'ชาย' && order.gender !== 'หญิง' ? order.gender : '');
+            const gender = (order.gender === 'ຊາຍ' || order.gender === 'ຍິງ' || order.gender === 'ชาย' || order.gender === 'หญิง') ? order.gender : '-';
             const ageGender = (age !== '-' || gender !== '-') ? `${age} / ${gender}` : '-';
 
             const addressParts = [order.village, order.district, order.province].filter(Boolean);
@@ -4013,7 +4228,8 @@
 
             const docName = order.doctor_advice || order.closer_dr || order.doctor_name || 'ແພດປະຈຳຄລີນິກ';
             const assistantName = order.assistant_advice || order.recorded_by || order.referred_by || '-';
-            const symptom = order.symptom || order.latest_symptom || 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ';
+            let symptom = disease || order.symptom || order.latest_symptom || 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ';
+            if (symptom.startsWith('ສັ່ງຊື້') && disease) symptom = disease;
             const notes = order.notes || '-';
 
             const rawDate = order.created_at || order.order_date || order.date || new Date().toISOString();
@@ -4087,6 +4303,25 @@
             let subtotal = Number(order.subtotal || 0);
             let discount = Number(order.discount || 0);
             let grandTotal = Number(order.grandTotal || order.total_amount || 0);
+
+            if (Array.isArray(items) && items.length > 0) {
+                // กรองรายการตรวจแล็บ / ค่าบริการตรวจรักษา ออกจากรายการยา/อาหารเสริม
+                const labKeywords = ['cbc', 't3', 't4', 'ft3', 'ft4', 'tsh', 'hbv', 'viral load', 'hcv', 'hiv', 'hbsag', 'vdrl', 'tpha', 'lipid', 'fbs', 'glucose', 'hba1c', 'bun', 'creatinine', 'egfr', 'sgot', 'sgpt', 'alk phos', 'alp', 'uric acid', 'electrolyte', 'urinalysis', 'urine', 'stool', 'x-ray', 'xray', 'ultrasound', 'echo', 'ekg', 'ecg', 'vascular', 'ตรวจเลือด', 'ตรวจสุขภาพ', 'ตรวจปัสสาวะ', 'ตรวจอุจจาระ', 'ค่าตรวจ', 'ค่าบริการ'];
+                items = items.filter(it => {
+                    if (!it) return false;
+                    const itName = String(it.name || it.product_name || '').trim().toLowerCase();
+                    if (!itName) return false;
+                    if (it.type === 'service' || it.type === 'lab' || it.is_service === true) return false;
+                    for (const kw of labKeywords) {
+                        if (itName === kw) return false;
+                        if (itName.includes(kw)) {
+                            const regex = new RegExp(`(^|[\\s,;()/-])${kw.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}([\\s,;()/-]|$)`, 'i');
+                            if (regex.test(itName)) return false;
+                        }
+                    }
+                    return true;
+                });
+            }
 
             if (Array.isArray(items) && items.length > 0) {
                 let calcSubtotal = 0;
@@ -4685,12 +4920,17 @@
             if (nameEl) nameEl.value = pt.patient_name || '';
             if (ageEl) ageEl.value = pt.age || '';
             if (genderEl) {
-                genderEl.value = pt.symptoms || pt.disease || pt.chief_complaint || pt.diagnosis || pt.gender || '';
+                const rawSym = pt.disease || pt.symptoms || pt.past_history || pt.latest_symptom || pt.symptom || pt.chief_complaint || pt.diagnosis || '';
+                const cleanSym = String(rawSym).replace(/^ສັ່ງຊື້ຢາ\/ອາຫານເສີມ\s*/i, '').replace(/^Order\s*/i, '').trim();
+                genderEl.value = (cleanSym && cleanSym !== '-') ? cleanSym : '';
             }
             if (provEl) provEl.value = pt.province || '';
             if (distEl) distEl.value = pt.district || '';
             if (villEl) villEl.value = pt.village || '';
-            if (phoneEl) phoneEl.value = pt.phone || '';
+            if (phoneEl) {
+                const rawPhone = pt.phone || pt.customer_phone || '';
+                phoneEl.value = (rawPhone && rawPhone !== '00000000000' && rawPhone !== '-') ? rawPhone : (rawPhone || '');
+            }
 
             const dropdown = document.getElementById('orderCustDropdown');
             if (dropdown) dropdown.style.display = 'none';
@@ -5692,7 +5932,17 @@
                 } catch (e) {
                     console.warn('REST API exception:', e);
                 }
-            }  // 3. ບັນທຶກ Cache ໃນ LocalStorage ຢ່າງປອດໄພ
+            }
+
+            // 2.5 ລອງບັນທຶກຜ່ານ Clinic Supabase Client ໄປຍັງຕາຕະລາງ stk_nutrient_orders (Dual Database Persistence)
+            try {
+                const clinicClient = getClinicSupabaseClient();
+                if (clinicClient) {
+                    await clinicClient.from('stk_nutrient_orders').upsert(dbPayload, { onConflict: 'order_id' });
+                }
+            } catch (ce) { }
+
+            // 3. ບັນທຶກ Cache ໃນ LocalStorage ຢ່າງປອດໄພ
             try {
                 const localList = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
                 localList.unshift(cleanPayload);
@@ -5738,20 +5988,23 @@
                     hn: hn,
                     patient_name: custName,
                     doctor_name: orderData.doctor_advice || orderData.closer_dr || 'ແພດປະຈຳຄລີນິກ',
-                    symptom: 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ [Order]' + (orderData.notes ? ` (${orderData.notes})` : ''),
+                    symptom: orderData.disease || orderData.symptom || ('ສັ່ງຊື້ຢາ/ອາຫານເສີມ [Order]' + (orderData.notes ? ` (${orderData.notes})` : '')),
                     status: 'ສັ່ງຊື້ສິນຄ້າ',
-                    created_at: orderData.created_at || new Date().toISOString()
+                    created_at: orderData.created_at || new Date().toISOString(),
+                    meds: (cleanItems && cleanItems.length > 0) ? JSON.stringify(cleanItems) : null
                 };
 
                 // 2. Patient Payload ທີ່ຖືກຕ້ອງຕາມ Schema ຂອງຕາຕະລາງ patients 100%
+                const patientPhoneVal = orderData.phone || orderData.customer_phone || '';
                 const cleanPatientPayload = {
                     hn: hn,
                     patient_name: custName,
-                    phone: orderData.phone || '',
+                    phone: patientPhoneVal,
                     age: orderData.age ? String(orderData.age).replace(/\D/g, '') || null : null,
                     province: orderData.province || '',
                     district: orderData.district || '',
                     village: orderData.village || '',
+                    past_history: orderData.disease || orderData.symptom || '',
                     referred_by: orderData.assistant_advice || orderData.recorded_by || '',
                     created_at: orderData.created_at || new Date().toISOString()
                 };
@@ -5836,12 +6089,13 @@
             try {
 
             const age = document.getElementById('orderCustAge')?.value || '';
-            const gender = document.getElementById('orderCustGender')?.value || 'ຊາຍ';
+            const custDisease = document.getElementById('orderCustGender')?.value?.trim() || '';
+            const gender = custDisease || 'ຊາຍ';
             const orderDate = document.getElementById('orderCustDate')?.value || new Date().toISOString().split('T')[0];
             const province = document.getElementById('orderCustProvince')?.value || '';
             const district = document.getElementById('orderCustDistrict')?.value || '';
             const village = document.getElementById('orderCustVillage')?.value || '';
-            const phone = document.getElementById('orderCustPhone')?.value || '';
+            const phone = document.getElementById('orderCustPhone')?.value?.trim() || '';
             const notes = document.getElementById('orderNotes')?.value || '';
             const docAdvice = document.getElementById('orderDocAdvice')?.value || '';
             const assistantAdvice = document.getElementById('orderAssistantAdvice')?.value || '';
@@ -5857,8 +6111,9 @@
             );
 
             const hn = matchedPt && matchedPt.hn && matchedPt.hn !== '-' ? matchedPt.hn : ('HN-' + Math.floor(100000 + Math.random() * 900000));
-            const visit_id = 'VIS-ORD-' + Date.now();
-            const order_id = 'ORD-' + Date.now();
+            const randOrderNum = Math.floor(10000 + Math.random() * 90000); // 5 หลักพอดี
+            const visit_id = 'VIS-ORD-' + randOrderNum;
+            const order_id = 'ORD-' + randOrderNum;
 
             // 1. 🌟 Payload ບັນທຶກລົງຕາຕະລາງ `stk_nutrient_orders` ໃນ Supabase MLM
             const cleanItems = currentOrderItems.map(item => ({
@@ -5874,20 +6129,24 @@
                 unit: item.unit || 'ຊິ້ນ'
             }));
 
+            const finalOrderSymptom = custDisease ? custDisease : ('ສັ່ງຊື້ຢາ/ອາຫານເສີມ [Order]' + (notes ? ` (${notes})` : ''));
+
             const nutrientPayload = {
                 order_id: String(order_id),
                 visit_id: String(visit_id),
                 hn: String(hn),
                 customer_name: custName,
                 customer_phone: phone || null,
+                phone: phone || null,
                 age: age || null,
                 gender: gender || null,
+                disease: custDisease || null,
                 province: province || null,
                 district: district || null,
                 village: village || null,
                 closer_dr: docAdvice || 'ແພດປະຈຳຄລີນິກ',
                 recorded_by: assistantAdvice || 'Staff',
-                symptom: 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ [Order]' + (notes ? ` (${notes})` : ''),
+                symptom: finalOrderSymptom,
                 date: orderDate,
                 status: 'รอดำเนินการ',
                 items_json: cleanItems,
@@ -5901,11 +6160,14 @@
                 patient_name: custName,
                 age: age,
                 gender: gender,
+                disease: custDisease,
+                symptom: finalOrderSymptom,
                 order_date: orderDate,
                 province: province,
                 district: district,
                 village: village,
                 phone: phone,
+                customer_phone: phone,
                 items: currentOrderItems,
                 notes: notes,
                 doctor_advice: docAdvice,
@@ -5944,7 +6206,8 @@
                     latest_visit_id: visit_id,
                     latest_visit_date: new Date().toLocaleString('lo-LA'),
                     latest_visit_raw_date: new Date().toISOString(),
-                    latest_symptom: 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ' + (notes ? ` (${notes})` : ''),
+                    latest_symptom: finalOrderSymptom,
+                    disease: custDisease || allPatientsData[existingPtIndex].disease || '',
                     visit_status: '08 ຫ້ອງຈ່າຍຢາ',
                     doctor_name: docAdvice || allPatientsData[existingPtIndex].doctor_name || 'ແພດປະຈຳຄລີນິກ',
                     assistant_name: assistantAdvice || allPatientsData[existingPtIndex].assistant_name || '-',
@@ -5963,6 +6226,7 @@
                     patient_name: custName,
                     age: age || '-',
                     gender: gender || '-',
+                    disease: custDisease,
                     province: province || '',
                     district: district || '',
                     village: village || '',
@@ -5971,7 +6235,7 @@
                     latest_visit_id: visit_id,
                     latest_visit_date: new Date().toLocaleString('lo-LA'),
                     latest_visit_raw_date: new Date().toISOString(),
-                    latest_symptom: 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ' + (notes ? ` (${notes})` : ''),
+                    latest_symptom: finalOrderSymptom,
                     visit_status: '08 ຫ້ອງຈ່າຍຢາ',
                     doctor_name: docAdvice || 'ແພດປະຈຳຄລີນິກ',
                     assistant_name: assistantAdvice || '-',
@@ -6269,13 +6533,6 @@
                         <div class="order-summary-row text-muted">
                             <span>ຍອດລວມ</span>
                             <span id="orderSubtotalText" class="fw-semibold text-dark">0 ฿</span>
-                        </div>
-                        <div class="order-summary-row text-muted">
-                            <span>ສ່ວນຫຼຸດ (฿)</span>
-                            <input type="number" id="orderDiscountInput"
-                                class="form-control form-control-sm order-input text-end"
-                                style="width: 100px; height: 28px !important; padding: 2px 8px !important;" value="0"
-                                min="0" oninput="calculateOrderTotals()">
                         </div>
                         <div class="order-summary-row border-top pt-1 mt-1">
                             <span class="fw-bold text-dark">ຍອດລວມສຸດທິ</span>
