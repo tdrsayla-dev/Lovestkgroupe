@@ -2669,6 +2669,12 @@
             <h3 style="font-size: 1.1rem; font-weight: 800; color: #ffffff; margin-bottom: 1.2rem; text-transform: uppercase; letter-spacing: 0.04em;">ระบบ</h3>
             <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.55rem;">
               <li>
+                <a href="login.html" onclick="goToCeo(event)" style="color: rgba(255, 255, 255, 0.85); text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: color 0.2s;"
+                   onmouseover="this.style.color='#60a5fa'" onmouseout="this.style.color='rgba(255, 255, 255, 0.85)'">
+                  CEO Dashboard
+                </a>
+              </li>
+              <li>
                 <a href="clinic/login.html" onclick="goToClinic(event)" style="color: rgba(255, 255, 255, 0.85); text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: color 0.2s;"
                    onmouseover="this.style.color='#60a5fa'" onmouseout="this.style.color='rgba(255, 255, 255, 0.85)'">
                   System Clinic
@@ -2683,7 +2689,7 @@
               <li>
                 <a href="mlm/Mlm.html" onclick="goToMlm(event)" style="color: rgba(255, 255, 255, 0.85); text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: color 0.2s;"
                    onmouseover="this.style.color='#f97316'" onmouseout="this.style.color='rgba(255, 255, 255, 0.85)'">
-                  System MLM Management
+                  System LOVE STK GROUPE
                 </a>
               </li>
             </ul>
@@ -2712,6 +2718,11 @@
         path += '/';
       }
       return path;
+    }
+
+    function goToCeo(e) {
+      if (e) e.preventDefault();
+      window.location.href = 'login.html';
     }
 
     function goToClinic(e) {
