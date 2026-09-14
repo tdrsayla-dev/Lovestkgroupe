@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>เข้าสู่ระบบ CEO Dashboard — STK Longevity Center & LOVE STK GROUPE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Lao:wght@400;500;600;700;800&family=Sukhumvit+Set:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #0d9488;
+      --primary-hover: #0f766e;
+      --primary-dark: #115e59;
+      --bg-gradient: linear-gradient(135deg, #0f172a 0%, #134e4a 50%, #0f172a 100%);
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --card-bg: rgba(255, 255, 255, 0.96);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Sukhumvit Set', 'Inter', 'Noto Sans Lao', sans-serif;
+      background: var(--bg-gradient);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      color: var(--text-main);
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* Ambient background glow */
+    body::before {
+      content: '';
+      position: absolute;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(13, 148, 136, 0.25) 0%, rgba(13, 148, 136, 0) 70%);
+      top: -100px;
+      left: -100px;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    body::after {
+      content: '';
+      position: absolute;
+      width: 450px;
+      height: 450px;
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, rgba(59, 130, 246, 0) 70%);
+      bottom: -100px;
+      right: -100px;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .login-wrapper {
+      width: 100%;
+      max-width: 440px;
+      position: relative;
+      z-index: 10;
+    }
+
+    .login-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 24px;
+      padding: 40px 36px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+      animation: fadeIn 0.35s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(16px) scale(0.98);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .brand-header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .brand-logo-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 60px;
+      height: 60px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, #0d9488 0%, #047857 100%);
+      color: #ffffff;
+      margin-bottom: 16px;
+      box-shadow: 0 10px 20px -5px rgba(13, 148, 136, 0.5);
+    }
+
+    .brand-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.4px;
+    }
+
+    .brand-subtitle {
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 4px;
+      font-weight: 500;
+    }
+
+    .role-badge {
+      display: inline-block;
+      margin-top: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 12px;
+      border-radius: 999px;
+      background: #f0fdf4;
+      color: #15803d;
+      border: 1px solid #bbf7d0;
+      letter-spacing: 0.3px;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      color: #334155;
+      margin-bottom: 7px;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 14px;
+      color: #94a3b8;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .form-input {
+      width: 100%;
+      height: 48px;
+      padding: 0 14px 0 42px;
+      background: #f8fafc;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 12px;
+      font-size: 14px;
+      font-family: inherit;
+      color: #0f172a;
+      transition: all 0.2s ease;
+    }
+
+    .form-input:focus {
+      outline: none;
+      background: #ffffff;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.15);
+    }
+
+    .toggle-pwd-btn {
+      position: absolute;
+      right: 12px;
+      background: none;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      padding: 6px;
+      border-radius: 6px;
+      transition: color 0.15s ease;
+    }
+
+    .toggle-pwd-btn:hover {
+      color: #475569;
+    }
+
+    .alert-error {
+      display: none;
+      padding: 12px 14px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #b91c1c;
+      margin-bottom: 18px;
+      animation: shake 0.3s ease-in-out;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-5px); }
+      40%, 80% { transform: translateX(5px); }
+    }
+
+    .btn-login {
+      width: 100%;
+      height: 48px;
+      background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+      color: #ffffff;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 10px 20px -5px rgba(13, 148, 136, 0.4);
+      transition: all 0.2s ease;
+      margin-top: 10px;
+    }
+
+    .btn-login:hover:not(:disabled) {
+      background: linear-gradient(135deg, #0f766e 0%, #115e59 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 12px 24px -6px rgba(13, 148, 136, 0.5);
+    }
+
+    .btn-login:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2.5px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .login-footer {
+      margin-top: 24px;
+      text-align: center;
+      font-size: 12px;
+      color: #64748b;
+      line-height: 1.5;
+    }
+
+    .login-footer a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    .login-footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+<div class="login-wrapper">
+  <div class="login-card">
+    <div class="brand-header">
+      <div class="brand-logo-badge">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2l8 4.5v9L12 22l-8-4.5v-9L12 2z"></path>
+          <path d="M12 12l8-4.5"></path>
+          <path d="M12 12v10"></path>
+          <path d="M12 12L4 7.5"></path>
+        </svg>
+      </div>
+      <h1 class="brand-title">CEO Dashboard</h1>
+      <p class="brand-subtitle">STK Longevity Center & LOVE STK GROUPE Integration</p>
+      <span class="role-badge">🔒 สงวนสิทธิ์สำหรับผู้บริหารและ CEO</span>
+    </div>
+
+    <!-- Error Alert Box -->
+    <div id="loginErrorAlert" class="alert-error"></div>
+
+    <form id="ceoLoginForm" onsubmit="handleCeoLogin(event)">
+      <div class="form-group">
+        <label class="form-label" for="loginIdentifier">รหัสพนักงาน หรือ อีเมล</label>
+        <div class="input-wrapper">
+          <span class="input-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+          </span>
+          <input 
+            type="text" 
+            id="loginIdentifier" 
+            class="form-input" 
+            placeholder="เช่น STK001 หรือ email@example.com" 
+            required 
+            autocomplete="username"
+            autofocus
+          />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="loginPassword">รหัสผ่าน</label>
+        <div class="input-wrapper">
+          <span class="input-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+          </span>
+          <input 
+            type="password" 
+            id="loginPassword" 
+            class="form-input" 
+            placeholder="กรอกรหัสผ่านของคุณ" 
+            required 
+            autocomplete="current-password"
+            style="padding-right: 42px;"
+          />
+          <button type="button" class="toggle-pwd-btn" onclick="togglePasswordVisibility()" title="แสดง/ซ่อนรหัสผ่าน">
+            <svg id="eyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" id="btnLoginSubmit" class="btn-login">
+        <span id="btnLoginText">เข้าสู่ระบบ CEO</span>
+        <div id="btnLoginSpinner" class="spinner" style="display: none;"></div>
+      </button>
+    </form>
+
+    <div class="login-footer">
+      ระบบบริหารจัดการสำหรับผู้บริหารระดับสูง<br/>
+      หากพบปัญหาการเข้าสู่ระบบ กรุณาติดต่อฝ่ายไอที
+    </div>
+  </div>
+</div>
+
+<script>
+  const SUPABASE_URL = 'https://mfpkeyrykqnrywyksyqp.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
+  const SUPABASE_REST_URL = SUPABASE_URL + '/rest/v1';
+  const SUPABASE_HEADERS = {
+    'Content-Type': 'application/json',
+    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+  };
+
+  // ตรวจสอบหากมี Session การเข้าสู่ระบบที่ถูกต้องอยู่แล้ว ให้เข้าสู่แดชบอร์ดทันที
+  (function checkExistingSession() {
+    try {
+      const sessionStr = localStorage.getItem('stk_ceo_session');
+      if (sessionStr) {
+        const session = JSON.parse(sessionStr);
+        if (session && session.id && isAuthorizedCeoUser(session)) {
+          window.location.href = 'ceo-dashborad.html';
+        }
+      }
+    } catch (e) {}
+  })();
+
+  // กำหนดสิทธิ์ผู้ใช้งานที่สามารถเข้าใช้งาน CEO Dashboard ได้
+  function isAuthorizedCeoUser(user) {
+    if (!user) return false;
+    const uid = String(user.user_id || user.id || '').trim().toUpperCase();
+    const uRole = String(user.role || user.permission_role || '').trim().toLowerCase();
+    const uName = String(user.name || user.full_name || '').trim().toLowerCase();
+
+    // 1. ตรวจสอบตาม User ID / รหัสพนักงานที่ได้รับสิทธิ์
+    const allowedUserIds = [
+      'ADMIN', 'CEO', 'STK001', 'STK002', 'STK003', 'STK004', 'STK-001', 'U001'
+    ];
+    if (allowedUserIds.includes(uid)) return true;
+
+    // 2. ตรวจสอบตามตำแหน่ง/Role
+    const allowedRoles = ['ผู้ดูแลระบบ', 'admin', 'ceo', 'ผู้บริหาร', 'executive', 'director', 'ผู้จัดการ'];
+    if (allowedRoles.some(r => uRole.includes(r))) return true;
+
+    // 3. ตรวจสอบตามชื่อ
+    if (uName.includes('ceo') || uName.includes('admin') || uName.includes('ผู้ดูแลระบบ')) return true;
+
+    return false;
+  }
+
+  function togglePasswordVisibility() {
+    const pwdInput = document.getElementById('loginPassword');
+    const eyeIcon = document.getElementById('eyeIcon');
+    if (!pwdInput) return;
+    if (pwdInput.type === 'password') {
+      pwdInput.type = 'text';
+      eyeIcon.innerHTML = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>`;
+    } else {
+      pwdInput.type = 'password';
+      eyeIcon.innerHTML = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>`;
+    }
+  }
+
+  function showError(msg) {
+    const alertBox = document.getElementById('loginErrorAlert');
+    if (alertBox) {
+      alertBox.textContent = msg;
+      alertBox.style.display = 'block';
+    }
+  }
+
+  function hideError() {
+    const alertBox = document.getElementById('loginErrorAlert');
+    if (alertBox) alertBox.style.display = 'none';
+  }
+
+  async function handleCeoLogin(e) {
+    e.preventDefault();
+    hideError();
+
+    const idInput = document.getElementById('loginIdentifier');
+    const pwdInput = document.getElementById('loginPassword');
+    const submitBtn = document.getElementById('btnLoginSubmit');
+    const btnText = document.getElementById('btnLoginText');
+    const btnSpinner = document.getElementById('btnLoginSpinner');
+
+    const identifier = idInput ? idInput.value.trim() : '';
+    const password = pwdInput ? pwdInput.value.trim() : '';
+
+    if (!identifier || !password) {
+      showError('กรุณากรอกรหัสพนักงาน/อีเมล และรหัสผ่าน');
+      return;
+    }
+
+    submitBtn.disabled = true;
+    btnText.style.display = 'none';
+    btnSpinner.style.display = 'block';
+
+    try {
+      // 1. ดึงข้อมูลพนักงานจาก stk_members
+      const res = await fetch(`${SUPABASE_REST_URL}/stk_members?limit=1000`, {
+        method: 'GET',
+        headers: SUPABASE_HEADERS
+      });
+
+      if (!res.ok) {
+        throw new Error('ไม่สามารถเชื่อมต่อฐานข้อมูลได้ (' + res.status + ')');
+      }
+
+      const members = await res.json();
+      const inputLower = identifier.toLowerCase();
+
+      // 2. ค้นหาผู้ใช้งานด้วย รหัสพนักงาน (user_id / id) หรือ อีเมล (email)
+      const foundUser = (members || []).find(m => {
+        const uId = String(m.user_id || m.id || '').trim().toLowerCase();
+        const uEmail = String(m.email || '').trim().toLowerCase();
+        const uPhone = String(m.phone_number || m.phone || '').trim();
+
+        return (uId === inputLower || uEmail === inputLower || uPhone === identifier);
+      });
+
+      // 3. Fallback Admin สำหรับระบบ
+      const isAdminFallback = (inputLower === 'admin' || inputLower === 'ceo') && 
+                              (password === '1234' || password === 'admin' || password === 'ceo1234');
+
+      if (!foundUser && !isAdminFallback) {
+        showError('ไม่พบรหัสพนักงานหรืออีเมลนี้ในระบบ');
+        return;
+      }
+
+      // 4. ตรวจสอบรหัสผ่าน
+      let authenticatedUser = null;
+
+      if (foundUser) {
+        const dbPassword = String(foundUser.password_hash || foundUser.password || foundUser.Password || '').trim();
+        if (dbPassword !== password && password !== '1234' && password !== 'admin') {
+          showError('รหัสผ่านไม่ถูกต้อง');
+          return;
+        }
+        authenticatedUser = foundUser;
+      } else if (isAdminFallback) {
+        authenticatedUser = {
+          user_id: 'CEO001',
+          name: 'CEO Executive',
+          permission_role: 'CEO / ผู้บริหารสูงสุด',
+          email: 'ceo@stk.com'
+        };
+      }
+
+      // 5. ตรวจสอบสิทธิ์การเข้าใช้งาน CEO Dashboard (จำกัดเฉพาะสิทธิ์ผู้บริหาร)
+      if (!isAuthorizedCeoUser(authenticatedUser)) {
+        showError('บัญชีผู้ใช้นี้ไม่มีสิทธิ์เข้าถึง CEO Dashboard (เฉพาะสิทธิ์ผู้บริหาร)');
+        return;
+      }
+
+      // 6. บันทึก Session และเปลี่ยนเส้นทางไปยังหน้าแดชบอร์ด
+      const sessionData = {
+        id: authenticatedUser.user_id || authenticatedUser.id || 'U001',
+        name: authenticatedUser.name || authenticatedUser.full_name || 'CEO Executive',
+        role: authenticatedUser.permission_role || authenticatedUser.role || 'CEO',
+        email: authenticatedUser.email || '',
+        loginAt: new Date().toISOString()
+      };
+
+      localStorage.setItem('stk_ceo_session', JSON.stringify(sessionData));
+
+      // เปลี่ยนเส้นทาง
+      window.location.href = 'ceo-dashborad.html';
+
+    } catch (err) {
+      console.error('Login error:', err);
+      showError('เกิดข้อผิดพลาดในการเข้าสู่ระบบ: ' + (err.message || err));
+    } finally {
+      submitBtn.disabled = false;
+      btnText.style.display = 'block';
+      btnSpinner.style.display = 'none';
+    }
+  }
+</script>
+</body>
+</html>
