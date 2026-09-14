@@ -17,13 +17,13 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <!-- เชื่อมโยงไฟล์ CSS -->
-    <link rel="stylesheet" href="style.css?v=2.6.0">
+    <link rel="stylesheet" href="style.css?v=2.7.1">
     <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <!-- html2pdf.js for Exporting PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <!-- i18n Internationalization Engine -->
-    <script src="i18n.js?v=2.5.0"></script>
+    <script src="i18n.js?v=2.5.1"></script>
 
     <!-- สคริปต์ตรวจสอบการล็อกอิน -->
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
@@ -1067,7 +1067,8 @@
 
         <!-- 3. ทะเบียนผู้ป่วย (Registration) -->
         <div id="registration" class="page-section">
-            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+            <!-- Header Section -->
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                 <div>
                     <h2 class="fw-bold mb-1" style="color: var(--primary-dark); font-family: 'Kanit', sans-serif;">
                         <i class="bi bi-person-lines-fill text-primary me-2"></i><span
@@ -1076,66 +1077,115 @@
                     <p class="text-muted mb-0" style="font-size: 0.9rem;" data-i18n="reg_subtitle">
                         ข้อมูลและประวัติการรักษาของผู้ป่วยทั้งหมด</p>
                 </div>
-                <div class="d-flex align-items-center gap-3 flex-wrap">
-                    <!-- Date Selector Container -->
-                    <div class="d-flex align-items-center bg-white border rounded-pill px-3 py-1 shadow-sm gap-2"
-                        style="border-color: var(--border-color) !important;">
-                        <span class="text-muted fw-semibold small"><i
-                                class="bi bi-calendar-event me-1 text-primary"></i>Date</span>
-                        <input type="date" id="patientFilterStartDate"
-                            class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none"
-                            onchange="filterPatients()" style="font-size: 0.85rem; width: 115px;">
-                        <span class="text-muted small">-</span>
-                        <input type="date" id="patientFilterEndDate"
-                            class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none"
-                            onchange="filterPatients()" style="font-size: 0.85rem; width: 115px;">
-                        <button type="button"
-                            class="btn btn-sm btn-link text-decoration-none p-0 text-primary fw-semibold small ms-1"
-                            onclick="setPatientTodayFilter()" title="ตั้งเป็นวันนี้" data-i18n="today">วันนี้</button>
-                        <span class="text-muted small">|</span>
-                        <button type="button"
-                            class="btn btn-sm btn-link text-decoration-none p-0 text-secondary fw-semibold small"
-                            onclick="clearPatientDateFilter()" title="แสดงทั้งหมด" data-i18n="all">ทั้งหมด</button>
+            </div>
+
+            <!-- Modern Search & Filter Toolbar Card -->
+            <div class="patient-toolbar-card">
+                <!-- Top Row: Date Range, Search Input, Primary & Secondary Action Buttons -->
+                <div class="patient-toolbar-top">
+                    <!-- Date Range Block -->
+                    <div class="patient-date-group">
+                        <label class="patient-toolbar-label">
+                            <i class="bi bi-calendar3 text-primary"></i>
+                            <span data-i18n="date_range_label">ເລືອກຊ່ວງເວລາ</span>
+                        </label>
+                        <div class="patient-date-inputs-wrapper">
+                            <input type="date" id="patientFilterStartDate"
+                                class="patient-date-input"
+                                onchange="filterPatients()" title="วันที่เริ่มต้น">
+                            <span class="patient-date-sep">-</span>
+                            <input type="date" id="patientFilterEndDate"
+                                class="patient-date-input"
+                                onchange="filterPatients()" title="วันที่สิ้นสุด">
+                            <button type="button" class="btn-clear-date"
+                                onclick="clearPatientDateFilter()" title="ล้างตัวกรองวันที่">
+                                <i class="bi bi-x-circle-fill"></i>
+                            </button>
+                        </div>
                     </div>
 
-                    <!-- Triage Status Filter Buttons -->
-                    <div class="d-flex align-items-center gap-1" id="triageFilterBtnGroup">
-                        <button type="button" id="btnTriageFilterAll"
-                            class="btn btn-sm btn-primary fw-semibold rounded-pill px-3"
-                            onclick="setTriageFilter('all')"
-                            title="ສະແດງທັງໝົດ" data-i18n="all">ທັງໝົດ</button>
-                        <button type="button" id="btnTriageFilterPending"
-                            class="btn btn-sm btn-outline-secondary fw-semibold rounded-pill px-3"
-                            onclick="setTriageFilter('pending')"
-                            title="ຍັງບໍ່ໄດ້ຄັດກອງ">ຍັງບໍ່ໄດ້ຄັດກອງ</button>
-                        <button type="button" id="btnTriageFilterSent"
-                            class="btn btn-sm btn-outline-info fw-semibold rounded-pill px-3"
-                            onclick="setTriageFilter('sent')"
-                            title="ສົ່ງຄັດກອງແລ້ວ">ສົ່ງຄັດກອງແລ້ວ</button>
+                    <!-- Search Input Box -->
+                    <div class="patient-search-group">
+                        <div class="patient-search-wrapper">
+                            <i class="bi bi-search patient-search-icon"></i>
+                            <input type="text" id="patientSearchInput" class="patient-search-input"
+                                placeholder="ค้นหา ชื่อ, HN, เบอร์โทร..."
+                                data-i18n-placeholder="reg_search_placeholder"
+                                oninput="filterPatients()"
+                                onkeyup="if(event.key === 'Enter') filterPatients()">
+                            <button class="btn-clear-search" type="button"
+                                onclick="const el = document.getElementById('patientSearchInput'); if (el) { el.value = ''; filterPatients(); }"
+                                title="ล้างคำค้นหา">
+                                <i class="bi bi-x-circle-fill"></i>
+                            </button>
+                        </div>
                     </div>
 
-                    <!-- Search Input Box with Search Icon -->
-                    <div class="input-group rounded-pill overflow-hidden border shadow-sm bg-white"
-                        style="width: 260px; border-color: var(--border-color) !important;">
-                        <span class="input-group-text bg-white border-0 text-muted ps-3 py-2"><i
-                                class="bi bi-search"></i></span>
-                        <input type="text" id="patientSearchInput" class="form-control border-0 ps-1 py-2 shadow-none"
-                            placeholder="ค้นหา ชื่อ, HN, เบอร์โทร..." data-i18n-placeholder="reg_search_placeholder"
-                            style="font-size: 0.88rem;" oninput="filterPatients()"
-                            onkeyup="if(event.key === 'Enter') filterPatients()">
-                        <button class="btn btn-white border-0 text-muted pe-3 py-2" type="button"
-                            onclick="filterPatients()">
-                            <i class="bi bi-arrow-right-short fs-5"></i>
+                    <!-- Action Buttons: Primary (ลงทะเบียนใหม่) & Secondary (รีเฟรชข้อมูล) -->
+                    <div class="patient-actions-group">
+                        <button type="button" class="btn-patient-action btn-patient-primary"
+                            onclick="openAddPatientModal()">
+                            <i class="bi bi-person-plus-fill"></i>
+                            <span data-i18n="reg_add_patient">ลงทะเบียนใหม่</span>
+                        </button>
+                        <button type="button" class="btn-patient-action btn-patient-secondary"
+                            onclick="if (typeof loadPatients === 'function') { loadPatients(); } else { filterPatients(); }"
+                            title="รีเฟรชข้อมูล">
+                            <i class="bi bi-arrow-clockwise"></i>
+                            <span data-i18n="btn_refresh">รีเฟรชข้อมูล</span>
                         </button>
                     </div>
+                </div>
 
-                    <!-- New Registration Button -->
-                    <button type="button"
-                        class="btn btn-primary px-4 py-2 rounded-pill fw-semibold shadow-sm d-flex align-items-center gap-2"
-                        onclick="openAddPatientModal()">
-                        <i class="bi bi-person-plus-fill fs-6"></i> <span
-                            data-i18n="reg_add_patient">ลงทะเบียนใหม่</span>
-                    </button>
+                <!-- Bottom Row: Sub-navigation Filter Tabs -->
+                <div class="patient-toolbar-bottom">
+                    <div class="patient-tabs-nav" id="triageFilterBtnGroup">
+
+                        <!-- Tab: ยังไม่ได้คัดกรอง -->
+                        <button type="button" id="btnTriageFilterPending"
+                            class="patient-tab-item btn btn-sm"
+                            data-tab-mode="pending"
+                            data-tab-active="false"
+                            onclick="setTriageFilter('pending')"
+                            title="ຍັງບໍ່ໄດ້ຄັດກອງ">
+                            <i class="bi bi-hourglass-split"></i>
+                            <span>ຍັງບໍ່ໄດ້ຄັດກອງ</span>
+                        </button>
+
+                        <!-- Tab: ส่งคัดกรองแล้ว -->
+                        <button type="button" id="btnTriageFilterSent"
+                            class="patient-tab-item btn btn-sm"
+                            data-tab-mode="sent"
+                            data-tab-active="false"
+                            onclick="setTriageFilter('sent')"
+                            title="ສົ່ງຄັດກອງແລ້ວ">
+                            <i class="bi bi-send-check"></i>
+                            <span>ສົ່ງຄັດກອງແລ້ວ</span>
+                        </button>
+
+                        <!-- Tab: ทั้งหมด (default active) -->
+                        <button type="button" id="btnTriageFilterAll"
+                            class="patient-tab-item btn btn-sm"
+                            data-tab-mode="all"
+                            data-tab-active="true"
+                            onclick="setTriageFilter('all')"
+                            title="ສະແດງທັງໝົດ" data-i18n="all">
+                            <i class="bi bi-ui-checks-grid"></i>
+                            <span>ທັງໝົດ</span>
+                        </button>
+
+                        <!-- Tab: วันนี้ -->
+                        <button type="button" id="btnFilterToday"
+                            class="patient-tab-item btn btn-sm"
+                            data-tab-mode="today"
+                            data-tab-active="false"
+                            onclick="setPatientTodayTab()"
+                            title="ມື້ນີ້ / ປະຕິບັດ" data-i18n="today">
+                            <i class="bi bi-calendar-check"></i>
+                            <span>ມື້ນີ້</span>
+                        </button>
+
+                    </div>
                 </div>
             </div>
 
@@ -5270,7 +5320,7 @@
             document.write('<script src="../config.js"><\/script>');
         }
     </script>
-    <script src="function.js?v=3.9.21"></script>
+    <script src="function.js?v=3.9.28"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
     <script>
         document.addEventListener("DOMContentLoaded", function () {

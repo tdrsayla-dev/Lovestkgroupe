@@ -813,6 +813,45 @@ function generateId(prefix) {
     return prefix + '-' + Math.floor(100000 + Math.random() * 900000);
 }
 
+// 🌟 Helper ดึง Logo ແລະ ຊື່ຄລີນິກຈາກ Clinic Settings
+async function getClinicBrandingInfo() {
+    let logoUrl = '';
+    let clinicName = 'Clinic';
+    try {
+        if (!window.clinicSettings && typeof _supabase !== 'undefined') {
+            const { data: sData } = await _supabase.from('clinic_settings').select('key, value');
+            if (sData && sData.length > 0) {
+                window.clinicSettings = Object.fromEntries(sData.map(r => [r.key, r.value]));
+            }
+        }
+        const cSettings = window.clinicSettings || {};
+        logoUrl = cSettings['clinic_logo_url'] || localStorage.getItem('clinic_logo_url') || '';
+        if (cSettings['clinic_name_la']) {
+            clinicName = cSettings['clinic_name_la'];
+        }
+    } catch (e) {
+        console.warn('Load clinic settings branding error:', e);
+    }
+    return { logoUrl, clinicName };
+}
+
+// Pre-load clinic settings for slips, invoices and bills
+(async function loadGlobalClinicSettings() {
+    try {
+        if (typeof _supabase !== 'undefined') {
+            const { data: sData } = await _supabase.from('clinic_settings').select('key, value');
+            if (sData && sData.length > 0) {
+                window.clinicSettings = Object.fromEntries(sData.map(r => [r.key, r.value]));
+                if (window.clinicSettings['clinic_logo_url']) {
+                    localStorage.setItem('clinic_logo_url', window.clinicSettings['clinic_logo_url']);
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('Preload clinic settings error:', e);
+    }
+})();
+
 document.addEventListener("DOMContentLoaded", function () {
     // === COLLAPSIBLE SIDEBAR DYNAMIC INITIALIZATION ===
     const sidebar = document.querySelector('.sidebar');
@@ -1104,16 +1143,16 @@ document.addEventListener("DOMContentLoaded", function () {
                 const userEmp = userEmpCode.toLowerCase();
                 const userName = (currentUser && (currentUser.name || currentUser.full_name) ? String(currentUser.name || currentUser.full_name) : '').trim().toLowerCase();
 
-                const isAdmin = userRole === 'admin' || 
-                                userRole === 'administrator' || 
-                                userRole === 'ผู้ดูแลระบบ' || 
-                                permissions.includes('all') || 
-                                userEmp === 'admin01' || 
-                                userName.includes('admin');
+                const isAdmin = userRole === 'admin' ||
+                    userRole === 'administrator' ||
+                    userRole === 'ผู้ดูแลระบบ' ||
+                    permissions.includes('all') ||
+                    userEmp === 'admin01' ||
+                    userName.includes('admin');
 
                 // 🌟 ฟังก์ชันตรวจสอบว่าคนไข้คนนี้เป็นของ User คนที่ Login หรือไม่
                 // โดยยึดจาก 1. User Login และ 2. ผู้แนะนำ (referred_by) เช่น ถ้าเลือก 92091957 - SIENG MR ก็จะโผล่ที่หน้าของนาย Sieng เท่านั้น
-                const isPatientReferredByUser = function(p) {
+                const isPatientReferredByUser = function (p) {
                     if (!currentUser && !userEmpCode) return false;
 
                     const refStr = (p.referred_by || '').trim().toLowerCase();
@@ -1166,8 +1205,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 const myPatients = allPatients.filter(p => isPatientReferredByUser(p));
 
                 if (event.source) {
-                    event.source.postMessage({ 
-                        type: 'PATIENTS_DATA', 
+                    event.source.postMessage({
+                        type: 'PATIENTS_DATA',
                         patients: isAdmin ? allPatients : myPatients,
                         allPatients: allPatients,
                         myPatients: myPatients,
@@ -1623,7 +1662,7 @@ function filterPatients() {
                 vStatus === 'รอชำระเงิน' || vStatus === 'รอจัดยา' || vStatus === 'รอจ่ายยา'
             );
             if (triageFilter === 'pending') return !isOngoingTreatment;
-            if (triageFilter === 'sent')    return isOngoingTreatment;
+            if (triageFilter === 'sent') return isOngoingTreatment;
             return true;
         });
     }
@@ -1856,26 +1895,33 @@ window.clearPatientDateFilter = clearPatientDateFilter;
 function setTriageFilter(mode) {
     window.patientTriageFilter = mode; // 'all' | 'pending' | 'sent'
 
-    // Update button active states
-    const btnAll     = document.getElementById('btnTriageFilterAll');
-    const btnPending = document.getElementById('btnTriageFilterPending');
-    const btnSent    = document.getElementById('btnTriageFilterSent');
+    // Use unified tab-active class: deactivate ALL tabs in the group first, then activate the target
+    const allTabBtns = document.querySelectorAll('#triageFilterBtnGroup .btn');
+    allTabBtns.forEach(function (btn) {
+        btn.setAttribute('data-tab-active', 'false');
+    });
 
-    if (btnAll && btnPending && btnSent) {
-        // Reset all to outline
-        btnAll.className     = 'btn btn-sm btn-outline-primary fw-semibold rounded-pill px-3';
-        btnPending.className = 'btn btn-sm btn-outline-secondary fw-semibold rounded-pill px-3';
-        btnSent.className    = 'btn btn-sm btn-outline-info fw-semibold rounded-pill px-3';
-
-        // Activate the selected one
-        if (mode === 'all')     btnAll.className     = 'btn btn-sm btn-primary fw-semibold rounded-pill px-3';
-        if (mode === 'pending') btnPending.className = 'btn btn-sm btn-secondary fw-semibold rounded-pill px-3';
-        if (mode === 'sent')    btnSent.className    = 'btn btn-sm btn-info fw-semibold rounded-pill px-3';
+    // Activate the correct button by its data-tab-mode attribute
+    const targetBtn = document.querySelector('#triageFilterBtnGroup [data-tab-mode="' + mode + '"]');
+    if (targetBtn) {
+        targetBtn.setAttribute('data-tab-active', 'true');
     }
 
     filterPatients();
 }
 window.setTriageFilter = setTriageFilter;
+
+// Activate "Today" tab (standalone — deactivates all triage filter tabs too)
+function setPatientTodayTab() {
+    const allTabBtns = document.querySelectorAll('#triageFilterBtnGroup .btn');
+    allTabBtns.forEach(function (btn) {
+        btn.setAttribute('data-tab-active', 'false');
+    });
+    const todayBtn = document.getElementById('btnFilterToday');
+    if (todayBtn) todayBtn.setAttribute('data-tab-active', 'true');
+    setPatientTodayFilter();
+}
+window.setPatientTodayTab = setPatientTodayTab;
 
 const LAOS_ADDRESS_DATA = {
     "ນະຄອນຫຼວງວຽງຈັນ": [
@@ -2182,7 +2228,7 @@ window.renderDoctorTable = function (page = window.doctorCurrentPage) {
     // นำข้อมูล 15 รายการมาวาดลงตาราง
     currentData.forEach((row, idx) => {
         let no = startIndex + idx + 1;
-        
+
         let vitalsList = [];
         if (row.bp) vitalsList.push(`BP: <strong>${row.bp}</strong>`);
         if (row.pulse) vitalsList.push(`PR: <strong>${row.pulse}</strong>`);
@@ -2193,8 +2239,8 @@ window.renderDoctorTable = function (page = window.doctorCurrentPage) {
         if (row.spo2) vitalsList.push(`SpO2: <strong>${row.spo2}</strong>%`);
 
         let vitals = vitalsList.length > 0 ? vitalsList.join(' | ') : `ความดัน: ${row.bp || '-'}, นน.: ${row.weight || '-'} กก., อุณหภูมิ: ${row.temp || '-'}°C`;
-        let docBadge = (!isUnassignedDoctor(row.doctor_name)) 
-            ? `<span class="badge bg-info-subtle text-info border border-info-subtle ms-2"><i class="bi bi-person me-1"></i>${row.doctor_name}</span>` 
+        let docBadge = (!isUnassignedDoctor(row.doctor_name))
+            ? `<span class="badge bg-info-subtle text-info border border-info-subtle ms-2"><i class="bi bi-person me-1"></i>${row.doctor_name}</span>`
             : `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-2"><i class="bi bi-clock me-1"></i>ยังไม่ระบุแพทย์</span>`;
 
         tbody.innerHTML += `
@@ -4107,7 +4153,12 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
 window.showPaymentDetails = showPaymentDetails;
 
 //// ฟังก์ชั่นพิมพ์ใบเสร็จ/ใบแจ้งชำระเงิน (รองรับการพิมพ์รายการย่อยในแพ็กเกจ 100% ตรงตามแบบ)
-function printPaymentInvoice(visitId, hn, patientName, testsString, discountVal) {
+async function printPaymentInvoice(visitId, hn, patientName, testsString, discountVal) {
+    // 🌟 ดึงข้อมูลโลโก้และชื่อคลินิกจากการตั้งค่าคลินิก (clinic_settings)
+    const branding = await getClinicBrandingInfo();
+    const clinicLogoUrl = branding.logoUrl;
+    const clinicName = branding.clinicName;
+
     const testsList = (testsString || '').split(',').map(t => t.trim()).filter(Boolean);
     let totalPrice = 0;
     const discount = parseFloat(discountVal) || 0;
@@ -4171,9 +4222,9 @@ function printPaymentInvoice(visitId, hn, patientName, testsString, discountVal)
                 <tr>
                     <td style="text-align: center; vertical-align: top;">${idx + 1}</td>
                     <td>
-                        <div style="font-weight: 700; color: #0b3c73; font-size: 14.5px;">📦 ${itemDetails.name} (แพ็กเกจ)</div>
+                        <div style="font-weight: 700; color: #0b3c73; font-size: 14.5px;">📦 ${itemDetails.name} (ແພັກເກດ)</div>
                         <div class="sub-items-box">
-                            <div style="font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 2px;">รายการตรวจย่อยในแพ็กเกจ:</div>
+                            <div style="font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 2px;">ລາຍການກວດຍ່ອຍໃນແພັກເກດ:</div>
                             <div>${subItemsPrint}</div>
                         </div>
                     </td>
@@ -4192,15 +4243,16 @@ function printPaymentInvoice(visitId, hn, patientName, testsString, discountVal)
     });
 
     const netPrice = Math.max(0, totalPrice - discount);
-    const currentDateStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) +
-        ' เวลา ' + new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+    const laoMonths = ['ມັງກອນ', 'ກຸມພາ', 'ມີນາ', 'ເມສາ', 'ພຶດສະພາ', 'ມິຖຸນາ', 'ກໍລະກົດ', 'ສິງຫາ', 'ກັນຍາ', 'ຕຸລາ', 'ພະຈິກ', 'ທັນວາ'];
+    const now = new Date();
+    const currentDateStr = `${now.getDate()} ${laoMonths[now.getMonth()]} ${now.getFullYear() + 543} ເວລາ ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} ໂມງ`;
 
     const printContent = `
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="utf-8">
-            <title>ใบเสร็จรับเงิน / ใบแจ้งชำระเงิน - ${visitId}</title>
+            <title>ໃບຮັບເງິນ / ໃບແຈ້ງຊຳລະເງິນ - ${visitId}</title>
             <style>
                 @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap');
                 body { 
@@ -4217,10 +4269,17 @@ function printPaymentInvoice(visitId, hn, patientName, testsString, discountVal)
                     padding-bottom: 12px;
                     border-bottom: 1px solid #cbd5e1;
                 }
+                .clinic-logo {
+                    max-height: 65px;
+                    max-width: 180px;
+                    object-fit: contain;
+                    display: block;
+                    margin: 0 auto 8px auto;
+                }
                 .header h1 { 
                     margin: 0; 
                     color: #0b3c73; 
-                    font-size: 34px; 
+                    font-size: 30px; 
                     font-weight: 700;
                     letter-spacing: -0.5px;
                 }
@@ -4326,31 +4385,32 @@ function printPaymentInvoice(visitId, hn, patientName, testsString, discountVal)
         </head>
         <body>
             <div class="header">
-                <h1>Clinic</h1>
-                <p>ใบเสร็จรับเงิน / ใบแจ้งชำระเงิน (Invoice & Receipt)</p>
+                ${clinicLogoUrl ? `<img src="${clinicLogoUrl}" alt="Clinic Logo" class="clinic-logo">` : ''}
+                <h1>${clinicName || 'Clinic'}</h1>
+                <p>ໃບຮັບເງິນ / ໃບແຈ້ງຊຳລະເງິນ (Invoice & Receipt)</p>
             </div>
 
             <div class="info-container">
                 <div class="info-left">
-                    <div class="info-row"><span class="info-label">ชื่อ-นามสกุล:</span> ${patientName || '-'}</div>
-                    <div class="info-row"><span class="info-label">รหัส HN:</span> ${hn || '-'}</div>
-                    <div class="info-row"><span class="info-label">อายุ:</span> ${patientAge}</div>
-                    <div class="info-row"><span class="info-label">ที่อยู่:</span> ${patientAddress}</div>
+                    <div class="info-row"><span class="info-label">ຊື່ ແລະ ນາມສະກຸນ:</span> ${patientName || '-'}</div>
+                    <div class="info-row"><span class="info-label">ລະຫັດ HN:</span> ${hn || '-'}</div>
+                    <div class="info-row"><span class="info-label">ອາຍຸ:</span> ${patientAge}</div>
+                    <div class="info-row"><span class="info-label">ທີ່ຢູ່:</span> ${patientAddress}</div>
                 </div>
                 <div class="info-right">
-                    <div class="info-row"><span class="info-label">รหัส VISIT:</span> ${visitId || '-'}</div>
-                    <div class="info-row"><span class="info-label">เบอร์โทร:</span> ${patientPhone}</div>
-                    <div class="info-row"><span class="info-label">อาการเบื้องต้น:</span> ${patientSymptom}</div>
-                    <div class="info-row"><span class="info-label">วันที่พิมพ์:</span> ${currentDateStr}</div>
+                    <div class="info-row"><span class="info-label">ລະຫັດ VISIT:</span> ${visitId || '-'}</div>
+                    <div class="info-row"><span class="info-label">ເບີໂທ:</span> ${patientPhone}</div>
+                    <div class="info-row"><span class="info-label">ອາການເບື້ອງຕົ້ນ:</span> ${patientSymptom}</div>
+                    <div class="info-row"><span class="info-label">ວັນທີພິມ:</span> ${currentDateStr}</div>
                 </div>
             </div>
 
             <table class="table-inv">
                 <thead>
                     <tr>
-                        <th style="width: 50px; text-align: center;">ลำดับ</th>
-                        <th>รายการตรวจ / บริการ</th>
-                        <th style="text-align: right; width: 140px;">ราคา</th>
+                        <th style="width: 50px; text-align: center;">ລຳດັບ</th>
+                        <th>ລາຍການກວດ / ບໍລິການ</th>
+                        <th style="text-align: right; width: 140px;">ລາຄາ</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -4360,15 +4420,15 @@ function printPaymentInvoice(visitId, hn, patientName, testsString, discountVal)
 
             <div class="summary-container">
                 <div class="summary-row">
-                    <span>รวมค่าตรวจทั้งหมด:</span>
+                    <span>ລວມຄ່າກວດທັງໝົດ:</span>
                     <span>${totalPrice.toLocaleString()} LAK</span>
                 </div>
                 <div class="summary-row discount">
-                    <span>ส่วนลด:</span>
+                    <span>ສ່ວນຫຼຸດ:</span>
                     <span>${discount > 0 ? '-' + discount.toLocaleString() : '0'} LAK</span>
                 </div>
                 <div class="summary-row total">
-                    <span>ยอดชำระสุทธิ:</span>
+                    <span>ຍອດຊຳລະຕົວຈິງ:</span>
                     <span>${netPrice.toLocaleString()} LAK</span>
                 </div>
             </div>
@@ -4376,19 +4436,21 @@ function printPaymentInvoice(visitId, hn, patientName, testsString, discountVal)
             <div class="footer-sig">
                 <div class="sig-box">
                     <div class="sig-line">
-                        ( ผู้ป่วย / ผู้ชำระเงิน )
+                        ( ຄົນເຈັບ / ຜູ້ຊຳລະເງິນ )
                     </div>
                 </div>
                 <div class="sig-box">
                     <div class="sig-line">
-                        ( เจ้าหน้าที่การเงิน / คลินิก )
+                        ( ເຈົ້າໜ້າທີ່ການເງິນ / ຄລີນິກ )
                     </div>
                 </div>
             </div>
 
             <script>
                 window.onload = function() {
-                    window.print();
+                    setTimeout(function() {
+                        window.print();
+                    }, 250);
                 };
             </script>
         </body>
@@ -5031,7 +5093,12 @@ window.showBillDetail = showBillDetail;
 // =========================================================
 // ฟังก์ชันพิมพ์ใบเสร็จ (รูปแบบ A4 มาตรฐาน - สกุลเงิน LAK)
 // =========================================================
-function printBillDetail(billId) {
+async function printBillDetail(billId) {
+    // 🌟 ดึงข้อมูลโลโก้และชื่อคลินิกจากการตั้งค่าคลินิก (clinic_settings)
+    const branding = await getClinicBrandingInfo();
+    const clinicLogoUrl = branding.logoUrl;
+    const clinicName = branding.clinicName;
+
     // 1. ค้นหาข้อมูลบิลจากฐานข้อมูลที่โหลดมาแล้ว
     const bill = (window.clinicBills || []).find(b => b.bill_id === billId);
     if (!bill) {
@@ -5061,7 +5128,7 @@ function printBillDetail(billId) {
     });
 
     if (items.length === 0) {
-        rowsHtml = `<tr><td colspan="3" style="text-align: center; color: #64748b; padding: 15px;">ไม่มีรายการตรวจ / บริการ</td></tr>`;
+        rowsHtml = `<tr><td colspan="3" style="text-align: center; color: #64748b; padding: 15px;">ບໍ່ມີລາຍການກວດ / ບໍລິການ</td></tr>`;
     }
 
     // 3. เตรียมข้อมูลราคารวม ส่วนลด และยอดสุทธิ (บังคับหน่วย LAK)
@@ -5081,8 +5148,11 @@ function printBillDetail(billId) {
     }
 
     const dateObj = new Date(bill.created_at);
-    const currentDateStr = !isNaN(dateObj) ?
-        dateObj.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) + ' เวลา ' + dateObj.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.' : '-';
+    let currentDateStr = '-';
+    if (!isNaN(dateObj)) {
+        const laoMonths = ['ມັງກອນ', 'ກຸມພາ', 'ມີນາ', 'ເມສາ', 'ພຶດສະພາ', 'ມິຖຸນາ', 'ກໍລະກົດ', 'ສິງຫາ', 'ກັນຍາ', 'ຕຸລາ', 'ພະຈິກ', 'ທັນວາ'];
+        currentDateStr = `${dateObj.getDate()} ${laoMonths[dateObj.getMonth()]} ${dateObj.getFullYear() + 543} ເວລາ ${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')} ໂມງ`;
+    }
 
     const patientName = bill.patient_name || '-';
     const hn = bill.hn || '-';
@@ -5129,12 +5199,13 @@ function printBillDetail(billId) {
         <html>
         <head>
             <meta charset="utf-8">
-            <title>ใบเสร็จรับเงิน / ใบแจ้งชำระเงิน - ${visitId}</title>
+            <title>ໃບຮັບເງິນ / ໃບແຈ້ງຊຳລະເງິນ - ${visitId}</title>
             <style>
                 @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap');
                 body { font-family: 'Sarabun', sans-serif; padding: 24px; color: #1e293b; max-width: 720px; margin: 0 auto; background: #ffffff;}
                 .header { text-align: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #cbd5e1;}
-                .header h1 { margin: 0; color: #0b3c73; font-size: 34px; font-weight: 700;}
+                .clinic-logo { max-height: 65px; max-width: 180px; object-fit: contain; display: block; margin: 0 auto 8px auto; }
+                .header h1 { margin: 0; color: #0b3c73; font-size: 30px; font-weight: 700;}
                 .header p { margin: 6px 0 0 0; color: #64748b; font-size: 14px; }
                 .info-container { display: flex; justify-content: space-between; margin-bottom: 24px; font-size: 14px; line-height: 1.6;}
                 .info-left, .info-right { flex: 1; }
@@ -5155,33 +5226,34 @@ function printBillDetail(billId) {
         </head>
         <body>
             <div class="header">
-                <h1>Clinic</h1>
-                <p>ใบเสร็จรับเงิน / ใบแจ้งชำระเงิน (Invoice & Receipt)</p>
+                ${clinicLogoUrl ? `<img src="${clinicLogoUrl}" alt="Clinic Logo" class="clinic-logo">` : ''}
+                <h1>${clinicName || 'Clinic'}</h1>
+                <p>ໃບຮັບເງິນ / ໃບແຈ້ງຊຳລະເງິນ (Invoice & Receipt)</p>
             </div>
 
             <div class="info-container">
                 <div class="info-left">
-                    <div class="info-row"><span class="info-label">ชื่อ-นามสกุล:</span> ${patientName}</div>
-                    <div class="info-row"><span class="info-label">รหัส HN:</span> ${hn}</div>
-                    <div class="info-row"><span class="info-label">อายุ:</span> ${patientAge}</div>
-                    <div class="info-row"><span class="info-label">ที่อยู่:</span> ${patientAddress}</div>
-                    <div class="info-row"><span class="info-label">ช่องทางชำระ:</span> ${bill.payment_method || 'เงินสด'}</div>
+                    <div class="info-row"><span class="info-label">ຊື່ ແລະ ນາມສະກຸນ:</span> ${patientName}</div>
+                    <div class="info-row"><span class="info-label">ລະຫັດ HN:</span> ${hn}</div>
+                    <div class="info-row"><span class="info-label">ອາຍຸ:</span> ${patientAge}</div>
+                    <div class="info-row"><span class="info-label">ທີ່ຢູ່:</span> ${patientAddress}</div>
+                    <div class="info-row"><span class="info-label">ຊ່ອງທາງຊຳລະ:</span> ${bill.payment_method || 'ເງິນສົດ'}</div>
                 </div>
                 <div class="info-right">
-                    <div class="info-row"><span class="info-label">รหัส VISIT:</span> ${visitId}</div>
-                    <div class="info-row"><span class="info-label">เลขที่บิล:</span> ${bill.bill_id}</div>
-                    <div class="info-row"><span class="info-label">เบอร์โทร:</span> ${patientPhone}</div>
-                    <div class="info-row"><span class="info-label">อาการเบื้องต้น:</span> ${patientSymptom}</div>
-                    <div class="info-row"><span class="info-label">วันที่พิมพ์:</span> ${currentDateStr}</div>
+                    <div class="info-row"><span class="info-label">ລະຫັດ VISIT:</span> ${visitId}</div>
+                    <div class="info-row"><span class="info-label">ເລກທີບິນ:</span> ${bill.bill_id}</div>
+                    <div class="info-row"><span class="info-label">ເບີໂທ:</span> ${patientPhone}</div>
+                    <div class="info-row"><span class="info-label">ອາການເບື້ອງຕົ້ນ:</span> ${patientSymptom}</div>
+                    <div class="info-row"><span class="info-label">ວັນທີພິມ:</span> ${currentDateStr}</div>
                 </div>
             </div>
 
             <table class="table-inv">
                 <thead>
                     <tr>
-                        <th style="width: 50px; text-align: center;">ลำดับ</th>
-                        <th>รายการตรวจ / บริการ</th>
-                        <th style="text-align: right; width: 160px;">ราคา</th>
+                        <th style="width: 50px; text-align: center;">ລຳດັບ</th>
+                        <th>ລາຍການກວດ / ບໍລິການ</th>
+                        <th style="text-align: right; width: 160px;">ລາຄາ</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -5191,24 +5263,24 @@ function printBillDetail(billId) {
 
             <div class="summary-container">
                 <div class="summary-row">
-                    <span>รวมค่าบริการทั้งหมด:</span>
+                    <span>ລວມຄ່າບໍລິການທັງໝົດ:</span>
                     <span>${subtotal.toLocaleString()} LAK</span>
                 </div>
                 <div class="summary-row discount">
-                    <span>ส่วนลด:</span>
+                    <span>ສ່ວນຫຼຸດ:</span>
                     <span>${discount > 0 ? '-' + discount.toLocaleString() : '0'} LAK</span>
                 </div>
                 <div class="summary-row total">
-                    <span>ยอดชำระสุทธิ:</span>
+                    <span>ຍອດຊຳລະສຸດທິ:</span>
                     <span>${netPrice.toLocaleString()} LAK</span>
                 </div>
                 ${receivedAmt > netPrice ? `
                 <div class="summary-row" style="color: #16a34a; font-weight: 600; font-size: 13.5px; margin-top: 6px; padding-top: 4px; border-top: 1px dashed #cbd5e1;">
-                    <span>รับเงินสดมา:</span>
+                    <span>ຮັບເງິນສົດມາ:</span>
                     <span>${receivedAmt.toLocaleString()} LAK</span>
                 </div>
                 <div class="summary-row" style="color: #ea580c; font-weight: 600; font-size: 13.5px;">
-                    <span>เงินทอน:</span>
+                    <span>ເງິນທອນ:</span>
                     <span>${changeAmt.toLocaleString()} LAK</span>
                 </div>
                 ` : ''}
@@ -5217,18 +5289,20 @@ function printBillDetail(billId) {
             <div class="footer-sig">
                 <div class="sig-box">
                     <div class="sig-line"></div>
-                    ( ผู้ป่วย / ผู้ชำระเงิน )
+                    ( ຄົນເຈັບ / ຜູ້ຊຳລະເງິນ )
                 </div>
                 <div class="sig-box">
                     <div class="sig-line"></div>
-                    ( เจ้าหน้าที่การเงิน / คลินิก )
+                    ( ເຈົ້າໜ້າທີ່ການເງິນ / ຄລີນິກ )
                 </div>
             </div>
 
             <script>
                 // 5. สั่งพิมพ์อัตโนมัติเมื่อหน้าต่างโหลดเสร็จ
                 window.onload = function() {
-                    window.print();
+                    setTimeout(function() {
+                        window.print();
+                    }, 250);
                 };
             </script>
         </body>
@@ -8166,19 +8240,19 @@ async function loadMlmProducts(isRealtimeUpdate = false) {
     window.allMlmProducts = (data || [])
         .filter(item => Number(item.current_stock ?? item.stock ?? item.quantity ?? 0) > 0)
         .map(item => ({
-        id: item.product_id || item.id,
-        name: item.name,
-        type: item.category || 'อาหารเสริม',
-        category: item.category || 'อาหารเสริม',
-        stock: item.current_stock ?? item.stock ?? 0,
-        price_normal: parseFloat(item.price_full || item.price || 0),
-        price_promo: parseFloat(item.price_promo || 0),
-        price_high: parseFloat(item.price_member || 0),
-        status: item.status || 'ใช้งาน',
-        image_url: item.image_url || '',
-        source: 'mlm',
-        raw: item
-    }));
+            id: item.product_id || item.id,
+            name: item.name,
+            type: item.category || 'อาหารเสริม',
+            category: item.category || 'อาหารเสริม',
+            stock: item.current_stock ?? item.stock ?? 0,
+            price_normal: parseFloat(item.price_full || item.price || 0),
+            price_promo: parseFloat(item.price_promo || 0),
+            price_high: parseFloat(item.price_member || 0),
+            status: item.status || 'ใช้งาน',
+            image_url: item.image_url || '',
+            source: 'mlm',
+            raw: item
+        }));
 
     console.log(`✅ [Real-time] โหลดข้อมูลสินค้า MLM stk_products สำเร็จ: ${window.allMlmProducts.length} รายการ`);
 
@@ -9671,29 +9745,29 @@ async function loadPharmacyQueue() {
                 // 2. การ์ดอาหารเสริม (STK GROUPE MLM)
                 if (mlmNutrients.length > 0) {
                     cardSections.push(`
-                        <div class="border shadow-2xs" style="border-radius: 12px; border-color: #e2e8f0; background: #ffffff; cursor: pointer; transition: all 0.15s ease;" onclick="viewPharmacyBillDetails('${row.visit_id}', 'nutrient')">
-                            <div class="p-2.5 d-flex align-items-center justify-content-between">
-                                <div class="d-flex align-items-center gap-3">
-                                    <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 44px; height: 44px; background-color: #ecfdf5; color: #16a34a; border: 1px solid #dcfce7;">
-                                        <i class="bi bi-flower1" style="font-size: 1.35rem;"></i>
-                                    </div>
-                                    <div>
-                                        <div class="fw-bold text-dark" style="font-size: 0.93rem; line-height: 1.2;">บิล 2: อาหารเสริม (STK GROUPE MLM)</div>
-                                        <div class="text-muted" style="font-size: 0.78rem; margin-top: 2px;">STK GROUPE MLM</div>
-                                    </div>
+                    <div class="border shadow-2xs" style="border-radius: 12px; border-color: #e2e8f0; background: #ffffff; cursor: pointer; transition: all 0.15s ease;" onclick="viewPharmacyBillDetails('${row.visit_id}', 'nutrient')">
+                        <div class="p-2.5 d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 44px; height: 44px; background-color: #ecfdf5; color: #16a34a; border: 1px solid #dcfce7;">
+                                    <i class="bi bi-flower1" style="font-size: 1.35rem;"></i>
                                 </div>
-                                <div class="d-flex align-items-center gap-2">
-                                    <span class="badge" style="background-color: #ecfdf5; color: #16a34a; border: 1px solid #dcfce7; border-radius: 6px; font-weight: 500; font-size: 0.78rem; padding: 4px 8px;">
-                                        ${mlmNutrients.length} รายการ
-                                    </span>
-                                    <span class="text-muted opacity-40">|</span>
-                                    <span class="text-success fw-medium d-inline-flex align-items-center" style="font-size: 0.83rem;">
-                                        ดูรายละเอียด <i class="bi bi-chevron-right ms-1" style="font-size: 0.75rem;"></i>
-                                    </span>
+                                <div>
+                                    <!-- คงเหลือแค่หัวข้อหลัก ส่วนข้อความ STK GROUPE MLM ด้านล่างถูกลบออกแล้ว -->
+                                    <div class="fw-bold text-dark" style="font-size: 0.93rem; line-height: 1.2;">ລາຍການອາຫານເສີມ</div>
                                 </div>
                             </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge" style="background-color: #ecfdf5; color: #16a34a; border: 1px solid #dcfce7; border-radius: 6px; font-weight: 500; font-size: 0.78rem; padding: 4px 8px;">
+                                    ${mlmNutrients.length} รายการ
+                                </span>
+                                <span class="text-muted opacity-40">|</span>
+                                <span class="text-success fw-medium d-inline-flex align-items-center" style="font-size: 0.83rem;">
+                                    ดูรายละเอียด <i class="bi bi-chevron-right ms-1" style="font-size: 0.75rem;"></i>
+                                </span>
+                            </div>
                         </div>
-                    `);
+                    </div>
+                 `);
                 }
 
                 medsHtml = cardSections.length > 0 ? cardSections.join('') : '<span class="text-muted small">ไม่มีรายการยา/อาหารเสริม</span>';
@@ -9723,18 +9797,18 @@ async function loadPharmacyQueue() {
         const orderedNutrientVisits = JSON.parse(localStorage.getItem('clinic_nutrient_ordered_visits') || '[]');
         const isNutrientOrdered = row.nutrient_ordered || (Array.isArray(orderedNutrientVisits) && orderedNutrientVisits.includes(row.visit_id));
 
-        // 1. ตรวจสอบสถานะการสั่งอาหารเสริม (ปุ่ม MLM)
+        // 1. ตรวจสอบสถานะการสั่งอาหารเสริม
         let nutrientBtn = '';
         if (isNutrientOrdered) {
             nutrientBtn = `
                 <button class="btn btn-sm btn-light border w-100 fw-semibold text-muted shadow-sm" style="font-size: 0.82rem; padding: 6px 10px; border-radius: 8px; cursor: not-allowed;" disabled title="สั่งซื้อสารอาหารเรียบร้อยแล้ว (ป้องกันการสั่งซ้ำ)">
-                    <i class="bi bi-check2-circle me-1"></i>ส่งแล้ว (MLM)
+                    <i class="bi bi-check2-circle me-1"></i>ส่งแล้ว
                 </button>
             `;
         } else {
             nutrientBtn = `
                 <button class="btn btn-sm btn-light border w-100 fw-semibold shadow-sm" style="color: #d97706; font-size: 0.82rem; padding: 6px 10px; border-radius: 8px;" onclick="sendPharmacyNutrientOrder('${row.visit_id}')">
-                    <i class="bi bi-send me-1"></i>สั่งอาหารเสริม (MLM)
+                    <i class="bi bi-send me-1"></i>สั่งอาหารเสริม
                 </button>
             `;
         }
@@ -9861,7 +9935,7 @@ window.viewPharmacyBillDetails = async function (visitId, billType) {
         return;
     }
 
-    const titleText = isMlm ? 'บิล 2: อาหารเสริม (STK GROUPE MLM)' : 'บิล 1: ยารักษาโรค (กล่องยาคลินิก)';
+    const titleText = isMlm ? 'ລາຍການອາຫານເສີມ' : 'ລາຍການຢາຫລວງ';
     const headerColor = isMlm ? '#047857' : '#0369a1';
     const headerBg = isMlm ? '#ecfdf5' : '#f0f9ff';
     const headerBorder = isMlm ? '#a7f3d0' : '#bae6fd';
@@ -9890,7 +9964,6 @@ window.viewPharmacyBillDetails = async function (visitId, billType) {
                 <td class="text-center align-middle">${idx + 1}</td>
                 <td class="align-middle">
                     <div class="fw-bold text-dark">${cleanName}</div>
-                    <small class="text-muted">${isMlm ? 'STK GROUPE MLM' : 'คลังยาคลินิก'}</small>
                 </td>
                 <td class="text-center align-middle"><span class="badge bg-light text-dark border">${tierText}</span></td>
                 <td class="text-end align-middle">${price > 0 ? price.toLocaleString() + ' ฿' : '-'}</td>
@@ -10017,13 +10090,13 @@ window.sendPharmacyNutrientOrder = async function (visitId) {
     const mlmItems = medsList.filter(m => typeof isNutrientItem === 'function' ? isNutrientItem(m) : m.source === 'mlm');
 
     if (mlmItems.length === 0) {
-        Swal.fire('แจ้งเตือน', 'ไม่มีรายการอาหารเสริม (MLM) ในบิลนี้', 'warning');
+        Swal.fire('แจ้งเตือน', 'ไม่มีรายการอาหารเสริมในบิลนี้', 'warning');
         return;
     }
 
     const confirmRes = await Swal.fire({
-        title: 'ยืนยันส่งออเดอร์ MLM?',
-        text: `ต้องการส่งออเดอร์อาหารเสริมจำนวน ${mlmItems.length} รายการ ของ ${visit.patient_name || 'ผู้ป่วย'} ไปยังระบบ STK MLM ใช่หรือไม่?`,
+        title: 'ยืนยันส่งออเดอร์อาหารเสริม?',
+        text: `ต้องการส่งออเดอร์อาหารเสริมจำนวน ${mlmItems.length} รายการ ของ ${visit.patient_name || 'ผู้ป่วย'} ใช่หรือไม่?`,
         icon: 'question',
         showCancelButton: true,
         confirmButtonColor: '#047857',
@@ -10103,7 +10176,7 @@ window.sendPharmacyNutrientOrder = async function (visitId) {
             localStorage.setItem('clinic_nutrient_ordered_visits', JSON.stringify(orderedVisits));
         }
 
-        Swal.fire('สำเร็จ', 'ส่งออเดอร์ไปยังระบบจัดการ MLM (stk_nutrient_orders) เรียบร้อยแล้ว', 'success');
+        Swal.fire('สำเร็จ', 'ส่งออเดอร์อาหารเสริมเรียบร้อยแล้ว', 'success');
 
         if (typeof loadPharmacyQueue === 'function') {
             loadPharmacyQueue();
@@ -10116,11 +10189,30 @@ window.sendPharmacyNutrientOrder = async function (visitId) {
 };
 
 // 🌟 ฟังก์ชันสำหรับปุ่ม "Print" ในห้องจ่ายยา (รองรับการพิมพ์แยกบิลยา vs บิลอาหารเสริม)
-function printPharmacyDispenseSlip(visitId, billType) {
+async function printPharmacyDispenseSlip(visitId, billType) {
     const visit = (window.allPharmacyVisits || []).find(v => v.visit_id === visitId);
     if (!visit) {
         Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลการสั่งจ่ายสำหรับพิมพ์ใบจ่ายยา', 'error');
         return;
+    }
+
+    // 🌟 ดึงข้อมูลโลโก้และชื่อคลินิกจากการตั้งค่าคลินิก (clinic_settings)
+    let clinicLogoUrl = '';
+    let billTitlePrefix = 'ສູນການແພດ ເລີຟ ເອັສທີເຄ';
+    try {
+        if (!window.clinicSettings && typeof _supabase !== 'undefined') {
+            const { data: sData } = await _supabase.from('clinic_settings').select('key, value');
+            if (sData && sData.length > 0) {
+                window.clinicSettings = Object.fromEntries(sData.map(r => [r.key, r.value]));
+            }
+        }
+        const cSettings = window.clinicSettings || {};
+        clinicLogoUrl = cSettings['clinic_logo_url'] || localStorage.getItem('clinic_logo_url') || '';
+        if (cSettings['clinic_name_la']) {
+            billTitlePrefix = cSettings['clinic_name_la'];
+        }
+    } catch (sErr) {
+        console.warn('Load clinic settings logo error:', sErr);
     }
 
     let rawMedsList = [];
@@ -10140,33 +10232,41 @@ function printPharmacyDispenseSlip(visitId, billType) {
 
     // กรองรายการตาม billType ('drug' = ยารักษาโรค, 'nutrient' = อาหารเสริม, 'all' = ทั้งหมด)
     let medsList = rawMedsList;
-    let billTitlePrefix = 'Clinic';
-    let docTypeTitle = 'ใบเสร็จรับเงิน / Receipt';
+    let docTypeTitle = 'ໃບຮັບເງິນ';
     let billNumber = visit.visit_id || '-';
 
     if (billType === 'drug') {
         medsList = rawMedsList.filter(m => !isNutrientItem(m));
-        billTitlePrefix = 'Clinic';
-        docTypeTitle = 'ใบเสร็จรับเงิน / ใบสั่งยา (ยารักษาโรค)';
+        docTypeTitle = 'ໃບຮັບເງິນ / ໃບສັ່ງຢາ (ຢາປິ່ນປົວພະຍາດ)';
         billNumber = 'MED-' + (visit.visit_id || '');
     } else if (billType === 'nutrient') {
-        medsList = rawMedsList.filter(m => isNutrientItem(m));
-        billTitlePrefix = 'STK GROUPE MLM';
-        docTypeTitle = 'ใบเสร็จรับเงิน / สั่งซื้อ (อาหารเสริม MLM)';
+        // กรองรายการและลบคำว่า (MLM) ออกจากชื่อสินค้าอัตโนมัติ
+        medsList = rawMedsList.filter(m => isNutrientItem(m)).map(m => {
+            if (typeof m === 'object' && m.name) {
+                return { ...m, name: m.name.replace(/\s*\(MLM\)/gi, '') };
+            } else if (typeof m === 'string') {
+                return m.replace(/\s*\(MLM\)/gi, '');
+            }
+            return m;
+        });
+
+        docTypeTitle = 'ໃບຮັບເງິນ';
         billNumber = 'NUT-' + (visit.visit_id || '');
     }
 
-    const printDateTime = new Date().toLocaleDateString('th-TH', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    }) + ' น.';
+    // ວັນທີ ແລະ ເວລາ ຮູບແບບພາສາລາວ
+    const laoMonths = ['ມັງກອນ', 'ກຸມພາ', 'ມີນາ', 'ເມສາ', 'ພຶດສະພາ', 'ມິຖຸນາ', 'ກໍລະກົດ', 'ສິງຫາ', 'ກັນຍາ', 'ຕຸລາ', 'ພະຈິກ', 'ທັນວາ'];
+    const now = new Date();
+    const day = now.getDate();
+    const monthName = laoMonths[now.getMonth()];
+    const yearBE = now.getFullYear() + 543;
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const printDateTime = `${day} ${monthName} ${yearBE} ເວລາ ${hours}:${minutes} ໂມງ`;
 
     let doctorName = (visit.doctor_name && visit.doctor_name !== '-' && visit.doctor_name.trim() !== '') ? visit.doctor_name : '-';
     let referredBy = visit.referred_by || '-';
-    let recordedBy = visit.recorded_by || 'เภสัชกร / แคชเชียร์';
+    let recordedBy = visit.recorded_by || 'ເພສັດກອນ / ພະນັກງານເກັບເງິນ';
 
     if (doctorName === '-' && window.allHistoryVisits) {
         const pastDoc = window.allHistoryVisits.find(v => (v.hn === visit.hn || v.patient_name === visit.patient_name) && v.doctor_name && v.doctor_name !== '-');
@@ -10188,15 +10288,13 @@ function printPharmacyDispenseSlip(visitId, billType) {
         totalQty += qty;
         totalPrice += subtotal;
 
-        let cleanName = m.name || m.product_name || 'รายการยา';
-        cleanName = cleanName.replace(' (โปร)', '').replace(' (ส่ง/สมาชิก)', '').replace(' (แถมฟรี)', '');
-
-        const srcText = isNutrientItem(m) ? '<span style="font-size:10px;color:#0284c7;">(MLM)</span>' : '<span style="font-size:10px;color:#64748b;">(คลังยา)</span>';
+        let cleanName = m.name || m.product_name || 'ລາຍການຢາ';
+        cleanName = cleanName.replace(' (โปร)', '').replace(' (ສົ່ງ/ສະມາຊິກ)', '').replace(' (ສົ່ງ/สมาชิก)', '').replace(' (ส่ง/สมาชิก)', '').replace(' (ແຖມຟຣີ)', '').replace(' (แถมฟรี)', '').replace(/\s*\(MLM\)/gi, '');
 
         rowsHtml += `
             <tr style="border-bottom: 1px dashed #e2e8f0;">
                 <td style="padding: 5px 0; vertical-align: top; text-align: left;">
-                    <div style="font-weight: 600; color: #0f172a; font-size: 11.5px; line-height: 1.25;">${cleanName} ${srcText}</div>
+                    <div style="font-weight: 600; color: #0f172a; font-size: 11.5px; line-height: 1.25;">${cleanName}</div>
                 </td>
                 <td style="padding: 5px 2px; text-align: right; vertical-align: top; font-size: 11.5px; white-space: nowrap;">
                     ${price > 0 ? price.toLocaleString() : '-'}
@@ -10212,16 +10310,17 @@ function printPharmacyDispenseSlip(visitId, billType) {
     });
 
     const isRefill = (visit.symptom && visit.symptom.includes('ต่อยา')) || visit.refill_batch;
-    const refillBadgeHtml = isRefill ? `<span style="background-color: #fef3c7; color: #92400e; border: 1px solid #f59e0b; padding: 1px 6px; border-radius: 4px; font-size: 11px; margin-left: 6px;">${visit.refill_batch || visit.symptom}</span>` : '';
+    let refillTag = visit.refill_batch || (visit.symptom && visit.symptom.includes('ต่อยา') ? 'ຊຸດຕໍ່ຢາ' : 'ຊຸດທີ 2');
+    const refillBadgeHtml = isRefill ? `<span style="background-color: #fef3c7; color: #92400e; border: 1px solid #f59e0b; padding: 1px 6px; border-radius: 4px; font-size: 11px; margin-left: 6px;">${refillTag}</span>` : '';
 
     const printHtml = `
 <!DOCTYPE html>
-<html lang="th">
+<html lang="lo">
 <head>
     <meta charset="UTF-8">
-    <title>ใบเสร็จรับเงิน - ${billNumber}</title>
+    <title>ໃບຮັບເງິນ - ${billNumber}</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@300;400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700;800&display=swap');
         @page {
             size: 80mm 297mm;
             margin: 0;
@@ -10230,7 +10329,7 @@ function printPharmacyDispenseSlip(visitId, billType) {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: 'Sarabun', 'Segoe UI', Tahoma, sans-serif;
+            font-family: 'Noto Sans Lao', 'Sarabun', 'Segoe UI', Tahoma, sans-serif;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
         }
@@ -10242,24 +10341,31 @@ function printPharmacyDispenseSlip(visitId, billType) {
             background: #ffffff;
             color: #0f172a;
             font-size: 12px;
-            line-height: 1.3;
+            line-height: 1.35;
         }
         .header {
             text-align: center;
             margin-bottom: 6px;
         }
+        .clinic-logo {
+            max-height: 50px;
+            max-width: 140px;
+            object-fit: contain;
+            display: block;
+            margin: 0 auto 5px auto;
+        }
         .clinic-name {
-            font-size: 22px;
+            font-size: 20px;
             font-weight: 800;
             color: #000;
-            letter-spacing: -0.5px;
-            line-height: 1.1;
+            letter-spacing: -0.3px;
+            line-height: 1.15;
         }
         .doc-type {
-            font-size: 12.5px;
-            font-weight: 600;
+            font-size: 13px;
+            font-weight: 700;
             color: #475569;
-            margin-top: 2px;
+            margin-top: 3px;
         }
         .divider-dashed {
             border-top: 1px dashed #94a3b8;
@@ -10282,7 +10388,7 @@ function printPharmacyDispenseSlip(visitId, billType) {
         .info-label {
             font-weight: 600;
             color: #1e293b;
-            width: 88px;
+            width: 75px;
             white-space: nowrap;
         }
         .info-value {
@@ -10325,7 +10431,7 @@ function printPharmacyDispenseSlip(visitId, billType) {
             text-align: center;
             margin-top: 28px;
             margin-bottom: 12px;
-            font-size: 10px;
+            font-size: 10.5px;
         }
         .sig-item {
             flex: 1;
@@ -10340,7 +10446,7 @@ function printPharmacyDispenseSlip(visitId, billType) {
             font-size: 10.5px;
             color: #b45309;
             margin-top: 4px;
-            line-height: 1.3;
+            line-height: 1.35;
         }
         @media print {
             body {
@@ -10355,6 +10461,7 @@ function printPharmacyDispenseSlip(visitId, billType) {
 </head>
 <body>
     <div class="header">
+        ${clinicLogoUrl ? `<img src="${clinicLogoUrl}" alt="Clinic Logo" class="clinic-logo">` : ''}
         <div class="clinic-name">${billTitlePrefix}</div>
         <div class="doc-type">${docTypeTitle} ${refillBadgeHtml}</div>
     </div>
@@ -10363,15 +10470,15 @@ function printPharmacyDispenseSlip(visitId, billType) {
 
     <table class="info-table">
         <tr>
-            <td class="info-label">เลขที่บิล:</td>
+            <td class="info-label">ເລກທີບິນ:</td>
             <td class="info-value"><strong>${billNumber}</strong></td>
         </tr>
         <tr>
-            <td class="info-label">วันที่:</td>
+            <td class="info-label">ວັນທີ:</td>
             <td class="info-value">${printDateTime}</td>
         </tr>
         <tr>
-            <td class="info-label">ลูกค้า:</td>
+            <td class="info-label">ລູກຄ້າ:</td>
             <td class="info-value">${visit.patient_name || '-'} ${visit.hn ? '(' + visit.hn + ')' : ''}</td>
         </tr>
     </table>
@@ -10381,14 +10488,14 @@ function printPharmacyDispenseSlip(visitId, billType) {
     <table class="items-table">
         <thead>
             <tr>
-                <th style="text-align: left; padding: 4px 0;">รายการสินค้า</th>
-                <th style="text-align: right; width: 62px; padding: 4px 4px;">ราคา/หน่วย</th>
-                <th style="text-align: center; width: 34px; padding: 4px 4px;">จำนวน</th>
-                <th style="text-align: right; width: 62px; padding: 4px 0;">รวมเงิน</th>
+                <th style="text-align: left; padding: 4px 0;">ລາຍການສິນຄ້າ</th>
+                <th style="text-align: right; width: 62px; padding: 4px 4px;">ລາຄາ/ໜ່ວຍ</th>
+                <th style="text-align: center; width: 34px; padding: 4px 4px;">ຈຳນວນ</th>
+                <th style="text-align: right; width: 62px; padding: 4px 0;">ລວມເງິນ</th>
             </tr>
         </thead>
         <tbody>
-            ${rowsHtml || '<tr><td colspan="4" style="text-align:center; padding: 10px; color:#94a3b8;">ไม่มีรายการสินค้า</td></tr>'}
+            ${rowsHtml || '<tr><td colspan="4" style="text-align:center; padding: 10px; color:#94a3b8;">ບໍ່ມີລາຍການສິນຄ້າ</td></tr>'}
         </tbody>
     </table>
 
@@ -10396,11 +10503,11 @@ function printPharmacyDispenseSlip(visitId, billType) {
 
     <div class="summary-box">
         <div class="summary-row">
-            <span style="font-weight: 600;">รวมจำนวนทั้งหมด:</span>
-            <span style="font-weight: 700;">${medsList.length} รายการ (${totalQty} ชิ้น)</span>
+            <span style="font-weight: 600;">ລວມຈຳນວນທັງໝົດ:</span>
+            <span style="font-weight: 700;">${medsList.length} ລາຍການ (${totalQty} ອັນ)</span>
         </div>
         <div class="summary-row grand-total">
-            <span>ยอดรวมสุทธิ:</span>
+            <span>ຍອດລວມສຸດທິ:</span>
             <span>${totalPrice.toLocaleString()} ฿</span>
         </div>
     </div>
@@ -10408,22 +10515,22 @@ function printPharmacyDispenseSlip(visitId, billType) {
     <div class="signatures">
         <div class="sig-item">
             <div class="sig-line"></div>
-            <div style="font-weight: 600;">ลายเซ็นลูกค้า</div>
+            <div style="font-weight: 600;">ລາຍເຊັນລູກຄ້າ</div>
         </div>
         <div class="sig-item">
             <div class="sig-line"></div>
-            <div style="font-weight: 600;">ผู้จ่ายสินค้า/ยา</div>
+            <div style="font-weight: 600;">ຜູ້ຈ່າຍສິນຄ້າ/ຢາ</div>
         </div>
         <div class="sig-item">
             <div class="sig-line"></div>
-            <div style="font-weight: 600;">พนักงานแคชเชียร์</div>
+            <div style="font-weight: 600;">ພະນັກງານເກັບເງິນ</div>
         </div>
     </div>
 
     <div class="divider-dashed"></div>
 
     <div class="footer-note">
-        🔖 <strong>หมายเหตุ:</strong> กรุณาตรวจสอบรายการและจำนวนเงินทอนให้เรียบร้อย / ขอขอบพระคุณที่ไว้วางใจใช้บริการ
+        🔖 <strong>ໝາຍເຫດ:</strong> ກະລຸນາກວດສອບລາຍການ ແລະ ຈຳນວນເງິນທອນໃຫ້ຮຽບຮ້ອຍ / ຂໍຂອບໃຈທີ່ໄວ້ວາງໃຈໃຊ້ບໍລິການ
     </div>
 
     <script>
@@ -11542,7 +11649,7 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
         const localOrders = JSON.parse(localStorage.getItem('clinic_orders') || '[]');
         const localStk = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
         const allLocalOrders = [...localOrders, ...localStk];
-        
+
         const matchedLocal = allLocalOrders.find(o => {
             if (!o) return false;
             const oVisit = o.visit_id || o.visitId;
@@ -11551,8 +11658,8 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
             if (row.order_id && oOrder && (oOrder === row.order_id || String(oOrder).includes(String(row.order_id)))) return true;
             if (row.hn && row.hn !== '-' && o.hn && (o.hn === row.hn || String(o.hn).replace(/\D/g, '') === String(row.hn).replace(/\D/g, ''))) return true;
             if (row.phone && (o.phone === row.phone || o.customer_phone === row.phone)) return true;
-            if (row.patient_name && ((o.patient_name && o.patient_name.trim().toLowerCase() === row.patient_name.trim().toLowerCase()) || 
-                                     (o.customer_name && o.customer_name.trim().toLowerCase() === row.patient_name.trim().toLowerCase()))) return true;
+            if (row.patient_name && ((o.patient_name && o.patient_name.trim().toLowerCase() === row.patient_name.trim().toLowerCase()) ||
+                (o.customer_name && o.customer_name.trim().toLowerCase() === row.patient_name.trim().toLowerCase()))) return true;
             return false;
         });
 
@@ -11581,7 +11688,7 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
             if (patientPhone !== '-' && p.phone && String(p.phone).trim() === String(patientPhone).trim()) return true;
             if (row.phone && p.phone && String(p.phone).trim() === String(row.phone).trim()) return true;
             if (row.patient_name && ((p.patient_name && p.patient_name.trim().toLowerCase() === row.patient_name.trim().toLowerCase()) ||
-                                     (p.name && p.name.trim().toLowerCase() === row.patient_name.trim().toLowerCase()))) return true;
+                (p.name && p.name.trim().toLowerCase() === row.patient_name.trim().toLowerCase()))) return true;
             return false;
         });
         if (pat) {
@@ -12400,7 +12507,7 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
                     });
                     if (foundService) return true;
                 }
-            } catch (e) {}
+            } catch (e) { }
 
             // 4. ตรวจสอบชื่อรายการที่เป็นการตรวจทางห้องแล็บ / หัตถการ
             const labKeywords = [
@@ -12703,7 +12810,7 @@ function repeatPrescriptionFromHistory(targetVisitId) {
     });
     Toast.fire({
         icon: 'success',
-        title: medsList.length > 0 
+        title: medsList.length > 0
             ? `เปิดสั่งจ่ายต่อยา ${batchTag} (${medsList.length} รายการ) เรียบร้อย`
             : `เปิดหน้าต่างสั่งยาสำหรับ ${row.patient_name || row.hn} เรียบร้อย`
     });
@@ -19514,7 +19621,12 @@ function showBillDetails(billId) {
 }
 window.showBillDetails = showBillDetails;
 
-function printBill(billId) {
+async function printBill(billId) {
+    // 🌟 ดึงข้อมูลโลโก้และชื่อคลินิกจากการตั้งค่าคลินิก (clinic_settings)
+    const branding = await getClinicBrandingInfo();
+    const clinicLogoUrl = branding.logoUrl;
+    const clinicName = branding.clinicName;
+
     const bill = (window.allBillsData || []).find(b => b.bill_id === billId) || (window.clinicBills || []).find(b => b.bill_id === billId);
     if (!bill) {
         console.warn("ไม่พบบิลรหัส: ", billId);
@@ -19550,7 +19662,7 @@ function printBill(billId) {
     });
 
     if (items.length === 0) {
-        rowsHtml = `<tr><td colspan="3" style="text-align: center; color: #64748b; padding: 15px;">ไม่มีรายการตรวจ / บริการ</td></tr>`;
+        rowsHtml = `<tr><td colspan="3" style="text-align: center; color: #64748b; padding: 15px;">ບໍ່ມີລາຍການກວດ / ບໍລິການ</td></tr>`;
     }
 
     // 3. เตรียมข้อมูลราคารวม ส่วนลด และยอดสุทธิ (บังคับหน่วย LAK)
@@ -19559,8 +19671,11 @@ function printBill(billId) {
     const netPrice = parseFloat(bill.payable_amount || Math.max(0, subtotal - discount));
 
     const dateObj = new Date(bill.created_at);
-    const currentDateStr = !isNaN(dateObj) ?
-        dateObj.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) + ' เวลา ' + dateObj.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.' : '-';
+    let currentDateStr = '-';
+    if (!isNaN(dateObj)) {
+        const laoMonths = ['ມັງກອນ', 'ກຸມພາ', 'ມີນາ', 'ເມສາ', 'ພຶດສະພາ', 'ມິຖຸນາ', 'ກໍລະກົດ', 'ສິງຫາ', 'ກັນຍາ', 'ຕຸລາ', 'ພະຈິກ', 'ທັນວາ'];
+        currentDateStr = `${dateObj.getDate()} ${laoMonths[dateObj.getMonth()]} ${dateObj.getFullYear() + 543} ເວລາ ${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')} ໂມງ`;
+    }
 
     const patientName = bill.patient_name || '-';
     const hn = bill.hn || '-';
@@ -19572,12 +19687,13 @@ function printBill(billId) {
         <html>
         <head>
             <meta charset="utf-8">
-            <title>ใบเสร็จรับเงิน / ใบแจ้งชำระเงิน - ${visitId}</title>
+            <title>ໃບຮັບເງິນ / ໃບແຈ້ງຊຳລະເງິນ - ${visitId}</title>
             <style>
                 @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap');
                 body { font-family: 'Sarabun', sans-serif; padding: 24px; color: #1e293b; max-width: 720px; margin: 0 auto; background: #ffffff;}
                 .header { text-align: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #cbd5e1;}
-                .header h1 { margin: 0; color: #0b3c73; font-size: 34px; font-weight: 700;}
+                .clinic-logo { max-height: 65px; max-width: 180px; object-fit: contain; display: block; margin: 0 auto 8px auto; }
+                .header h1 { margin: 0; color: #0b3c73; font-size: 30px; font-weight: 700;}
                 .header p { margin: 6px 0 0 0; color: #64748b; font-size: 14px; }
                 .info-container { display: flex; justify-content: space-between; margin-bottom: 24px; font-size: 14px; line-height: 1.6;}
                 .info-left, .info-right { flex: 1; }
@@ -19598,29 +19714,30 @@ function printBill(billId) {
         </head>
         <body>
             <div class="header">
-                <h1>Clinic</h1>
-                <p>ใบเสร็จรับเงิน / ใบแจ้งชำระเงิน (Invoice & Receipt)</p>
+                ${clinicLogoUrl ? `<img src="${clinicLogoUrl}" alt="Clinic Logo" class="clinic-logo">` : ''}
+                <h1>${clinicName || 'Clinic'}</h1>
+                <p>ໃບຮັບເງິນ / ໃບແຈ້ງຊຳລະເງິນ (Invoice & Receipt)</p>
             </div>
 
             <div class="info-container">
                 <div class="info-left">
-                    <div class="info-row"><span class="info-label">ชื่อ-นามสกุล:</span> ${patientName}</div>
-                    <div class="info-row"><span class="info-label">รหัส HN:</span> ${hn}</div>
-                    <div class="info-row"><span class="info-label">ช่องทางชำระ:</span> ${bill.payment_method || 'เงินสด'}</div>
+                    <div class="info-row"><span class="info-label">ຊື່ ແລະ ນາມສະກຸນ:</span> ${patientName}</div>
+                    <div class="info-row"><span class="info-label">ລະຫັດ HN:</span> ${hn}</div>
+                    <div class="info-row"><span class="info-label">ຊ່ອງທາງຊຳລະ:</span> ${bill.payment_method || 'ເງິນສົດ'}</div>
                 </div>
                 <div class="info-right">
-                    <div class="info-row"><span class="info-label">รหัส VISIT:</span> ${visitId}</div>
-                    <div class="info-row"><span class="info-label">เลขที่บิล:</span> ${bill.bill_id}</div>
-                    <div class="info-row"><span class="info-label">วันที่พิมพ์:</span> ${currentDateStr}</div>
+                    <div class="info-row"><span class="info-label">ລະຫັດ VISIT:</span> ${visitId}</div>
+                    <div class="info-row"><span class="info-label">ເລກທີບິນ:</span> ${bill.bill_id}</div>
+                    <div class="info-row"><span class="info-label">ວັນທີພິມ:</span> ${currentDateStr}</div>
                 </div>
             </div>
 
             <table class="table-inv">
                 <thead>
                     <tr>
-                        <th style="width: 50px; text-align: center;">ลำดับ</th>
-                        <th>รายการตรวจ / บริการ</th>
-                        <th style="text-align: right; width: 160px;">ราคา</th>
+                        <th style="width: 50px; text-align: center;">ລຳດັບ</th>
+                        <th>ລາຍການກວດ / ບໍລິການ</th>
+                        <th style="text-align: right; width: 160px;">ລາຄາ</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -19630,15 +19747,15 @@ function printBill(billId) {
 
             <div class="summary-container">
                 <div class="summary-row">
-                    <span>รวมค่าบริการทั้งหมด:</span>
+                    <span>ລວມຄ່າບໍລິການທັງໝົດ:</span>
                     <span>${subtotal.toLocaleString()} LAK</span>
                 </div>
                 <div class="summary-row discount">
-                    <span>ส่วนลด:</span>
+                    <span>ສ່ວນຫຼຸດ:</span>
                     <span>${discount > 0 ? '-' + discount.toLocaleString() : '0'} LAK</span>
                 </div>
                 <div class="summary-row total">
-                    <span>ยอดชำระสุทธิ:</span>
+                    <span>ຍອດຊຳລະສຸດທິ:</span>
                     <span>${netPrice.toLocaleString()} LAK</span>
                 </div>
             </div>
@@ -19646,18 +19763,20 @@ function printBill(billId) {
             <div class="footer-sig">
                 <div class="sig-box">
                     <div class="sig-line"></div>
-                    ( ผู้ป่วย / ผู้ชำระเงิน )
+                    ( ຄົນເຈັບ / ຜູ້ຊຳລະເງິນ )
                 </div>
                 <div class="sig-box">
                     <div class="sig-line"></div>
-                    ( เจ้าหน้าที่การเงิน / คลินิก )
+                    ( ເຈົ້າໜ້າທີ່ການເງິນ / ຄລີນິກ )
                 </div>
             </div>
 
             <script>
                 // 5. สั่งพิมพ์อัตโนมัติเมื่อหน้าต่างโหลดเสร็จ
                 window.onload = function() {
-                    window.print();
+                    setTimeout(function() {
+                        window.print();
+                    }, 250);
                 };
             </script>
         </body>
