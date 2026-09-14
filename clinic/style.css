@@ -3230,3 +3230,468 @@ body.login-page {
         border-radius: 8px !important;
     }
 }
+
+/* =========================================================
+   NEW MODERN PATIENT REGISTRATION SEARCH & FILTER TOOLBAR
+   ========================================================= */
+
+.patient-toolbar-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 16px 20px 12px 20px;
+    box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.04), 0 2px 6px -1px rgba(15, 23, 42, 0.02);
+    margin-bottom: 20px;
+    font-family: 'Noto Sans Lao', 'Kanit', 'Sarabun', sans-serif;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.patient-toolbar-card:hover {
+    box-shadow: 0 6px 20px -2px rgba(15, 23, 42, 0.07), 0 2px 8px -1px rgba(15, 23, 42, 0.03);
+}
+
+/* --- Top Row: Date, Search, Buttons --- */
+.patient-toolbar-top {
+    display: flex;
+    align-items: flex-end;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+/* 1. Date Range Section */
+.patient-date-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex-shrink: 0;
+}
+
+.patient-toolbar-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #475569;
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    letter-spacing: 0.2px;
+}
+
+.patient-date-inputs-wrapper {
+    display: inline-flex;
+    align-items: center;
+    background: #ffffff;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 12px;
+    height: 42px;
+    padding: 0 10px;
+    gap: 6px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    transition: all 0.2s ease;
+}
+
+.patient-date-inputs-wrapper:focus-within {
+    border-color: #003f88;
+    box-shadow: 0 0 0 3.5px rgba(0, 63, 136, 0.12);
+}
+
+.patient-date-input {
+    height: 38px;
+    border: none;
+    background: transparent;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: #1e293b;
+    padding: 0 2px;
+    outline: none;
+    font-family: 'Outfit', 'Kanit', sans-serif;
+    cursor: pointer;
+    width: 120px;
+}
+
+.patient-date-sep {
+    color: #94a3b8;
+    font-weight: 700;
+    font-size: 0.9rem;
+    user-select: none;
+}
+
+.btn-clear-date {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    padding: 2px 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease;
+    font-size: 0.9rem;
+}
+
+.btn-clear-date:hover {
+    color: #ef4444;
+    background: #fee2e2;
+}
+
+/* 2. Search Input Section */
+.patient-search-group {
+    flex: 1 1 260px;
+    min-width: 220px;
+}
+
+.patient-search-wrapper {
+    display: flex;
+    align-items: center;
+    background: #ffffff;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 12px;
+    height: 42px;
+    padding: 0 14px;
+    gap: 10px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    transition: all 0.2s ease;
+    width: 100%;
+}
+
+.patient-search-wrapper:focus-within {
+    border-color: #003f88;
+    box-shadow: 0 0 0 3.5px rgba(0, 63, 136, 0.12);
+}
+
+.patient-search-icon {
+    color: #64748b;
+    font-size: 0.95rem;
+    flex-shrink: 0;
+}
+
+.patient-search-input {
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 0.9rem;
+    color: #0f172a;
+    width: 100%;
+    font-family: 'Noto Sans Lao', 'Kanit', 'Sarabun', sans-serif;
+}
+
+.patient-search-input::placeholder {
+    color: #94a3b8;
+    font-weight: 400;
+}
+
+.btn-clear-search {
+    background: none;
+    border: none;
+    color: #cbd5e1;
+    padding: 0;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s ease;
+    font-size: 0.95rem;
+}
+
+.btn-clear-search:hover {
+    color: #64748b;
+}
+
+/* 3. Action Buttons (Primary & Secondary) */
+.patient-actions-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.btn-patient-action {
+    height: 42px;
+    padding: 0 20px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    white-space: nowrap;
+    cursor: pointer;
+    font-family: 'Noto Sans Lao', 'Kanit', 'Sarabun', sans-serif;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    text-decoration: none;
+}
+
+/* Primary Button: ลงทะเบียนใหม่ */
+.btn-patient-primary {
+    background: linear-gradient(135deg, #003f88 0%, #002855 100%);
+    border: 1.5px solid #002855;
+    color: #ffffff !important;
+    box-shadow: 0 2px 6px rgba(0, 63, 136, 0.28);
+}
+
+.btn-patient-primary:hover {
+    background: linear-gradient(135deg, #004ea6 0%, #003366 100%);
+    box-shadow: 0 4px 12px rgba(0, 63, 136, 0.38);
+    transform: translateY(-1px);
+    color: #ffffff !important;
+}
+
+.btn-patient-primary:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(0, 63, 136, 0.2);
+}
+
+/* Secondary Button: รีเฟรชข้อมูล */
+.btn-patient-secondary {
+    background: #ffffff;
+    border: 1.5px solid #cbd5e1;
+    color: #334155 !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.btn-patient-secondary:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #0f172a !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.btn-patient-secondary:active {
+    transform: translateY(0);
+}
+
+/* --- Bottom Row: Status Filter Tabs (Minimalist Underline Style) --- */
+.patient-toolbar-bottom {
+    margin-top: 14px;
+    padding-top: 6px;
+    border-top: 1px solid #f1f5f9;
+}
+
+.patient-tabs-nav {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.patient-tabs-nav::-webkit-scrollbar {
+    display: none;
+}
+
+/* Inactive Tab Base: Pure transparent background, no border, no shadow, dark gray text & icon */
+#triageFilterBtnGroup .patient-tab-item,
+#triageFilterBtnGroup .btn {
+    height: 40px !important;
+    padding: 8px 12px 10px 12px !important;
+    margin: 0 !important;
+    border: none !important;
+    border-top: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: 3px solid transparent !important;
+    border-radius: 0 !important;
+    font-size: 0.92rem !important;
+    font-weight: 500 !important;
+    font-family: 'Noto Sans Lao', 'Kanit', sans-serif !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    white-space: nowrap !important;
+    transition: color 0.2s ease, border-color 0.2s ease !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    color: #64748b !important;
+    box-shadow: none !important;
+    outline: none !important;
+    cursor: pointer !important;
+}
+
+#triageFilterBtnGroup .patient-tab-item i,
+#triageFilterBtnGroup .btn i {
+    font-size: 1rem !important;
+    color: #64748b !important;
+    transition: color 0.2s ease !important;
+}
+
+/* Hover State */
+#triageFilterBtnGroup .patient-tab-item:hover,
+#triageFilterBtnGroup .btn:hover {
+    background: transparent !important;
+    background-color: transparent !important;
+    color: #1e293b !important;
+    border-bottom: 3px solid #cbd5e1 !important;
+    box-shadow: none !important;
+}
+
+#triageFilterBtnGroup .patient-tab-item:hover i,
+#triageFilterBtnGroup .btn:hover i {
+    color: #1e293b !important;
+}
+
+/* ACTIVE Tab State: Blue text & icon + 3px blue underline — NO background, NO box, NO shadow */
+/* Triggered via data-tab-active="true" attribute set by JavaScript */
+#triageFilterBtnGroup .btn[data-tab-active="true"] {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    border-top: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: 3px solid #003f88 !important;
+    border-radius: 0 !important;
+    color: #003f88 !important;
+    font-weight: 700 !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+#triageFilterBtnGroup .btn[data-tab-active="true"] i {
+    color: #003f88 !important;
+}
+
+/* Legacy class selectors — kept for safety but overridden to match transparent style */
+#triageFilterBtnGroup .btn.btn-primary,
+#triageFilterBtnGroup .btn.btn-secondary,
+#triageFilterBtnGroup .btn.btn-info,
+#triageFilterBtnGroup .btn.active-tab {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    border-top: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: 3px solid #003f88 !important;
+    border-radius: 0 !important;
+    color: #003f88 !important;
+    font-weight: 700 !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+#triageFilterBtnGroup .btn.btn-primary i,
+#triageFilterBtnGroup .btn.btn-secondary i,
+#triageFilterBtnGroup .btn.btn-info i,
+#triageFilterBtnGroup .btn.active-tab i {
+    color: #003f88 !important;
+}
+
+#triageFilterBtnGroup .btn::after {
+    display: none !important;
+    content: none !important;
+}
+
+/* --- Responsive Adaptations --- */
+@media (max-width: 1199px) {
+    .patient-toolbar-top {
+        gap: 12px;
+    }
+    .patient-date-group {
+        flex: 0 0 auto;
+    }
+    .patient-search-group {
+        flex: 1 1 200px;
+    }
+}
+
+@media (max-width: 991px) {
+    .patient-toolbar-top {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+    .patient-date-group {
+        grid-column: span 2;
+    }
+    .patient-search-group {
+        grid-column: span 2;
+    }
+    .patient-actions-group {
+        grid-column: span 2;
+        display: flex;
+        gap: 10px;
+    }
+    .patient-actions-group .btn-patient-action {
+        flex: 1;
+    }
+}
+
+/* Mobile Screens (< 768px): Vertical Stack & Full Touch Reach */
+@media (max-width: 767px) {
+    .patient-toolbar-card {
+        padding: 14px 14px 10px 14px;
+        border-radius: 14px;
+    }
+    .patient-toolbar-top {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 12px !important;
+    }
+    .patient-date-group {
+        width: 100% !important;
+    }
+    .patient-date-inputs-wrapper {
+        width: 100% !important;
+        display: flex !important;
+        justify-content: space-between !important;
+    }
+    .patient-date-input {
+        flex: 1 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+    .patient-search-group {
+        width: 100% !important;
+    }
+    .patient-search-wrapper {
+        width: 100% !important;
+    }
+    .patient-actions-group {
+        display: flex !important;
+        flex-direction: column !important;
+        width: 100% !important;
+        gap: 8px !important;
+    }
+    .btn-patient-action {
+        width: 100% !important;
+        height: 44px !important;
+    }
+    .patient-toolbar-bottom {
+        margin-top: 10px;
+        padding-top: 8px;
+    }
+    .patient-tabs-nav {
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: flex-start !important;
+        gap: 16px !important;
+        width: 100% !important;
+        overflow-x: auto !important;
+        padding-bottom: 4px !important;
+    }
+    #triageFilterBtnGroup .patient-tab-item,
+    #triageFilterBtnGroup .btn {
+        width: auto !important;
+        height: 38px !important;
+        padding: 6px 4px 8px 4px !important;
+        font-size: 0.88rem !important;
+        border: none !important;
+        border-bottom: 3px solid transparent !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+    #triageFilterBtnGroup .btn.btn-primary,
+    #triageFilterBtnGroup .btn.btn-secondary,
+    #triageFilterBtnGroup .btn.btn-info,
+    #triageFilterBtnGroup .btn.active-tab {
+        border-bottom: 3px solid #003f88 !important;
+    }
+}
