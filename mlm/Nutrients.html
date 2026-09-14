@@ -164,32 +164,31 @@
           if (typeof window.supabaseSelect === 'function') {
             const data = await window.supabaseSelect('stk_nutrient_orders', 'order=created_at.desc&limit=200&nocache=true');
             if (Array.isArray(data)) {
-              dbList = data
-                .filter(item => {
-                  if (item.status === 'บิลถูกยกเลิก') return false;
-                  if (isOrderDeleted(item, deletedIdsSet)) return false;
-                  return true;
-                })
-                .map(item => ({
-                  id: item.order_id || String(item.id),
-                  visit_id: item.visit_id || '-',
-                  hn: item.hn || '-',
-                  customer_name: item.customer_name || '-',
-                  phone: item.phone || item.customer_phone || item.tel || '-',
-                  disease: item.disease || item.disease_name || item.symptom || item.symptoms || '-',
-                  recorded_by: item.recorded_by || '-',
-                  closer_dr: item.closer_dr || '-',
-                  date: item.date || item.created_at || new Date().toISOString(),
-                  status: item.status || 'รอดำเนินการ',
-                  items: (() => {
-                    try {
-                      let parsed = item.items_json || item.items || item.products;
-                      if (typeof parsed === 'string') parsed = JSON.parse(parsed);
-                      return Array.isArray(parsed) ? parsed : [];
-                    } catch(e) { return []; }
-                  })()
-                }));
-            }
+          dbList = data.map(item => {
+            // หากบิลถูกยกเลิก หรืออยู่ในประวัติการลบ ให้ปรับสถานะเป็นบิลถูกยกเลิกเพื่อนำไปโชว์ในแท็บแทน
+            const finalStatus = (item.status === 'บิลถูกยกเลิก' || isOrderDeleted(item, deletedIdsSet)) ? 'บิลถูกยกเลิก' : (item.status || 'รอดำเนินการ');
+            
+            return {
+              id: item.order_id || String(item.id),
+              visit_id: item.visit_id || '-',
+              hn: item.hn || '-',
+              customer_name: item.customer_name || '-',
+              phone: item.phone || item.customer_phone || item.tel || '-',
+              disease: item.disease || item.disease_name || item.symptom || item.symptoms || '-',
+              recorded_by: item.recorded_by || '-',
+              closer_dr: item.closer_dr || '-',
+              date: item.date || item.created_at || new Date().toISOString(),
+              status: finalStatus,
+              items: (() => {
+                try {
+                  let parsed = item.items_json || item.items || item.products;
+                  if (typeof parsed === "string") parsed = JSON.parse(parsed);
+                  return Array.isArray(parsed) ? parsed : [];
+                } catch(e) { return []; }
+              })()
+            };
+          });
+        }
           }
         } catch (err) {
           console.warn('Supabase fetch nutrient_orders error:', err);
@@ -214,8 +213,13 @@
             const orderId = item.id || item.sale_id || item.order_id || `ORD-CLINIC-${vId}`;
 
             // ข้ามหากอยู่ในรายการที่ถูกลบไปแล้ว
-            if (item.status === 'บิลถูกยกเลิก' || isOrderDeleted(item, deletedIdsSet) || isOrderDeleted({ id: orderId, visit_id: vId }, deletedIdsSet)) {
-              continue;
+            // ข้ามหากอยู่ในรายการที่ถูกลบไปแล้ว
+            
+
+            // เปลี่ยนจาก continue ทิ้ง เป็นการอัปเดตสถานะให้อยู่ในแท็บยกเลิกแทน
+            let finalLocalStatus = item.status || 'รอดำเนินการ';
+            if (finalLocalStatus === 'บิลถูกยกเลิก' || isOrderDeleted(item, deletedIdsSet) || isOrderDeleted({ id: orderId, visit_id: vId }, deletedIdsSet)) {
+                finalLocalStatus = 'บิลถูกยกเลิก';
             }
 
             const normalizedItems = Array.isArray(parsedItems) ? parsedItems.map(it => ({
@@ -240,9 +244,11 @@
               recorded_by: item.recorded_by || item.seller_id || '-',
               closer_dr: item.closer_dr || '-',
               date: item.created_at || item.date || new Date().toISOString(),
-              status: item.status || 'รอดำเนินการ',
+              status: finalLocalStatus,
               items: normalizedItems
             };
+
+            
 
             // ─── Sync ขึ้น Supabase ถ้ายังไม่มี ───────────────────────────
             if (!dbIdSet.has(orderId) && orderId && vId && vId !== '-') {
@@ -366,13 +372,21 @@ const canceledOrders = useMemo(() => {
               const pName = (item.name || '').trim();
               let currentStock = null;
               
-              // 1. ลองค้นหาใน stk_products
-              const pData = await window.supabaseSelect('stk_products', `product_name=eq.${encodeURIComponent(pName)}&select=current_stock`);
+              // 1. ลองค้นหาใน stk_products (แก้ไขคอลัมน์จาก product_name เป็น name และดักจับ Error)
+              let pData = null;
+              try {
+                pData = await window.supabaseSelect('stk_products', `name=eq.${encodeURIComponent(pName)}&select=current_stock`);
+              } catch (e) { /* ปล่อยผ่านถ้าไม่มีตารางนี้ */ }
+
               if (pData && pData.length > 0) {
                 currentStock = parseInt(pData[0].current_stock) || 0;
               } else {
                 // 2. ถ้าไม่พบ ลองหาใน products (เผื่อเป็นตารางเก่า)
-                const pData2 = await window.supabaseSelect('products', `name=eq.${encodeURIComponent(pName)}&select=stock`);
+                let pData2 = null;
+                try {
+                  pData2 = await window.supabaseSelect('products', `name=eq.${encodeURIComponent(pName)}&select=stock`);
+                } catch (e) { /* ปล่อยผ่านถ้าไม่มีตารางนี้ */ }
+                
                 if (pData2 && pData2.length > 0) {
                   currentStock = parseInt(pData2[0].stock) || 0;
                 }
@@ -527,8 +541,13 @@ const canceledOrders = useMemo(() => {
               });
             });
 
-            // ⚡ 2. อัปเดต React State ให้รายการหายไปจากหน้าจอทันที (0ms)
-            setOrders(prev => prev.filter(o => !isOrderDeleted(o, newDeletedSet)));
+            // ⚡ 2. อัปเดต React State ให้สถานะเปลี่ยนเป็นบิลยกเลิกทันที (0ms) เพื่อเด้งเข้าแท็บยกเลิก
+            setOrders(prev => prev.map(o => {
+                if (isOrderDeleted(o, newDeletedSet)) {
+                    return { ...o, status: 'บิลถูกยกเลิก' };
+                }
+                return o;
+            }));
 
             // ⚡ 3. กวาดล้างแคช LocalStorage & SessionStorage ทันที
             try {
