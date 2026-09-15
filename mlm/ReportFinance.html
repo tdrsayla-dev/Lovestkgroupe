@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<script>
+  (function() {
+    try {
+      var theme = localStorage.getItem('stk_theme');
+      if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        document.documentElement.classList.add('dark');
+        document.documentElement.style.backgroundColor = '#0f172a';
+      } else {
+        document.documentElement.setAttribute('data-theme', 'light');
+        document.documentElement.classList.remove('dark');
+        document.documentElement.style.backgroundColor = '#f8fafc';
+      }
+    } catch (e) {}
+  })();
+</script>
+  <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>รายงานการเงินและรายรับ (Finance & Revenue) - LOVE STK GROUPE</title>
+  <link rel="stylesheet" href="mainstyle.css?v=6">
+  <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class'
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="dictionary.js"></script>
+  <script src="CommonComponents.js?v=3"></script>
+</head>
+<body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
+
+  <div id="initial-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999;">
+    <div style="width: 50px; height: 50px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 20px;"></div>
+    <style>@keyframes initial-spin { to { transform: rotate(360deg); } }</style>
+    <h2 style="font-size: 1.5rem; font-weight: 800; color: #1e40af; margin: 0;">STK<span style="color: #475569;">System</span></h2>
+    <p style="font-size: 0.875rem; color: #64748b; margin-top: 8px;">กำลังโหลดรายงานการเงิน...</p>
+  </div>
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect, useCallback, useReducer } = React;
+    const { 
+        Sidebar, LoginModal, Toast, EditModal, 
+        Coins, Activity, FileText, Archive, Eye, Info, SearchIcon 
+    } = window;
+
+    const safeUpper = (str) => String(str || '').trim().toUpperCase();
+    const getLocalISODate = () => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+
+    function useDebounce(value, delay) {
+        const [debouncedValue, setDebouncedValue] = React.useState(value);
+        React.useEffect(() => {
+            const handler = setTimeout(() => { setDebouncedValue(value); }, delay);
+            return () => clearTimeout(handler);
+        }, [value, delay]);
+        return debouncedValue;
+    }
+
+    const SubTabButton = ({ id, label, activeTab, setSubTab, isSpecial, isData }) => {
+        const isActive = activeTab === id;
+        let baseClass = "px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex-shrink-0 shadow-sm border ";
+        if (isActive) {
+            if (isSpecial) baseClass += "bg-indigo-600 text-white border-indigo-600 shadow-indigo-200";
+            else if (isData) baseClass += "bg-emerald-600 text-white border-emerald-600 shadow-emerald-200";
+            else baseClass += "bg-blue-600 text-white border-blue-600 shadow-blue-200";
+        } else {
+            baseClass += "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-blue-600";
+        }
+        return (
+            <button type="button" onClick={() => setSubTab(id)} className={baseClass}>
+                {label}
+            </button>
+        );
+    };
+
+    const parseSaleCurrencyAmounts = (s, exRate) => {
+        let rawAmt = Number(s['ยอดขายรวม'] || s.total_amount || s.totalAmount || s.amount || s.grand_total || s.grandTotal || 0);
+        
+        if (rawAmt === 0 && (s._items || s.items_json)) {
+            let itList = s._items;
+            if (!itList && s.items_json) {
+                try { itList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
+            }
+            if (Array.isArray(itList) && itList.length > 0) {
+                rawAmt = itList.reduce((acc, it) => acc + ((Number(it.qty) || 0) * (Number(it.price) || 0)), 0);
+            }
+        }
+
+        const pModeStr = String(s.payMode || s.pay_mode || s.saleType || s.sale_type || s.payment_method || s.payment_type || '').trim();
+        let lakAmt = 0;
+        let thbAmt = 0;
+
+        if (pModeStr.includes(':')) {
+            const parts = pModeStr.split('|');
+            let hasParsedLAK = false;
+            let hasParsedTHB = false;
+
+            parts.forEach(part => {
+                const trimmed = part.trim();
+                if (!trimmed.includes(':')) return;
+                const colonIdx = trimmed.indexOf(':');
+                const key = trimmed.substring(0, colonIdx).trim().toLowerCase();
+                const val = parseFloat(trimmed.substring(colonIdx + 1).replace(/[^\d.]/g, '')) || 0;
+
+                if (key === 'เรท' || key === 'rate' || key === 'อัตรา') return;
+
+                const isKeyLak = key.includes('กีบ') || key.includes('lak') || key.includes('kip') || key === 'สดกีบ' || 
+                                 (key.includes('ลาว') && !key.includes('บาท')) ||
+                                 (val >= 70000 && !key.includes('ไทย') && !key.includes('thb') && !key.includes('สดบาท'));
+
+                if (isKeyLak) {
+                    lakAmt += val;
+                    hasParsedLAK = true;
+                } else if (key.includes('บาท') || key.includes('thb') || key === 'สด' || key.includes('สดบาท') || key.includes('ไทย') || key.includes('โอน')) {
+                    if (val >= 70000 && (key.includes('ลาว') || key.includes('bcel') || key.includes('jdb') || key.includes('ldb'))) {
+                        lakAmt += val;
+                        hasParsedLAK = true;
+                    } else {
+                        thbAmt += val;
+                        hasParsedTHB = true;
+                    }
+                } else if (val >= 70000) {
+                    lakAmt += val;
+                    hasParsedLAK = true;
+                } else {
+                    thbAmt += val;
+                    hasParsedTHB = true;
+                }
+            });
+
+            if (hasParsedLAK || hasParsedTHB) {
+                return { lakAmt, thbAmt, isLakBill: lakAmt > 0, isThbBill: thbAmt > 0, realPayMode: pModeStr };
+            }
+        }
+
+        const expLak = Number(s.total_amount_lak || s.totalAmountLak || 0);
+        const expThb = Number(s.total_amount_thb || s.totalAmountThb || 0);
+        if (expLak > 0 || expThb > 0) {
+            return { lakAmt: expLak, thbAmt: expThb, isLakBill: expLak > 0, isThbBill: expThb > 0, realPayMode: pModeStr };
+        }
+
+        const lowerPMode = pModeStr.toLowerCase();
+        const isLakBill = lowerPMode.includes('กีบ') || lowerPMode.includes('lak') || lowerPMode.includes('kip') || 
+                          (lowerPMode.includes('ลาว') && !lowerPMode.includes('บาท')) || rawAmt >= 70000;
+
+        if (isLakBill) {
+            return { lakAmt: rawAmt, thbAmt: 0, isLakBill: true, isThbBill: false, realPayMode: pModeStr };
+        }
+
+        return { lakAmt: 0, thbAmt: rawAmt, isLakBill: false, isThbBill: true, realPayMode: pModeStr };
+    };
+
+    function App() {
+        const [currentUser, setCurrentUser] = useState(null);
+        const [isLoggedIn, setIsLoggedIn] = useState(false);
+        const [showLoginModal, setShowLoginModal] = useState(false);
+        const [systemUsers, setSystemUsers] = useState([]);
+        const [isAppLoading, setIsAppLoading] = useState(true);
+        const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+            try { return localStorage.getItem('stk_sidebar_collapsed') === 'true'; } catch (e) { return false; }
+        });
+
+        // Language & Theme Sync
+        const [, forceThemeUpdate] = useReducer(x => x + 1, 0);
+        useEffect(() => {
+            const onThemeChange = () => forceThemeUpdate();
+            window.addEventListener('stk_theme_change', onThemeChange);
+            return () => window.removeEventListener('stk_theme_change', onThemeChange);
+        }, []);
+
+        // Data States
+        const [sales, setSales] = useState([]);
+        const [members, setMembers] = useState([]);
+        const [systemSettings, setSystemSettings] = useState({ exchange_rate: 700 });
+
+        // Filter States
+        const todayStr = getLocalISODate();
+        const [subTab, setSubTab] = useState('finance_summary'); // 'finance_summary' | 'finance_detail'
+        const [startDate, setStartDate] = useState(todayStr);
+        const [endDate, setEndDate] = useState(todayStr);
+        const [searchQuery, setSearchQuery] = useState('');
+        const debouncedSearchQuery = useDebounce(searchQuery, 300);
+        const [viewBillDetail, setViewBillDetail] = useState(null);
+
+        const exchangeRate = Number(systemSettings?.exchange_rate || 700);
+
+        const pagePerm = window.getUserPagePermission ? window.getUserPagePermission(currentUser, 'reports') : 'none';
+        const isAdmin = currentUser && (
+            String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
+            String(currentUser.role).trim().toLowerCase().includes('admin') || String(currentUser.role).trim().includes('แอดมิน') ||
+            pagePerm === 'full'
+        );
+
+        const handleLoginSuccess = (user) => {
+            localStorage.setItem('stk_current_user', JSON.stringify(user));
+            setCurrentUser(user);
+            setIsLoggedIn(true);
+            setShowLoginModal(false);
+        };
+
+        const handleLogout = () => {
+            localStorage.removeItem('stk_current_user');
+            setCurrentUser(null);
+            setIsLoggedIn(false);
+        };
+
+        const permittedMemberSet = useMemo(() => {
+            if (!currentUser || isAdmin) return null;
+            const userId = safeUpper(currentUser.id || currentUser.username);
+            let downlines = new Set([userId]);
+            let queue = [userId];
+
+            while (queue.length > 0) {
+                let parentId = queue.shift();
+                (members || []).forEach(m => {
+                    if (m && m.id) {
+                        const sponsor = safeUpper(m.referrer || m.sponsorId);
+                        if (sponsor === parentId) {
+                            let mId = safeUpper(m.id);
+                            if (!downlines.has(mId)) {
+                                downlines.add(mId);
+                                queue.push(mId);
+                            }
+                        }
+                    }
+                });
+            }
+            return downlines;
+        }, [currentUser, isAdmin, members]);
+
+        const fetchFinanceData = useCallback(async () => {
+            try {
+                const [saleRes, memRes, settingsRes] = await Promise.all([
+                    window.supabaseSelect('stk_sales', 'order=order_id.desc&limit=2500').catch(() => []),
+                    window.supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status').catch(() => []),
+                    window.supabaseSelect('stk_system_settings').catch(() => [])
+                ]);
+
+                if (Array.isArray(memRes)) {
+                    setSystemUsers(memRes);
+                }
+
+                if (Array.isArray(settingsRes) && settingsRes.length > 0) {
+                    const settingsObj = {};
+                    settingsRes.forEach(s => {
+                        if (s && (s.key || s.setting_key)) {
+                            const k = s.key || s.setting_key;
+                            const v = s.value !== undefined ? s.value : s.setting_value;
+                            settingsObj[k] = typeof v === 'string' ? v : JSON.stringify(v);
+                        }
+                    });
+                    setSystemSettings(prev => ({ ...prev, ...settingsObj }));
+                }
+
+                if (Array.isArray(memRes)) {
+                    setMembers(memRes.map(m => ({
+                        id: String(m.user_id || m.id || '').trim(),
+                        name: String(m.name || '').trim(),
+                        referrer: String(m.sponsor_id || m.referrer || '').trim(),
+                        team: String(m.business_team || m.team || 'Marketing').trim()
+                    })));
+                }
+
+                if (Array.isArray(saleRes)) {
+                    const processed = saleRes.map(s => {
+                        let sumF = 0, sumM = 0, sumP = 0, sumZ = 0;
+                        let itemsList = [];
+                        if (s.items_json) {
+                            try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
+                        }
+                        if (Array.isArray(itemsList) && itemsList.length > 0) {
+                            itemsList.forEach(it => {
+                                const typeStr = String(it.type || '').trim();
+                                const qtyNum = Number(it.qty || it.quantity || 1);
+                                if (typeStr === 'ราคาเต็ม') sumF += qtyNum;
+                                else if (typeStr === 'ราคาสมาชิก') sumM += qtyNum;
+                                else if (typeStr === 'ราคาโปร' || typeStr === 'โปรโมชั่น') sumP += qtyNum;
+                                else if (typeStr === 'ราคาศูนย์') sumZ += qtyNum;
+                                else sumM += qtyNum;
+                            });
+                        }
+                        s['id'] = s.id || s.order_id || '';
+                        s['memberId'] = s.seller_id || s.memberId || '';
+                        s['sellerName'] = s.seller_name || s.sellerName || s['memberId'];
+                        s['customerName'] = s.customer_name || s.customerName || (s.customer_id ? `ลูกค้า (${s.customer_id})` : 'ไม่ระบุชื่อ');
+                        s['saleType'] = s.sale_type || s.saleType || '';
+                        s['payMode'] = s.sale_type || s.saleType || 'เงินโอน';
+                        s['ยอดขายรวม'] = Number(s.total_amount || s.totalAmount || 0);
+                        s['date'] = String(s.date || s.created_at || '').split('T')[0].split(' ')[0];
+                        s['_items'] = itemsList;
+                        s['รวมชิ้นราคาเต็ม'] = sumF;
+                        s['รวมชิ้นราคาสมาชิก'] = sumM;
+                        s['รวมชิ้นราคาโปร'] = sumP;
+                        s['รวมชิ้นราคาศูนย์'] = sumZ;
+                        s['ยอดรวมชิ้นทั้งหมด'] = sumF + sumM + sumP + sumZ;
+                        return s;
+                    });
+                    setSales(processed);
+                }
+            } catch (err) {
+                console.error("Finance fetch error:", err);
+            } finally {
+                setIsAppLoading(false);
+            }
+        }, []);
+
+        useEffect(() => {
+            const savedUserStr = localStorage.getItem('stk_current_user');
+            if (savedUserStr) {
+                try {
+                    setCurrentUser(JSON.parse(savedUserStr));
+                    setIsLoggedIn(true);
+                } catch(e) {
+                    setShowLoginModal(true);
+                }
+            } else setShowLoginModal(true);
+
+            const initialLoader = document.getElementById('initial-loader');
+            if (initialLoader) { 
+                initialLoader.style.opacity = '0'; 
+                setTimeout(() => { if (initialLoader) initialLoader.style.display = 'none'; }, 400); 
+            }
+
+            fetchFinanceData();
+        }, [fetchFinanceData]);
+
+        // Filtered Bills for Detail Tab
+        const financeBills = useMemo(() => {
+            return (sales || []).filter(s => {
+                if (!s || (s.date || '') < startDate || (s.date || '') > endDate) return false;
+                if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(s.memberId))) return false;
+                const query = (debouncedSearchQuery || searchQuery || '').trim().toUpperCase();
+                if (query !== '') {
+                    const mName = (s.sellerName || '').toUpperCase();
+                    const mId = (s.memberId || '').toUpperCase();
+                    const cName = (s.customerName || '').toUpperCase();
+                    const bId = (s.id || '').toUpperCase();
+                    if (!mName.includes(query) && !mId.includes(query) && !cName.includes(query) && !bId.includes(query)) return false;
+                }
+                return true;
+            });
+        }, [sales, startDate, endDate, permittedMemberSet, debouncedSearchQuery, searchQuery]);
+
+        // KPI Summary
+        const financeKpi = useMemo(() => {
+            let sumLak = 0; let sumThb = 0;
+            let lakBillsCount = 0; let thbBillsCount = 0;
+            financeBills.forEach(s => {
+                const { lakAmt, thbAmt, isLakBill, isThbBill } = parseSaleCurrencyAmounts(s, exchangeRate);
+                sumLak += lakAmt;
+                sumThb += thbAmt;
+                if (isLakBill) lakBillsCount++;
+                if (isThbBill) thbBillsCount++;
+            });
+            const grandCombinedTHB = sumThb + (sumLak / exchangeRate);
+            return { sumLak, sumThb, grandCombinedTHB, lakBillsCount, thbBillsCount };
+        }, [financeBills, exchangeRate]);
+
+        // 12 Months Summary (for Annual Table & Combo Chart)
+        const currentYearNum = startDate ? new Date(startDate).getFullYear() : new Date().getFullYear();
+        const activeYear = isNaN(currentYearNum) ? new Date().getFullYear() : currentYearNum;
+
+        const financeSummaryData = useMemo(() => {
+            let grouped = {};
+            for (let m = 1; m <= 12; m++) {
+                const mmStr = String(m).padStart(2, '0');
+                const monthKey = `${activeYear}-${mmStr}`;
+                grouped[monthKey] = {
+                    period: monthKey,
+                    monthNum: m,
+                    billsCount: 0,
+                    sumLak: 0,
+                    sumThb: 0
+                };
+            }
+
+            (sales || []).forEach(s => {
+                if (!s || !s.date) return;
+                const sDateStr = String(s.date);
+                const monthKey = sDateStr.substring(0, 7);
+                if (!grouped[monthKey]) return;
+                if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(s.memberId))) return;
+
+                const query = (debouncedSearchQuery || searchQuery || '').trim().toUpperCase();
+                if (query !== '') {
+                    const mName = (s.sellerName || '').toUpperCase();
+                    const mId = (s.memberId || '').toUpperCase();
+                    const cName = (s.customerName || '').toUpperCase();
+                    const bId = (s.id || '').toUpperCase();
+                    if (!mName.includes(query) && !mId.includes(query) && !cName.includes(query) && !bId.includes(query)) return;
+                }
+
+                grouped[monthKey].billsCount += 1;
+                const { lakAmt: rowLak, thbAmt: rowThb } = parseSaleCurrencyAmounts(s, exchangeRate);
+                grouped[monthKey].sumLak += rowLak;
+                grouped[monthKey].sumThb += rowThb;
+            });
+
+            return Object.values(grouped).sort((a, b) => a.monthNum - b.monthNum);
+        }, [sales, activeYear, permittedMemberSet, debouncedSearchQuery, searchQuery, exchangeRate]);
+
+        const boxWrapper = "bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5";
+        const thBase = "p-4 text-[13px] font-bold border-b border-slate-200 bg-slate-50 text-slate-700 whitespace-nowrap uppercase tracking-wide";
+        const labelClassHud = "block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5";
+        const inputClassHud = "w-full bg-slate-50/50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:bg-white focus:outline-none focus:border-blue-500 transition-all";
+
+        return (
+            <div className="min-h-screen flex flex-col lg:flex-row font-sans bg-slate-50">
+                <Sidebar 
+                    activePage="report_finance" 
+                    isLoggedIn={isLoggedIn} 
+                    currentUser={currentUser} 
+                    isAdmin={isAdmin} 
+                    onLogout={handleLogout} 
+                    showLoginModal={showLoginModal} 
+                    setShowLoginModal={setShowLoginModal} 
+                    SCRIPT_URL=""
+                    isSidebarCollapsed={isSidebarCollapsed}
+                    setIsSidebarCollapsed={setIsSidebarCollapsed}
+                />
+
+                <main className={`flex-1 flex flex-col min-h-screen bg-slate-50 transition-all duration-300 relative ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} w-full overflow-x-hidden`}>
+                    <div className="p-3 sm:p-6 flex-1 w-full relative z-0">
+                        {/* Page Header matching Reports.html */}
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-4 mb-6 no-print">
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                                    💰 รายงานการเงินและรายรับบริษัท
+                                </h2>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    สรุปรายรับบริษัทเปรียบเทียบ 12 เดือน และรายละเอียดรายรับแยกตามบิล
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Sub Tab Switcher */}
+                        <div className="flex flex-wrap gap-2 pb-2 w-full border-b border-slate-200 no-print mb-6">
+                            <SubTabButton id="finance_summary" label="💵 สรุปรายรับบริษัท (รายปี)" activeTab={subTab} setSubTab={setSubTab} />
+                            <SubTabButton id="finance_detail" label="📜 รายละเอียดรับเงินแยกตามบิล" activeTab={subTab} setSubTab={setSubTab} isData={true} />
+                        </div>
+
+                        {/* กล่องตัวกรองวันที่และการค้นหา (ซ่อนในหน้ารายปี แต่แสดงในหน้ารายละเอียดบิล ตามแบบ Reports.html) */}
+                        {subTab === 'finance_detail' && (
+                            <div className={`${boxWrapper} py-4 mb-6`}>
+                                <div className="flex flex-col md:flex-row flex-wrap items-start md:items-end gap-4">
+                                    <div><label className={labelClassHud}>ตั้งแต่วันที่</label><input type="date" className={inputClassHud} value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
+                                    <div><label className={labelClassHud}>ถึงวันที่</label><input type="date" className={inputClassHud} value={endDate} onChange={e => setEndDate(e.target.value)} /></div>
+                                    <div className="w-full md:w-auto md:pl-4 md:border-l border-slate-200 flex-1 md:min-w-[200px]">
+                                        <label className={labelClassHud}>พิมพ์ค้นหาข้อมูล</label>
+                                        <div className="flex items-center bg-slate-50/30 focus-within:bg-white border border-slate-200 rounded-xl px-3 shadow-sm focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 transition-all duration-300 w-full h-[38px] sm:h-[40px]">
+                                            <SearchIcon size={18} className="text-slate-400 shrink-0" />
+                                            <input type="text" placeholder="พิมพ์ชื่อ/รหัส/เลขที่บิล..." className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* TAB 1: สรุปรายรับบริษัท (รายปี) พร้อมกราฟ */}
+                        {subTab === 'finance_summary' ? (
+                            <div className="space-y-6 animation-fade-in">
+                                {/* 📈 กราฟแสดงสถิติยอดขาย 12 เดือน */}
+                                {(() => {
+                                    const monthNamesThai = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+                                    const sortedData = financeSummaryData.map((mObj, idx) => ({
+                                        period: mObj.period,
+                                        label: monthNamesThai[idx],
+                                        fullLabel: `เดือน ${monthNamesThai[idx]} ${activeYear}`,
+                                        totalTHB: mObj.sumThb + (mObj.sumLak / exchangeRate),
+                                        billsCount: mObj.billsCount
+                                    }));
+
+                                    const maxAmt = Math.max(...sortedData.map(d => d.totalTHB), 100);
+                                    const yMaxScale = maxAmt * 1.25;
+                                    const width = 1100; const height = 280;
+                                    const paddingLeft = 65; const paddingRight = 45;
+                                    const paddingTop = 40; const paddingBottom = 48;
+                                    const usableWidth = width - paddingLeft - paddingRight;
+                                    const usableHeight = height - paddingTop - paddingBottom;
+                                    const stepX = usableWidth / 12;
+                                    const barWidth = 42;
+
+                                    const getX = (index) => paddingLeft + (index * stepX) + (stepX / 2);
+                                    const getY = (val) => paddingTop + usableHeight - ((val / yMaxScale) * usableHeight);
+
+                                    const createSmoothPath = (data) => {
+                                        if (!data.length) return "";
+                                        let path = `M ${getX(0)} ${getY(data[0].totalTHB)}`;
+                                        for (let i = 0; i < data.length - 1; i++) {
+                                            const currX = getX(i); const currY = getY(data[i].totalTHB);
+                                            const nextX = getX(i + 1); const nextY = getY(data[i + 1].totalTHB);
+                                            const cp1X = currX + (nextX - currX) * 0.45;
+                                            const cp2X = currX + (nextX - currX) * 0.55;
+                                            path += ` C ${cp1X} ${currY}, ${cp2X} ${nextY}, ${nextX} ${nextY}`;
+                                        }
+                                        return path;
+                                    };
+
+                                    const trendlinePath = createSmoothPath(sortedData);
+                                    const currentYearTotal = sortedData.reduce((acc, curr) => acc + curr.totalTHB, 0);
+                                    const bestMonth = sortedData.reduce((max, curr) => curr.totalTHB > max.totalTHB ? curr : max, sortedData[0]);
+
+                                    return (
+                                        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 overflow-hidden relative">
+                                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 relative z-10">
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600 border border-blue-500/20 shadow-xs">
+                                                        <Activity size={22} className="stroke-[2.5]" />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-base sm:text-lg font-black text-slate-800 flex items-center gap-2">
+                                                            สถิติยอดขายรวมรายเดือน 12 เดือน (THB) ประจำปี {activeYear}
+                                                        </h3>
+                                                        <p className="text-xs text-slate-500">เปรียบเทียบแนวโน้มยอดขายและแท่งรายรับ 12 เดือน (ม.ค. - ธ.ค.)</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-3 bg-slate-900 px-4 py-2 rounded-xl text-white text-xs font-bold">
+                                                    <span>ยอดรวมทั้งปี: <strong className="text-blue-400 font-black">฿{Math.round(currentYearTotal).toLocaleString()}</strong></span>
+                                                    <span className="text-slate-500">|</span>
+                                                    <span>เดือนพีคสุด: <strong className="text-pink-400 font-black">{bestMonth?.label}</strong></span>
+                                                </div>
+                                            </div>
+
+                                            <div className="w-full overflow-x-auto hide-scroll pt-2 pb-1 relative z-10">
+                                                <svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-[760px] h-[260px] sm:h-[280px] overflow-visible">
+                                                    <defs>
+                                                        <linearGradient id="barGradNormal" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="0%" stopColor="#38bdf8" />
+                                                            <stop offset="50%" stopColor="#2563eb" />
+                                                            <stop offset="100%" stopColor="#1e3a8a" stopOpacity="0.85" />
+                                                        </linearGradient>
+                                                        <linearGradient id="barGradHighlight" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="0%" stopColor="#c084fc" />
+                                                            <stop offset="50%" stopColor="#a855f7" />
+                                                            <stop offset="100%" stopColor="#6b21a8" stopOpacity="0.9" />
+                                                        </linearGradient>
+                                                        <linearGradient id="trendlineGrad" x1="0" y1="0" x2="1" y2="0">
+                                                            <stop offset="0%" stopColor="#f472b6" />
+                                                            <stop offset="50%" stopColor="#fbcfe8" />
+                                                            <stop offset="100%" stopColor="#f43f5e" />
+                                                        </linearGradient>
+                                                    </defs>
+                                                    
+                                                    {[0, 0.25, 0.5, 0.75, 1].map(ratio => {
+                                                        const y = paddingTop + usableHeight - (ratio * usableHeight);
+                                                        const val = yMaxScale * ratio;
+                                                        return (
+                                                            <g key={ratio}>
+                                                                <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="currentColor" className="text-slate-200" strokeWidth="1" strokeDasharray={ratio === 0 ? "none" : "4 4"} />
+                                                                <text x={paddingLeft - 10} y={y + 3.5} textAnchor="end" fontSize="10" className="fill-slate-400 font-semibold">
+                                                                    {val >= 1000000 ? `${(val / 1000000).toFixed(1)}M` : val >= 1000 ? `${Math.round(val / 1000)}K` : Math.round(val)}
+                                                                </text>
+                                                            </g>
+                                                        );
+                                                    })}
+
+                                                    {/* Bars */}
+                                                    {sortedData.map((d, i) => {
+                                                        const cx = getX(i);
+                                                        const barX = cx - (barWidth / 2);
+                                                        const valueY = getY(d.totalTHB);
+                                                        const baselineY = paddingTop + usableHeight;
+                                                        const barHeight = Math.max(baselineY - valueY, d.totalTHB > 0 ? 8 : 2);
+                                                        const finalBarY = baselineY - barHeight;
+                                                        const isPeak = d.totalTHB === bestMonth?.totalTHB && d.totalTHB > 0;
+
+                                                        return (
+                                                            <g key={`bar-${i}`} className="group cursor-pointer">
+                                                                <rect x={barX} y={finalBarY} width={barWidth} height={barHeight} rx="8" fill={isPeak ? "url(#barGradHighlight)" : "url(#barGradNormal)"} className="transition-all duration-300 group-hover:opacity-90" />
+                                                                {d.totalTHB > 0 && (
+                                                                    <text x={cx} y={finalBarY - 8} textAnchor="middle" fontSize="10" className="font-black fill-slate-700">
+                                                                        {d.totalTHB >= 1000000 ? `${(d.totalTHB / 1000000).toFixed(1)}M` : `${Math.round(d.totalTHB / 1000)}K`}
+                                                                    </text>
+                                                                )}
+                                                                <text x={cx} y={paddingTop + usableHeight + 20} textAnchor="middle" fontSize="11" className="font-bold fill-slate-600">
+                                                                    {d.label}
+                                                                </text>
+                                                                <text x={cx} y={paddingTop + usableHeight + 33} textAnchor="middle" fontSize="9.5" className="fill-slate-400">
+                                                                    ({d.billsCount})
+                                                                </text>
+                                                            </g>
+                                                        );
+                                                    })}
+
+                                                    {/* Trendline */}
+                                                    {trendlinePath && (
+                                                        <path d={trendlinePath} fill="none" stroke="url(#trendlineGrad)" strokeWidth="3.5" strokeLinecap="round" />
+                                                    )}
+                                                </svg>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* Table: สรุปรายรับ 12 เดือน */}
+                                <div className="space-y-4">
+                                    <div className="flex justify-end gap-3 print-hide">
+                                        <button type="button" onClick={() => {
+                                            let rows = [['ลำดับ', 'ช่วงเวลา (เดือน)', 'จำนวนบิลทั้งหมด', 'รายรับ (เงินกีบ ₭)', 'รายรับ (เงินบาท ฿)', 'ยอดรวมสุทธิ (คิดเป็นบาท ฿)']];
+                                            financeSummaryData.forEach((row, idx) => {
+                                                const netThb = row.sumThb + (row.sumLak / exchangeRate);
+                                                rows.push([idx + 1, row.period, row.billsCount, row.sumLak, row.sumThb, Math.round(netThb * 100) / 100]);
+                                            });
+                                            if (typeof window.exportToCSV === 'function') {
+                                                window.exportToCSV(rows, `finance_annual_summary_${getLocalISODate()}.csv`);
+                                            }
+                                        }} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
+                                            <Archive size={16}/> Export Excel
+                                        </button>
+                                        <button type="button" onClick={() => window.print()} className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
+                                            <FileText size={16}/> Export PDF
+                                        </button>
+                                        <button type="button" onClick={() => window.print()} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
+                                            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg> 
+                                            พิมพ์ (Print)
+                                        </button>
+                                    </div>
+
+                                    <div className={`${boxWrapper} p-0 overflow-hidden`}>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left border-collapse min-w-[700px]">
+                                                <thead>
+                                                    <tr className="bg-slate-100 border-b border-slate-200">
+                                                        <th className={thBase}>ลำดับ</th>
+                                                        <th className={thBase}>ช่วงเวลา (เดือน)</th>
+                                                        <th className={`${thBase} text-center`}>จำนวนบิลทั้งหมด</th>
+                                                        <th className={`${thBase} text-right text-emerald-700 font-bold`}>รายรับ (เงินกีบ ₭)</th>
+                                                        <th className={`${thBase} text-right text-blue-700 font-bold`}>รายรับ (เงินบาท ฿)</th>
+                                                        <th className={`${thBase} text-right text-indigo-900 font-black bg-indigo-50/50`}>ยอดรวมสุทธิ (คิดเป็นบาท ฿)</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {financeSummaryData.map((row, idx) => {
+                                                        const rowNetThb = row.sumThb + (row.sumLak / exchangeRate);
+                                                        return (
+                                                            <tr key={row.period || idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                                                <td className="p-4 text-center text-sm font-bold text-slate-500">{idx + 1}</td>
+                                                                <td className="p-4 text-sm font-bold text-slate-800 whitespace-nowrap">{row.period}</td>
+                                                                <td className="p-4 text-center text-xs font-bold text-slate-700">{row.billsCount.toLocaleString()} บิล</td>
+                                                                <td className="p-4 text-right text-sm font-black text-emerald-700 whitespace-nowrap">
+                                                                    {row.sumLak > 0 ? `${Math.round(row.sumLak).toLocaleString()} ₭` : <span className="text-slate-300">-</span>}
+                                                                </td>
+                                                                <td className="p-4 text-right text-sm font-black text-blue-700 whitespace-nowrap">
+                                                                    {row.sumThb > 0 ? `฿${row.sumThb.toLocaleString(undefined, {minimumFractionDigits: 2})}` : <span className="text-slate-300">-</span>}
+                                                                </td>
+                                                                <td className="p-4 text-right text-sm font-black text-indigo-700 whitespace-nowrap bg-indigo-50/30">
+                                                                    {rowNetThb > 0 ? `฿${rowNetThb.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : <span className="text-slate-300">-</span>}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                                <tfoot>
+                                                    <tr className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-inner">
+                                                        <td colSpan={5} className="p-4 text-right font-bold text-sm tracking-wide border-r border-white/10">
+                                                            <span className="flex items-center justify-end gap-2">
+                                                                <Activity size={18} className="text-blue-200" />
+                                                                ยอดรวมสุทธิคิดเป็นเงินบาท (Net Total THB) จากทั้งหมด {financeSummaryData.reduce((a, r) => a + r.billsCount, 0).toLocaleString()} บิล
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-4 text-right font-black text-xl text-yellow-300 drop-shadow-md">
+                                                            ฿{financeSummaryData.reduce((a, r) => a + r.sumThb + (r.sumLak / exchangeRate), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
+                                                        </td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            /* TAB 2: รายละเอียดรับเงินแยกตามบิล */
+                            <div className="space-y-6 animation-fade-in">
+                                {/* KPI Cards */}
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-4 rounded-2xl shadow-md text-white">
+                                        <div className="text-xs font-bold text-amber-100 mb-1">💰 รวมสุทธิ (คิดเป็นบาท)</div>
+                                        <div className="text-2xl font-black">฿{(Math.round(financeKpi.grandCombinedTHB * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                                    </div>
+                                    <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl shadow-sm">
+                                        <div className="text-xs font-bold text-emerald-700 mb-1">🇱🇦 ยอดรับ (กีบ)</div>
+                                        <div className="text-xl font-black text-emerald-700">{Math.round(financeKpi.sumLak).toLocaleString()} ₭</div>
+                                        <div className="text-[11px] text-emerald-600 font-bold mt-1">{financeKpi.lakBillsCount} บิล</div>
+                                    </div>
+                                    <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl shadow-sm">
+                                        <div className="text-xs font-bold text-blue-700 mb-1">🇹🇭 ยอดรับ (บาท)</div>
+                                        <div className="text-xl font-black text-blue-700">฿{financeKpi.sumThb.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                                        <div className="text-[11px] text-blue-600 font-bold mt-1">{financeKpi.thbBillsCount} บิล</div>
+                                    </div>
+                                </div>
+
+                                {/* Table: บิลทั้งหมด */}
+                                <div className="space-y-4">
+                                    <div className="flex justify-end gap-3 print-hide">
+                                        <button type="button" onClick={() => {
+                                            let rows = [['เลขที่บิล', 'วันที่', 'ผู้ขาย (พนักงาน)', 'ชื่อลูกค้า', 'ช่องทางชำระ', 'ยอดรับ (เงินกีบ)', 'ยอดรับ (เงินบาท)']];
+                                            financeBills.forEach(s => {
+                                                const displayCust = (s.customerName && s.customerName !== 'ไม่ระบุชื่อ') ? s.customerName : (s.customerId ? `ลูกค้า (${s.customerId})` : 'ลูกค้าทั่วไป');
+                                                const { lakAmt, thbAmt, realPayMode } = parseSaleCurrencyAmounts(s, exchangeRate);
+                                                const payMode = String(realPayMode || 'เงินโอน').trim();
+                                                rows.push([s.id, s.date, s.sellerName || s.memberId, displayCust, payMode, lakAmt, thbAmt]);
+                                            });
+                                            let sumLak = 0; let sumThb = 0;
+                                            financeBills.forEach(s => {
+                                                const { lakAmt, thbAmt } = parseSaleCurrencyAmounts(s, exchangeRate);
+                                                sumLak += lakAmt; sumThb += thbAmt;
+                                            });
+                                            rows.push(['', '', '', '', 'ยอดรวมสุทธิ', sumLak, sumThb]);
+                                            if (typeof window.exportToCSV === 'function') {
+                                                window.exportToCSV(rows, `finance_bills_${getLocalISODate()}.csv`);
+                                            }
+                                        }} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
+                                            <Archive size={16}/> Export Excel
+                                        </button>
+                                        <button type="button" onClick={() => window.print()} className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
+                                            <FileText size={16}/> Export PDF
+                                        </button>
+                                        <button type="button" onClick={() => window.print()} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
+                                            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg> 
+                                            พิมพ์ (Print)
+                                        </button>
+                                    </div>
+
+                                    <div className={`${boxWrapper} p-0 overflow-hidden`}>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left border-collapse min-w-[1000px]">
+                                                <thead>
+                                                    <tr className="bg-slate-100 border-b border-slate-200">
+                                                        <th className={thBase}>เลขที่บิล</th>
+                                                        <th className={thBase}>วันที่</th>
+                                                        <th className={thBase}>ผู้ขาย (พนักงาน)</th>
+                                                        <th className={thBase}>ชื่อลูกค้า</th>
+                                                        <th className={thBase}>ช่องทางชำระ</th>
+                                                        <th className={`${thBase} text-right text-emerald-700 font-bold bg-emerald-50/60`}>ยอดรับ (เงินกีบ)</th>
+                                                        <th className={`${thBase} text-right text-blue-700 font-bold bg-blue-50/60`}>ยอดรับ (เงินบาท)</th>
+                                                        <th className={`${thBase} text-center no-print`}>รายละเอียด</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {financeBills.map((s, idx) => {
+                                                        const displayCust = (s.customerName && s.customerName !== 'ไม่ระบุชื่อ') ? s.customerName : (s.customerId ? `ลูกค้า (${s.customerId})` : 'ลูกค้าทั่วไป');
+                                                        const { lakAmt, thbAmt, realPayMode } = parseSaleCurrencyAmounts(s, exchangeRate);
+                                                        
+                                                        let displayLakStr = lakAmt > 0 ? `${Math.round(lakAmt).toLocaleString()} ₭` : '-';
+                                                        let displayThbStr = thbAmt > 0 ? `฿${(thbAmt % 1 === 0 ? thbAmt.toLocaleString() : thbAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}` : '-';
+
+                                                        return (
+                                                            <tr key={s.id || idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                                                <td className="p-4 text-xs font-mono font-bold text-blue-600 whitespace-nowrap">{s.id}</td>
+                                                                <td className="p-4 text-xs font-bold text-slate-600 whitespace-nowrap">{s.date}</td>
+                                                                <td className="p-4 text-xs font-bold text-slate-800">{s.sellerName || s.memberId}</td>
+                                                                <td className="p-4 text-xs font-bold text-slate-900 bg-slate-50/50">{displayCust}</td>
+                                                                <td className="p-4 text-xs font-bold">
+                                                                    <div className="space-y-1">
+                                                                        {(() => {
+                                                                            const st = String(realPayMode || 'เงินโอน').trim();
+                                                                            
+                                                                            const getTagColor = (text, isLak) => {
+                                                                                if (isLak) return 'bg-emerald-50 text-emerald-700 border-emerald-300';
+                                                                                const t = String(text || '').toUpperCase();
+                                                                                if (t.includes('กีบ') || t.includes('LAK') || t.includes('KIP')) return 'bg-emerald-50 text-emerald-700 border-emerald-300';
+                                                                                if (t.includes('บาท') || t.includes('THB') || t.includes('ไทย') || t.includes('สดบาท')) return 'bg-blue-50 text-blue-700 border-blue-300';
+                                                                                if (lakAmt > 0 && thbAmt === 0) return 'bg-emerald-50 text-emerald-700 border-emerald-300';
+                                                                                return 'bg-blue-50 text-blue-700 border-blue-300';
+                                                                            };
+
+                                                                            const formatChannelName = (name, amount) => {
+                                                                                let n = String(name || '').trim();
+                                                                                const amt = Number(amount) || 0;
+                                                                                const isLakRow = (amt >= 70000) || (lakAmt > 0 && thbAmt === 0);
+
+                                                                                if (n === 'สด' || n === 'สดบาท') return isLakRow ? 'สดกีบ' : 'สดบาท';
+                                                                                if (n === 'สดกีบ') return 'สดกีบ';
+                                                                                if (n === 'โอน' || n === 'เงินโอน') {
+                                                                                    return isLakRow ? 'เงินโอน (กีบ)' : 'เงินโอน (บาท)';
+                                                                                }
+
+                                                                                if (n.includes('โอนลาว') && (amt >= 70000 || (n.includes('กีบ') || (lakAmt > 0 && thbAmt === 0 && !n.includes('ไทย'))))) {
+                                                                                    if (n.includes('BCEL')) return 'โอนลาวกีบ (BCEL)';
+                                                                                    if (n.includes('JDB')) return 'โอนลาวกีบ (JDB)';
+                                                                                    if (n.includes('LDB')) return 'โอนลาวกีบ (LDB)';
+                                                                                    return 'โอนลาวกีบ';
+                                                                                }
+
+                                                                                n = n.replace('โอนลาวกีบ(BCEL)', 'โอนลาวกีบ (BCEL)')
+                                                                                     .replace('โอนลาวบาท(BCEL)', 'โอนลาวบาท (BCEL)')
+                                                                                     .replace('โอนลาวกีบ(JDB)', 'โอนลาวกีบ (JDB)')
+                                                                                     .replace('โอนลาวบาท(JDB)', 'โอนลาวบาท (JDB)')
+                                                                                     .replace('โอนไทย(กสิกรไทย)', 'โอนไทย (กสิกรไทย)')
+                                                                                     .replace('โอนไทย(ไทยพาณิชย์)', 'โอนไทย (ไทยพาณิชย์)');
+                                                                                return n;
+                                                                            };
+
+                                                                            if (st.includes('|') || st.includes(':')) {
+                                                                                return st.split('|').map((part, pIdx) => {
+                                                                                    let pTrim = part.trim();
+                                                                                    if (!pTrim.includes(':')) {
+                                                                                        const displayLabel = formatChannelName(pTrim, 0);
+                                                                                        return <span key={pIdx} className={`inline-block px-2.5 py-1 border rounded-lg text-xs font-bold whitespace-nowrap mb-1 mr-1 ${getTagColor(pTrim, lakAmt > 0 && thbAmt === 0)}`}>{displayLabel}</span>;
+                                                                                    }
+                                                                                    const colonIdx = pTrim.indexOf(':');
+                                                                                    const k = pTrim.substring(0, colonIdx).trim();
+                                                                                    const v = Number(pTrim.substring(colonIdx + 1).trim()) || 0;
+                                                                                    if (k.toUpperCase() === 'เรท' || k.toUpperCase() === 'RATE') return null;
+                                                                                    
+                                                                                    const isItemLak = (v >= 70000) || k.includes('กีบ') || (k.includes('ลาว') && !k.includes('บาท') && !k.includes('ไทย'));
+                                                                                    const displayLabel = formatChannelName(k, v);
+                                                                                    return <span key={pIdx} className={`inline-block px-2.5 py-1 border rounded-lg text-[11px] font-bold whitespace-nowrap mb-1 mr-1 ${getTagColor(displayLabel, isItemLak)}`}>{displayLabel}</span>;
+                                                                                }).filter(Boolean);
+                                                                            }
+                                                                            
+                                                                            const isOnlyLak = lakAmt > 0 && thbAmt === 0;
+                                                                            const displayLabel = formatChannelName(st, lakAmt || thbAmt);
+                                                                            return <span className={`px-2.5 py-1 border rounded-lg text-xs font-bold whitespace-nowrap inline-block ${getTagColor(displayLabel, isOnlyLak)}`}>{displayLabel}</span>;
+                                                                        })()}
+                                                                    </div>
+                                                                </td>
+                                                                <td className="p-4 text-right text-sm font-black text-emerald-700 bg-emerald-50/30 whitespace-nowrap">
+                                                                    {displayLakStr}
+                                                                </td>
+                                                                <td className="p-4 text-right text-sm font-black text-blue-700 bg-blue-50/30 whitespace-nowrap">
+                                                                    {displayThbStr}
+                                                                </td>
+                                                                <td className="p-4 text-center no-print">
+                                                                    <button type="button" onClick={() => setViewBillDetail(s)} className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-xs font-bold transition-colors">
+                                                                        <Eye size={13}/> ดูบิล
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                    {financeBills.length === 0 && (
+                                                        <tr><td colSpan={8} className="p-12 text-center text-slate-400 font-bold">ไม่พบข้อมูลการเงินตามเงื่อนไขที่ระบุ</td></tr>
+                                                    )}
+                                                </tbody>
+                                                {financeBills.length > 0 && (() => {
+                                                    let sumLak = 0; let sumThb = 0;
+                                                    financeBills.forEach(s => {
+                                                        const { lakAmt, thbAmt } = parseSaleCurrencyAmounts(s, exchangeRate);
+                                                        sumLak += lakAmt; sumThb += thbAmt;
+                                                    });
+                                                    const grandTotalTHB = sumThb + (sumLak / exchangeRate);
+                                                    return (
+                                                        <tfoot className="bg-slate-50 border-t-2 border-slate-200">
+                                                            <tr className="font-bold text-slate-700">
+                                                                <td colSpan={5} className="p-4 text-right font-black">รวมยอดหน้านี้ ({financeBills.length.toLocaleString()} บิล):</td>
+                                                                <td className="p-4 text-right text-base font-black text-emerald-700 bg-emerald-50/50">
+                                                                    {Math.round(sumLak).toLocaleString()} ₭
+                                                                </td>
+                                                                <td className="p-4 text-right text-base font-black text-blue-700 bg-blue-50/50">
+                                                                    ฿{sumThb.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                                                                </td>
+                                                                <td className="no-print"></td>
+                                                            </tr>
+                                                            <tr className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-inner">
+                                                                <td colSpan={5} className="p-4 text-right font-bold text-sm tracking-wide border-r border-white/10">
+                                                                    <span className="flex items-center justify-end gap-2">
+                                                                        <Activity size={18} className="text-blue-200" />
+                                                                        ยอดรวมสุทธิคิดเป็นเงินบาท (Net Total THB)
+                                                                    </span>
+                                                                </td>
+                                                                <td colSpan={2} className="p-4 text-right font-black text-xl text-yellow-300 drop-shadow-md">
+                                                                    ฿{grandTotalTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                                                                </td>
+                                                                <td className="no-print"></td>
+                                                            </tr>
+                                                        </tfoot>
+                                                    );
+                                                })()}
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Modal: ดูรายละเอียดบิลอย่างสมบูรณ์แบบ (เหมือน Reports.html) */}
+                        <EditModal isOpen={viewBillDetail !== null} onClose={() => setViewBillDetail(null)} title={'รายละเอียดบิล ' + (viewBillDetail?.id || '')} icon={FileText} maxWidthClass="max-w-2xl">
+                            {viewBillDetail && (
+                                <div className="flex flex-col gap-5 p-2">
+                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2 text-xs font-semibold">
+                                        <div className="flex justify-between"><span className="text-slate-500">เลขที่บิล:</span> <span className="font-black text-blue-600 text-sm">{viewBillDetail.id}</span></div>
+                                        <div className="flex justify-between"><span className="text-slate-500">วันที่คีย์บิล:</span> <span className="font-bold text-slate-800">{viewBillDetail.date}</span></div>
+                                        <div className="flex justify-between border-t border-slate-200/60 pt-2 mt-1"><span className="text-slate-500">ลูกค้า:</span> <span className="font-bold text-slate-800">{viewBillDetail.customerName || viewBillDetail.customerId}</span></div>
+                                        <div className="flex justify-between"><span className="text-slate-500">ผู้ขาย (เจ้าของเคส):</span> <span className="font-bold text-indigo-600">{viewBillDetail.sellerName || viewBillDetail.memberId}</span></div>
+                                    </div>
+
+                                    <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                                        <table className="w-full text-left text-sm">
+                                            <thead className="bg-slate-100 border-b border-slate-200 text-slate-600 text-[11px] uppercase tracking-wider">
+                                                <tr>
+                                                    <th className="p-3 font-black pl-4">รายการสินค้า</th>
+                                                    <th className="p-3 text-center font-black w-24">จำนวน</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {(() => {
+                                                    let billItems = [];
+                                                    if (viewBillDetail._items && viewBillDetail._items.length > 0) {
+                                                        viewBillDetail._items.forEach(it => {
+                                                            billItems.push({
+                                                                name: it.prod || it.productName || it.name,
+                                                                qty: Number(it.qty || it.quantity),
+                                                                type: it.type || 'ราคาเต็ม'
+                                                            });
+                                                        });
+                                                    } else {
+                                                        Object.keys(viewBillDetail).forEach(k => {
+                                                            if (k.endsWith('_ราคาเต็ม') || k.endsWith('_ราคาสมาชิก') || k.endsWith('_ราคาโปร') || k.endsWith('_ราคาศูนย์')) {
+                                                                const qty = Number(viewBillDetail[k]);
+                                                                if (qty > 0) {
+                                                                    const pName = k.substring(0, k.lastIndexOf('_'));
+                                                                    const type = k.substring(k.lastIndexOf('_') + 1);
+                                                                    billItems.push({ name: pName, qty, type });
+                                                                }
+                                                            }
+                                                        });
+                                                    }
+
+                                                    if (billItems.length === 0) {
+                                                        return <tr><td colSpan="2" className="p-8 text-center text-slate-400 font-bold">ไม่พบรายการสินค้าในบิลนี้</td></tr>;
+                                                    }
+
+                                                    return billItems.map((item, idx) => (
+                                                        <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                                            <td className="p-4 font-bold text-slate-800">
+                                                                {item.name} 
+                                                                <span className="text-[10px] text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md ml-2">{item.type}</span>
+                                                            </td>
+                                                            <td className="p-4 text-center font-black text-blue-600 text-lg">{item.qty}</td>
+                                                        </tr>
+                                                    ));
+                                                })()}
+                                            </tbody>
+                                            <tfoot className="bg-blue-50/50 border-t-2 border-blue-100">
+                                                <tr>
+                                                    <td className="p-4 text-right font-black text-slate-600 uppercase">รวมจำนวนชิ้นทั้งหมด:</td>
+                                                    <td className="p-4 text-center font-black text-2xl text-blue-700 bg-blue-100/50 rounded-br-xl border-x border-blue-100/50">
+                                                        {viewBillDetail['ยอดรวมชิ้นทั้งหมด'] || Object.keys(viewBillDetail).filter(k => k.includes('_ราคา') && !k.includes('รวมชิ้น') && viewBillDetail[k] > 0).reduce((sum, key) => sum + parseInt(viewBillDetail[key]), 0)}
+                                                    </td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                        
+                                        <div className="p-4 bg-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-t border-slate-200">
+                                            <div className="flex flex-col gap-1 w-full md:w-auto">
+                                                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">ช่องทางชำระเงิน</span>
+                                                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                                    {(() => {
+                                                        const st = String(viewBillDetail.saleType || viewBillDetail.payMode || 'เงินโอน').trim();
+                                                        if (st.includes('|') || st.includes(':')) {
+                                                            return st.split('|').map(p => p.trim()).join(' | ');
+                                                        }
+                                                        return st;
+                                                    })()}
+                                                </div>
+                                                {viewBillDetail.paymentNote && <span className="text-[11px] text-amber-600 font-bold mt-2 flex items-center gap-1"><Info size={12}/> หมายเหตุ: {viewBillDetail.paymentNote}</span>}
+                                            </div>
+                                            <div className="flex flex-col items-end text-right w-full md:w-auto border-t md:border-t-0 md:border-l border-blue-200/50 pt-4 md:pt-0 md:pl-6">
+                                                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">ยอดรับรวม</span>
+                                                {(() => {
+                                                    const { lakAmt, thbAmt } = parseSaleCurrencyAmounts(viewBillDetail, exchangeRate);
+                                                    return (
+                                                        <div className="flex flex-col items-end gap-1">
+                                                            {lakAmt > 0 && <span className="text-2xl font-black text-emerald-600 leading-none drop-shadow-sm">{Math.round(lakAmt).toLocaleString()} ₭</span>}
+                                                            {thbAmt > 0 && <span className="text-2xl font-black text-blue-700 leading-none drop-shadow-sm">฿{(thbAmt % 1 === 0 ? thbAmt.toLocaleString() : thbAmt.toLocaleString(undefined, {minimumFractionDigits:2}))}</span>}
+                                                            {lakAmt === 0 && thbAmt === 0 && <span className="text-xl font-bold text-slate-400">0 บาท</span>}
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-end pt-2 border-t border-slate-100">
+                                        <button onClick={() => setViewBillDetail(null)} className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl border border-slate-200 transition-colors shadow-sm">ปิดหน้าต่าง</button>
+                                    </div>
+                                </div>
+                            )}
+                        </EditModal>
+                    </div>
+                </main>
+                <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} onLoginSuccess={handleLoginSuccess} systemUsers={systemUsers} />
+            </div>
+        );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

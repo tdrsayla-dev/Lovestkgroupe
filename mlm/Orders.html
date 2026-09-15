@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ระบบจัดการบิล (Orders Management) - LOVE STK GROUPE</title>
-  <link rel="stylesheet" href="mainstyle.css">
+  <link rel="stylesheet" href="mainstyle.css?v=6">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
@@ -12,7 +12,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
-  <script src="CommonComponents.js"></script>
+  <script src="CommonComponents.js?v=3"></script>
   <script src="companySettings.js"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
@@ -446,7 +446,10 @@
                 String(currentUser.role).trim().toLowerCase() === 'marketing'
             );
 
-            const mName = (members || []).find(m => m && m.id === saleRecord.memberId)?.name || saleRecord.memberName || saleRecord.member_name || '-';
+            const memberObj = (members || []).find(m => m && m.id === saleRecord.memberId) || {};
+            const mName = memberObj.name || saleRecord.memberName || saleRecord.member_name || '-';
+            const mPhone = memberObj.phone || memberObj.phone_number || memberObj.phoneNumber || saleRecord.memberPhone || saleRecord.member_phone || saleRecord.sellerPhone || saleRecord.seller_phone || '';
+            const mDisplay = mPhone ? `${mName} (โทร: ${mPhone})` : mName;
             const custObj = (customers || []).find(c => c && (c.id === saleRecord.customerId || c.id === saleRecord.customer_id)) || {};
             const custName = custObj.name || saleRecord.customerName || saleRecord.customer_name || '';
             const closersList = typeof closers !== 'undefined' ? closers : [];
@@ -764,9 +767,12 @@
                 .divider { border-top: 1px dashed #cbd5e1; margin: 8px 0; }
                 .paper-a4 .divider { margin: 16px 0; }
                 
-                .meta-table, .items-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-                .meta-table td { padding: 3px 0; font-size: 11px; vertical-align: top; }
-                .paper-a4 .meta-table td { padding: 5px 0; font-size: 13px; }
+                .meta-table, .items-table { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+                .meta-table td { padding: 1.5px 0; font-size: 11px; vertical-align: top; line-height: 1.35; }
+                .meta-table td:first-child { width: auto; white-space: nowrap; padding-right: 8px; color: #475569; }
+                .meta-table td:last-child { width: 100%; }
+                .paper-a4 .meta-table td { padding: 3px 0; font-size: 13px; line-height: 1.4; }
+                .paper-a4 .meta-table td:first-child { padding-right: 14px; }
                 
                 .items-table th { border-bottom: 2px solid #0f172a; text-align: left; padding: 6px 4px; font-size: 11px; color: #334155; }
                 .paper-a4 .items-table th { padding: 10px 8px; font-size: 13px; }
@@ -818,10 +824,10 @@
                   </div>
                   <div class="divider"></div>
                   <table class="meta-table">
-                    <tr><td class="bold" style="width: 38%;">เลขที่บิล:</td><td style="width: 62%; font-weight: 700; color: #0f172a;">${saleRecord.id}</td></tr>
+                    <tr><td class="bold">เลขที่บิล:</td><td style="font-weight: 700; color: #0f172a;">${saleRecord.id}</td></tr>
                     <tr><td class="bold">วันที่/เวลา:</td><td>${formatDbDateForFilter(saleRecord.date)}${formatOrderTime(saleRecord) ? ` <span style="color:#2563eb; font-weight:700; margin-left:4px;">(${formatOrderTime(saleRecord)})</span>` : ""}</td></tr>
                     <tr><td class="bold">ลูกค้า:</td><td>${cleanCustName ? `${cleanCustName} (${saleRecord.customerId || '-'})` : (saleRecord.customerId || '-')}</td></tr>
-                    <tr><td class="bold">ผู้ดูแล:</td><td>${mName}</td></tr>
+                    <tr><td class="bold">ผู้ดูแล:</td><td>${mDisplay}</td></tr>
                     <tr><td class="bold">หมอสั่งจ่ายยา:</td><td>${cleanCloserName}</td></tr>
                     <tr><td class="bold">พนักงานบันทึก:</td><td>${saleRecord.recordedBy || '-'}</td></tr>
                   </table>
@@ -1082,7 +1088,10 @@
                     const visitId = visitMatch[1];
                     if (typeof window.supabaseUpdate === 'function') {
                         try {
-                            await window.supabaseUpdate('stk_nutrient_orders', visitId, { status: 'บิลถูกยกเลิก' }, 'visit_id');
+                            await window.supabaseUpdate('stk_nutrient_orders', visitId, { 
+                                status: 'บิลถูกยกเลิก',
+                                sale_order_id: null 
+                            }, 'visit_id');
                         } catch (e) {
                             console.warn('Failed to update nutrient order status to canceled:', e);
                         }
@@ -1759,7 +1768,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
 
         // 💡 SMART CACHING & PAGE TRANSITION SPEED FIX
         const applyDataToStates = (data) => {
-          if (Array.isArray(data.members)) setMembers(data.members.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name })));
+          if (Array.isArray(data.members)) setMembers(data.members.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name, phone: m.phone_number || m.phone || m.phoneNumber || '' })));
           
           // ⚡ FIX: แมปปิ้งฟิลด์ข้อมูลลูกค้าให้ครบถ้วน ป้องกันชื่อและอาการลูกค้าหาย
           if (Array.isArray(data.customers)) {

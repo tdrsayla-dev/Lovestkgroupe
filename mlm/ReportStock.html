@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<script>
+  (function() {
+    try {
+      var theme = localStorage.getItem('stk_theme');
+      if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        document.documentElement.classList.add('dark');
+        document.documentElement.style.backgroundColor = '#0f172a';
+      } else {
+        document.documentElement.setAttribute('data-theme', 'light');
+        document.documentElement.classList.remove('dark');
+        document.documentElement.style.backgroundColor = '#f8fafc';
+      }
+    } catch (e) {}
+  })();
+</script>
+  <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>รายงานสต๊อกและสินค้าตัดศูนย์ (Stock & Zero Price Report) - LOVE STK GROUPE</title>
+  <link rel="stylesheet" href="mainstyle.css?v=6">
+  <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class'
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="dictionary.js"></script>
+  <script src="CommonComponents.js?v=3"></script>
+</head>
+<body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
+
+  <div id="initial-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999;">
+    <div style="width: 50px; height: 50px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 20px;"></div>
+    <style>@keyframes initial-spin { to { transform: rotate(360deg); } }</style>
+    <h2 style="font-size: 1.5rem; font-weight: 800; color: #1e40af; margin: 0;">STK<span style="color: #475569;">System</span></h2>
+    <p style="font-size: 0.875rem; color: #64748b; margin-top: 8px;">กำลังโหลดรายงานสต๊อกสินค้า...</p>
+  </div>
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect, useCallback, useReducer } = React;
+    const { 
+        Sidebar, LoginModal, Toast, EditModal, 
+        PackageIcon, Activity, FileText, Archive, Eye, Info, SearchIcon 
+    } = window;
+
+    const safeUpper = (str) => String(str || '').trim().toUpperCase();
+    const getLocalISODate = () => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+
+    function useDebounce(value, delay) {
+        const [debouncedValue, setDebouncedValue] = React.useState(value);
+        React.useEffect(() => {
+            const handler = setTimeout(() => { setDebouncedValue(value); }, delay);
+            return () => { clearTimeout(handler); };
+        }, [value, delay]);
+        return debouncedValue;
+    }
+
+    const SubTabButton = ({ id, label, activeTab, setSubTab, isSpecial, isData }) => {
+        const isActive = activeTab === id;
+        let baseClass = "px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex-shrink-0 shadow-sm border ";
+        if (isActive) {
+            if (isSpecial) baseClass += "bg-indigo-600 text-white border-indigo-600 shadow-indigo-200";
+            else if (isData) baseClass += "bg-emerald-600 text-white border-emerald-600 shadow-emerald-200";
+            else baseClass += "bg-blue-600 text-white border-blue-600 shadow-blue-200";
+        } else {
+            baseClass += "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-blue-600";
+        }
+        return (
+            <button type="button" onClick={() => setSubTab(id)} className={baseClass}>
+                {label}
+            </button>
+        );
+    };
+
+    const resolveTeamName = (rawTeam, businessTeams) => {
+        if (!rawTeam) return 'N/A';
+        const tUpper = safeUpper(rawTeam);
+        if (tUpper === 'TEAM A' || tUpper === 'T01' || tUpper === 'TB1') return 'Marketing';
+        if (tUpper === 'TEAM B' || tUpper === 'T02' || tUpper === 'TB2') return 'Center';
+        if (Array.isArray(businessTeams)) {
+            const found = businessTeams.find(bt => bt && (safeUpper(bt.id) === tUpper || safeUpper(bt.name) === tUpper));
+            if (found && found.name) return found.name;
+        }
+        return rawTeam;
+    };
+
+    function App() {
+        const [isAppLoading, setIsAppLoading] = useState(true);
+        const [isLoggedIn, setIsLoggedIn] = useState(false);
+        const [currentUser, setCurrentUser] = useState(null);
+        const [showLoginModal, setShowLoginModal] = useState(false);
+        const [systemUsers, setSystemUsers] = useState([]);
+        const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+            try { return localStorage.getItem('stk_sidebar_collapsed') === 'true'; } catch (e) { return false; }
+        });
+
+        // Theme sync listener
+        const [, forceThemeUpdate] = useReducer(x => x + 1, 0);
+        useEffect(() => {
+            const onThemeChange = () => forceThemeUpdate();
+            window.addEventListener('stk_theme_change', onThemeChange);
+            return () => window.removeEventListener('stk_theme_change', onThemeChange);
+        }, []);
+
+        // Master Data
+        const [sales, setSales] = useState([]);
+        const [products, setProducts] = useState([]);
+        const [stockMovements, setStockMovements] = useState([]);
+        const [members, setMembers] = useState([]);
+        const [businessTeams, setBusinessTeams] = useState([]);
+        const [customers, setCustomers] = useState([]);
+        const [systemSettings, setSystemSettings] = useState({});
+
+        // Filter states
+        const todayStr = getLocalISODate();
+        const [startDate, setStartDate] = useState(todayStr);
+        const [endDate, setEndDate] = useState(todayStr);
+        const [subTab, setSubTab] = useState('stock_sales_by_product'); // stock_sales_by_product | stock_zero_promo | stock_balance
+        const [searchQuery, setSearchQuery] = useState('');
+        const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+        const [stockModalItem, setStockModalItem] = useState(null);
+
+        const pagePerm = window.getUserPagePermission ? window.getUserPagePermission(currentUser, 'reports') : 'none';
+        const isAdmin = currentUser && (
+            String(currentUser.role).trim() === 'ผู้ดูแลระบบ' || 
+            String(currentUser.role).trim().toLowerCase().includes('admin') || String(currentUser.role).trim().includes('แอดมิน') ||
+            pagePerm === 'full'
+        );
+
+        const handleLoginSuccess = (user) => {
+            localStorage.setItem('stk_current_user', JSON.stringify(user));
+            setCurrentUser(user);
+            setIsLoggedIn(true);
+            setShowLoginModal(false);
+        };
+
+        const handleLogout = () => {
+            localStorage.removeItem('stk_current_user');
+            setCurrentUser(null);
+            setIsLoggedIn(false);
+        };
+
+        const permittedMemberSet = useMemo(() => {
+            if (!currentUser || isAdmin) return null;
+            const userId = safeUpper(currentUser.id || currentUser.username);
+            let downlines = new Set([userId]);
+            let queue = [userId];
+
+            while (queue.length > 0) {
+                let parentId = queue.shift();
+                (members || []).forEach(m => {
+                    if (m && m.id) {
+                        const sponsor = safeUpper(m.referrer || m.sponsorId);
+                        if (sponsor === parentId) {
+                            let mId = safeUpper(m.id);
+                            if (!downlines.has(mId)) {
+                                downlines.add(mId);
+                                queue.push(mId);
+                            }
+                        }
+                    }
+                });
+            }
+            return downlines;
+        }, [currentUser, isAdmin, members]);
+
+        // โหลดข้อมูลจาก Supabase โดยใช้ window.supabaseSelect ที่ถูกต้อง
+        const loadAllData = useCallback(async () => {
+            try {
+                const [saleRes, prodRes, moveRes, memRes, teamRes, custRes, setRes, usersRes] = await Promise.all([
+                    window.supabaseSelect('stk_sales', 'order=order_id.desc&limit=3000').catch(() => []),
+                    window.supabaseSelect('stk_products').catch(() => []),
+                    window.supabaseSelect('stk_stock_movements', 'order=created_at.desc&limit=3000').catch(() => []),
+                    window.supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status').catch(() => []),
+                    window.supabaseSelect('stk_business_teams').catch(() => []),
+                    window.supabaseSelect('stk_customers', 'limit=3000').catch(() => []),
+                    window.supabaseSelect('stk_system_settings').catch(() => []),
+                    window.supabaseSelect('stk_system_users').catch(() => [])
+                ]);
+
+                if (Array.isArray(usersRes)) setSystemUsers(usersRes);
+                if (Array.isArray(prodRes)) setProducts(prodRes);
+                if (Array.isArray(moveRes)) setStockMovements(moveRes);
+                if (Array.isArray(teamRes)) setBusinessTeams(teamRes);
+                if (Array.isArray(custRes)) setCustomers(custRes);
+
+                if (Array.isArray(setRes) && setRes.length > 0) {
+                    const settingsObj = {};
+                    setRes.forEach(s => {
+                        if (s && (s.key || s.setting_key)) {
+                            const k = s.key || s.setting_key;
+                            const v = s.value !== undefined ? s.value : s.setting_value;
+                            settingsObj[k] = typeof v === 'string' ? v : JSON.stringify(v);
+                        }
+                    });
+                    setSystemSettings(settingsObj);
+                }
+
+                if (Array.isArray(memRes)) {
+                    setMembers(memRes.map(m => ({
+                        id: String(m.user_id || m.id || '').trim(),
+                        name: String(m.name || '').trim(),
+                        referrer: String(m.sponsor_id || m.referrer || '').trim(),
+                        team: String(m.business_team || m.team || 'Marketing').trim()
+                    })));
+                }
+
+                if (Array.isArray(saleRes)) {
+                    const processedSales = saleRes.map(s => {
+                        let sumF = 0, sumM = 0, sumP = 0, sumZ = 0;
+                        let itemsList = [];
+                        if (s.items_json) {
+                            try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
+                        }
+                        
+                        if (Array.isArray(itemsList) && itemsList.length > 0) {
+                            itemsList.forEach(it => {
+                                const typeStr = String(it.type || '').trim();
+                                const qtyNum = Number(it.qty || it.quantity || 1);
+                                const pName = String(it.prod || it.productName || it.name || 'Unknown').trim();
+                                s[`${pName}_${typeStr}`] = qtyNum;
+                                
+                                if (typeStr === 'ราคาเต็ม') sumF += qtyNum;
+                                else if (typeStr === 'ราคาสมาชิก') sumM += qtyNum;
+                                else if (typeStr === 'ราคาโปร' || typeStr === 'โปรโมชั่น') sumP += qtyNum;
+                                else if (typeStr === 'ราคาศูนย์') sumZ += qtyNum;
+                                else sumM += qtyNum;
+                            });
+                        } else {
+                            Object.keys(s).forEach(k => {
+                                if (k !== 'รวมชิ้นราคาเต็ม' && k !== 'รวมชิ้นราคาสมาชิก' && k !== 'รวมชิ้นราคาโปร' && k !== 'รวมชิ้นราคาศูนย์' && k !== 'ยอดรวมชิ้นทั้งหมด') {
+                                    if (k.endsWith('_ราคาเต็ม')) sumF += (parseInt(s[k]) || 0);
+                                    else if (k.endsWith('_ราคาสมาชิก')) sumM += (parseInt(s[k]) || 0);
+                                    else if (k.endsWith('_ราคาโปร') || k.endsWith('_โปรโมชั่น')) sumP += (parseInt(s[k]) || 0);
+                                    else if (k.endsWith('_ราคาศูนย์')) sumZ += (parseInt(s[k]) || 0);
+                                }
+                            });
+                        }
+                        
+                        s['id'] = s.id || s.order_id || s.sale_id || s.receipt_id || '';
+                        s['memberId'] = s.memberId || s.member_id || s.sellerId || s.seller_id || s.seller || s.user_id || s.created_by || s.marketing || '';
+                        s['sellerId'] = s['memberId'];
+                        s['sellerName'] = s.sellerName || s.seller_name || s.member_name || s.marketing_name || s['memberId'];
+                        s['customerType'] = s.customer_type || s.customerType || s.custType || '';
+                        
+                        const rawCustId = String(s.customerId || s.customer_id || s.client_id || s.cust_id || s.hn || '').trim().toUpperCase();
+                        let resolvedCustName = s.customerName || s.customer_name || s.custName || s.client_name || '';
+                        
+                        if (rawCustId && (custRes || []).length > 0) {
+                            const foundCust = (custRes || []).find(c => c && (
+                                String(c.id || '').trim().toUpperCase() === rawCustId || 
+                                String(c.customer_id || '').trim().toUpperCase() === rawCustId ||
+                                String(c.hn || '').trim().toUpperCase() === rawCustId
+                            ));
+                            if (foundCust && (foundCust.name || foundCust.customer_name || foundCust.Name)) {
+                                resolvedCustName = foundCust.name || foundCust.customer_name || foundCust.Name;
+                            }
+                        }
+                        
+                        s['customerId'] = rawCustId;
+                        s['customerName'] = resolvedCustName || (rawCustId ? `ลูกค้า (${rawCustId})` : 'ไม่ระบุชื่อ');
+                        s['saleType'] = s.sale_type || s.saleType || '';
+                        s['payMode'] = s.sale_type || s.saleType || s.payMode || s.pay_mode || 'เงินโอน';
+                        
+                        s['รวมชิ้นราคาเต็ม'] = sumF; 
+                        s['รวมชิ้นราคาสมาชิก'] = sumM;
+                        s['รวมชิ้นราคาโปร'] = sumP; 
+                        s['รวมชิ้นราคาศูนย์'] = sumZ;
+                        s['ยอดรวมชิ้นทั้งหมด'] = sumF + sumM + sumP + sumZ;
+                        s['_items'] = itemsList;
+                        s['ยอดขายรวม'] = Number(s['ยอดขายรวม'] || s.total_amount || s.grand_total || s.totalAmount || s.grandTotal || s.amount || 0);
+                        
+                        const rawDate = String(s.date || s.sale_date || s.created_at || '');
+                        s['date'] = rawDate.split('T')[0].split(' ')[0];
+                        
+                        return s;
+                    });
+                    setSales(processedSales);
+                } else {
+                    setSales([]);
+                }
+            } catch (err) {
+                console.error("Stock fetch error:", err);
+            } finally {
+                setIsAppLoading(false);
+            }
+        }, []);
+
+        useEffect(() => {
+            const savedUserStr = localStorage.getItem('stk_current_user');
+            if (savedUserStr) {
+                try {
+                    setCurrentUser(JSON.parse(savedUserStr));
+                    setIsLoggedIn(true);
+                } catch(e) {
+                    setShowLoginModal(true);
+                }
+            } else setShowLoginModal(true);
+
+            const initialLoader = document.getElementById('initial-loader');
+            if (initialLoader) { 
+                initialLoader.style.opacity = '0'; 
+                setTimeout(() => { if (initialLoader) initialLoader.style.display = 'none'; }, 400); 
+            }
+
+            loadAllData();
+        }, [loadAllData]);
+
+        // Unfolded Sales สำหรับสินค้าแถม/ตัดศูนย์
+        const unfoldedSales = useMemo(() => {
+            let items = [];
+            const dateFilteredSales = (sales || []).filter(s => {
+                const sDate = s.date || s.sale_date || '';
+                if (!s || sDate < startDate || sDate > endDate) return false;
+                const sMemId = safeUpper(s.memberId || s.member_id || s.sellerId || s.seller_id || s.seller || s.marketing);
+                if (permittedMemberSet !== null) return permittedMemberSet.has(sMemId);
+                return true;
+            });
+
+            dateFilteredSales.forEach(record => {
+                const recMemberId = safeUpper(record.memberId || record.member_id || record.sellerId || record.seller_id || record.seller || record.marketing);
+                const member = (members || []).find(m => m && safeUpper(m.id) === recMemberId);
+                const cust = (customers || []).find(c => c && c.id === record.customerId);
+                const cleanTeam = resolveTeamName(member?.team, businessTeams);
+                const resolvedCustType = record.customerType || record.custType || record.customer_type || (cust ? cust.type : '') || 'ไม่ระบุประเภท';
+
+                let rawItems = [];
+                if (record.items_json) {
+                    try { rawItems = typeof record.items_json === 'string' ? JSON.parse(record.items_json) : record.items_json; } catch(e){}
+                }
+
+                if (!Array.isArray(rawItems) || rawItems.length === 0) {
+                    Object.entries(record || {}).forEach(([key, value]) => {
+                        if (key.endsWith('_ราคาเต็ม') || key.endsWith('_ราคาสมาชิก') || key.endsWith('_ราคาโปร') || key.endsWith('_ราคาศูนย์')) {
+                            const qty = parseInt(value, 10);
+                            if (!isNaN(qty) && qty > 0) {
+                                const lastUnderscore = key.lastIndexOf('_');
+                                rawItems.push({
+                                    prod: key.substring(0, lastUnderscore).replace(/\(.*?\)/g, '').trim(),
+                                    type: key.substring(lastUnderscore + 1),
+                                    qty: qty
+                                });
+                            }
+                        }
+                    });
+                }
+
+                if (Array.isArray(rawItems) && rawItems.length > 0) {
+                    rawItems.forEach(it => {
+                        const q = Number(it.qty || it.quantity || 1);
+                        if (q > 0) {
+                            items.push({
+                                billId: record.id,
+                                date: record.date || record.sale_date || '',
+                                memberId: recMemberId,
+                                memberName: member?.name || record.sellerName || recMemberId || 'UNKNOWN',
+                                team: cleanTeam,
+                                custType: resolvedCustType,
+                                product: String(it.prod || it.productName || it.name || 'สินค้าอื่นๆ').trim(),
+                                priceType: String(it.type || 'ราคาเต็ม').trim(),
+                                qty: q
+                            });
+                        }
+                    });
+                }
+            });
+
+            return items;
+        }, [sales, startDate, endDate, permittedMemberSet, members, customers, businessTeams]);
+
+        // 1. คำนวณความเคลื่อนไหวและสต๊อกคงเหลือ (Forward Calculation แบบแม่นยำ ตาม Reports.html)
+        const isZeroPromoView = subTab === 'stock_zero_promo';
+        const isBalanceView = subTab === 'stock_balance';
+
+        const stockSalesReport = useMemo(() => {
+            let map = {};
+            
+            // ก. ตั้งต้นสินค้าทั้งหมดด้วย 0
+            (products || []).forEach(p => {
+                if (!p) return;
+                const pName = String(p.name || p.id || '').trim();
+                const pId = String(p.id || pName).trim();
+                
+                map[pName] = {
+                    id: pId, name: pName, category: p.category || '-',
+                    openingBalance: 0,   // ยอดยกมา
+                    receivedInPeriod: 0, // รับเข้าช่วงเวลา
+                    periodOut: 0,        // ขาย/เบิกออกช่วงเวลา
+                    fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0
+                };
+            });
+
+            const validStockMovements = (stockMovements || []).filter(m => m && (m.created_at || m.date));
+
+            // ข. คำนวณประวัติรับเข้า / ปรับลดสต๊อก
+            validStockMovements.forEach(m => {
+                const targetName = String(m.product_name || m.product || m.name || '').trim();
+                if (!targetName) return;
+                let foundKey = Object.keys(map).find(k => k.toUpperCase() === targetName.toUpperCase() || map[k].id.toUpperCase() === targetName.toUpperCase());
+                
+                if (!foundKey) {
+                    map[targetName] = { id: targetName, name: targetName, category: '-', openingBalance: 0, receivedInPeriod: 0, periodOut: 0, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0 };
+                    foundKey = targetName;
+                }
+
+                const recDate = (m.created_at || m.date || '').substring(0, 10);
+                const qty = Number(m.quantity || m.qty || 0);
+                const isOutbound = (m.type === 'out' || m.type === 'reduce' || m.type === 'deduct');
+
+                if (recDate < startDate) {
+                    if (isOutbound) map[foundKey].openingBalance -= qty;
+                    else map[foundKey].openingBalance += qty;
+                } else if (recDate >= startDate && recDate <= endDate) {
+                    if (isOutbound) map[foundKey].periodOut += qty;
+                    else map[foundKey].receivedInPeriod += qty;
+                }
+            });
+
+            // ค. คำนวณยอดขายออก (จากบิลขาย)
+            (sales || []).forEach(record => {
+                if (!record) return;
+                if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(record.memberId))) return;
+                
+                const saleDate = (record.date || record.created_at || '').substring(0, 10);
+
+                Object.entries(record || {}).forEach(([key, value]) => {
+                    if (key.endsWith('_ราคาเต็ม') || key.endsWith('_ราคาสมาชิก') || key.endsWith('_ราคาโปร') || key.endsWith('_ราคาศูนย์')) {
+                        const qty = parseInt(value, 10);
+                        if (!isNaN(qty) && qty > 0) {
+                            const pName = key.substring(0, key.lastIndexOf('_')).replace(/\(.*?\)/g, '').trim();
+                            const priceType = key.substring(key.lastIndexOf('_') + 1);
+
+                            let foundKey = Object.keys(map).find(k => k.toUpperCase() === pName.toUpperCase() || map[k].id.toUpperCase() === pName.toUpperCase());
+                            if (!foundKey) {
+                                map[pName] = { id: pName, name: pName, category: '-', openingBalance: 0, receivedInPeriod: 0, periodOut: 0, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0 };
+                                foundKey = pName;
+                            }
+
+                            if (saleDate < startDate) {
+                                map[foundKey].openingBalance -= qty;
+                            } else if (saleDate >= startDate && saleDate <= endDate) {
+                                map[foundKey].periodOut += qty;
+                                
+                                if (priceType === 'ราคาเต็ม') map[foundKey].fullQty += qty;
+                                else if (priceType === 'ราคาสมาชิก') map[foundKey].memberQty += qty;
+                                else if (priceType === 'ราคาโปร' || priceType === 'โปรโมชั่น') map[foundKey].promoQty += qty;
+                                else if (priceType === 'ราคาศูนย์') map[foundKey].zeroQty += qty;
+                            }
+                        }
+                    }
+                });
+            });
+
+            const query = (debouncedSearchQuery || searchQuery || '').trim().toUpperCase();
+            
+            // ง. สรุปผล
+            return Object.values(map)
+                .map(item => {
+                    const closingBalance = item.openingBalance + item.receivedInPeriod - item.periodOut;
+                    return {
+                        ...item,
+                        currentIn: item.receivedInPeriod,
+                        totalOut: item.periodOut,
+                        currentStock: closingBalance
+                    };
+                })
+                .filter(item => {
+                    if (isZeroPromoView && item.promoQty === 0 && item.zeroQty === 0) return false;
+                    if (query !== '' && !item.id.toUpperCase().includes(query) && !item.name.toUpperCase().includes(query)) return false;
+                    return true;
+                })
+                .sort((a, b) => b.totalOut - a.totalOut || a.name.localeCompare(b.name));
+
+        }, [products, stockMovements, sales, startDate, endDate, isZeroPromoView, debouncedSearchQuery, searchQuery, permittedMemberSet]);
+
+        // 2. รายงานบิลสินค้าแถมและสินค้าตัดศูนย์แบบเจาะลึกตามบิล (Zero & Promo Items Bills Log)
+        const zeroPromoBills = useMemo(() => {
+            if (!isZeroPromoView) return [];
+            let list = [];
+            unfoldedSales.forEach(s => {
+                if (s.priceType === 'ราคาโปร' || s.priceType === 'โปรโมชั่น' || s.priceType === 'ราคาศูนย์') {
+                    list.push(s);
+                }
+            });
+            const query = (debouncedSearchQuery || searchQuery || '').trim().toUpperCase();
+            return list.filter(item => {
+                if (query === '') return true;
+                const bId = (item.billId || '').toUpperCase();
+                const mName = (item.memberName || '').toUpperCase();
+                const mId = (item.memberId || '').toUpperCase();
+                const cType = (item.custType || '').toUpperCase();
+                const pName = (item.product || '').toUpperCase();
+                return bId.includes(query) || mName.includes(query) || mId.includes(query) || cType.includes(query) || pName.includes(query);
+            }).sort((a, b) => b.date.localeCompare(a.date) || b.billId.localeCompare(a.billId));
+        }, [unfoldedSales, isZeroPromoView, debouncedSearchQuery, searchQuery]);
+
+        const handleExportStockExcel = () => {
+            let rows = [];
+            if (isZeroPromoView) {
+                rows = [['เลขที่บิล', 'วันที่', 'ผู้ขาย (สมาชิก)', 'สังกัดทีม', 'ประเภทลูกค้า', 'สินค้าที่แถม/ตัดศูนย์', 'ประเภทแถม/ศูนย์', 'จำนวนที่แถม (กล่อง)']];
+                zeroPromoBills.forEach(b => rows.push([b.billId, b.date, b.memberName, b.team, b.custType, b.product, b.priceType, b.qty]));
+            } else if (isBalanceView) {
+                rows = [['รหัสสินค้า', 'ชื่อสินค้า', 'ยอดยกมา', 'รับเข้าสะสม', 'เบิก/ขายออกในช่วงเวลา', 'ยอดสต๊อกคงเหลือ']];
+                stockSalesReport.forEach(i => rows.push([i.id, i.name, i.openingBalance, i.currentIn, i.totalOut, i.currentStock]));
+                rows.push(['', 'ยอดรวม (Grand Total)', stockSalesReport.reduce((a,b)=>a+b.openingBalance, 0), stockSalesReport.reduce((a,b)=>a+b.currentIn, 0), stockSalesReport.reduce((a,b)=>a+b.totalOut, 0), stockSalesReport.reduce((a,b)=>a+b.currentStock, 0)]);
+            } else {
+                rows = [['รหัสสินค้า', 'ชื่อสินค้า', 'ขายราคาเต็ม', 'ขายราคาสมาชิก', 'ขายราคาโปร', 'ตัดศูนย์ราคา', 'รวมเบิกขายทั้งหมด']];
+                stockSalesReport.forEach(i => rows.push([i.id, i.name, i.fullQty, i.memberQty, i.promoQty, i.zeroQty, i.totalOut]));
+                rows.push(['', 'ยอดรวม (Grand Total)', stockSalesReport.reduce((a,b)=>a+b.fullQty, 0), stockSalesReport.reduce((a,b)=>a+b.memberQty, 0), stockSalesReport.reduce((a,b)=>a+b.promoQty, 0), stockSalesReport.reduce((a,b)=>a+b.zeroQty, 0), stockSalesReport.reduce((a,b)=>a+b.totalOut, 0)]);
+            }
+            if (typeof window.exportToCSV === 'function') {
+                window.exportToCSV(`STK_Stock_Report_${startDate}_to_${endDate}.csv`, rows);
+            }
+        };
+
+        const boxWrapper = "bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5";
+        const thBase = "p-4 text-[13px] font-bold border-b border-slate-200 bg-slate-50 text-slate-700 whitespace-nowrap uppercase tracking-wide";
+        const labelClassHud = "block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5";
+        const inputClassHud = "w-full bg-slate-50/50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:bg-white focus:outline-none focus:border-blue-500 transition-all";
+
+        return (
+            <div className="min-h-screen flex flex-col lg:flex-row font-sans bg-slate-50">
+                <Sidebar 
+                    activePage="report_stock" 
+                    isLoggedIn={isLoggedIn} 
+                    currentUser={currentUser} 
+                    isAdmin={isAdmin} 
+                    onLogout={handleLogout} 
+                    showLoginModal={showLoginModal} 
+                    setShowLoginModal={setShowLoginModal} 
+                    SCRIPT_URL=""
+                    isSidebarCollapsed={isSidebarCollapsed}
+                    setIsSidebarCollapsed={setIsSidebarCollapsed}
+                />
+
+                <main className={`flex-1 flex flex-col min-h-screen bg-slate-50 transition-all duration-300 relative ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} w-full overflow-x-hidden`}>
+                    <div className="p-3 sm:p-6 flex-1 w-full relative z-0">
+                        {/* Page Header */}
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-4 mb-6 no-print">
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                                    📦 รายงานสต๊อกสินค้าและสินค้าตัดศูนย์
+                                </h2>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    สรุปการเบิกขายแยกตามประเภทราคา ความเคลื่อนไหวสต๊อก และรายงานสินค้าแถม / ตัดศูนย์
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Sub Tab Switcher */}
+                        <div className="flex flex-wrap gap-2 pb-2 w-full border-b border-slate-200 no-print mb-6">
+                            <SubTabButton id="stock_sales_by_product" label="📦 สรุปยอดขายแยกตามสินค้า" activeTab={subTab} setSubTab={setSubTab} />
+                            <SubTabButton id="stock_zero_promo" label="⚠️ รายงานสินค้าตัดศูนย์ (แถม/สูญ)" activeTab={subTab} setSubTab={setSubTab} isSpecial={true} />
+                            <SubTabButton id="stock_balance" label="📊 รายงานสต๊อกคงเหลือ" activeTab={subTab} setSubTab={setSubTab} isData={true} />
+                        </div>
+
+                        {/* Date Filter & Search */}
+                        <div className={`${boxWrapper} py-4 mb-6`}>
+                            <div className="flex flex-col md:flex-row flex-wrap items-start md:items-end gap-4">
+                                <div><label className={labelClassHud}>ตั้งแต่วันที่</label><input type="date" className={inputClassHud} value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
+                                <div><label className={labelClassHud}>ถึงวันที่</label><input type="date" className={inputClassHud} value={endDate} onChange={e => setEndDate(e.target.value)} /></div>
+                                <div className="w-full md:w-auto md:pl-4 md:border-l border-slate-200 flex-1 md:min-w-[200px]">
+                                    <label className={labelClassHud}>พิมพ์ค้นหาข้อมูล</label>
+                                    <div className="flex items-center bg-slate-50/30 focus-within:bg-white border border-slate-200 rounded-xl px-3 shadow-sm focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 transition-all duration-300 w-full h-[38px] sm:h-[40px]">
+                                        <SearchIcon size={18} className="text-slate-400 shrink-0" />
+                                        <input type="text" placeholder="พิมพ์ชื่อสินค้า/รหัส/เลขที่บิล..." className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Main Stock Content */}
+                        <div className="space-y-6 animation-fade-in">
+                            <div className="flex flex-wrap gap-2 justify-end items-center mb-4 no-print">
+                                <button onClick={handleExportStockExcel} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 h-[36px]">
+                                    <Archive size={14}/>
+                                    Export Excel
+                                </button>
+                                <button onClick={() => window.print()} className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 h-[36px]">
+                                    <FileText size={14}/>
+                                    Export PDF
+                                </button>
+                                <button onClick={() => window.print()} className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 h-[36px]">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                    พิมพ์ (Print)
+                                </button>
+                            </div>
+
+                            <div className={`${boxWrapper} p-0 overflow-hidden`}>
+                                <div className="overflow-x-auto">
+                                    {isZeroPromoView ? (
+                                        <table className="w-full text-left border-collapse min-w-[1000px]">
+                                            <thead>
+                                                <tr className="bg-slate-100 border-b border-slate-200">
+                                                    <th className={thBase}>เลขที่บิล</th>
+                                                    <th className={thBase}>วันที่</th>
+                                                    <th className={thBase}>ผู้ขาย (สมาชิก)</th>
+                                                    <th className={thBase}>สังกัดทีม</th>
+                                                    <th className={thBase}>ประเภทลูกค้า</th>
+                                                    <th className={thBase}>สินค้าที่แถม/ตัดศูนย์</th>
+                                                    <th className={`${thBase} text-center`}>ประเภทแถม/ศูนย์</th>
+                                                    <th className={`${thBase} text-center font-bold text-rose-700`}>จำนวนที่แถม (กล่อง)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {zeroPromoBills.map((item, idx) => (
+                                                    <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                                        <td className="p-4 text-xs font-mono font-bold text-blue-600 whitespace-nowrap">{item.billId}</td>
+                                                        <td className="p-4 text-xs font-bold text-slate-600 whitespace-nowrap">{item.date}</td>
+                                                        <td className="p-4 text-xs font-bold text-slate-800">
+                                                            <div>{item.memberName}</div>
+                                                            <div className="text-[10px] text-slate-400 font-mono">รหัส: {item.memberId}</div>
+                                                        </td>
+                                                        <td className="p-4 text-xs font-bold text-slate-600">
+                                                            <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded text-[11px]">{item.team || '-'}</span>
+                                                        </td>
+                                                        <td className="p-4 text-xs font-bold text-indigo-600">{item.custType || 'ทั่วไป'}</td>
+                                                        <td className="p-4 text-xs font-bold text-slate-900 bg-slate-50/50">{item.product}</td>
+                                                        <td className="p-4 text-center">
+                                                            {item.priceType === 'ราคาศูนย์' ? (
+                                                                <span className="px-2.5 py-1 bg-slate-200 text-slate-700 rounded-full text-[11px] font-black border border-slate-300">
+                                                                    ตัดศูนย์ราคา
+                                                                </span>
+                                                            ) : (
+                                                                <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full text-[11px] font-black border border-amber-300">
+                                                                    🎁 แถมโปรโมชั่น
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-4 text-center text-sm font-black text-rose-600 bg-rose-50/20">{item.qty} กล่อง</td>
+                                                    </tr>
+                                                ))}
+                                                {zeroPromoBills.length === 0 && (
+                                                    <tr><td colSpan={8} className="p-12 text-center text-slate-400 font-bold">ไม่พบรายการสินค้าแถมหรือตัดศูนย์ตามเงื่อนไขที่ระบุ</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    ) : (
+                                        <table className="w-full text-left border-collapse min-w-[900px]">
+                                            <thead>
+                                                <tr className="bg-slate-100 border-b border-slate-200">
+                                                    <th className={`${thBase} text-center w-16`}>ลำดับ</th>
+                                                    <th className={thBase}>รหัส/ชื่อสินค้า</th>
+                                                    {isBalanceView ? (
+                                                        <React.Fragment>
+                                                            <th className={`${thBase} text-center text-slate-500`}>ยอดยกมา</th>
+                                                            <th className={`${thBase} text-center text-blue-700`}>รับเข้าสะสม</th>
+                                                            <th className={`${thBase} text-center text-amber-700`}>เบิก/ขายออกในช่วงเวลา</th>
+                                                            <th className={`${thBase} text-center text-emerald-700 font-bold bg-emerald-50/50`}>ยอดสต๊อกคงเหลือ ณ วันที่เลือก</th>
+                                                        </React.Fragment>
+                                                    ) : (
+                                                        <React.Fragment>
+                                                            <th className={`${thBase} text-center`}>ขายราคาเต็ม</th>
+                                                            <th className={`${thBase} text-center text-blue-700`}>ขายราคาสมาชิก</th>
+                                                            <th className={`${thBase} text-center text-amber-700`}>ขายราคาโปร</th>
+                                                            <th className={`${thBase} text-center text-slate-500`}>ตัดศูนย์ราคา</th>
+                                                            <th className={`${thBase} text-center text-blue-700 font-bold bg-blue-50/50`}>รวมเบิกขายทั้งหมด</th>
+                                                        </React.Fragment>
+                                                    )}
+                                                    <th className={`${thBase} text-center w-12 no-print`}><SearchIcon size={16} className="mx-auto text-slate-400"/></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {stockSalesReport.map((item, idx) => (
+                                                    <tr key={item.id || idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                                        <td className="p-4 text-center font-bold text-slate-500">{idx + 1}</td>
+                                                        <td className="p-4">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs shrink-0 border border-blue-100">
+                                                                    P
+                                                                </div>
+                                                                <div>
+                                                                    <div className="font-bold text-slate-800 text-sm">{item.name}</div>
+                                                                    <div className="text-[10px] text-slate-400 font-mono">รหัส: {item.id}</div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+                                                        {isBalanceView ? (
+                                                            <React.Fragment>
+                                                                <td className="p-4 text-center text-sm font-black text-slate-600 bg-slate-50/10">{item.openingBalance.toLocaleString()}</td>
+                                                                <td className="p-4 text-center text-sm font-black text-blue-600 bg-blue-50/10">{item.currentIn.toLocaleString()}</td>
+                                                                <td className="p-4 text-center text-sm font-black text-amber-600 bg-amber-50/10">{item.totalOut.toLocaleString()}</td>
+                                                                <td className="p-4 text-center text-base font-black text-emerald-700 bg-emerald-50/30">
+                                                                    {item.currentStock.toLocaleString()}
+                                                                </td>
+                                                            </React.Fragment>
+                                                        ) : (
+                                                            <React.Fragment>
+                                                                <td className="p-4 text-center text-xs font-bold text-slate-700">{item.fullQty}</td>
+                                                                <td className="p-4 text-center text-xs font-black text-blue-600 bg-blue-50/20">{item.memberQty}</td>
+                                                                <td className="p-4 text-center text-xs font-bold text-amber-600">{item.promoQty}</td>
+                                                                <td className="p-4 text-center text-xs font-bold text-slate-400">{item.zeroQty}</td>
+                                                                <td className="p-4 text-center text-sm font-black text-blue-700 bg-blue-50/30">
+                                                                    {item.totalOut}
+                                                                </td>
+                                                            </React.Fragment>
+                                                        )}
+                                                        
+                                                        <td className="p-4 text-center no-print">
+                                                            <button type="button" onClick={() => setStockModalItem(item)} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="ดูรายละเอียดบิลสินค้า">
+                                                                <Eye size={16}/>
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {stockSalesReport.length === 0 && (
+                                                    <tr><td colSpan={isBalanceView ? 7 : 8} className="p-12 text-center text-slate-400 font-bold">ไม่พบข้อมูลรายงานสต๊อกตามเงื่อนไขที่ระบุ</td></tr>
+                                                )}
+                                            </tbody>
+                                            <tfoot className="bg-white sticky bottom-0 shadow-[0_-8px_20px_rgba(0,0,0,0.06)] border-t border-slate-200 font-black">
+                                                <tr className="bg-slate-50 text-slate-700 shadow-inner">
+                                                    <td colSpan={2} className="p-4 text-right font-bold text-sm tracking-wide">ยอดรวม (Grand Total)</td>
+                                                    {isBalanceView ? (
+                                                        <React.Fragment>
+                                                            <td className="p-4 text-center text-sm">{stockSalesReport.reduce((a,b)=>a+b.openingBalance, 0).toLocaleString()}</td>
+                                                            <td className="p-4 text-center text-sm text-blue-600">{stockSalesReport.reduce((a,b)=>a+b.currentIn, 0).toLocaleString()}</td>
+                                                            <td className="p-4 text-center text-sm text-amber-600">{stockSalesReport.reduce((a,b)=>a+b.totalOut, 0).toLocaleString()}</td>
+                                                            <td className="p-4 text-center text-base text-emerald-700">{stockSalesReport.reduce((a,b)=>a+b.currentStock, 0).toLocaleString()}</td>
+                                                        </React.Fragment>
+                                                    ) : (
+                                                        <React.Fragment>
+                                                            <td className="p-4 text-center text-sm">{stockSalesReport.reduce((a,b)=>a+b.fullQty, 0).toLocaleString()}</td>
+                                                            <td className="p-4 text-center text-sm text-blue-600">{stockSalesReport.reduce((a,b)=>a+b.memberQty, 0).toLocaleString()}</td>
+                                                            <td className="p-4 text-center text-sm text-amber-600">{stockSalesReport.reduce((a,b)=>a+b.promoQty, 0).toLocaleString()}</td>
+                                                            <td className="p-4 text-center text-sm text-slate-500">{stockSalesReport.reduce((a,b)=>a+b.zeroQty, 0).toLocaleString()}</td>
+                                                            <td className="p-4 text-center text-base text-blue-700">{stockSalesReport.reduce((a,b)=>a+b.totalOut, 0).toLocaleString()}</td>
+                                                        </React.Fragment>
+                                                    )}
+                                                    <td className="no-print"></td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal รายละเอียดบิลที่ขายสินค้าชิ้นนั้น */}
+                        <EditModal isOpen={!!stockModalItem} onClose={() => setStockModalItem(null)} title={`รายละเอียดบิลที่ขายสินค้า: ${stockModalItem?.name}`} maxWidthClass="max-w-4xl" icon={PackageIcon}>
+                            <div className="overflow-x-auto max-h-[60vh] overflow-y-auto mt-4 rounded-xl border border-slate-200">
+                                <table className="w-full text-left border-collapse text-sm min-w-[700px]">
+                                    <thead className="sticky top-0 bg-slate-100 shadow-sm z-10">
+                                        <tr>
+                                            <th className="p-3 font-bold text-slate-600 border-b">วันที่</th>
+                                            <th className="p-3 font-bold text-slate-600 border-b">เลขที่บิล</th>
+                                            <th className="p-3 font-bold text-slate-600 border-b">ลูกค้า</th>
+                                            <th className="p-3 font-bold text-slate-600 border-b text-center">ประเภทการขาย</th>
+                                            <th className="p-3 font-bold text-slate-600 border-b text-center text-blue-700 bg-blue-50/50">จำนวนชิ้นที่ขาย</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {stockModalItem && sales && (function(){
+                                            const relatedSales = sales.filter(s => {
+                                                const d = (s.date || '').substring(0, 10);
+                                                if (startDate && d < startDate) return false;
+                                                if (endDate && d > endDate) return false;
+                                                
+                                                let found = false;
+                                                if (s.items_json) {
+                                                    try {
+                                                        const items = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json;
+                                                        if (Array.isArray(items)) {
+                                                            items.forEach(it => {
+                                                                const pName = String(it.prod || it.productName || it.name || '').replace(/\(.*?\)/g, '').trim();
+                                                                if (pName.toUpperCase() === stockModalItem.name.toUpperCase() || pName.toUpperCase() === (stockModalItem.id || '').toUpperCase()) {
+                                                                    found = true;
+                                                                }
+                                                            });
+                                                        }
+                                                    } catch(e){}
+                                                }
+                                                if (!found) {
+                                                    Object.entries(s || {}).forEach(([key, value]) => {
+                                                        if (key.endsWith('_ราคาเต็ม') || key.endsWith('_ราคาสมาชิก') || key.endsWith('_ราคาโปร') || key.endsWith('_ราคาศูนย์')) {
+                                                            const qty = parseInt(value, 10);
+                                                            if (!isNaN(qty) && qty > 0) {
+                                                                const pName = key.substring(0, key.lastIndexOf('_')).replace(/\(.*?\)/g, '').trim();
+                                                                if (pName.toUpperCase() === stockModalItem.name.toUpperCase() || pName.toUpperCase() === (stockModalItem.id || '').toUpperCase()) {
+                                                                    found = true;
+                                                                }
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                                return found;
+                                            });
+
+                                            if (relatedSales.length === 0) return <tr><td colSpan="5" className="p-8 text-center text-slate-400 font-bold">ไม่พบประวัติการขายในช่วงเวลานี้</td></tr>;
+                                            
+                                            return relatedSales.map((s, idx) => {
+                                                let totalQty = 0;
+                                                let typeLabels = [];
+
+                                                if (s.items_json) {
+                                                    try {
+                                                        const items = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json;
+                                                        if (Array.isArray(items)) {
+                                                            items.forEach(it => {
+                                                                const pName = String(it.prod || it.productName || it.name || '').replace(/\(.*?\)/g, '').trim();
+                                                                if (pName.toUpperCase() === stockModalItem.name.toUpperCase() || pName.toUpperCase() === (stockModalItem.id || '').toUpperCase()) {
+                                                                    const q = Number(it.qty || it.quantity || 1);
+                                                                    totalQty += q;
+                                                                    const tStr = String(it.type || 'ราคาเต็ม');
+                                                                    if (!typeLabels.includes(tStr)) typeLabels.push(tStr);
+                                                                }
+                                                            });
+                                                        }
+                                                    } catch(e){}
+                                                }
+
+                                                if (totalQty === 0) {
+                                                    Object.entries(s || {}).forEach(([key, value]) => {
+                                                        if (key.endsWith('_ราคาเต็ม') || key.endsWith('_ราคาสมาชิก') || key.endsWith('_ราคาโปร') || key.endsWith('_ราคาศูนย์')) {
+                                                            const qty = parseInt(value, 10);
+                                                            if (!isNaN(qty) && qty > 0) {
+                                                                const pName = key.substring(0, key.lastIndexOf('_')).replace(/\(.*?\)/g, '').trim();
+                                                                if (pName.toUpperCase() === stockModalItem.name.toUpperCase() || pName.toUpperCase() === (stockModalItem.id || '').toUpperCase()) {
+                                                                    totalQty += qty;
+                                                                    const tStr = key.substring(key.lastIndexOf('_') + 1);
+                                                                    if (!typeLabels.includes(tStr)) typeLabels.push(tStr);
+                                                                }
+                                                            }
+                                                        }
+                                                    });
+                                                }
+
+                                                return (
+                                                    <tr key={s.id || idx} className="hover:bg-slate-50 transition-colors">
+                                                        <td className="p-3 text-slate-600 whitespace-nowrap">{s.date}</td>
+                                                        <td className="p-3 font-mono font-bold text-blue-600">{s.id}</td>
+                                                        <td className="p-3 text-slate-800">{s.customerName}</td>
+                                                        <td className="p-3 text-center">
+                                                            <div className="flex flex-wrap justify-center gap-1">
+                                                                {typeLabels.map((t, ti) => (
+                                                                    <span key={ti} className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                                                                        {t}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-3 text-center font-black text-blue-700 bg-blue-50/20">{totalQty} กล่อง</td>
+                                                    </tr>
+                                                );
+                                            });
+                                        })()}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="flex justify-end pt-4">
+                                <button onClick={() => setStockModalItem(null)} className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl border border-slate-200 transition-colors">
+                                    ปิดหน้าต่าง
+                                </button>
+                            </div>
+                        </EditModal>
+                    </div>
+                </main>
+                <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} onLoginSuccess={handleLoginSuccess} systemUsers={systemUsers} />
+            </div>
+        );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

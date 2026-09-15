@@ -5,12 +5,640 @@
 /* 1. Typography Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800;900&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Lao:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800;900&display=swap');
 
-/* 2. Global Design Tokens & Variables */
+/* 2. Global Design Tokens & Variables — Light (default) */
 :root {
-  --bg-main: #f8fafc;
-  --card-bg: #ffffff;
-  --border-color: #e2e8f0;
+  --bg-main:          #f1f5f9;
+  --bg-body:          #f1f5f9;
+  --bg-card:          #ffffff;
+  --bg-card-2:        #f8fafc;
+  --bg-card-hover:    #f1f5f9;
+  --bg-input:         #f8fafc;
+  --bg-table-header:  #f8fafc;
+  --bg-tag:           #e2e8f0;
+  --text-primary:     #0f172a;
+  --text-secondary:   #475569;
+  --text-muted:       #94a3b8;
+  --text-inverse:     #ffffff;
+  --border-color:     #e2e8f0;
+  --border-light:     #f1f5f9;
+  --shadow-card:      0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --accent:           #2563eb;
+  --accent-hover:     #1d4ed8;
+  --accent-light:     #dbeafe;
+  --danger:           #ef4444;
+  --success:          #10b981;
+  --card-bg:          #ffffff;
+  --theme-transition: background-color 0.3s ease, color 0.25s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
+
+/* 🌙 Dark Mode — Gray/Charcoal */
+html[data-theme="dark"] {
+  --bg-main:          #111827;
+  --bg-body:          #111827;
+  --bg-card:          #1f2937;
+  --bg-card-2:        #1a2332;
+  --bg-card-hover:    #243044;
+  --bg-input:         #1f2937;
+  --bg-table-header:  #1a2332;
+  --bg-tag:           #374151;
+  --text-primary:     #f1f5f9;
+  --text-secondary:   #94a3b8;
+  --text-muted:       #64748b;
+  --text-inverse:     #0f172a;
+  --border-color:     #374151;
+  --border-light:     #283040;
+  --shadow-card:      0 4px 16px rgba(0,0,0,0.4), 0 1px 4px rgba(0,0,0,0.3);
+  --accent:           #3b82f6;
+  --accent-hover:     #2563eb;
+  --accent-light:     #1e3a5f;
+  --card-bg:          #1f2937;
+}
+
+/* ⚡ Smooth theme transition on all elements */
+html[data-theme="dark"] *,
+html[data-theme="light"] * {
+  transition: var(--theme-transition);
+}
+/* Exclude transitions that would be jarring */
+html[data-theme="dark"] *:not(button):not(a):not(input):not(select):not(textarea),
+html[data-theme="light"] *:not(button):not(a):not(input):not(select):not(textarea) {
+  transition: var(--theme-transition);
+}
+
+/* ==========================================
+   🎨 THEME OVERRIDES — Tailwind class remapping
+   ========================================== */
+
+/* --- Body & Main Background --- */
+html[data-theme="dark"] body {
+  background-color: var(--bg-main) !important;
+  color: var(--text-primary) !important;
+}
+
+/* --- White / Light Backgrounds → Dark Cards --- */
+html[data-theme="dark"] .bg-white {
+  background-color: var(--bg-card) !important;
+  color: var(--text-primary) !important;
+}
+html[data-theme="dark"] .bg-slate-50 {
+  background-color: var(--bg-card-2) !important;
+}
+html[data-theme="dark"] .bg-slate-100 {
+  background-color: var(--bg-card-2) !important;
+}
+html[data-theme="dark"] .bg-slate-200 {
+  background-color: #2d3748 !important;
+}
+html[data-theme="dark"] .bg-gray-50 {
+  background-color: var(--bg-card-2) !important;
+}
+html[data-theme="dark"] .bg-gray-100 {
+  background-color: var(--bg-card-2) !important;
+}
+
+/* --- Text Colors --- */
+html[data-theme="dark"] *:not(.stk-protect) > .text-slate-900,
+html[data-theme="dark"] *:not(.stk-protect) > .text-slate-800,
+html[data-theme="dark"] .text-slate-900:not(.stk-protect .text-slate-900),
+html[data-theme="dark"] .text-slate-800:not(.stk-protect .text-slate-800) {
+  color: var(--text-primary) !important;
+}
+html[data-theme="dark"] *:not(.stk-protect) > .text-slate-700,
+html[data-theme="dark"] *:not(.stk-protect) > .text-slate-600,
+html[data-theme="dark"] .text-slate-700:not(.stk-protect .text-slate-700),
+html[data-theme="dark"] .text-slate-600:not(.stk-protect .text-slate-600) {
+  color: var(--text-secondary) !important;
+}
+html[data-theme="dark"] .text-slate-500 {
+  color: var(--text-muted) !important;
+}
+html[data-theme="dark"] .text-gray-900,
+html[data-theme="dark"] .text-gray-800 {
+  color: var(--text-primary) !important;
+}
+html[data-theme="dark"] .text-gray-700,
+html[data-theme="dark"] .text-gray-600 {
+  color: var(--text-secondary) !important;
+}
+html[data-theme="dark"] .text-gray-500 {
+  color: var(--text-muted) !important;
+}
+
+/* ==========================================
+   🎨 DARK MODE — Protect text on colored cards
+   ========================================== */
+/* บังคับสีให้ .stk-protect คงความเข้มไว้เสมอ */
+html[data-theme="dark"] .stk-protect .text-slate-900,
+html[data-theme="dark"] .stk-protect .text-slate-800 {
+    color: #0f172a !important;
+}
+html[data-theme="dark"] .stk-protect .text-slate-700,
+html[data-theme="dark"] .stk-protect .text-slate-600 {
+    color: #334155 !important;
+}
+
+/* ==========================================
+   🎨 DARK MODE — Protect text on colored cards
+   ตัวเลข/ข้อความบนการ์ดสีสดต้องไม่เปลี่ยนตาม dark mode
+   ========================================== */
+
+/* Gradient backgrounds — keep original text readable */
+html[data-theme="dark"] [class*="from-amber"] .text-slate-800,
+html[data-theme="dark"] [class*="from-amber"] .text-slate-900,
+html[data-theme="dark"] [class*="from-amber"] .text-slate-700,
+html[data-theme="dark"] [class*="from-yellow"] .text-slate-800,
+html[data-theme="dark"] [class*="from-yellow"] .text-slate-900,
+html[data-theme="dark"] [class*="from-orange"] .text-slate-800,
+html[data-theme="dark"] [class*="from-orange"] .text-slate-900,
+html[data-theme="dark"] [class*="from-gold"] .text-slate-800,
+html[data-theme="dark"] [class*="from-lime"] .text-slate-800,
+html[data-theme="dark"] [class*="from-green"] .text-slate-800,
+html[data-theme="dark"] [class*="from-teal"] .text-slate-800,
+html[data-theme="dark"] [class*="from-fuchsia"] .text-slate-800,
+html[data-theme="dark"] [class*="from-emerald"] .text-slate-800,
+html[data-theme="dark"] [class*="from-emerald"] .text-slate-900,
+html[data-theme="dark"] [class*="from-emerald"].text-slate-900,
+html[data-theme="dark"] [class*="from-slate-100"] .text-slate-800,
+html[data-theme="dark"] [class*="from-slate-100"] .text-slate-900,
+html[data-theme="dark"] [class*="from-slate-100"].text-slate-900,
+html[data-theme="dark"] [class*="from-slate-300"] .text-slate-800,
+html[data-theme="dark"] [class*="from-slate-300"] .text-slate-900,
+html[data-theme="dark"] [class*="from-slate-50"] .text-slate-800,
+html[data-theme="dark"] [class*="from-slate-50"].text-slate-800,
+html[data-theme="dark"] [class*="from-slate-50"] .text-slate-900,
+html[data-theme="dark"] [class*="from-slate-50"].text-slate-900 {
+  color: #0f172a !important;
+}
+html[data-theme="dark"] [class*="from-amber"] .text-slate-700,
+html[data-theme="dark"] [class*="from-yellow"] .text-slate-700,
+html[data-theme="dark"] [class*="from-orange"] .text-slate-700,
+html[data-theme="dark"] [class*="from-amber"] .text-gray-800,
+html[data-theme="dark"] [class*="from-yellow"] .text-gray-800,
+html[data-theme="dark"] [class*="from-orange"] .text-gray-800,
+html[data-theme="dark"] [class*="from-slate-100"] .text-slate-700,
+html[data-theme="dark"] [class*="from-slate-300"] .text-slate-700 {
+  color: #1e293b !important;
+}
+html[data-theme="dark"] [class*="from-amber"] .text-slate-700,
+html[data-theme="dark"] [class*="from-yellow"] .text-slate-700,
+html[data-theme="dark"] [class*="from-orange"] .text-slate-700,
+html[data-theme="dark"] [class*="from-amber"] .text-gray-800,
+html[data-theme="dark"] [class*="from-yellow"] .text-gray-800,
+html[data-theme="dark"] [class*="from-orange"] .text-gray-800 {
+  color: #1e293b !important;
+}
+
+/* Colored bg cards (bg-amber-*, bg-orange-*, bg-yellow-*, etc.) */
+html[data-theme="dark"] [class*="bg-amber-"] .text-slate-800,
+html[data-theme="dark"] [class*="bg-amber-"] .text-slate-900,
+html[data-theme="dark"] [class*="bg-amber-"] .text-slate-700,
+html[data-theme="dark"] [class*="bg-yellow-"] .text-slate-800,
+html[data-theme="dark"] [class*="bg-yellow-"] .text-slate-900,
+html[data-theme="dark"] [class*="bg-orange-"] .text-slate-800,
+html[data-theme="dark"] [class*="bg-orange-"] .text-slate-900,
+html[data-theme="dark"] [class*="bg-green-400"] .text-slate-800,
+html[data-theme="dark"] [class*="bg-teal-"] .text-slate-800,
+html[data-theme="dark"] [class*="bg-lime-"] .text-slate-800,
+html[data-theme="dark"] [class*="bg-rose-"] .text-slate-800,
+html[data-theme="dark"] [class*="bg-pink-"] .text-slate-800,
+html[data-theme="dark"] [class*="bg-sky-"] .text-slate-800 {
+  color: #0f172a !important;
+}
+
+/* Self-colored text on gradient cards */
+html[data-theme="dark"] [class*="from-amber"] > .text-white,
+html[data-theme="dark"] [class*="from-orange"] > .text-white,
+html[data-theme="dark"] [class*="from-yellow"] > .text-white {
+  color: #ffffff !important;
+}
+
+/* Ranking/leaderboard number cards — keep font colors intact */
+html[data-theme="dark"] [class*="bg-gradient-to"] .text-slate-800,
+html[data-theme="dark"] [class*="bg-gradient-to"] .text-slate-900,
+html[data-theme="dark"] [class*="bg-gradient-to"] .text-slate-700,
+html[data-theme="dark"] [class*="bg-gradient-to"] .text-gray-800,
+html[data-theme="dark"] [class*="bg-gradient-to"] .text-gray-900 {
+  color: inherit !important;
+}
+
+/* Colored badge/pill text (inside blue/green/red badges) keep readable */
+html[data-theme="dark"] .bg-blue-500 .text-white,
+html[data-theme="dark"] .bg-blue-600 .text-white,
+html[data-theme="dark"] .bg-emerald-500 .text-white,
+html[data-theme="dark"] .bg-red-500 .text-white {
+  color: #ffffff !important;
+}
+
+
+/* --- Borders --- */
+html[data-theme="dark"] .border-slate-100,
+html[data-theme="dark"] .border-gray-100 {
+  border-color: var(--border-light) !important;
+}
+html[data-theme="dark"] .border-slate-200,
+html[data-theme="dark"] .border-gray-200 {
+  border-color: var(--border-color) !important;
+}
+html[data-theme="dark"] .border-slate-300,
+html[data-theme="dark"] .border-gray-300 {
+  border-color: #4b5563 !important;
+}
+
+/* --- Divide Lines --- */
+html[data-theme="dark"] .divide-slate-100 > * + * {
+  border-color: var(--border-light) !important;
+}
+html[data-theme="dark"] .divide-slate-200 > * + * {
+  border-color: var(--border-color) !important;
+}
+
+/* --- Inputs & Forms --- */
+html[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]),
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+  background-color: var(--bg-input) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: var(--text-muted) !important;
+}
+
+/* --- Tables --- */
+html[data-theme="dark"] table {
+  color: var(--text-primary);
+}
+html[data-theme="dark"] thead,
+html[data-theme="dark"] .bg-slate-50.sticky {
+  background-color: var(--bg-table-header) !important;
+}
+html[data-theme="dark"] th {
+  background-color: var(--bg-table-header) !important;
+  color: var(--text-secondary) !important;
+  border-color: var(--border-color) !important;
+}
+html[data-theme="dark"] td {
+  border-color: var(--border-light) !important;
+  color: var(--text-primary) !important;
+}
+html[data-theme="dark"] tr:hover td {
+  background-color: var(--bg-card-hover) !important;
+}
+
+/* --- Cards & Panels --- */
+html[data-theme="dark"] .shadow-sm,
+html[data-theme="dark"] .shadow-md,
+html[data-theme="dark"] .shadow-lg,
+html[data-theme="dark"] .shadow-xl {
+  box-shadow: var(--shadow-card) !important;
+}
+
+/* --- Hover states --- */
+html[data-theme="dark"] .hover\:bg-slate-50:hover,
+html[data-theme="dark"] .hover\:bg-slate-100:hover {
+  background-color: var(--bg-card-hover) !important;
+}
+
+/* --- Scrollbars in dark mode --- */
+html[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+html[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* --- Badge & Tag backgrounds --- */
+html[data-theme="dark"] .bg-blue-50 {
+  background-color: #1e3a5f !important;
+}
+html[data-theme="dark"] .bg-green-50 {
+  background-color: #064e3b !important;
+}
+html[data-theme="dark"] .bg-red-50 {
+  background-color: #450a0a !important;
+}
+html[data-theme="dark"] .bg-yellow-50 {
+  background-color: #422006 !important;
+}
+html[data-theme="dark"] .bg-purple-50 {
+  background-color: #2e1065 !important;
+}
+html[data-theme="dark"] .bg-orange-50 {
+  background-color: #431407 !important;
+}
+html[data-theme="dark"] .bg-emerald-50 {
+  background-color: #064e3b !important;
+}
+
+/* --- Text on colored badges --- */
+html[data-theme="dark"] .text-blue-700 { color: #93c5fd !important; }
+html[data-theme="dark"] .text-blue-800 { color: #bfdbfe !important; }
+html[data-theme="dark"] .text-green-700 { color: #6ee7b7 !important; }
+html[data-theme="dark"] .text-green-800 { color: #a7f3d0 !important; }
+html[data-theme="dark"] .text-red-700 { color: #fca5a5 !important; }
+html[data-theme="dark"] .text-red-800 { color: #fecaca !important; }
+html[data-theme="dark"] .text-yellow-700 { color: #fcd34d !important; }
+html[data-theme="dark"] .text-purple-700 { color: #c4b5fd !important; }
+html[data-theme="dark"] .text-orange-700 { color: #fdba74 !important; }
+html[data-theme="dark"] .text-emerald-700 { color: #6ee7b7 !important; }
+
+/* --- Border on colored elements --- */
+html[data-theme="dark"] .border-blue-100 { border-color: #1e3a5f !important; }
+html[data-theme="dark"] .border-green-100 { border-color: #065f46 !important; }
+html[data-theme="dark"] .border-red-100 { border-color: #7f1d1d !important; }
+html[data-theme="dark"] .border-slate-100 { border-color: var(--border-light) !important; }
+
+/* --- Modals & Overlays --- */
+html[data-theme="dark"] .bg-white.rounded-2xl,
+html[data-theme="dark"] .bg-white.rounded-3xl {
+  background-color: var(--bg-card) !important;
+}
+
+/* ==========================================
+   🌓 THEME TOGGLE BUTTON (Modern Compact Pill)
+   ========================================== */
+.stk-theme-btn {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+.stk-theme-pill {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border-radius: 12px;
+  padding: 2px;
+  gap: 2px;
+  transition: all 0.2s ease;
+}
+/* Dark theme pill background */
+html:not([data-theme="light"]) .stk-theme-pill {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+/* Light theme pill background */
+html[data-theme="light"] .stk-theme-pill {
+  background: rgba(226, 232, 240, 0.6);
+  border: 1px solid #e2e8f0;
+}
+.stk-theme-opt {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #64748b;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* Active state inside Dark Mode */
+html:not([data-theme="light"]) .stk-theme-opt.active {
+  background: #3b82f6;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+html:not([data-theme="light"]) .stk-theme-opt:not(.active):hover {
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.05);
+}
+/* Active state inside Light Mode */
+html[data-theme="light"] .stk-theme-opt.active {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+html[data-theme="light"] .stk-theme-opt:not(.active):hover {
+  color: #1e293b;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* ==========================================
+   ☀️ LIGHT MODE — Sidebar overrides
+   (Sidebar ใช้ dark class hardcode ต้อง override ด้วย light selector)
+   ========================================== */
+
+/* Sidebar container */
+html[data-theme="light"] aside.bg-slate-900 {
+  background-color: #ffffff !important;
+  border-right-color: #e2e8f0 !important;
+}
+
+/* Sidebar header & section borders */
+html[data-theme="light"] aside .border-slate-800,
+html[data-theme="light"] aside .border-b.border-slate-800 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Sidebar logo text */
+html[data-theme="light"] aside h1.text-white {
+  color: #0f172a !important;
+}
+html[data-theme="light"] aside .text-white {
+  color: #1e293b !important;
+}
+html[data-theme="light"] aside .text-slate-400 {
+  color: #0f172a !important;
+}
+html[data-theme="light"] aside .text-slate-500 {
+  color: #0f172a !important;
+}
+
+/* Sidebar menu items hover */
+html[data-theme="light"] aside .hover\:bg-slate-800:hover {
+  background-color: #f1f5f9 !important;
+}
+html[data-theme="light"] aside .hover\:bg-slate-700:hover {
+  background-color: #e2e8f0 !important;
+}
+html[data-theme="light"] aside .hover\:text-white:hover,
+html[data-theme="light"] aside .hover\:text-slate-100:hover,
+html[data-theme="light"] aside .hover\:text-slate-200:hover {
+  color: #0f172a !important;
+}
+
+/* Active sidebar item */
+html[data-theme="light"] aside .bg-blue-600 {
+  background-color: #2563eb !important;
+}
+html[data-theme="light"] aside .bg-blue-900\/30 {
+  background-color: #dbeafe !important;
+}
+html[data-theme="light"] aside .text-blue-400 {
+  color: #2563eb !important;
+}
+html[data-theme="light"] aside .border-blue-500 {
+  border-color: #2563eb !important;
+}
+html[data-theme="light"] aside .bg-blue-950\/20 {
+  background-color: #eff6ff !important;
+}
+
+/* Sidebar bottom panel */
+html[data-theme="light"] aside .bg-slate-950 {
+  background-color: #f8fafc !important;
+  border-top-color: #e2e8f0 !important;
+}
+html[data-theme="light"] aside .bg-slate-800 {
+  background-color: #e2e8f0 !important;
+}
+html[data-theme="light"] aside .bg-slate-800\/60 {
+  background-color: rgba(226,232,240,0.6) !important;
+}
+
+/* Sidebar bottom user info */
+html[data-theme="light"] aside .text-red-400 {
+  color: #ef4444 !important;
+}
+html[data-theme="light"] aside .bg-red-950\/30 {
+  background-color: #fee2e2 !important;
+}
+html[data-theme="light"] aside .border-red-900\/50 {
+  border-color: #fecaca !important;
+}
+
+/* Sidebar submenu (reports/settings dropdown) */
+html[data-theme="light"] aside .border-slate-800.space-y-1 {
+  border-color: #e2e8f0 !important;
+}
+html[data-theme="light"] aside .bg-slate-900.border {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Toggle button (hamburger) */
+html[data-theme="light"] aside button.p-2.text-slate-400 {
+  color: #64748b !important;
+}
+html[data-theme="light"] aside button.p-2:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+/* Language & Theme pill buttons in sidebar */
+html[data-theme="light"] aside .bg-slate-800.text-slate-400 {
+  background-color: #f1f5f9 !important;
+  color: #64748b !important;
+}
+html[data-theme="light"] aside .bg-slate-800.text-slate-500 {
+  background-color: #f1f5f9 !important;
+  color: #94a3b8 !important;
+}
+html[data-theme="light"] aside .hover\:bg-slate-700:hover {
+  background-color: #e2e8f0 !important;
+}
+html[data-theme="light"] aside .hover\:text-slate-200:hover {
+  color: #0f172a !important;
+}
+html[data-theme="light"] aside .hover\:text-slate-300:hover {
+  color: #374151 !important;
+}
+
+/* Mobile bottom nav */
+html[data-theme="light"] div.bg-slate-900.border-t.border-slate-800 {
+  background-color: #ffffff !important;
+  border-top-color: #e2e8f0 !important;
+}
+html[data-theme="light"] div.bg-slate-900.border.border-slate-800 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+html[data-theme="light"] .text-slate-500.hover\:text-white {
+  color: #94a3b8 !important;
+}
+html[data-theme="light"] .text-slate-500.hover\:text-white:hover {
+  color: #0f172a !important;
+}
+
+/* ==========================================
+   🌙 DARK MODE — Sidebar color harmonization
+   (ทำให้ทุกส่วนของ sidebar โทนสีเดียวกัน)
+   ========================================== */
+
+/* Sidebar main container */
+html[data-theme="dark"] aside.bg-slate-900 {
+  background-color: #1e2433 !important;
+  border-right-color: #2d3748 !important;
+}
+
+/* Sidebar header section */
+html[data-theme="dark"] aside .border-b.border-slate-800,
+html[data-theme="dark"] aside .border-slate-800 {
+  border-color: #2d3748 !important;
+}
+html[data-theme="dark"] aside > div:first-child {
+  background-color: #1e2433 !important;
+}
+
+/* Sidebar scrollable menu area */
+html[data-theme="dark"] aside .flex-1.p-4 {
+  background-color: #1e2433 !important;
+}
+
+/* Sidebar bottom panel — slightly darker for separation */
+html[data-theme="dark"] aside .bg-slate-950 {
+  background-color: #151c28 !important;
+  border-top-color: #2d3748 !important;
+}
+
+/* Sidebar submenu popup cards (reports/settings dropdown) */
+html[data-theme="dark"] aside .bg-slate-900.border.border-slate-800 {
+  background-color: #1e2433 !important;
+  border-color: #2d3748 !important;
+}
+
+/* Section labels (DAILY TRANSACTIONS etc.) */
+html[data-theme="dark"] aside .text-slate-500 {
+  color: #4b5563 !important;
+}
+
+/* Menu item hover bg */
+html[data-theme="dark"] aside .hover\:bg-slate-800:hover {
+  background-color: #253045 !important;
+}
+
+/* Active item submenu indent border */
+html[data-theme="dark"] aside .border-slate-800.space-y-1,
+html[data-theme="dark"] aside .border-l.border-slate-800 {
+  border-color: #2d3748 !important;
+}
+
+/* Language switcher bg in dark sidebar */
+html[data-theme="dark"] aside .bg-slate-800\/60 {
+  background-color: rgba(30, 36, 51, 0.8) !important;
+}
+html[data-theme="dark"] aside .bg-slate-800 {
+  background-color: #253045 !important;
+}
+html[data-theme="dark"] aside .hover\:bg-slate-700:hover {
+  background-color: #2d3a52 !important;
+}
+
+/* User profile area */
+html[data-theme="dark"] aside .bg-red-950\/30 {
+  background-color: rgba(127, 29, 29, 0.25) !important;
+}
+
+/* Mobile bottom nav dark mode */
+html[data-theme="dark"] div.bg-slate-900.border-t.border-slate-800 {
+  background-color: #1e2433 !important;
+  border-top-color: #2d3748 !important;
+}
+html[data-theme="dark"] div.bg-slate-900.border.border-slate-800 {
+  background-color: #1e2433 !important;
+  border-color: #2d3748 !important;
+}
+
 
 /* 3. Base Body & Font Stack */
 html, body {
@@ -289,3 +917,13 @@ input, select, textarea, button {
     margin: 10mm;
   }
 }
+
+/* --- Smooth Page Load Animation --- */
+#root {
+  animation: rootFadeIn 0.4s ease-out forwards;
+}
+@keyframes rootFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+

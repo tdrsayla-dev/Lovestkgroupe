@@ -1,17 +1,32 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
+<script>
+  (function() {
+    try {
+      var theme = localStorage.getItem('stk_theme');
+      if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        document.documentElement.style.backgroundColor = '#0f172a';
+      } else {
+        document.documentElement.setAttribute('data-theme', 'light');
+        document.documentElement.style.backgroundColor = '#f8fafc';
+      }
+    } catch (e) {}
+  })();
+</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ตั้งค่าการแจ้งเตือน (Notifications) - LOVE STK GROUPE</title>
-  <link rel="stylesheet" href="mainstyle.css">
+  <link rel="stylesheet" href="mainstyle.css?v=6">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
-  <script src="CommonComponents.js"></script>
+  <script src="dictionary.js"></script>
+  <script src="CommonComponents.js?v=3"></script>
 </head>
 <body class="antialiased selection:bg-blue-600 selection:text-white bg-slate-50">
 
@@ -344,7 +359,7 @@
         }
 
         const initialLoader = document.getElementById('initial-loader');
-        if (initialLoader) initialLoader.style.display = 'none';
+        if (initialLoader) { initialLoader.style.opacity = '0'; setTimeout(() => { if (initialLoader) initialLoader.style.display = 'none'; }, 400); }
 
         supabaseSelect('stk_notification_templates', 'order=updated_at.desc')
             .then(res => { if (Array.isArray(res)) setTemplates(res); })
@@ -399,3 +414,10 @@
   </script>
 </body>
 </html>
+
+
+
+
+
+
+

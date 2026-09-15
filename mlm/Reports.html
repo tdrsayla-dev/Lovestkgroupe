@@ -1,11 +1,25 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
+<script>
+  (function() {
+    try {
+      var theme = localStorage.getItem('stk_theme');
+      if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        document.documentElement.style.backgroundColor = '#0f172a';
+      } else {
+        document.documentElement.setAttribute('data-theme', 'light');
+        document.documentElement.style.backgroundColor = '#f8fafc';
+      }
+    } catch (e) {}
+  })();
+</script>
   <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>รายงานสรุปและผลประโยชน์ (Reports) - LOVE STK GROUPE</title>
-  <link rel="stylesheet" href="mainstyle.css">
+  <link rel="stylesheet" href="mainstyle.css?v=6">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
@@ -13,16 +27,12 @@
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
-  <script src="CommonComponents.js"></script>
+  <script src="dictionary.js"></script>
+  <script src="CommonComponents.js?v=3"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
-  <div id="initial-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999;">
-    <div style="width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 24px;"></div>
-    <style>@keyframes initial-spin { to { transform: rotate(360deg); } }</style>
-    <h2 style="font-size: 1.75rem; font-weight: 800; color: #1e40af; margin: 0; letter-spacing: -0.025em;">STK<span style="color: #475569;">System</span></h2>
-    <p style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 8px;">กำลังโหลดระบบจัดการข้อมูลและรายงาน...</p>
-  </div>
+  
 
   <div id="root"></div>
 
@@ -115,9 +125,7 @@
             const tabParam = params.get('tab');
             if (tabParam) return tabParam;
             const g = params.get('group') || 'sales';
-            if (g === 'finance') return 'finance_summary';
-            if (g === 'stock') return 'stock_sales_by_product';
-            if (g === 'referral') return 'referral_summary';
+            if (g === 'referral') return 'referral_fee';
             return 'sales_member_day';
         });
         const [searchQuery, setSearchQuery] = useState('');
@@ -127,9 +135,6 @@
         const [referralCalcMode, setReferralCalcMode] = useState('box');
         const [selectedSponsorFilter, setSelectedSponsorFilter] = useState('');
         const [selectedTeamFilter, setSelectedTeamFilter] = useState('');
-
-        const [stockModalItem, setStockModalItem] = useState(null);
-        const [viewBillDetail, setViewBillDetail] = useState(null);
 
         const [selectedPayouts, setSelectedPayouts] = useState([]);
         const [showPayoutModal, setShowPayoutModal] = useState(false);
@@ -229,6 +234,14 @@
             const checkUrlGroup = () => {
                 const params = new URLSearchParams(window.location.search);
                 const currentGroup = params.get('group') || 'sales';
+                if (currentGroup === 'finance') {
+                    window.location.replace('ReportFinance.html');
+                    return;
+                }
+                if (currentGroup === 'stock') {
+                    window.location.replace('ReportStock.html');
+                    return;
+                }
                 setActiveGroup(currentGroup);
             };
             checkUrlGroup();
@@ -246,8 +259,6 @@
 
         useEffect(() => {
             if (activeGroup === 'sales') setSubTab('sales_member_day');
-            else if (activeGroup === 'finance') setSubTab('finance_summary');
-            else if (activeGroup === 'stock') setSubTab('stock_sales_by_product');
             else if (activeGroup === 'referral') setSubTab('referral_fee');
         }, [activeGroup]);
 
@@ -408,7 +419,7 @@
         }, [currentUser, isAdmin, members]);
 
         useEffect(() => {
-            const isMonthly = subTab.includes('month') || subTab === 'finance_summary';
+            const isMonthly = subTab.includes('month');
             if (isMonthly || subTab === 'ranking' || subTab === 'ranking_closers' || subTab === 'sales_by_cust_type' || subTab === 'referral_fee') {
                 const now = new Date();
                 setStartDate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`);
@@ -1101,19 +1112,6 @@
                             <SubTabButton id="ranking_closers" label="🎯 อันดับผู้ปิดการขาย" activeTab={subTab} setSubTab={setSubTab} isSpecial={true} />
                         </React.Fragment>
                     )}
-                    {activeGroup === 'finance' && (
-                        <React.Fragment>
-                            <SubTabButton id="finance_summary" label="💵 สรุปรายรับบริษัท (รายปี)" activeTab={subTab} setSubTab={setSubTab} />
-                            <SubTabButton id="finance_detail" label="📜 รายละเอียดรับเงินแยกตามบิล" activeTab={subTab} setSubTab={setSubTab} isData={true} />
-                        </React.Fragment>
-                    )}
-                    {activeGroup === 'stock' && (
-                        <React.Fragment>
-                            <SubTabButton id="stock_sales_by_product" label="📦 สรุปยอดขายแยกตามสินค้า" activeTab={subTab} setSubTab={setSubTab} />
-                            <SubTabButton id="stock_zero_promo" label="⚠️ รายงานสินค้าตัดศูนย์ (แถม/สูญ)" activeTab={subTab} setSubTab={setSubTab} isSpecial={true} />
-                            <SubTabButton id="stock_balance" label="📊 รายงานสต๊อกคงเหลือ" activeTab={subTab} setSubTab={setSubTab} isData={true} />
-                        </React.Fragment>
-                    )}
                     {activeGroup === 'referral' && (
                         <React.Fragment>
                             <SubTabButton id="referral_fee" label="🎁 สรุปค่าแนะนำรวม" activeTab={subTab} setSubTab={setSubTab} isSpecial={true} />
@@ -1122,41 +1120,39 @@
                     )}
                 </div>
 
-                {/* 🔍 กล่องตัวกรองวันที่และการค้นหา (ซ่อนในหน้ารายปีของกลุ่มการเงินตามคำสั่ง แต่คงไว้ในหน้ารายละเอียดบิลและกลุ่มอื่นๆ) */}
-                {!(activeGroup === 'finance' && subTab === 'finance_summary') && (
-                    <div className={`${boxWrapper} py-4`}>
-                        <div className="flex flex-col md:flex-row flex-wrap items-start md:items-end gap-4">
-                            <div><label className={labelClassHud}>ตั้งแต่วันที่</label><input type="date" className={inputClassHud} value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
-                            <div><label className={labelClassHud}>ถึงวันที่</label><input type="date" className={inputClassHud} value={endDate} onChange={e => setEndDate(e.target.value)} /></div>
-                        
-                        {activeGroup === 'referral' && (
-                            <div>
-                                <label className={labelClassHud}>ค้นหาตามสังกัดทีม</label>
-                                <select className={inputClassHud} value={selectedTeamFilter} onChange={e => setSelectedTeamFilter(e.target.value)}>
-                                    <option value="">ทุกทีมทั้งหมด</option>
-                                    {distinctTeams.map(t => <option key={t} value={t}>{t}</option>)}
-                                </select>
-                            </div>
-                        )}
-                        {activeGroup === 'referral' && (
-                            <div>
-                                <label className={labelClassHud}>ค้นหาตามสายงาน</label>
-                                <select className={inputClassHud} value={selectedSponsorFilter} onChange={e => setSelectedSponsorFilter(e.target.value)}>
-                                    <option value="">ทุกสายงานแม่ทีม</option>
-                                    {uplineLeadersList.map(l => <option key={l.id} value={l.id}>{l.name} ({l.id})</option>)}
-                                </select>
-                            </div>
-                        )}
-                        <div className="w-full md:w-auto md:pl-4 md:border-l border-slate-200 flex-1 md:min-w-[200px]">
-                            <label className={labelClassHud}>พิมพ์ค้นหาข้อมูล</label>
-                            <div className="flex items-center bg-slate-50/30 focus-within:bg-white border border-slate-200 rounded-xl px-3 shadow-sm focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 transition-all duration-300 w-full h-[38px] sm:h-[40px]">
-                                <SearchIcon size={18} className="text-slate-400 shrink-0" />
-                                <input type="text" placeholder="พิมพ์ชื่อ/รหัส..." className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-                            </div>
+                {/* 🔍 กล่องตัวกรองวันที่และการค้นหา */}
+                <div className={`${boxWrapper} py-4`}>
+                    <div className="flex flex-col md:flex-row flex-wrap items-start md:items-end gap-4">
+                        <div><label className={labelClassHud}>ตั้งแต่วันที่</label><input type="date" className={inputClassHud} value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
+                        <div><label className={labelClassHud}>ถึงวันที่</label><input type="date" className={inputClassHud} value={endDate} onChange={e => setEndDate(e.target.value)} /></div>
+                    
+                    {activeGroup === 'referral' && (
+                        <div>
+                            <label className={labelClassHud}>ค้นหาตามสังกัดทีม</label>
+                            <select className={inputClassHud} value={selectedTeamFilter} onChange={e => setSelectedTeamFilter(e.target.value)}>
+                                <option value="">ทุกทีมทั้งหมด</option>
+                                {distinctTeams.map(t => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                        </div>
+                    )}
+                    {activeGroup === 'referral' && (
+                        <div>
+                            <label className={labelClassHud}>ค้นหาตามสายงาน</label>
+                            <select className={inputClassHud} value={selectedSponsorFilter} onChange={e => setSelectedSponsorFilter(e.target.value)}>
+                                <option value="">ทุกสายงานแม่ทีม</option>
+                                {uplineLeadersList.map(l => <option key={l.id} value={l.id}>{l.name} ({l.id})</option>)}
+                            </select>
+                        </div>
+                    )}
+                    <div className="w-full md:w-auto md:pl-4 md:border-l border-slate-200 flex-1 md:min-w-[200px]">
+                        <label className={labelClassHud}>พิมพ์ค้นหาข้อมูล</label>
+                        <div className="flex items-center bg-slate-50/30 focus-within:bg-white border border-slate-200 rounded-xl px-3 shadow-sm focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 transition-all duration-300 w-full h-[38px] sm:h-[40px]">
+                            <SearchIcon size={18} className="text-slate-400 shrink-0" />
+                            <input type="text" placeholder="พิมพ์ชื่อ/รหัส..." className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                         </div>
                     </div>
                 </div>
-                )}
+            </div>
 
                 {/* 📌 ส่วนแสดงผลสำหรับกลุ่ม "ยอดขาย & พนักงาน" (activeGroup === 'sales') */}
                 {activeGroup === 'sales' && (() => {
@@ -1859,1035 +1855,6 @@
                     );
                 })()}
 
-                {/* 📌 ส่วนแสดงผลสำหรับกลุ่ม "การเงิน & รายรับ" (activeGroup === 'finance') */}
-                {activeGroup === 'finance' && (() => {
-                    const isDetailView = subTab === 'finance_detail';
-
-                    // สรุปยอดขายตามบิล
-                    const financeBills = sales.filter(s => {
-                        if (!s || (s.date || '') < startDate || (s.date || '') > endDate) return false;
-                        if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(s.memberId))) return false;
-                        const query = (debouncedSearchQuery || searchQuery || '').trim().toUpperCase();
-                        if (query !== '') {
-                            const mName = (s.memberName || '').toUpperCase();
-                            const mId = (s.memberId || '').toUpperCase();
-                            const cName = (s.customerName || '').toUpperCase();
-                            const bId = (s.id || '').toUpperCase();
-                            if (!mName.includes(query) && !mId.includes(query) && !cName.includes(query) && !bId.includes(query)) return false;
-                        }
-                        return true;
-                    });
-
-                    // สรุปยอดการเงินรวม Cards
-                    // สรุปยอดการเงินรวม Cards
-                    const financeKpi = (() => {
-                        let sumLak = 0;
-                        let sumThb = 0;
-                        let lakBillsCount = 0;
-                        let thbBillsCount = 0;
-                        
-                        financeBills.forEach(s => {
-                            const { lakAmt, thbAmt, isLakBill, isThbBill } = parseSaleCurrencyAmounts(s, exchangeRate);
-                            sumLak += lakAmt;
-                            sumThb += thbAmt;
-                            
-                            // แยกนับจำนวนบิลชัดเจน
-                            if (isLakBill) lakBillsCount++;
-                            if (isThbBill) thbBillsCount++;
-                        });
-                        const grandCombinedTHB = sumThb + (sumLak / exchangeRate);
-                        
-                        return { sumLak, sumThb, grandCombinedTHB, lakBillsCount, thbBillsCount };
-                    })();
-
-                    // สรุปรายเดือน 12 เดือน (ม.ค. - ธ.ค.) ของปีที่เลือก (Summary View)
-                    const financeSummaryData = (() => {
-                        const currentYearNum = startDate ? new Date(startDate).getFullYear() : new Date().getFullYear();
-                        const activeYear = isNaN(currentYearNum) ? new Date().getFullYear() : currentYearNum;
-                        
-                        let grouped = {};
-                        // สร้างโครงสร้างครบทั้ง 12 เดือนเริ่มต้นด้วยค่า 0
-                        for (let m = 1; m <= 12; m++) {
-                            const mmStr = String(m).padStart(2, '0');
-                            const monthKey = `${activeYear}-${mmStr}`;
-                            grouped[monthKey] = {
-                                period: monthKey,
-                                monthNum: m,
-                                billsCount: 0,
-                                fullBoxes: 0,
-                                memberBoxes: 0,
-                                proBoxes: 0,
-                                zeroBoxes: 0,
-                                sumLak: 0,
-                                sumThb: 0
-                            };
-                        }
-
-                        // รวมยอดขายจาก sales ของปีที่เลือก (สอดคล้องกับสิทธิ์ผู้ใช้และการค้นหา)
-                        (sales || []).forEach(s => {
-                            if (!s || !s.date) return;
-                            const sDateStr = String(s.date);
-                            const monthKey = sDateStr.substring(0, 7);
-                            if (!grouped[monthKey]) return; // ข้ามถ้าไม่ได้อยู่ในปี activeYear
-                            if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(s.memberId))) return;
-
-                            const query = (debouncedSearchQuery || searchQuery || '').trim().toUpperCase();
-                            if (query !== '') {
-                                const mName = (s.memberName || '').toUpperCase();
-                                const mId = (s.memberId || '').toUpperCase();
-                                const cName = (s.customerName || '').toUpperCase();
-                                const bId = (s.id || '').toUpperCase();
-                                if (!mName.includes(query) && !mId.includes(query) && !cName.includes(query) && !bId.includes(query)) return;
-                            }
-
-                            grouped[monthKey].billsCount += 1;
-                            grouped[monthKey].fullBoxes += Number(s['รวมชิ้นราคาเต็ม'] || 0);
-                            grouped[monthKey].memberBoxes += Number(s['รวมชิ้นราคาสมาชิก'] || 0);
-                            grouped[monthKey].proBoxes += Number(s['รวมชิ้นราคาโปร'] || 0);
-                            grouped[monthKey].zeroBoxes += Number(s['รวมชิ้นราคาศูนย์'] || 0);
-                            const { lakAmt: rowLak, thbAmt: rowThb } = parseSaleCurrencyAmounts(s, exchangeRate);
-                            grouped[monthKey].sumLak += rowLak;
-                            grouped[monthKey].sumThb += rowThb;
-                        });
-
-                        return Object.values(grouped).sort((a, b) => a.monthNum - b.monthNum);
-                    })();
-
-                    return (
-                        <div className="space-y-6 animation-fade-in">
-                            {/* Summary KPI Cards (แสดงเฉพาะในหน้ารายละเอียดแยกตามบิล ตามคำสั่ง) */}
-                            {isDetailView && (
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                    <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-4 rounded-2xl shadow-md text-white">
-                                        <div className="text-xs font-bold text-amber-100 mb-1">💰 รวมสุทธิ (คิดเป็นบาท)</div>
-                                        <div className="text-2xl font-black">฿{(Math.round(financeKpi.grandCombinedTHB * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
-                                    </div>
-                                    <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl shadow-sm">
-                                        <div className="text-xs font-bold text-emerald-700 mb-1">🇱🇦 ยอดรับ (กีบ)</div>
-                                        <div className="text-xl font-black text-emerald-700">{Math.round(financeKpi.sumLak).toLocaleString()} ₭</div>
-                                        <div className="text-[11px] text-emerald-600 font-bold mt-1">{financeKpi.lakBillsCount} บิล</div>
-                                    </div>
-                                    <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl shadow-sm">
-                                        <div className="text-xs font-bold text-blue-700 mb-1">🇹🇭 ยอดรับ (บาท)</div>
-                                        <div className="text-xl font-black text-blue-700">฿{financeKpi.sumThb.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
-                                        <div className="text-[11px] text-blue-600 font-bold mt-1">{financeKpi.thbBillsCount} บิล</div>
-                                    </div>
-                                </div>
-                            )}
-
-                           {/* Main Table */}
-                            {isDetailView ? (
-                                <div className={`${boxWrapper} p-0 overflow-hidden`}>
-                                    
-                                    {/* ⚡ NEW: ป๊อปอัปดูรายละเอียดบิล */}
-                                    <EditModal isOpen={viewBillDetail !== null} onClose={() => setViewBillDetail(null)} title={'รายละเอียดบิล ' + (viewBillDetail?.id || '')} icon={FileText} maxWidthClass="max-w-2xl">
-                                        {viewBillDetail && (
-                                            <div className="flex flex-col gap-5 p-2">
-                                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2 text-xs font-semibold">
-                                                    <div className="flex justify-between"><span className="text-slate-500">เลขที่บิล:</span> <span className="font-black text-blue-600 text-sm">{viewBillDetail.id}</span></div>
-                                                    <div className="flex justify-between"><span className="text-slate-500">วันที่คีย์บิล:</span> <span className="font-bold text-slate-800">{viewBillDetail.date}</span></div>
-                                                    <div className="flex justify-between border-t border-slate-200/60 pt-2 mt-1"><span className="text-slate-500">ลูกค้า:</span> <span className="font-bold text-slate-800">{viewBillDetail.customerName || viewBillDetail.customerId}</span></div>
-                                                    <div className="flex justify-between"><span className="text-slate-500">ผู้ขาย (เจ้าของเคส):</span> <span className="font-bold text-indigo-600">{viewBillDetail.sellerName || viewBillDetail.memberId}</span></div>
-                                                </div>
-
-                                                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                                                    <table className="w-full text-left text-sm">
-                                                        <thead className="bg-slate-100 border-b border-slate-200 text-slate-600 text-[11px] uppercase tracking-wider">
-                                                            <tr>
-                                                                <th className="p-3 font-black pl-4">รายการสินค้า</th>
-                                                                <th className="p-3 text-center font-black w-24">จำนวน</th>
-                                                            </tr>
-                                                        </thead>
-                                                <tbody className="divide-y divide-slate-100">
-    {(() => {
-        let billItems = [];
-        if (viewBillDetail._items && viewBillDetail._items.length > 0) {
-            viewBillDetail._items.forEach(it => {
-                billItems.push({
-                    name: it.prod || it.productName || it.name,
-                    qty: Number(it.qty || it.quantity),
-                    type: it.type || 'ราคาเต็ม'
-                });
-            });
-        } else {
-            Object.keys(viewBillDetail).forEach(k => {
-                if (k.endsWith('_ราคาเต็ม') || k.endsWith('_ราคาสมาชิก') || k.endsWith('_ราคาโปร') || k.endsWith('_ราคาศูนย์')) {
-                    const qty = Number(viewBillDetail[k]);
-                    if (qty > 0) {
-                        const pName = k.substring(0, k.lastIndexOf('_'));
-                        const type = k.substring(k.lastIndexOf('_') + 1);
-                        billItems.push({ name: pName, qty, type });
-                    }
-                }
-            });
-        }
-
-        if (billItems.length === 0) {
-            return <tr><td colSpan="2" className="p-8 text-center text-slate-400 font-bold">ไม่พบรายการสินค้าในบิลนี้</td></tr>;
-        }
-
-        return billItems.map((item, idx) => (
-            <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                <td className="p-4 font-bold text-slate-800">
-                    {item.name} 
-                    <span className="text-[10px] text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md ml-2">{item.type}</span>
-                </td>
-                <td className="p-4 text-center font-black text-blue-600 text-lg">{item.qty}</td>
-            </tr>
-        ));
-    })()}
-</tbody>
-                                                        <tfoot className="bg-blue-50/50 border-t-2 border-blue-100">
-                                                            <tr>
-                                                                <td className="p-4 text-right font-black text-slate-600 uppercase">รวมจำนวนชิ้นทั้งหมด:</td>
-                                                                <td className="p-4 text-center font-black text-2xl text-blue-700 bg-blue-100/50 rounded-br-xl border-x border-blue-100/50">
-                                                                    {viewBillDetail['ยอดรวมชิ้นทั้งหมด'] || Object.keys(viewBillDetail).filter(k => k.includes('_ราคา') && !k.includes('รวมชิ้น') && viewBillDetail[k] > 0).reduce((sum, key) => sum + parseInt(viewBillDetail[key]), 0)}
-                                                                </td>
-                                                            </tr>
-                                                        </tfoot>
-                                                    </table>
-                                                    
-                                                    <div className="p-4 bg-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-t border-slate-200">
-                                                        <div className="flex flex-col gap-1 w-full md:w-auto">
-                                                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">ช่องทางชำระเงิน</span>
-                                                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                                                                {(() => {
-                                                                    const st = String(viewBillDetail.saleType || viewBillDetail.payMode || 'เงินโอน').trim();
-                                                                    if (st.includes('|') || st.includes(':')) {
-                                                                        return st.split('|').map(p => p.trim()).join(' | ');
-                                                                    }
-                                                                    return st;
-                                                                })()}
-                                                            </div>
-                                                            {viewBillDetail.paymentNote && <span className="text-[11px] text-amber-600 font-bold mt-2 flex items-center gap-1"><Info size={12}/> หมายเหตุ: {viewBillDetail.paymentNote}</span>}
-                                                        </div>
-                                                        <div className="flex flex-col items-end text-right w-full md:w-auto border-t md:border-t-0 md:border-l border-blue-200/50 pt-4 md:pt-0 md:pl-6">
-                                                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">ยอดรับรวม</span>
-                                                            {(() => {
-                                                                const exRate = Number(systemSettings?.exchange_rate || 700);
-                                                                const { lakAmt, thbAmt } = parseSaleCurrencyAmounts(viewBillDetail, exRate);
-                                                                return (
-                                                                    <div className="flex flex-col items-end gap-1">
-                                                                        {lakAmt > 0 && <span className="text-2xl font-black text-emerald-600 leading-none drop-shadow-sm">{Math.round(lakAmt).toLocaleString()} ₭</span>}
-                                                                        {thbAmt > 0 && <span className="text-2xl font-black text-blue-700 leading-none drop-shadow-sm">฿{(thbAmt % 1 === 0 ? thbAmt.toLocaleString() : thbAmt.toLocaleString(undefined, {minimumFractionDigits:2}))}</span>}
-                                                                        {lakAmt === 0 && thbAmt === 0 && <span className="text-xl font-bold text-slate-400">0 บาท</span>}
-                                                                    </div>
-                                                                );
-                                                            })()}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div className="flex justify-end pt-2 border-t border-slate-100">
-                                                    <button onClick={() => setViewBillDetail(null)} className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl border border-slate-200 transition-colors shadow-sm">ปิดหน้าต่าง</button>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </EditModal>
-
-                                    <div className="flex justify-end gap-3 mb-2 print-hide">
-                                        <button type="button" onClick={() => {
-                                            let rows = [['เลขที่บิล', 'วันที่', 'ผู้ขาย (พนักงาน)', 'ชื่อลูกค้า', 'ช่องทางชำระ', 'ยอดรับ (เงินกีบ)', 'ยอดรับ (เงินบาท)']];
-                                            financeBills.forEach(s => {
-                                                const displayCust = (s.customerName && s.customerName !== 'ไม่ระบุชื่อ') ? s.customerName : (s.customerId ? `ลูกค้า (${s.customerId})` : 'ลูกค้าทั่วไป');
-                                                const { lakAmt, thbAmt, realPayMode } = parseSaleCurrencyAmounts(s, exchangeRate);
-                                                const payMode = String(realPayMode || 'เงินโอน').trim();
-                                                rows.push([s.id, s.date, s.sellerName || s.memberId, displayCust, payMode, lakAmt, thbAmt]);
-                                            });
-                                            let sumLak = 0; let sumThb = 0;
-                                            financeBills.forEach(s => {
-                                                const { lakAmt, thbAmt } = parseSaleCurrencyAmounts(s, exchangeRate);
-                                                sumLak += lakAmt; sumThb += thbAmt;
-                                            });
-                                            rows.push(['', '', '', '', 'ยอดรวมสุทธิ', sumLak, sumThb]);
-                                            if (typeof window.exportToCSV === 'function') {
-                                                window.exportToCSV(rows, `finance_bills_${getLocalISODate()}.csv`);
-                                            }
-                                        }} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
-                                            <Archive size={16}/> Export Excel
-                                        </button>
-                                        <button type="button" onClick={() => window.print()} className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
-                                            <FileText size={16}/> Export PDF
-                                        </button>
-                                        <button type="button" onClick={() => window.print()} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
-                                            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg> 
-                                            พิมพ์ (Print)
-                                        </button>
-                                    </div>
-
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left border-collapse min-w-[1000px]">
-                                            <thead>
-                                                <tr className="bg-slate-100 border-b border-slate-200">
-                                                    <th className={thBase}>เลขที่บิล</th>
-                                                    <th className={thBase}>วันที่</th>
-                                                    <th className={thBase}>ผู้ขาย (พนักงาน)</th>
-                                                    <th className={thBase}>ชื่อลูกค้า</th>
-                                                    <th className={thBase}>ช่องทางชำระ</th>
-                                                    <th className={`${thBase} text-right text-emerald-700 font-bold bg-emerald-50/60`}>ยอดรับ (เงินกีบ)</th>
-                                                    <th className={`${thBase} text-right text-blue-700 font-bold bg-blue-50/60`}>ยอดรับ (เงินบาท)</th>
-                                                    <th className={`${thBase} text-center no-print`}>รายละเอียด</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {financeBills.map((s, idx) => {
-                                                    const displayCust = (s.customerName && s.customerName !== 'ไม่ระบุชื่อ') 
-                                                        ? s.customerName 
-                                                        : (s.customerId ? `ลูกค้า (${s.customerId})` : 'ลูกค้าทั่วไป');
-                                                    
-                                                    // ⚡ ดึงทั้งยอดเงิน และชื่อช่องทางชำระเงินของจริง (realPayMode) มาใช้งาน
-                                                    const { lakAmt, thbAmt, realPayMode } = parseSaleCurrencyAmounts(s, exchangeRate);
-                                                    
-                                                    let displayLakStr = lakAmt > 0 ? `${Math.round(lakAmt).toLocaleString()} ₭` : '-';
-                                                    let displayThbStr = thbAmt > 0 ? `฿${(thbAmt % 1 === 0 ? thbAmt.toLocaleString() : thbAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}` : '-';
-
-                                                    return (
-                                                        <tr key={s.id || idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                                                            <td className="p-4 text-xs font-mono font-bold text-blue-600 whitespace-nowrap">{s.id}</td>
-                                                            <td className="p-4 text-xs font-bold text-slate-600 whitespace-nowrap">{s.date}</td>
-                                                            <td className="p-4 text-xs font-bold text-slate-800">{s.sellerName || s.memberId}</td>
-                                                            <td className="p-4 text-xs font-bold text-slate-900 bg-slate-50/50">{displayCust}</td>
-                                                            <td className="p-4 text-xs font-bold">
-                                                                <div className="space-y-1">
-                                                                    {(() => {
-                                                                        const st = String(realPayMode || 'เงินโอน').trim();
-                                                                        
-                                                                        // ฟังก์ชันแยกสีพื้นหลัง Tag ตามสกุลเงิน
-                                                                        const getTagColor = (text, isLak) => {
-                                                                            if (isLak) return 'bg-emerald-50 text-emerald-700 border-emerald-300';
-                                                                            const t = text.toUpperCase();
-                                                                            if (t.includes('กีบ') || t.includes('LAK') || t.includes('KIP')) return 'bg-emerald-50 text-emerald-700 border-emerald-300';
-                                                                            if (t.includes('บาท') || t.includes('THB') || t.includes('ไทย') || t.includes('สดบาท')) return 'bg-blue-50 text-blue-700 border-blue-300';
-                                                                            if (lakAmt > 0 && thbAmt === 0) return 'bg-emerald-50 text-emerald-700 border-emerald-300';
-                                                                            return 'bg-blue-50 text-blue-700 border-blue-300';
-                                                                        };
-
-                                                                        const formatChannelName = (name, amount) => {
-                                                                            let n = String(name || '').trim();
-                                                                            const amt = Number(amount) || 0;
-                                                                            const isLakRow = (amt >= 70000) || (lakAmt > 0 && thbAmt === 0);
-
-                                                                            if (n === 'สด' || n === 'สดบาท') return isLakRow ? 'สดกีบ' : 'สดบาท';
-                                                                            if (n === 'สดกีบ') return 'สดกีบ';
-                                                                            if (n === 'โอน' || n === 'เงินโอน') {
-                                                                                return isLakRow ? 'เงินโอน (กีบ)' : 'เงินโอน (บาท)';
-                                                                            }
-
-                                                                            // กรณีมี โอนลาวบาท(BCEL) แต่ยอดจริงคือ 1,050,000 กีบ
-                                                                            if (n.includes('โอนลาว') && (amt >= 70000 || (n.includes('กีบ') || (lakAmt > 0 && thbAmt === 0 && !n.includes('ไทย'))))) {
-                                                                                if (n.includes('BCEL')) return 'โอนลาวกีบ (BCEL)';
-                                                                                if (n.includes('JDB')) return 'โอนลาวกีบ (JDB)';
-                                                                                if (n.includes('LDB')) return 'โอนลาวกีบ (LDB)';
-                                                                                return 'โอนลาวกีบ';
-                                                                            }
-
-                                                                            // ปรับแต่งชื่อให้อ่านง่าย
-                                                                            n = n.replace('โอนลาวกีบ(BCEL)', 'โอนลาวกีบ (BCEL)')
-                                                                                 .replace('โอนลาวบาท(BCEL)', 'โอนลาวบาท (BCEL)')
-                                                                                 .replace('โอนลาวกีบ(JDB)', 'โอนลาวกีบ (JDB)')
-                                                                                 .replace('โอนลาวบาท(JDB)', 'โอนลาวบาท (JDB)')
-                                                                                 .replace('โอนไทย(กสิกรไทย)', 'โอนไทย (กสิกรไทย)')
-                                                                                 .replace('โอนไทย(ไทยพาณิชย์)', 'โอนไทย (ไทยพาณิชย์)');
-                                                                            return n;
-                                                                        };
-
-                                                                        // หากมีหลายช่องทางให้โชว์แยกกันเป็นบรรทัดๆ
-                                                                        if (st.includes('|') || st.includes(':')) {
-                                                                            return st.split('|').map((part, pIdx) => {
-                                                                                let pTrim = part.trim();
-                                                                                if (!pTrim.includes(':')) {
-                                                                                    const displayLabel = formatChannelName(pTrim, 0);
-                                                                                    return <span key={pIdx} className={`inline-block px-2.5 py-1 border rounded-lg text-xs font-bold whitespace-nowrap mb-1 mr-1 ${getTagColor(pTrim, lakAmt > 0 && thbAmt === 0)}`}>{displayLabel}</span>;
-                                                                                }
-                                                                                const colonIdx = pTrim.indexOf(':');
-                                                                                const k = pTrim.substring(0, colonIdx).trim();
-                                                                                const v = Number(pTrim.substring(colonIdx + 1).trim()) || 0;
-                                                                                // ซ่อนคำว่าเรท ไม่ต้องนำมาแสดงให้รกตาราง
-                                                                                if (k.toUpperCase() === 'เรท' || k.toUpperCase() === 'RATE') return null;
-                                                                                
-                                                                                const isItemLak = (v >= 70000) || k.includes('กีบ') || (k.includes('ลาว') && !k.includes('บาท') && !k.includes('ไทย'));
-                                                                                const displayLabel = formatChannelName(k, v);
-                                                                                return <span key={pIdx} className={`inline-block px-2.5 py-1 border rounded-lg text-[11px] font-bold whitespace-nowrap mb-1 mr-1 ${getTagColor(displayLabel, isItemLak)}`}>{displayLabel}</span>;
-                                                                            }).filter(Boolean);
-                                                                        }
-                                                                        
-                                                                        const isOnlyLak = lakAmt > 0 && thbAmt === 0;
-                                                                        const displayLabel = formatChannelName(st, lakAmt || thbAmt);
-                                                                        return <span className={`px-2.5 py-1 border rounded-lg text-xs font-bold whitespace-nowrap inline-block ${getTagColor(displayLabel, isOnlyLak)}`}>{displayLabel}</span>;
-                                                                    })()}
-                                                                </div>
-                                                            </td>
-                                                            <td className="p-4 text-right text-sm font-black text-emerald-700 bg-emerald-50/30 whitespace-nowrap">
-                                                                {displayLakStr}
-                                                            </td>
-                                                            <td className="p-4 text-right text-sm font-black text-blue-700 bg-blue-50/30 whitespace-nowrap">
-                                                                {displayThbStr}
-                                                            </td>
-                                                            <td className="p-4 text-center no-print">
-                                                                <button type="button" onClick={() => setViewBillDetail(s)} className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-xs font-bold transition-colors">
-                                                                    <Eye size={13}/> ดูบิล
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                                {financeBills.length === 0 && (
-                                                    <tr><td colSpan={8} className="p-12 text-center text-slate-400 font-bold">ไม่พบข้อมูลการเงินตามเงื่อนไขที่ระบุ</td></tr>
-                                                )}
-                                            </tbody>
-                                            {financeBills.length > 0 && (() => {
-                                                let sumLak = 0; let sumThb = 0;
-                                                financeBills.forEach(s => {
-                                                    const { lakAmt, thbAmt } = parseSaleCurrencyAmounts(s, exchangeRate);
-                                                    sumLak += lakAmt; sumThb += thbAmt;
-                                                });
-                                                const grandTotalTHB = sumThb + (sumLak / exchangeRate);
-                                                return (
-                                                    <tfoot className="bg-slate-50 border-t-2 border-slate-200">
-                                                        <tr className="font-bold text-slate-700">
-                                                            <td colSpan={5} className="p-4 text-right font-black">รวมยอดหน้านี้ ({financeBills.length.toLocaleString()} บิล):</td>
-                                                            <td className="p-4 text-right text-base font-black text-emerald-700 bg-emerald-50/50">
-                                                                {Math.round(sumLak).toLocaleString()} ₭
-                                                            </td>
-                                                            <td className="p-4 text-right text-base font-black text-blue-700 bg-blue-50/50">
-                                                                ฿{sumThb.toLocaleString(undefined, {minimumFractionDigits: 2})}
-                                                            </td>
-                                                            <td className="no-print"></td>
-                                                        </tr>
-                                                        <tr className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-inner">
-                                                            <td colSpan={5} className="p-4 text-right font-bold text-sm tracking-wide border-r border-white/10">
-                                                                <span className="flex items-center justify-end gap-2">
-                                                                    <Activity size={18} className="text-blue-200" />
-                                                                    ยอดรวมสุทธิคิดเป็นเงินบาท (Net Total THB)
-                                                                </span>
-                                                            </td>
-                                                            <td colSpan={2} className="p-4 text-right font-black text-xl text-yellow-300 drop-shadow-md">
-                                                                ฿{grandTotalTHB.toLocaleString(undefined, {minimumFractionDigits: 2})}
-                                                            </td>
-                                                            <td className="no-print"></td>
-                                                        </tr>
-                                                    </tfoot>
-                                                );
-                                            })()}
-                                        </table>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="space-y-6">
-                                    <div className="flex justify-end gap-3 print-hide">
-                                        <button type="button" onClick={() => {
-                                            let rows = [['ลำดับ', 'ช่วงเวลา (เดือน)', 'จำนวนบิลทั้งหมด', 'รายรับ (เงินกีบ ₭)', 'รายรับ (เงินบาท ฿)', 'ยอดรวมสุทธิ (คิดเป็นบาท ฿)']];
-                                            financeSummaryData.forEach((row, idx) => {
-                                                const netThb = row.sumThb + (row.sumLak / exchangeRate);
-                                                rows.push([idx + 1, row.period, row.billsCount, row.sumLak, row.sumThb, Math.round(netThb * 100) / 100]);
-                                            });
-                                            if (typeof window.exportToCSV === 'function') {
-                                                window.exportToCSV(rows, `finance_annual_summary_${getLocalISODate()}.csv`);
-                                            }
-                                        }} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
-                                            <Archive size={16}/> Export Excel
-                                        </button>
-                                        <button type="button" onClick={() => window.print()} className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
-                                            <FileText size={16}/> Export PDF
-                                        </button>
-                                        <button type="button" onClick={() => window.print()} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
-                                            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg> 
-                                            พิมพ์ (Print)
-                                        </button>
-                                    </div>
-                                    {/* 📈 กราฟแสดงสถิติยอดขาย (SVG Area Chart) */}
-                                    {(() => {
-                                        const currentYearNum = startDate ? new Date(startDate).getFullYear() : new Date().getFullYear();
-                                        const activeYear = isNaN(currentYearNum) ? new Date().getFullYear() : currentYearNum;
-
-                                        // 1. ดึงปีทั้งหมดที่มีข้อมูล
-                                        const availableYearsSet = new Set();
-                                        availableYearsSet.add(activeYear);
-                                        (sales || []).forEach(s => {
-                                            if (s && s.date) {
-                                                const y = new Date(s.date).getFullYear();
-                                                if (!isNaN(y)) availableYearsSet.add(y);
-                                            }
-                                        });
-                                        const availableYears = Array.from(availableYearsSet).sort((a, b) => b - a);
-
-                                        // 2. ข้อมูลครบทั้ง 12 เดือนของปีที่เลือก (ม.ค. - ธ.ค.)
-                                        const monthNamesThai = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-                                        const all12Months = [];
-                                        for (let m = 1; m <= 12; m++) {
-                                            const mmStr = String(m).padStart(2, '0');
-                                            all12Months.push({
-                                                key: `${activeYear}-${mmStr}`,
-                                                label: monthNamesThai[m - 1],
-                                                fullLabel: `เดือน ${monthNamesThai[m - 1]} ${activeYear}`,
-                                                monthNum: m
-                                            });
-                                        }
-
-                                        // 3. รวมยอดขายจาก sales ทั้งหมดของปีที่เลือก
-                                        const dataMap = {};
-                                        const countMap = {};
-                                        (sales || []).forEach(s => {
-                                            if (!s || !s.date) return;
-                                            const sDate = String(s.date).substring(0, 7); // YYYY-MM
-                                            if (sDate.startsWith(String(activeYear))) {
-                                                const { lakAmt, thbAmt } = parseSaleCurrencyAmounts(s, exchangeRate);
-                                                const inTHB = thbAmt + (lakAmt / exchangeRate);
-                                                dataMap[sDate] = (dataMap[sDate] || 0) + inTHB;
-                                                countMap[sDate] = (countMap[sDate] || 0) + 1;
-                                            }
-                                        });
-
-                                        const sortedData = all12Months.map(mObj => ({
-                                            period: mObj.key,
-                                            label: mObj.label,
-                                            fullLabel: mObj.fullLabel,
-                                            totalTHB: dataMap[mObj.key] || 0,
-                                            billsCount: countMap[mObj.key] || 0
-                                        }));
-
-                                        const maxAmt = Math.max(...sortedData.map(d => d.totalTHB), 100);
-                                        const yMaxScale = maxAmt * 1.25; 
-
-                                        const width = 960; 
-                                        const height = 220; 
-                                        const paddingX = 55;
-                                        const paddingY = 32;
-                                        
-                                        const getX = (index) => paddingX + (index * ((width - paddingX * 2) / Math.max(sortedData.length - 1, 1)));
-                                        const getY = (val) => height - paddingY - ((val / yMaxScale) * (height - paddingY * 2));
-                                        
-                                        const createSmoothPath = (data) => {
-                                            let path = `M ${getX(0)} ${getY(data[0].totalTHB)}`;
-                                            for (let i = 0; i < data.length - 1; i++) {
-                                                const currX = getX(i);
-                                                const currY = getY(data[i].totalTHB);
-                                                const nextX = getX(i + 1);
-                                                const nextY = getY(data[i + 1].totalTHB);
-                                                const cp1X = currX + (nextX - currX) / 2.5;
-                                                const cp1Y = currY;
-                                                const cp2X = currX + (nextX - currX) / 2.5;
-                                                const cp2Y = nextY;
-                                                path += ` C ${cp1X} ${cp1Y}, ${cp2X} ${cp2Y}, ${nextX} ${nextY}`;
-                                            }
-                                            return path;
-                                        };
-
-                                        const linePath = createSmoothPath(sortedData);
-                                        const areaPath = `${linePath} L ${getX(sortedData.length - 1)} ${height - paddingY} L ${getX(0)} ${height - paddingY} Z`;
-
-                                        return (
-                                            <div className="bg-slate-900 rounded-2xl p-4 sm:p-6 shadow-xl border border-slate-800 overflow-hidden relative mb-4">
-                                                {/* Glow Background Effects */}
-                                                <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none opacity-30">
-                                                    <div className="absolute -top-20 -left-20 w-72 h-72 bg-blue-600 rounded-full blur-[80px]"></div>
-                                                    <div className="absolute top-1/2 right-0 w-72 h-72 bg-pink-600 rounded-full blur-[90px]"></div>
-                                                    <div className="absolute -bottom-20 left-1/2 w-72 h-72 bg-orange-500 rounded-full blur-[80px]"></div>
-                                                </div>
-
-                                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 relative z-10">
-                                                    <div>
-                                                        <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                                                            <Activity size={20} className="text-pink-500" /> สถิติยอดขายรวมรายเดือน 12 เดือน (THB) ประจำปี {activeYear}
-                                                        </h3>
-                                                        <p className="text-xs text-slate-400 mt-0.5">
-                                                            เปรียบเทียบแนวโน้มยอดขายตั้งแต่เดือนที่ 1 (ม.ค.) ถึงเดือนที่ 12 (ธ.ค.)
-                                                        </p>
-                                                    </div>
-                                                    
-                                                    {/* ปุ่มเลือกปี */}
-                                                    {availableYears.length > 1 && (
-                                                        <div className="flex items-center gap-1.5 bg-slate-800/80 p-1 rounded-xl border border-slate-700">
-                                                            {availableYears.map(yr => (
-                                                                <button
-                                                                    key={yr}
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        setStartDate(`${yr}-01-01`);
-                                                                        setEndDate(`${yr}-12-31`);
-                                                                    }}
-                                                                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                                                                        activeYear === yr
-                                                                            ? 'bg-gradient-to-r from-pink-500 to-orange-500 text-white shadow-sm'
-                                                                            : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
-                                                                    }`}
-                                                                >
-                                                                    ปี {yr}
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                <div className="w-full overflow-x-auto hide-scroll pb-2 relative z-10">
-                                                    <svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-[850px] h-[220px] drop-shadow-xl">
-                                                        <defs>
-                                                            <linearGradient id="lineGradientNeon" x1="0" y1="0" x2="1" y2="0">
-                                                                <stop offset="0%" stopColor="#38bdf8" />
-                                                                <stop offset="30%" stopColor="#818cf8" />
-                                                                <stop offset="60%" stopColor="#ec4899" />
-                                                                <stop offset="100%" stopColor="#f59e0b" />
-                                                            </linearGradient>
-                                                            <linearGradient id="areaGradientNeon" x1="0" y1="0" x2="0" y2="1">
-                                                                <stop offset="0%" stopColor="#ec4899" stopOpacity={0.5}/>
-                                                                <stop offset="50%" stopColor="#8b5cf6" stopOpacity={0.15}/>
-                                                                <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.0}/>
-                                                            </linearGradient>
-                                                        </defs>
-                                                        
-                                                        {/* Grid lines & Y-Axis */}
-                                                        {[0, 0.5, 1].map(ratio => {
-                                                            const y = height - paddingY - (ratio * (height - paddingY * 2));
-                                                            const val = yMaxScale * ratio;
-                                                            return (
-                                                                <g key={ratio}>
-                                                                    <line x1={paddingX} y1={y} x2={width - paddingX} y2={y} stroke="#334155" strokeWidth="1" strokeDasharray="3 5" opacity="0.5" />
-                                                                    <text x={paddingX - 12} y={y + 3} textAnchor="end" fontSize="10" fill="#64748b" fontWeight="600">
-                                                                        {val >= 1000 ? (val/1000).toFixed(0) + 'K' : val.toLocaleString(undefined, {maximumFractionDigits:0})}
-                                                                    </text>
-                                                                </g>
-                                                            );
-                                                        })}
-
-                                                        {/* Area & Line */}
-                                                        <path d={areaPath} fill="url(#areaGradientNeon)" />
-                                                        <path d={linePath} fill="none" stroke="url(#lineGradientNeon)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0px 6px 4px rgba(236, 72, 153, 0.3))' }} />
-                                                        
-                                                        {/* Data Points & Tooltips */}
-                                                        {sortedData.map((d, i) => {
-                                                            const x = getX(i);
-                                                            const y = getY(d.totalTHB);
-                                                            const isCurrentSelectedMonth = (d.period === (startDate || '').substring(0, 7));
-                                                            return (
-                                                                <g key={i} className="group cursor-pointer">
-                                                                    <circle 
-                                                                        cx={x} 
-                                                                        cy={y} 
-                                                                        r={isCurrentSelectedMonth ? 7 : 5} 
-                                                                        fill={isCurrentSelectedMonth ? '#ec4899' : '#0f172a'} 
-                                                                        stroke={isCurrentSelectedMonth ? '#ffffff' : '#f472b6'} 
-                                                                        strokeWidth={isCurrentSelectedMonth ? 3 : 2.5} 
-                                                                        className="transition-all duration-300 group-hover:r-[8px] group-hover:stroke-[#fcd34d] group-hover:fill-white shadow-lg" 
-                                                                    />
-                                                                    
-                                                                    {/* Popup Tooltip on Hover */}
-                                                                    <g className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none drop-shadow-xl">
-                                                                        <rect x={x - 60} y={Math.max(10, y - 48)} width="120" height="32" rx="8" fill="#ffffff" />
-                                                                        <polygon points={`${x-6},${Math.max(42, y-16)} ${x+6},${Math.max(42, y-16)} ${x},${Math.max(48, y-10)}`} fill="#ffffff" />
-                                                                        <text x={x} y={Math.max(26, y - 32)} textAnchor="middle" fontSize="10" fill="#64748b" fontWeight="700">
-                                                                            {d.fullLabel}
-                                                                        </text>
-                                                                        <text x={x} y={Math.max(38, y - 20)} textAnchor="middle" fontSize="12" fill="#0f172a" fontWeight="900">
-                                                                            ฿{d.totalTHB.toLocaleString(undefined, {maximumFractionDigits:0})}
-                                                                        </text>
-                                                                    </g>
-                                                                    
-                                                                    {/* X-Axis Month Labels */}
-                                                                    <text x={x} y={height - paddingY + 18} textAnchor="middle" fontSize="11" fill={isCurrentSelectedMonth ? '#38bdf8' : '#94a3b8'} fontWeight={isCurrentSelectedMonth ? '900' : '700'} className="group-hover:fill-white transition-colors">
-                                                                        {d.label}
-                                                                    </text>
-                                                                    <text x={x} y={height - paddingY + 28} textAnchor="middle" fontSize="9" fill={isCurrentSelectedMonth ? '#38bdf8' : '#64748b'} fontWeight="600">
-                                                                        ({d.billsCount} บิล)
-                                                                    </text>
-                                                                </g>
-                                                            );
-                                                        })}
-                                                    </svg>
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
-                                
-                                    {/* 🗂️ ตารางสถิติรายเดือน (การเงิน & รายรับ) */}
-                                    <div className={`${boxWrapper} p-0 overflow-hidden`}>
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full text-left border-collapse min-w-[700px]">
-                                                <thead>
-                                                    <tr className="bg-slate-100 border-b border-slate-200">
-                                                        <th className={thBase}>ลำดับ</th>
-                                                        <th className={thBase}>ช่วงเวลา (เดือน)</th>
-                                                        <th className={`${thBase} text-center`}>จำนวนบิลทั้งหมด</th>
-                                                        <th className={`${thBase} text-right text-emerald-700 font-bold`}>รายรับ (เงินกีบ ₭)</th>
-                                                        <th className={`${thBase} text-right text-blue-700 font-bold`}>รายรับ (เงินบาท ฿)</th>
-                                                        <th className={`${thBase} text-right text-indigo-900 font-black bg-indigo-50/50`}>ยอดรวมสุทธิ (คิดเป็นบาท ฿)</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {financeSummaryData.map((row, idx) => {
-                                                        const rowNetThb = row.sumThb + (row.sumLak / exchangeRate);
-                                                        return (
-                                                            <tr key={row.period || idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                                                                <td className="p-4 text-center text-sm font-bold text-slate-500">{idx + 1}</td>
-                                                                <td className="p-4 text-sm font-bold text-slate-800 whitespace-nowrap">{row.period}</td>
-                                                                <td className="p-4 text-center text-xs font-bold text-slate-700">{row.billsCount.toLocaleString()} บิล</td>
-                                                                <td className="p-4 text-right text-sm font-black text-emerald-700 whitespace-nowrap">
-                                                                    {row.sumLak > 0 ? `${Math.round(row.sumLak).toLocaleString()} ₭` : <span className="text-slate-300">-</span>}
-                                                                </td>
-                                                                <td className="p-4 text-right text-sm font-black text-blue-700 whitespace-nowrap">
-                                                                    {row.sumThb > 0 ? `฿${row.sumThb.toLocaleString(undefined, {minimumFractionDigits: 2})}` : <span className="text-slate-300">-</span>}
-                                                                </td>
-                                                                <td className="p-4 text-right text-sm font-black text-indigo-700 whitespace-nowrap bg-indigo-50/30">
-                                                                    {rowNetThb > 0 ? `฿${rowNetThb.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : <span className="text-slate-300">-</span>}
-                                                                </td>
-                                                            </tr>
-                                                        );
-                                                    })}
-                                                    {financeSummaryData.length === 0 && (
-                                                        <tr><td colSpan={6} className="p-12 text-center text-slate-400 font-bold">ไม่พบสรุปข้อมูลการเงินตามเงื่อนไขที่ระบุ</td></tr>
-                                                    )}
-                                                </tbody>
-                                                {financeSummaryData.length > 0 && (() => {
-                                                    const totLak = financeSummaryData.reduce((a, r) => a + r.sumLak, 0);
-                                                    const totThb = financeSummaryData.reduce((a, r) => a + r.sumThb, 0);
-                                                    const totBills = financeSummaryData.reduce((a, r) => a + r.billsCount, 0);
-                                                    const grandThb = totThb + (totLak / exchangeRate);
-                                                    return (
-                                                        <tfoot className="bg-white sticky bottom-0 shadow-[0_-8px_20px_rgba(0,0,0,0.06)] border-t border-slate-200">
-                                                            <tr className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-inner">
-                                                                <td colSpan={5} className="p-4 text-right font-bold text-sm tracking-wide border-r border-white/10">
-                                                                    <span className="flex items-center justify-end gap-2">
-                                                                        <Activity size={18} className="text-blue-200" />
-                                                                        ยอดรวมสุทธิคิดเป็นเงินบาท (Net Total THB) จากทั้งหมด {totBills.toLocaleString()} บิล
-                                                                    </span>
-                                                                </td>
-                                                                <td className="p-4 text-right font-black text-xl text-yellow-300 drop-shadow-md">
-                                                                    ฿{grandThb.toLocaleString(undefined, {minimumFractionDigits: 2})}
-                                                                </td>
-                                                            </tr>
-                                                        </tfoot>
-                                                    );
-                                                })()}
-                                            </table>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    );
-                })()}
-
-
-                {/* 📌 ส่วนแสดงผลสำหรับกลุ่ม "สต๊อก & สินค้าตัดศูนย์" (activeGroup === 'stock') */}
-                {activeGroup === 'stock' && (() => {
-                    const isZeroPromoView = subTab === 'stock_zero_promo';
-                    const isBalanceView = subTab === 'stock_balance';
-
-                    
-                       // 1. คำนวณความเคลื่อนไหวและสต๊อกคงเหลือ (Forward Calculation แบบแม่นยำ)
-                    const stockSalesReport = useMemo(() => {
-                        let map = {};
-                        
-                        // ก. ตั้งต้นสินค้าทั้งหมดด้วย 0
-                        (products || []).forEach(p => {
-                            if (!p) return;
-                            const pName = String(p.name || p.id || '').trim();
-                            const pId = String(p.id || pName).trim();
-                            
-                            map[pName] = {
-                                id: pId, name: pName, category: p.category || '-',
-                                openingBalance: 0,   // ยอดยกมา
-                                receivedInPeriod: 0, // รับเข้าช่วงเวลา
-                                periodOut: 0,        // ขาย/เบิกออกช่วงเวลา
-                                fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0
-                            };
-                        });
-
-                        const validStockMovements = (stockMovements || []).filter(m => m && (m.created_at || m.date));
-
-                        // ข. คำนวณประวัติรับเข้า / ปรับลดสต๊อก
-                        validStockMovements.forEach(m => {
-                            const targetName = String(m.product_name || m.product || m.name || '').trim();
-                            if (!targetName) return;
-                            let foundKey = Object.keys(map).find(k => k.toUpperCase() === targetName.toUpperCase() || map[k].id.toUpperCase() === targetName.toUpperCase());
-                            
-                            if (!foundKey) {
-                                map[targetName] = { id: targetName, name: targetName, category: '-', openingBalance: 0, receivedInPeriod: 0, periodOut: 0, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0 };
-                                foundKey = targetName;
-                            }
-
-                            const recDate = (m.created_at || m.date || '').substring(0, 10);
-                            const qty = Number(m.quantity || m.qty || 0);
-                            const isOutbound = (m.type === 'out' || m.type === 'reduce' || m.type === 'deduct');
-
-                            if (recDate < startDate) {
-                                // ก่อนวันเริ่ม: รับเข้าบวกยอดยกมา, เบิกออกหักยอดยกมา
-                                if (isOutbound) map[foundKey].openingBalance -= qty;
-                                else map[foundKey].openingBalance += qty;
-                            } else if (recDate >= startDate && recDate <= endDate) {
-                                // ในช่วงเวลา: แยกว่าเป็นยอดรับเข้า หรือ ยอดเบิกออก
-                                if (isOutbound) map[foundKey].periodOut += qty;
-                                else map[foundKey].receivedInPeriod += qty;
-                            }
-                        });
-
-                        // ค. คำนวณยอดขายออก (จากบิลขาย)
-                        (sales || []).forEach(record => {
-                            if (!record) return;
-                            if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(record.memberId))) return;
-                            
-                            const saleDate = (record.date || record.created_at || '').substring(0, 10);
-
-                            Object.entries(record || {}).forEach(([key, value]) => {
-                                if (key.endsWith('_ราคาเต็ม') || key.endsWith('_ราคาสมาชิก') || key.endsWith('_ราคาโปร') || key.endsWith('_ราคาศูนย์')) {
-                                    const qty = parseInt(value, 10);
-                                    if (!isNaN(qty) && qty > 0) {
-                                        const pName = key.substring(0, key.lastIndexOf('_')).replace(/\(.*?\)/g, '').trim();
-                                        const priceType = key.substring(key.lastIndexOf('_') + 1);
-
-                                        let foundKey = Object.keys(map).find(k => k.toUpperCase() === pName.toUpperCase() || map[k].id.toUpperCase() === pName.toUpperCase());
-                                        if (!foundKey) {
-                                            map[pName] = { id: pName, name: pName, category: '-', openingBalance: 0, receivedInPeriod: 0, periodOut: 0, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0 };
-                                            foundKey = pName;
-                                        }
-
-                                        if (saleDate < startDate) {
-                                            // ขายก่อนวันเริ่ม -> หักออกจากยอดยกมา
-                                            map[foundKey].openingBalance -= qty;
-                                        } else if (saleDate >= startDate && saleDate <= endDate) {
-                                            // ขายในช่วงเวลา -> นับเป็นยอดขายออกสะสม
-                                            map[foundKey].periodOut += qty;
-                                            
-                                            if (priceType === 'ราคาเต็ม') map[foundKey].fullQty += qty;
-                                            else if (priceType === 'ราคาสมาชิก') map[foundKey].memberQty += qty;
-                                            else if (priceType === 'ราคาโปร' || priceType === 'โปรโมชั่น') map[foundKey].promoQty += qty;
-                                            else if (priceType === 'ราคาศูนย์') map[foundKey].zeroQty += qty;
-                                        }
-                                    }
-                                }
-                            });
-                        });
-
-                        const query = (debouncedSearchQuery || searchQuery || '').trim().toUpperCase();
-                        
-                        // ง. สรุปผล
-                        return Object.values(map)
-                            .map(item => {
-                                // สต๊อกคงเหลือปัจุบัน = ยอดยกมา + รับเข้า(ช่วงนี้) - ขายออก(ช่วงนี้)
-                                const closingBalance = item.openingBalance + item.receivedInPeriod - item.periodOut;
-                                
-                                return {
-                                    ...item,
-                                    currentIn: item.receivedInPeriod,
-                                    totalOut: item.periodOut,
-                                    currentStock: closingBalance
-                                };
-                            })
-                            .filter(item => {
-                                if (isZeroPromoView && item.promoQty === 0 && item.zeroQty === 0) return false;
-                                if (query !== '' && !item.id.toUpperCase().includes(query) && !item.name.toUpperCase().includes(query)) return false;
-                                return true;
-                            })
-                            .sort((a, b) => b.totalOut - a.totalOut || a.name.localeCompare(b.name));
-
-                    }, [products, stockMovements, sales, startDate, endDate, isZeroPromoView, debouncedSearchQuery, searchQuery, permittedMemberSet]);
-                    // 2. รายงานบิลสินค้าแถมและสินค้าตัดศูนย์แบบเจาะลึกตามบิล (Zero & Promo Items Bills Log)
-                    const zeroPromoBills = (() => {
-                        if (!isZeroPromoView) return [];
-                        let list = [];
-                        unfoldedSales.forEach(s => {
-                            if (s.priceType === 'ราคาโปร' || s.priceType === 'โปรโมชั่น' || s.priceType === 'ราคาศูนย์') {
-                                list.push(s);
-                            }
-                        });
-                        const query = (debouncedSearchQuery || searchQuery || '').trim().toUpperCase();
-                        return list.filter(item => {
-                            if (query === '') return true;
-                            const bId = (item.billId || '').toUpperCase();
-                            const mName = (item.memberName || '').toUpperCase();
-                            const mId = (item.memberId || '').toUpperCase();
-                            const cType = (item.custType || '').toUpperCase();
-                            const pName = (item.product || '').toUpperCase();
-                            return bId.includes(query) || mName.includes(query) || mId.includes(query) || cType.includes(query) || pName.includes(query);
-                        }).sort((a, b) => b.date.localeCompare(a.date) || b.billId.localeCompare(a.billId));
-                    })();
-
-                    const handleExportStockExcel = () => {
-                        let rows = [];
-                        if (isZeroPromoView) {
-                            rows = [['เลขที่บิล', 'วันที่', 'ผู้ขาย (สมาชิก)', 'สังกัดทีม', 'ประเภทลูกค้า', 'สินค้าที่แถม/ตัดศูนย์', 'ประเภทแถม/ศูนย์', 'จำนวนที่แถม (กล่อง)']];
-                            zeroPromoBills.forEach(b => rows.push([b.billId, b.date, b.memberName, b.team, b.custType, b.product, b.priceType, b.qty]));
-                        } else if (isBalanceView) {
-                            rows = [['รหัสสินค้า', 'ชื่อสินค้า', 'ยอดยกมา', 'รับเข้าสะสม', 'เบิก/ขายออกในช่วงเวลา', 'ยอดสต๊อกคงเหลือ']];
-                            stockSalesReport.forEach(i => rows.push([i.id, i.name, i.openingBalance, i.currentIn, i.totalOut, i.currentStock]));
-                            rows.push(['', 'ยอดรวม (Grand Total)', stockSalesReport.reduce((a,b)=>a+b.openingBalance, 0), stockSalesReport.reduce((a,b)=>a+b.currentIn, 0), stockSalesReport.reduce((a,b)=>a+b.totalOut, 0), stockSalesReport.reduce((a,b)=>a+b.currentStock, 0)]);
-                        } else {
-                            rows = [['รหัสสินค้า', 'ชื่อสินค้า', 'ขายราคาเต็ม', 'ขายราคาสมาชิก', 'ขายราคาโปร', 'ตัดศูนย์ราคา', 'รวมเบิกขายทั้งหมด']];
-                            stockSalesReport.forEach(i => rows.push([i.id, i.name, i.fullQty, i.memberQty, i.promoQty, i.zeroQty, i.totalOut]));
-                            rows.push(['', 'ยอดรวม (Grand Total)', stockSalesReport.reduce((a,b)=>a+b.fullQty, 0), stockSalesReport.reduce((a,b)=>a+b.memberQty, 0), stockSalesReport.reduce((a,b)=>a+b.promoQty, 0), stockSalesReport.reduce((a,b)=>a+b.zeroQty, 0), stockSalesReport.reduce((a,b)=>a+b.totalOut, 0)]);
-                        }
-                        if (typeof window.exportToCSV === 'function') {
-                            window.exportToCSV(`STK_Stock_Report_${startDate}_to_${endDate}.csv`, rows);
-                        }
-                    };
-
-                    return (
-                        <div className="space-y-6 animation-fade-in">
-                            <div className="flex flex-wrap gap-2 justify-end items-center mb-4 no-print">
-                                <button onClick={handleExportStockExcel} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 h-[36px]">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                    Export Excel
-                                </button>
-                                <button onClick={() => window.print()} className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 h-[36px]">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
-                                    Export PDF
-                                </button>
-                                <button onClick={() => window.print()} className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 h-[36px]">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                                    พิมพ์ (Print)
-                                </button>
-                            </div>
-                            <div className={`${boxWrapper} p-0 overflow-hidden`}>
-                                <div className="overflow-x-auto">
-                                    {isZeroPromoView ? (
-                                        <table className="w-full text-left border-collapse min-w-[1000px]">
-                                            <thead>
-                                                <tr className="bg-slate-100 border-b border-slate-200">
-                                                    <th className={thBase}>เลขที่บิล</th>
-                                                    <th className={thBase}>วันที่</th>
-                                                    <th className={thBase}>ผู้ขาย (สมาชิก)</th>
-                                                    <th className={thBase}>สังกัดทีม</th>
-                                                    <th className={thBase}>ประเภทลูกค้า</th>
-                                                    <th className={thBase}>สินค้าที่แถม/ตัดศูนย์</th>
-                                                    <th className={`${thBase} text-center`}>ประเภทแถม/ศูนย์</th>
-                                                    <th className={`${thBase} text-center font-bold text-rose-700`}>จำนวนที่แถม (กล่อง)</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {zeroPromoBills.map((item, idx) => (
-                                                    <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                                                        <td className="p-4 text-xs font-mono font-bold text-blue-600 whitespace-nowrap">{item.billId}</td>
-                                                        <td className="p-4 text-xs font-bold text-slate-600 whitespace-nowrap">{item.date}</td>
-                                                        <td className="p-4 text-xs font-bold text-slate-800">
-                                                            <div>{item.memberName}</div>
-                                                            <div className="text-[10px] text-slate-400 font-mono">รหัส: {item.memberId}</div>
-                                                        </td>
-                                                        <td className="p-4 text-xs font-bold text-slate-600">
-                                                            <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded text-[11px]">{item.team || '-'}</span>
-                                                        </td>
-                                                        <td className="p-4 text-xs font-bold text-indigo-600">{item.custType || 'ทั่วไป'}</td>
-                                                        <td className="p-4 text-xs font-bold text-slate-900 bg-slate-50/50">{item.product}</td>
-                                                        <td className="p-4 text-center">
-                                                            {item.priceType === 'ราคาศูนย์' ? (
-                                                                <span className="px-2.5 py-1 bg-slate-200 text-slate-700 rounded-full text-[11px] font-black border border-slate-300">
-                                                                    ตัดศูนย์ราคา
-                                                                </span>
-                                                            ) : (
-                                                                <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full text-[11px] font-black border border-amber-300">
-                                                                    🎁 แถมโปรโมชั่น
-                                                                </span>
-                                                            )}
-                                                        </td>
-                                                        <td className="p-4 text-center text-sm font-black text-rose-600 bg-rose-50/20">{item.qty} กล่อง</td>
-                                                    </tr>
-                                                ))}
-                                                {zeroPromoBills.length === 0 && (
-                                                    <tr><td colSpan={8} className="p-12 text-center text-slate-400 font-bold">ไม่พบรายการสินค้าแถมหรือตัดศูนย์ตามเงื่อนไขที่ระบุ</td></tr>
-                                                )}
-                                            </tbody>
-                                        </table>
-                                    ) : (
-                                        <table className="w-full text-left border-collapse min-w-[900px]">
-                                            <thead>
-                                                <tr className="bg-slate-100 border-b border-slate-200">
-                                                    <th className={`${thBase} text-center w-16`}>ลำดับ</th>
-                                                    <th className={thBase}>รหัส/ชื่อสินค้า</th>
-                                                    {isBalanceView ? (
-                                                        <React.Fragment>
-                                                            <th className={`${thBase} text-center text-slate-500`}>ยอดยกมา</th>
-                                                            <th className={`${thBase} text-center text-blue-700`}>รับเข้าสะสม</th>
-                                                            <th className={`${thBase} text-center text-amber-700`}>เบิก/ขายออกในช่วงเวลา</th>
-                                                            <th className={`${thBase} text-center text-emerald-700 font-bold bg-emerald-50/50`}>ยอดสต๊อกคงเหลือ ณ วันที่เลือก</th>
-                                                        </React.Fragment>
-                                                    ) : (
-                                                        <React.Fragment>
-                                                            <th className={`${thBase} text-center`}>ขายราคาเต็ม</th>
-                                                            <th className={`${thBase} text-center text-blue-700`}>ขายราคาสมาชิก</th>
-                                                            <th className={`${thBase} text-center text-amber-700`}>ขายราคาโปร</th>
-                                                            <th className={`${thBase} text-center text-slate-500`}>ตัดศูนย์ราคา</th>
-                                                            <th className={`${thBase} text-center text-blue-700 font-bold bg-blue-50/50`}>รวมเบิกขายทั้งหมด</th>
-                                                        </React.Fragment>
-                                                    )}
-                                                    <th className={`${thBase} text-center w-12 no-print`}><SearchIcon size={16} className="mx-auto text-slate-400"/></th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {stockSalesReport.map((item, idx) => (
-                                                    <tr key={item.id || idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                                                        <td className="p-4 text-center font-bold text-slate-500">{idx + 1}</td>
-                                                        <td className="p-4">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs shrink-0 border border-blue-100">
-                                                                    P
-                                                                </div>
-                                                                <div>
-                                                                    <div className="font-bold text-slate-800 text-sm">{item.name}</div>
-                                                                    <div className="text-[10px] text-slate-400 font-mono">รหัส: {item.id}</div>
-                                                                </div>
-                                                            </div>
-                                                        </td>
-
-                                                        {isBalanceView ? (
-                                                            <React.Fragment>
-                                                                <td className="p-4 text-center text-sm font-black text-slate-600 bg-slate-50/10">{item.openingBalance.toLocaleString()}</td>
-                                                                <td className="p-4 text-center text-sm font-black text-blue-600 bg-blue-50/10">{item.currentIn.toLocaleString()}</td>
-                                                                <td className="p-4 text-center text-sm font-black text-amber-600 bg-amber-50/10">{item.totalOut.toLocaleString()}</td>
-                                                                <td className="p-4 text-center text-base font-black text-emerald-700 bg-emerald-50/30">
-                                                                    {item.currentStock.toLocaleString()}
-                                                                </td>
-                                                            </React.Fragment>
-                                                        ) : (
-                                                            <React.Fragment>
-                                                                <td className="p-4 text-center text-xs font-bold text-slate-700">{item.fullQty}</td>
-                                                                <td className="p-4 text-center text-xs font-black text-blue-600 bg-blue-50/20">{item.memberQty}</td>
-                                                                <td className="p-4 text-center text-xs font-bold text-amber-600">{item.promoQty}</td>
-                                                                <td className="p-4 text-center text-xs font-bold text-slate-400">{item.zeroQty}</td>
-                                                                <td className="p-4 text-center text-sm font-black text-blue-700 bg-blue-50/30">
-                                                                    {item.totalOut}
-                                                                </td>
-                                                            </React.Fragment>
-                                                        )}
-                                                        
-                                                        <td className="p-4 text-center no-print">
-                                                            <button type="button" onClick={() => setStockModalItem(item)} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
-                                                                <SearchIcon size={16}/>
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                                {stockSalesReport.length === 0 && (
-                                                    <tr><td colSpan={isBalanceView ? 7 : 8} className="p-12 text-center text-slate-400 font-bold">ไม่พบข้อมูลรายงานสต๊อกตามเงื่อนไขที่ระบุ</td></tr>
-                                                )}
-                                            </tbody>
-                                            <tfoot className="bg-white sticky bottom-0 shadow-[0_-8px_20px_rgba(0,0,0,0.06)] border-t border-slate-200 font-black">
-                                                <tr className="bg-slate-50 text-slate-700 shadow-inner">
-                                                    <td colSpan={2} className="p-4 text-right font-bold text-sm tracking-wide">ยอดรวม (Grand Total)</td>
-                                                    {isBalanceView ? (
-                                                        <React.Fragment>
-                                                            <td className="p-4 text-center text-sm">{stockSalesReport.reduce((a,b)=>a+b.openingBalance, 0).toLocaleString()}</td>
-                                                            <td className="p-4 text-center text-sm text-blue-600">{stockSalesReport.reduce((a,b)=>a+b.currentIn, 0).toLocaleString()}</td>
-                                                            <td className="p-4 text-center text-sm text-amber-600">{stockSalesReport.reduce((a,b)=>a+b.totalOut, 0).toLocaleString()}</td>
-                                                            <td className="p-4 text-center text-base text-emerald-700">{stockSalesReport.reduce((a,b)=>a+b.currentStock, 0).toLocaleString()}</td>
-                                                        </React.Fragment>
-                                                    ) : (
-                                                        <React.Fragment>
-                                                            <td className="p-4 text-center text-sm">{stockSalesReport.reduce((a,b)=>a+b.fullQty, 0).toLocaleString()}</td>
-                                                            <td className="p-4 text-center text-sm text-blue-600">{stockSalesReport.reduce((a,b)=>a+b.memberQty, 0).toLocaleString()}</td>
-                                                            <td className="p-4 text-center text-sm text-amber-600">{stockSalesReport.reduce((a,b)=>a+b.promoQty, 0).toLocaleString()}</td>
-                                                            <td className="p-4 text-center text-sm text-slate-500">{stockSalesReport.reduce((a,b)=>a+b.zeroQty, 0).toLocaleString()}</td>
-                                                            <td className="p-4 text-center text-base text-blue-700">{stockSalesReport.reduce((a,b)=>a+b.totalOut, 0).toLocaleString()}</td>
-                                                        </React.Fragment>
-                                                    )}
-                                                    <td className="no-print"></td>
-                                                </tr>
-                                            </tfoot>
-                                        </table>
-                                        
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    );
-                })()}
-
                 {activeGroup === 'referral' && (
                     <div className="space-y-4 animation-fade-in">
                         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
@@ -3238,78 +2205,6 @@
                     </div>
                 </EditModal>
 
-                <EditModal isOpen={!!stockModalItem} onClose={() => setStockModalItem(null)} title={`รายละเอียดบิลที่ขายสินค้า: ${stockModalItem?.name}`} size="xl">
-                    <div className="overflow-x-auto max-h-[60vh] overflow-y-auto mt-4 rounded-xl border border-slate-200">
-                        <table className="w-full text-left border-collapse text-sm min-w-[700px]">
-                            <thead className="sticky top-0 bg-slate-100 shadow-sm z-10">
-                                <tr>
-                                    <th className="p-3 font-bold text-slate-500 border-b">วันที่</th>
-                                    <th className="p-3 font-bold text-slate-500 border-b">เลขที่บิล</th>
-                                    <th className="p-3 font-bold text-slate-500 border-b">ลูกค้า</th>
-                                    <th className="p-3 font-bold text-slate-500 border-b text-center">ประเภทการขาย</th>
-                                    <th className="p-3 font-bold text-slate-500 border-b text-center text-blue-700 bg-blue-50/50">จำนวนชิ้นที่ขาย</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {stockModalItem && sales && (function(){
-                                    const relatedSales = sales.filter(s => {
-                                        const d = (s.date || s.sale_date || s.created_at || '').substring(0, 10);
-                                        if (startDate && d < startDate) return false;
-                                        if (endDate && d > endDate) return false;
-                                        
-                                        let found = false;
-                                        Object.entries(s || {}).forEach(([key, value]) => {
-                                            if (key.endsWith('_ราคาเต็ม') || key.endsWith('_ราคาสมาชิก') || key.endsWith('_ราคาโปร') || key.endsWith('_ราคาศูนย์')) {
-                                                const qty = parseInt(value, 10);
-                                                if (!isNaN(qty) && qty > 0) {
-                                                    const pName = key.substring(0, key.lastIndexOf('_')).replace(/\(.*?\)/g, '').trim();
-                                                    if (pName.toUpperCase() === stockModalItem.name.toUpperCase() || pName.toUpperCase() === (stockModalItem.id || '').toUpperCase()) {
-                                                        found = true;
-                                                    }
-                                                }
-                                            }
-                                        });
-                                        return found;
-                                    });
-                                    if(relatedSales.length === 0) return <tr><td colSpan="5" className="p-8 text-center text-slate-400 font-bold">ไม่พบประวัติการขายในช่วงเวลานี้</td></tr>;
-                                    
-                                    return relatedSales.map((s, idx) => {
-                                        let totalQty = 0;
-                                        let typeLabels = [];
-                                        Object.entries(s || {}).forEach(([key, value]) => {
-                                            if (key.endsWith('_ราคาเต็ม') || key.endsWith('_ราคาสมาชิก') || key.endsWith('_ราคาโปร') || key.endsWith('_ราคาศูนย์')) {
-                                                const qty = parseInt(value, 10);
-                                                if (!isNaN(qty) && qty > 0) {
-                                                    const pName = key.substring(0, key.lastIndexOf('_')).replace(/\(.*?\)/g, '').trim();
-                                                    if (pName.toUpperCase() === stockModalItem.name.toUpperCase() || pName.toUpperCase() === (stockModalItem.id || '').toUpperCase()) {
-                                                        totalQty += qty;
-                                                        const priceType = key.substring(key.lastIndexOf('_') + 1);
-                                                        if (!typeLabels.includes(priceType)) typeLabels.push(priceType);
-                                                    }
-                                                }
-                                            }
-                                        });
-                                        
-                                        let typeLabel = typeLabels.join(', ') || 'ปกติ';
-                                        
-                                        return (
-                                            <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                                                <td className="p-3 font-medium text-slate-600">{String(s.date || s.sale_date || s.created_at || '').substring(0, 10)}</td>
-                                                <td className="p-3 font-black text-blue-600">{s.id || s.bill_id || s.sale_id}</td>
-                                                <td className="p-3 font-bold text-slate-800">{s.customerName || s.customer_name || '-'}</td>
-                                                <td className="p-3 text-center">
-                                                    <span className="bg-slate-100 border border-slate-200 px-2 py-1 rounded-md text-xs font-bold text-slate-600 shadow-sm">{typeLabel}</span>
-                                                </td>
-                                                <td className="p-3 text-center font-black text-blue-700 bg-blue-50/20 text-base">{totalQty}</td>
-                                            </tr>
-                                        );
-                                    });
-                                })()}
-                            </tbody>
-                        </table>
-                    </div>
-                </EditModal>
-
             </div>
         );
     };
@@ -3363,15 +2258,14 @@
         }, [customerTypes]);
 
         const fetchAllData = useCallback(async () => {
-
             try {
-                // ⚡ SPEED OPTIMIZATION: ดึงเฉพาะคอลัมน์ที่ต้องใช้จริง ไม่ดึงรูปภาพ และจำกัด limit พอดีกับรายงาน
+                // ⚡ RESTORED FULL QUERY: ดึงข้อมูลครบถ้วนเพื่อให้รายงานทุกแท็บและกราฟแสดงผลถูกต้องสมบูรณ์
                 const [pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes, settingsRes, payRes] = await Promise.all([
                     supabaseSelect('stk_products').catch(() => []),
                     supabaseSelect('stk_customer_types').catch(() => fallbackCustomerTypes),
                     supabaseSelect('stk_closers').catch(() => []),
                     supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status,accumulated_pv,phone_number').catch(() => []),
-                    supabaseSelect('stk_customers', 'select=customer_id,name,customer_type,closer_id,owner_member_id,extra_details_json&order=customer_id.desc&limit=2000').catch(() => []),
+                    supabaseSelect('stk_customers', 'select=customer_id,name,customer_type,closer_id,owner_member_id,extra_details_json&order=customer_id.desc&limit=2500').catch(() => []),
                     supabaseSelect('stk_sales', 'order=order_id.desc&limit=2500').catch(() => []),
                     supabaseSelect('stk_business_teams').catch(() => []),
                     supabaseSelect('stk_system_settings').catch(() => []),
@@ -3603,7 +2497,7 @@
             } else setShowLoginModal(true);
 
             const initialLoader = document.getElementById('initial-loader');
-            if (initialLoader) initialLoader.style.display = 'none';
+            if (initialLoader) { initialLoader.style.opacity = '0'; setTimeout(() => { if (initialLoader) initialLoader.style.display = 'none'; }, 400); }
 
             fetchAllData();
         }, [fetchAllData]);
@@ -3675,3 +2569,10 @@
   </script>
 </body>
 </html>
+
+
+
+
+
+
+

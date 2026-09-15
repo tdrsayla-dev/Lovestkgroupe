@@ -1,10 +1,24 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
+<script>
+  (function() {
+    try {
+      var theme = localStorage.getItem('stk_theme');
+      if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        document.documentElement.style.backgroundColor = '#0f172a';
+      } else {
+        document.documentElement.setAttribute('data-theme', 'light');
+        document.documentElement.style.backgroundColor = '#f8fafc';
+      }
+    } catch (e) {}
+  })();
+</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>สั่งจ่ายยา - LOVE STK GROUPE</title>
-  <link rel="stylesheet" href="mainstyle.css">
+  <link rel="stylesheet" href="mainstyle.css?v=6">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
@@ -13,16 +27,12 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="config.js"></script>
-  <script src="CommonComponents.js"></script>
+  <script src="dictionary.js"></script>
+  <script src="CommonComponents.js?v=3"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white bg-slate-50">
 
-  <div id="initial-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999;">
-    <div style="width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top-color: #047857; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 24px;"></div>
-    <style>@keyframes initial-spin { to { transform: rotate(360deg); } }</style>
-    <h2 style="font-size: 1.75rem; font-weight: 800; color: #047857; margin: 0; letter-spacing: -0.025em;">LOVE <span style="color: #2563eb;">STK GROUPE</span></h2>
-    <p style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 8px;">กำลังโหลดระบบสั่งจ่ายยา...</p>
-  </div>
+  
 
   <div id="root"></div>
 
@@ -40,23 +50,75 @@
     const CheckCircle = ({ size = 18 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
     const RefreshCw = ({ size = 18 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>;
     const InboxIcon = ({ size = 48 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>;
+    const PhoneIcon = ({ size = 12 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>;
+    const ClockIcon = ({ size = 12 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...IconProps}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+
+    // ฟังก์ชันจัดรูปแบบ วันที่ และ เวลา
+    function formatOrderDateTime(rawDate) {
+      if (!rawDate) return '-';
+      try {
+        const d = new Date(rawDate);
+        if (isNaN(d.getTime())) {
+          return String(rawDate).replace('T', ' ').substring(0, 16);
+        }
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}`;
+      } catch (e) {
+        return String(rawDate);
+      }
+    }
 
     // ฟังก์ชันช่วยแปลงชื่อประเภทราคา (เช่น ราคาส่ง/สมาชิก, ราคาโปร, ราคาปกติ, แถมฟรี)
+    // รองรับการตรวจสอบทั้งจากราคาจริง (Numeric price), สตริงภาษาไทย และภาษาลาว
     function getItemTypeLabel(item) {
-      const typeVal = item.type || item.priceType || item.tier || '';
-      const nameVal = item.name || '';
+      const typeVal = String(item.type || item.priceType || item.tier || '').trim().toLowerCase();
+      const nameVal = String(item.name || '').toLowerCase();
+      const hasPrice = (item.price !== undefined && item.price !== null && String(item.price).trim() !== '' && !isNaN(Number(item.price)));
+      const rawPrice = hasPrice ? Number(item.price) : null;
 
-      if (typeVal === 'high' || typeVal === 'ส่ง/สมาชิก' || typeVal === 'ราคาส่ง/สมาชิก' || nameVal.includes('(ส่ง/สมาชิก)')) {
-        return 'ราคาส่ง/สมาชิก';
-      }
-      if (typeVal === 'promo' || typeVal === 'โปร' || typeVal === 'ราคาโปร' || nameVal.includes('(โปร)')) {
-        return 'ราคาโปร';
-      }
-      if (typeVal === 'free' || typeVal === 'แถมฟรี' || nameVal.includes('(แถมฟรี)')) {
+      // 1. ตรวจสอบ "แถมฟรี" / 0 บาท
+      if (rawPrice === 0 || typeVal === 'free' || typeVal.includes('แถม') || typeVal.includes('ฟรี') || typeVal.includes('ຟຣີ') || nameVal.includes('(แถมฟรี)') || nameVal.includes('(ຟຣີ)')) {
         return 'แถมฟรี';
       }
-      if (typeVal && typeVal !== 'ONE' && typeVal !== 'ปกติ' && typeVal !== 'normal') {
-        return typeVal;
+
+      // 2. ตรวจสอบ "ราคาส่ง/สมาชิก" (รวมภาษาลาว: ສະມາຊິກ, ສົ່ງ)
+      if (typeVal === 'high' || typeVal === 'member' || typeVal.includes('สมาชิก') || typeVal.includes('ส่ง') || typeVal.includes('ສະມາຊິກ') || typeVal.includes('ສົ່ງ') || nameVal.includes('(ส่ง/สมาชิก)') || nameVal.includes('(ສະມາຊິກ)')) {
+        return 'ราคาส่ง/สมาชิก';
+      }
+
+      // 3. ตรวจสอบ "ราคาโปร" (รวมภาษาลาว: ໂປຣ)
+      if (typeVal === 'promo' || typeVal.includes('โปร') || typeVal.includes('พิเศษ') || typeVal.includes('ໂປຣ') || nameVal.includes('(โปร)') || nameVal.includes('(ໂປຣ)')) {
+        return 'ราคาโปร';
+      }
+
+      // 4. ดักจับจากราคาจริง (Numeric Price Mapping)
+      if (rawPrice !== null && rawPrice > 0) {
+        // หากราคาเท่ากับ 1,500 (เช่น Cordesta, Pine Needle Oil ราคาสมาชิก) หรือต่ำกว่าราคาปกติของสินค้ากลุ่มอาหารเสริม
+        if (rawPrice === 1500) {
+          return 'ราคาส่ง/สมาชิก';
+        }
+        if (rawPrice === 1800) {
+          return 'ราคาปกติ';
+        }
+        if (rawPrice === 1000) {
+          return 'ราคาโปร';
+        }
+        if (rawPrice === 200) {
+          // กาแฟ หรือสินค้า 200
+          if (typeVal.includes('โปร') || typeVal.includes('promo') || typeVal.includes('ໂປຣ')) return 'ราคาโปร';
+          return 'ราคาส่ง/สมาชิก';
+        }
+        if (rawPrice === 890) {
+          return 'ราคาส่ง/สมาชิก';
+        }
+      }
+
+      if (typeVal && typeVal !== 'one' && typeVal !== 'ปกติ' && typeVal !== 'normal' && typeVal !== 'ປົກກະຕິ') {
+        return item.type || item.priceType || typeVal;
       }
       return 'ราคาปกติ';
     }
@@ -162,7 +224,7 @@
         // ─── 1. ดึงจาก Supabase (ข้อมูลถาวร) ────────────────────────────────
         try {
           if (typeof window.supabaseSelect === 'function') {
-            const data = await window.supabaseSelect('stk_nutrient_orders', 'order=created_at.desc&limit=200&nocache=true');
+            const data = await window.supabaseSelect('stk_nutrient_orders', 'order=created_at.desc&limit=150&nocache=true');
             if (Array.isArray(data)) {
           dbList = data.map(item => {
             // หากบิลถูกยกเลิก หรืออยู่ในประวัติการลบ ให้ปรับสถานะเป็นบิลถูกยกเลิกเพื่อนำไปโชว์ในแท็บแทน
@@ -177,8 +239,9 @@
               disease: item.disease || item.disease_name || item.symptom || item.symptoms || '-',
               recorded_by: item.recorded_by || '-',
               closer_dr: item.closer_dr || '-',
-              date: item.date || item.created_at || new Date().toISOString(),
+              date: item.created_at || item.date || new Date().toISOString(),
               status: finalStatus,
+              sale_order_id: item.sale_order_id || null,
               items: (() => {
                 try {
                   let parsed = item.items_json || item.items || item.products;
@@ -245,6 +308,7 @@
               closer_dr: item.closer_dr || '-',
               date: item.created_at || item.date || new Date().toISOString(),
               status: finalLocalStatus,
+              sale_order_id: item.sale_order_id || null,
               items: normalizedItems
             };
 
@@ -310,9 +374,10 @@
           } catch(ex) {}
         }
 
+        // ปรับการดึงซ้ำสำรองจาก 5 วินาที เป็น 45 วินาที เพื่อลด Egress (ยังอัปเดตทันทีผ่าน Storage/BroadcastChannel ด้านบน)
         const intervalId = setInterval(() => {
           fetchOrders(false);
-        }, 5000);
+        }, 45000);
 
         return () => {
           window.removeEventListener('storage', handleStorageChange);
@@ -459,10 +524,10 @@ const canceledOrders = useMemo(() => {
             try {
               const pendingSale = {
                 visit_id: order.visit_id,
-                hn: order.hn,
-                customer_name: order.customer_name,
-                phone: order.phone,
-                disease: order.disease,
+                hn: (order.hn && order.hn !== '-') ? order.hn : '',
+                customer_name: (order.customer_name && order.customer_name !== '-') ? order.customer_name : '',
+                phone: (order.phone && order.phone !== '-' && order.phone !== '--') ? order.phone : '',
+                disease: (order.disease && order.disease !== '-') ? order.disease : '',
                 recorded_by: order.recorded_by,
                 closer_dr: order.closer_dr || '',
                 items: (order.items || []).map(i => {
@@ -764,9 +829,25 @@ const canceledOrders = useMemo(() => {
                       }
                       return displayData.map((ord, index) => (
                         <tr key={ord.id || index} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="py-2 px-3 font-bold text-slate-900 align-middle whitespace-nowrap border-r border-slate-100">{ord.visit_id}</td>
+                          <td className="py-2 px-3 font-bold text-slate-900 align-middle whitespace-nowrap border-r border-slate-100">
+                            <div>{ord.visit_id}</div>
+                            {ord.date && (
+                              <div className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-0.5">
+                                <ClockIcon size={11} />
+                                <span>{formatOrderDateTime(ord.date)}</span>
+                              </div>
+                            )}
+                          </td>
                           <td className="py-2 px-3 text-slate-700 font-semibold align-middle whitespace-nowrap border-r border-slate-100">{ord.hn}</td>
-                          <td className="py-2 px-3 font-bold text-slate-900 align-middle border-r border-slate-100 ">{ord.customer_name}</td>
+                          <td className="py-2 px-3 font-bold text-slate-900 align-middle border-r border-slate-100 ">
+                            <div>{ord.customer_name}</div>
+                            {ord.phone && ord.phone !== '-' && ord.phone !== '--' && (
+                              <div className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1 mt-0.5">
+                                <PhoneIcon size={11} />
+                                <span>{ord.phone}</span>
+                              </div>
+                            )}
+                          </td>
                           <td className="py-2 px-3 text-slate-600 align-middle border-r border-slate-100 ">{ord.disease || '-'}</td>
                           <td className="py-2 px-3 font-bold text-slate-700 align-middle border-r border-slate-100 ">{ord.recorded_by || '-'}</td>
                           <td className="py-2 px-3 font-bold text-emerald-700 align-middle border-r border-slate-100 ">{ord.closer_dr || '-'}</td>
@@ -920,3 +1001,9 @@ const canceledOrders = useMemo(() => {
   </script>
 </body>
 </html>
+
+
+
+
+
+

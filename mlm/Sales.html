@@ -5,37 +5,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ป้อนข้อมูลขาย (Sales) - LOVE STK GROUPE</title>
-    <link rel="stylesheet" href="mainstyle.css">
+    <link rel="stylesheet" href="mainstyle.css?v=6">
     <script>(function () { var w = console.warn; console.warn = function () { var m = arguments[0] ? String(arguments[0]) : ''; if (m.includes('cdn.tailwindcss.com') || m.includes('in-browser Babel transformer')) return; w.apply(console, arguments); }; })();</script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        <script src="config.js"></script>
-    <script src="CommonComponents.js"></script>
+    <script src="config.js"></script>
+    <script src="dictionary.js"></script>
+    <script src="CommonComponents.js?v=3"></script>
     <script src="companySettings.js"></script>
     <script>
-        window.addEventListener('DOMContentLoaded', function () {
-            setTimeout(function () { var l = document.getElementById('initial-loader'); if (l) l.style.display = 'none'; }, 600);
-        });
+
     </script>
 </head>
 
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white bg-slate-50">
 
     <div id="initial-loader"
-        style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999;">
-        <div
-            style="width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 24px;">
-        </div>
-        <style>
-            @keyframes initial-spin {
-                to {
-                    transform: rotate(360deg);
-                }
-            }
-        </style>
+        style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999; transition: opacity 0.4s ease; opacity: 1;">
+
+
         <h2 style="font-size: 1.75rem; font-weight: 800; color: #1e40af; margin: 0; letter-spacing: -0.025em;">STK<span
                 style="color: #475569;">System</span></h2>
         <p style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 8px;">กำลังโหลดระบบจัดการข้อมูล...
@@ -171,9 +162,9 @@
 
                         if (key === 'เรท' || key === 'rate' || key === 'อัตรา') return;
 
-                        const isKeyLak = key.includes('กีบ') || key.includes('lak') || key.includes('kip') || key === 'สดกีบ' || 
-                                         (key.includes('ลาว') && !key.includes('บาท')) ||
-                                         (val >= 70000 && !key.includes('ไทย') && !key.includes('thb') && !key.includes('สดบาท'));
+                        const isKeyLak = key.includes('กีบ') || key.includes('lak') || key.includes('kip') || key === 'สดกีบ' ||
+                            (key.includes('ลาว') && !key.includes('บาท')) ||
+                            (val >= 70000 && !key.includes('ไทย') && !key.includes('thb') && !key.includes('สดบาท'));
 
                         if (isKeyLak) {
                             lakAmt += val;
@@ -201,8 +192,8 @@
                 }
 
                 const lowerPMode = pModeStr.toLowerCase();
-                const isLakBill = lowerPMode.includes('กีบ') || lowerPMode.includes('lak') || lowerPMode.includes('kip') || 
-                                  (lowerPMode.includes('ลาว') && !lowerPMode.includes('บาท')) || rawAmt >= 70000;
+                const isLakBill = lowerPMode.includes('กีบ') || lowerPMode.includes('lak') || lowerPMode.includes('kip') ||
+                    (lowerPMode.includes('ลาว') && !lowerPMode.includes('บาท')) || rawAmt >= 70000;
 
                 if (isLakBill) {
                     let amt = Number(s.total_amount_lak || s.totalAmountLak || 0);
@@ -223,8 +214,8 @@
                     return;
                 }
 
-                const compSettings = (typeof window.getCompanySettings === 'function') 
-                    ? window.getCompanySettings() 
+                const compSettings = (typeof window.getCompanySettings === 'function')
+                    ? window.getCompanySettings()
                     : { name: 'LOVE STK GROUPE', receiptHeaderNote: 'ใบเสร็จรับเงิน / Receipt', receiptFooterNote: 'ขอบพระคุณที่อุดหนุน LOVE STK GROUPE', showSignatures: true, sigLabel1: 'ลายเซ็นลูกค้า', sigLabel2: 'ผู้จ่ายสินค้า/ยา', sigLabel3: 'พนักงานแคชเชียร์' };
 
                 const isMarketing = currentUser && (
@@ -232,7 +223,10 @@
                     String(currentUser.role).trim().toLowerCase() === 'marketing'
                 );
 
-                const mName = (members || []).find(m => m && m.id === saleRecord.memberId)?.name || saleRecord.memberName || saleRecord.member_name || '-';
+                const memberObj = (members || []).find(m => m && m.id === saleRecord.memberId) || {};
+                const mName = memberObj.name || saleRecord.memberName || saleRecord.member_name || '-';
+                const mPhone = memberObj.phone || memberObj.phone_number || memberObj.phoneNumber || saleRecord.memberPhone || saleRecord.member_phone || saleRecord.sellerPhone || saleRecord.seller_phone || '';
+                const mDisplay = mPhone ? `${mName} (โทร: ${mPhone})` : mName;
                 const custObj = (customers || []).find(c => c && (c.id === saleRecord.customerId || c.id === saleRecord.customer_id)) || {};
                 const custName = custObj.name || saleRecord.customerName || saleRecord.customer_name || '';
                 const closersList = typeof closers !== 'undefined' ? closers : [];
@@ -549,9 +543,12 @@
                 .divider { border-top: 1px dashed #cbd5e1; margin: 8px 0; }
                 .paper-a4 .divider { margin: 16px 0; }
                 
-                .meta-table, .items-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-                .meta-table td { padding: 3px 0; font-size: 11px; vertical-align: top; }
-                .paper-a4 .meta-table td { padding: 5px 0; font-size: 13px; }
+                .meta-table, .items-table { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+                .meta-table td { padding: 1.5px 0; font-size: 11px; vertical-align: top; line-height: 1.35; }
+                .meta-table td:first-child { width: auto; white-space: nowrap; padding-right: 8px; color: #475569; }
+                .meta-table td:last-child { width: 100%; }
+                .paper-a4 .meta-table td { padding: 3px 0; font-size: 13px; line-height: 1.4; }
+                .paper-a4 .meta-table td:first-child { padding-right: 14px; }
                 
                 .items-table th { border-bottom: 2px solid #0f172a; text-align: left; padding: 6px 4px; font-size: 11px; color: #334155; }
                 .paper-a4 .items-table th { padding: 10px 8px; font-size: 13px; }
@@ -603,10 +600,10 @@
                   </div>
                   <div class="divider"></div>
                   <table class="meta-table">
-                    <tr><td class="bold" style="width: 38%;">เลขที่บิล:</td><td style="width: 62%; font-weight: 700; color: #0f172a;">${saleRecord.id}</td></tr>
+                    <tr><td class="bold">เลขที่บิล:</td><td style="font-weight: 700; color: #0f172a;">${saleRecord.id}</td></tr>
                     <tr><td class="bold">วันที่/เวลา:</td><td>${formatDbDateForFilter(saleRecord.date)}${formatOrderTime(saleRecord) ? ` <span style="color:#2563eb; font-weight:700; margin-left:4px;">(${formatOrderTime(saleRecord)})</span>` : ""}</td></tr>
                     <tr><td class="bold">ลูกค้า:</td><td>${cleanCustName ? `${cleanCustName} (${saleRecord.customerId || '-'})` : (saleRecord.customerId || '-')}</td></tr>
-                    <tr><td class="bold">ผู้ดูแล:</td><td>${mName}</td></tr>
+                    <tr><td class="bold">ผู้ดูแล:</td><td>${mDisplay}</td></tr>
                     <tr><td class="bold">หมอสั่งจ่ายยา:</td><td>${cleanCloserName}</td></tr>
                     <tr><td class="bold">พนักงานบันทึก:</td><td>${saleRecord.recordedBy || '-'}</td></tr>
                   </table>
@@ -827,7 +824,7 @@
                     if (id && (!m.status || m.status === 'ทำงานอยู่' || m.status === 'ใช้งาน')) {
                         const bTeamRaw = String(m.businessTeam || m.business_team || m.team || '').trim();
                         const teamNameStr = teamIdToName[bTeamRaw.toUpperCase()] || teamIdToName[bTeamRaw] || bTeamRaw || 'Marketing';
-                        
+
                         if (!poolMap.has(id.toUpperCase())) {
                             poolMap.set(id.toUpperCase(), {
                                 id: id,
@@ -849,10 +846,10 @@
 
             const closersSuggestList = useMemo(() => {
                 const selectedTeam = String(custData.closerTeam || '').trim().toUpperCase();
-                
+
                 return allClosersPool.filter(c => {
                     if (!selectedTeam) return true; // Show all if team not selected yet
-                    
+
                     const cTeam = String(c.team || '').trim().toUpperCase();
 
                     if (cTeam === selectedTeam) return true;
@@ -921,13 +918,28 @@
                 const pendingPhone = String(pending.phone || '').trim();
                 const pendingName = String(pending.customer_name || '').trim();
 
-                let foundExistingCust = (customers || []).find(c => {
-                    if (!c) return false;
-                    if (pendingHn && safeUpper(c.id) === safeUpper(pendingHn)) return true;
-                    if (pendingPhone && c.phone && String(c.phone).trim() === pendingPhone) return true;
-                    if (pendingName && c.name && String(c.name).trim().toLowerCase() === pendingName.toLowerCase()) return true;
-                    return false;
-                });
+                const cleanDigits = (s) => String(s || '').replace(/\D/g, '');
+                const isValidPhone = (p) => {
+                    const d = cleanDigits(p);
+                    return d.length >= 8 && p !== '-' && p !== '--';
+                };
+
+                let foundExistingCust = null;
+
+                // 1. ตรวจสอบด้วยรหัส HN ก่อนเป็นอันดับแรก (ต้องไม่ใช่ค่าว่าง และไม่ใช่ '-')
+                if (pendingHn && pendingHn !== '-' && pendingHn !== '--') {
+                    foundExistingCust = (customers || []).find(c => c && safeUpper(c.id) === safeUpper(pendingHn));
+                }
+
+                // 2. ถ้าไม่พบด้วย HN และมีเบอร์โทรที่ถูกต้อง (ต้องมีตัวเลขเบอร์โทรจริงอย่างน้อย 8 หลักขึ้นไป และไม่ใช่ '-')
+                if (!foundExistingCust && isValidPhone(pendingPhone)) {
+                    foundExistingCust = (customers || []).find(c => c && isValidPhone(c.phone) && cleanDigits(c.phone) === cleanDigits(pendingPhone));
+                }
+
+                // 3. ถ้ายังไม่พบ และมีชื่อ (ต้องไม่ใช่ '-' และยาวกว่า 2 ตัวอักษร)
+                if (!foundExistingCust && pendingName && pendingName !== '-' && pendingName !== '--' && pendingName.length >= 2) {
+                    foundExistingCust = (customers || []).find(c => c && c.name && String(c.name).trim().toLowerCase() === pendingName.toLowerCase());
+                }
 
                 let pastSymptom = pending.disease || '';
                 if (!pastSymptom && foundExistingCust) {
@@ -961,8 +973,8 @@
                     setCustData(prev => ({
                         ...prev,
                         id: foundExistingCust.id,
-                        name: foundExistingCust.name || pendingName || prev.name || '',
-                        phone: foundExistingCust.phone || pendingPhone || prev.phone || '',
+                        name: pendingName || foundExistingCust.name || prev.name || '',
+                        phone: (isValidPhone(foundExistingCust.phone) ? foundExistingCust.phone : (isValidPhone(pendingPhone) ? pendingPhone : '')) || '',
                         lineId: foundExistingCust.lineId || prev.lineId || '',
                         symptom: pastSymptom || prev.symptom || '',
                         closer: resolvedCloser || foundExistingCust.closer || prev.closer || '',
@@ -972,9 +984,9 @@
                     setCustMode('ลูกค้าใหม่มาตรวจ');
                     setCustData(prev => ({
                         ...prev,
-                        id: pendingHn || prev.id || '',
-                        name: pendingName || prev.name || '',
-                        phone: pendingPhone || prev.phone || '',
+                        id: (pendingHn && pendingHn !== '-') ? pendingHn : (prev.id || ''),
+                        name: (pendingName && pendingName !== '-') ? pendingName : (prev.name || ''),
+                        phone: isValidPhone(pendingPhone) ? pendingPhone : '',
                         symptom: pastSymptom || prev.symptom || '',
                         closer: resolvedCloser || prev.closer || '',
                         closerTeam: resolvedCloserTeam || prev.closerTeam || ''
@@ -1016,11 +1028,14 @@
                         }
 
                         if (pending && (pending.hn || pending.customer_name || pending.phone)) {
+                            const cleanP = String(pending.phone || '').trim();
+                            const validPhoneStr = (cleanP && cleanP !== '-' && cleanP !== '--') ? cleanP : '';
+                            const validHnStr = (pending.hn && pending.hn !== '-' && pending.hn !== '--') ? pending.hn : '';
                             setCustData(prev => ({
                                 ...prev,
-                                id: pending.hn || prev.id || '',
+                                id: validHnStr || prev.id || '',
                                 name: pending.customer_name || prev.name || '',
-                                phone: pending.phone || prev.phone || '',
+                                phone: validPhoneStr || prev.phone || '',
                                 symptom: pending.disease || prev.symptom || ''
                             }));
                             loadCustomerFromPending(pending);
@@ -1049,26 +1064,49 @@
                                 let mappedPriceType = '';
                                 let unitPrice = 0;
 
-                                // 1. ตรวจสอบ "ราคาศูนย์" (ตัดศูนย์ / แถม / ฟรี / 0 บาท)
-                                const isZeroType = typeStr.includes('ศูนย์') || typeStr.includes('ตัดศูนย์') || typeStr.includes('แถม') || typeStr.includes('ฟรี') || typeStr.includes('free') || typeStr.includes('zero') || typeStr === '0'
-                                    || nameLower.includes('แถม') || nameLower.includes('ฟรี') || nameLower.includes('ตัดศูนย์') || nameLower.includes('ราคาศูนย์')
-                                    || (rawPrice !== null && rawPrice === 0);
+                                // 1. ตรวจสอบ "ราคาศูนย์" (ตัดศูนย์ / แถม / ฟรี / 0 บาท / ຟຣີ)
+                                const isZeroType = (rawPrice !== null && rawPrice === 0)
+                                    || typeStr.includes('ศูนย์') || typeStr.includes('ตัดศูนย์') || typeStr.includes('แถม') || typeStr.includes('ฟรี') || typeStr.includes('free') || typeStr.includes('zero') || typeStr === '0' || typeStr.includes('ຟຣີ')
+                                    || nameLower.includes('แถม') || nameLower.includes('ฟรี') || nameLower.includes('ตัดศูนย์') || nameLower.includes('ราคาศูนย์') || nameLower.includes('ຟຣີ');
 
-                                // 2. ตรวจสอบ "ราคาสมาชิก" (ส่ง/สมาชิก / ราคาส่ง/สมาชิก / สมาชิก / vip / high)
-                                const isMemberType = typeStr.includes('สมาชิก') || typeStr.includes('ส่ง') || typeStr.includes('member') || typeStr.includes('vip') || typeStr.includes('high')
-                                    || nameLower.includes('สมาชิก') || nameLower.includes('ส่ง');
+                                // 2. ตรวจสอบ "ราคาสมาชิก" (ส่ง/สมาชิก / ราคาส่ง/สมาชิก / สมาชิก / vip / high / ສະມາຊິກ / ສົ່ງ)
+                                const isMemberType = typeStr.includes('สมาชิก') || typeStr.includes('ส่ง') || typeStr.includes('member') || typeStr.includes('vip') || typeStr.includes('high') || typeStr.includes('ສະມາຊິກ') || typeStr.includes('ສົ່ງ')
+                                    || nameLower.includes('สมาชิก') || nameLower.includes('ส่ง') || nameLower.includes('ສະມາຊິກ') || nameLower.includes('ສົ່ງ');
 
-                                // 3. ตรวจสอบ "ราคาโปร" (ราคาพิเศษ / โปร / promo / promotion)
-                                const isPromoType = typeStr.includes('โปร') || typeStr.includes('promo') || typeStr.includes('พิเศษ')
-                                    || nameLower.includes('โปร') || nameLower.includes('promo') || nameLower.includes('พิเศษ');
+                                // 3. ตรวจสอบ "ราคาโปร" (ราคาพิเศษ / โปร / promo / promotion / ໂປຣ)
+                                const isPromoType = typeStr.includes('โปร') || typeStr.includes('promo') || typeStr.includes('พิเศษ') || typeStr.includes('ໂປຣ')
+                                    || nameLower.includes('โปร') || nameLower.includes('promo') || nameLower.includes('พิเศษ') || nameLower.includes('ໂປຣ');
 
-                                // 4. ตรวจสอบ "ราคาเต็ม" (ราคาปกติ / ปกติ / ราคาขาย / เต็ม / normal / full / one)
-                                const isFullType = typeStr.includes('เต็ม') || typeStr.includes('ปกติ') || typeStr.includes('ราคาขาย') || (typeStr.includes('ขาย') && !typeStr.includes('โปร')) || typeStr.includes('normal') || typeStr.includes('full') || typeStr.includes('standard') || typeStr === 'one'
-                                    || nameLower.includes('ราคาเต็ม') || nameLower.includes('ราคาปกติ') || nameLower.includes('ราคาขาย');
+                                // 4. ตรวจสอบ "ราคาเต็ม" (ราคาปกติ / ปกติ / ราคาขาย / เต็ม / normal / full / one / ປົກກະຕິ)
+                                const isFullType = typeStr.includes('เต็ม') || typeStr.includes('ปกติ') || typeStr.includes('ราคาขาย') || (typeStr.includes('ขาย') && !typeStr.includes('โปร')) || typeStr.includes('normal') || typeStr.includes('full') || typeStr.includes('standard') || typeStr === 'one' || typeStr.includes('ປົກກະຕິ')
+                                    || nameLower.includes('ราคาเต็ม') || nameLower.includes('ราคาปกติ') || nameLower.includes('ราคาขาย') || nameLower.includes('ປົກກະຕິ');
 
-                                if (isZeroType) {
+                                // ⚡ ดักจับตามราคาจริง (Price-First Detection):
+                                // ถ้ามีราคาตัวเลขส่งมาตรงกับราคาสมาชิก/โปร/ปกติ หรือตรงกับราคา 1,500 ให้อิงตามราคาตัวเลขเป็นหลัก
+                                if (isZeroType || (rawPrice !== null && rawPrice === 0)) {
                                     mappedPriceType = 'ราคาศูนย์';
                                     unitPrice = 0;
+                                } else if (rawPrice !== null && rawPrice > 0 && pMember > 0 && Math.abs(rawPrice - pMember) < 0.01) {
+                                    mappedPriceType = 'ราคาสมาชิก';
+                                    unitPrice = pMember;
+                                } else if (rawPrice !== null && rawPrice > 0 && pPromo > 0 && Math.abs(rawPrice - pPromo) < 0.01) {
+                                    mappedPriceType = 'ราคาโปร';
+                                    unitPrice = pPromo;
+                                } else if (rawPrice !== null && rawPrice > 0 && pFull > 0 && Math.abs(rawPrice - pFull) < 0.01) {
+                                    mappedPriceType = 'ราคาเต็ม';
+                                    unitPrice = pFull;
+                                } else if (rawPrice === 1500) {
+                                    // ดักจับราคาสมาชิกมาตรฐาน 1,500 บาทโดยตรง
+                                    mappedPriceType = 'ราคาสมาชิก';
+                                    unitPrice = 1500;
+                                } else if (rawPrice === 1800) {
+                                    // ดักจับราคาปกติมาตรฐาน 1,800 บาทโดยตรง
+                                    mappedPriceType = 'ราคาเต็ม';
+                                    unitPrice = 1800;
+                                } else if (rawPrice === 1000) {
+                                    // ดักจับราคาโปร 1,000 บาทโดยตรง
+                                    mappedPriceType = 'ราคาโปร';
+                                    unitPrice = 1000;
                                 } else if (isMemberType) {
                                     mappedPriceType = 'ราคาสมาชิก';
                                     unitPrice = (rawPrice !== null && rawPrice > 0) ? rawPrice : (pMember > 0 ? pMember : (pFull > 0 ? pFull : 0));
@@ -1078,29 +1116,15 @@
                                 } else if (isFullType) {
                                     mappedPriceType = 'ราคาเต็ม';
                                     unitPrice = (rawPrice !== null && rawPrice > 0) ? rawPrice : (pFull > 0 ? pFull : 0);
-                                } else if (rawPrice !== null) {
-                                    if (rawPrice === 0) {
-                                        mappedPriceType = 'ราคาศูนย์';
-                                        unitPrice = 0;
-                                    } else if (pMember > 0 && Math.abs(rawPrice - pMember) < 0.01) {
+                                } else if (rawPrice !== null && rawPrice > 0) {
+                                    if (pMember > 0 && rawPrice <= pMember) {
                                         mappedPriceType = 'ราคาสมาชิก';
-                                        unitPrice = pMember;
-                                    } else if (pFull > 0 && Math.abs(rawPrice - pFull) < 0.01) {
-                                        mappedPriceType = 'ราคาเต็ม';
-                                        unitPrice = pFull;
-                                    } else if (pPromo > 0 && Math.abs(rawPrice - pPromo) < 0.01) {
+                                    } else if (pPromo > 0 && rawPrice <= pPromo) {
                                         mappedPriceType = 'ราคาโปร';
-                                        unitPrice = pPromo;
                                     } else {
-                                        if (pMember > 0 && rawPrice <= pMember) {
-                                            mappedPriceType = 'ราคาสมาชิก';
-                                        } else if (pPromo > 0 && rawPrice <= pPromo) {
-                                            mappedPriceType = 'ราคาโปร';
-                                        } else {
-                                            mappedPriceType = 'ราคาเต็ม';
-                                        }
-                                        unitPrice = rawPrice;
+                                        mappedPriceType = 'ราคาเต็ม';
                                     }
+                                    unitPrice = rawPrice;
                                 } else {
                                     mappedPriceType = 'ราคาเต็ม';
                                     unitPrice = pFull > 0 ? pFull : 0;
@@ -1210,7 +1234,7 @@
                             const qtyNum = Number(it.qty || it.quantity || 1);
                             const pName = String(it.prod || it.productName || it.name || '').trim();
                             const pId = String(it.id || it.product_id || '').trim();
-                            
+
                             // ค้นหาสินค้าด้วย ID หรือ Name
                             const prodObj = freshProducts.find(p => (pId && (p.id === pId || p.product_id === pId)) || p.name === pName || p.product_name === pName) || {};
                             const finalName = prodObj.name || prodObj.product_name || pName;
@@ -1891,10 +1915,10 @@
                     const visitMatch = paymentNote.match(/VISIT:\s*([^\)\s]+)/);
                     if (visitMatch && visitMatch[1]) {
                         const visitId = visitMatch[1];
-                        
+
                         // 1. เช็คจากข้อมูลที่โหลดมาแล้ว (เร็วกว่า ไม่ต้องรอ API)
                         const isDuplicateLocal = (sales || []).some(s => s && s.id !== editingSaleId && String(s.paymentNote || s.payment_note || '').includes(visitId));
-                        
+
                         if (isDuplicateLocal) {
                             Swal.fire({
                                 icon: 'error',
@@ -2269,46 +2293,49 @@
                                 let success = false;
                                 let retryCount = 0;
                                 let currentCustId = newCustomerObj.id;
-                                let custNum = parseInt(currentCustId.replace('C', ''), 10);
+                                let custNum = parseInt(String(currentCustId || '').replace('C', ''), 10);
 
                                 while (!success && retryCount < 10) {
                                     // 🛠️ FIX: ปรับปรุงการบันทึกข้อมูลลูกค้า ให้ใช้ Upsert เสมอ เพื่อให้ลูกค้าคนเดิมกลับมาซื้อซ้ำ/ต่อยาได้โดยไม่ชน Error
-                    if (newCustomerObj) {
-                        const custPayload = {
-                            customer_id: newCustomerObj.id,
-                            name: newCustomerObj.name,
-                            phone: newCustomerObj.phone || '',
-                            line_id: newCustomerObj.lineId || '',
-                            customer_type: newCustomerObj.type || '',
-                            symptom_disease: newCustomerObj.symptom || '',
-                            owner_member_id: newCustomerObj.memberId || '',
-                            closer_id: newCustomerObj.closer || '',
-                            extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName },
-                            status: 'Active'
-                        };
+                                    if (newCustomerObj) {
+                                        const custPayload = {
+                                            customer_id: newCustomerObj.id,
+                                            name: newCustomerObj.name,
+                                            phone: newCustomerObj.phone || '',
+                                            line_id: newCustomerObj.lineId || '',
+                                            customer_type: newCustomerObj.type || '',
+                                            symptom_disease: newCustomerObj.symptom || '',
+                                            owner_member_id: newCustomerObj.memberId || '',
+                                            closer_id: newCustomerObj.closer || '',
+                                            extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName },
+                                            status: 'Active'
+                                        };
 
-                        let custSavedOk = false;
-                        if (typeof supabaseUpsert === 'function') {
-                            try {
-                                await supabaseUpsert('stk_customers', custPayload);
-                                custSavedOk = true;
-                            } catch (eUpsert) {
-                                console.warn('Supabase upsert customer fallback:', eUpsert);
-                            }
-                        }
+                                        let custSavedOk = false;
+                                        if (typeof supabaseUpsert === 'function') {
+                                            try {
+                                                await supabaseUpsert('stk_customers', custPayload);
+                                                custSavedOk = true;
+                                            } catch (eUpsert) {
+                                                console.warn('Supabase upsert customer fallback:', eUpsert);
+                                            }
+                                        }
 
-                        if (!custSavedOk && typeof supabaseInsert === 'function') {
-                            try {
-                                await supabaseInsert('stk_customers', custPayload);
-                                custSavedOk = true;
-                            } catch (eIns) {
-                                // ถ้า Insert ชน ให้ข้ามไปเพราะถือว่ามีข้อมูลอยู่แล้วในระบบ
-                                custSavedOk = true; 
-                            }
-                        }
-                        
-                        newRecord.customerId = newCustomerObj.id;
-                    }
+                                        if (!custSavedOk && typeof supabaseInsert === 'function') {
+                                            try {
+                                                await supabaseInsert('stk_customers', custPayload);
+                                                custSavedOk = true;
+                                            } catch (eIns) {
+                                                // ถ้า Insert ชน ให้ข้ามไปเพราะถือว่ามีข้อมูลอยู่แล้วในระบบ
+                                                custSavedOk = true;
+                                            }
+                                        }
+
+                                        newRecord.customerId = newCustomerObj.id;
+                                        success = true;
+                                    } else {
+                                        success = true;
+                                    }
                                 }
                             }
                         }
@@ -2336,7 +2363,24 @@
                             payment_note: newRecord.paymentNote || newRecord.payment_note || ''
                         };
 
-                        if (typeof supabaseUpsert === 'function') {
+                        let saleSaved = false;
+                        if (typeof supabaseUpdate === 'function') {
+                            try {
+                                await supabaseUpdate('stk_sales', editingSaleId, supaSalesData, 'order_id');
+                                saleSaved = true;
+                            } catch (eUp) {
+                                console.warn('stk_sales update failed in edit mode, trying without payment_note:', eUp);
+                                const fallbackData = { ...supaSalesData };
+                                delete fallbackData.payment_note;
+                                try {
+                                    await supabaseUpdate('stk_sales', editingSaleId, fallbackData, 'order_id');
+                                    saleSaved = true;
+                                } catch (eUp2) {
+                                    console.warn('stk_sales update fallback failed:', eUp2);
+                                }
+                            }
+                        }
+                        if (!saleSaved && typeof supabaseUpsert === 'function') {
                             try {
                                 await supabaseUpsert('stk_sales', supaSalesData);
                             } catch (e1) {
@@ -2515,43 +2559,72 @@
                             let custInsertSuccess = false;
                             let custRetryCount = 0;
                             let currentCustId = newCustomerObj.id;
-                            let custNum = parseInt(currentCustId.replace('C', ''), 10);
+                            let custNum = parseInt(String(currentCustId || '').replace('C', ''), 10);
 
+                            const custPayload = {
+                                customer_id: currentCustId,
+                                name: newCustomerObj.name,
+                                phone: newCustomerObj.phone,
+                                line_id: newCustomerObj.lineId || '',
+                                customer_type: newCustomerObj.type,
+                                symptom_disease: newCustomerObj.symptom,
+                                owner_member_id: newCustomerObj.memberId,
+                                closer_id: newCustomerObj.closer,
+                                extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName },
+                                status: 'Active'
+                            };
+
+                            // 1. ถ้ามีฟังก์ชัน supabaseUpsert ให้ลอง Upsert ก่อน
+                            if (typeof supabaseUpsert === 'function') {
+                                try {
+                                    await supabaseUpsert('stk_customers', custPayload);
+                                    custInsertSuccess = true;
+                                    newCustomerObj.id = currentCustId;
+                                    newRecord.customerId = currentCustId;
+                                } catch (eUpsert) {
+                                    // ถ้า schema ไม่รับ extra_details_json ลองตัดออก
+                                    const fallbackUpsert = { ...custPayload };
+                                    delete fallbackUpsert.extra_details_json;
+                                    try {
+                                        await supabaseUpsert('stk_customers', fallbackUpsert);
+                                        custInsertSuccess = true;
+                                        newCustomerObj.id = currentCustId;
+                                        newRecord.customerId = currentCustId;
+                                    } catch (eUp2) {
+                                        console.warn('Upsert customer failed, falling back to insert:', eUp2);
+                                    }
+                                }
+                            }
+
+                            // 2. ถ้ายังไม่สำเร็จ ให้ลอง Insert โดยมี retry สำหรับ Cxxx และยอมรับ HN เดิม
                             while (!custInsertSuccess && custRetryCount < 10) {
-                                const custPayload = {
-                                    customer_id: currentCustId,
-                                    name: newCustomerObj.name,
-                                    phone: newCustomerObj.phone,
-                                    line_id: newCustomerObj.lineId || '',
-                                    customer_type: newCustomerObj.type,
-                                    symptom_disease: newCustomerObj.symptom,
-                                    owner_member_id: newCustomerObj.memberId,
-                                    closer_id: newCustomerObj.closer,
-                                    extra_details_json: { closerTeam: newCustomerObj.closerTeam, memberName: newCustomerObj.memberName },
-                                    status: 'Active'
+                                const currentPayload = {
+                                    ...custPayload,
+                                    customer_id: currentCustId
                                 };
                                 try {
-                                    await supabaseInsert('stk_customers', custPayload);
+                                    await supabaseInsert('stk_customers', currentPayload);
                                     custInsertSuccess = true;
                                     newCustomerObj.id = currentCustId;
                                     newRecord.customerId = currentCustId;
                                 } catch (err) {
                                     const errMsg = String(err.message || '').toLowerCase();
-                                    if (errMsg.includes('duplicate') || errMsg.includes('409') || errMsg.includes('already exists')) {
-                                        if (currentCustId.match(/^C\d+$/i)) {
+                                    const isConflict = errMsg.includes('duplicate') || errMsg.includes('409') || errMsg.includes('already exists') || errMsg.includes('23505') || errMsg.includes('conflict');
+                                    
+                                    if (isConflict) {
+                                        if (String(currentCustId).match(/^C\d+$/i)) {
                                             custNum++;
                                             currentCustId = "C" + custNum.toString().padStart(3, '0');
                                             custRetryCount++;
                                         } else {
-                                            // เป็นลูกค้าจาก Clinic (เช่น รหัส HN) ที่เคยมีประวัติบันทึกใน stk_customers แล้ว
-                                            // ให้ถือว่าสำเร็จและใช้รหัสเดิมได้เลย
+                                            // ลูกค้าที่มีรหัสอยู่แล้ว (เช่น HN-xxxxxx จากคลินิก) ให้ใช้รหัสเดิมได้ทันที
                                             custInsertSuccess = true;
                                             newCustomerObj.id = currentCustId;
                                             newRecord.customerId = currentCustId;
                                             break;
                                         }
                                     } else {
-                                        const fallbackCust = { ...custPayload };
+                                        const fallbackCust = { ...currentPayload };
                                         delete fallbackCust.extra_details_json;
                                         try {
                                             await supabaseInsert('stk_customers', fallbackCust);
@@ -2560,8 +2633,9 @@
                                             newRecord.customerId = currentCustId;
                                         } catch (e2) {
                                             const e2Msg = String(e2.message || '').toLowerCase();
-                                            if (e2Msg.includes('duplicate') || e2Msg.includes('409') || e2Msg.includes('already exists')) {
-                                                if (currentCustId.match(/^C\d+$/i)) {
+                                            const isConflict2 = e2Msg.includes('duplicate') || e2Msg.includes('409') || e2Msg.includes('already exists') || e2Msg.includes('23505') || e2Msg.includes('conflict');
+                                            if (isConflict2) {
+                                                if (String(currentCustId).match(/^C\d+$/i)) {
                                                     custNum++;
                                                     currentCustId = "C" + custNum.toString().padStart(3, '0');
                                                     custRetryCount++;
@@ -2572,13 +2646,28 @@
                                                     break;
                                                 }
                                             } else {
+                                                // หากเป็น Error อื่น และเป็นลูกค้า HN ให้ถือว่าผ่านและใช้รหัสนั้นต่อไปเพื่อไม่ให้บล็อกการเปิดบิล
+                                                if (!String(currentCustId).match(/^C\d+$/i)) {
+                                                    custInsertSuccess = true;
+                                                    newCustomerObj.id = currentCustId;
+                                                    newRecord.customerId = currentCustId;
+                                                    break;
+                                                }
                                                 throw e2;
                                             }
                                         }
                                     }
                                 }
                             }
-                            if (!custInsertSuccess) throw new Error("รหัสลูกค้าชนกันหลายครั้ง ระบบไม่สามารถบันทึกได้ กรุณากดบันทึกใหม่อีกครั้ง");
+                            if (!custInsertSuccess) {
+                                // ถ้ายังติดปัญหาแต่มีรหัสลูกค้าอยู่แล้ว ให้ยอมรับรหัสนั้นแทนการโยน Error
+                                if (currentCustId) {
+                                    newCustomerObj.id = currentCustId;
+                                    newRecord.customerId = currentCustId;
+                                } else {
+                                    throw new Error("รหัสลูกค้าชนกันหลายครั้ง ระบบไม่สามารถบันทึกได้ กรุณากดบันทึกใหม่อีกครั้ง");
+                                }
+                            }
                         }
                     }
 
@@ -2640,7 +2729,10 @@
                             const visitId = visitMatch[1];
                             if (typeof window.supabaseUpdate === 'function') {
                                 try {
-                                    await window.supabaseUpdate('stk_nutrient_orders', visitId, { status: 'ขายสำเร็จแล้ว' }, 'visit_id');
+                                    await window.supabaseUpdate('stk_nutrient_orders', visitId, { 
+                                        status: 'ขายสำเร็จแล้ว',
+                                        sale_order_id: newRecord.id 
+                                    }, 'visit_id');
                                     localStorage.setItem('stk_refresh_trigger', Date.now().toString());
                                 } catch (e) {
                                     console.warn('Failed to update nutrient order status to completed:', e);
@@ -2886,7 +2978,7 @@
 
                         {/* Payment Box */}
                         <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-lg shrink-0 flex flex-col xl:mt-auto z-20 w-full">
-                            
+
                             {/* สรุปยอดสุทธิ + สถานะการชำระเงิน (ปรับให้สมมาตร โปร่งสบายตา) */}
                             {(() => {
                                 const cTHB = parseFloat(payCashTHB) || 0;
@@ -2913,7 +3005,7 @@
                                                 <span>- ฿{cartTotals.discount.toLocaleString()}</span>
                                             </div>
                                         )}
-                                        
+
                                         <div className="flex justify-between items-center pt-1.5">
                                             {/* ฝั่งซ้าย: ป้ายสถานะชำระเงิน (ปรับเป็นแนวนอน) */}
                                             <div className="text-left">
@@ -2948,7 +3040,7 @@
                                     </div>
                                 );
                             })()}
-                             
+
                             {saleTab === 'OLD_SYSTEM' ? (
                                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center mb-1.5 shadow-sm">
                                     <p className="text-amber-800 font-extrabold text-[12px] flex items-center justify-center gap-1">📦 โหมดป้อนยอดระบบเก่า</p>
@@ -2959,15 +3051,14 @@
                                     {/* รูปแบบกะทัดรัด (Compact UI) */}
                                     <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 mb-2 gap-0.5">
                                         {['สด', 'โอน', 'สด+โอน'].map(mode => (
-                                            <button 
-                                                key={mode} 
-                                                type="button" 
+                                            <button
+                                                key={mode}
+                                                type="button"
                                                 onClick={() => setPayMode(mode)}
-                                                className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-[11px] font-black transition-all duration-200 ${
-                                                    payMode === mode 
-                                                    ? 'bg-white text-blue-700 shadow-sm border border-slate-200' 
-                                                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200 border border-transparent'
-                                                }`}
+                                                className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-[11px] font-black transition-all duration-200 ${payMode === mode
+                                                        ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
+                                                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200 border border-transparent'
+                                                    }`}
                                             >
                                                 {mode === 'สด' ? '💵 เงินสด' : mode === 'โอน' ? '📱 เงินโอน' : '🧾 แบ่งชำระ'}
                                             </button>
@@ -2976,13 +3067,13 @@
 
                                     {(payMode === 'สด' || payMode === 'สด+โอน') && (
                                         <div className="bg-emerald-50/50 p-1.5 rounded-lg border border-emerald-200 mb-1.5">
-                                            <label className="text-[10px] font-black text-emerald-700 flex items-center gap-1 mb-1.5"><Coins size={12}/> รับเงินสด</label>
+                                            <label className="text-[10px] font-black text-emerald-700 flex items-center gap-1 mb-1.5"><Coins size={12} /> รับเงินสด</label>
                                             <div className="grid grid-cols-2 gap-2">
                                                 {/* เงินสดกีบ */}
                                                 <div className="flex items-center bg-white border border-emerald-200 rounded-lg p-1 shadow-sm hover:border-emerald-300 transition-colors">
                                                     <div className="flex items-center gap-1.5 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 mr-2">
                                                         <svg viewBox="0 0 900 600" className="w-5 h-3.5 rounded-sm shadow-sm shrink-0">
-                                                            <rect width="900" height="600" fill="#CE1126"/><rect width="900" height="300" y="150" fill="#002868"/><circle cx="450" cy="300" r="120" fill="#FFF"/>
+                                                            <rect width="900" height="600" fill="#CE1126" /><rect width="900" height="300" y="150" fill="#002868" /><circle cx="450" cy="300" r="120" fill="#FFF" />
                                                         </svg>
                                                         <span className="text-[10px] font-black text-emerald-700 whitespace-nowrap">กีบ</span>
                                                     </div>
@@ -2995,7 +3086,7 @@
                                                 <div className="flex items-center bg-white border border-emerald-200 rounded-lg p-1 shadow-sm hover:border-emerald-300 transition-colors">
                                                     <div className="flex items-center gap-1.5 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 mr-2">
                                                         <svg viewBox="0 0 900 600" className="w-5 h-3.5 rounded-sm shadow-sm shrink-0">
-                                                            <rect width="900" height="600" fill="#A51931"/><rect width="900" height="400" y="100" fill="#F4F5F8"/><rect width="900" height="200" y="200" fill="#2D2A4A"/>
+                                                            <rect width="900" height="600" fill="#A51931" /><rect width="900" height="400" y="100" fill="#F4F5F8" /><rect width="900" height="200" y="200" fill="#2D2A4A" />
                                                         </svg>
                                                         <span className="text-[10px] font-black text-emerald-700 whitespace-nowrap">บาท</span>
                                                     </div>
@@ -3010,23 +3101,22 @@
 
                                     {(payMode === 'โอน' || payMode === 'สด+โอน') && (
                                         <div className="bg-slate-50/80 p-1.5 rounded-lg border border-slate-200 mb-1.5">
-                                            <label className="text-[10px] font-black text-slate-500 flex items-center gap-1 mb-1.5"><Activity size={12}/> ช่องทางรับเงินโอน</label>
+                                            <label className="text-[10px] font-black text-slate-500 flex items-center gap-1 mb-1.5"><Activity size={12} /> ช่องทางรับเงินโอน</label>
                                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                                
+
                                                 {/* กล่อง 1: ลาวกีบ (โทนสีเขียว) */}
                                                 <div className="flex flex-col bg-green-50/60 border border-green-200 rounded-lg p-1.5 shadow-sm hover:border-green-300 transition-colors">
                                                     <div className="flex justify-between items-center mb-1">
                                                         <div className="flex items-center gap-1.5">
                                                             <svg viewBox="0 0 900 600" className="w-5 h-3.5 rounded-sm shadow-sm shrink-0">
-                                                                <rect width="900" height="600" fill="#CE1126"/><rect width="900" height="300" y="150" fill="#002868"/><circle cx="450" cy="300" r="120" fill="#FFF"/>
+                                                                <rect width="900" height="600" fill="#CE1126" /><rect width="900" height="300" y="150" fill="#002868" /><circle cx="450" cy="300" r="120" fill="#FFF" />
                                                             </svg>
                                                             <span className="text-[11px] font-black text-green-700">โอนกีบ</span>
                                                         </div>
                                                         <div className="flex items-center bg-white border border-green-100 rounded px-1.5 py-0.5 shadow-sm">
-                                                            <span className={`w-2 h-2 rounded-full mr-1 ${
-                                                                payTransferLaosBankLAK === 'BCEL' ? 'bg-red-600' :
-                                                                payTransferLaosBankLAK === 'JDB' ? 'bg-green-600' : 'bg-blue-600'
-                                                            }`}></span>
+                                                            <span className={`w-2 h-2 rounded-full mr-1 ${payTransferLaosBankLAK === 'BCEL' ? 'bg-red-600' :
+                                                                    payTransferLaosBankLAK === 'JDB' ? 'bg-green-600' : 'bg-blue-600'
+                                                                }`}></span>
                                                             <select className="text-[10px] font-bold text-slate-600 bg-transparent border-none outline-none cursor-pointer" value={payTransferLaosBankLAK} onChange={e => setPayTransferLaosBankLAK(e.target.value)}>
                                                                 <option value="BCEL">BCEL</option><option value="JDB">JDB</option><option value="LDB">LDB</option>
                                                             </select>
@@ -3037,21 +3127,20 @@
                                                         <input type="text" inputMode="decimal" placeholder="0" className="w-full bg-white border border-green-200 text-slate-800 text-lg font-black rounded-md py-1.5 pl-6 pr-2 outline-none focus:border-green-500 text-right transition-colors shadow-inner" value={formatDisplayNumber(payTransferLaosLAK)} onChange={handleNumberInput(setPayTransferLaosLAK)} />
                                                     </div>
                                                 </div>
-                                                
+
                                                 {/* กล่อง 2: ลาวบาท (โทนสีแดง) */}
                                                 <div className="flex flex-col bg-red-50/60 border border-red-200 rounded-lg p-1.5 shadow-sm hover:border-red-300 transition-colors">
                                                     <div className="flex justify-between items-center mb-1">
                                                         <div className="flex items-center gap-1.5">
                                                             <svg viewBox="0 0 900 600" className="w-5 h-3.5 rounded-sm shadow-sm shrink-0">
-                                                                <rect width="900" height="600" fill="#CE1126"/><rect width="900" height="300" y="150" fill="#002868"/><circle cx="450" cy="300" r="120" fill="#FFF"/>
+                                                                <rect width="900" height="600" fill="#CE1126" /><rect width="900" height="300" y="150" fill="#002868" /><circle cx="450" cy="300" r="120" fill="#FFF" />
                                                             </svg>
                                                             <span className="text-[11px] font-black text-red-700">โอนบาท</span>
                                                         </div>
                                                         <div className="flex items-center bg-white border border-red-100 rounded px-1.5 py-0.5 shadow-sm">
-                                                            <span className={`w-2 h-2 rounded-full mr-1 ${
-                                                                payTransferLaosBankTHB === 'BCEL' ? 'bg-red-600' :
-                                                                payTransferLaosBankTHB === 'JDB' ? 'bg-green-600' : 'bg-blue-600'
-                                                            }`}></span>
+                                                            <span className={`w-2 h-2 rounded-full mr-1 ${payTransferLaosBankTHB === 'BCEL' ? 'bg-red-600' :
+                                                                    payTransferLaosBankTHB === 'JDB' ? 'bg-green-600' : 'bg-blue-600'
+                                                                }`}></span>
                                                             <select className="text-[10px] font-bold text-slate-600 bg-transparent border-none outline-none cursor-pointer" value={payTransferLaosBankTHB} onChange={e => setPayTransferLaosBankTHB(e.target.value)}>
                                                                 <option value="BCEL">BCEL</option><option value="JDB">JDB</option><option value="LDB">LDB</option>
                                                             </select>
@@ -3068,18 +3157,17 @@
                                                     <div className="flex justify-between items-center mb-1">
                                                         <div className="flex items-center gap-1.5">
                                                             <svg viewBox="0 0 900 600" className="w-5 h-3.5 rounded-sm shadow-sm shrink-0">
-                                                                <rect width="900" height="600" fill="#A51931"/><rect width="900" height="400" y="100" fill="#F4F5F8"/><rect width="900" height="200" y="200" fill="#2D2A4A"/>
+                                                                <rect width="900" height="600" fill="#A51931" /><rect width="900" height="400" y="100" fill="#F4F5F8" /><rect width="900" height="200" y="200" fill="#2D2A4A" />
                                                             </svg>
                                                             <span className="text-[11px] font-black text-blue-700">โอนไทย</span>
                                                         </div>
                                                         <div className="flex items-center bg-white border border-blue-100 rounded px-1.5 py-0.5 shadow-sm">
-                                                            <span className={`w-2 h-2 rounded-full mr-1 ${
-                                                                payTransferThaiBank === 'กสิกรไทย' ? 'bg-green-500' :
-                                                                payTransferThaiBank === 'ไทยพาณิชย์' ? 'bg-purple-600' :
-                                                                payTransferThaiBank === 'กรุงเทพ' ? 'bg-blue-800' :
-                                                                payTransferThaiBank === 'กรุงไทย' ? 'bg-cyan-500' :
-                                                                payTransferThaiBank === 'กรุงศรี' ? 'bg-yellow-400' : 'bg-indigo-900'
-                                                            }`}></span>
+                                                            <span className={`w-2 h-2 rounded-full mr-1 ${payTransferThaiBank === 'กสิกรไทย' ? 'bg-green-500' :
+                                                                    payTransferThaiBank === 'ไทยพาณิชย์' ? 'bg-purple-600' :
+                                                                        payTransferThaiBank === 'กรุงเทพ' ? 'bg-blue-800' :
+                                                                            payTransferThaiBank === 'กรุงไทย' ? 'bg-cyan-500' :
+                                                                                payTransferThaiBank === 'กรุงศรี' ? 'bg-yellow-400' : 'bg-indigo-900'
+                                                                }`}></span>
                                                             <select className="text-[10px] font-bold text-slate-600 bg-transparent border-none outline-none cursor-pointer w-[55px] truncate" value={payTransferThaiBank} onChange={e => setPayTransferThaiBank(e.target.value)}>
                                                                 <option value="กสิกรไทย">KBANK</option><option value="ไทยพาณิชย์">SCB</option><option value="กรุงเทพ">BBL</option><option value="กรุงไทย">KTB</option><option value="กรุงศรี">BAY</option><option value="PromptPay">Prompt</option>
                                                             </select>
@@ -3487,7 +3575,7 @@
 
                 const initialLoader = document.getElementById('initial-loader');
                 if (initialLoader) {
-                    initialLoader.style.display = 'none';
+                    initialLoader.style.opacity = '0'; setTimeout(() => { initialLoader.style.display = 'none'; }, 400);
                 }
 
                 // 💡 INSTANT UI + BACKGROUND REFRESH STRATEGY:
@@ -3514,13 +3602,13 @@
                 // ดึงข้อมูลทั้งหมดในพร้อมกัน แต่แสดงหน้าจอจาก cache ก่อน (ถ้ามี) เพื่อแก้ปัญหาหมุนค้างและให้ข้อมูลเรียลไทม์
                 const doFullRefresh = () => {
                     Promise.all([
-                        supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
-                        supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
-                        supabaseSelect('stk_closers', 'nocache=true').catch(() => supabaseSelect('closers')),
-                        supabaseSelect('stk_members', 'nocache=true').catch(() => supabaseSelect('members')),
-                        supabaseSelect('stk_customers', 'order=customer_id.desc&limit=10000').catch(() => supabaseSelect('customers')),
-                        supabaseSelect('stk_sales', 'order=order_id.desc&limit=10000').catch(() => supabaseSelect('sales')),
-                        supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams'))
+                        supabaseSelect('stk_products').catch(e => { console.warn('stk_products fetch:', e); return []; }),
+                        supabaseSelect('stk_customer_types').catch(e => { console.warn('stk_customer_types fetch:', e); return []; }),
+                        supabaseSelect('stk_closers', 'nocache=true').catch(e => { console.warn('stk_closers fetch:', e); return []; }),
+                        supabaseSelect('stk_members', 'nocache=true').catch(e => { console.warn('stk_members fetch:', e); return []; }),
+                        supabaseSelect('stk_customers', 'order=customer_id.desc&limit=2500').catch(e => { console.warn('stk_customers fetch:', e); return []; }),
+                        supabaseSelect('stk_sales', 'order=order_id.desc&limit=1500').catch(e => { console.warn('stk_sales fetch:', e); return []; }),
+                        supabaseSelect('stk_business_teams').catch(e => { console.warn('stk_business_teams fetch:', e); return []; })
                     ]).then(([pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes]) => {
                         const resObj = {
                             products: pRes,
@@ -3533,7 +3621,12 @@
                         };
                         applyDataToStates(resObj);
                         try {
-                            localStorage.setItem('stk_app_cache_data', JSON.stringify(resObj));
+                            const cleanCache = {
+                                ...resObj,
+                                customers: (resObj.customers || []).slice(0, 500),
+                                sales: (resObj.sales || []).slice(0, 500)
+                            };
+                            localStorage.setItem('stk_app_cache_data', JSON.stringify(cleanCache));
                             localStorage.setItem('stk_app_cache_time', String(Date.now()));
                         } catch (e) { }
                     }).catch(err => {
@@ -3727,5 +3820,3 @@
 </body>
 
 </html>
-
-

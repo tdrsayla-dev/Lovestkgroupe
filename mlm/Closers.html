@@ -1,11 +1,25 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
+<script>
+  (function() {
+    try {
+      var theme = localStorage.getItem('stk_theme');
+      if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        document.documentElement.style.backgroundColor = '#0f172a';
+      } else {
+        document.documentElement.setAttribute('data-theme', 'light');
+        document.documentElement.style.backgroundColor = '#f8fafc';
+      }
+    } catch (e) {}
+  })();
+</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ผู้ปิดการขาย (Closers) - LOVE STK GROUPE</title>
   <!-- Standalone & GAS Libraries -->
-  <link rel="stylesheet" href="mainstyle.css">
+  <link rel="stylesheet" href="mainstyle.css?v=6">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
@@ -13,16 +27,12 @@
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
-  <script src="CommonComponents.js"></script>
+  <script src="dictionary.js"></script>
+  <script src="CommonComponents.js?v=3"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
-  <div id="initial-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999;">
-    <div style="width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 24px;"></div>
-    <style>@keyframes initial-spin { to { transform: rotate(360deg); } }</style>
-    <h2 style="font-size: 1.75rem; font-weight: 800; color: #1e40af; margin: 0; letter-spacing: -0.025em;">LOVE <span style="color: #475569;">STK GROUPE</span></h2>
-    <p style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 8px;">กำลังโหลดข้อมูลผู้ปิดการขาย...</p>
-  </div>
+  
 
   <div id="root"></div>
 
@@ -457,7 +467,7 @@
         }
 
         const initialLoader = document.getElementById('initial-loader');
-        if (initialLoader) initialLoader.style.display = 'none';
+        if (initialLoader) { initialLoader.style.opacity = '0'; setTimeout(() => { if (initialLoader) initialLoader.style.display = 'none'; }, 400); }
 
         Promise.all([
           supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')).catch(() => []),
@@ -645,7 +655,7 @@
 
             <footer className="w-full text-center py-6 mt-auto border-t border-slate-200/50 no-print shrink-0">
                <p className="text-[11px] font-bold text-slate-400 opacity-60 hover:opacity-100 transition-opacity">
-                  &copy; {new Date().getFullYear()} STK Sales Management System.
+                  &copy; {new Date().getFullYear()} STK Sales Management System. Developed by Sackda Southammavong.
                </p>
             </footer>
 
@@ -662,3 +672,11 @@
   </script>
 </body>
 </html>
+
+
+
+
+
+
+
+

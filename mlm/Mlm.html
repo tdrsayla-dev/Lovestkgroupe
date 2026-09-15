@@ -1,11 +1,25 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
+<script>
+  (function() {
+    try {
+      var theme = localStorage.getItem('stk_theme');
+      if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        document.documentElement.style.backgroundColor = '#0f172a';
+      } else {
+        document.documentElement.setAttribute('data-theme', 'light');
+        document.documentElement.style.backgroundColor = '#f8fafc';
+      }
+    } catch (e) {}
+  })();
+</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ระบบแดชบอร์ด (Dashboard) - LOVE STK GROUPE</title>
   <!-- Standalone & GAS Libraries -->
-  <link rel="stylesheet" href="mainstyle.css">
+  <link rel="stylesheet" href="mainstyle.css?v=6">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
@@ -15,30 +29,16 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <!-- ✅ STK Supabase Config -->
   <script src="config.js"></script>
-  <script src="CommonComponents.js"></script>
+  <script src="dictionary.js"></script>
+  <script src="CommonComponents.js?v=3"></script>
   <script>
-    window.addEventListener('DOMContentLoaded', function() {
-      // ซ่อน loader เร็วขึ้นทันทีเมื่อ DOM พร้อม
-      var loader = document.getElementById('initial-loader');
-      if (loader) {
-        loader.style.transition = 'opacity 0.2s ease-out';
-        setTimeout(function() {
-          loader.style.opacity = '0';
-          setTimeout(function() { loader.style.display = 'none'; }, 200);
-        }, 100);
-      }
-    });
+    
   </script>
   <!-- <?!= include('Includes'); ?> -->
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
-  <div id="initial-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999;">
-    <div style="width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: initial-spin 1s linear infinite; margin-bottom: 24px;"></div>
-    <style>@keyframes initial-spin { to { transform: rotate(360deg); } }</style>
-    <h2 style="font-size: 1.75rem; font-weight: 800; color: #1e40af; margin: 0; letter-spacing: -0.025em;">LOVE <span style="color: #475569;">STK GROUPE</span></h2>
-    <p style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 8px;">กำลังโหลดระบบจัดการข้อมูล...</p>
-  </div>
+  
 
   <div id="root"></div>
 
@@ -888,11 +888,11 @@
                                 const theme = isRank1 
                                     ? { outer: 'bg-gradient-to-br from-yellow-300 via-yellow-500 to-amber-700', inner: 'bg-gradient-to-b from-yellow-100 via-yellow-300 to-amber-500', text: 'text-yellow-950', avatar: 'w-14 h-14 sm:w-20 sm:h-20', card: 'w-28 sm:w-36 h-[13.5rem] sm:h-[16.5rem] z-30', rank: 'text-yellow-900', shadow: 'shadow-[0_10px_30px_rgba(217,119,6,0.6)]' }
                                     : isRank2 
-                                    ? { outer: 'bg-gradient-to-br from-slate-300 via-slate-400 to-slate-600', inner: 'bg-gradient-to-b from-slate-100 via-slate-200 to-slate-400', text: 'text-slate-900', avatar: 'w-12 h-12 sm:w-16 sm:h-16', card: 'w-24 sm:w-32 h-[12rem] sm:h-[14.5rem] z-20 opacity-95', rank: 'text-slate-800', shadow: 'shadow-[0_10px_30px_rgba(100,116,139,0.5)]' }
+                                    ? { outer: 'bg-gradient-to-br from-slate-300 via-slate-400 to-slate-600', inner: 'bg-gradient-to-b from-slate-100 via-slate-200 to-slate-400', text: 'text-[#0f172a]', avatar: 'w-12 h-12 sm:w-16 sm:h-16', card: 'w-24 sm:w-32 h-[12rem] sm:h-[14.5rem] z-20 opacity-95', rank: 'text-[#1e293b]', shadow: 'shadow-[0_10px_30px_rgba(100,116,139,0.5)]' }
                                     : { outer: 'bg-gradient-to-br from-orange-400 via-orange-500 to-orange-800', inner: 'bg-gradient-to-b from-orange-100 via-orange-300 to-orange-600', text: 'text-orange-950', avatar: 'w-12 h-12 sm:w-16 sm:h-16', card: 'w-24 sm:w-32 h-[12rem] sm:h-[14.5rem] z-20 opacity-95', rank: 'text-orange-900', shadow: 'shadow-[0_10px_30px_rgba(153,56,17,0.5)]' };
                                 const animClass = isRank1 ? 'animate-float-1' : isRank2 ? 'animate-float-2' : 'animate-float-3';
                                 return (
-                                    <div key={m.id} className={`relative flex flex-col items-center shrink-0 ${theme.card} ${animClass} transition-transform duration-300 hover:scale-105 cursor-pointer`}>
+                                    <div key={m.id} className={`stk-protect relative flex flex-col items-center shrink-0 ${theme.card} ${animClass} transition-transform duration-300 hover:scale-105 cursor-pointer`}>
                                         <div className={`absolute inset-0 ${theme.outer} rounded-t-[2rem] sm:rounded-t-[3rem] rounded-b-xl ${theme.shadow} p-[3px] sm:p-[4px]`}>
                                             <div className={`w-full h-full ${theme.inner} rounded-t-[1.8rem] sm:rounded-t-[2.8rem] rounded-b-lg flex flex-col items-center relative overflow-hidden`}>
                                                 <div className="absolute inset-0 bg-white/10" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 20px)' }}></div>
@@ -900,7 +900,7 @@
                                                 <div className="absolute top-2 sm:top-2.5 left-1/2 -translate-x-1/2 flex flex-col items-center z-10">
                                                     <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border-2 sm:border-[3px] shadow-lg ${
                                                         isRank1 ? 'bg-gradient-to-b from-yellow-100 to-yellow-400 border-white text-yellow-900 shadow-yellow-600/40' :
-                                                        isRank2 ? 'bg-gradient-to-b from-slate-50 to-slate-300 border-white text-slate-800 shadow-slate-600/40' :
+                                                        isRank2 ? 'bg-gradient-to-b from-slate-50 to-slate-300 border-white text-[#1e293b] shadow-slate-600/40' :
                                                         'bg-gradient-to-b from-orange-100 to-orange-400 border-white text-orange-900 shadow-orange-700/40'
                                                     }`}>
                                                         <span className="text-sm sm:text-base font-black drop-shadow-sm leading-none">{m.rank}</span>
@@ -937,11 +937,11 @@
                                 const theme = isRank1 
                                     ? { outer: 'bg-gradient-to-br from-emerald-300 via-emerald-500 to-teal-700', inner: 'bg-gradient-to-b from-emerald-100 via-emerald-300 to-teal-500', text: 'text-teal-950', avatar: 'w-14 h-14 sm:w-20 sm:h-20', card: 'w-28 sm:w-36 h-[13.5rem] sm:h-[16.5rem] z-30', rank: 'text-emerald-900', shadow: 'shadow-[0_10px_30px_rgba(16,185,129,0.5)]' }
                                     : isRank2 
-                                    ? { outer: 'bg-gradient-to-br from-slate-300 via-slate-400 to-slate-600', inner: 'bg-gradient-to-b from-slate-100 via-slate-200 to-slate-400', text: 'text-slate-900', avatar: 'w-12 h-12 sm:w-16 sm:h-16', card: 'w-24 sm:w-32 h-[12rem] sm:h-[14.5rem] z-20 opacity-95', rank: 'text-slate-800', shadow: 'shadow-[0_10px_30px_rgba(100,116,139,0.5)]' }
+                                    ? { outer: 'bg-gradient-to-br from-slate-300 via-slate-400 to-slate-600', inner: 'bg-gradient-to-b from-slate-100 via-slate-200 to-slate-400', text: 'text-[#0f172a]', avatar: 'w-12 h-12 sm:w-16 sm:h-16', card: 'w-24 sm:w-32 h-[12rem] sm:h-[14.5rem] z-20 opacity-95', rank: 'text-[#1e293b]', shadow: 'shadow-[0_10px_30px_rgba(100,116,139,0.5)]' }
                                     : { outer: 'bg-gradient-to-br from-orange-400 via-orange-500 to-orange-800', inner: 'bg-gradient-to-b from-orange-100 via-orange-300 to-orange-600', text: 'text-orange-950', avatar: 'w-12 h-12 sm:w-16 sm:h-16', card: 'w-24 sm:w-32 h-[12rem] sm:h-[14.5rem] z-20 opacity-95', rank: 'text-orange-900', shadow: 'shadow-[0_10px_30px_rgba(153,56,17,0.5)]' };
                                 const animClass = isRank1 ? 'animate-float-1' : isRank2 ? 'animate-float-2' : 'animate-float-3';
                                 return (
-                                    <div key={m.id} className={`relative flex flex-col items-center shrink-0 ${theme.card} ${animClass} transition-transform duration-300 hover:scale-105 cursor-pointer`}>
+                                    <div key={m.id} className={`stk-protect relative flex flex-col items-center shrink-0 ${theme.card} ${animClass} transition-transform duration-300 hover:scale-105 cursor-pointer`}>
                                         <div className={`absolute inset-0 ${theme.outer} rounded-t-[2rem] sm:rounded-t-[3rem] rounded-b-xl ${theme.shadow} p-[3px] sm:p-[4px]`}>
                                             <div className={`w-full h-full ${theme.inner} rounded-t-[1.8rem] sm:rounded-t-[2.8rem] rounded-b-lg flex flex-col items-center relative overflow-hidden`}>
                                                 <div className="absolute inset-0 bg-white/10" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 20px)' }}></div>
@@ -949,7 +949,7 @@
                                                 <div className="absolute top-2 sm:top-2.5 left-1/2 -translate-x-1/2 flex flex-col items-center z-10">
                                                     <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border-2 sm:border-[3px] shadow-lg ${
                                                         isRank1 ? 'bg-gradient-to-b from-yellow-100 to-yellow-400 border-white text-yellow-900 shadow-yellow-600/40' :
-                                                        isRank2 ? 'bg-gradient-to-b from-slate-50 to-slate-300 border-white text-slate-800 shadow-slate-600/40' :
+                                                        isRank2 ? 'bg-gradient-to-b from-slate-50 to-slate-300 border-white text-[#1e293b] shadow-slate-600/40' :
                                                         'bg-gradient-to-b from-orange-100 to-orange-400 border-white text-orange-900 shadow-orange-700/40'
                                                     }`}>
                                                         <span className="text-sm sm:text-base font-black drop-shadow-sm leading-none">{m.rank}</span>
@@ -1957,7 +1957,7 @@
 
         const initialLoader = document.getElementById('initial-loader');
         if (initialLoader) {
-            initialLoader.style.display = 'none';
+            if (initialLoader) { initialLoader.style.opacity = '0'; setTimeout(() => { if (initialLoader) initialLoader.style.display = 'none'; }, 400); }
         }
 
         let hasCache = false;
@@ -2167,3 +2167,10 @@
   </script>
 </body>
 </html>
+
+
+
+
+
+
+
