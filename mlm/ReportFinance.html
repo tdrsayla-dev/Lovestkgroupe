@@ -36,6 +36,7 @@
   <script src="config.js"></script>
   <script src="dictionary.js"></script>
   <script src="CommonComponents.js?v=3"></script>
+  <script src="reportFinanceLogic.js"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
@@ -87,82 +88,14 @@
         );
     };
 
-    const parseSaleCurrencyAmounts = (s, exRate) => {
-        let rawAmt = Number(s['ยอดขายรวม'] || s.total_amount || s.totalAmount || s.amount || s.grand_total || s.grandTotal || 0);
-        
-        if (rawAmt === 0 && (s._items || s.items_json)) {
-            let itList = s._items;
-            if (!itList && s.items_json) {
-                try { itList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
-            }
-            if (Array.isArray(itList) && itList.length > 0) {
-                rawAmt = itList.reduce((acc, it) => acc + ((Number(it.qty) || 0) * (Number(it.price) || 0)), 0);
-            }
-        }
+    const { 
+        parseSaleCurrencyAmounts, 
+        processFinanceSales, 
+        filterFinanceBills, 
+        calculateFinanceKpi, 
+        calculateYearlyFinanceData 
+    } = window.ReportFinanceEngine || {};
 
-        const pModeStr = String(s.payMode || s.pay_mode || s.saleType || s.sale_type || s.payment_method || s.payment_type || '').trim();
-        let lakAmt = 0;
-        let thbAmt = 0;
-
-        if (pModeStr.includes(':')) {
-            const parts = pModeStr.split('|');
-            let hasParsedLAK = false;
-            let hasParsedTHB = false;
-
-            parts.forEach(part => {
-                const trimmed = part.trim();
-                if (!trimmed.includes(':')) return;
-                const colonIdx = trimmed.indexOf(':');
-                const key = trimmed.substring(0, colonIdx).trim().toLowerCase();
-                const val = parseFloat(trimmed.substring(colonIdx + 1).replace(/[^\d.]/g, '')) || 0;
-
-                if (key === 'เรท' || key === 'rate' || key === 'อัตรา') return;
-
-                const isKeyLak = key.includes('กีบ') || key.includes('lak') || key.includes('kip') || key === 'สดกีบ' || 
-                                 (key.includes('ลาว') && !key.includes('บาท')) ||
-                                 (val >= 70000 && !key.includes('ไทย') && !key.includes('thb') && !key.includes('สดบาท'));
-
-                if (isKeyLak) {
-                    lakAmt += val;
-                    hasParsedLAK = true;
-                } else if (key.includes('บาท') || key.includes('thb') || key === 'สด' || key.includes('สดบาท') || key.includes('ไทย') || key.includes('โอน')) {
-                    if (val >= 70000 && (key.includes('ลาว') || key.includes('bcel') || key.includes('jdb') || key.includes('ldb'))) {
-                        lakAmt += val;
-                        hasParsedLAK = true;
-                    } else {
-                        thbAmt += val;
-                        hasParsedTHB = true;
-                    }
-                } else if (val >= 70000) {
-                    lakAmt += val;
-                    hasParsedLAK = true;
-                } else {
-                    thbAmt += val;
-                    hasParsedTHB = true;
-                }
-            });
-
-            if (hasParsedLAK || hasParsedTHB) {
-                return { lakAmt, thbAmt, isLakBill: lakAmt > 0, isThbBill: thbAmt > 0, realPayMode: pModeStr };
-            }
-        }
-
-        const expLak = Number(s.total_amount_lak || s.totalAmountLak || 0);
-        const expThb = Number(s.total_amount_thb || s.totalAmountThb || 0);
-        if (expLak > 0 || expThb > 0) {
-            return { lakAmt: expLak, thbAmt: expThb, isLakBill: expLak > 0, isThbBill: expThb > 0, realPayMode: pModeStr };
-        }
-
-        const lowerPMode = pModeStr.toLowerCase();
-        const isLakBill = lowerPMode.includes('กีบ') || lowerPMode.includes('lak') || lowerPMode.includes('kip') || 
-                          (lowerPMode.includes('ลาว') && !lowerPMode.includes('บาท')) || rawAmt >= 70000;
-
-        if (isLakBill) {
-            return { lakAmt: rawAmt, thbAmt: 0, isLakBill: true, isThbBill: false, realPayMode: pModeStr };
-        }
-
-        return { lakAmt: 0, thbAmt: rawAmt, isLakBill: false, isThbBill: true, realPayMode: pModeStr };
-    };
 
     function App() {
         const [currentUser, setCurrentUser] = useState(null);
@@ -276,40 +209,7 @@
                 }
 
                 if (Array.isArray(saleRes)) {
-                    const processed = saleRes.map(s => {
-                        let sumF = 0, sumM = 0, sumP = 0, sumZ = 0;
-                        let itemsList = [];
-                        if (s.items_json) {
-                            try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch(e){}
-                        }
-                        if (Array.isArray(itemsList) && itemsList.length > 0) {
-                            itemsList.forEach(it => {
-                                const typeStr = String(it.type || '').trim();
-                                const qtyNum = Number(it.qty || it.quantity || 1);
-                                if (typeStr === 'ราคาเต็ม') sumF += qtyNum;
-                                else if (typeStr === 'ราคาสมาชิก') sumM += qtyNum;
-                                else if (typeStr === 'ราคาโปร' || typeStr === 'โปรโมชั่น') sumP += qtyNum;
-                                else if (typeStr === 'ราคาศูนย์') sumZ += qtyNum;
-                                else sumM += qtyNum;
-                            });
-                        }
-                        s['id'] = s.id || s.order_id || '';
-                        s['memberId'] = s.seller_id || s.memberId || '';
-                        s['sellerName'] = s.seller_name || s.sellerName || s['memberId'];
-                        s['customerName'] = s.customer_name || s.customerName || (s.customer_id ? `ลูกค้า (${s.customer_id})` : 'ไม่ระบุชื่อ');
-                        s['saleType'] = s.sale_type || s.saleType || '';
-                        s['payMode'] = s.sale_type || s.saleType || 'เงินโอน';
-                        s['ยอดขายรวม'] = Number(s.total_amount || s.totalAmount || 0);
-                        s['date'] = String(s.date || s.created_at || '').split('T')[0].split(' ')[0];
-                        s['_items'] = itemsList;
-                        s['รวมชิ้นราคาเต็ม'] = sumF;
-                        s['รวมชิ้นราคาสมาชิก'] = sumM;
-                        s['รวมชิ้นราคาโปร'] = sumP;
-                        s['รวมชิ้นราคาศูนย์'] = sumZ;
-                        s['ยอดรวมชิ้นทั้งหมด'] = sumF + sumM + sumP + sumZ;
-                        return s;
-                    });
-                    setSales(processed);
+                    setSales(processFinanceSales ? processFinanceSales(saleRes) : saleRes);
                 }
             } catch (err) {
                 console.error("Finance fetch error:", err);
@@ -340,34 +240,18 @@
 
         // Filtered Bills for Detail Tab
         const financeBills = useMemo(() => {
-            return (sales || []).filter(s => {
-                if (!s || (s.date || '') < startDate || (s.date || '') > endDate) return false;
-                if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(s.memberId))) return false;
-                const query = (debouncedSearchQuery || searchQuery || '').trim().toUpperCase();
-                if (query !== '') {
-                    const mName = (s.sellerName || '').toUpperCase();
-                    const mId = (s.memberId || '').toUpperCase();
-                    const cName = (s.customerName || '').toUpperCase();
-                    const bId = (s.id || '').toUpperCase();
-                    if (!mName.includes(query) && !mId.includes(query) && !cName.includes(query) && !bId.includes(query)) return false;
-                }
-                return true;
-            });
+            if (filterFinanceBills) {
+                return filterFinanceBills(sales, startDate, endDate, permittedMemberSet, debouncedSearchQuery || searchQuery);
+            }
+            return [];
         }, [sales, startDate, endDate, permittedMemberSet, debouncedSearchQuery, searchQuery]);
 
         // KPI Summary
         const financeKpi = useMemo(() => {
-            let sumLak = 0; let sumThb = 0;
-            let lakBillsCount = 0; let thbBillsCount = 0;
-            financeBills.forEach(s => {
-                const { lakAmt, thbAmt, isLakBill, isThbBill } = parseSaleCurrencyAmounts(s, exchangeRate);
-                sumLak += lakAmt;
-                sumThb += thbAmt;
-                if (isLakBill) lakBillsCount++;
-                if (isThbBill) thbBillsCount++;
-            });
-            const grandCombinedTHB = sumThb + (sumLak / exchangeRate);
-            return { sumLak, sumThb, grandCombinedTHB, lakBillsCount, thbBillsCount };
+            if (calculateFinanceKpi) {
+                return calculateFinanceKpi(financeBills, exchangeRate);
+            }
+            return { sumLak: 0, sumThb: 0, grandCombinedTHB: 0, lakBillsCount: 0, thbBillsCount: 0 };
         }, [financeBills, exchangeRate]);
 
         // 12 Months Summary (for Annual Table & Combo Chart)
@@ -375,42 +259,10 @@
         const activeYear = isNaN(currentYearNum) ? new Date().getFullYear() : currentYearNum;
 
         const financeSummaryData = useMemo(() => {
-            let grouped = {};
-            for (let m = 1; m <= 12; m++) {
-                const mmStr = String(m).padStart(2, '0');
-                const monthKey = `${activeYear}-${mmStr}`;
-                grouped[monthKey] = {
-                    period: monthKey,
-                    monthNum: m,
-                    billsCount: 0,
-                    sumLak: 0,
-                    sumThb: 0
-                };
+            if (calculateYearlyFinanceData) {
+                return calculateYearlyFinanceData(sales, activeYear, exchangeRate, permittedMemberSet, debouncedSearchQuery || searchQuery);
             }
-
-            (sales || []).forEach(s => {
-                if (!s || !s.date) return;
-                const sDateStr = String(s.date);
-                const monthKey = sDateStr.substring(0, 7);
-                if (!grouped[monthKey]) return;
-                if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(s.memberId))) return;
-
-                const query = (debouncedSearchQuery || searchQuery || '').trim().toUpperCase();
-                if (query !== '') {
-                    const mName = (s.sellerName || '').toUpperCase();
-                    const mId = (s.memberId || '').toUpperCase();
-                    const cName = (s.customerName || '').toUpperCase();
-                    const bId = (s.id || '').toUpperCase();
-                    if (!mName.includes(query) && !mId.includes(query) && !cName.includes(query) && !bId.includes(query)) return;
-                }
-
-                grouped[monthKey].billsCount += 1;
-                const { lakAmt: rowLak, thbAmt: rowThb } = parseSaleCurrencyAmounts(s, exchangeRate);
-                grouped[monthKey].sumLak += rowLak;
-                grouped[monthKey].sumThb += rowThb;
-            });
-
-            return Object.values(grouped).sort((a, b) => a.monthNum - b.monthNum);
+            return [];
         }, [sales, activeYear, permittedMemberSet, debouncedSearchQuery, searchQuery, exchangeRate]);
 
         const boxWrapper = "bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5";

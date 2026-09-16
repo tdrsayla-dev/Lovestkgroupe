@@ -98,8 +98,10 @@
         const prodMap = useMemo(() => {
             const m = {};
             (products || []).forEach(p => {
-                if (p.name) m[p.name] = p;
                 if (p.id) m[p.id] = p;
+                if (p.product_id) m[p.product_id] = p;
+                if (p.name) m[p.name] = p;
+                if (p.product_name) m[p.product_name] = p;
             });
             return m;
         }, [products]);
@@ -247,7 +249,7 @@
                 }
                 if (Array.isArray(itemsList) && itemsList.length > 0) {
                     itemsList.forEach(it => {
-                        const typeStr = String(it.type || '').trim();
+                        const typeStr = String(it.type || it.priceType || '').trim();
                         const qtyNum = Number(it.qty || it.quantity || 1);
                         const pName = String(it.prod || it.productName || it.name || 'Unknown').trim();
                         s[`${pName}_${typeStr}`] = qtyNum;
@@ -449,7 +451,7 @@
             const memberObj = (members || []).find(m => m && m.id === saleRecord.memberId) || {};
             const mName = memberObj.name || saleRecord.memberName || saleRecord.member_name || '-';
             const mPhone = memberObj.phone || memberObj.phone_number || memberObj.phoneNumber || saleRecord.memberPhone || saleRecord.member_phone || saleRecord.sellerPhone || saleRecord.seller_phone || '';
-            const mDisplay = mPhone ? `${mName} (โทร: ${mPhone})` : mName;
+            const mDisplay = mPhone ? `<div>${mName}</div><div style="font-size: 10px; color: #475569; margin-top: 1px;">(โทร: ${mPhone})</div>` : mName;
             const custObj = (customers || []).find(c => c && (c.id === saleRecord.customerId || c.id === saleRecord.customer_id)) || {};
             const custName = custObj.name || saleRecord.customerName || saleRecord.customer_name || '';
             const closersList = typeof closers !== 'undefined' ? closers : [];
@@ -539,9 +541,9 @@
                         const productName = it.prod || it.productName || it.name || 'สินค้า';
                         const priceType = it.type || it.priceType || 'ราคาเต็ม';
                         
-                        // ⚡ FIX: ตัดวงเล็บออกแบบ ZINC(สิว) จะได้เจอราคาในระบบ
+                        // ⚡ FIX: อ้างอิงจากรหัสสินค้า (ID) และชื่อเต็มก่อน หากไม่พบจึงค้นหาแบบตัดวงเล็บสำรอง
                         const cleanProdNameForMatch = productName.replace(/\(.*?\)/g, '').trim();
-                        const prodObj = prodMap[cleanProdNameForMatch] || prodMap[productName] || {};
+                        const prodObj = (it.id && prodMap[it.id]) || (it.product_id && prodMap[it.product_id]) || prodMap[productName] || (products || []).find(p => p && (p.id === it.id || p.product_id === it.id || p.name === productName || p.product_name === productName)) || (cleanProdNameForMatch ? prodMap[cleanProdNameForMatch] : null) || {};
                         
                         const multiplier = (prodObj && (prodObj.isBundle || prodObj.is_bundle)) ? (parseInt(prodObj.bundleQty || prodObj.bundle_qty) || 1) : 1;
                         
@@ -588,7 +590,7 @@
                         
                         if (productName) {
                             const cleanProdName = productName.replace(/\(.*?\)/g, '').trim();
-                            const prodObj = prodMap[cleanProdName] || prodMap[productName] || {};
+                            const prodObj = prodMap[productName] || (products || []).find(p => p && (p.name === productName || p.product_name === productName || p.id === productName || p.product_id === productName)) || (cleanProdName ? prodMap[cleanProdName] : null) || {};
                             const multiplier = (prodObj && (prodObj.isBundle || prodObj.is_bundle)) ? (parseInt(prodObj.bundleQty || prodObj.bundle_qty) || 1) : 1;
                             
                             let fullPrice = parseFloat(prodObj.priceFull || 0);
@@ -672,7 +674,7 @@
             }
             
             if (saleRecord.paymentNote && String(saleRecord.paymentNote).trim() !== String(saleRecord.saleType).trim()) {
-                breakdownParts.push(`<tr><td colspan="2" style="font-size: 10px; color: #b45309; padding-top: 6px; font-weight: 600;">📝 หมายเหตุ: ${saleRecord.paymentNote}</td></tr>`);
+                breakdownParts.push(`<tr><td colspan="2" style="font-size: 10px; color: #b45309; padding-top: 6px; font-weight: 600; white-space: normal !important; word-break: break-word !important; overflow-wrap: break-word !important; width: 100%;"><div style="white-space: normal; word-break: break-word; overflow-wrap: break-word; line-height: 1.4; width: 100%; max-width: 100%;">📝 หมายเหตุ: ${saleRecord.paymentNote}</div></td></tr>`);
             }
             
             const paymentBreakdownHtml = breakdownParts.join('');
@@ -687,9 +689,9 @@
                   <td>
                     <div class="bold" style="color: #0f172a;">${item.name}</div>
                   </td>
-                  ${isMarketing ? '' : `<td style="text-align: right; font-family: monospace;">${item.unitPrice > 0 ? '฿' + item.unitPrice.toLocaleString() : '-'}</td>`}
-                  <td style="text-align: center; font-weight: 700;">${qtyDisplay}</td>
-                  ${isMarketing ? '' : `<td style="text-align: right; font-weight: 700; font-family: monospace; color: #0f172a;">${item.total > 0 ? '฿' + item.total.toLocaleString() : '฿0'}</td>`}
+                  ${isMarketing ? '' : `<td style="text-align: right; white-space: nowrap; font-family: monospace;">${item.unitPrice > 0 ? '฿' + item.unitPrice.toLocaleString() : '-'}</td>`}
+                  <td style="text-align: center; white-space: nowrap; font-weight: 700;">${qtyDisplay}</td>
+                  ${isMarketing ? '' : `<td style="text-align: right; white-space: nowrap; font-weight: 700; font-family: monospace; color: #0f172a;">${item.total > 0 ? '฿' + item.total.toLocaleString() : '฿0'}</td>`}
                 </tr>
             `;
             }).join('');
@@ -770,13 +772,14 @@
                 .meta-table, .items-table { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
                 .meta-table td { padding: 1.5px 0; font-size: 11px; vertical-align: top; line-height: 1.35; }
                 .meta-table td:first-child { width: auto; white-space: nowrap; padding-right: 8px; color: #475569; }
+                .meta-table td[colspan="2"], .meta-table td.full-width { width: 100% !important; white-space: normal !important; word-break: break-word !important; overflow-wrap: break-word !important; padding-right: 0 !important; }
                 .meta-table td:last-child { width: 100%; }
                 .paper-a4 .meta-table td { padding: 3px 0; font-size: 13px; line-height: 1.4; }
                 .paper-a4 .meta-table td:first-child { padding-right: 14px; }
                 
-                .items-table th { border-bottom: 2px solid #0f172a; text-align: left; padding: 6px 4px; font-size: 11px; color: #334155; }
+                .items-table th { border-bottom: 2px solid #0f172a; text-align: left; padding: 5px 3px; font-size: 11px; color: #334155; }
                 .paper-a4 .items-table th { padding: 10px 8px; font-size: 13px; }
-                .items-table td { padding: 6px 4px; border-bottom: 1px solid #e2e8f0; font-size: 11px; vertical-align: middle; }
+                .items-table td { padding: 5px 3px; border-bottom: 1px solid #e2e8f0; font-size: 11px; vertical-align: middle; }
                 .paper-a4 .items-table td { padding: 10px 8px; font-size: 13px; }
                 
                 .total-row td { padding: 4px 0; font-size: 11px; }
@@ -835,10 +838,10 @@
                   <table class="items-table">
                     <thead>
                       <tr>
-                        <th style="width: ${isMarketing ? '80%' : '45%'};">รายการสินค้า</th>
-                        ${isMarketing ? '' : '<th style="width: 20%; text-align: right;">ราคา/หน่วย</th>'}
-                        <th style="width: 20%; text-align: center;">จำนวน</th>
-                        ${isMarketing ? '' : '<th style="width: 20%; text-align: right;">รวมเงิน</th>'}
+                        <th style="width: ${isMarketing ? '80%' : '42%'};">รายการสินค้า</th>
+                        ${isMarketing ? '' : '<th style="width: 24%; text-align: right; white-space: nowrap;">ราคา/หน่วย</th>'}
+                        <th style="width: ${isMarketing ? '20%' : '12%'}; text-align: center; white-space: nowrap;">จำนวน</th>
+                        ${isMarketing ? '' : '<th style="width: 22%; text-align: right; white-space: nowrap;">รวมเงิน</th>'}
                       </tr>
                     </thead>
                     <tbody>

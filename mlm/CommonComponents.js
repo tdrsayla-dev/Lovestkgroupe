@@ -174,7 +174,7 @@
   const Activity = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
     React.createElement('polyline', { points: "22 12 18 12 15 21 9 3 6 12 2 12" })
   );
-  const SearchIcon = ({ size = 20 }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", ...IconProps },
+  const SearchIcon = ({ size = 20, className = "" }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", className: className, ...IconProps },
     React.createElement('circle', { cx: "11", cy: "11", r: "8" }),
     React.createElement('line', { x1: "21", y1: "21", x2: "16.65", y2: "16.65" })
   );
@@ -313,12 +313,26 @@
     // ถ้ายังเป็นนามสกุล .csv ให้แปลงเป็น .xls เพื่อให้เปิดบน Excel ภาษาไทยไม่เพี้ยนและฟอร์แมตสมบูรณ์
     let outFilename = filename;
     if (outFilename.toLowerCase().endsWith('.csv')) {
-      outFilename = outFilename.substring(0, outFilename.length - 4) + '.xls';
+      outFilename = outFilename.substring(0, outFilename.length - 4) + '.xlsx';
     } else if (!outFilename.toLowerCase().endsWith('.xls') && !outFilename.toLowerCase().endsWith('.xlsx')) {
-      outFilename += '.xls';
+      outFilename += '.xlsx';
+    }
+
+    // ⚡ ตรวจสอบว่ามี SheetJS (XLSX) หรือไม่ หากมี ให้สร้างไฟล์ .xlsx แท้ที่เปิดได้ 100% บน Excel ทุกรุ่น ไม่มี Error
+    if (typeof window.XLSX !== 'undefined') {
+      try {
+        const ws = window.XLSX.utils.aoa_to_sheet(rows);
+        const wb = window.XLSX.utils.book_new();
+        window.XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+        window.XLSX.writeFile(wb, outFilename, { compression: true });
+        return;
+      } catch (err) {
+        console.warn('XLSX export fallback:', err);
+      }
     }
     
     // ถ้าตั้งชื่อไฟล์เป็น .xls หรือ .xlsx หรือต้องการเปิดใน Excel ให้สร้างตาราง HTML Spreadsheet ที่เปิดใน Excel ได้ 100% ภาษาไทยไม่เพี้ยน คอลัมน์ไม่แตก
+    const isXls = outFilename.toLowerCase().endsWith('.xls') || outFilename.toLowerCase().endsWith('.xlsx');
     if (isXls) {
       let tableHtml = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
       tableHtml += '<head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Sheet1</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body><table border="1">';
@@ -607,6 +621,8 @@
                 targetFile = 'ReportFinance.html';
               } else if (matchGroup[1] === 'stock') {
                 targetFile = 'ReportStock.html';
+              } else if (matchGroup[1] === 'referral') {
+                targetFile = 'ReportReferral.html';
               } else {
                 targetFile = `Reports.html?group=${matchGroup[1]}`;
               }
@@ -651,6 +667,9 @@
             }
             if (matchGroup[1] === 'stock') {
               return hasHtmlExt ? 'ReportStock.html' : 'ReportStock';
+            }
+            if (matchGroup[1] === 'referral') {
+              return hasHtmlExt ? 'ReportReferral.html' : 'ReportReferral';
             }
             return `${file}?group=${matchGroup[1]}`;
           }
@@ -704,10 +723,11 @@
     const perm = getUserPagePermission(currentUser, 'reports');
     if (perm === 'none') return null;
 
-    const isPageInReports = activeTab === 'reports' || activeTab === 'report_finance' || activeTab === 'report_stock' ||
+    const isPageInReports = activeTab === 'reports' || activeTab === 'report_finance' || activeTab === 'report_stock' || activeTab === 'report_referral' ||
                             (typeof window !== 'undefined' && (
                               window.location.pathname.toLowerCase().includes('reportstock') || 
-                              window.location.pathname.toLowerCase().includes('reportfinance')
+                              window.location.pathname.toLowerCase().includes('reportfinance') ||
+                              window.location.pathname.toLowerCase().includes('reportreferral')
                             ));
     const [isOpen, setIsOpen] = React.useState(isPageInReports);
 
@@ -724,10 +744,12 @@
     const getActiveGroup = () => {
       if (activeTab === 'report_finance' || activeTab === 'finance') return 'finance';
       if (activeTab === 'report_stock' || activeTab === 'stock') return 'stock';
+      if (activeTab === 'report_referral' || activeTab === 'referral') return 'referral';
       try {
         const path = (window.location.pathname || '').toLowerCase();
         if (path.includes('reportfinance')) return 'finance';
         if (path.includes('reportstock')) return 'stock';
+        if (path.includes('reportreferral')) return 'referral';
         const params = new URLSearchParams(window.location.search);
         return params.get('group') || 'sales';
       } catch(e) { return 'sales'; }
