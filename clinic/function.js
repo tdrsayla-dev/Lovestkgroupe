@@ -19622,7 +19622,13 @@ async function loadBills(forceReload = false) {
         const alreadyInBills = billsList.some(b => (vId && (b.visit_id === vId || b.bill_id === vId)));
         if (!alreadyInBills && vId) {
             const rawTests = v.lab_tests || v.tests || '';
-            const testItems = rawTests ? rawTests.split(/[,;\n]/).map(t => ({ name: t.trim(), price: 0, type: 'lab' })).filter(x => x.name) : [{ name: 'ກວດ Lab / ບໍລິການ', price: 0, type: 'lab' }];
+            let testItems = [{ name: 'ກວດ Lab / ບໍລິການ', price: 0, type: 'lab' }];
+            if (Array.isArray(rawTests) && rawTests.length > 0) {
+                testItems = rawTests.map(t => typeof t === 'object' ? { name: t.name || 'Lab', price: t.price || 0, type: 'lab' } : { name: String(t).trim(), price: 0, type: 'lab' });
+            } else if (typeof rawTests === 'string' && rawTests.trim() !== '') {
+                const parsed = rawTests.split(/[,;\n]/).map(t => ({ name: t.trim(), price: 0, type: 'lab' })).filter(x => x.name);
+                if (parsed.length > 0) testItems = parsed;
+            }
             const subtotal = parseFloat(v.total_price || v.price || v.payable_amount || 0);
             const discount = parseFloat(v.discount || v.lab_discount || 0);
             const payable = parseFloat(v.payable_amount !== undefined ? v.payable_amount : Math.max(0, subtotal - discount));
