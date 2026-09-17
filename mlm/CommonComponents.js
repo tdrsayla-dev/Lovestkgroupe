@@ -1296,8 +1296,14 @@
       };
 
       if (typeof window.supabaseSelect === 'function') {
-        window.supabaseSelect('stk_members')
-          .then(members => {
+        const safeUser = encodeURIComponent(inputUser.trim());
+        const loginQuery = `or=(username.ilike.${safeUser},user_id.ilike.${safeUser})&select=user_id,username,name,permission_role,status,password_hash,id_card_url`;
+        window.supabaseSelect('stk_members', loginQuery)
+          .then(async matchedMembers => {
+            let members = matchedMembers;
+            if (!Array.isArray(members) || members.length === 0) {
+              members = await window.supabaseSelect('stk_members', 'select=user_id,username,name,permission_role,status,password_hash,id_card_url&limit=500').catch(() => []);
+            }
             setIsLoading(false);
             const foundUser = (members || []).find(u => 
               (String(u.username || u.user_id || u.id || '').trim().toLowerCase() === inputUser.toLowerCase()) && 

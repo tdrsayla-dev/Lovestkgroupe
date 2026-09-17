@@ -1231,7 +1231,7 @@
             try {
                 // ⚡ RESTORED FULL QUERY: ดึงข้อมูลครบถ้วนเพื่อให้รายงานทุกแท็บและกราฟแสดงผลถูกต้องสมบูรณ์
                 const [pRes, typeRes, cloRes, memRes, custRes, saleRes, teamRes, settingsRes, payRes] = await Promise.all([
-                    supabaseSelect('stk_products').catch(() => []),
+                    supabaseSelect('stk_products', 'select=product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,self_fee,level_1_fee,level_2_fee,level_3_fee,level_4_fee,level_5_fee,self_percent_full,level_1_percent_full,self_percent_member,level_1_percent_member').catch(() => []),
                     supabaseSelect('stk_customer_types').catch(() => fallbackCustomerTypes),
                     supabaseSelect('stk_closers').catch(() => []),
                     supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status,accumulated_pv,phone_number').catch(() => []),

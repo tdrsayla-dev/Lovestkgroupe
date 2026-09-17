@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <script>
@@ -681,7 +681,7 @@
         }
 
         Promise.all([
-          supabaseSelect('stk_members').catch(() => []),
+          supabaseSelect('stk_members', 'select=user_id,name,username,business_team,permission_role,status,sponsor_id,phone_number,email,address,line_id,line_uid,bank_name,bank_account_no,bank_account_name').catch(() => []),
           supabaseSelect('stk_closers').catch(() => [])
         ]).then(([memRes, cloRes]) => {
           if (Array.isArray(memRes)) {

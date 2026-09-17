@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
 <script>
@@ -3388,7 +3388,7 @@
           supabaseSelect('stk_product_categories').catch(() => supabaseSelect('product_categories')),
           // ⚡ SPEED FIX: จำกัดการโหลดประวัติการรับจ่ายสินค้าเอาไว้แค่ 400 ล็อกล่าสุด ป้องกันค้าง
           supabaseSelect('stk_stock_movements', 'order=created_at.desc&limit=400').catch(() => supabaseSelect('stock_movements')),
-          supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
+          supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,status,id_card_url').catch(() => supabaseSelect('members')),
           supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
           supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
           supabaseSelect('stk_system_settings').catch(() => supabaseSelect('system_settings')).catch(() => []),

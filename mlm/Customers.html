@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <script>
@@ -1026,11 +1026,11 @@
         }
 
         Promise.all([
-          supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
+          supabaseSelect('stk_products', 'select=product_id,name,category,price_full,price_member,price_promo,give_pv,status').catch(() => supabaseSelect('products')),
           supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
           supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
-          supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
-          supabaseSelect('stk_customers', 'limit=10000').catch(() => supabaseSelect('customers')),
+          supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,status,phone_number').catch(() => supabaseSelect('members')),
+          supabaseSelect('stk_customers', 'order=customer_id.desc&limit=3000').catch(() => supabaseSelect('customers')),
           // ⚡ SPEED FIX: ดึงประวัติการขายล่าสุดแค่ 200 รายการ เพื่อความรวดเร็วในการวิเคราะห์ข้อมูลลูกค้าล่าสุด
           supabaseSelect('stk_sales', 'order=order_id.desc&limit=200').catch(() => supabaseSelect('sales'))
         ]).then(([pRes, typeRes, cloRes, memRes, custRes, saleRes]) => {

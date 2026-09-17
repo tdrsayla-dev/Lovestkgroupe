@@ -43,12 +43,21 @@
     'stk_closers': 5 * 60 * 1000,          // หมอ/ผู้ปิดการขาย 5 นาที
     'stk_business_teams': 5 * 60 * 1000,   // สายงาน/ทีม 5 นาที
     'stk_system_settings': 5 * 60 * 1000,  // ตั้งค่าระบบ 5 นาที
-    'stk_members': 2 * 60 * 1000           // รายชื่อสมาชิก 2 นาที
+    'stk_members': 3 * 60 * 1000,          // รายชื่อสมาชิก 3 นาที
+    'stk_sales': 45 * 1000,                // ยอดขาย 45 วินาที
+    'stk_customers': 60 * 1000,            // ข้อมูลลูกค้า 1 นาที
+    'stk_payout_logs': 45 * 1000           // ล็อกการจ่ายคอมมิชชั่น 45 วินาที
+  };
+
+  // กำหนดคอลัมน์มาตรฐานสำหรับตารางต่างๆ (รวม id_card_url เพื่อให้รูปโปรไฟล์แสดงผล และ image_url เพื่อให้รูปสินค้าแสดงผล)
+  const DEFAULT_TABLE_SELECT = {
+    'stk_members': 'user_id,username,name,business_team,permission_role,status,id_card_url,sponsor_id,phone_number,email,address,line_id,line_uid,bank_name,bank_account_no,bank_account_name,accumulated_pv,created_at',
+    'stk_products': 'product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,image_url,self_fee,level_1_fee,level_2_fee,level_3_fee,level_4_fee,level_5_fee,self_percent_full,level_1_percent_full,level_2_percent_full,level_3_percent_full,level_4_percent_full,level_5_percent_full,self_percent_member,level_1_percent_member,level_2_percent_member,level_3_percent_member,level_4_percent_member,level_5_percent_member,barcode,is_bundle,base_product,bundle_qty,full_margin_amount,full_margin_currency'
   };
 
   function invalidateTableCache(table) {
     for (const key of queryCache.keys()) {
-      if (key.startsWith(table + ':') || key.startsWith(table + '?')) {
+      if (key === table || key.startsWith(table + ':') || key.startsWith(table + '?')) {
         queryCache.delete(key);
       }
     }
@@ -58,7 +67,13 @@
   if (typeof window.supabaseSelect !== 'function') {
     window.supabaseSelect = async function (table, query) {
       const isNoCache = query && query.includes('nocache=true');
-      const cleanQuery = query ? query.replace(/&?nocache=true/g, '').replace(/^\?/, '') : '';
+      let cleanQuery = query ? query.replace(/&?nocache=true/g, '').replace(/^\?/, '') : '';
+      
+      // Auto-filter heavy Base64: หากไม่ได้ระบุ select= มา ให้ใช้ Safe Columns อัตโนมัติ (ประหยัด Egress 85-98%)
+      if (DEFAULT_TABLE_SELECT[table] && (!cleanQuery || (!cleanQuery.includes('select=') && !cleanQuery.includes('*')))) {
+        cleanQuery = (cleanQuery ? cleanQuery + '&' : '') + 'select=' + DEFAULT_TABLE_SELECT[table];
+      }
+
       const cacheKey = table + (cleanQuery ? '?' + cleanQuery : '');
       const ttl = CACHE_TTL_CONFIG[table] || 0;
 

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <script>
@@ -106,18 +106,17 @@
         const handleSyncMarketing = async () => {
              setIsSubmitting(true);
              try {
-                 // ดึงพนักงานทั้งหมดจาก stk_members
+                 // ดึงพนักงานทั้งหมดจาก stk_members เฉพาะฟิลด์ที่จำเป็น (หลีกเลี่ยง Base64)
                  let allUsers = [];
                  if (window.supabaseClient) {
-                     const { data, error } = await window.supabaseClient.from('stk_members').select('*');
+                     const { data, error } = await window.supabaseClient.from('stk_members').select('user_id,name,business_team,status');
                      if (!error && data) allUsers = data;
                  }
                  if (allUsers.length === 0 && typeof supabaseSelect === 'function') {
-                     allUsers = await supabaseSelect('stk_members').catch(() => supabaseSelect('members')).catch(() => []) || [];
+                     allUsers = await supabaseSelect('stk_members', 'select=user_id,name,business_team,status').catch(() => supabaseSelect('members')).catch(() => []) || [];
                  }
 
                  // สร้าง map: team_id -> team_name จาก stk_business_teams
-                 // ตัวอย่าง: { 'T01': 'Team Lee', 'T02': 'Team Thailand', ... }
                  const teamIdToName = {};
                  (businessTeams || []).forEach(t => {
                      const tId = String(t.team_id || '').trim().toUpperCase();
@@ -148,7 +147,6 @@
                      // แปลง business_team (team_id) -> team_name
                      const bTeamRaw = String(u.business_team || u.businessTeam || '').trim();
                      const bTeamUpper = bTeamRaw.toUpperCase();
-                     // ลองหาชื่อทีมจาก map ก่อน ถ้าไม่เจอให้ใช้ค่าดิบ
                      const teamNameStr = teamIdToName[bTeamUpper] || teamIdToName[bTeamRaw] || bTeamRaw;
 
                      const existsIdx = newClosersState.findIndex(c => String(c.id || '').toUpperCase() === uId.toUpperCase());
@@ -160,7 +158,6 @@
                          status: 'ใช้งาน'
                      };
 
-                     // Upsert ไปยัง stk_closers (insert ถ้าไม่มี, update ถ้ามีอยู่แล้ว)
                      if (window.supabaseClient) {
                          try {
                              await window.supabaseClient.from('stk_closers').upsert(payload, { onConflict: 'id' });
@@ -171,7 +168,6 @@
                          newClosersState.push({ id: uId, name: u.name || uId, team: teamNameStr, status: 'ใช้งาน' });
                          addedCount++;
                      } else {
-                         // อัพเดทชื่อทีมในกรณีที่ย้ายทีม
                          newClosersState[existsIdx] = { ...newClosersState[existsIdx], team: teamNameStr, name: u.name || uId };
                          updatedCount++;
                      }
@@ -190,6 +186,7 @@
                  setIsSubmitting(false);
              }
          };
+
 
         const executeDelete = () => { 
             const id = confirmDelete.id; 
@@ -494,7 +491,7 @@
 
         async function autoSyncAllMembers(existingClosers, teamsData) {
           try {
-            const membersRes = await supabaseSelect('stk_members').catch(() => supabaseSelect('members')).catch(() => []);
+            const membersRes = await supabaseSelect('stk_members', 'select=user_id,name,business_team,status').catch(() => supabaseSelect('members')).catch(() => []);
             if (!Array.isArray(membersRes) || membersRes.length === 0) return;
             
             const teamIdToName = {};

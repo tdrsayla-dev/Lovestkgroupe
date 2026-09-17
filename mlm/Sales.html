@@ -3611,7 +3611,7 @@
                         supabaseSelect('stk_products').catch(e => { console.warn('stk_products fetch:', e); return []; }),
                         supabaseSelect('stk_customer_types').catch(e => { console.warn('stk_customer_types fetch:', e); return []; }),
                         supabaseSelect('stk_closers', 'nocache=true').catch(e => { console.warn('stk_closers fetch:', e); return []; }),
-                        supabaseSelect('stk_members', 'nocache=true').catch(e => { console.warn('stk_members fetch:', e); return []; }),
+                        supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,status,sponsor_id,accumulated_pv,phone_number,email,line_id,line_uid,bank_name,bank_account_no,bank_account_name').catch(e => { console.warn('stk_members fetch:', e); return []; }),
                         supabaseSelect('stk_customers', 'order=customer_id.desc&limit=2500').catch(e => { console.warn('stk_customers fetch:', e); return []; }),
                         supabaseSelect('stk_sales', 'order=order_id.desc&limit=1500').catch(e => { console.warn('stk_sales fetch:', e); return []; }),
                         supabaseSelect('stk_business_teams').catch(e => { console.warn('stk_business_teams fetch:', e); return []; })

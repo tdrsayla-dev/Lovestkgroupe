@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 
 <head>
@@ -1650,11 +1650,11 @@
                 if (initialLoader) { initialLoader.style.opacity = '0'; setTimeout(() => { if (initialLoader) initialLoader.style.display = 'none'; }, 400); }
 
                 Promise.all([
-                    supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
+                    supabaseSelect('stk_products', 'select=product_id,name,category,price_full,price_member,price_promo,give_pv,status,image_url').catch(() => supabaseSelect('products')),
                     supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
-                    supabaseSelect('stk_members').catch(() => supabaseSelect('members')),
+                    supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status,accumulated_pv,phone_number,email,id_card_url').catch(() => supabaseSelect('members')),
                     supabaseSelect('stk_customers', 'order=customer_id.desc&limit=2000').catch(() => supabaseSelect('customers')),
-                    supabaseSelect('stk_sales', 'order=order_id.desc&limit=10000').catch(() => supabaseSelect('sales')),
+                    supabaseSelect('stk_sales', 'order=order_id.desc&limit=3000').catch(() => supabaseSelect('sales')),
                     supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams')),
                     supabaseSelect('stk_system_settings').catch(() => supabaseSelect('system_settings'))
                 ]).then(([pRes, typeRes, memRes, custRes, saleRes, teamRes, setRes]) => {

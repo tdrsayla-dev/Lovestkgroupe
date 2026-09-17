@@ -183,11 +183,11 @@
             try {
                 const [saleRes, prodRes, moveRes, memRes, teamRes, custRes, setRes] = await Promise.all([
                     window.supabaseSelect('stk_sales', 'order=order_id.desc&limit=3000').catch(() => []),
-                    window.supabaseSelect('stk_products').catch(() => []),
+                    window.supabaseSelect('stk_products', 'select=product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status').catch(() => []),
                     window.supabaseSelect('stk_stock_movements', 'order=created_at.desc&limit=3000').catch(() => []),
                     window.supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status').catch(() => []),
                     window.supabaseSelect('stk_business_teams').catch(() => []),
-                    window.supabaseSelect('stk_customers', 'limit=3000').catch(() => []),
+                    window.supabaseSelect('stk_customers', 'select=customer_id,name&limit=3000').catch(() => []),
                     window.supabaseSelect('stk_system_settings').catch(() => [])
                 ]);
 

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <script>
@@ -1254,7 +1254,7 @@
 
       const fetchData = () => {
         Promise.all([
-            supabaseSelect('stk_members').catch(() => []),
+            supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,status,sponsor_id,accumulated_pv,phone_number,email,address,line_id,line_uid,bank_name,bank_account_no,bank_account_name,created_at,id_card_url').catch(() => []),
             supabaseSelect('stk_business_teams').catch(() => [])
         ]).then(([members, businessTeams]) => {
             let initialCache = {};
