@@ -20049,7 +20049,7 @@ function onExpenseTestCheckboxChange() {
         }
     }
 }
-function parseBillPaymentSplit(b, vMatch) {
+function parseBillPaymentSplit(b, vMatch, preParsedCache = null) {
     const payable = parseFloat(b.payable_amount || 0);
     const pMethod = (b.payment_method || '').toString().trim();
     const pMode = (b.pay_mode || '').toString().trim();
@@ -20060,7 +20060,7 @@ function parseBillPaymentSplit(b, vMatch) {
 
     let cachedMatch = null;
     try {
-        const cachedBills = JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]');
+        const cachedBills = Array.isArray(preParsedCache) ? preParsedCache : JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]');
         cachedMatch = cachedBills.find(x => (b.bill_id && x.bill_id === b.bill_id) || (b.visit_id && x.visit_id === b.visit_id));
     } catch (e) { }
 
@@ -20354,6 +20354,11 @@ function renderBillsTable(page) {
     }
 
     // Precalculate totals across ALL filtered bills for stat cards and summary footer
+    let preParsedCache = [];
+    try {
+        preParsedCache = JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]');
+    } catch (e) { }
+
     bills.forEach(function (b) {
         let labItems = (Array.isArray(b.items) ? b.items : []).filter(item => item.type !== 'med');
         let itemsTotal = 0;
@@ -20382,7 +20387,7 @@ function renderBillsTable(page) {
             vMatch = window.clinicVisits.find(x => x.visit_id === b.visit_id || (b.hn && x.hn === b.hn));
         }
 
-        const { cashAmount, transferAmount } = parseBillPaymentSplit(b, vMatch);
+        const { cashAmount, transferAmount } = parseBillPaymentSplit(b, vMatch, preParsedCache);
 
         grandSubtotal += subtotal;
         grandDiscount += discount;
@@ -20417,7 +20422,7 @@ function renderBillsTable(page) {
         if (Array.isArray(window.clinicVisits)) {
             vMatch = window.clinicVisits.find(x => x.visit_id === b.visit_id || (b.hn && x.hn === b.hn));
         }
-        const { cashAmount, transferAmount } = parseBillPaymentSplit(b, vMatch);
+        const { cashAmount, transferAmount } = parseBillPaymentSplit(b, vMatch, preParsedCache);
 
         const d = b.created_at ? new Date(b.created_at) : null;
         const dateStr = d ? d.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
