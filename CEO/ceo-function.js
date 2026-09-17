@@ -1,14 +1,13 @@
 // ─── 1. Supabase Initialization ──────────────────────────────────────────
-window.SUPABASE_URL = 'https://mfpkeyrykqnrywyksyqp.supabase.co';
-window.SUPABASE_ANON_KEY = 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
-window.SUPABASE_REST_URL = window.SUPABASE_URL + '/rest/v1';
-window.SUPABASE_HEADERS = {
-  'Content-Type': 'application/json',
-  'apikey': window.SUPABASE_ANON_KEY,
-  'Authorization': 'Bearer ' + window.SUPABASE_ANON_KEY
-};
+// ✅ Supabase config โหลดมาจาก ceo-config.js ผ่าน ceo-dashborad.html
+// window.SUPABASE_URL, window.SUPABASE_ANON_KEY, window.SUPABASE_REST_URL,
+// window.SUPABASE_HEADERS, window.supabaseSelect — พร้อมใช้งานทั้งหมด
 
 async function supabaseSelect(table, query) {
+  // ใช้ supabaseSelect จาก config.js ถ้ามี ไม่งั้น fallback ทำเอง
+  if (window.supabaseSelect && window.supabaseSelect !== supabaseSelect) {
+    return window.supabaseSelect(table, query);
+  }
   try {
     const res = await fetch(window.SUPABASE_REST_URL + '/' + table + (query ? '?' + query : ''), {
       method: 'GET',
@@ -2057,7 +2056,7 @@ function handleCeoLogout() {
     modal.style.display = 'flex';
   } else if (confirm('คุณต้องการออกจากระบบ CEO Dashboard หรือไม่?')) {
     localStorage.removeItem('stk_ceo_session');
-    window.location.href = 'login.html';
+    window.location.href = 'ceo-login.html';
   }
 }
 
@@ -2068,7 +2067,7 @@ function closeCeoLogoutModal() {
 
 function confirmCeoLogout() {
   localStorage.removeItem('stk_ceo_session');
-  window.location.href = 'login.html';
+  window.location.href = 'ceo-login.html';
 }
 
 if (document.readyState === 'loading') {

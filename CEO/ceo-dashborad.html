@@ -14,18 +14,18 @@
       try {
         const sessionStr = localStorage.getItem('stk_ceo_session');
         if (!sessionStr) {
-          window.location.replace('login.html');
+          window.location.replace('ceo-login.html');
           return;
         }
         const session = JSON.parse(sessionStr);
         if (!session || !session.id) {
           localStorage.removeItem('stk_ceo_session');
-          window.location.replace('login.html');
+          window.location.replace('ceo-login.html');
           return;
         }
         window.currentCeoSession = session;
       } catch (e) {
-        window.location.replace('login.html');
+        window.location.replace('ceo-login.html');
       }
     })();
   </script>
@@ -776,6 +776,7 @@
   </div>
 </div>
 
+<script src="ceo-config.js"></script>
 <script src="ceo-function.js"></script>
 </body>
 </html>
