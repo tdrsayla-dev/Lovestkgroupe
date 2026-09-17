@@ -3170,6 +3170,21 @@
 
                 <!-- ຕົວເລືອກເວລາ ແລະ ຊ່ອງຄົ້ນຫາໃນໜ້າປະຫວັດຜູ້ປ່ວຍ -->
                 <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <!-- ປຸ່ມກັ່ນຕອງປະເພດ: ທັງໝົດ / Order / ຄົນມາກວດ -->
+                    <div class="btn-group btn-group-sm shadow-sm ms-2" role="group" style="border-radius: 50rem;">
+                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary active"
+                            id="btnFilterTypeAll" onclick="setTypeFilterMode('all')">
+                            ທັງໝົດ
+                        </button>
+                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary"
+                            id="btnFilterTypeOrder" onclick="setTypeFilterMode('order')">
+                            <i class="ph ph-shopping-bag me-1 text-success"></i>Order
+                        </button>
+                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary"
+                            id="btnFilterTypeVisit" onclick="setTypeFilterMode('visit')">
+                            <i class="ph ph-stethoscope me-1 text-info"></i>ຄົນມາກວດ
+                        </button>
+                    </div>
                     <!-- ປຸ່ມເລືອກເວລາດ່ວນ: ມື້ນີ້ / ທັງໝົດ -->
                     <div class="btn-group btn-group-sm shadow-sm" role="group" style="border-radius: 50rem;">
                         <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary"
@@ -3675,36 +3690,80 @@
             const startDate = inputStart && inputStart.value ? inputStart.value : null;
             const endDate = inputEnd && inputEnd.value ? inputEnd.value : null;
 
-            if (!startDate && !endDate) {
-                filteredPatientsData = [...allPatientsData];
+            // +++ เคลียร์และกำหนดข้อมูลตาม currentTypeFilterMode (แนวทางที่ 3) +++
+            if (currentTypeFilterMode === 'order') {
+                // แนวทางที่ 3: ดึงจากรายการ Order ตัวจริง (1 Order = 1 แถว)
+                let baseOrders = (Array.isArray(allOrdersData) && allOrdersData.length > 0)
+                    ? allOrdersData
+                    : (allPatientsData || []).filter(p => p.has_order === true || (p.latest_visit_id && String(p.latest_visit_id).includes('VIS-ORD-')));
+
+                // Deduplicate baseOrders ตามรหัส Order เพื่อรับประกันความถูกต้อง 100%
+                const seenOrderKeys = new Set();
+                baseOrders = baseOrders.filter(o => {
+                    const vid = o.latest_visit_id || o.visit_id || o.order_id || (o.order_data && (o.order_data.visit_id || o.order_data.order_id)) || '';
+                    const num = String(vid).replace(/\D/g, '');
+                    const k = num ? ('ORD-' + num.slice(-5)) : (String(vid) || String(o.id || Math.random()));
+                    if (seenOrderKeys.has(k)) return false;
+                    seenOrderKeys.add(k);
+                    return true;
+                });
+
+                if (!startDate && !endDate) {
+                    filteredPatientsData = [...baseOrders];
+                } else {
+                    filteredPatientsData = baseOrders.filter(o => isPatientInDateRange(o, startDate, endDate));
+                }
+            } else if (currentTypeFilterMode === 'visit') {
+                // ดึงเฉพาะคนไข้ที่มาตรวจจริง (ไม่ใช่ Order)
+                const baseVisits = (allPatientsData || []).filter(p => !p.has_order && !(p.latest_visit_id && String(p.latest_visit_id).includes('VIS-ORD-')));
+                if (!startDate && !endDate) {
+                    filteredPatientsData = [...baseVisits];
+                } else {
+                    filteredPatientsData = baseVisits.filter(p => isPatientInDateRange(p, startDate, endDate));
+                }
             } else {
-                filteredPatientsData = allPatientsData.filter(p => isPatientInDateRange(p, startDate, endDate));
+                // ทังหมด (All)
+                if (!startDate && !endDate) {
+                    filteredPatientsData = [...(allPatientsData || [])];
+                } else {
+                    filteredPatientsData = (allPatientsData || []).filter(p => isPatientInDateRange(p, startDate, endDate));
+                }
             }
 
             // ກຳນົດ filterLabel ລ່ວງໜ້າ (Global Scope ພາຍໃນ applyFilters)
-            let filterLabel = 'ທັງໝົດ';
+            let dateLabel = 'ທັງໝົດ';
             if (currentDateFilterMode === 'today') {
-                filterLabel = 'ມື້ນີ້';
+                dateLabel = 'ມື້ນີ້';
             } else if (currentDateFilterMode === 'custom' && startDate && endDate) {
-                filterLabel = `ວັນທີ ${startDate} ຫາ ${endDate}`;
+                dateLabel = `ວັນທີ ${startDate} ຫາ ${endDate}`;
             } else if (currentDateFilterMode === 'custom' && (startDate || endDate)) {
-                filterLabel = `ວັນທີ ${startDate || endDate}`;
+                dateLabel = `ວັນທີ ${startDate || endDate}`;
             }
+
+            // ກຳນົດ typeLabel ຕາມປະເພດການກັ່ນຕອງ
+            let typeLabel = '';
+            if (currentTypeFilterMode === 'order') {
+                typeLabel = ' | ປະເພດ: <strong>Order</strong>';
+            } else if (currentTypeFilterMode === 'visit') {
+                typeLabel = ' | ປະເພດ: <strong>ຄົນມາກວດ</strong>';
+            }
+
+            const filterLabel = `<strong>${dateLabel}</strong>${typeLabel}`;
 
             // ອັບເດດຂໍ້ຄວາມສະແດງຈຳນວນໃນ Subtitle ໃຫ້ຕົງກັບຂໍ້ມູນທີ່ກັ່ນຕອງຈິງ
             const subTitleEl = document.getElementById('page-patient-subtitle');
             if (subTitleEl) {
                 if (isCurrentUserAdmin && currentAdminViewMode === 'all') {
-                    subTitleEl.innerHTML = `ສະແດງລາຍຊື່ຜູ້ປ່ວຍ (ສິດທິ Admin) - <strong>${filterLabel}</strong>: ພົບ <strong>${filteredPatientsData.length}</strong> ລາຍການ`;
+                    subTitleEl.innerHTML = `ສະແດງລາຍຊື່ຜູ້ປ່ວຍ (ສິດທິ Admin) - ${filterLabel}: ພົບ <strong>${filteredPatientsData.length}</strong> ລາຍການ`;
                 } else {
-                    subTitleEl.innerHTML = `ສະແດງສະເພາະຄົນໄຂ້ທີ່ທ່ານເປັນຜູ້ແນະນຳ - <strong>${filterLabel}</strong>: ພົບ <strong>${filteredPatientsData.length}</strong> ຄົນ`;
+                    subTitleEl.innerHTML = `ສະແດງສະເພາະຄົນໄຂ້ທີ່ທ່ານເປັນຜູ້ແນະນຳ - ${filterLabel}: ພົບ <strong>${filteredPatientsData.length}</strong> ຄົນ`;
                 }
             }
 
-            // ອັບເດດ Subtitle ໃນແທັບປະຫວັດຜູ້ປ່ວຍ (Tab 2)
+            // ອັບເດດ Subtitle ໃນແທັບປະຫວັດຜູ້ປ່ວຍ (Tab 2) — ໃຫ້ຕົງກັນກັບ Tab 1
             const histSubTitle = document.getElementById('history-subtitle');
             if (histSubTitle) {
-                histSubTitle.innerHTML = `ລາຍການປະຫວັດການກວດ - <strong>${filterLabel}</strong>: ພົບ <strong>${filteredPatientsData.length}</strong> ລາຍການ`;
+                histSubTitle.innerHTML = `ລາຍການປະຫວັດການກວດ - ${filterLabel}: ພົບ <strong>${filteredPatientsData.length}</strong> ລາຍການ`;
             }
 
             // ສະແດງຜົນຕາຕະລາງປະຫວັດໃນແທັບ 2 (ຖ້າມີຄຳຄົ້ນຫາຄ້າງຢູ່ໃຫ້ກັ່ນຕອງຕໍ່)
@@ -4077,7 +4136,16 @@
 
         // เปลี่ยนคนไข้บนหน้า Timeline
         function viewPatientTimeline(hn) {
-            if (!hn) return;
+            if (!hn || hn === '-') {
+                showModernPopup({
+                    type: 'info',
+                    title: 'ບໍ່ມີລະຫັດ HN',
+                    message: 'ລາຍການນີ້ເປັນ Order ສັ່ງຊື້ທີ່ຍັງບໍ່ໄດ້ຜູກກັບ HN ຜູ້ປ່ວຍ',
+                    hint: 'ທ່ານສາມາດກົດປຸ່ມ <strong>"ເບິ່ງລາຍລະອຽດ"</strong> ເພື່ອກວດສອບຂໍ້ມູນການສັ່ງຊື້ໄດ້',
+                    btnText: 'ຮັບຊາບ'
+                });
+                return;
+            }
             const target = allPatientsData.find(p => p.hn === hn);
             if (target) {
                 // If patient not in current filter date range, reset to 'all'
@@ -4108,7 +4176,7 @@
             return false;
         }
 
-        // ฟังก์ชันลบประวัติผู้ป่วย (เฉพาะ Admin เท่านั้น)
+        // ฟังก์ชันลบประวัติผู้ป่วย หรือ Order (เฉพาะ Admin เท่านั้น)
         async function deletePatientRecord(hn, encName, visitId) {
             if (!checkIsAdmin()) {
                 Swal.fire({
@@ -4119,10 +4187,13 @@
                 return;
             }
 
+            const isOrderRecord = (visitId && String(visitId).startsWith('VIS-ORD-')) || currentTypeFilterMode === 'order';
             const patientName = decodeURIComponent(encName || '');
+            const itemLabel = isOrderRecord ? `Order <b class="text-danger">${visitId}</b> (${patientName})` : `ประวัติผู้ป่วย <br><b class="text-danger">HN: ${hn} (${patientName})</b>`;
+
             const confirmResult = await Swal.fire({
                 title: 'ยืนยันการลบข้อมูล?',
-                html: `คุณต้องการลบประวัติผู้ป่วย <br><b class="text-danger">HN: ${hn} (${patientName})</b> หรือไม่?<br><span class="text-muted small">การกระทำนี้ไม่สามารถย้อนกลับได้ (Admin Only)</span>`,
+                html: `คุณต้องการลบ ${itemLabel} หรือไม่?<br><span class="text-muted small">การกระทำนี้ไม่สามารถย้อนกลับได้ (Admin Only)</span>`,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#dc2626',
@@ -4146,15 +4217,28 @@
                     if (visitId && visitId !== '-') {
                         await clinicClient.from('visits').delete().eq('visit_id', visitId);
                     }
-                    if (hn) {
+                    if (isOrderRecord) {
+                        const ordNum = String(visitId || '').replace(/\D/g, '');
+                        if (ordNum) {
+                            try {
+                                await clinicClient.from('stk_nutrient_orders').delete().ilike('order_id', `%${ordNum.slice(-5)}%`);
+                            } catch (e) { }
+                        }
+                    } else if (hn && hn !== '-') {
                         await clinicClient.from('visits').delete().eq('hn', hn);
                         await clinicClient.from('patients').delete().eq('hn', hn);
                     }
                 }
 
-                rawAllPatients = rawAllPatients.filter(p => p.hn !== hn && p.latest_visit_id !== visitId);
-                rawMyPatients = rawMyPatients.filter(p => p.hn !== hn && p.latest_visit_id !== visitId);
-                allPatientsData = allPatientsData.filter(p => p.hn !== hn && p.latest_visit_id !== visitId);
+                if (isOrderRecord) {
+                    rawAllOrders = rawAllOrders.filter(o => o.latest_visit_id !== visitId && o.visit_id !== visitId && o.order_id !== visitId);
+                    rawMyOrders = rawMyOrders.filter(o => o.latest_visit_id !== visitId && o.visit_id !== visitId && o.order_id !== visitId);
+                    allOrdersData = allOrdersData.filter(o => o.latest_visit_id !== visitId && o.visit_id !== visitId && o.order_id !== visitId);
+                } else {
+                    rawAllPatients = rawAllPatients.filter(p => p.hn !== hn && p.latest_visit_id !== visitId);
+                    rawMyPatients = rawMyPatients.filter(p => p.hn !== hn && p.latest_visit_id !== visitId);
+                    allPatientsData = allPatientsData.filter(p => p.hn !== hn && p.latest_visit_id !== visitId);
+                }
 
                 try {
                     let cachedVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
@@ -4164,7 +4248,7 @@
 
                 try {
                     let cachedOrders = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
-                    cachedOrders = cachedOrders.filter(o => o.hn !== hn && o.visit_id !== visitId);
+                    cachedOrders = cachedOrders.filter(o => (visitId && o.visit_id !== visitId && o.order_id !== visitId));
                     localStorage.setItem('stk_nutrient_orders', JSON.stringify(cachedOrders));
                 } catch (e) { }
 
@@ -4185,7 +4269,7 @@
                 Swal.fire({
                     icon: 'success',
                     title: 'ลบข้อมูลสำเร็จ',
-                    text: `ลบข้อมูลผู้ป่วย HN: ${hn} เรียบร้อยแล้ว`,
+                    text: `ลบข้อมูลเรียบร้อยแล้ว`,
                     timer: 2000,
                     showConfirmButton: false,
                     customClass: { popup: 'rounded-4 shadow-lg' }
@@ -4548,6 +4632,9 @@
         let currentAdminViewMode = 'all'; // 'all' หรือ 'my'
         let rawAllPatients = [];
         let rawMyPatients = [];
+        let rawAllOrders = [];
+        let rawMyOrders = [];
+        let allOrdersData = [];
 
         function setAdminPatientView(mode) {
             currentAdminViewMode = mode;
@@ -4565,8 +4652,10 @@
 
             if (mode === 'my') {
                 allPatientsData = [...rawMyPatients];
+                allOrdersData = [...rawMyOrders];
             } else {
                 allPatientsData = [...rawAllPatients];
+                allOrdersData = [...rawAllOrders];
             }
 
             const titleEl = document.getElementById('page-patient-title');
@@ -4633,6 +4722,8 @@
                 const wasManualRefresh = isRefreshing;
                 rawAllPatients = event.data.allPatients || event.data.patients || [];
                 rawMyPatients = event.data.myPatients || [];
+                rawAllOrders = event.data.allOrders || event.data.orders || [];
+                rawMyOrders = event.data.myOrders || [];
                 isCurrentUserAdmin = !!event.data.isAdmin;
 
                 const userCode = event.data.currentUserCode || '';
@@ -4647,8 +4738,10 @@
 
                 if (isCurrentUserAdmin) {
                     allPatientsData = currentAdminViewMode === 'my' ? [...rawMyPatients] : [...rawAllPatients];
+                    allOrdersData = currentAdminViewMode === 'my' ? [...rawMyOrders] : [...rawAllOrders];
                 } else {
                     allPatientsData = [...(event.data.patients || rawMyPatients)];
+                    allOrdersData = [...(event.data.orders || rawMyOrders)];
                 }
 
                 const titleEl = document.getElementById('page-patient-title');
@@ -6898,6 +6991,16 @@
                     rawMyPatients.unshift(histRecord);
                 }
 
+                if (Array.isArray(allOrdersData)) {
+                    allOrdersData.unshift(histRecord);
+                }
+                if (Array.isArray(rawAllOrders)) {
+                    rawAllOrders.unshift(histRecord);
+                }
+                if (Array.isArray(rawMyOrders)) {
+                    rawMyOrders.unshift(histRecord);
+                }
+
                 currentSelectedPatient = histRecord;
 
                 // ອັບເດດການສະແດງຜົນໃນຕາຕະລາງ ແລະ Timeline ທັນທີ
@@ -6994,6 +7097,25 @@
         } else {
             // โหลดข้อมูลตัวอย่างเมื่อเปิดหน้าเดี่ยว
             setTimeout(loadLivePatientData, 300);
+        }
+        // ຕົວແປສຳລັບເກັບຄ່າການກັ່ນຕອງປະເພດ
+        let currentTypeFilterMode = 'all'; // 'all', 'order', 'visit'
+
+        // ຟັງຊັນປ່ຽນໂໝດກັ່ນຕອງປະເພດ
+        function setTypeFilterMode(mode) {
+            currentTypeFilterMode = mode;
+
+            // ອັບເດດສີຂອງປຸ່ມໃຫ້ເຫັນວ່າປຸ່ມໃດກຳລັງ Active ຢູ່
+            const btnAll = document.getElementById('btnFilterTypeAll');
+            const btnOrder = document.getElementById('btnFilterTypeOrder');
+            const btnVisit = document.getElementById('btnFilterTypeVisit');
+
+            if (btnAll) btnAll.classList.toggle('active', mode === 'all');
+            if (btnOrder) btnOrder.classList.toggle('active', mode === 'order');
+            if (btnVisit) btnVisit.classList.toggle('active', mode === 'visit');
+
+            // ເອີ້ນໃຊ້ຟັງຊັນກັ່ນຕອງຂໍ້ມູນຄືນໃໝ່
+            applyFilters();
         }
 
     </script>

@@ -5,7 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ระบบการทำงาน - Clinic System</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230b3c73'/><path d='M40 20h20v20h20v20H60v20H40V60H20V40h20z' fill='%23ffffff'/></svg>">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230b3c73'/><path d='M40 20h20v20h20v20H60v20H40V60H20V40h20z' fill='%23ffffff'/></svg>">
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
@@ -17,13 +18,14 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <!-- เชื่อมโยงไฟล์ CSS -->
-    <link rel="stylesheet" href="style.css?v=2.7.1">
+    <link rel="stylesheet" href="style.css?v=2.7.6">
+    <link rel="stylesheet" href="dashboard.css?v=1.2">
     <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <!-- html2pdf.js for Exporting PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <!-- i18n Internationalization Engine -->
-    <script src="i18n.js?v=2.5.1"></script>
+    <script src="i18n.js?v=2.5.2"></script>
 
     <!-- สคริปต์ตรวจสอบการล็อกอิน -->
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
@@ -303,7 +305,7 @@
                 border-radius: 8px !important;
             }
 
-            #addPatientModal .modal-body form > .d-flex:last-child {
+            #addPatientModal .modal-body form>.d-flex:last-child {
                 position: sticky !important;
                 bottom: -12px !important;
                 background: #ffffff !important;
@@ -313,7 +315,7 @@
                 box-shadow: 0 -8px 16px rgba(255, 255, 255, 0.96) !important;
             }
 
-            #addPatientModal .modal-body form > .d-flex:last-child .btn {
+            #addPatientModal .modal-body form>.d-flex:last-child .btn {
                 font-size: 0.85rem !important;
                 padding: 6px 16px !important;
                 height: 35px !important;
@@ -356,8 +358,8 @@
             <a href="javascript:void(0);" class="nav-link" id="nav-appointments"
                 onclick="showPage('appointments', this)"><i class="ph ph-calendar-plus"></i> <span
                     data-i18n="sidebar_appointments">นัดหมายล่วงหน้า</span></a>
-            <a href="javascript:void(0);" class="nav-link" id="nav-booking"
-                onclick="showPage('booking', this)"><i class="ph ph-calendar-check"></i> <span
+            <a href="javascript:void(0);" class="nav-link" id="nav-booking" onclick="showPage('booking', this)"><i
+                    class="ph ph-calendar-check"></i> <span
                     data-i18n="sidebar_clinic_booking">ປະຫວັດການເຂົ້າກວດຜູ້ປ່ວຍ</span></a>
             <a href="javascript:void(0);" class="nav-link" id="nav-registration"
                 onclick="showPage('registration', this)"><i class="ph ph-identification-card"></i> <span
@@ -384,8 +386,9 @@
                     class="ph ph-receipt"></i> <span data-i18n="sidebar_billing">ระบบ Bill / ใบเสร็จ</span></a>
             <a href="javascript:void(0);" class="nav-link" id="nav-expenses" onclick="showPage('expenses', this)"><i
                     class="bi bi-wallet2"></i> <span data-i18n="sidebar_expenses">ສະຫລຸບລາຍຈ່າຍແລບນອກ</span></a>
-            <a href="javascript:void(0);" class="nav-link" id="nav-doctor-reports" onclick="showPage('doctor-reports', this)"><i
-                    class="ph ph-chart-line-up"></i> <span data-i18n="sidebar_doctor_reports">ລາຍງານທ່ານໝໍ</span></a>
+            <a href="javascript:void(0);" class="nav-link" id="nav-doctor-reports"
+                onclick="showPage('doctor-reports', this)"><i class="ph ph-chart-line-up"></i> <span
+                    data-i18n="sidebar_doctor_reports">ລາຍງານທ່ານໝໍ</span></a>
 
             <a class="nav-link d-flex justify-content-between align-items-center mt-2" data-bs-toggle="collapse"
                 href="#backendMenu" role="button">
@@ -426,566 +429,11 @@
     <div class="content-area">
 
         <!-- 1. ภาพรวมระบบ (Dashboard) -->
-        <div id="dashboard" class="page-section active">
-            <div class="db-container-v2">
-                <!-- Header -->
-                <div class="db-header-v2">
-                    <div class="db-header-left">
-                        <div class="d-flex align-items-center gap-2">
-                            <h2 class="mb-0" data-i18n="db_greeting_title">ສະບາຍດີ, ຜູ້ບໍລິຫານ</h2>
-                        </div>
-                        <p data-i18n="db_greeting_subtitle">ພາບລວມຄລີນິກ</p>
-                    </div>
-                    <div class="db-header-right d-flex align-items-center justify-content-end gap-3">
-
-                        <!-- 1. ช่องค้นหา (Search Box) ปรับโค้งมนและคุมความสูง -->
-                        <div class="position-relative d-none d-md-block">
-                            <i class="ph ph-magnifying-glass position-absolute text-muted"
-                                style="top: 50%; left: 16px; transform: translateY(-50%); font-size: 1.1rem;"></i>
-                            <input type="text" class="form-control shadow-sm" placeholder="ຄົ້ນຫາ"
-                                data-i18n-placeholder="search"
-                                style="padding-left: 42px; border-radius: 50px; height: 44px; width: 240px; border: 1px solid #f1f5f9; font-size: 0.9rem;">
-                        </div>
-
-                        <!-- 2. กระดิ่งแจ้งเตือน (Notification Bell) ปรับเป็นวงกลมสมมาตร -->
-                        <div class="position-relative d-flex align-items-center justify-content-center shadow-sm"
-                            title="ແຈ້ງເຕືອນ"
-                            style="width: 44px; height: 44px; border-radius: 50%; background-color: #ffffff; cursor: pointer; border: 1px solid #f1f5f9; transition: all 0.2s;">
-                            <i class="ph ph-bell text-secondary" style="font-size: 1.35rem;"></i>
-                            <!-- ตัวเลขแจ้งเตือน มุมขวาบน -->
-                            <span class="position-absolute badge rounded-pill bg-danger border border-white"
-                                style="top: -2px; right: -2px; font-size: 0.65rem; padding: 3px 5px; border-width: 2px !important;">
-                                2
-                            </span>
-                        </div>
-
-                        <!-- 3. เมนูผู้ใช้งาน (User Dropdown) ปรับความสูงให้เท่ากับเพื่อนๆ -->
-                        <div class="dropdown">
-                            <div class="d-flex align-items-center gap-2 cursor-pointer shadow-sm"
-                                data-bs-toggle="dropdown" aria-expanded="false"
-                                style="cursor: pointer; padding: 4px 14px 4px 5px; border-radius: 50px; background: #ffffff; border: 1px solid #f1f5f9; height: 44px; transition: all 0.2s;">
-
-                                <!-- รูปโปรไฟล์ -->
-                                <div class="avatar text-white rounded-circle d-flex align-items-center justify-content-center fw-bold shadow-sm"
-                                    id="sidebar-avatar"
-                                    style="width: 34px; height: 34px; font-size: 0.95rem; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);">
-                                    U
-                                </div>
-
-                                <!-- ชื่อและตำแหน่ง -->
-                                <div class="text-start d-none d-sm-block" style="line-height: 1.1;">
-                                    <div class="fw-bold text-dark" id="sidebar-name"
-                                        style="font-size: 0.8rem; max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                                        User Name</div>
-                                    <div class="text-muted" id="sidebar-role" style="font-size: 0.65rem;">Role</div>
-                                </div>
-
-                                <i class="ph ph-caret-down text-muted ms-1" style="font-size: 0.75rem;"></i>
-                            </div>
-
-                            <!-- เมนูที่แสดงเมื่อกดคลิก (Dropdown Menu) -->
-                            <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 mt-2"
-                                style="border-radius: 12px; min-width: 220px; padding: 12px; border: 1px solid #f1f5f9 !important;">
-                                <li class="mb-3 px-1">
-                                    <label class="form-label small fw-bold text-primary mb-1"><i
-                                            class="ph ph-globe me-1"></i>ตั้งค่าภาษา (Language)</label>
-                                    <select class="form-select form-select-sm clinic-lang-select bg-light"
-                                        style="border-radius: 8px; cursor: pointer; border-color: #e2e8f0;"
-                                        onchange="setClinicLanguage(this.value)">
-                                        <option value="la">🇱🇦 ພາສາລາວ (Lao)</option>
-                                        <option value="th">🇹🇭 ภาษาไทย (Thai)</option>
-                                        <option value="en">🇬🇧 English</option>
-                                    </select>
-                                </li>
-                            </ul>
-                        </div>
-
-                    </div>
-                </div>
-
-                <!-- Hidden elements for backward compatibility -->
-                <span id="real-time-clock" style="display:none;">--:--</span>
-                <span id="pct-communicable" style="display:none;">50%</span>
-                <span id="pct-non-communicable" style="display:none;">50%</span>
-                <span id="donut-center-text" style="display:none;">100%</span>
-                <span id="db-queue-reg" style="display:none;">0</span>
-                <span id="db-queue-report" style="display:none;">0</span>
-                <svg style="display:none;">
-                    <path id="circle-comm"></path>
-                    <path id="circle-noncomm"></path>
-                </svg>
-
-                <!-- Row 1: Top 4 Stat Cards -->
-                <div class="db-grid-4-v2">
-                    <!-- Card 1: Today Appointments -->
-                    <div class="db-stat-card-v2">
-                        <div class="db-stat-icon-wrapper icon-teal">
-                            <i class="ph ph-calendar-blank"></i>
-                        </div>
-                        <div class="db-stat-content-v2">
-                            <span class="db-stat-title-v2" data-i18n="db_stat_appointments">ນັດໝາຍມື້ນີ້</span>
-                            <div class="db-stat-value-box-v2">
-                                <span class="db-stat-num-v2" id="db-stat-appointments">12</span>
-                                <span class="db-stat-unit-v2" data-i18n="unit_items">ລາຍການ</span>
-                            </div>
-                            <span class="db-stat-trend-v2 trend-up">
-                                <i class="ph ph-arrow-up"></i> 20% ເພີ່ມຂຶ້ນຈາກວານ
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- Card 2: Total Revenue -->
-                    <div class="db-stat-card-v2">
-                        <div class="db-stat-icon-wrapper icon-amber">
-                            <i class="ph ph-money"></i>
-                        </div>
-                        <div class="db-stat-content-v2">
-                            <span class="db-stat-title-v2" data-i18n="db_stat_payments">ລາຍຮັບລວມ</span>
-                            <div class="db-stat-value-box-v2">
-                                <span class="db-stat-num-v2" id="db-stat-payments">4</span>
-                                <span class="db-stat-unit-v2" data-i18n="unit_items">ລາຍການ</span>
-                            </div>
-                            <span class="db-stat-trend-v2 trend-down-amber">
-                                <i class="ph ph-arrow-down"></i> 10% ຫຼຸດລົງຈາກວານ
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- Card 3: Current Today / Rescheduled / Waiting -->
-                    <div class="db-stat-card-v2">
-                        <div class="db-stat-icon-wrapper icon-mint">
-                            <i class="ph ph-clock-counter-clockwise"></i>
-                        </div>
-                        <div class="db-stat-content-v2">
-                            <span class="db-stat-title-v2" data-i18n="db_stat_rescheduled">ປະຈຸບັນວັນນີ້</span>
-                            <div class="db-stat-value-box-v2">
-                                <span class="db-stat-num-v2" id="db-stat-rescheduled">3</span>
-                                <span class="db-stat-unit-v2" data-i18n="unit_items">ລາຍການ</span>
-                            </div>
-                            <span class="db-stat-trend-v2 trend-down-green">
-                                <i class="ph ph-arrow-down"></i> 25% ຫຼຸດລົງຈາກວານ
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- Card 4: Total Patients -->
-                    <div class="db-stat-card-v2">
-                        <div class="db-stat-icon-wrapper icon-blue">
-                            <i class="ph ph-users"></i>
-                        </div>
-                        <div class="db-stat-content-v2">
-                            <span class="db-stat-title-v2" data-i18n="db_stat_patients">ຄົນເຈັບທັງໝົດ</span>
-                            <div class="db-stat-value-box-v2">
-                                <span class="db-stat-num-v2" id="db-stat-patients">248</span>
-                                <span class="db-stat-unit-v2" data-i18n="unit_people">ຄົນ</span>
-                            </div>
-                            <span class="db-stat-trend-v2 trend-up">
-                                <i class="ph ph-arrow-up"></i> 15% ເພີ່ມຂຶ້ນຈາກເດືອນກ່ອນ
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Row 2: Middle 3 Columns -->
-                <div class="db-grid-3-v2">
-                    <!-- Left: Today's Appointments Table -->
-                    <div class="db-card-white">
-                        <div class="db-card-head">
-                            <h5 class="db-card-title-v2">
-                                <i class="ph ph-calendar-blank"></i>
-                                <span data-i18n="db_appts_today_title">ລາຍການນັດໝາຍມື້ນີ້</span>
-                            </h5>
-                            <a href="javascript:void(0);" onclick="showPage('appointments')" class="db-card-link-v2">
-                                <span data-i18n="view_all">ເບິ່ງທັງໝົດ</span> <i class="ph ph-caret-right"></i>
-                            </a>
-                        </div>
-                        <div class="db-appt-table-container">
-                            <table class="db-appt-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 60px;" data-i18n="th_time">ເວລາ</th>
-                                        <th data-i18n="th_patient_name">ຊື່ຄົນເຈັບ</th>
-                                        <th data-i18n="th_service">ບໍລິການ</th>
-                                        <th style="text-align: right;" data-i18n="th_status">ສະຖານະ</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="db-appointments-list">
-                                    <tr>
-                                        <td class="db-appt-time-col">09:00</td>
-                                        <td class="db-appt-name-col">ນາງ ສີພອນ ຈັນທະວົງ</td>
-                                        <td class="db-appt-service-col">ກວດສຸຂະພາບທົ່ວໄປ</td>
-                                        <td style="text-align: right;"><span
-                                                class="db-status-badge badge-confirmed">ຢືນຢັນ</span></td>
-                                    </tr>
-                                    <tr>
-                                        <td class="db-appt-time-col">10:30</td>
-                                        <td class="db-appt-name-col">ທ່ານ ບຸນມີ ວິຣະວົງ</td>
-                                        <td class="db-appt-service-col">ກວດໂຣກເບົາຫວານ</td>
-                                        <td style="text-align: right;"><span
-                                                class="db-status-badge badge-in-service">ກຳລັງຮັບບໍລິການ</span></td>
-                                    </tr>
-                                    <tr>
-                                        <td class="db-appt-time-col">13:00</td>
-                                        <td class="db-appt-name-col">ນາງ ພອນທິບ ສຸກໃຈ</td>
-                                        <td class="db-appt-service-col">ກວດຫົວໃຈ</td>
-                                        <td style="text-align: right;"><span
-                                                class="db-status-badge badge-waiting">ລໍຖ້າຄິວ</span></td>
-                                    </tr>
-                                    <tr>
-                                        <td class="db-appt-time-col">14:30</td>
-                                        <td class="db-appt-name-col">ເດັກ ອາລຸນ ແກ້ວມະນີ</td>
-                                        <td class="db-appt-service-col">ກວດເດັກ</td>
-                                        <td style="text-align: right;"><span
-                                                class="db-status-badge badge-in-service">ກຳລັງຮັບບໍລິການ</span></td>
-                                    </tr>
-                                    <tr>
-                                        <td class="db-appt-time-col">15:30</td>
-                                        <td class="db-appt-name-col">ທ່ານ ສຸລິວາ ພິມມະ</td>
-                                        <td class="db-appt-service-col">ກວດສາຍຕາ</td>
-                                        <td style="text-align: right;"><span
-                                                class="db-status-badge badge-booked">ຈອງນັດ</span></td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="db-appt-footer-v2">
-                            <i class="ph ph-calendar-check"></i>
-                            <span>ລາຍການລວມມື້ນີ້ <strong id="db-appt-total-footer">12</strong> ລາຍການ</span>
-                        </div>
-                    </div>
-
-                    <!-- Middle: Patient Categories & Queue Status -->
-                    <div class="db-card-white">
-                        <h5 class="db-card-title-v2 mb-3">
-                            <span data-i18n="db_patient_type">ປະເພດຄົນເຈັບ</span>
-                        </h5>
-
-                        <!-- Donut Chart & Legend (รองรับ Dynamic Data) -->
-                        <div class="db-donut-layout">
-                            <div class="db-donut-svg-wrapper">
-                                <svg viewBox="0 0 100 100" width="100%" height="100%">
-                                    <!-- Teal (Comm) -->
-                                    <circle id="donut-circle-comm" cx="50" cy="50" r="38" fill="transparent"
-                                        stroke="#0d9488" stroke-width="18" stroke-dasharray="119 120"
-                                        stroke-dashoffset="0" transform="rotate(-90 50 50)"></circle>
-                                    <!-- Blue (NonComm) -->
-                                    <circle id="donut-circle-noncomm" cx="50" cy="50" r="38" fill="transparent"
-                                        stroke="#0284c7" stroke-width="18" stroke-dasharray="84 155"
-                                        stroke-dashoffset="-119" transform="rotate(-90 50 50)"></circle>
-                                    <!-- Amber (Child) -->
-                                    <circle id="donut-circle-child" cx="50" cy="50" r="38" fill="transparent"
-                                        stroke="#f59e0b" stroke-width="18" stroke-dasharray="24 215"
-                                        stroke-dashoffset="-203" transform="rotate(-90 50 50)"></circle>
-                                    <!-- Gray (Other) -->
-                                    <circle id="donut-circle-other" cx="50" cy="50" r="38" fill="transparent"
-                                        stroke="#94a3b8" stroke-width="18" stroke-dasharray="12 227"
-                                        stroke-dashoffset="-227" transform="rotate(-90 50 50)"></circle>
-                                </svg>
-                                <div class="db-donut-center-text">
-                                    <span class="db-donut-center-num" id="db-donut-patient-count">0</span>
-                                    <span class="db-donut-center-unit">ຄົນ</span>
-                                </div>
-                            </div>
-
-                            <div class="db-donut-legend-list">
-                                <div class="db-donut-legend-item">
-                                    <div class="db-donut-legend-left">
-                                        <span class="db-donut-dot dot-teal"></span>
-                                        <span class="db-donut-label">ໂຣກຕິດຕໍ່</span>
-                                    </div>
-                                    <div class="db-donut-right">
-                                        <span class="db-donut-pct" id="donut-pct-comm">0%</span>
-                                        <span class="db-donut-subcount" id="donut-val-comm">0 ຄົນ</span>
-                                    </div>
-                                </div>
-                                <div class="db-donut-legend-item">
-                                    <div class="db-donut-legend-left">
-                                        <span class="db-donut-dot dot-blue"></span>
-                                        <span class="db-donut-label">ໂຣກບໍ່ຕິດຕໍ່</span>
-                                    </div>
-                                    <div class="db-donut-right">
-                                        <span class="db-donut-pct" id="donut-pct-noncomm">0%</span>
-                                        <span class="db-donut-subcount" id="donut-val-noncomm">0 ຄົນ</span>
-                                    </div>
-                                </div>
-                                <div class="db-donut-legend-item">
-                                    <div class="db-donut-legend-left">
-                                        <span class="db-donut-dot dot-amber"></span>
-                                        <span class="db-donut-label">ເດັກ</span>
-                                    </div>
-                                    <div class="db-donut-right">
-                                        <span class="db-donut-pct" id="donut-pct-child">0%</span>
-                                        <span class="db-donut-subcount" id="donut-val-child">0 ຄົນ</span>
-                                    </div>
-                                </div>
-                                <div class="db-donut-legend-item">
-                                    <div class="db-donut-legend-left">
-                                        <span class="db-donut-dot dot-gray"></span>
-                                        <span class="db-donut-label">ອື່ນໆ</span>
-                                    </div>
-                                    <div class="db-donut-right">
-                                        <span class="db-donut-pct" id="donut-pct-other">0%</span>
-                                        <span class="db-donut-subcount" id="donut-val-other">0 ຄົນ</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Queue Status Section -->
-                        <h6 class="db-queue-section-title" data-i18n="db_queue_status">ສະຖານະຄິວ</h6>
-                        <div class="db-queue-grid-2x2">
-                            <div class="db-queue-pill-item">
-                                <span>ຫ້ອງກວດແພດທົ່ວໄປ</span>
-                                <span class="db-queue-pill-count"><i class="ph ph-users"></i> <span
-                                        id="db-queue-doctor">3</span></span>
-                            </div>
-                            <div class="db-queue-pill-item">
-                                <span>ຫ້ອງກວດເດັກ</span>
-                                <span class="db-queue-pill-count"><i class="ph ph-users"></i> <span
-                                        id="db-queue-triage">1</span></span>
-                            </div>
-                            <div class="db-queue-pill-item">
-                                <span>ຫ້ອງກວດແລ້ວ</span>
-                                <span class="db-queue-pill-count"><i class="ph ph-users"></i> <span
-                                        id="db-queue-prescription">2</span></span>
-                            </div>
-                            <div class="db-queue-pill-item">
-                                <span>ຫ້ອງວິເຄາະ</span>
-                                <span class="db-queue-pill-count"><i class="ph ph-users"></i> <span
-                                        id="db-queue-lab">4</span></span>
-                            </div>
-                        </div>
-                        <div class="text-end mt-2">
-                            <a href="javascript:void(0);" onclick="showPage('queue')" class="db-card-link-v2"
-                                style="color: #0d9488; font-weight: 600;">
-                                <span>ເບິ່ງຂໍ້ມູນທັງໝົດ</span> <i class="ph ph-caret-right"></i>
-                            </a>
-                        </div>
-                    </div>
-
-                    <!-- Right: Minimalist Calendar -->
-                    <div class="db-cal-card-v2">
-                        <div class="db-cal-header-v2">
-                            <span id="calendar-title" class="db-cal-title-v2">ສິງຫາ 2026</span>
-                            <div class="db-cal-nav-group">
-                                <button type="button" class="db-cal-arrow-btn" id="btn-prev-month"
-                                    onclick="prevCalendarMonth()" title="ເດືອນກ່ອນ">
-                                    <i class="ph ph-caret-left"></i>
-                                </button>
-                                <button type="button" class="db-cal-arrow-btn" id="btn-next-month"
-                                    onclick="nextCalendarMonth()" title="ເດືອນຖັດໄປ">
-                                    <i class="ph ph-caret-right"></i>
-                                </button>
-                                <button type="button" class="db-cal-today-pill" onclick="resetCalendarToday()"
-                                    data-i18n="today">
-                                    ວັນນີ້
-                                </button>
-                            </div>
-                        </div>
-                        <div class="db-cal-weekdays-v2">
-                            <div>ຈ</div>
-                            <div>ອ</div>
-                            <div>ພ</div>
-                            <div>ພະ</div>
-                            <div>ສຸ</div>
-                            <div>ສ</div>
-                            <div>ອາ</div>
-                        </div>
-                        <div class="db-cal-days-grid-v2" id="calendar-days">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Row 3: Bottom 2 Sections -->
-                <div class="db-bottom-grid-v2">
-                    <!-- Left: Service Statistics Area Chart -->
-                    <div class="db-chart-card-v2">
-                        <div class="db-chart-header-v2">
-                            <h5 class="db-card-title-v2" data-i18n="db_stats_service_title">ສະຖິຕິການຮັບບໍລິການ</h5>
-                            <div class="db-chart-legend-row">
-                                <div class="db-chart-legend-item-v2">
-                                    <span class="legend-line-teal"></span>
-                                    <span data-i18n="db_legend_visits">ຄົນເຈັບເຂົ້າກວດ</span>
-                                </div>
-                                <div class="db-chart-legend-item-v2">
-                                    <span class="legend-line-blue"></span>
-                                    <span data-i18n="db_legend_appointments">ນັດໝາຍ</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- SVG Dual Spline Area Chart -->
-                        <div class="db-area-chart-wrapper">
-                            <svg viewBox="0 0 1000 200" width="100%" height="100%" preserveAspectRatio="none">
-                                <defs>
-                                    <linearGradient id="tealGradient" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stop-color="#0d9488" stop-opacity="0.25" />
-                                        <stop offset="100%" stop-color="#0d9488" stop-opacity="0.0" />
-                                    </linearGradient>
-                                    <linearGradient id="blueGradient" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stop-color="#0284c7" stop-opacity="0.20" />
-                                        <stop offset="100%" stop-color="#0284c7" stop-opacity="0.0" />
-                                    </linearGradient>
-                                </defs>
-
-                                <!-- Horizontal Grid Lines -->
-                                <text x="15" y="25" fill="#94a3b8" font-size="12" font-weight="500">400</text>
-                                <line x1="50" y1="20" x2="980" y2="20" stroke="#f1f5f9" stroke-width="1"
-                                    stroke-dasharray="4 4" />
-
-                                <text x="15" y="65" fill="#94a3b8" font-size="12" font-weight="500">300</text>
-                                <line x1="50" y1="60" x2="980" y2="60" stroke="#f1f5f9" stroke-width="1"
-                                    stroke-dasharray="4 4" />
-
-                                <text x="15" y="105" fill="#94a3b8" font-size="12" font-weight="500">200</text>
-                                <line x1="50" y1="100" x2="980" y2="100" stroke="#f1f5f9" stroke-width="1"
-                                    stroke-dasharray="4 4" />
-
-                                <text x="15" y="145" fill="#94a3b8" font-size="12" font-weight="500">100</text>
-                                <line x1="50" y1="140" x2="980" y2="140" stroke="#f1f5f9" stroke-width="1"
-                                    stroke-dasharray="4 4" />
-
-                                <text x="25" y="180" fill="#94a3b8" font-size="12" font-weight="500">0</text>
-                                <line x1="50" y1="175" x2="980" y2="175" stroke="#e2e8f0" stroke-width="1" />
-
-                                <!-- Vertical separator at Month 8 (Aug) -->
-                                <line x1="680" y1="20" x2="680" y2="175" stroke="#cbd5e1" stroke-width="1"
-                                    stroke-dasharray="3 3" />
-
-                                <!-- Dual Area Gradients -->
-                                <path
-                                    d="M 60 160 C 130 145, 170 152, 230 150 C 300 148, 350 120, 420 80 C 480 48, 540 85, 600 50 C 640 28, 660 32, 680 35 L 680 175 L 60 175 Z"
-                                    fill="url(#tealGradient)" />
-                                <path
-                                    d="M 60 170 C 130 168, 170 167, 230 164 C 300 160, 350 150, 420 135 C 480 120, 540 115, 600 102 C 640 92, 660 88, 680 85 L 680 175 L 60 175 Z"
-                                    fill="url(#blueGradient)" />
-
-                                <!-- Teal Curve (Historical) -->
-                                <path
-                                    d="M 60 160 C 130 145, 170 152, 230 150 C 300 148, 350 120, 420 80 C 480 48, 540 85, 600 50 C 640 28, 660 32, 680 35"
-                                    fill="none" stroke="#0d9488" stroke-width="2.5" stroke-linecap="round" />
-                                <!-- Teal Projection Dotted Curve -->
-                                <path d="M 680 35 C 740 45, 800 65, 860 80 C 910 95, 950 115, 975 125" fill="none"
-                                    stroke="#0d9488" stroke-width="2" stroke-dasharray="4 4" stroke-linecap="round" />
-
-                                <!-- Blue Curve (Historical) -->
-                                <path
-                                    d="M 60 170 C 130 168, 170 167, 230 164 C 300 160, 350 150, 420 135 C 480 120, 540 115, 600 102 C 640 92, 660 88, 680 85"
-                                    fill="none" stroke="#0284c7" stroke-width="2.5" stroke-linecap="round" />
-                                <!-- Blue Projection Dotted Curve -->
-                                <path d="M 680 85 C 740 105, 800 120, 860 135 C 910 145, 950 155, 975 160" fill="none"
-                                    stroke="#0284c7" stroke-width="2" stroke-dasharray="4 4" stroke-linecap="round" />
-
-                                <!-- Data Dots -->
-                                <circle cx="60" cy="160" r="4" fill="#0d9488" stroke="#ffffff" stroke-width="2" />
-                                <circle cx="230" cy="150" r="4" fill="#0d9488" stroke="#ffffff" stroke-width="2" />
-                                <circle cx="420" cy="80" r="4" fill="#0d9488" stroke="#ffffff" stroke-width="2" />
-                                <circle cx="600" cy="50" r="4" fill="#0d9488" stroke="#ffffff" stroke-width="2" />
-                                <circle cx="680" cy="35" r="4.5" fill="#0d9488" stroke="#ffffff" stroke-width="2" />
-
-                                <circle cx="60" cy="170" r="4" fill="#0284c7" stroke="#ffffff" stroke-width="2" />
-                                <circle cx="230" cy="164" r="4" fill="#0284c7" stroke="#ffffff" stroke-width="2" />
-                                <circle cx="420" cy="135" r="4" fill="#0284c7" stroke="#ffffff" stroke-width="2" />
-                                <circle cx="600" cy="102" r="4" fill="#0284c7" stroke="#ffffff" stroke-width="2" />
-                                <circle cx="680" cy="85" r="4.5" fill="#0284c7" stroke="#ffffff" stroke-width="2" />
-
-                                <circle cx="860" cy="80" r="3.5" fill="#0d9488" opacity="0.8" />
-                                <circle cx="860" cy="135" r="3.5" fill="#0284c7" opacity="0.8" />
-                                <circle cx="975" cy="125" r="3.5" fill="#0d9488" opacity="0.8" />
-                                <circle cx="975" cy="160" r="3.5" fill="#0284c7" opacity="0.8" />
-                            </svg>
-                        </div>
-
-                        <!-- 12 Months Labels in Lao -->
-                        <div class="db-area-chart-months">
-                            <span>ມັງກອນ</span>
-                            <span>ກຸມພາ</span>
-                            <span>ມີນາ</span>
-                            <span>ເມສາ</span>
-                            <span>ພຶດສະພາ</span>
-                            <span>ມິຖຸນາ</span>
-                            <span>ກໍລະກົດ</span>
-                            <span>ສິງຫາ</span>
-                            <span>ກັນຍາ</span>
-                            <span>ຕຸລາ</span>
-                            <span>ພະຈິກ</span>
-                            <span>ທັນວາ</span>
-                        </div>
-                    </div>
-
-                    <!-- Right: Stacked KPI Cards with Sparklines -->
-                    <div class="db-kpi-stack">
-                        <!-- KPI 1: Monthly Visits -->
-                        <div class="db-kpi-card-v2">
-                            <div class="db-kpi-left">
-                                <div class="db-kpi-icon-row">
-                                    <div class="db-kpi-icon-circle teal">
-                                        <i class="ph ph-users"></i>
-                                    </div>
-                                    <span class="db-kpi-title" data-i18n="db_kpi_visits_month">ຜູ້ປ່ວຍເຂົ້າກວດ
-                                        (ເດືອນນີ້)</span>
-                                </div>
-                                <div class="db-kpi-val-row">
-                                    <span class="db-kpi-number" id="db-panel-visits-count">678</span>
-                                    <span class="db-kpi-unit" data-i18n="unit_people">ຄົນ</span>
-                                </div>
-                                <span class="db-stat-trend-v2 trend-up">
-                                    <i class="ph ph-arrow-up"></i> 12.5% ຈາກເດືອນກ່ອນ
-                                </span>
-                            </div>
-                            <div class="db-kpi-sparkline">
-                                <svg viewBox="0 0 100 45" width="100%" height="100%" preserveAspectRatio="none">
-                                    <defs>
-                                        <linearGradient id="sparkTeal" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stop-color="#0d9488" stop-opacity="0.35" />
-                                            <stop offset="100%" stop-color="#0d9488" stop-opacity="0.0" />
-                                        </linearGradient>
-                                    </defs>
-                                    <path
-                                        d="M 0 35 C 15 30, 25 38, 40 25 C 55 12, 65 24, 75 18 C 85 16, 90 8, 100 5 L 100 45 L 0 45 Z"
-                                        fill="url(#sparkTeal)" />
-                                    <path d="M 0 35 C 15 30, 25 38, 40 25 C 55 12, 65 24, 75 18 C 85 16, 90 8, 100 5"
-                                        fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" />
-                                </svg>
-                            </div>
-                        </div>
-
-                        <!-- KPI 2: Monthly Appointments -->
-                        <div class="db-kpi-card-v2">
-                            <div class="db-kpi-left">
-                                <div class="db-kpi-icon-row">
-                                    <div class="db-kpi-icon-circle blue">
-                                        <i class="ph ph-calendar-blank"></i>
-                                    </div>
-                                    <span class="db-kpi-title" data-i18n="db_kpi_appts_month">ນັດໝາຍ (ເດືອນນີ້)</span>
-                                </div>
-                                <div class="db-kpi-val-row">
-                                    <span class="db-kpi-number" id="db-panel-appts-count">512</span>
-                                    <span class="db-kpi-unit" data-i18n="unit_items">ລາຍການ</span>
-                                </div>
-                                <span class="db-stat-trend-v2 trend-blue">
-                                    <i class="ph ph-arrow-up"></i> 8.3% ຈາກເດືອນກ່ອນ
-                                </span>
-                            </div>
-                            <div class="db-kpi-sparkline">
-                                <svg viewBox="0 0 100 45" width="100%" height="100%" preserveAspectRatio="none">
-                                    <defs>
-                                        <linearGradient id="sparkBlue" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stop-color="#2563eb" stop-opacity="0.30" />
-                                            <stop offset="100%" stop-color="#2563eb" stop-opacity="0.0" />
-                                        </linearGradient>
-                                    </defs>
-                                    <path
-                                        d="M 0 40 C 15 38, 25 42, 40 32 C 55 22, 65 28, 75 22 C 85 20, 90 12, 100 8 L 100 45 L 0 45 Z"
-                                        fill="url(#sparkBlue)" />
-                                    <path d="M 0 40 C 15 38, 25 42, 40 32 C 55 22, 65 28, 75 22 C 85 20, 90 12, 100 8"
-                                        fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" />
-                                </svg>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div id="dashboard" class="page-section active"
+            style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%;">
+            <iframe id="dashboardFrame" src="dashboard.html?v=2.0"
+                style="width: 100%; height: calc(100vh - 25px); border: none; min-height: 850px; display: block; border-radius: 16px;"
+                title="Clinic Dashboard"></iframe>
         </div>
 
         <!-- 2. ระบบนัดหมาย (Appointments) -->
@@ -1061,8 +509,7 @@
         <!-- 2.5 Clinic Booking -->
         <div id="booking" class="page-section"
             style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%; overflow: hidden !important;">
-            <iframe id="marketingFrame" src="marketing.html?v=3.9.29"
-                title="Clinic Booking System"></iframe>
+            <iframe id="marketingFrame" src="marketing.html?v=3.9.29" title="Clinic Booking System"></iframe>
         </div>
 
         <!-- 3. ทะเบียนผู้ป่วย (Registration) -->
@@ -1090,15 +537,13 @@
                             <span data-i18n="date_range_label">ເລືອກຊ່ວງເວລາ</span>
                         </label>
                         <div class="patient-date-inputs-wrapper">
-                            <input type="date" id="patientFilterStartDate"
-                                class="patient-date-input"
+                            <input type="date" id="patientFilterStartDate" class="patient-date-input"
                                 onchange="filterPatients()" title="วันที่เริ่มต้น">
                             <span class="patient-date-sep">-</span>
-                            <input type="date" id="patientFilterEndDate"
-                                class="patient-date-input"
+                            <input type="date" id="patientFilterEndDate" class="patient-date-input"
                                 onchange="filterPatients()" title="วันที่สิ้นสุด">
-                            <button type="button" class="btn-clear-date"
-                                onclick="clearPatientDateFilter()" title="ล้างตัวกรองวันที่">
+                            <button type="button" class="btn-clear-date" onclick="clearPatientDateFilter()"
+                                title="ล้างตัวกรองวันที่">
                                 <i class="bi bi-x-circle-fill"></i>
                             </button>
                         </div>
@@ -1109,10 +554,8 @@
                         <div class="patient-search-wrapper">
                             <i class="bi bi-search patient-search-icon"></i>
                             <input type="text" id="patientSearchInput" class="patient-search-input"
-                                placeholder="ค้นหา ชื่อ, HN, เบอร์โทร..."
-                                data-i18n-placeholder="reg_search_placeholder"
-                                oninput="filterPatients()"
-                                onkeyup="if(event.key === 'Enter') filterPatients()">
+                                placeholder="ค้นหา ชื่อ, HN, เบอร์โทร..." data-i18n-placeholder="reg_search_placeholder"
+                                oninput="filterPatients()" onkeyup="if(event.key === 'Enter') filterPatients()">
                             <button class="btn-clear-search" type="button"
                                 onclick="const el = document.getElementById('patientSearchInput'); if (el) { el.value = ''; filterPatients(); }"
                                 title="ล้างคำค้นหา">
@@ -1142,44 +585,32 @@
                     <div class="patient-tabs-nav" id="triageFilterBtnGroup">
 
                         <!-- Tab: ยังไม่ได้คัดกรอง -->
-                        <button type="button" id="btnTriageFilterPending"
-                            class="patient-tab-item btn btn-sm"
-                            data-tab-mode="pending"
-                            data-tab-active="false"
-                            onclick="setTriageFilter('pending')"
+                        <button type="button" id="btnTriageFilterPending" class="patient-tab-item btn btn-sm"
+                            data-tab-mode="pending" data-tab-active="false" onclick="setTriageFilter('pending')"
                             title="ຍັງບໍ່ໄດ້ຄັດກອງ">
                             <i class="bi bi-hourglass-split"></i>
                             <span>ຍັງບໍ່ໄດ້ຄັດກອງ</span>
                         </button>
 
                         <!-- Tab: ส่งคัดกรองแล้ว -->
-                        <button type="button" id="btnTriageFilterSent"
-                            class="patient-tab-item btn btn-sm"
-                            data-tab-mode="sent"
-                            data-tab-active="false"
-                            onclick="setTriageFilter('sent')"
+                        <button type="button" id="btnTriageFilterSent" class="patient-tab-item btn btn-sm"
+                            data-tab-mode="sent" data-tab-active="false" onclick="setTriageFilter('sent')"
                             title="ສົ່ງຄັດກອງແລ້ວ">
                             <i class="bi bi-send-check"></i>
                             <span>ສົ່ງຄັດກອງແລ້ວ</span>
                         </button>
 
                         <!-- Tab: ทั้งหมด (default active) -->
-                        <button type="button" id="btnTriageFilterAll"
-                            class="patient-tab-item btn btn-sm"
-                            data-tab-mode="all"
-                            data-tab-active="true"
-                            onclick="setTriageFilter('all')"
+                        <button type="button" id="btnTriageFilterAll" class="patient-tab-item btn btn-sm"
+                            data-tab-mode="all" data-tab-active="true" onclick="setTriageFilter('all')"
                             title="ສະແດງທັງໝົດ" data-i18n="all">
                             <i class="bi bi-ui-checks-grid"></i>
                             <span>ທັງໝົດ</span>
                         </button>
 
                         <!-- Tab: วันนี้ -->
-                        <button type="button" id="btnFilterToday"
-                            class="patient-tab-item btn btn-sm"
-                            data-tab-mode="today"
-                            data-tab-active="false"
-                            onclick="setPatientTodayTab()"
+                        <button type="button" id="btnFilterToday" class="patient-tab-item btn btn-sm"
+                            data-tab-mode="today" data-tab-active="false" onclick="setPatientTodayTab()"
                             title="ມື້ນີ້ / ປະຕິບັດ" data-i18n="today">
                             <i class="bi bi-calendar-check"></i>
                             <span>ມື້ນີ້</span>
@@ -1352,15 +783,19 @@
                 </div>
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     <div class="input-group input-group-sm" style="width: 250px;">
-                        <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
-                        <input type="text" id="searchDoctorInput" class="form-control border-start-0 ps-0" placeholder="ค้นหาชื่อ, HN, อาการ..." oninput="filterDoctorTable()">
+                        <span class="input-group-text bg-white border-end-0 text-muted"><i
+                                class="bi bi-search"></i></span>
+                        <input type="text" id="searchDoctorInput" class="form-control border-start-0 ps-0"
+                            placeholder="ค้นหาชื่อ, HN, อาการ..." oninput="filterDoctorTable()">
                     </div>
-                    <select id="doctorQueueFilter" class="form-select form-select-sm" style="width: 170px;" onchange="filterDoctorTable()">
+                    <select id="doctorQueueFilter" class="form-select form-select-sm" style="width: 170px;"
+                        onchange="filterDoctorTable()">
                         <option value="all">แสดงคิวตรวจทั้งหมด</option>
                         <option value="my">เฉพาะคิวของฉัน</option>
                         <option value="unassigned">คิวยังไม่ระบุแพทย์</option>
                     </select>
-                    <button class="btn btn-sm btn-outline-primary shadow-sm" onclick="loadDoctorQueue()" title="รีเฟรชคิว">
+                    <button class="btn btn-sm btn-outline-primary shadow-sm" onclick="loadDoctorQueue()"
+                        title="รีเฟรชคิว">
                         <i class="bi bi-arrow-clockwise"></i>
                     </button>
                 </div>
@@ -1673,8 +1108,9 @@
                             <i class="bi bi-person-check-fill me-1"></i>เฉพาะคิวตรวจของคุณ
                         </span>
                     </div>
-                    <button id="btnRefreshPrescription" class="btn btn-sm btn-outline-primary py-2 px-3 fw-bold shadow-2xs"
-                        style="border-radius: 10px;" onclick="loadPrescriptionList(this)">
+                    <button id="btnRefreshPrescription"
+                        class="btn btn-sm btn-outline-primary py-2 px-3 fw-bold shadow-2xs" style="border-radius: 10px;"
+                        onclick="loadPrescriptionList(this)">
                         <i class="bi bi-arrow-clockwise me-1"></i> <span data-i18n="refresh">รีเฟรช</span>
                     </button>
                 </div>
@@ -2251,25 +1687,27 @@
             <!-- Summary Cards -->
             <div class="row g-3 mb-4">
                 <div class="col-md-3">
-                    <div class="p-3 border rounded shadow-sm bg-white d-flex align-items-center gap-3">
+                    <div class="p-3 border rounded shadow-sm bg-white d-flex align-items-center gap-3"
+                        id="cardStaffTotal" style="cursor:pointer;" onclick="showAllStaff()" title="ຜູ້ໃຊ້ລະບົບທັງໝົດ (ຄລິກເພື່ອເບິ່ງທັງໝົດ)">
                         <div class="rounded-circle d-flex align-items-center justify-content-center"
                             style="width:48px;height:48px;background:linear-gradient(135deg,#3b82f6,#2563eb);">
                             <i class="bi bi-people-fill text-white fs-5"></i>
                         </div>
                         <div>
-                            <div class="text-muted small" data-i18n="db_stat_patients">พนักงานทั้งหมด</div>
+                            <div class="text-muted small" data-i18n="total_system_users">ຜູ້ໃຊ້ລະບົບທັງໝົດ</div>
                             <div class="fw-bold fs-5" id="staffTotalCount">-</div>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="p-3 border rounded shadow-sm bg-white d-flex align-items-center gap-3">
+                    <div class="p-3 border rounded shadow-sm bg-white d-flex align-items-center gap-3"
+                        id="cardStaffMedical" style="cursor:pointer;" onclick="filterStaffByMedical()" title="Doctor, Pharmacist, Nurse (ຄລິກເພື່ອເບິ່ງກຸ່ມນີ້)">
                         <div class="rounded-circle d-flex align-items-center justify-content-center"
                             style="width:48px;height:48px;background:linear-gradient(135deg,#10b981,#059669);">
-                            <i class="bi bi-person-check-fill text-white fs-5"></i>
+                            <i class="bi bi-stethoscope text-white fs-5"></i>
                         </div>
                         <div>
-                            <div class="text-muted small" data-i18n="status">ใช้งานอยู่</div>
+                            <div class="text-muted small">Doctor / Pharmacist / Nurse</div>
                             <div class="fw-bold fs-5" id="staffActiveCount">-</div>
                         </div>
                     </div>
@@ -2393,7 +1831,7 @@
                     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                         <div class="d-flex gap-2 align-items-center">
                             <select id="filterLogStatus" class="form-select custom-input py-2" style="width: 180px;"
-                                onchange="renderCommissionLogsTable()">
+                                onchange="renderCommissionLogsTable(1)">
                                 <option value="all">สถานะทั้งหมด</option>
                                 <option value="pending">รออนุมัติ / รอจ่าย</option>
                                 <option value="paid">จ่ายเงินแล้ว</option>
@@ -2414,32 +1852,41 @@
                         <!-- Date & Search Filter Capsule -->
                         <div
                             class="d-flex align-items-center bg-white border rounded-pill p-1 shadow-sm gap-1 flex-wrap">
-                            <!-- Period Filters -->
+                            <!-- Quick Period Buttons -->
                             <div class="btn-group p-0" role="group" id="commLogPeriodGroup">
+                                <button type="button"
+                                    class="btn btn-sm rounded-pill fw-medium px-3 text-muted bg-transparent border-0"
+                                    id="btnCommLogToday" onclick="setCommLogPeriodFilter('today')">
+                                    ມື້ນີ້
+                                </button>
                                 <button type="button"
                                     class="btn btn-sm rounded-pill fw-medium px-3 text-primary bg-light shadow-xs border-0"
                                     id="btnCommLogMonth" onclick="setCommLogPeriodFilter('month')">
-                                    <i class="ph ph-calendar-blank me-1"></i> รายเดือน
+                                    <i class="ph ph-calendar-blank me-1"></i> ເດືອນນີ້
                                 </button>
                                 <button type="button"
                                     class="btn btn-sm rounded-pill fw-medium px-3 text-muted bg-transparent border-0"
                                     id="btnCommLogYear" onclick="setCommLogPeriodFilter('year')">
-                                    รายปี
+                                    ປີນີ້
                                 </button>
                                 <button type="button"
                                     class="btn btn-sm rounded-pill fw-medium px-3 text-muted bg-transparent border-0"
-                                    id="btnCommLogDay" onclick="setCommLogPeriodFilter('day')">
-                                    รายวัน <i class="ph ph-calendar ms-1"></i>
+                                    id="btnCommLogAll" onclick="setCommLogPeriodFilter('all')">
+                                    ທັງໝົດ
                                 </button>
                             </div>
 
-                            <!-- Dynamic Date Pickers -->
-                            <input type="month" id="filterLogMonth"
-                                class="form-control form-control-sm custom-input border-0 d-none"
-                                style="width: 140px; font-size: 0.85rem;" onchange="renderCommissionLogsTable()">
-                            <input type="date" id="filterLogDate"
-                                class="form-control form-control-sm custom-input border-0 d-none"
-                                style="width: 135px; font-size: 0.85rem;" onchange="renderCommissionLogsTable()">
+                            <!-- Capsule ช่วงวันที่: วันที่เริ่มต้น - วันที่สิ้นสุด -->
+                            <div class="d-flex align-items-center bg-white border rounded-pill px-2.5 py-1 shadow-xs gap-1.5 ms-1">
+                                <i class="bi bi-calendar-event text-primary small"></i>
+                                <input type="date" id="filterLogStartDate"
+                                    class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none"
+                                    style="width: 110px; font-size: 0.85rem;" onchange="onCommLogDateRangeChange()">
+                                <span class="text-muted small fw-bold">ຫາ</span>
+                                <input type="date" id="filterLogEndDate"
+                                    class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none"
+                                    style="width: 110px; font-size: 0.85rem;" onchange="onCommLogDateRangeChange()">
+                            </div>
 
                             <div class="vr mx-1 d-none d-sm-block" style="height: 20px;"></div>
 
@@ -2448,7 +1895,7 @@
                                 <input type="text" id="searchLogInput"
                                     class="form-control form-control-sm custom-input border-0 bg-light rounded-pill ps-3 pe-4"
                                     placeholder="Search" style="font-size: 0.88rem; height: 34px;"
-                                    onkeyup="renderCommissionLogsTable()">
+                                    onkeyup="renderCommissionLogsTable(1)">
                             </div>
                         </div>
                     </div>
@@ -2509,20 +1956,7 @@
                     </div>
 
                     <!-- Pagination Controls -->
-                    <div class="d-flex justify-content-center align-items-center gap-2 my-3 mb-4">
-                        <button class="btn btn-sm btn-light border text-muted px-2.5 py-1"
-                            style="font-size: 0.82rem;"><i class="bi bi-chevron-left"></i></button>
-                        <div class="d-flex gap-1">
-                            <button class="btn btn-sm btn-primary px-3 py-1 fw-bold"
-                                style="font-size: 0.82rem;">1</button>
-                            <button class="btn btn-sm btn-light border text-dark px-3 py-1"
-                                style="font-size: 0.82rem;">2</button>
-                            <button class="btn btn-sm btn-light border text-dark px-3 py-1"
-                                style="font-size: 0.82rem;">3</button>
-                        </div>
-                        <button class="btn btn-sm btn-light border text-muted px-2.5 py-1"
-                            style="font-size: 0.82rem;"><i class="bi bi-chevron-right"></i></button>
-                    </div>
+                    <div id="commLogPaginationContainer" class="my-3 mb-4"></div>
                 </div>
 
                 <!-- Tab 2: Referrers Report -->
@@ -3273,15 +2707,15 @@
                                     class="form-control form-control-sm border-start-0 bg-light rounded-end-3 py-2"
                                     id="billSearchInput"
                                     placeholder="ค้นหาด้วยชื่อผู้ป่วย, HN, Bill ID หรือ Visit ID..."
-                                    oninput="renderBillsTable()">
+                                    oninput="renderBillsTable(1)">
                             </div>
                         </div>
                         <div class="col-lg-4 col-md-8 col-12 d-flex align-items-center gap-2">
                             <input type="date" class="form-control form-control-sm rounded-3 py-2" id="billStartDate"
-                                onchange="renderBillsTable()">
+                                onchange="loadBills(true)">
                             <span class="text-muted small">ถึง</span>
                             <input type="date" class="form-control form-control-sm rounded-3 py-2" id="billEndDate"
-                                onchange="renderBillsTable()">
+                                onchange="loadBills(true)">
                         </div>
                         <div class="col-lg-3 col-md-4 col-12 d-flex gap-1 justify-content-end">
                             <button type="button"
@@ -3338,6 +2772,24 @@
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+
+                    <!-- Bills Pagination Controls: 15 items/page -->
+                    <div class="card-footer bg-white border-top py-2.5 px-4 d-flex align-items-center justify-content-between flex-wrap gap-2"
+                        id="billsPaginationFooter">
+                        <div class="text-muted small">
+                            ສະແດງ <span id="billsShowingRange" class="fw-semibold text-dark">0 - 0</span> ຈາກທັງໝົດ <span id="billsTotalCount" class="fw-semibold text-dark">0</span> ລາຍການ
+                        </div>
+                        <div class="d-flex align-items-center gap-1">
+                            <nav aria-label="Bills Page Navigation">
+                                <ul class="pagination pagination-sm mb-0 gap-1" id="billsPaginationList">
+                                    <!-- Dynamic pagination buttons: < 1 2 3 ... > -->
+                                </ul>
+                            </nav>
+                        </div>
+                        <div class="text-muted small">
+                            ໜ້າ <span id="billsCurrentPageNum" class="fw-semibold text-primary">1</span>/<span id="billsTotalPagesNum" class="fw-semibold">1</span>
+                        </div>
                     </div>
 
                     <!-- Footer Summary Bar -->
@@ -3601,6 +3053,24 @@
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Expenses Pagination Controls: 15 items/page -->
+                <div class="card-footer bg-white border-top py-2.5 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2"
+                    id="expensesPaginationFooter">
+                    <div class="text-muted small">
+                        ສະແດງ <span id="expensesShowingRange" class="fw-semibold text-dark">0 - 0</span> ຈາກທັງໝົດ <span id="expensesTotalCount" class="fw-semibold text-dark">0</span> ລາຍການ
+                    </div>
+                    <div class="d-flex align-items-center gap-1">
+                        <nav aria-label="Expenses Page Navigation">
+                            <ul class="pagination pagination-sm mb-0 gap-1" id="expensesPaginationList">
+                                <!-- Dynamic pagination buttons: < 1 2 3 ... > -->
+                            </ul>
+                        </nav>
+                    </div>
+                    <div class="text-muted small">
+                        ໜ້າ <span id="expensesCurrentPageNum" class="fw-semibold text-primary">1</span>/<span id="expensesTotalPagesNum" class="fw-semibold">1</span>
+                    </div>
+                </div>
             </div>
         </div>
         <!-- END EXPENSES PAGE -->
@@ -3616,7 +3086,7 @@
         <!-- 16. Doctor Reports Page (ລາຍງານທ່ານໝໍ) -->
         <div id="doctor-reports" class="page-section"
             style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%;">
-            <iframe id="doctorReportFrame" src="report.html"
+            <iframe id="doctorReportFrame" data-src="report.html?v=3.7" src="" loading="lazy"
                 style="width: 100%; height: calc(100vh - 25px); border: none; min-height: 850px; display: block; border-radius: 16px;"
                 title="Doctor Reports"></iframe>
         </div>
@@ -3873,7 +3343,8 @@
                                 <input type="text" class="form-control custom-input" name="Tel" required>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label fw-bold"><span data-i18n="reg_modal_next_date">ວັນທີນັດມາກວດ</span> <span
+                                <label class="form-label fw-bold"><span
+                                        data-i18n="reg_modal_next_date">ວັນທີນັດມາກວດ</span> <span
                                         class="text-danger">*</span></label>
                                 <input type="date" class="form-control custom-input" name="NextAppointmentDate"
                                     required>
@@ -4720,15 +4191,16 @@
                                         class="text-dark">-</strong></p>
                                 <p class="mb-1 text-muted">เบอร์โทรศัพท์: <strong id="histPhone"
                                         class="text-dark">-</strong></p>
-                                <p class="mb-1 text-muted" id="histDiseaseContainer">ອາການ / ພະຍາດ: <strong id="histDisease"
-                                        class="text-dark">-</strong></p>
+                                <p class="mb-1 text-muted" id="histDiseaseContainer">ອາການ / ພະຍາດ: <strong
+                                        id="histDisease" class="text-dark">-</strong></p>
                                 <p class="mb-1 text-muted" id="histReferrerContainer" style="display: none;">ผู้แนะนำ:
                                     <strong id="histReferrer" class="text-primary">-</strong>
                                 </p>
                                 <p class="mb-1 text-muted" id="histDoctorContainer" style="display: none;">แพทย์ผู้ตรวจ:
                                     <strong id="histDoctorName" style="color: #0d6efd;">-</strong>
                                 </p>
-                                <p class="mb-1 text-muted" id="histAssistantContainer" style="display: none;">ผู้ช่วย / ผู้จัดยา:
+                                <p class="mb-1 text-muted" id="histAssistantContainer" style="display: none;">ผู้ช่วย /
+                                    ผู้จัดยา:
                                     <strong id="histAssistantName" class="text-success fw-semibold">-</strong>
                                 </p>
                             </div>
@@ -4779,10 +4251,12 @@
                                 <div>
                                     <small class="fw-bold text-muted d-block mb-1"><i
                                             class="bi bi-paperclip me-1"></i>เอกสารผลตรวจทั้งหมด:</small>
-                                    <div id="histLabFilesButtons" class="d-inline-flex flex-wrap align-items-center"></div>
+                                    <div id="histLabFilesButtons" class="d-inline-flex flex-wrap align-items-center">
+                                    </div>
                                 </div>
                                 <div>
-                                    <button type="button" class="btn btn-sm btn-outline-primary fw-semibold shadow-sm px-3"
+                                    <button type="button"
+                                        class="btn btn-sm btn-outline-primary fw-semibold shadow-sm px-3"
                                         id="btnHistAddLabResult" onclick="openLabUploadFromHistory()"
                                         style="border-radius: 8px;">
                                         <i class="bi bi-plus-circle me-1"></i> ເພີ່ມຜົນກວດ
@@ -4824,7 +4298,8 @@
                             <div class="col-md-6 col-12 text-md-end">
                                 <div class="small text-muted mb-1">
                                     ຍອດລວມ: <strong id="histOrderSubtotal" class="text-dark">0 ฿</strong>
-                                    <span class="ms-2">ສ່ວນຫຼຸດ: <strong id="histOrderDiscount" class="text-danger">0 ฿</strong></span>
+                                    <span class="ms-2">ສ່ວນຫຼຸດ: <strong id="histOrderDiscount" class="text-danger">0
+                                            ฿</strong></span>
                                 </div>
                                 <div class="fs-6 fw-bold text-primary">
                                     ຍອດຊຳລະສຸດທິ: <span id="histOrderGrandTotal" class="text-success fw-bold">0 ฿</span>
@@ -5157,20 +4632,22 @@
 
                         <!-- ปุ่มจัดการ และ ช่องใส่ชื่อหมอผู้ตรวจ -->
                         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 border-top pt-3">
-                            <div class="d-flex align-items-center gap-2" style="flex: 1; min-width: 250px; max-width: 380px;">
+                            <div class="d-flex align-items-center gap-2"
+                                style="flex: 1; min-width: 250px; max-width: 380px;">
                                 <label for="vascDoctorInput" class="fw-bold text-nowrap text-dark mb-0 small">
                                     <i class="bi bi-person-badge-fill text-primary me-1"></i>ທ່ານໝໍຜູ້ກວດ:
                                 </label>
-                                <input type="text" id="vascDoctorInput" list="vascDoctorDatalist" class="form-control custom-input"
-                                    placeholder="ໃສ່ຊື່ ທ່ານໝໍຜູ້ກວດ..."
+                                <input type="text" id="vascDoctorInput" list="vascDoctorDatalist"
+                                    class="form-control custom-input" placeholder="ໃສ່ຊື່ ທ່ານໝໍຜູ້ກວດ..."
                                     style="border-radius: 8px; padding: 7px 12px; border-color: #cbd5e1; font-weight: 500;">
                                 <datalist id="vascDoctorDatalist"></datalist>
                             </div>
                             <div class="d-flex gap-2 ms-auto">
-                                <button type="button" class="btn btn-light border px-4 fw-semibold" data-bs-dismiss="modal"
-                                    style="border-radius: 8px;">ยกเลิก</button>
+                                <button type="button" class="btn btn-light border px-4 fw-semibold"
+                                    data-bs-dismiss="modal" style="border-radius: 8px;">ยกเลิก</button>
                                 <button type="submit" class="btn btn-primary px-4 fw-bold"
-                                    style="border-radius: 8px; background-color: #0b3c73; border-color: #0b3c73;"><i class="bi bi-file-earmark-pdf me-1"></i> บันทึกและออก PDF</button>
+                                    style="border-radius: 8px; background-color: #0b3c73; border-color: #0b3c73;"><i
+                                        class="bi bi-file-earmark-pdf me-1"></i> บันทึกและออก PDF</button>
                             </div>
                         </div>
                     </form>
@@ -5320,7 +4797,7 @@
             document.write('<script src="../config.js"><\/script>');
         }
     </script>
-    <script src="function.js?v=3.9.28"></script>
+    <script src="function.js?v=3.9.54"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
     <script>
         document.addEventListener("DOMContentLoaded", function () {

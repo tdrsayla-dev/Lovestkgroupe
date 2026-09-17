@@ -8,9 +8,10 @@
 // Global State
 const state = {
   activeTab: 'nutrients', // 'nutrients' | 'patients'
-  datePreset: 'month',
+  datePreset: 'today',
   startDate: '',
   endDate: '',
+  isLoading: false,
   bills: [],
   expenses: [],
   visits: [],
@@ -69,10 +70,37 @@ function formatDateLao(isoStr) {
 }
 
 function formatDateOnly(d) {
-  const year = d.getFullYear();
+  let year = d.getFullYear();
+  if (year > 2400) year -= 543;
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+// Convert any timestamp or raw date string to YYYY-MM-DD in local time (UTC+7)
+function toLocalDateStr(rawDate) {
+  if (!rawDate) return '';
+  if (rawDate instanceof Date) {
+    const tz = rawDate.getTimezoneOffset() * 60000;
+    return (new Date(rawDate.getTime() - tz)).toISOString().split('T')[0];
+  }
+  const s = String(rawDate).trim();
+  if (!s) return '';
+  if (s.includes('T') || s.endsWith('Z')) {
+    const dt = new Date(s);
+    if (!isNaN(dt.getTime())) {
+      const tz = dt.getTimezoneOffset() * 60000;
+      return (new Date(dt.getTime() - tz)).toISOString().split('T')[0];
+    }
+    return s.substring(0, 10);
+  }
+  const mSlash = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (mSlash) {
+    let y = parseInt(mSlash[3], 10);
+    if (y > 2400) y -= 543;
+    return `${y}-${mSlash[2].padStart(2, '0')}-${mSlash[1].padStart(2, '0')}`;
+  }
+  return s.substring(0, 10);
 }
 
 // Helper: Loader overlay
@@ -91,14 +119,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnBack.style.display = (window.self === window.top) ? 'inline-flex' : 'none';
   }
 
-  // Set default dates to This Month
-  setDatePreset('month');
+  // Set default dates to Today (ວັນປັດຈຸບັນ)
+  setDatePreset('today');
 
-  // Load Clinic Settings first (for Branding/Header)
-  await loadClinicSettings();
-
-  // Load Data for default range
-  await loadReportData();
+  // Parallel startup: Load settings and data concurrently
+  await Promise.all([
+    loadClinicSettings(),
+    loadReportData()
+  ]);
 });
 
 // Switch Active Tab (ສັ່ງອາຫານເສີມ, ຜູ້ປ່ວຍ)
@@ -139,9 +167,11 @@ function setDatePreset(preset) {
     btn.classList.toggle('active', btn.dataset.preset === preset);
   });
 
-  const today = new Date();
-  let start = new Date();
-  let end = new Date();
+  const now = new Date();
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const today = new Date(utc + (7 * 3600000));
+  let start = new Date(today);
+  let end = new Date(today);
 
   if (preset === 'today') {
     start = new Date(today);
@@ -149,8 +179,8 @@ function setDatePreset(preset) {
   } else if (preset === 'week') {
     const day = today.getDay();
     const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-    start = new Date(today.setDate(diff));
-    end = new Date();
+    start = new Date(today.getFullYear(), today.getMonth(), diff);
+    end = new Date(today);
   } else if (preset === 'month') {
     start = new Date(today.getFullYear(), today.getMonth(), 1);
     end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
@@ -159,7 +189,7 @@ function setDatePreset(preset) {
     end = new Date(today.getFullYear(), 11, 31);
   } else if (preset === 'all') {
     start = new Date('2024-01-01');
-    end = new Date();
+    end = new Date(today);
   }
 
   const sStr = formatDateOnly(start);
@@ -187,22 +217,40 @@ function onCustomDateChange() {
   }
 }
 
-// Load Clinic Branding / Settings
+// Helper: Timeout wrapper to avoid slow external network hanging page load
+function withTimeout(promise, ms = 2500, fallbackVal = null) {
+  return Promise.race([
+    promise,
+    new Promise(resolve => setTimeout(() => resolve(fallbackVal), ms))
+  ]);
+}
+
+// Load Clinic Branding / Settings (Instant from Cache + Async Sync)
 async function loadClinicSettings() {
+  try {
+    const cached = JSON.parse(localStorage.getItem('clinic_settings_cache') || '{}');
+    if (cached && Object.keys(cached).length > 0) {
+      state.clinicSettings = { ...cached };
+      applyClinicBranding();
+    }
+  } catch (e) {}
+
   if (!sbClient) return;
   try {
-    const { data, error } = await sbClient.from('clinic_settings').select('*');
-    if (error) {
-      console.warn('Could not fetch clinic_settings:', error.message);
-      return;
-    }
-    if (data && Array.isArray(data)) {
+    const { data, error } = await withTimeout(
+      sbClient.from('clinic_settings').select('*'),
+      2000,
+      { data: null }
+    );
+    if (!error && data && Array.isArray(data)) {
       data.forEach(item => {
         state.clinicSettings[item.key] = item.value;
       });
+      try {
+        localStorage.setItem('clinic_settings_cache', JSON.stringify(state.clinicSettings));
+      } catch (e) {}
+      applyClinicBranding();
     }
-
-    applyClinicBranding();
   } catch (err) {
     console.warn('Error loading settings:', err);
   }
@@ -235,17 +283,25 @@ function applyClinicBranding() {
   }
 }
 
-// Fetch all reporting datasets for selected date window
+// Fetch all reporting datasets for selected date window (Ultra-optimized)
 async function loadReportData() {
   if (!sbClient) {
     alert('Supabase client is not configured. Please check config.js.');
     return;
   }
 
+  // Prevent duplicate simultaneous fetches
+  if (state.isLoading) return;
+  state.isLoading = true;
   toggleLoader(true);
 
-  const startISO = `${state.startDate}T00:00:00`;
-  const endISO = `${state.endDate}T23:59:59`;
+  // Compute timezone-safe query boundaries (UTC+7 for Laos/Thailand)
+  const startUtcISO = state.startDate ? new Date(state.startDate + 'T00:00:00+07:00').toISOString() : '';
+  const endUtcISO = state.endDate ? new Date(state.endDate + 'T23:59:59.999+07:00').toISOString() : '';
+
+  // Query boundaries covering both UTC stored timestamps and local string timestamps
+  const queryStartISO = startUtcISO || `${state.startDate}T00:00:00`;
+  const queryEndISO = `${state.endDate}T23:59:59.999Z`;
 
   const periodLabel = document.getElementById('reportPeriodText');
   if (periodLabel) {
@@ -257,48 +313,59 @@ async function loadReportData() {
   }
 
   try {
-    const [resBills, resExpenses, resVisits, resPatients, resCommissions] = await Promise.all([
-      // 1. Bills
-      sbClient.from('bills')
-        .select('*')
-        .gte('created_at', startISO)
-        .lte('created_at', endISO)
-        .order('created_at', { ascending: false }),
-
-      // 2. Clinic Expenses
-      sbClient.from('clinic_expenses')
-        .select('*')
-        .gte('date', state.startDate)
-        .lte('date', state.endDate)
-        .order('date', { ascending: false }),
-
-      // 3. Visits
+    // 🚀 Parallel Fetch:
+    // 1. Visits for selected date range (only required columns)
+    // 2. Bills for selected date range (only for doctor resolution fallback)
+    // 3. Raw Nutrient Orders (filtered by date range at DB level)
+    const [resVisits, resBills, rawNutrientOrders] = await Promise.all([
       sbClient.from('visits')
-        .select('*')
-        .gte('created_at', startISO)
-        .lte('created_at', endISO)
+        .select('visit_id, hn, patient_name, doctor, doctor_name, status, symptoms, symptom, initial_symptom, diagnosis, disease, meds, created_at')
+        .gte('created_at', queryStartISO)
+        .lte('created_at', queryEndISO)
         .order('created_at', { ascending: false }),
 
-      // 4. Patients (All or in range)
-      sbClient.from('patients')
-        .select('*')
-        .order('created_at', { ascending: false }),
+      sbClient.from('bills')
+        .select('visit_id, doctor, doctor_name, created_at')
+        .gte('created_at', queryStartISO)
+        .lte('created_at', queryEndISO),
 
-      // 5. Commission Logs
-      sbClient.from('commission_logs')
-        .select('*')
-        .gte('created_at', startISO)
-        .lte('created_at', endISO)
+      fetchRawNutrientOrders(queryStartISO, queryEndISO)
     ]);
 
+    // Filter visits by exact local date (UTC+7)
+    const rawVisits = resVisits.data || [];
+    state.visits = rawVisits.filter(v => {
+      const d = toLocalDateStr(v.created_at);
+      return !d || (d >= state.startDate && d <= state.endDate);
+    });
     state.bills = resBills.data || [];
-    state.expenses = resExpenses.data || [];
-    state.visits = resVisits.data || [];
-    state.patients = resPatients.data || [];
-    state.commissions = resCommissions.data || [];
 
-    // Fetch Nutrient Orders (Try MLM Supabase first, fallback to Clinic Supabase)
-    await loadNutrientOrders();
+    // 🚀 Process Nutrient Orders with visits data
+    processNutrientOrders(rawNutrientOrders, state.visits);
+
+    // 🚀 Optimize Patients query with In-Memory Cache:
+    // Include all patient HNs from both visits and nutrient orders!
+    const allHns = new Set();
+    state.visits.forEach(v => { if (v.hn && v.hn !== '-') allHns.add(v.hn); });
+    (state.nutrientOrders || []).forEach(o => { if (o.hn && o.hn !== '-') allHns.add(o.hn); });
+
+    const visitHns = Array.from(allHns);
+    if (visitHns.length > 0) {
+      state.patientCache = state.patientCache || {};
+      const missingHns = visitHns.filter(hn => !state.patientCache[hn]);
+      if (missingHns.length > 0) {
+        const { data: patData } = await sbClient
+          .from('patients')
+          .select('hn, name, gender, age, phone, created_at')
+          .in('hn', missingHns);
+        (patData || []).forEach(p => {
+          if (p.hn) state.patientCache[p.hn] = p;
+        });
+      }
+      state.patients = visitHns.map(hn => state.patientCache[hn]).filter(Boolean);
+    } else {
+      state.patients = [];
+    }
 
     // Render Tab 1: Nutrients & Prescriptions
     renderNutrientsTab();
@@ -319,6 +386,7 @@ async function loadReportData() {
       });
     }
   } finally {
+    state.isLoading = false;
     toggleLoader(false);
   }
 }
@@ -352,14 +420,68 @@ const PRODUCT_PRICE_MAP = {
 };
 
 function getProductPrice(rawName, existingPrice) {
-  if (existingPrice && Number(existingPrice) > 0) {
-    return Number(existingPrice);
+  const nameStr = (rawName || '');
+  if (/(แถมฟรี|แถม|ແຖມຟຣີ|ແຖມ|free|gift)/i.test(nameStr)) {
+    return 0;
   }
-  const clean = (rawName || '').toUpperCase();
+  if (existingPrice !== undefined && existingPrice !== null && existingPrice !== '') {
+    const num = Number(existingPrice);
+    if (!isNaN(num) && num >= 0) {
+      return num;
+    }
+  }
+  const clean = nameStr.toUpperCase();
   for (const [k, p] of Object.entries(PRODUCT_PRICE_MAP)) {
     if (clean.includes(k)) return p;
   }
   return 0;
+}
+
+// Parse Product Name and Pricing Tier (normal, pro, member, free)
+function parseProductTierAndName(rawName, explicitTier, unitPrice) {
+  let name = (rawName || '').trim();
+  const price = Number(unitPrice) || 0;
+  let tier = '';
+
+  const freePattern = /(แถมฟรี|แถม|ແຖມຟຣີ|ແຖມ|free|gift)/i;
+  const proPattern = /(โปรโมชั่น|โปรโมชัน|โปร|โม่|โปรา|ໂປຣ|ໂປຣໂມຊັ່ນ|pro|promo)/i;
+  const memberPattern = /(ส่ง\/สมาชิก|ສົ່ງ\/ສະມາຊິກ|ส่ง\s*\/\s*สมาชิก|ສົ່ງ\s*\/\s*ສະມາຊິກ|ซื้อส่ง|ຊື້ສົ່ງ|ขายส่ง|ຂາຍສົ່ງ|ส่ง|ສົ່ງ|สมาชิก|ສະມາຊິກ|member|wholesale)/i;
+  const normalPattern = /(ปกติ|ปรกติ|ປົກກະຕິ|ราคาปกติ|ราคาซื้อ|normal|regular)/i;
+
+  // Rule 1: Price 0 or explicit free keyword -> always Free Gift
+  if (price === 0 || freePattern.test(name)) {
+    tier = 'free';
+  } else if (explicitTier) {
+    const exp = String(explicitTier).toLowerCase();
+    if (freePattern.test(exp) || exp === 'free') tier = 'free';
+    else if (proPattern.test(exp) || exp === 'pro') tier = 'pro';
+    else if (memberPattern.test(exp) || exp === 'member') tier = 'member';
+    else if (normalPattern.test(exp) || exp === 'normal') tier = 'normal';
+  }
+
+  // Rule 2: Infer tier from product name tags
+  if (!tier) {
+    if (proPattern.test(name)) {
+      tier = 'pro';
+    } else if (memberPattern.test(name)) {
+      tier = 'member';
+    } else if (normalPattern.test(name)) {
+      tier = 'normal';
+    } else {
+      tier = 'normal';
+    }
+  }
+
+  // Strip tier tags in parentheses or brackets (e.g. "(ສົ່ງ/ສະມາຊິກ)", "(ສົ່ງ)", "(โปร)", "[ແຖມຟຣີ]")
+  const tierBracketRegex = /\s*[\(\[]\s*[^)\]]*(แถม|ແຖມ|free|gift|โปร|ໂປຣ|pro|promo|ส่ง|ສົ່ງ|สมาชิก|ສະມາຊິກ|ขายส่ง|ຂາຍສົ່ງ|ซื้อส่ง|ຊື້ສົ່ງ|ปกติ|ປົກກະຕິ)[^)\]]*[\)\]]/gi;
+  let cleanName = name.replace(tierBracketRegex, '').replace(/\s+/g, ' ').trim();
+
+  if (!cleanName) cleanName = name;
+
+  return {
+    cleanName,
+    tier
+  };
 }
 
 function formatPrice(amt) {
@@ -367,37 +489,57 @@ function formatPrice(amt) {
   return n.toLocaleString('en-US') + ' ฿';
 }
 
-// Load and Unify Nutrient Orders & Doctor Prescriptions
-async function loadNutrientOrders() {
-  let rawOrders = [];
-  try {
-    if (mlmClient) {
-      const { data, error } = await mlmClient
-        .from('stk_nutrient_orders')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (!error && Array.isArray(data) && data.length > 0) {
-        rawOrders = data;
-      }
+// Fetch Raw Nutrient Orders with Parallel Execution & Timeout Guard
+async function fetchRawNutrientOrders(startUtcISO, endUtcISO) {
+  const fetchMlm = async () => {
+    if (!mlmClient) return [];
+    let q = mlmClient
+      .from('stk_nutrient_orders')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (startUtcISO && endUtcISO) {
+      q = q.gte('created_at', startUtcISO).lte('created_at', endUtcISO);
     }
-  } catch (e) {
-    console.warn('MLM Supabase nutrient fetch notice:', e);
-  }
+    const { data, error } = await q.limit(500);
+    return (!error && Array.isArray(data)) ? data : [];
+  };
 
-  if (rawOrders.length === 0 && sbClient) {
-    try {
-      const { data, error } = await sbClient
-        .from('stk_nutrient_orders')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (!error && Array.isArray(data)) {
-        rawOrders = data;
-      }
-    } catch (e) {
-      console.warn('Clinic Supabase nutrient fetch notice:', e);
+  const fetchClinic = async () => {
+    if (!sbClient) return [];
+    let q = sbClient
+      .from('stk_nutrient_orders')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (startUtcISO && endUtcISO) {
+      q = q.gte('created_at', startUtcISO).lte('created_at', endUtcISO);
     }
-  }
+    const { data, error } = await q.limit(500);
+    return (!error && Array.isArray(data)) ? data : [];
+  };
 
+  // Run MLM and Clinic queries in parallel with 2.5s timeout each
+  const [resMlm, resClinic] = await Promise.allSettled([
+    withTimeout(fetchMlm(), 2500, []),
+    withTimeout(fetchClinic(), 2500, [])
+  ]);
+
+  const mlmOrders = (resMlm.status === 'fulfilled' && Array.isArray(resMlm.value)) ? resMlm.value : [];
+  const clinicOrders = (resClinic.status === 'fulfilled' && Array.isArray(resClinic.value)) ? resClinic.value : [];
+
+  // Merge and deduplicate by order_id or id
+  const orderMap = new Map();
+  clinicOrders.forEach(o => {
+    const k = o.order_id || o.id;
+    if (k) orderMap.set(k, o);
+  });
+  mlmOrders.forEach(o => {
+    const k = o.order_id || o.id;
+    if (k && !orderMap.has(k)) orderMap.set(k, o);
+  });
+
+  let rawOrders = Array.from(orderMap.values());
+
+  // LocalStorage fallback if both remote queries returned nothing
   if (rawOrders.length === 0) {
     try {
       const cached = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
@@ -407,20 +549,26 @@ async function loadNutrientOrders() {
     } catch (e) {}
   }
 
-  // Filter raw nutrient orders by active date range
-  const filteredNutrients = rawOrders.filter(o => {
+  return rawOrders;
+}
+
+// Process and Unify Nutrient Orders with Doctor Prescriptions
+function processNutrientOrders(rawOrders, visitsList) {
+  const currentVisits = visitsList || state.visits || [];
+
+  // Filter raw nutrient orders by active date range & status
+  const filteredNutrients = (rawOrders || []).filter(o => {
     const st = (o.status || '').toLowerCase();
     if (st.includes('cancel') || st.includes('ຍົກເລີກ') || st.includes('ยกเลิก')) {
       return false;
     }
 
-    // Resolve date accurately: prefer created_at, fallback to visit created_at, fallback to date
-    let dStr = (o.created_at || '').substring(0, 10);
-    if (!dStr && o.visit_id && state.visits) {
-      const v = state.visits.find(x => x.visit_id === o.visit_id);
-      if (v && v.created_at) dStr = v.created_at.substring(0, 10);
+    let dStr = toLocalDateStr(o.created_at);
+    if (!dStr && o.visit_id && currentVisits) {
+      const v = currentVisits.find(x => x.visit_id === o.visit_id);
+      if (v && v.created_at) dStr = toLocalDateStr(v.created_at);
     }
-    if (!dStr) dStr = (o.date || '').substring(0, 10);
+    if (!dStr) dStr = toLocalDateStr(o.date);
     if (!dStr) return true;
     return dStr >= state.startDate && dStr <= state.endDate;
   });
@@ -441,8 +589,11 @@ async function loadNutrientOrders() {
         const rawName = it.name || it.item_name || it.title || 'ອາຫານເສີມ';
         const qty = Number(it.quantity || it.qty || 1);
         const unitPrice = getProductPrice(rawName, it.price || it.unit_price || it.sale_price);
+        const parsed = parseProductTierAndName(rawName, it.tier || it.price_type, unitPrice);
         cleanItems.push({
           name: rawName,
+          clean_name: parsed.cleanName,
+          tier: parsed.tier,
           qty: qty,
           unit_price: unitPrice,
           total_price: qty * unitPrice
@@ -460,8 +611,8 @@ async function loadNutrientOrders() {
       if (!vId && o.order_id && o.order_id.includes('VIS-')) {
         vId = 'VIS-' + o.order_id.split('VIS-')[1];
       }
-      if (vId && state.visits) {
-        const v = state.visits.find(x => x.visit_id === vId);
+      if (vId && currentVisits) {
+        const v = currentVisits.find(x => x.visit_id === vId);
         if (v && (v.doctor || v.doctor_name)) {
           doctor = v.doctor || v.doctor_name;
         }
@@ -487,7 +638,7 @@ async function loadNutrientOrders() {
   });
 
   // Also include visits in the date range that have prescribed meds
-  state.visits.forEach(v => {
+  currentVisits.forEach(v => {
     if (handledVisitIds.has(v.visit_id)) return;
     if (!v.meds) return;
 
@@ -500,8 +651,11 @@ async function loadNutrientOrders() {
             const rawName = m.name || m.medicine_name || m.item_name || 'ຢາປິ່ນປົວ';
             const qty = Number(m.qty || m.quantity || 1);
             const unitPrice = getProductPrice(rawName, m.price);
+            const parsedInfo = parseProductTierAndName(rawName, m.tier || m.price_type, unitPrice);
             return {
               name: rawName,
+              clean_name: parsedInfo.cleanName,
+              tier: parsedInfo.tier,
               qty: qty,
               unit_price: unitPrice,
               total_price: qty * unitPrice
@@ -511,7 +665,15 @@ async function loadNutrientOrders() {
       } catch(e) {
         const rawName = v.meds;
         const unitPrice = getProductPrice(rawName, 0);
-        items = [{ name: rawName, qty: 1, unit_price: unitPrice, total_price: unitPrice }];
+        const parsedInfo = parseProductTierAndName(rawName, '', unitPrice);
+        items = [{
+          name: rawName,
+          clean_name: parsedInfo.cleanName,
+          tier: parsedInfo.tier,
+          qty: 1,
+          unit_price: unitPrice,
+          total_price: unitPrice
+        }];
       }
     }
 
@@ -537,6 +699,14 @@ async function loadNutrientOrders() {
 
   state.unifiedPrescriptions = unified;
   state.nutrientOrders = unified;
+}
+
+// Backward compatibility alias for standalone invocations
+async function loadNutrientOrders() {
+  const startUtcISO = state.startDate ? new Date(state.startDate + 'T00:00:00').toISOString() : '';
+  const endUtcISO = state.endDate ? new Date(state.endDate + 'T23:59:59.999').toISOString() : '';
+  const raw = await fetchRawNutrientOrders(startUtcISO, endUtcISO);
+  processNutrientOrders(raw, state.visits);
 }
 
 // ── Tab 1: Overview Renderers ─────────────────────────────────
@@ -566,7 +736,7 @@ function renderKPIs() {
 
   const totalVisits = state.visits.length;
   const newPatients = state.patients.filter(p => {
-    const dStr = (p.created_at || '').substring(0, 10);
+    const dStr = toLocalDateStr(p.created_at);
     return dStr >= state.startDate && dStr <= state.endDate;
   }).length;
 
@@ -615,14 +785,14 @@ function renderCharts() {
   }
 
   state.bills.forEach(b => {
-    const dStr = (b.created_at || '').substring(0, 10);
+    const dStr = toLocalDateStr(b.created_at);
     const key = isDaily ? dStr : dStr.substring(0, 7);
     if (!dateMap[key]) dateMap[key] = { rev: 0, exp: 0 };
     dateMap[key].rev += Number(b.payable_amount) || 0;
   });
 
   state.expenses.forEach(e => {
-    const dStr = (e.date || e.created_at || '').substring(0, 10);
+    const dStr = toLocalDateStr(e.date || e.created_at);
     const key = isDaily ? dStr : dStr.substring(0, 7);
     if (!dateMap[key]) dateMap[key] = { rev: 0, exp: 0 };
     dateMap[key].exp += Number(e.amount) || 0;
@@ -880,22 +1050,42 @@ function renderNutrientsTab() {
       doctorStats[dr].totalUnits += q;
       doctorStats[dr].totalAmount += totP;
 
+      const parsed = it.clean_name && it.tier ? { cleanName: it.clean_name, tier: it.tier } : parseProductTierAndName(it.name, it.tier, unitP);
+      const cleanName = parsed.cleanName;
+      const tier = parsed.tier;
+
       // Doctor's med breakdown
-      if (!doctorStats[dr].medMap[it.name]) {
-        doctorStats[dr].medMap[it.name] = {
-          name: it.name,
-          qty: 0,
-          unitPrice: unitP,
-          totalPrice: 0
+      if (!doctorStats[dr].medMap[cleanName]) {
+        doctorStats[dr].medMap[cleanName] = {
+          name: cleanName,
+          rawNames: new Set(),
+          normal: { qty: 0, unitPrice: 0, totalPrice: 0 },
+          pro: { qty: 0, unitPrice: 0, totalPrice: 0 },
+          member: { qty: 0, unitPrice: 0, totalPrice: 0 },
+          free: { qty: 0, unitPrice: 0, totalPrice: 0 },
+          totalQty: 0,
+          totalPrice: 0,
+          qty: 0 // backwards compatibility
         };
       }
-      doctorStats[dr].medMap[it.name].qty += q;
-      doctorStats[dr].medMap[it.name].totalPrice += totP;
+      const prod = doctorStats[dr].medMap[cleanName];
+      prod.rawNames.add(it.name);
+      if (!prod[tier]) {
+        prod[tier] = { qty: 0, unitPrice: 0, totalPrice: 0 };
+      }
+      prod[tier].qty += q;
+      prod[tier].totalPrice += totP;
+      if (unitP > 0) {
+        prod[tier].unitPrice = unitP;
+      }
+      prod.totalQty += q;
+      prod.qty = prod.totalQty;
+      prod.totalPrice += totP;
 
       // Overall med stats
-      if (!medStats[it.name]) {
-        medStats[it.name] = {
-          name: it.name,
+      if (!medStats[cleanName]) {
+        medStats[cleanName] = {
+          name: cleanName,
           totalQty: 0,
           unitPrice: unitP,
           totalAmount: 0,
@@ -903,10 +1093,10 @@ function renderNutrientsTab() {
           patientSet: new Set()
         };
       }
-      medStats[it.name].totalQty += q;
-      medStats[it.name].totalAmount += totP;
-      medStats[it.name].doctors[dr] = (medStats[it.name].doctors[dr] || 0) + q;
-      if (o.hn) medStats[it.name].patientSet.add(o.hn);
+      medStats[cleanName].totalQty += q;
+      medStats[cleanName].totalAmount += totP;
+      medStats[cleanName].doctors[dr] = (medStats[cleanName].doctors[dr] || 0) + q;
+      if (o.hn) medStats[cleanName].patientSet.add(o.hn);
     });
 
     const st = (o.status || '').toLowerCase();
@@ -927,33 +1117,91 @@ function renderNutrientsTab() {
   onDoctorSelectChange();
 }
 
+let currentSortedDoctors = [];
+
+function updateDoctorNavCounter() {
+  const select = document.getElementById('filterDoctorSelect');
+  const counter = document.getElementById('doctorNavCounter');
+  if (!select || !counter) return;
+
+  if (select.value === 'all') {
+    counter.textContent = `ທັງໝົດ (${currentSortedDoctors.length})`;
+  } else {
+    const idx = currentSortedDoctors.indexOf(select.value);
+    if (idx >= 0) {
+      counter.textContent = `${idx + 1} / ${currentSortedDoctors.length}`;
+    } else {
+      counter.textContent = `- / ${currentSortedDoctors.length}`;
+    }
+  }
+}
+
+window.navigateDoctor = function (direction) {
+  if (!currentSortedDoctors || currentSortedDoctors.length === 0) return;
+  const select = document.getElementById('filterDoctorSelect');
+  if (!select) return;
+
+  let currentIdx = currentSortedDoctors.indexOf(select.value);
+  if (currentIdx < 0) currentIdx = 0;
+
+  let newIdx = currentIdx + direction;
+  if (newIdx < 0) newIdx = currentSortedDoctors.length - 1;
+  if (newIdx >= currentSortedDoctors.length) newIdx = 0;
+
+  select.value = currentSortedDoctors[newIdx];
+  updateDoctorNavCounter();
+  onDoctorSelectChange();
+};
+
 function populateDoctorFilter(doctors) {
   const select = document.getElementById('filterDoctorSelect');
   if (!select) return;
 
-  const currentVal = select.value || 'all';
-  select.innerHTML = `<option value="all">-- ທ່ານໝໍທຸກທ່ານ (All Doctors) --</option>`;
+  // 🌟 Sort doctors by total order count descending (top prescriber first)
+  currentSortedDoctors = doctors.slice().sort((a, b) => {
+    const aCount = state.doctorStatsMap[a]?.orderCount || 0;
+    const bCount = state.doctorStatsMap[b]?.orderCount || 0;
+    return bCount - aCount;
+  });
 
-  doctors.sort().forEach(dr => {
+  // 🌟 Default to the FIRST doctor so it displays only ONE doctor at a time
+  let targetVal = select.value;
+  if (!targetVal || targetVal === 'all' || !doctors.includes(targetVal)) {
+    targetVal = currentSortedDoctors.length > 0 ? currentSortedDoctors[0] : 'all';
+  }
+
+  select.innerHTML = '';
+  currentSortedDoctors.forEach((dr) => {
+    const count = state.doctorStatsMap[dr]?.orderCount || 0;
     const opt = document.createElement('option');
     opt.value = dr;
-    opt.textContent = `👨‍⚕️ ${dr}`;
-    if (dr === currentVal) opt.selected = true;
+    opt.textContent = `${dr} (${count} ໃບສັ່ງ)`;
     select.appendChild(opt);
   });
+
+  // Also add 'ທັງໝົດ' option at the very bottom
+  const optAll = document.createElement('option');
+  optAll.value = 'all';
+  optAll.textContent = `--- ສະແດງທ່ານໝໍທັງໝົດ (${doctors.length} ທ່ານ) ---`;
+  select.appendChild(optAll);
+
+  select.value = targetVal;
+  updateDoctorNavCounter();
 }
 
-// Handler for Doctor Select (ຫມາຍເລກ 1) & Med Search Input
+// Handler for Doctor Select and Search Input changes
 function onDoctorSelectChange() {
   const select = document.getElementById('filterDoctorSelect');
-  const selectedDoctor = select ? select.value : 'all';
   const searchInput = document.getElementById('searchNutrientInput');
-  const query = (searchInput?.value || '').toLowerCase().trim();
+  const selectedDoctor = select ? select.value : 'all';
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+  updateDoctorNavCounter();
 
   const allDoctorStats = Object.values(state.doctorStatsMap || {});
-  const allOrders = state.nutrientOrders || [];
+  const allOrders = state.allOrders || [];
 
-  // Filter 1: Doctor selection (ຫມາຍເລກ 1)
+  // Filter 1: By Doctor
   let filtered = allDoctorStats;
   if (selectedDoctor !== 'all') {
     filtered = allDoctorStats.filter(d => d.doctor === selectedDoctor);
@@ -968,10 +1216,19 @@ function onDoctorSelectChange() {
       let filteredAmount = 0;
 
       Object.entries(d.medMap || {}).forEach(([k, m]) => {
-        if (drMatch || m.name.toLowerCase().includes(query)) {
+        let nameMatch = (m.name || '').toLowerCase().includes(query);
+        if (!nameMatch && m.rawNames) {
+          for (const rn of m.rawNames) {
+            if ((rn || '').toLowerCase().includes(query)) {
+              nameMatch = true;
+              break;
+            }
+          }
+        }
+        if (drMatch || nameMatch) {
           matchingMeds[k] = m;
-          filteredUnits += m.qty;
-          filteredAmount += m.totalPrice;
+          filteredUnits += (m.totalQty || m.qty || 0);
+          filteredAmount += (m.totalPrice || 0);
         }
       });
 
@@ -1058,21 +1315,62 @@ function renderDoctorStatsCards(doctorList) {
   doctorList.sort((a, b) => b.totalUnits - a.totalUnits);
 
   container.innerHTML = doctorList.map((ds, idx) => {
-    const medEntries = Object.values(ds.medMap || {}).sort((a, b) => b.qty - a.qty);
-    
-    const medRows = medEntries.map((m, mIdx) => `
-      <tr>
-        <td class="text-muted small text-center">${mIdx + 1}</td>
-        <td class="fw-semibold text-dark">
-          <i class="ph-fill ph-pill text-primary me-1"></i> ${m.name}
-        </td>
-        <td class="text-center">
-          <span class="badge bg-primary-subtle text-primary fw-bold px-2 py-1">${m.qty} ກ່ອງ</span>
-        </td>
-        <td class="text-end text-muted">${formatPrice(m.unitPrice)}</td>
-        <td class="text-end fw-bold text-success">${formatPrice(m.totalPrice)}</td>
-      </tr>
-    `).join('');
+    const medEntries = Object.values(ds.medMap || {}).sort((a, b) => (b.totalQty || b.qty || 0) - (a.totalQty || a.qty || 0));
+
+    let sumNormalQty = 0;
+    let sumProQty = 0;
+    let sumMemberQty = 0;
+    let sumFreeQty = 0;
+
+    const medRows = medEntries.map((m, mIdx) => {
+      const nQty = m.normal?.qty || 0;
+      const nPrice = m.normal?.unitPrice || 0;
+      const pQty = m.pro?.qty || 0;
+      const pPrice = m.pro?.unitPrice || 0;
+      const memQty = m.member?.qty || 0;
+      const memPrice = m.member?.unitPrice || 0;
+      const fQty = m.free?.qty || 0;
+
+      sumNormalQty += nQty;
+      sumProQty += pQty;
+      sumMemberQty += memQty;
+      sumFreeQty += fQty;
+
+      const renderTierCell = (qty, unitPrice, badgeClass, isFree = false) => {
+        if (!qty || qty <= 0) {
+          return `<span class="text-muted opacity-50">-</span>`;
+        }
+        if (isFree) {
+          return `<span class="badge ${badgeClass} px-2 py-1">${formatNumber(qty)} ກ່ອງ <span class="small">(0 ฿)</span></span>`;
+        }
+        return `<span class="badge ${badgeClass} px-2 py-1">${formatNumber(qty)} ກ່ອງ <span class="small opacity-75">(${formatNumber(unitPrice)} ฿)</span></span>`;
+      };
+
+      return `
+        <tr>
+          <td class="text-muted small text-center">${mIdx + 1}</td>
+          <td class="fw-semibold text-dark">
+            <i class="ph-fill ph-pill text-primary me-1"></i> ${m.name}
+          </td>
+          <td class="text-center">
+            ${renderTierCell(nQty, nPrice, 'bg-light text-secondary border')}
+          </td>
+          <td class="text-center">
+            ${renderTierCell(pQty, pPrice, 'bg-warning-subtle text-warning-emphasis border border-warning-subtle')}
+          </td>
+          <td class="text-center">
+            ${renderTierCell(memQty, memPrice, 'bg-primary-subtle text-primary border border-primary-subtle')}
+          </td>
+          <td class="text-center">
+            ${renderTierCell(fQty, 0, 'bg-success-subtle text-success border border-success-subtle', true)}
+          </td>
+          <td class="text-center">
+            <span class="badge bg-info-subtle text-info-emphasis fw-bold px-2 py-1">${formatNumber(m.totalQty || m.qty || 0)} ກ່ອງ</span>
+          </td>
+          <td class="text-end fw-bold text-success">${formatPrice(m.totalPrice)}</td>
+        </tr>
+      `;
+    }).join('');
 
     return `
       <div class="col-12 mb-3">
@@ -1089,7 +1387,7 @@ function renderDoctorStatsCards(doctorList) {
             <div class="d-flex align-items-center gap-3 flex-wrap">
               <div class="d-flex align-items-center gap-1">
                 <span class="text-muted small">ຈັດຢາໄປທັງໝົດ:</span>
-                <span class="badge bg-primary text-white fs-6 px-3 py-1 ms-1">${ds.totalUnits} ກ່ອງ</span>
+                <span class="badge bg-primary text-white fs-6 px-3 py-1 ms-1">${formatNumber(ds.totalUnits)} ກ່ອງ</span>
               </div>
               <div class="d-flex align-items-center gap-1">
                 <span class="text-muted small">ມູນຄ່າຢາລວມ:</span>
@@ -1101,11 +1399,14 @@ function renderDoctorStatsCards(doctorList) {
             <table class="doctor-breakdown-table">
               <thead>
                 <tr>
-                  <th style="width: 50px;" class="text-center">#</th>
+                  <th style="width: 45px;" class="text-center">#</th>
                   <th>ລາຍການຢາ / ອາຫານເສີມ</th>
-                  <th class="text-center" style="width: 180px;">ຈຳນວນທີ່ຈັດໄປ (ກ່ອງ)</th>
-                  <th class="text-end" style="width: 160px;">ລາຄາຕໍ່ກ່ອງ</th>
-                  <th class="text-end" style="width: 180px;">ມູນຄ່າລວມ</th>
+                  <th class="text-center" style="width: 145px;">ລາຄາປົກກະຕິ</th>
+                  <th class="text-center" style="width: 145px;">ລາຄາໂປຣ</th>
+                  <th class="text-center" style="width: 155px;">ລາຄາສະມາຊິກ</th>
+                  <th class="text-center" style="width: 125px;">ແຖມຟຣີ</th>
+                  <th class="text-center" style="width: 130px;">ລວມ (ກ່ອງ)</th>
+                  <th class="text-end" style="width: 140px;">ມູນຄ່າລວມ</th>
                 </tr>
               </thead>
               <tbody>
@@ -1116,9 +1417,24 @@ function renderDoctorStatsCards(doctorList) {
                   <td colspan="2" class="text-end text-dark">
                     ລວມທັງໝົດຂອງທ່ານໝໍ <b>${ds.doctor}</b>:
                   </td>
-                  <td class="text-center text-primary fs-6 fw-bold">${ds.totalUnits} ກ່ອງ</td>
-                  <td></td>
-                  <td class="text-end text-success fs-6 fw-bold">${formatPrice(ds.totalAmount)}</td>
+                  <td class="text-center text-secondary fw-bold">
+                    ${sumNormalQty > 0 ? `${formatNumber(sumNormalQty)} ກ່ອງ` : '<span class="text-muted">-</span>'}
+                  </td>
+                  <td class="text-center text-warning-emphasis fw-bold">
+                    ${sumProQty > 0 ? `${formatNumber(sumProQty)} ກ່ອງ` : '<span class="text-muted">-</span>'}
+                  </td>
+                  <td class="text-center text-primary fw-bold">
+                    ${sumMemberQty > 0 ? `${formatNumber(sumMemberQty)} ກ່ອງ` : '<span class="text-muted">-</span>'}
+                  </td>
+                  <td class="text-center text-success fw-bold">
+                    ${sumFreeQty > 0 ? `${formatNumber(sumFreeQty)} ກ່ອງ` : '<span class="text-muted">-</span>'}
+                  </td>
+                  <td class="text-center text-primary fs-6 fw-bold">
+                    ${formatNumber(ds.totalUnits)} ກ່ອງ
+                  </td>
+                  <td class="text-end text-success fs-6 fw-bold">
+                    ${formatPrice(ds.totalAmount)}
+                  </td>
                 </tr>
               </tfoot>
             </table>
@@ -1150,9 +1466,9 @@ function resolveVisitDoctor(v, visitNutrientMap) {
   }
 
   // Match by patient HN and same day
-  const vDate = (v.created_at || '').substring(0, 10);
+  const vDate = toLocalDateStr(v.created_at);
   if (v.hn && state.nutrientOrders) {
-    const nOrder = state.nutrientOrders.find(o => o.hn === v.hn && (o.date || o.created_at || '').substring(0, 10) === vDate);
+    const nOrder = state.nutrientOrders.find(o => o.hn === v.hn && toLocalDateStr(o.date || o.created_at) === vDate);
     if (nOrder && nOrder.doctor && nOrder.doctor !== '-' && nOrder.doctor !== 'ບໍ່ລະບຸທ່ານໝໍ') {
       return nOrder.doctor;
     }
@@ -1175,13 +1491,13 @@ function isNewPatient(v, patMap) {
   }
   const p = patMap[v.hn];
   if (!p || !p.created_at) return true;
-  const regDate = p.created_at.substring(0, 10);
+  const regDate = toLocalDateStr(p.created_at);
   return regDate >= state.startDate && regDate <= state.endDate;
 }
 
 function renderPatientsTab() {
   const allPatients = state.patients || [];
-  const visits = state.visits || [];
+  const visits = [...(state.visits || [])];
 
   const patMap = {};
   allPatients.forEach(p => { if (p.hn) patMap[p.hn] = p; });
@@ -1189,6 +1505,26 @@ function renderPatientsTab() {
   const visitNutrientMap = {};
   (state.nutrientOrders || []).forEach(o => {
     if (o.id && o.id !== '-') visitNutrientMap[o.id] = o;
+  });
+
+  // Also incorporate patient prescriptions from nutrientOrders if not already in visits
+  const handledVisitIds = new Set(visits.map(v => v.visit_id).filter(Boolean));
+  (state.nutrientOrders || []).forEach(o => {
+    const vId = o.id || '';
+    if (vId && handledVisitIds.has(vId)) return;
+    if (vId) handledVisitIds.add(vId);
+
+    visits.push({
+      visit_id: vId || `ORD-${Math.random()}`,
+      hn: (o.hn && o.hn !== '-') ? o.hn : '',
+      patient_name: o.patient_name || 'ຄົນເຈັບ',
+      doctor: o.doctor,
+      doctor_name: o.doctor,
+      symptoms: 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ (Order)',
+      status: o.status,
+      created_at: o.date || o.created_at,
+      meds: JSON.stringify(o.items || [])
+    });
   });
 
   const patientDoctorStats = {};
@@ -1251,23 +1587,82 @@ function renderPatientsTab() {
   onPatientDoctorSelectChange();
 }
 
+let currentSortedPatientDoctors = [];
+
+function updatePatientDoctorNavCounter() {
+  const select = document.getElementById('filterPatientDoctorSelect');
+  const counter = document.getElementById('patientDoctorNavCounter');
+  if (!select || !counter) return;
+
+  if (select.value === 'all') {
+    counter.textContent = `ທັງໝົດ (${currentSortedPatientDoctors.length})`;
+  } else {
+    const idx = currentSortedPatientDoctors.indexOf(select.value);
+    if (idx >= 0) {
+      counter.textContent = `${idx + 1} / ${currentSortedPatientDoctors.length}`;
+    } else {
+      counter.textContent = `- / ${currentSortedPatientDoctors.length}`;
+    }
+  }
+}
+
+window.navigatePatientDoctor = function (direction) {
+  if (!currentSortedPatientDoctors || currentSortedPatientDoctors.length === 0) return;
+  const select = document.getElementById('filterPatientDoctorSelect');
+  if (!select) return;
+
+  let currentIdx = currentSortedPatientDoctors.indexOf(select.value);
+  if (currentIdx < 0) currentIdx = 0;
+
+  let newIdx = currentIdx + direction;
+  if (newIdx < 0) newIdx = currentSortedPatientDoctors.length - 1;
+  if (newIdx >= currentSortedPatientDoctors.length) newIdx = 0;
+
+  select.value = currentSortedPatientDoctors[newIdx];
+  updatePatientDoctorNavCounter();
+  onPatientDoctorSelectChange();
+};
+
 function populatePatientDoctorFilter(doctors) {
   const select = document.getElementById('filterPatientDoctorSelect');
   if (!select) return;
 
-  const currentVal = select.value || 'all';
-  select.innerHTML = `<option value="all">-- ທ່ານໝໍທຸກທ່ານ (All Doctors) --</option>`;
+  // 🌟 Sort doctors by total visits/patients descending (busiest doctor first)
+  currentSortedPatientDoctors = doctors.slice().sort((a, b) => {
+    const aVisits = state.patientDoctorStats[a]?.totalVisits || 0;
+    const bVisits = state.patientDoctorStats[b]?.totalVisits || 0;
+    return bVisits - aVisits;
+  });
 
-  doctors.sort().forEach(dr => {
+  // 🌟 Default to the FIRST doctor so it displays only ONE doctor at a time
+  let targetVal = select.value;
+  if (!targetVal || targetVal === 'all' || !doctors.includes(targetVal)) {
+    targetVal = currentSortedPatientDoctors.length > 0 ? currentSortedPatientDoctors[0] : 'all';
+  }
+
+  select.innerHTML = '';
+  currentSortedPatientDoctors.forEach((dr) => {
+    const visits = state.patientDoctorStats[dr]?.totalVisits || 0;
     const opt = document.createElement('option');
     opt.value = dr;
-    opt.textContent = `👨‍⚕️ ${dr}`;
-    if (dr === currentVal) opt.selected = true;
+    opt.textContent = `👨‍⚕️ ${dr} (${visits} ເທື່ອກວດ)`;
+    if (dr === targetVal) opt.selected = true;
     select.appendChild(opt);
   });
+
+  // Option to view all doctors together
+  const allOpt = document.createElement('option');
+  allOpt.value = 'all';
+  allOpt.textContent = `-- ສະແດງທຸກທ່ານໝໍ (${doctors.length} ທ່ານ) --`;
+  if (targetVal === 'all') allOpt.selected = true;
+  select.appendChild(allOpt);
+
+  select.value = targetVal;
+  updatePatientDoctorNavCounter();
 }
 
 function onPatientDoctorSelectChange() {
+  updatePatientDoctorNavCounter();
   const select = document.getElementById('filterPatientDoctorSelect');
   const selectedDoctor = select ? select.value : 'all';
   const searchInput = document.getElementById('searchPatientDoctorInput');

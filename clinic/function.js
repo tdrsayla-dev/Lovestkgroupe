@@ -125,231 +125,232 @@ window.safeSetLocalStorage = function (key, value) {
 // Initialize Current User Session Immediately
 try { window.currentUser = JSON.parse(localStorage.getItem('clinicUser') || 'null'); } catch (e) { }
 
-// Global variables for Dashboard Calendar
-window.dbStartDate = new Date();
-window.dbEndDate = new Date();
-window.dbClickState = 0;
-window.currentCalDate = new Date();
+// =====================================
+// Supabase Database Connection
+// =====================================
+const supabaseUrl = 'https://fpmstumpobbjozflkola.supabase.co';
+const supabaseKey = 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7';
+let _supabase = null;
+try {
+    if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+        _supabase = supabase.createClient(supabaseUrl, supabaseKey);
+        window._supabase = _supabase;
+    }
+} catch (err) {
+    console.warn('Clinic Supabase client init error:', err);
+}
 
-const monthNamesLao = ["ມັງກອນ", "ກຸມພາ", "ມີນາ", "ເມສາ", "ພຶດສະພາ", "ມິຖຸນາ", "ກໍລະກົດ", "ສິງຫາ", "ກັນຍາ", "ຕຸລາ", "ພະຈິກ", "ທັນວາ"];
+// =====================================
+// MLM MANAGEMENT Database Connection (Real-time stk_products)
+// =====================================
+const mlmSupabaseUrl = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_URL) || window.MLM_SUPABASE_URL || 'https://mfpkeyrykqnrywyksyqp.supabase.co';
+const mlmSupabaseKey = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_ANON_KEY) || window.MLM_SUPABASE_ANON_KEY || 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
+let _mlmSupabase = null;
+try {
+    if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+        _mlmSupabase = supabase.createClient(mlmSupabaseUrl, mlmSupabaseKey);
+        window._mlmSupabase = _mlmSupabase;
+    }
+} catch (err) {
+    console.warn('MLM Supabase client init error:', err);
+}
 
-window.prevCalendarMonth = function () {
-    window.currentCalDate.setMonth(window.currentCalDate.getMonth() - 1);
-    window.renderCalendar();
-};
+// ============================================================
+// Timezone & Date Filter Utilities (Asia/Vientiane - UTC+07:00)
+// ============================================================
+function getVientianeNow() {
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    return new Date(utc + (7 * 3600000));
+}
 
-window.nextCalendarMonth = function () {
-    window.currentCalDate.setMonth(window.currentCalDate.getMonth() + 1);
-    window.renderCalendar();
-};
+function formatVientianeDate(d) {
+    if (!d || isNaN(d.getTime())) return '';
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
 
-window.resetCalendarToday = function () {
-    window.currentCalDate = new Date();
-    window.dbStartDate = new Date();
-    window.dbEndDate = new Date();
-    window.dbClickState = 0;
-    window.renderCalendar();
-    window.updateDashboardStats();
+function getVientianeDateRange(filterType = 'today', customStart = null, customEnd = null) {
+    const vNow = getVientianeNow();
+    let startD = new Date(vNow);
+    let endD = new Date(vNow);
+
+    switch (filterType) {
+        case 'today':
+            // Today start and end are the same date
+            break;
+        case 'yesterday':
+            startD.setDate(startD.getDate() - 1);
+            endD.setDate(endD.getDate() - 1);
+            break;
+        case 'last7days':
+            startD.setDate(startD.getDate() - 6);
+            break;
+        case 'last30days':
+            startD.setDate(startD.getDate() - 29);
+            break;
+        case 'thisMonth':
+            startD = new Date(vNow.getFullYear(), vNow.getMonth(), 1);
+            endD = new Date(vNow.getFullYear(), vNow.getMonth() + 1, 0);
+            break;
+        case 'lastMonth':
+            startD = new Date(vNow.getFullYear(), vNow.getMonth() - 1, 1);
+            endD = new Date(vNow.getFullYear(), vNow.getMonth(), 0);
+            break;
+        case 'custom':
+            if (customStart && customEnd) {
+                const minS = customStart <= customEnd ? customStart : customEnd;
+                const maxE = customStart <= customEnd ? customEnd : customStart;
+                return {
+                    startStr: minS,
+                    endStr: maxE,
+                    startISO: `${minS}T00:00:00+07:00`,
+                    endISO: `${maxE}T23:59:59.999+07:00`,
+                    startTimestamp: `${minS}T00:00:00`,
+                    endTimestamp: `${maxE}T23:59:59`
+                };
+            }
+            break;
+    }
+
+    const startStr = formatVientianeDate(startD);
+    const endStr = formatVientianeDate(endD);
+    return {
+        startStr,
+        endStr,
+        startISO: `${startStr}T00:00:00+07:00`,
+        endISO: `${endStr}T23:59:59.999+07:00`,
+        startTimestamp: `${startStr}T00:00:00`,
+        endTimestamp: `${endStr}T23:59:59`
+    };
+}
+
+function debounce(func, wait = 300) {
+    let timeout;
+    return function (...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
+function applyQuickDateFilter(filterType, startInputId, endInputId, onApplyCallback) {
+    const sInput = document.getElementById(startInputId);
+    const eInput = document.getElementById(endInputId);
+    const range = getVientianeDateRange(filterType, sInput?.value, eInput?.value);
+    if (sInput) sInput.value = range.startStr;
+    if (eInput) eInput.value = range.endStr;
+    if (typeof onApplyCallback === 'function') {
+        onApplyCallback(range);
+    }
+}
+
+window.getVientianeNow = getVientianeNow;
+window.formatVientianeDate = formatVientianeDate;
+window.getVientianeDateRange = getVientianeDateRange;
+window.debounce = debounce;
+window.applyQuickDateFilter = applyQuickDateFilter;
+
+// =========================================================================
+// Dashboard Bridge & Proxy Engine (Modular Architecture)
+// Core Dashboard logic is encapsulated in dashboard.js & dashboard.html
+// =========================================================================
+window.getDashboardFrameWindow = function () {
+    try {
+        const frame = document.getElementById("dashboardFrame");
+        if (frame && frame.contentWindow) return frame.contentWindow;
+    } catch (e) { }
+    return null;
 };
 
 window.renderCalendar = function () {
-    const calendarTitle = document.getElementById('calendar-title');
-    const calendarDays = document.getElementById('calendar-days');
-    if (!calendarTitle || !calendarDays) return;
-
-    const year = window.currentCalDate.getFullYear();
-    const month = window.currentCalDate.getMonth();
-    calendarTitle.textContent = `${monthNamesLao[month]} ${year}`;
-
-    const firstDayIndex = new Date(year, month, 1).getDay();
-    const lastDay = new Date(year, month + 1, 0).getDate();
-    const prevLastDay = new Date(year, month, 0).getDate();
-
-    let startDayIndex = firstDayIndex === 0 ? 6 : firstDayIndex - 1;
-    let daysHtml = "";
-
-    for (let x = startDayIndex; x > 0; x--) {
-        daysHtml += `<div class="db-calendar-day other-month">${prevLastDay - x + 1}</div>`;
-    }
-
-    const startT = new Date(window.dbStartDate.getFullYear(), window.dbStartDate.getMonth(), window.dbStartDate.getDate()).getTime();
-    const endT = new Date(window.dbEndDate.getFullYear(), window.dbEndDate.getMonth(), window.dbEndDate.getDate()).getTime();
-
-    let minT = Math.min(startT, endT);
-    let maxT = Math.max(startT, endT);
-
-    for (let i = 1; i <= lastDay; i++) {
-        let cellTime = new Date(year, month, i).getTime();
-        let classes = "db-calendar-day";
-
-        if (cellTime === minT) classes += " active selected-start";
-        if (cellTime === maxT && minT !== maxT) classes += " active selected-end";
-        if (cellTime > minT && cellTime < maxT) classes += " selected-range";
-
-        // Add event dot on active day or specific dates
-        if (i === 12 || i === 19 || i === 26 || cellTime === minT) {
-            classes += " has-event";
+    try {
+        const dw = window.getDashboardFrameWindow();
+        if (dw && typeof dw.renderCalendar === "function") {
+            return dw.renderCalendar();
         }
+    } catch (e) { }
+};
 
-        daysHtml += `<div class="${classes}" onclick="window.handleCalendarClick(${year}, ${month}, ${i})">${i}</div>`;
-    }
+window.updateDashboardStats = function () {
+    try {
+        const dw = window.getDashboardFrameWindow();
+        if (dw && typeof dw.updateDashboardStats === "function") {
+            return dw.updateDashboardStats();
+        }
+    } catch (e) { }
+};
 
-    const totalCells = 42;
-    const currentCellsCount = startDayIndex + lastDay;
-    const nextDaysCount = totalCells - currentCellsCount;
-    for (let j = 1; j <= nextDaysCount; j++) {
-        daysHtml += `<div class="db-calendar-day other-month">${j}</div>`;
-    }
-    calendarDays.innerHTML = daysHtml;
+window.updateDashboardNoShowCount = function () {
+    try {
+        const dw = window.getDashboardFrameWindow();
+        if (dw && typeof dw.updateDashboardNoShowCount === "function") {
+            return dw.updateDashboardNoShowCount();
+        }
+    } catch (e) { }
+};
+
+window.updateDashboardBillsCount = function () {
+    try {
+        const dw = window.getDashboardFrameWindow();
+        if (dw && typeof dw.updateDashboardBillsCount === "function") {
+            return dw.updateDashboardBillsCount();
+        }
+    } catch (e) { }
+};
+
+window.renderDashboardApptTable = function (page) {
+    try {
+        const dw = window.getDashboardFrameWindow();
+        if (dw && typeof dw.renderDashboardApptTable === "function") {
+            return dw.renderDashboardApptTable(page);
+        }
+    } catch (e) { }
+};
+
+window.prevCalendarMonth = function () {
+    try {
+        const dw = window.getDashboardFrameWindow();
+        if (dw && typeof dw.prevCalendarMonth === "function") return dw.prevCalendarMonth();
+    } catch (e) { }
+};
+
+window.nextCalendarMonth = function () {
+    try {
+        const dw = window.getDashboardFrameWindow();
+        if (dw && typeof dw.nextCalendarMonth === "function") return dw.nextCalendarMonth();
+    } catch (e) { }
+};
+
+window.resetCalendarToday = function () {
+    try {
+        const dw = window.getDashboardFrameWindow();
+        if (dw && typeof dw.resetCalendarToday === "function") return dw.resetCalendarToday();
+    } catch (e) { }
 };
 
 window.handleCalendarClick = function (y, m, d) {
-    const clickedDate = new Date(y, m, d);
-
-    if (window.dbClickState === 0) {
-        window.dbStartDate = clickedDate;
-        window.dbEndDate = clickedDate;
-        window.dbClickState = 1;
-    } else {
-        window.dbEndDate = clickedDate;
-        window.dbClickState = 0;
-    }
-
-    window.renderCalendar();
-    window.updateDashboardStats();
-};
-
-window.updateDashboardStats = async function () {
     try {
-        // 1. อัปเดตวันที่บน Header มุมขวาบน (ถ้ามี)
-        const headerDateEl = document.getElementById('db-header-current-date');
-        if (headerDateEl) {
-            const now = new Date();
-            headerDateEl.textContent = `${now.getDate()} ${monthNamesLao[now.getMonth()]} ${now.getFullYear()}`;
-        }
-
-        // 2. หาวันที่เริ่มต้นและสิ้นสุดจากการลากคลิกใน Calendar
-        let minDate = window.dbStartDate < window.dbEndDate ? window.dbStartDate : window.dbEndDate;
-        let maxDate = window.dbStartDate > window.dbEndDate ? window.dbStartDate : window.dbEndDate;
-
-        const tzMin = minDate.getTimezoneOffset() * 60000;
-        const startStr = (new Date(minDate - tzMin)).toISOString().split('T')[0];
-        const tzMax = maxDate.getTimezoneOffset() * 60000;
-        const endStr = (new Date(maxDate - tzMax)).toISOString().split('T')[0];
-
-        const startTimestamp = startStr + "T00:00:00";
-        const endTimestamp = endStr + "T23:59:59";
-
-        if (typeof _supabase === 'undefined') return;
-
-        // 3. ดึงข้อมูลจริงจาก Supabase (ดึงเฉพาะช่วงเวลาที่เลือกในปฏิทินเท่านั้น)
-        const { count: apptCount } = await _supabase.from('appointments').select('*', { count: 'exact', head: true }).gte('appointment_date', startStr).lte('appointment_date', endStr);
-        const { count: paymentCount } = await _supabase.from('visits').select('*', { count: 'exact', head: true }).eq('status', 'รอชำระเงิน').gte('created_at', startTimestamp).lte('created_at', endTimestamp);
-        const { count: reschedCount } = await _supabase.from('appointments').select('*', { count: 'exact', head: true }).eq('status', 'เลื่อนนัด').gte('appointment_date', startStr).lte('appointment_date', endStr);
-        const { count: totalPatientsCount } = await _supabase.from('patients').select('*', { count: 'exact', head: true }).gte('created_at', startTimestamp).lte('created_at', endTimestamp);
-        const { count: visitsCount } = await _supabase.from('visits').select('*', { count: 'exact', head: true }).gte('created_at', startTimestamp).lte('created_at', endTimestamp);
-
-        // ดึงข้อมูลคิว (Queue) ตามวันที่เลือก
-        const { count: regQueue } = await _supabase.from('appointments').select('*', { count: 'exact', head: true }).in('status', ['รอ', 'รอยืนยัน']).gte('appointment_date', startStr).lte('appointment_date', endStr);
-        const { count: triageQueue } = await _supabase.from('visits').select('*', { count: 'exact', head: true }).eq('status', 'รอคัดกรอง').gte('created_at', startTimestamp).lte('created_at', endTimestamp);
-        const { count: doctorQueue } = await _supabase.from('visits').select('*', { count: 'exact', head: true }).eq('status', 'รอตรวจ').gte('created_at', startTimestamp).lte('created_at', endTimestamp);
-        const { count: labQueue } = await _supabase.from('visits').select('*', { count: 'exact', head: true }).in('status', ['รอผลแล็บ', 'รอผลตรวจ Lab']).gte('created_at', startTimestamp).lte('created_at', endTimestamp);
-        const { count: rxQueue } = await _supabase.from('visits').select('*', { count: 'exact', head: true }).in('status', ['รออ่านผล', 'รอจัดยา', 'รอจัดคิว']).gte('created_at', startTimestamp).lte('created_at', endTimestamp);
-
-        // 4. อัปเดตตัวเลขในการ์ดด้านบน (Top Cards)
-        if (document.getElementById('db-stat-appointments')) document.getElementById('db-stat-appointments').textContent = apptCount || 0;
-        if (document.getElementById('db-stat-payments')) document.getElementById('db-stat-payments').textContent = paymentCount || 0;
-        if (document.getElementById('db-stat-rescheduled')) document.getElementById('db-stat-rescheduled').textContent = reschedCount || 0;
-        if (document.getElementById('db-stat-patients')) document.getElementById('db-stat-patients').textContent = totalPatientsCount || 0;
-
-        // 5. อัปเดตตัวเลขคิว
-        if (document.getElementById('db-queue-reg')) document.getElementById('db-queue-reg').textContent = regQueue || 0;
-        if (document.getElementById('db-queue-triage')) document.getElementById('db-queue-triage').textContent = triageQueue || 0;
-        if (document.getElementById('db-queue-doctor')) document.getElementById('db-queue-doctor').textContent = doctorQueue || 0;
-        if (document.getElementById('db-queue-lab')) document.getElementById('db-queue-lab').textContent = labQueue || 0;
-        if (document.getElementById('db-queue-prescription')) document.getElementById('db-queue-prescription').textContent = rxQueue || 0;
-
-        // 6. 🪄 วาดกราฟโดนัท (Donut Chart) ใหม่ตามตัวเลขของวันที่เลือก
-        const totalVisits = visitsCount || 0;
-        if (document.getElementById('db-donut-patient-count')) document.getElementById('db-donut-patient-count').textContent = totalVisits;
-
-        // *หมายเหตุ: เนื่องจากใน DB จำลองยังไม่มีคอลัมน์แบ่งหมวดหมู่โรคชัดเจน ผมจึงสร้างสัดส่วนจำลอง (50/35/10/5) ให้กราฟดูสวยงามและเปลี่ยนตามยอดผู้ป่วยจริงครับ
-        let valComm = Math.round(totalVisits * 0.5);
-        let valNonComm = Math.round(totalVisits * 0.35);
-        let valChild = Math.round(totalVisits * 0.10);
-        let valOther = totalVisits - (valComm + valNonComm + valChild);
-        if (totalVisits === 0) { valComm = 0; valNonComm = 0; valChild = 0; valOther = 0; }
-
-        const pctComm = totalVisits > 0 ? Math.round((valComm / totalVisits) * 100) : 0;
-        const pctNonComm = totalVisits > 0 ? Math.round((valNonComm / totalVisits) * 100) : 0;
-        const pctChild = totalVisits > 0 ? Math.round((valChild / totalVisits) * 100) : 0;
-        const pctOther = totalVisits > 0 ? (100 - (pctComm + pctNonComm + pctChild)) : 0;
-
-        // อัปเดตตัวหนังสือ Legend
-        if (document.getElementById('donut-pct-comm')) document.getElementById('donut-pct-comm').textContent = pctComm + '%';
-        if (document.getElementById('donut-val-comm')) document.getElementById('donut-val-comm').textContent = valComm + ' ຄົນ';
-        if (document.getElementById('donut-pct-noncomm')) document.getElementById('donut-pct-noncomm').textContent = pctNonComm + '%';
-        if (document.getElementById('donut-val-noncomm')) document.getElementById('donut-val-noncomm').textContent = valNonComm + ' ຄົນ';
-        if (document.getElementById('donut-pct-child')) document.getElementById('donut-pct-child').textContent = pctChild + '%';
-        if (document.getElementById('donut-val-child')) document.getElementById('donut-val-child').textContent = valChild + ' ຄົນ';
-        if (document.getElementById('donut-pct-other')) document.getElementById('donut-pct-other').textContent = pctOther + '%';
-        if (document.getElementById('donut-val-other')) document.getElementById('donut-val-other').textContent = valOther + ' ຄົນ';
-
-        // วาดเส้นวงกลมกราฟใหม่ (SVG Manipulation)
-        const circ = 238.76;
-        const tot = totalVisits > 0 ? totalVisits : 1;
-        const l1 = (valComm / tot) * circ;
-        const l2 = (valNonComm / tot) * circ;
-        const l3 = (valChild / tot) * circ;
-        const l4 = (valOther / tot) * circ;
-
-        if (document.getElementById('donut-circle-comm')) {
-            document.getElementById('donut-circle-comm').setAttribute('stroke-dasharray', `${l1} ${circ}`);
-            document.getElementById('donut-circle-comm').setAttribute('stroke-dashoffset', `0`);
-            document.getElementById('donut-circle-noncomm').setAttribute('stroke-dasharray', `${l2} ${circ}`);
-            document.getElementById('donut-circle-noncomm').setAttribute('stroke-dashoffset', `-${l1}`);
-            document.getElementById('donut-circle-child').setAttribute('stroke-dasharray', `${l3} ${circ}`);
-            document.getElementById('donut-circle-child').setAttribute('stroke-dashoffset', `-${l1 + l2}`);
-            document.getElementById('donut-circle-other').setAttribute('stroke-dasharray', `${l4} ${circ}`);
-            document.getElementById('donut-circle-other').setAttribute('stroke-dashoffset', `-${l1 + l2 + l3}`);
-        }
-
-        // 7. อัปเดตตารางรายการนัดหมาย (Appointments List)
-        const totalFooterEl = document.getElementById('db-appt-total-footer');
-        if (totalFooterEl) totalFooterEl.textContent = apptCount || 0;
-
-        const { data: apptsList } = await _supabase.from('appointments').select('*').gte('appointment_date', startStr).lte('appointment_date', endStr).order('appointment_time', { ascending: true });
-        const listContainer = document.getElementById('db-appointments-list');
-
-        if (listContainer) {
-            if (apptsList && apptsList.length > 0) {
-                listContainer.innerHTML = apptsList.map(appt => {
-                    const s = String(appt.status || '').trim();
-                    let badge = `<span class="db-status-badge badge-booked">${s || 'ຈອງນັດ'}</span>`;
-                    if (s.includes('ຢືນຢັນ') || s.includes('ยืนยัน') || s.toLowerCase() === 'confirmed') badge = `<span class="db-status-badge badge-confirmed">ຢືນຢັນ</span>`;
-                    else if (s.includes('ກຳລັງ') || s.includes('กำลัง') || s.includes('ตรวจแล้ว')) badge = `<span class="db-status-badge badge-in-service">ກຳລັງຮັບບໍລິການ</span>`;
-                    else if (s.includes('ຄິວ') || s.includes('คิว') || s.includes('รอ') || s.includes('ລໍ')) badge = `<span class="db-status-badge badge-waiting">ລໍຖ້າຄິວ</span>`;
-
-                    return `<tr>
-                        <td class="db-appt-time-col">${appt.appointment_time || '--:--'}</td>
-                        <td class="db-appt-name-col">${appt.patient_name || appt.guest_name || 'N/A'}</td>
-                        <td class="db-appt-service-col">${appt.service_name || appt.reason || 'ກວດສຸຂະພາບທົ່ວໄປ'}</td>
-                        <td style="text-align: right;">${badge}</td>
-                    </tr>`;
-                }).join('');
-            } else {
-                listContainer.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">ບໍ່ມີລາຍການນັດໝາຍໃນວັນທີນີ້</td></tr>`;
-            }
-        }
-
-        // 8. อัปเดตกล่องล่างสุด (ถ้ามี)
-        if (document.getElementById('db-panel-visits-count')) document.getElementById('db-panel-visits-count').textContent = visitsCount || 0;
-        if (document.getElementById('db-panel-appts-count')) document.getElementById('db-panel-appts-count').textContent = apptCount || 0;
-
-    } catch (e) {
-        console.error("Dashboard update error:", e);
-    }
+        const dw = window.getDashboardFrameWindow();
+        if (dw && typeof dw.handleCalendarClick === "function") return dw.handleCalendarClick(y, m, d);
+    } catch (e) { }
 };
+
+window.handleMonthDotClick = function (m, e) {
+    try {
+        const dw = window.getDashboardFrameWindow();
+        if (dw && typeof dw.handleMonthDotClick === "function") return dw.handleMonthDotClick(m, e);
+    } catch (e) { }
+};
+
+window.setChartRange = function (r, b) {
+    try {
+        const dw = window.getDashboardFrameWindow();
+        if (dw && typeof dw.setChartRange === "function") return dw.setChartRange(r, b);
+    } catch (e) { }
+};
+
 
 function toggleMobileSidebar() {
     const sidebar = document.querySelector('.sidebar');
@@ -472,6 +473,17 @@ function showPage(pageId, element) {
     // 7. โหลดข้อมูลอัตโนมัติเมื่อกดเข้าสู่แต่ละหน้า
     try {
         if (pageId === 'dashboard') {
+            try {
+                const frame = document.getElementById('dashboardFrame');
+                if (frame && frame.contentWindow) {
+                    if (typeof frame.contentWindow.updateDashboardStats === 'function') {
+                        frame.contentWindow.updateDashboardStats();
+                    }
+                    if (typeof frame.contentWindow.renderCalendar === 'function') {
+                        frame.contentWindow.renderCalendar();
+                    }
+                }
+            } catch (dErr) { }
             if (typeof window.renderCalendar === 'function') window.renderCalendar();
             if (typeof window.updateDashboardStats === 'function') window.updateDashboardStats();
         } else if (pageId === 'booking') {
@@ -511,8 +523,14 @@ function showPage(pageId, element) {
         } else if (pageId === 'doctor-reports') {
             try {
                 const frame = document.getElementById('doctorReportFrame');
-                if (frame && frame.contentWindow && typeof frame.contentWindow.loadReportData === 'function') {
-                    frame.contentWindow.loadReportData();
+                if (frame) {
+                    const targetSrc = frame.getAttribute('data-src') || 'report.html?v=3.7';
+                    if (!frame.src || frame.src.endsWith('about:blank') || !frame.getAttribute('data-loaded')) {
+                        frame.src = targetSrc;
+                        frame.setAttribute('data-loaded', 'true');
+                    } else if (frame.contentWindow && typeof frame.contentWindow.loadReportData === 'function') {
+                        frame.contentWindow.loadReportData();
+                    }
                 }
             } catch (rErr) { }
         } else if (pageId === 'appointments') {
@@ -536,7 +554,6 @@ function showPage(pageId, element) {
             if (typeof loadLabQueue === 'function') loadLabQueue();
         } else if (pageId === 'billing') {
             if (typeof loadBills === 'function') loadBills();
-            if (typeof loadDailyClinicReport === 'function') loadDailyClinicReport();
         } else if (pageId === 'expenses') {
             if (typeof loadExpenses === 'function') loadExpenses();
         }
@@ -550,24 +567,19 @@ function showPage(pageId, element) {
 }
 
 // =====================================
-// Supabase Database Connection
+// Supabase Database Connection (Fallback Check)
 // =====================================
-const supabaseUrl = 'https://fpmstumpobbjozflkola.supabase.co';
-const supabaseKey = 'sb_publishable_h9-j-0I2ku6rYYvoeHmooQ_B5GrRzR7';
-const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
+if (!_supabase && typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+    _supabase = supabase.createClient(supabaseUrl, supabaseKey);
+    window._supabase = _supabase;
+}
 
 // =====================================
-// MLM MANAGEMENT Database Connection (Real-time stk_products)
+// MLM MANAGEMENT Database Connection (Fallback Check)
 // =====================================
-const mlmSupabaseUrl = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_URL) || window.MLM_SUPABASE_URL || 'https://mfpkeyrykqnrywyksyqp.supabase.co';
-const mlmSupabaseKey = (typeof CONFIG !== 'undefined' && CONFIG.MLM_SUPABASE_ANON_KEY) || window.MLM_SUPABASE_ANON_KEY || 'sb_publishable_807NIkuj6MAs1KZY-m4tug_Fm1Mk-AO';
-let _mlmSupabase = null;
-try {
-    if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
-        _mlmSupabase = supabase.createClient(mlmSupabaseUrl, mlmSupabaseKey);
-    }
-} catch (err) {
-    console.warn('MLM Supabase client init error:', err);
+if (!_mlmSupabase && typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+    _mlmSupabase = supabase.createClient(mlmSupabaseUrl, mlmSupabaseKey);
+    window._mlmSupabase = _mlmSupabase;
 }
 
 // =====================================
@@ -1074,31 +1086,125 @@ document.addEventListener("DOMContentLoaded", function () {
                     .limit(300);
 
                 // ดึงข้อมูลการสั่งซื้อสารอาหาร/ยา (stk_nutrient_orders)
-                let recentOrders = [];
+                const candidateOrders = [];
+
+                // 1. ดึงจาก MLM Supabase
                 try {
-                    const nutrientClient = (typeof _mlmSupabase !== 'undefined' && _mlmSupabase) || (typeof _supabase !== 'undefined' && _supabase);
+                    const nutrientClient = (typeof _mlmSupabase !== 'undefined' && _mlmSupabase) || (typeof window._mlmSupabase !== 'undefined' && window._mlmSupabase);
                     if (nutrientClient) {
-                        const { data: nData } = await nutrientClient
+                        const { data: nData, error: nErr } = await nutrientClient
                             .from('stk_nutrient_orders')
                             .select('*')
                             .order('created_at', { ascending: false })
-                            .limit(200);
-                        if (Array.isArray(nData)) recentOrders = nData;
+                            .limit(300);
+                        if (!nErr && Array.isArray(nData)) candidateOrders.push(...nData);
                     }
                 } catch (e) { }
 
-                let localOrders = [];
-                try { localOrders = JSON.parse(localStorage.getItem('clinic_orders') || '[]'); } catch (e) { }
-                let localStk = [];
-                try { localStk = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]'); } catch (e) { }
-                const combinedOrders = recentOrders.concat(localOrders).concat(localStk);
+                // 2. ดึงจาก Clinic Supabase stk_nutrient_orders (Dual-save fallback)
+                try {
+                    const clinicDb = (typeof _supabase !== 'undefined' && _supabase) || (typeof window._supabase !== 'undefined' && window._supabase);
+                    if (clinicDb) {
+                        const { data: cData, error: cErr } = await clinicDb
+                            .from('stk_nutrient_orders')
+                            .select('*')
+                            .order('created_at', { ascending: false })
+                            .limit(300);
+                        if (!cErr && Array.isArray(cData)) candidateOrders.push(...cData);
+                    }
+                } catch (e) { }
 
+                // 3. ดึงจาก visits table ที่เป็น VIS-ORD-%
+                try {
+                    const clinicDb = (typeof _supabase !== 'undefined' && _supabase) || (typeof window._supabase !== 'undefined' && window._supabase);
+                    if (clinicDb) {
+                        const { data: ordVisits, error: ovErr } = await clinicDb
+                            .from('visits')
+                            .select('visit_id, hn, patient_name, doctor_name, symptom, status, created_at, meds')
+                            .ilike('visit_id', 'VIS-ORD-%')
+                            .order('created_at', { ascending: false })
+                            .limit(300);
+                        if (!ovErr && Array.isArray(ordVisits)) candidateOrders.push(...ordVisits);
+                    }
+                } catch (e) { }
+
+                // 4. ดึงจาก LocalStorage (clinic_orders ແລະ stk_nutrient_orders)
+                try {
+                    const localOrders = JSON.parse(localStorage.getItem('clinic_orders') || '[]');
+                    if (Array.isArray(localOrders)) candidateOrders.push(...localOrders);
+                } catch (e) { }
+                try {
+                    const localStk = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
+                    if (Array.isArray(localStk)) candidateOrders.push(...localStk);
+                } catch (e) { }
+
+                // 5. Deduplicate ออเดอร์ตามเลข Order / Visit ID
+                const uniqueOrdersMap = new Map();
+                candidateOrders.forEach(o => {
+                    if (!o) return;
+                    const st = String(o.status || '').toLowerCase();
+                    if (st.includes('cancel') || st.includes('ຍົກເລີກ') || st.includes('ยกเลิก') || String(o.notes || '').includes('[DELETED]')) {
+                        return;
+                    }
+
+                    const vid = String(o.visit_id || o.visitId || '').trim().toUpperCase();
+                    const oid = String(o.order_id || o.orderId || '').trim().toUpperCase();
+                    const symptomStr = String(o.symptom || o.disease || '');
+
+                    // 🔧 [FIX] การแยกแยะ "Order สินค้า/อาหารเสริม" ออกจาก "ใบสั่งยาคลินิก (ORD-CLINIC-)"
+                    // ข้อกำหนด:
+                    //   - VIS-ORD-XXXXX  → Order สินค้า ✅
+                    //   - ORD-XXXXX      → Order สินค้า ✅
+                    //   - ORD-CLINIC-X   → ใบสั่งยาตอนตรวจ ❌ ไม่ใช่ Order
+                    //   - symptom มีคำ "ສັ່ງຊື້" / "สั่งซื้อ" → Order ✅
+                    //   - symptom มีคำ "Order" แบบ exact → Order ✅ (ป้องกันจับ keyword บังเอิญ)
+                    const isClinicPrescription = oid.startsWith('ORD-CLINIC-') || vid.includes('CLINIC');
+                    if (isClinicPrescription) return; // ใบสั่งยาคลินิก → ข้ามออกไปเลย ไม่นับเป็น Order
+
+                    const isOrderByVid = vid.startsWith('VIS-ORD-');
+                    const isOrderByOid = oid.startsWith('ORD-') && !oid.startsWith('ORD-CLINIC-');
+                    const isOrderBySymptom = symptomStr.includes('ສັ່ງຊື້') || symptomStr.includes('สั่งซื้อ') ||
+                        /\bOrder\b/.test(symptomStr) || symptomStr.startsWith('Order ');
+
+                    const isOrder = isOrderByVid || isOrderByOid || isOrderBySymptom;
+
+                    if (!isOrder) return;
+
+                    let key = '';
+                    const num = (vid || oid).replace(/\D/g, '');
+                    if (num) {
+                        key = 'ORD-' + num.slice(-5);
+                    } else {
+                        key = vid || oid || String(o.id || Math.random());
+                    }
+
+                    if (!uniqueOrdersMap.has(key)) {
+                        uniqueOrdersMap.set(key, o);
+                    } else {
+                        const existing = uniqueOrdersMap.get(key);
+                        uniqueOrdersMap.set(key, Object.assign({}, existing, o));
+                    }
+                });
+
+                const combinedOrders = Array.from(uniqueOrdersMap.values());
                 let allPatients = patients ? [...patients] : [];
 
-                // ผูก visit_status และ order ล่าสุดให้กับคนไข้แต่ละคน
+                // ผูก visit_status และ order ล่าสุดให้กับคนไข้แต่ละคนอย่างแม่นยำ
                 allPatients.forEach(p => {
                     const pVisits = (recentVisits || []).filter(v => (p.hn && v.hn === p.hn) || (!p.hn && v.patient_name && p.patient_name && v.patient_name.trim().toLowerCase() === p.patient_name.trim().toLowerCase()));
-                    const pOrders = combinedOrders.filter(o => (p.hn && (o.hn === p.hn || String(o.hn) === String(p.hn))) || (o.customer_name && p.patient_name && o.customer_name.trim().toLowerCase() === p.patient_name.trim().toLowerCase()) || (o.patient_name && p.patient_name && o.patient_name.trim().toLowerCase() === p.patient_name.trim().toLowerCase()));
+                    
+                    // 🌟 คัดกรองออเดอร์ของคนไข้: ถ้า Order มี HN ต้องตรงกับ HN ของคนไข้เท่านั้น (ป้องกันคนไข้ชื่อเหมือนกันแต่คนละ HN มาแย่งออเดอร์กัน)
+                    const pOrders = combinedOrders.filter(o => {
+                        if (o.hn && p.hn) {
+                            return String(o.hn).trim() === String(p.hn).trim();
+                        }
+                        if (!o.hn) {
+                            const oName = (o.customer_name || o.patient_name || '').trim().toLowerCase();
+                            const pName = (p.patient_name || '').trim().toLowerCase();
+                            return !!(oName && pName && oName === pName);
+                        }
+                        return false;
+                    });
 
                     const latestV = pVisits[0];
                     const latestO = pOrders[0];
@@ -1136,6 +1242,84 @@ document.addEventListener("DOMContentLoaded", function () {
                         }
                     }
                 });
+
+                // 🌟 โครงสร้างข้อมูล Order แท้จริงสำหรับแท็บ "Order" (1 Order = 1 แถว)
+                const allOrdersList = combinedOrders.map(o => {
+                    const vid = o.visit_id || o.visitId || '';
+                    const oid = o.order_id || o.orderId || '';
+                    const num = (vid || oid).replace(/\D/g, '');
+                    const rawVisitId = vid.startsWith('VIS-ORD-') ? vid : ('VIS-ORD-' + (num ? num.slice(-5) : '00000'));
+                    const ordDate = o.created_at || o.date || new Date().toISOString();
+
+                    // จับคู่หาคนไข้เพื่อดึง HN หรือข้อมูลอ้างอิง
+                    let matchedPt = null;
+                    if (o.hn) {
+                        matchedPt = allPatients.find(p => p.hn && (p.hn === o.hn || String(p.hn).trim() === String(o.hn).trim()));
+                    }
+                    if (!matchedPt) {
+                        const oName = (o.customer_name || o.patient_name || '').trim().toLowerCase();
+                        if (oName) {
+                            matchedPt = allPatients.find(p => p.patient_name && p.patient_name.trim().toLowerCase() === oName);
+                        }
+                    }
+
+                    const ordHn = o.hn || (matchedPt ? matchedPt.hn : '-');
+                    const ordName = o.customer_name || o.patient_name || (matchedPt ? matchedPt.patient_name : '-');
+                    const ordPhone = o.customer_phone || o.phone || (matchedPt ? (matchedPt.phone || matchedPt.tel) : '-');
+                    const symptomText = o.notes ? ` (${o.notes})` : (o.symptom ? ` (${o.symptom})` : '');
+
+                    let orderSubtotal = Number(o.subtotal || 0);
+                    let orderGrandTotal = Number(o.grandTotal || o.total_amount || o.payable_amount || 0);
+                    const orderDisc = Number(o.discount || 0);
+
+                    let ordItems = o.items_json || o.items || o.meds;
+                    if (typeof ordItems === 'string') {
+                        try { ordItems = JSON.parse(ordItems); } catch (e) { ordItems = []; }
+                    }
+                    if ((!orderGrandTotal || orderGrandTotal === 0) && Array.isArray(ordItems) && ordItems.length > 0) {
+                        let calcSub = 0;
+                        ordItems.forEach(it => {
+                            if (!it) return;
+                            const q = parseFloat(it.qty || it.quantity || 1) || 1;
+                            const t = parseFloat(String(it.total || it.total_price || '').replace(/,/g, ''));
+                            if (!isNaN(t) && t > 0) calcSub += t;
+                            else {
+                                const p = parseFloat(String(it.price || it.unit_price || it.sale_price || 0).replace(/,/g, '')) || 0;
+                                calcSub += (q * p);
+                            }
+                        });
+                        orderSubtotal = calcSub;
+                        orderGrandTotal = Math.max(0, calcSub - orderDisc);
+                    }
+
+                    return {
+                        ...o,
+                        id: o.id || rawVisitId,
+                        hn: ordHn,
+                        patient_name: ordName,
+                        phone: ordPhone,
+                        created_at: ordDate,
+                        latest_visit_id: rawVisitId,
+                        latest_visit_date: new Date(ordDate).toLocaleString('lo-LA'),
+                        latest_visit_raw_date: ordDate,
+                        latest_symptom: 'ສັ່ງຊື້ຢາ/อาหารເສີມ' + symptomText,
+                        visit_status: '08 ຫ້ອງຈ່າຍຢາ',
+                        status: '08 ຫ້ອງຈ່າຍຢາ',
+                        doctor_name: o.closer_dr || o.doctor_advice || (matchedPt ? matchedPt.doctor_name : 'ແພດປະຈຳຄລີນິກ') || 'ແພດປະຈຳຄລີນິກ',
+                        has_order: true,
+                        grandTotal: orderGrandTotal,
+                        subtotal: orderSubtotal,
+                        items: ordItems,
+                        order_data: {
+                            ...o,
+                            grandTotal: orderGrandTotal,
+                            subtotal: orderSubtotal,
+                            items: ordItems
+                        },
+                        referred_by: o.referred_by || o.closer_dr || (matchedPt ? matchedPt.referred_by : ''),
+                        created_by: o.created_by || (matchedPt ? matchedPt.created_by : '')
+                    };
+                }).sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
 
                 // ตรวจสอบสิทธิ์ว่าเป็น Admin หรือไม่
                 const permissions = currentUser && Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
@@ -1203,6 +1387,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 };
 
                 const myPatients = allPatients.filter(p => isPatientReferredByUser(p));
+                const myOrdersList = allOrdersList.filter(o => isPatientReferredByUser(o));
 
                 if (event.source) {
                     event.source.postMessage({
@@ -1210,6 +1395,9 @@ document.addEventListener("DOMContentLoaded", function () {
                         patients: isAdmin ? allPatients : myPatients,
                         allPatients: allPatients,
                         myPatients: myPatients,
+                        orders: isAdmin ? allOrdersList : myOrdersList,
+                        allOrders: allOrdersList,
+                        myOrders: myOrdersList,
                         isAdmin: isAdmin,
                         currentUserCode: userEmpCode,
                         currentUserName: currentUser ? (currentUser.name || currentUser.full_name || currentUser.email) : '',
@@ -1518,20 +1706,18 @@ window.clearAppointmentDateFilter = clearAppointmentDateFilter;
 
 async function loadPatients() {
     const tbody = document.querySelector('#patientsTable tbody');
-    if (!tbody) return;
 
     const { data, error } = await _supabase
         .from('patients')
         .select('*')
         .order('created_at', { ascending: true });
 
-    tbody.innerHTML = '';
     if (error) {
-        tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
+        if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
         return;
     }
     if (!data || data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3">ไม่มีข้อมูลผู้ป่วย</td></tr>';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3">ไม่มีข้อมูลผู้ป่วย</td></tr>';
         return;
     }
 
@@ -1564,16 +1750,51 @@ async function loadPatients() {
     window.allPatients = data;
     window.latestVisitMap = latestVisitMap;
 
-    // ตั้งค่าเริ่มต้นวันที่กรองทะเบียนผู้ป่วยเป็นวันปัจจุบัน (Today) หากยังไม่ได้เลือก
-    const startInput = document.getElementById('patientFilterStartDate');
-    const endInput = document.getElementById('patientFilterEndDate');
-    if (startInput && endInput && !startInput.value && !endInput.value) {
-        const todayStr = new Date().toISOString().split('T')[0];
-        startInput.value = todayStr;
-        endInput.value = todayStr;
+    // อัปเดตยอดบน Dashboard ทันทีที่ข้อมูลผู้ป่วยพร้อม
+    if (typeof window.updateDashboardNoShowCount === 'function') {
+        window.updateDashboardNoShowCount();
+    }
+    const dw = (typeof window.getDashboardFrameWindow === 'function') ? window.getDashboardFrameWindow() : null;
+    const dbPanelVisitsEl = (dw && dw.document) ? dw.document.getElementById('db-panel-visits-count') : document.getElementById('db-panel-visits-count');
+    if (dbPanelVisitsEl && Array.isArray(window.allPatients)) {
+        let sDateStr = '';
+        let eDateStr = '';
+        if (window.dbStartDate && window.dbEndDate) {
+            const minD = window.dbStartDate < window.dbEndDate ? window.dbStartDate : window.dbEndDate;
+            const maxD = window.dbStartDate > window.dbEndDate ? window.dbStartDate : window.dbEndDate;
+            const tzMin = minD.getTimezoneOffset() * 60000;
+            sDateStr = (new Date(minD - tzMin)).toISOString().split('T')[0];
+            const tzMax = maxD.getTimezoneOffset() * 60000;
+            eDateStr = (new Date(maxD - tzMax)).toISOString().split('T')[0];
+        } else {
+            sDateStr = new Date().toISOString().split('T')[0];
+            eDateStr = sDateStr;
+        }
+        const syncedCount = window.allPatients.filter(row => {
+            if (!row.next_appointment_date) return false;
+            try {
+                const pDate = new Date(row.next_appointment_date);
+                if (isNaN(pDate.getTime())) return false;
+                const rDate = pDate.toISOString().split('T')[0];
+                return (!sDateStr || rDate >= sDateStr) && (!eDateStr || rDate <= eDateStr);
+            } catch (e) { return false; }
+        }).length;
+        dbPanelVisitsEl.textContent = syncedCount.toLocaleString();
     }
 
-    filterPatients();
+    if (tbody) {
+        tbody.innerHTML = '';
+        // ตั้งค่าเริ่มต้นวันที่กรองทะเบียนผู้ป่วยเป็นวันปัจจุบัน (Today) หากยังไม่ได้เลือก
+        const startInput = document.getElementById('patientFilterStartDate');
+        const endInput = document.getElementById('patientFilterEndDate');
+        if (startInput && endInput && !startInput.value && !endInput.value) {
+            const todayStr = new Date().toISOString().split('T')[0];
+            startInput.value = todayStr;
+            endInput.value = todayStr;
+        }
+
+        filterPatients();
+    }
 }
 
 // =====================================
@@ -2041,9 +2262,10 @@ async function loadTriage() {
 
     const { data, error } = await _supabase
         .from('visits')
-        .select('*')
+        .select('visit_id, hn, patient_name, status, created_at')
         .eq('status', 'รอคัดกรอง')
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true })
+        .limit(100);
 
     tbody.innerHTML = '';
     if (error) {
@@ -2141,9 +2363,10 @@ window.loadDoctorQueue = async function () {
 
     const { data, error } = await _supabase
         .from('visits')
-        .select('*')
+        .select('visit_id, hn, patient_name, doctor_name, symptom, bp, pulse, temp, weight, height, bmi, spo2, status, created_at')
         .eq('status', 'รอตรวจ')
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true })
+        .limit(100);
 
     if (error) {
         tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
@@ -2323,28 +2546,29 @@ async function completeDoctorCheck(visitId) {
 window.setQueueDateFilter = function (mode) {
     const startInput = document.getElementById('queueStartDate');
     const endInput = document.getElementById('queueEndDate');
-    const now = new Date();
 
-    if (mode === 'today') {
-        const todayStr = now.toISOString().slice(0, 10);
-        if (startInput) startInput.value = todayStr;
-        if (endInput) endInput.value = todayStr;
-    } else if (mode === 'month') {
-        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
-        if (startInput) startInput.value = firstDay;
-        if (endInput) endInput.value = lastDay;
-    } else if (mode === 'year') {
-        const firstDay = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
-        const lastDay = new Date(now.getFullYear(), 11, 31).toISOString().slice(0, 10);
-        if (startInput) startInput.value = firstDay;
-        if (endInput) endInput.value = lastDay;
-    } else if (mode === 'all') {
+    if (mode === 'all') {
+        window._queueFilterExplicitAll = true;
         if (startInput) startInput.value = '';
         if (endInput) endInput.value = '';
+        if (typeof loadQueueList === 'function') loadQueueList();
+        return;
+    }
+    window._queueFilterExplicitAll = false;
+
+    if (mode === 'year') {
+        const vNow = getVientianeNow();
+        if (startInput) startInput.value = `${vNow.getFullYear()}-01-01`;
+        if (endInput) endInput.value = `${vNow.getFullYear()}-12-31`;
+        if (typeof loadQueueList === 'function') loadQueueList();
+        return;
     }
 
-    if (typeof loadQueueList === 'function') loadQueueList();
+    let filterType = mode;
+    if (mode === 'month') filterType = 'thisMonth';
+    applyQuickDateFilter(filterType, 'queueStartDate', 'queueEndDate', () => {
+        if (typeof loadQueueList === 'function') loadQueueList();
+    });
 };
 
 async function loadQueueList() {
@@ -2378,49 +2602,61 @@ async function loadQueueList() {
     }
 
     // 1. ดึงข้อมูลผู้ป่วยที่เกี่ยวข้องกับหน้าจัดคิวตามช่วงวันที่
-    const startDate = document.getElementById('queueStartDate')?.value;
-    const endDate = document.getElementById('queueEndDate')?.value;
+    let startInput = document.getElementById('queueStartDate');
+    let endInput = document.getElementById('queueEndDate');
+
+    // 🌟 ค่าเริ่มต้นเป็น "วันปัจจุบัน" (Today - Asia/Vientiane) หากยังไม่มีการเลือก
+    if ((!startInput?.value || !endInput?.value) && !window._queueFilterExplicitAll) {
+        const todayRange = getVientianeDateRange('today');
+        if (startInput && !startInput.value) startInput.value = todayRange.startStr;
+        if (endInput && !endInput.value) endInput.value = todayRange.endStr;
+    }
+
+    const startDate = startInput?.value;
+    const endDate = endInput?.value;
 
     let queueQuery = _supabase
         .from('visits')
-        .select('*')
+        .select('visit_id, hn, patient_name, doctor_name, status, lab_tests, lab_note, created_at')
         .in('status', ['รอจัดคิว', 'รออ่านผล', 'กำลังคุยกับแพทย์', 'รอผลแล็บเพิ่มเติม', 'ผลออกบางส่วน']);
 
     if (startDate) {
-        const startIso = new Date(startDate + 'T00:00:00').toISOString();
-        queueQuery = queueQuery.gte('created_at', startIso);
+        queueQuery = queueQuery.gte('created_at', startDate + "T00:00:00");
     }
     if (endDate) {
-        const endIso = new Date(endDate + 'T23:59:59.999').toISOString();
-        queueQuery = queueQuery.lte('created_at', endIso);
+        queueQuery = queueQuery.lte('created_at', endDate + "T23:59:59");
     }
 
-    queueQuery = queueQuery.order('created_at', { ascending: true });
+    queueQuery = queueQuery.order('created_at', { ascending: true }).limit(100);
 
     const queueRes = await queueQuery;
 
-    // ดึงข้อมูลแพทย์จาก staff_users หรือ staff
-    let doctors = [];
-    try {
-        const docUsersRes = await _supabase
-            .from('staff_users')
-            .select('*')
-            .in('role', ['doctor', 'แพทย์']);
+    // ดึงข้อมูลแพทย์ (แคชไว้ ไม่ query ซ้ำทุกครั้ง)
+    let doctors = window._cachedDoctorsList || [];
+    if (doctors.length === 0) {
+        try {
+            const docUsersRes = await _supabase
+                .from('staff_users')
+                .select('full_name, emp_code, email')
+                .in('role', ['doctor', 'แพทย์']);
 
-        if (docUsersRes.data && docUsersRes.data.length > 0) {
-            doctors = docUsersRes.data.map(d => ({
-                name: d.full_name || d.emp_code || d.email,
-                is_busy: false
-            }));
-        } else {
-            const docOldRes = await _supabase
-                .from('staff')
-                .select('*')
-                .eq('role', 'แพทย์');
-            doctors = docOldRes.data || [];
+            if (docUsersRes.data && docUsersRes.data.length > 0) {
+                doctors = docUsersRes.data.map(d => ({
+                    name: d.full_name || d.emp_code || d.email,
+                    is_busy: false
+                }));
+                window._cachedDoctorsList = doctors;
+            } else {
+                const docOldRes = await _supabase
+                    .from('staff')
+                    .select('name, full_name')
+                    .eq('role', 'แพทย์');
+                doctors = docOldRes.data || [];
+                window._cachedDoctorsList = doctors;
+            }
+        } catch (e) {
+            console.warn('Error fetching doctors from staff_users:', e);
         }
-    } catch (e) {
-        console.warn('Error fetching doctors from staff_users:', e);
     }
 
     tbody.innerHTML = '';
@@ -2643,9 +2879,10 @@ async function loadPrescriptionList(triggerBtn) {
 
         const { data, error } = await _supabase
             .from('visits')
-            .select('*')
+            .select('visit_id, hn, patient_name, doctor_name, status, symptom, bp, pulse, temp, weight, height, bmi, spo2, lab_tests, lab_note, meds, created_at')
             .in('status', ['รออ่านผล', 'กำลังคุยกับแพทย์', 'กำลังตรวจ', 'กำลังตรวจอยู่'])
-            .order('created_at', { ascending: true });
+            .order('created_at', { ascending: true })
+            .limit(100);
 
         if (error) {
             tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-5">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
@@ -6162,26 +6399,33 @@ async function loadLabQueue() {
     const tbody = document.querySelector('#labTable tbody');
     if (!tbody) return;
 
-    // 🌟 ตั้งค่าเริ่มต้นตัวกรองวันที่ของห้อง Lab ให้เป็นวันปัจจุบัน (Today) หากยังไม่ได้เลือกช่วงวันที่
-    const startInput = document.getElementById('labStartDate');
-    const endInput = document.getElementById('labEndDate');
-    if (startInput && endInput && !startInput.value && !endInput.value && !window._labFilterExplicitAll) {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const todayStr = `${year}-${month}-${day}`;
-        startInput.value = todayStr;
-        endInput.value = todayStr;
+    // 🌟 ตั้งค่าเริ่มต้นตัวกรองวันที่ของห้อง Lab ให้เป็นวันปัจจุบัน (Today - Asia/Vientiane) หากยังไม่ได้เลือกช่วงวันที่
+    let startInput = document.getElementById('labStartDate');
+    let endInput = document.getElementById('labEndDate');
+    if ((!startInput?.value || !endInput?.value) && !window._labFilterExplicitAll) {
+        const todayRange = getVientianeDateRange('today');
+        if (startInput && !startInput.value) startInput.value = todayRange.startStr;
+        if (endInput && !endInput.value) endInput.value = todayRange.endStr;
     }
+
+    const startDate = startInput?.value;
+    const endDate = endInput?.value;
 
     tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูล...</td></tr>';
 
-    const { data, error } = await _supabase
+    let labQuery = _supabase
         .from('visits')
-        .select('*')
-        .in('status', ['รอผลแล็บ', 'รอผลตรวจ Lab', 'รอผลแล็บเพิ่มเติม', 'ผลออกบางส่วน'])
-        .order('created_at', { ascending: true });
+        .select('visit_id, hn, patient_name, doctor_name, status, lab_tests, lab_note, pdf_url, created_at')
+        .in('status', ['รอผลแล็บ', 'รอผลตรวจ Lab', 'รอผลแล็บเพิ่มเติม', 'ผลออกบางส่วน']);
+
+    if (startDate) {
+        labQuery = labQuery.gte('created_at', startDate + "T00:00:00");
+    }
+    if (endDate) {
+        labQuery = labQuery.lte('created_at', endDate + "T23:59:59");
+    }
+
+    const { data, error } = await labQuery.order('created_at', { ascending: true }).limit(100);
 
     if (error) {
         tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
@@ -6202,13 +6446,13 @@ async function loadLabQueue() {
         // 1. ดึงจาก Supabase ที่มีคำว่า รอผลแล็บเพิ่มเติม ใน lab_note
         const { data: partialDbData } = await _supabase
             .from('visits')
-            .select('*')
+            .select('visit_id, hn, patient_name, doctor_name, status, lab_tests, lab_note, pdf_url, created_at')
             .like('lab_note', '%รอผลแล็บเพิ่มเติม%')
-            .neq('status', 'ຍົກເລີກ');
+            .neq('status', 'ຍົກເລີກ')
+            .limit(50);
 
         if (partialDbData && partialDbData.length > 0) {
             partialDbData.forEach(pRow => {
-                // ซิงค์สถานะใน DB ให้เป็น 'รอผลแล็บเพิ่มเติม' ถ้ายังเป็น 'รอจัดคิว'
                 if (pRow.status === 'รอจัดคิว') {
                     pRow.status = 'รอผลแล็บเพิ่มเติม';
                     _supabase.from('visits').update({ status: 'รอผลแล็บเพิ่มเติม' }).eq('visit_id', pRow.visit_id).then(() => { });
@@ -6220,12 +6464,12 @@ async function loadLabQueue() {
             });
         }
 
-        // 2. ตรวจสอบเคสที่มีใน LocalStorage clinic_partial_labs เพื่อความรวดเร็วและทนทาน
+        // 2. ตรวจสอบเคสที่มีใน LocalStorage clinic_partial_labs
         const localPartialIds = Object.keys(window._clinicPartialLabsMap || {}).filter(vid => !existingIds.has(vid));
         if (localPartialIds.length > 0) {
             const { data: localDbVisits } = await _supabase
                 .from('visits')
-                .select('*')
+                .select('visit_id, hn, patient_name, doctor_name, status, lab_tests, lab_note, pdf_url, created_at')
                 .in('visit_id', localPartialIds)
                 .neq('status', 'ຍົກເລີກ');
 
@@ -6246,31 +6490,28 @@ async function loadLabQueue() {
         console.warn('loadLabQueue partial check warning:', errPartial);
     }
 
-    // ดึงข้อมูลทะเบียนผู้ป่วยทั้งหมดมาเตรียมไว้สำหรับการจับคู่ HN
-    let allPatientsList = window.allPatients || [];
-    try {
-        const { data: pList } = await _supabase.from('patients').select('*');
-        if (pList && pList.length > 0) {
-            allPatientsList = pList;
-            window.allPatients = pList;
-        }
-    } catch (e) {
-        console.warn('loadLabQueue fetch patients error:', e);
-    }
-
-    // สร้าง Map จากรายชื่อผู้ป่วย
+    // เติม HN สำหรับเคสที่ยังไม่มี HN (ค้นหาเฉพาะรายชื่อที่ต้องการ ไม่โหลดทั้งระบบ)
     const exactNameMap = {};
     const normNameMap = {};
-
-    allPatientsList.forEach(p => {
-        const pName = (p.patient_name || p.name || '').trim();
-        const pHn = (p.hn && p.hn !== 'null' && p.hn !== 'undefined' && p.hn !== '-') ? p.hn.trim() : '';
-        if (pHn && pName) {
-            exactNameMap[pName.toLowerCase()] = pHn;
-            const normP = typeof normalizeClinicPatientName === 'function' ? normalizeClinicPatientName(pName) : pName.toLowerCase();
-            if (normP) normNameMap[normP] = pHn;
+    const missingNames = processedData.filter(r => !r.hn || r.hn === '-' || r.hn === 'null').map(r => r.patient_name).filter(Boolean);
+    if (missingNames.length > 0) {
+        try {
+            const { data: pList } = await _supabase.from('patients').select('hn, patient_name').in('patient_name', missingNames);
+            if (pList && pList.length > 0) {
+                pList.forEach(p => {
+                    const pName = (p.patient_name || '').trim();
+                    const pHn = (p.hn && p.hn !== 'null' && p.hn !== 'undefined' && p.hn !== '-') ? p.hn.trim() : '';
+                    if (pHn && pName) {
+                        exactNameMap[pName.toLowerCase()] = pHn;
+                        const normP = typeof normalizeClinicPatientName === 'function' ? normalizeClinicPatientName(pName) : pName.toLowerCase();
+                        if (normP) normNameMap[normP] = pHn;
+                    }
+                });
+            }
+        } catch (e) {
+            console.warn('loadLabQueue missing HN lookup notice:', e);
         }
-    });
+    }
 
     processedData.forEach(row => {
         let rowHn = (row.hn && row.hn !== 'null' && row.hn !== 'undefined' && row.hn !== '-') ? row.hn.trim() : '';
@@ -6308,38 +6549,29 @@ async function loadLabQueue() {
 window.setLabDateFilter = function (mode) {
     const startInput = document.getElementById('labStartDate');
     const endInput = document.getElementById('labEndDate');
-    const now = new Date();
 
-    const formatDate = function (d) {
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    };
-
-    if (mode === 'today') {
-        window._labFilterExplicitAll = false;
-        const todayStr = formatDate(now);
-        if (startInput) startInput.value = todayStr;
-        if (endInput) endInput.value = todayStr;
-    } else if (mode === 'month') {
-        window._labFilterExplicitAll = false;
-        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-        if (startInput) startInput.value = formatDate(firstDay);
-        if (endInput) endInput.value = formatDate(lastDay);
-    } else if (mode === 'year') {
-        window._labFilterExplicitAll = false;
-        const firstDay = new Date(now.getFullYear(), 0, 1);
-        const lastDay = new Date(now.getFullYear(), 11, 31);
-        if (startInput) startInput.value = formatDate(firstDay);
-        if (endInput) endInput.value = formatDate(lastDay);
-    } else if (mode === 'all') {
+    if (mode === 'all') {
         window._labFilterExplicitAll = true;
         if (startInput) startInput.value = '';
         if (endInput) endInput.value = '';
+        if (typeof loadLabQueue === 'function') loadLabQueue();
+        return;
     }
-    filterLabTable();
+    window._labFilterExplicitAll = false;
+
+    if (mode === 'year') {
+        const vNow = getVientianeNow();
+        if (startInput) startInput.value = `${vNow.getFullYear()}-01-01`;
+        if (endInput) endInput.value = `${vNow.getFullYear()}-12-31`;
+        if (typeof loadLabQueue === 'function') loadLabQueue();
+        return;
+    }
+
+    let filterType = mode;
+    if (mode === 'month') filterType = 'thisMonth';
+    applyQuickDateFilter(filterType, 'labStartDate', 'labEndDate', () => {
+        if (typeof loadLabQueue === 'function') loadLabQueue();
+    });
 };
 
 // 3. ฟังก์ชันกรองข้อมูลตามวันที่และข้อความที่ค้นหา
@@ -9631,9 +9863,10 @@ async function loadPharmacyQueue() {
     try {
         const res = await _supabase
             .from('visits')
-            .select('*')
+            .select('visit_id, hn, patient_name, doctor_name, meds, status, created_at')
             .eq('status', 'รอจ่ายยา')
-            .order('created_at', { ascending: true });
+            .order('created_at', { ascending: true })
+            .limit(100);
         if (res && res.data) data = res.data;
     } catch (e) {
         console.warn('Load pharmacy queue DB notice:', e);
@@ -10647,7 +10880,7 @@ window.completeDispensing = async function (visitId) {
 window.allHistoryVisits = []; // ข้อมูลทั้งหมดจากฐานข้อมูล
 window.historyFilteredData = []; // ข้อมูลที่ผ่านการค้นหาและกรองวันที่
 window.historyCurrentPage = 1;
-const HISTORY_PER_PAGE = 10; // กำหนด 10 รายการต่อหน้า
+const HISTORY_PER_PAGE = 15; // กำหนด 15 รายการต่อหน้า
 
 // 🌟 ฟังก์ชันกำหนดช่วงวันที่ด่วนในหน้าประวัติผู้ป่วย (วันนี้ / เดือนนี้ / ปีนี้ / ทั้งหมด)
 window.setHistoryDateFilter = function (mode) {
@@ -10656,17 +10889,17 @@ window.setHistoryDateFilter = function (mode) {
     const now = new Date();
 
     if (mode === 'today') {
-        const todayStr = now.toISOString().slice(0, 10);
+        const todayStr = now.toLocaleDateString('en-CA');
         if (startInput) startInput.value = todayStr;
         if (endInput) endInput.value = todayStr;
     } else if (mode === 'month') {
-        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString('en-CA');
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toLocaleDateString('en-CA');
         if (startInput) startInput.value = firstDay;
         if (endInput) endInput.value = lastDay;
     } else if (mode === 'year') {
-        const firstDay = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
-        const lastDay = new Date(now.getFullYear(), 11, 31).toISOString().slice(0, 10);
+        const firstDay = new Date(now.getFullYear(), 0, 1).toLocaleDateString('en-CA');
+        const lastDay = new Date(now.getFullYear(), 11, 31).toLocaleDateString('en-CA');
         if (startInput) startInput.value = firstDay;
         if (endInput) endInput.value = lastDay;
     } else if (mode === 'all') {
@@ -10674,18 +10907,30 @@ window.setHistoryDateFilter = function (mode) {
         if (endInput) endInput.value = '';
     }
 
-    if (typeof loadPatientHistory === 'function') loadPatientHistory();
+    // ถ้าเป็นโหมด 'all' ส่ง forceAll=true เพื่อดึงข้อมูลทั้งหมด (ไม่ default เป็นวันนี้)
+    if (typeof loadPatientHistory === 'function') loadPatientHistory(mode === 'all');
 };
 
 // 1. ฟังก์ชันโหลดข้อมูลประวัติจากฐานข้อมูล
-window.loadPatientHistory = async function () {
+// forceAll = true → ดึงข้อมูลทั้งหมด (ไม่จำกัดวัน), false/undefined → default วันนี้ถ้าไม่ได้เลือกวัน
+window.loadPatientHistory = async function (forceAll = false) {
     const tbody = document.querySelector('#historyTable tbody');
     if (!tbody) return;
 
     tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูลประวัติ...</td></tr>';
 
-    const startDate = document.getElementById('historyStartDate')?.value;
-    const endDate = document.getElementById('historyEndDate')?.value;
+    const startInput = document.getElementById('historyStartDate');
+    const endInput   = document.getElementById('historyEndDate');
+
+    // ✅ ถ้าไม่ได้เลือกวัน และไม่ได้กด "ทั้งหมด" → ใช้วันปัจจุบันเป็น default
+    if (!forceAll) {
+        const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD (timezone local)
+        if (startInput && !startInput.value) startInput.value = todayStr;
+        if (endInput   && !endInput.value)   endInput.value   = todayStr;
+    }
+
+    const startDate = startInput?.value;
+    const endDate   = endInput?.value;
 
     try {
         if (typeof _supabase !== 'undefined') {
@@ -11030,7 +11275,7 @@ window.renderHistoryTable = function (page = window.historyCurrentPage) {
     const endIndex = startIndex + HISTORY_PER_PAGE;
     const currentData = window.historyFilteredData.slice(startIndex, endIndex);
 
-    // วาดแถวตาราง (10 รายการ)
+    // วาดแถวตาราง (15 รายการ)
     currentData.forEach((row, idx) => {
         let no = startIndex + idx + 1;
         const dateObj = new Date(row.created_at || row.updated_at);
@@ -13562,17 +13807,7 @@ function onUserRoleChange(role) {
 }
 window.onUserRoleChange = onUserRoleChange;
 
-window.commissionLogs = JSON.parse(localStorage.getItem('clinic_commission_logs') || 'null') || [
-    { id: 'COM-50001', referrer_id: '961220', referrer_name: '961220 - LAVLAVA', patient_name: 'น้อยใจ', visit_id: 'VIS-345173', total_invoice: 1525000, amount: 200000, base_amount: 200000, item_amount: 0, status: 'paid', paid_at: '2026-08-07T10:00:00Z', payout_method: 'โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)', created_at: '2026-08-07T10:00:00Z' },
-    { id: 'COM-50002', referrer_id: '961220', referrer_name: '961220 - LAVLAVA', patient_name: 'LL', visit_id: 'VIS-345174', total_invoice: 850000, amount: 300000, base_amount: 200000, item_amount: 100000, status: 'paid', paid_at: '2026-08-07T09:30:00Z', payout_method: 'โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)', created_at: '2026-08-07T09:30:00Z' },
-    { id: 'COM-50003', referrer_id: '104289', referrer_name: '104289 - LOVE STK', patient_name: 'สายธี', visit_id: 'VIS-345175', total_invoice: 450000, amount: 200000, base_amount: 200000, item_amount: 0, status: 'paid', paid_at: '2026-08-04T14:00:00Z', payout_method: 'โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)', payout_ref: 'SLIP-99281', created_at: '2026-08-04T10:00:00Z' },
-    { id: 'COM-50004', referrer_id: 'L03709', referrer_name: 'L03709 - MS CHERRY LOUANGPHAN', patient_name: 'll', visit_id: 'VIS-345176', total_invoice: 850000, amount: 200000, base_amount: 200000, item_amount: 0, status: 'paid', paid_at: '2026-08-07T11:00:00Z', payout_method: 'โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)', created_at: '2026-08-07T11:00:00Z' },
-    { id: 'COM-50005', referrer_id: 'L03709', referrer_name: 'L03709 - MS CHERRY LOUANGPHAN', patient_name: 'RTR', visit_id: 'VIS-345177', total_invoice: 1375000, amount: 300000, base_amount: 200000, item_amount: 100000, status: 'paid', paid_at: '2026-08-07T11:15:00Z', payout_method: 'โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)', created_at: '2026-08-07T11:15:00Z' },
-    { id: 'COM-50006', referrer_id: 'L03709', referrer_name: 'L03709 - MS CHERRY LOUANGPHAN', patient_name: 'HH', visit_id: 'VIS-345178', total_invoice: 850000, amount: 200000, base_amount: 200000, item_amount: 0, status: 'paid', paid_at: '2026-08-07T11:30:00Z', payout_method: 'โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)', created_at: '2026-08-07T11:30:00Z' },
-    { id: 'COM-50007', referrer_id: '104289', referrer_name: '104289 - LOVE STK', patient_name: 'สายดี', visit_id: 'VIS-345179', total_invoice: 1500, amount: 200000, base_amount: 200000, item_amount: 0, status: 'paid', paid_at: '2026-08-04T10:30:00Z', payout_method: 'โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)', created_at: '2026-08-04T10:30:00Z' },
-    { id: 'COM-50008', referrer_id: 'L03053', referrer_name: 'L03053 - AUCKSONE VONGVIVANH MS', patient_name: 'LL', visit_id: 'VIS-345180', total_invoice: 700000, amount: 200000, base_amount: 200000, item_amount: 0, status: 'pending', created_at: '2026-08-07T12:00:00Z' },
-    { id: 'COM-50009', referrer_id: 'L03053', referrer_name: 'L03053 - AUCKSONE VONGVIVANH MS', patient_name: 'LL', visit_id: 'VIS-345181', total_invoice: 1150000, amount: 200000, base_amount: 200000, item_amount: 0, status: 'paid', paid_at: '2026-08-07T11:45:00Z', payout_method: 'โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)', created_at: '2026-08-07T11:45:00Z' }
-];
+window.commissionLogs = JSON.parse(localStorage.getItem('clinic_commission_logs') || 'null') || [];
 
 function selectAllPermissions(checked) {
     document.querySelectorAll('#permissionCheckboxes input[type="checkbox"]').forEach(cb => {
@@ -13632,16 +13867,58 @@ async function loadStaffUsers() {
 }
 
 function updateStaffSummary(list) {
+    if (!list) list = [];
     const total = list.length;
-    const active = list.filter(u => u.is_active !== false).length;
+    const docCount = list.filter(u => {
+        const r = String(u.role || '').toLowerCase();
+        return r === 'doctor' || r === 'แพทย์' || r === 'หมอ';
+    }).length;
+    const pharmCount = list.filter(u => {
+        const r = String(u.role || '').toLowerCase();
+        return r === 'pharmacist' || r === 'เภสัชกร' || r === 'เภสัช';
+    }).length;
+    const nurseCount = list.filter(u => {
+        const r = String(u.role || '').toLowerCase();
+        return r === 'nurse' || r === 'พยาบาล';
+    }).length;
+    const medicalTotal = docCount + pharmCount + nurseCount;
+
     const admin = list.filter(u => u.role === 'admin').length;
     const user = list.filter(u => u.role !== 'admin').length;
     const el = id => document.getElementById(id);
     if (el('staffTotalCount')) el('staffTotalCount').textContent = total;
-    if (el('staffActiveCount')) el('staffActiveCount').textContent = active;
+    if (el('staffActiveCount')) {
+        el('staffActiveCount').innerHTML = `${medicalTotal} <span class="text-muted fw-normal" style="font-size:0.75rem;">(Dr: ${docCount}, Ph: ${pharmCount}, Nu: ${nurseCount})</span>`;
+    }
     if (el('staffAdminCount')) el('staffAdminCount').textContent = admin;
     if (el('staffUserCount')) el('staffUserCount').textContent = user;
 }
+
+function showAllStaff() {
+    window._staffMedicalFilterActive = false;
+    const searchInput = document.getElementById('searchStaffInput');
+    if (searchInput) searchInput.value = '';
+    const list = window.allStaffUsers || (typeof allStaffUsers !== 'undefined' ? allStaffUsers : []);
+    if (typeof renderStaffTable === 'function') renderStaffTable(list);
+}
+
+function filterStaffByMedical() {
+    const list = window.allStaffUsers || (typeof allStaffUsers !== 'undefined' ? allStaffUsers : []);
+    if (!list || list.length === 0) return;
+
+    if (window._staffMedicalFilterActive) {
+        showAllStaff();
+    } else {
+        window._staffMedicalFilterActive = true;
+        const filtered = list.filter(u => {
+            const r = String(u.role || '').toLowerCase();
+            return ['doctor', 'แพทย์', 'หมอ', 'pharmacist', 'เภสัชกร', 'เภสัช', 'nurse', 'พยาบาล'].includes(r);
+        });
+        if (typeof renderStaffTable === 'function') renderStaffTable(filtered);
+    }
+}
+window.showAllStaff = showAllStaff;
+window.filterStaffByMedical = filterStaffByMedical;
 
 function renderStaffTable(list) {
     const tbody = document.querySelector('#staffTable tbody');
@@ -14298,11 +14575,7 @@ window.commissionSettings = JSON.parse(localStorage.getItem('clinic_commission_s
     target_bonus_value: 0
 };
 
-window.commissionLogs = JSON.parse(localStorage.getItem('clinic_commission_logs') || 'null') || [
-    { id: 'COM-50001', referrer_id: '961220', referrer_name: '961220 - LAVLAVA', patient_name: 'น้อยใจ', visit_id: 'VIS-345173', total_invoice: 1525000, amount: 200000, base_amount: 200000, item_amount: 0, status: 'pending', created_at: '2026-08-07T10:00:00Z' },
-    { id: 'COM-50002', referrer_id: '961220', referrer_name: '961220 - LAVLAVA', patient_name: 'LL', visit_id: 'VIS-345174', total_invoice: 850000, amount: 300000, base_amount: 200000, item_amount: 100000, status: 'pending', created_at: '2026-08-07T09:30:00Z' },
-    { id: 'COM-50003', referrer_id: '104289', referrer_name: '104289 - LOVE STK', patient_name: 'สายธี', visit_id: 'VIS-345175', total_invoice: 450000, amount: 200000, base_amount: 200000, item_amount: 0, status: 'paid', paid_at: '2026-08-04T14:00:00Z', payout_method: 'โอนเงินผ่านธนาคาร (อนุมัติจ่ายแล้ว)', payout_ref: 'SLIP-99281', created_at: '2026-08-04T10:00:00Z' }
-];
+window.commissionLogs = JSON.parse(localStorage.getItem('clinic_commission_logs') || 'null') || [];
 
 function getCurrencySymbol() {
     return (window.commissionSettings && window.commissionSettings.currency === 'LAK') ? '₭' : '฿';
@@ -14429,11 +14702,12 @@ async function loadReferralData(isManualClick = false) {
         initCommissionToggles();
     }
 
-    // 1. Reset all Date Filters & Search Inputs across tabs
+    // 1. Reset Date Filters → default วันนี้ (ไม่ล้างเป็นค่าว่าง เพื่อให้แสดงข้อมูลวันนี้ก่อน)
     const startDateEl = document.getElementById('referrerReportStartDate');
     const endDateEl = document.getElementById('referrerReportEndDate');
-    if (startDateEl) startDateEl.value = '';
-    if (endDateEl) endDateEl.value = '';
+    const todayRefStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD (timezone local)
+    if (startDateEl && !startDateEl.value) startDateEl.value = todayRefStr;
+    if (endDateEl   && !endDateEl.value)   endDateEl.value   = todayRefStr;
 
     const searchRefInput = document.getElementById('searchReferrerInput');
     if (searchRefInput) searchRefInput.value = '';
@@ -14447,8 +14721,11 @@ async function loadReferralData(isManualClick = false) {
     const monthInput = document.getElementById('filterLogMonth');
     if (monthInput) monthInput.value = '';
 
-    const dateInput = document.getElementById('filterLogDate');
-    if (dateInput) dateInput.value = '';
+    // ✅ Tab "ประวัติบิน/ปันผล" → default วันนี้ ถ้ายังไม่มีการเลือกวัน
+    const filterLogStartEl = document.getElementById('filterLogStartDate');
+    const filterLogEndEl   = document.getElementById('filterLogEndDate');
+    if (filterLogStartEl && !filterLogStartEl.value) filterLogStartEl.value = todayRefStr;
+    if (filterLogEndEl   && !filterLogEndEl.value)   filterLogEndEl.value   = todayRefStr;
 
     // 2. Fetch fresh data from LocalStorage first as instant cache
     const localRef = localStorage.getItem('clinic_referrers');
@@ -14461,18 +14738,25 @@ async function loadReferralData(isManualClick = false) {
         } catch (e) { }
     }
 
+    window.isDeleted = window.isDeleted || function() { return false; };
+    const isMockCommLog = (l) => {
+        if (!l) return false;
+        const id = String(l.id || '');
+        const vId = String(l.visit_id || '');
+        if (/^COM-5000[1-9]$/.test(id)) return true;
+        if (/^VIS-34517[3-9]$/.test(vId) || /^VIS-34518[0-1]$/.test(vId)) return true;
+        return false;
+    };
+
     const localLogs = localStorage.getItem('clinic_commission_logs');
     if (localLogs) {
         try {
             const parsedLogs = JSON.parse(localLogs);
             if (Array.isArray(parsedLogs) && parsedLogs.length > 0) {
-                const seenV = new Set();
+                const cleanLocalLogs = parsedLogs.filter(item => item && !isMockCommLog(item));
+                localStorage.setItem('clinic_commission_logs', JSON.stringify(cleanLocalLogs));
                 const seenId = new Set();
-                window.commissionLogs = parsedLogs.filter(item => {
-                    if (item.visit_id) {
-                        if (seenV.has(item.visit_id)) return false;
-                        seenV.add(item.visit_id);
-                    }
+                window.commissionLogs = cleanLocalLogs.filter(item => {
                     if (item.id) {
                         if (seenId.has(item.id)) return false;
                         seenId.add(item.id);
@@ -14496,21 +14780,32 @@ async function loadReferralData(isManualClick = false) {
 
     try {
         if (typeof _supabase !== 'undefined') {
-            const resLogs = await _supabase.from('commission_logs').select('*').order('created_at', { ascending: false });
+            const resLogs = await _supabase
+                .from('commission_logs')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(200);
             if (resLogs && resLogs.data) {
-                const seenV = new Set();
+                // Auto-clean any stale mock logs from Supabase cloud table
+                const staleMockIds = resLogs.data.filter(isMockCommLog).map(l => l.id).filter(Boolean);
+                if (staleMockIds.length > 0) {
+                    try {
+                        _supabase.from('commission_logs').delete().in('id', staleMockIds).then(() => {
+                            console.log('✅ Auto-cleaned mock commission logs from Supabase:', staleMockIds);
+                        });
+                    } catch (e) { }
+                }
+
                 const seenId = new Set();
-                window.commissionLogs = resLogs.data.filter(item => {
-                    if (item.visit_id) {
-                        if (seenV.has(item.visit_id)) return false;
-                        seenV.add(item.visit_id);
-                    }
-                    if (item.id) {
-                        if (seenId.has(item.id)) return false;
-                        seenId.add(item.id);
-                    }
-                    return true;
-                });
+                window.commissionLogs = resLogs.data
+                    .filter(item => item && !isMockCommLog(item))
+                    .filter(item => {
+                        if (item.id) {
+                            if (seenId.has(item.id)) return false;
+                            seenId.add(item.id);
+                        }
+                        return true;
+                    });
                 window.safeSetLocalStorage('clinic_commission_logs', (window.commissionLogs || []).slice(0, 50));
             }
         }
@@ -14534,13 +14829,20 @@ async function loadReferralData(isManualClick = false) {
         }
     } catch (e) { }
 
-    // Refresh total_invoice for logs if visit record is found
+    // Refresh total_invoice and true transaction date for logs if visit record is found
     if (Array.isArray(window.commissionLogs)) {
+        const allV = (window.clinicVisits || []).concat(window.allVisitsCache || []);
         window.commissionLogs.forEach(l => {
-            if ((!l.total_invoice || l.total_invoice <= 0) && l.visit_id) {
-                const v = (window.allVisits || []).find(x => x.visit_id === l.visit_id);
+            if (l.visit_id) {
+                const v = allV.find(x => (x.visit_id || x.id) === l.visit_id);
                 if (v) {
-                    l.total_invoice = parseFloat(v.payable_amount || v.total_price || v.price || 0);
+                    if (!l.total_invoice || l.total_invoice <= 0) {
+                        l.total_invoice = parseFloat(v.payable_amount || v.total_price || v.price || 0);
+                    }
+                    const vDate = v.created_at || v.date || v.visit_date;
+                    if (vDate && l.created_at !== vDate) {
+                        l.created_at = vDate;
+                    }
                 }
             }
         });
@@ -14628,8 +14930,12 @@ async function loadReferralData(isManualClick = false) {
     saveReferralLocalData();
     updateReferralSummaryCards();
     renderReferrersTable();
-    setCommLogPeriodFilter('month');
-    renderCommissionLogsTable();
+    if (!window.commLogFilterInitialized) {
+        window.commLogFilterInitialized = true;
+        setCommLogPeriodFilter('month');
+    } else {
+        renderCommissionLogsTable();
+    }
     renderDailyExamReport();
     populateReferrerDropdowns();
 
@@ -15187,64 +15493,308 @@ function printReferrersReport() {
     }, 500);
 }
 
-let commLogPeriodMode = 'month';
+function formatLocalDateYMD(d) {
+    if (!d || isNaN(d.getTime())) return '';
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function parseLogDateToYMD(val) {
+    if (!val) return '';
+    if (val instanceof Date) {
+        return formatLocalDateYMD(val);
+    }
+    if (typeof val === 'string') {
+        const s = val.trim();
+        const mSlash = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+        if (mSlash) {
+            let day = parseInt(mSlash[1], 10);
+            let month = parseInt(mSlash[2], 10);
+            let year = parseInt(mSlash[3], 10);
+            if (year > 2400) year -= 543;
+            return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+        const d = new Date(s);
+        if (!isNaN(d.getTime())) {
+            return formatLocalDateYMD(d);
+        }
+        if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+            return s.substring(0, 10);
+        }
+    }
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) {
+        return formatLocalDateYMD(d);
+    }
+    return '';
+}
+window.parseLogDateToYMD = parseLogDateToYMD;
 
 function setCommLogPeriodFilter(mode) {
-    if (commLogPeriodMode === mode) {
-        commLogPeriodMode = 'all';
-    } else {
-        commLogPeriodMode = mode;
-    }
+    commLogPeriodMode = mode || 'month';
 
+    const btnToday = document.getElementById('btnCommLogToday');
     const btnMonth = document.getElementById('btnCommLogMonth');
     const btnYear = document.getElementById('btnCommLogYear');
-    const btnDay = document.getElementById('btnCommLogDay');
-    const dateInput = document.getElementById('filterLogDate');
-    const monthInput = document.getElementById('filterLogMonth');
+    const btnAll = document.getElementById('btnCommLogAll');
+    const sInput = document.getElementById('filterLogStartDate');
+    const eInput = document.getElementById('filterLogEndDate');
 
-    [btnMonth, btnYear, btnDay].forEach(btn => {
-        if (btn) {
-            btn.classList.remove('bg-light', 'text-primary', 'shadow-xs', 'fw-bold');
-            btn.classList.add('text-muted', 'bg-transparent');
+    [btnToday, btnMonth, btnYear, btnAll].forEach(b => {
+        if (b) {
+            b.classList.remove('bg-light', 'text-primary', 'shadow-xs', 'fw-bold');
+            b.classList.add('text-muted', 'bg-transparent');
         }
     });
 
-    if (dateInput) dateInput.classList.add('d-none');
-    if (monthInput) monthInput.classList.add('d-none');
+    const now = new Date();
+    let startDate = '';
+    let endDate = '';
 
-    if (commLogPeriodMode === 'month') {
+    if (commLogPeriodMode === 'today') {
+        if (btnToday) {
+            btnToday.classList.remove('text-muted', 'bg-transparent');
+            btnToday.classList.add('bg-light', 'text-primary', 'shadow-xs', 'fw-bold');
+        }
+        startDate = formatLocalDateYMD(now);
+        endDate = startDate;
+    } else if (commLogPeriodMode === 'month') {
         if (btnMonth) {
             btnMonth.classList.remove('text-muted', 'bg-transparent');
             btnMonth.classList.add('bg-light', 'text-primary', 'shadow-xs', 'fw-bold');
         }
-        if (monthInput) {
-            monthInput.classList.remove('d-none');
-            if (!monthInput.value) {
-                const now = new Date();
-                monthInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-            }
-        }
+        const y = now.getFullYear();
+        const m = now.getMonth();
+        startDate = formatLocalDateYMD(new Date(y, m, 1));
+        endDate = formatLocalDateYMD(new Date(y, m + 1, 0));
     } else if (commLogPeriodMode === 'year') {
         if (btnYear) {
             btnYear.classList.remove('text-muted', 'bg-transparent');
             btnYear.classList.add('bg-light', 'text-primary', 'shadow-xs', 'fw-bold');
         }
-    } else if (commLogPeriodMode === 'day') {
-        if (btnDay) {
-            btnDay.classList.remove('text-muted', 'bg-transparent');
-            btnDay.classList.add('bg-light', 'text-primary', 'shadow-xs', 'fw-bold');
+        const y = now.getFullYear();
+        startDate = `${y}-01-01`;
+        endDate = `${y}-12-31`;
+    } else if (commLogPeriodMode === 'all') {
+        if (btnAll) {
+            btnAll.classList.remove('text-muted', 'bg-transparent');
+            btnAll.classList.add('bg-light', 'text-primary', 'shadow-xs', 'fw-bold');
         }
-        if (dateInput) {
-            dateInput.classList.remove('d-none');
-            if (!dateInput.value) {
-                const now = new Date();
-                dateInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-            }
-        }
+        startDate = '';
+        endDate = '';
     }
 
-    renderCommissionLogsTable();
+    if (sInput) sInput.value = startDate;
+    if (eInput) eInput.value = endDate;
+
+    window.commLogCurrentPage = 1;
+    renderCommissionLogsTable(1);
 }
+window.setCommLogPeriodFilter = setCommLogPeriodFilter;
+
+function onCommLogDateRangeChange() {
+    const sInput = document.getElementById('filterLogStartDate');
+    const eInput = document.getElementById('filterLogEndDate');
+    const sDate = sInput ? sInput.value : '';
+    const eDate = eInput ? eInput.value : '';
+
+    const btnToday = document.getElementById('btnCommLogToday');
+    const btnMonth = document.getElementById('btnCommLogMonth');
+    const btnYear = document.getElementById('btnCommLogYear');
+    const btnAll = document.getElementById('btnCommLogAll');
+
+    [btnToday, btnMonth, btnYear, btnAll].forEach(b => {
+        if (b) {
+            b.classList.remove('bg-light', 'text-primary', 'shadow-xs', 'fw-bold');
+            b.classList.add('text-muted', 'bg-transparent');
+        }
+    });
+
+    const now = new Date();
+    const todayStr = formatLocalDateYMD(now);
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const firstDayStr = formatLocalDateYMD(new Date(y, m, 1));
+    const lastDayStr = formatLocalDateYMD(new Date(y, m + 1, 0));
+
+    if (!sDate && !eDate) {
+        commLogPeriodMode = 'all';
+        if (btnAll) {
+            btnAll.classList.remove('text-muted', 'bg-transparent');
+            btnAll.classList.add('bg-light', 'text-primary', 'shadow-xs', 'fw-bold');
+        }
+    } else if (sDate === todayStr && eDate === todayStr) {
+        commLogPeriodMode = 'today';
+        if (btnToday) {
+            btnToday.classList.remove('text-muted', 'bg-transparent');
+            btnToday.classList.add('bg-light', 'text-primary', 'shadow-xs', 'fw-bold');
+        }
+    } else if (sDate === firstDayStr && eDate === lastDayStr) {
+        commLogPeriodMode = 'month';
+        if (btnMonth) {
+            btnMonth.classList.remove('text-muted', 'bg-transparent');
+            btnMonth.classList.add('bg-light', 'text-primary', 'shadow-xs', 'fw-bold');
+        }
+    } else if (sDate === `${y}-01-01` && eDate === `${y}-12-31`) {
+        commLogPeriodMode = 'year';
+        if (btnYear) {
+            btnYear.classList.remove('text-muted', 'bg-transparent');
+            btnYear.classList.add('bg-light', 'text-primary', 'shadow-xs', 'fw-bold');
+        }
+    } else {
+        commLogPeriodMode = 'custom';
+    }
+
+    window.commLogCurrentPage = 1;
+    renderCommissionLogsTable(1);
+}
+window.onCommLogDateRangeChange = onCommLogDateRangeChange;
+
+function printCommissionLogsReport() {
+    const sDate = document.getElementById('filterLogStartDate')?.value || '';
+    const eDate = document.getElementById('filterLogEndDate')?.value || '';
+    const filterStatus = document.getElementById('filterLogStatus')?.value || 'all';
+    const dateRangeStr = (sDate || eDate) ? `${sDate || 'เริ่มต้น'} ถึง ${eDate || 'ปัจจุบัน'}` : 'ทั้งหมด';
+
+    const allVisitsList = (window.clinicVisits || []).concat(window.allVisitsCache || []);
+    const getTrueLogDate = (l) => {
+        if (!l) return '';
+        if (l.visit_id) {
+            const mv = allVisitsList.find(v => (v.visit_id || v.id) === l.visit_id);
+            if (mv && (mv.created_at || mv.date)) return mv.created_at || mv.date;
+        }
+        return l.created_at || '';
+    };
+
+    let logs = [...(window.commissionLogs || [])];
+    const isMockCommLog = (l) => {
+        if (!l) return false;
+        const id = String(l.id || '');
+        const vId = String(l.visit_id || '');
+        if (/^COM-5000[1-9]$/.test(id)) return true;
+        if (/^VIS-34517[3-9]$/.test(vId) || /^VIS-34518[0-1]$/.test(vId)) return true;
+        return false;
+    };
+    logs = logs.filter(l => l && !isMockCommLog(l));
+
+    if (filterStatus !== 'all') {
+        logs = logs.filter(l => l.status === filterStatus);
+    }
+    if (sDate || eDate) {
+        logs = logs.filter(l => {
+            const rawDate = getTrueLogDate(l);
+            if (!rawDate) return false;
+            const logDate = parseLogDateToYMD(rawDate);
+            if (!logDate) return false;
+            if (sDate && logDate < sDate) return false;
+            if (eDate && logDate > eDate) return false;
+            return true;
+        });
+    }
+
+    const printDate = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    let totalInvoice = 0, totalBase = 0, totalItem = 0;
+    logs.forEach(l => {
+        totalInvoice += parseFloat(l.total_invoice || 0);
+        totalBase += parseFloat(l.base_amount || 0);
+        totalItem += parseFloat(l.item_amount || 0);
+    });
+
+    const rowsHtml = logs.map((l, i) => {
+        const dateStr = l.created_at ? new Date(l.created_at).toLocaleDateString('th-TH') : '-';
+        const stText = l.status === 'paid' ? 'จ่ายแล้ว' : 'รอจ่าย';
+        const bVal = parseFloat(l.base_amount || 0);
+        const iVal = parseFloat(l.item_amount || 0);
+        return `
+            <tr>
+                <td style="text-align: center; border: 1px solid #cbd5e1; padding: 6px;">${i + 1}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 6px;">${dateStr}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 6px; font-weight: bold;">${l.referrer_name || '-'}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 6px;">${l.patient_name || '-'}</td>
+                <td style="text-align: right; border: 1px solid #cbd5e1; padding: 6px;">${formatCommissionAmount(l.total_invoice || 0)}</td>
+                <td style="text-align: right; border: 1px solid #cbd5e1; padding: 6px;">${formatCommissionAmount(bVal)}</td>
+                <td style="text-align: right; border: 1px solid #cbd5e1; padding: 6px;">${formatCommissionAmount(iVal)}</td>
+                <td style="text-align: right; border: 1px solid #cbd5e1; padding: 6px; font-weight: bold; color: #16a34a;">${formatCommissionAmount(bVal + iVal)}</td>
+                <td style="text-align: center; border: 1px solid #cbd5e1; padding: 6px;">${stText}</td>
+            </tr>
+        `;
+    }).join('');
+
+    const printWin = window.open('', '_blank', 'width=900,height=700');
+    if (!printWin) return;
+    printWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>รายงานรายการค่าคอมมิชชั่น / ปันผล - Clinic System</title>
+            <style>
+                body { font-family: 'Sarabun', 'Kanit', sans-serif; padding: 24px; color: #0f172a; margin: 0; }
+                .header { text-align: center; border-bottom: 2px solid #003f88; padding-bottom: 12px; margin-bottom: 16px; }
+                .title { font-size: 18px; font-weight: bold; color: #003f88; margin: 0; }
+                .meta { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 12px; background: #f8fafc; padding: 8px 12px; border-radius: 6px; }
+                .stats { display: flex; gap: 12px; margin-bottom: 16px; }
+                .stat-box { flex: 1; background: #f1f5f9; padding: 10px; border-radius: 6px; text-align: center; border: 1px solid #e2e8f0; }
+                .stat-num { font-size: 16px; font-weight: bold; color: #003f88; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
+                th { background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 8px; text-align: left; }
+                .footer { margin-top: 30px; display: flex; justify-content: space-between; font-size: 12px; }
+                .sign-box { text-align: center; width: 180px; }
+                .sign-line { border-bottom: 1px solid #94a3b8; margin-top: 40px; margin-bottom: 4px; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h2 class="title">🏥 รายงานประวัติรายการเงินปันผล / ค่าคอมมิชชั่น</h2>
+                <div style="font-size: 12px; color: #64748b; margin-top: 4px;">Clinic System - Referral & Dividend History Report</div>
+            </div>
+            <div class="meta">
+                <div>ช่วงเวลา: <strong>${dateRangeStr}</strong> | สถานะ: <strong>${filterStatus === 'all' ? 'ทั้งหมด' : (filterStatus === 'paid' ? 'จ่ายแล้ว' : 'รอจ่าย')}</strong></div>
+                <div>วันที่ออกรายงาน: <strong>${printDate}</strong></div>
+            </div>
+            <div class="stats">
+                <div class="stat-box">
+                    <div style="font-size: 11px; color: #64748b;">จำนวนรายการ</div>
+                    <div class="stat-num">${logs.length} รายการ</div>
+                </div>
+                <div class="stat-box">
+                    <div style="font-size: 11px; color: #64748b;">ยอดค่าบริการรวม</div>
+                    <div class="stat-num">${formatCommissionAmount(totalInvoice)}</div>
+                </div>
+                <div class="stat-box">
+                    <div style="font-size: 11px; color: #64748b;">ยอดปันผลรวมสุทธิ</div>
+                    <div class="stat-num" style="color: #16a34a;">${formatCommissionAmount(totalBase + totalItem)}</div>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="text-align: center; width: 35px;">#</th>
+                        <th style="width: 85px;">วันที่</th>
+                        <th>ผู้แนะนำ</th>
+                        <th>ผู้ป่วย</th>
+                        <th style="text-align: right; width: 95px;">ยอดค่าบริการ</th>
+                        <th style="text-align: right; width: 95px;">ปันผลภาพรวม</th>
+                        <th style="text-align: right; width: 95px;">ปันผลรายการ</th>
+                        <th style="text-align: right; width: 100px;">ยอดรวม</th>
+                        <th style="text-align: center; width: 70px;">สถานะ</th>
+                    </tr>
+                </thead>
+                <tbody>${rowsHtml}</tbody>
+            </table>
+            <div class="footer">
+                <div class="sign-box"><div class="sign-line"></div><div>ผู้จัดทำรายงาน</div></div>
+                <div class="sign-box"><div class="sign-line"></div><div>ผู้อนุมัติ / ผู้จัดการคลินิก</div></div>
+            </div>
+        </body>
+        </html>
+    `);
+    printWin.document.close();
+    printWin.focus();
+    setTimeout(() => { printWin.print(); }, 500);
+}
+window.printCommissionLogsReport = printCommissionLogsReport;
 
 window.selectedCommLogIds = window.selectedCommLogIds || new Set();
 
@@ -15401,7 +15951,22 @@ async function batchPayoutCommissionLogs() {
 }
 window.batchPayoutCommissionLogs = batchPayoutCommissionLogs;
 
-function renderCommissionLogsTable() {
+window.commLogCurrentPage = 1;
+const COMM_LOGS_PER_PAGE = 15;
+
+function changeCommLogPage(page) {
+    renderCommissionLogsTable(page);
+}
+window.changeCommLogPage = changeCommLogPage;
+
+function renderCommissionLogsTable(page) {
+    if (typeof page === 'number' && !isNaN(page)) {
+        window.commLogCurrentPage = page;
+    }
+    if (!window.commLogCurrentPage || isNaN(window.commLogCurrentPage) || window.commLogCurrentPage < 1) {
+        window.commLogCurrentPage = 1;
+    }
+
     const tbody = document.querySelector('#commissionLogsTable tbody');
     if (!tbody) return;
 
@@ -15411,21 +15976,30 @@ function renderCommissionLogsTable() {
     const searchInput = document.getElementById('searchLogInput');
     const searchText = searchInput ? searchInput.value.toLowerCase().trim() : '';
 
-    const dateInput = document.getElementById('filterLogDate');
-    const monthInput = document.getElementById('filterLogMonth');
+    const sDateInput = document.getElementById('filterLogStartDate');
+    const eDateInput = document.getElementById('filterLogEndDate');
+    const sDate = sDateInput ? sDateInput.value : '';
+    const eDate = eDateInput ? eDateInput.value : '';
 
     tbody.innerHTML = '';
 
-    let logs = [...window.commissionLogs];
+    // ป้องกัน Error หาก array ยังไม่ถูกโหลด
+    let logs = [...(window.commissionLogs || [])];
 
-    // Defensive Deduplication: Ensure each visit_id or id is unique in the displayed table
-    const seenVisitIds = new Set();
+    // กรอง mock data เก่า และรายการที่ถูกลบออกเด็ดขาด
+    const isMockCommLog = (l) => {
+        if (!l) return false;
+        const id = String(l.id || '');
+        const vId = String(l.visit_id || '');
+        if (/^COM-5000[1-9]$/.test(id)) return true;
+        if (/^VIS-34517[3-9]$/.test(vId) || /^VIS-34518[0-1]$/.test(vId)) return true;
+        return false;
+    };
+    logs = logs.filter(l => l && !isMockCommLog(l));
+
+    // 1. นำการกรอง visit_id ออก เพื่อให้แสดงปันผลได้ครบทุกรายการแม้อยู่ในบิลเดียวกัน
     const seenLogIds = new Set();
     logs = logs.filter(l => {
-        if (l.visit_id) {
-            if (seenVisitIds.has(l.visit_id)) return false;
-            seenVisitIds.add(l.visit_id);
-        }
         if (l.id) {
             if (seenLogIds.has(l.id)) return false;
             seenLogIds.add(l.id);
@@ -15448,46 +16022,35 @@ function renderCommissionLogsTable() {
         logs = logs.filter(l => !l.visit_id || !unpaidVisitIds.has(l.visit_id));
     }
 
-    // 1. Filter by Status
+    // 3. Filter by Status
     if (filterStatus !== 'all') {
         logs = logs.filter(l => l.status === filterStatus);
     }
 
-    // 2. Filter by Period (Month / Year / Day)
-    if (commLogPeriodMode === 'month') {
-        let targetMonth = monthInput && monthInput.value ? monthInput.value : '';
-        if (!targetMonth) {
-            const now = new Date();
-            targetMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const allVisitsList = (window.clinicVisits || []).concat(window.allVisitsCache || []);
+    const getTrueLogDate = (l) => {
+        if (!l) return '';
+        if (l.visit_id) {
+            const mv = allVisitsList.find(v => (v.visit_id || v.id) === l.visit_id);
+            if (mv && (mv.created_at || mv.date)) return mv.created_at || mv.date;
         }
+        return l.created_at || '';
+    };
+
+    // 4. Filter by Date Range (Start Date - End Date)
+    if (sDate || eDate) {
         logs = logs.filter(l => {
-            if (!l.created_at) return true;
-            const d = new Date(l.created_at);
-            const logMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            return logMonth === targetMonth;
-        });
-    } else if (commLogPeriodMode === 'year') {
-        const targetYear = new Date().getFullYear();
-        logs = logs.filter(l => {
-            if (!l.created_at) return true;
-            const d = new Date(l.created_at);
-            return d.getFullYear() === targetYear;
-        });
-    } else if (commLogPeriodMode === 'day') {
-        let targetDate = dateInput && dateInput.value ? dateInput.value : '';
-        if (!targetDate) {
-            const now = new Date();
-            targetDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-        }
-        logs = logs.filter(l => {
-            if (!l.created_at) return true;
-            const d = new Date(l.created_at);
-            const logDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-            return logDate === targetDate;
+            const rawD = getTrueLogDate(l);
+            if (!rawD) return false;
+            const logDate = parseLogDateToYMD(rawD);
+            if (!logDate) return false;
+            if (sDate && logDate < sDate) return false;
+            if (eDate && logDate > eDate) return false;
+            return true;
         });
     }
 
-    // 3. Filter by Search input text
+    // 5. Filter by Search input text
     if (searchText) {
         logs = logs.filter(l => {
             const refName = (l.referrer_name || '').toLowerCase();
@@ -15517,24 +16080,44 @@ function renderCommissionLogsTable() {
             return isPendingB - isPendingA; // Pending items appear FIRST at the top!
         }
 
-        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        const timeA = new Date(getTrueLogDate(a) || 0).getTime();
+        const timeB = new Date(getTrueLogDate(b) || 0).getTime();
         if (timeA !== timeB) {
             return timeB - timeA; // Secondary sort: Newest timestamp first
         }
         return (b.id || '').localeCompare(a.id || '', undefined, { numeric: true, sensitivity: 'base' });
     });
 
-    // Calculate and populate Bottom Summary Bar totals dynamically
+    // Calculate totals across ALL filtered logs for the summary bar
     let totalInvoiceSum = 0;
     let totalBaseSum = 0;
     let totalItemSum = 0;
+    logs.forEach(l => {
+        const baseVal = (l.base_amount !== undefined && l.base_amount !== null) ? parseFloat(l.base_amount) : 0;
+        const itemVal = (l.item_amount !== undefined && l.item_amount !== null) ? parseFloat(l.item_amount) : 0;
+        const invoiceVal = parseFloat(l.total_invoice || 0);
+        totalInvoiceSum += invoiceVal;
+        totalBaseSum += baseVal;
+        totalItemSum += itemVal;
+    });
 
-    if (logs.length === 0) {
+    // Pagination: 15 items per page
+    const totalLogs = logs.length;
+    const totalPages = Math.ceil(totalLogs / COMM_LOGS_PER_PAGE) || 1;
+    if (window.commLogCurrentPage > totalPages) {
+        window.commLogCurrentPage = totalPages;
+    }
+    const currentPage = window.commLogCurrentPage;
+    const startIndex = (currentPage - 1) * COMM_LOGS_PER_PAGE;
+    const pageLogs = logs.slice(startIndex, startIndex + COMM_LOGS_PER_PAGE);
+
+    if (totalLogs === 0) {
         tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-5">ไม่มีประวัติรายการเงินปันผล/คอมมิชชั่น</td></tr>';
     } else {
-        logs.forEach((l, index) => {
-            let dateStr = l.created_at ? new Date(l.created_at).toLocaleDateString('th-TH') : '-';
+        pageLogs.forEach((l, index) => {
+            const rowNumber = startIndex + index + 1;
+            const trueDateVal = getTrueLogDate(l);
+            let dateStr = trueDateVal ? new Date(trueDateVal).toLocaleDateString('th-TH') : '-';
             let statusBadge = l.status === 'paid'
                 ? '<span class="badge badge-paid"><i class="bi bi-check-circle-fill me-1"></i>จ่ายแล้ว</span>'
                 : '<span class="badge badge-pending"><i class="bi bi-clock-history me-1"></i>รออนุมัติ / รอจ่าย</span>';
@@ -15550,10 +16133,6 @@ function renderCommissionLogsTable() {
             let totalVal = (l.amount !== undefined && l.amount !== null) ? parseFloat(l.amount) : (baseVal + itemVal);
 
             let invoiceVal = parseFloat(l.total_invoice || 0);
-
-            totalInvoiceSum += invoiceVal;
-            totalBaseSum += baseVal;
-            totalItemSum += itemVal;
 
             let overallText = formatCommissionAmount(baseVal);
             let itemText = formatCommissionAmount(itemVal);
@@ -15591,7 +16170,7 @@ function renderCommissionLogsTable() {
                     <td class="text-center ps-3" style="width: 40px;">
                         <input type="checkbox" class="form-check-input comm-log-checkbox" value="${l.id}" ${checkAttr} onchange="onCommLogCheckboxChange('${l.id}', this.checked)">
                     </td>
-                    <td class="ps-2 fw-bold text-muted" style="width: 50px;">${index + 1}</td>
+                    <td class="ps-2 fw-bold text-muted" style="width: 50px;">${rowNumber}</td>
                     <td class="small text-muted">${dateStr}</td>
                     <td class="fw-bold text-dark">${l.referrer_name || '-'}</td>
                     <td class="fw-medium">
@@ -15623,11 +16202,71 @@ function renderCommissionLogsTable() {
 
     const totalCombinedSum = totalBaseSum + totalItemSum;
 
-    if (document.getElementById('commFooterCount')) document.getElementById('commFooterCount').textContent = `${logs.length} รายการ`;
+    if (document.getElementById('commFooterCount')) {
+        document.getElementById('commFooterCount').textContent = totalLogs > 0
+            ? `${totalLogs} รายการ (หน้า ${currentPage}/${totalPages})`
+            : `0 รายการ`;
+    }
     if (document.getElementById('commFooterInvoice')) document.getElementById('commFooterInvoice').textContent = formatCommissionAmount(totalInvoiceSum);
     if (document.getElementById('commFooterBase')) document.getElementById('commFooterBase').textContent = formatCommissionAmount(totalBaseSum);
     if (document.getElementById('commFooterItem')) document.getElementById('commFooterItem').textContent = formatCommissionAmount(totalItemSum);
     if (document.getElementById('commFooterTotal')) document.getElementById('commFooterTotal').textContent = formatCommissionAmount(totalCombinedSum);
+
+    // วาดปุ่ม Pagination แสดง 15 รายการ/หน้า และตัวเลือกหน้า 1, 2, 3...
+    const paginationContainer = document.getElementById('commLogPaginationContainer');
+    if (paginationContainer) {
+        if (totalLogs === 0) {
+            paginationContainer.innerHTML = '';
+        } else {
+            const startDisplay = startIndex + 1;
+            const endDisplay = Math.min(startIndex + COMM_LOGS_PER_PAGE, totalLogs);
+
+            let pagHtml = `
+                <div class="d-flex justify-content-between align-items-center w-100 px-2 flex-wrap gap-2">
+                    <div class="text-muted small fw-semibold">
+                        แสดง <strong class="text-dark">${startDisplay} - ${endDisplay}</strong> จากทั้งหมด <strong class="text-dark">${totalLogs}</strong> รายการ
+                    </div>
+                    <div class="d-flex justify-content-center align-items-center gap-1 flex-wrap">
+            `;
+
+            if (totalPages > 1) {
+                // ปุ่มย้อนกลับ
+                pagHtml += `
+                    <button type="button" class="btn btn-sm btn-light border text-muted px-2.5 py-1 rounded-2" onclick="changeCommLogPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''} style="font-size: 0.82rem;" title="หน้าก่อนหน้า">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                `;
+
+                // ปุ่มเลขหน้า 1, 2, 3...
+                for (let i = 1; i <= totalPages; i++) {
+                    if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+                        const activeClass = (i === currentPage)
+                            ? 'btn-primary text-white fw-bold shadow-xs'
+                            : 'btn-light border text-dark';
+                        pagHtml += `<button type="button" class="btn btn-sm ${activeClass} px-3 py-1 rounded-2" onclick="changeCommLogPage(${i})" style="font-size: 0.82rem; min-width: 34px;">${i}</button>`;
+                    } else if (i === currentPage - 3 || i === currentPage + 3) {
+                        pagHtml += `<span class="px-2 text-muted small">...</span>`;
+                    }
+                }
+
+                // ปุ่มหน้าถัดไป
+                pagHtml += `
+                    <button type="button" class="btn btn-sm btn-light border text-muted px-2.5 py-1 rounded-2" onclick="changeCommLogPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''} style="font-size: 0.82rem;" title="หน้าถัดไป">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                `;
+            }
+
+            pagHtml += `
+                    </div>
+                    <div class="text-muted small fw-semibold text-end d-none d-md-block" style="min-width: 140px;">
+                        หน้า <strong class="text-primary">${currentPage}</strong> / <strong class="text-dark">${totalPages}</strong>
+                    </div>
+                </div>
+            `;
+            paginationContainer.innerHTML = pagHtml;
+        }
+    }
 
     updateCommLogSelectState();
 }
@@ -17242,6 +17881,17 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
     // Deterministic ID based on visitId if available to prevent duplicate entries
     const logId = visitId ? ('COM-' + visitId) : generateId('COM');
 
+    // Resolve true transaction date: prioritize visit's created_at, date, or payment date
+    let trueCreatedAt = (visitRecord && (visitRecord.created_at || visitRecord.date || visitRecord.visit_date || visitRecord.payment_date))
+        ? (visitRecord.created_at || visitRecord.date || visitRecord.visit_date || visitRecord.payment_date)
+        : '';
+    if (!trueCreatedAt && visitId) {
+        const allV = (window.allVisitsCache || []).concat(window.clinicVisits || []);
+        const foundV = allV.find(x => (x.visit_id || x.id) === visitId);
+        if (foundV && (foundV.created_at || foundV.date)) trueCreatedAt = foundV.created_at || foundV.date;
+    }
+    if (!trueCreatedAt) trueCreatedAt = new Date().toISOString();
+
     const existingIdx = window.commissionLogs.findIndex(l => (visitId && l.visit_id === visitId) || l.id === logId);
     if (existingIdx !== -1) {
         // If already paid, do not overwrite or reset payout status
@@ -17259,7 +17909,8 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
             patient_name: patientName || window.commissionLogs[existingIdx].patient_name,
             referrer_id: referrerId,
             referrer_name: refName,
-            is_bonus: isBonusApplied
+            is_bonus: isBonusApplied,
+            created_at: trueCreatedAt || window.commissionLogs[existingIdx].created_at
         };
         const updatedLog = window.commissionLogs[existingIdx];
         if (!isBatch) {
@@ -17303,7 +17954,7 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
         amount: commAmount,
         status: 'pending',
         is_bonus: isBonusApplied,
-        created_at: new Date().toISOString()
+        created_at: trueCreatedAt
     };
 
     window.commissionLogs.unshift(newLog);
@@ -17359,7 +18010,8 @@ async function syncAllVisitsCommissionLogs() {
         localVisits.forEach(v => {
             if (v && (v.visit_id || v.id)) {
                 const k = v.visit_id || v.id;
-                map.set(k, { ...(map.get(k) || {}), ...v, visit_id: k });
+                const existing = map.get(k) || {};
+                map.set(k, { ...existing, ...v, visit_id: k, created_at: v.created_at || existing.created_at });
             }
         });
         visits = Array.from(map.values());
@@ -17411,7 +18063,37 @@ async function syncAllVisitsCommissionLogs() {
         }
     }
 
-    if (addedCount > 0) {
+    // 🌟 Reconcile and fix transaction dates of all existing commission logs using true visits created_at
+    const visitDateMap = new Map();
+    visits.forEach(v => {
+        const vId = v.visit_id || v.id;
+        const vDate = v.created_at || v.date || v.visit_date;
+        if (vId && vDate) visitDateMap.set(vId, vDate);
+    });
+
+    const logsToFix = [];
+    (window.commissionLogs || []).forEach(l => {
+        if (l.visit_id && visitDateMap.has(l.visit_id)) {
+            const trueDate = visitDateMap.get(l.visit_id);
+            if (trueDate && l.created_at !== trueDate) {
+                l.created_at = trueDate;
+                logsToFix.push({ id: l.id, created_at: trueDate });
+            }
+        }
+    });
+
+    if (logsToFix.length > 0) {
+        saveReferralLocalData();
+        if (typeof _supabase !== 'undefined') {
+            _supabase.from('commission_logs').upsert(logsToFix, { onConflict: 'id' }).then(() => {
+                console.log(`✅ Synced transaction dates for ${logsToFix.length} commission logs from visits table`);
+            }).catch(err => {
+                console.warn('Sync commission log dates error:', err);
+            });
+        }
+    }
+
+    if (addedCount > 0 || logsToFix.length > 0) {
         saveReferralLocalData();
         updateReferralSummaryCards();
         if (typeof renderReferrersTable === 'function') renderReferrersTable();
@@ -17482,7 +18164,37 @@ async function loadDailyReport(isManualClick = false) {
     // Query Supabase visits table
     try {
         if (typeof _supabase !== 'undefined') {
-            const { data, error } = await _supabase.from('visits').select('*').order('created_at', { ascending: false });
+            let vQuery = _supabase
+                .from('visits')
+                .select('visit_id, hn, patient_name, doctor_name, symptom, created_at, status');
+
+            if (periodMode === 'day') {
+                let targetDate = dateInput && dateInput.value ? dateInput.value : '';
+                if (!targetDate) {
+                    const todayRange = getVientianeDateRange('today');
+                    targetDate = todayRange.startStr;
+                    if (dateInput) dateInput.value = targetDate;
+                }
+                vQuery = vQuery.gte('created_at', targetDate + "T00:00:00").lte('created_at', targetDate + "T23:59:59");
+            } else if (periodMode === 'month') {
+                let targetMonth = monthInput && monthInput.value ? monthInput.value : '';
+                if (!targetMonth) {
+                    const vNow = getVientianeNow();
+                    targetMonth = `${vNow.getFullYear()}-${String(vNow.getMonth() + 1).padStart(2, '0')}`;
+                    if (monthInput) monthInput.value = targetMonth;
+                }
+                // Bug 5: คำนวณวันสุดท้ายของเดือนให้ถูกต้อง (ไม่ใช้ -31 คงที่)
+                const [mYear, mMon] = targetMonth.split('-').map(Number);
+                const lastDay = new Date(mYear, mMon, 0).getDate(); // วันสุดท้ายของเดือนนั้น
+                vQuery = vQuery.gte('created_at', targetMonth + "-01T00:00:00").lte('created_at', `${targetMonth}-${String(lastDay).padStart(2,'0')}T23:59:59`);
+            } else if (periodMode === 'year') {
+                // Bug 4: เพิ่ม filter สำหรับ year mode
+                const vNow = getVientianeNow();
+                const yearStr = String(vNow.getFullYear());
+                vQuery = vQuery.gte('created_at', yearStr + "-01-01T00:00:00").lte('created_at', yearStr + "-12-31T23:59:59");
+            }
+
+            const { data, error } = await vQuery.order('created_at', { ascending: false }).limit(200);
             if (data && data.length > 0) {
                 visits = data;
                 window.allVisitsCache = data;
@@ -18749,6 +19461,9 @@ async function saveBill(visitId, opts) {
 window.saveBill = saveBill;
 
 async function loadBills(forceReload = false) {
+    if (forceReload) {
+        window.currentBillPage = 1;
+    }
     const tbody = document.getElementById('billsTableBody');
     if (tbody && (!window.allBillsData || window.allBillsData.length === 0 || forceReload)) {
         tbody.innerHTML = '<tr><td colspan="13" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูลใบเสร็จ...</td></tr>';
@@ -18800,11 +19515,41 @@ async function loadBills(forceReload = false) {
     };
 
     // 1. ดึงข้อมูลจากตาราง bills และ visits ใน Supabase พร้อมกัน
+    let startInput = document.getElementById('billStartDate');
+    let endInput = document.getElementById('billEndDate');
+
+    // ⚡ ค่าเริ่มต้น: ดึงเฉพาะข้อมูลวันปัจจุบัน เพื่อให้โหลดหน้าเว็บได้รวดเร็ว (Fast Load)
+    // หากต้องการดูย้อนหลัง ผู้ใช้สามารถเลือกช่วงเวลา หรือคลิกปุ่ม "เดือนนี้" / "ทั้งหมด"
+    if ((!startInput?.value || !endInput?.value) && !window._billFilterExplicitAll) {
+        const todayRange = getVientianeDateRange('today');
+        if (startInput && !startInput.value) startInput.value = todayRange.startStr;
+        if (endInput && !endInput.value) endInput.value = todayRange.endStr;
+    }
+
+    const startDate = startInput?.value || '';
+    const endDate = endInput?.value || '';
+
     try {
         if (typeof _supabase !== 'undefined') {
+            let bQuery = _supabase
+                .from('bills')
+                .select('bill_id, visit_id, hn, patient_name, items, subtotal, discount, payable_amount, currency, status, created_by, created_at, note');
+            let vQuery = _supabase
+                .from('visits')
+                .select('visit_id, hn, patient_name, doctor_name, status, lab_tests, symptom, meds, lab_note, created_at');
+
+            if (startDate) {
+                bQuery = bQuery.gte('created_at', startDate + "T00:00:00+07:00");
+                vQuery = vQuery.gte('created_at', startDate + "T00:00:00+07:00");
+            }
+            if (endDate) {
+                bQuery = bQuery.lte('created_at', endDate + "T23:59:59.999+07:00");
+                vQuery = vQuery.lte('created_at', endDate + "T23:59:59.999+07:00");
+            }
+
             const [{ data: bData }, { data: vData }] = await Promise.all([
-                _supabase.from('bills').select('*').order('created_at', { ascending: false }),
-                _supabase.from('visits').select('*').order('created_at', { ascending: false })
+                bQuery.order('created_at', { ascending: false }).limit(200),
+                vQuery.order('created_at', { ascending: false }).limit(200)
             ]);
             if (bData && Array.isArray(bData)) {
                 // ลบคำสั่งซื้อ Order เก่าที่เคยหลุดเข้าตาราง bills ออกอัตโนมัติ
@@ -18817,13 +19562,15 @@ async function loadBills(forceReload = false) {
                     } catch (e) { }
                 }
 
-                billsList = bData.filter(b => !isDeleted(b.bill_id) && !isDeleted(b.visit_id) && !isDeleted(b.id) && !isBookingOrderBill(b)).map(b => {
+                // Bug 1: ลบ !isDeleted(b.id) ออก เพราะ bills select ไม่ได้ดึง column id กลับมาแล้ว
+                billsList = bData.filter(b => !isDeleted(b.bill_id) && !isDeleted(b.visit_id) && !isBookingOrderBill(b)).map(b => {
                     const labItems = (Array.isArray(b.items) ? b.items : []).filter(i => i && i.type !== 'med');
-                    return { ...b, items: labItems };
+                    return { ...b, total_price: b.subtotal || b.payable_amount || 0, items: labItems };
                 });
             }
             if (vData && Array.isArray(vData)) {
-                visitList = vData.filter(v => !isDeleted(v.visit_id) && !isDeleted(v.id));
+                // Bug 2: ลบ !isDeleted(v.id) ออก เพราะ visits table ไม่มี column id
+                visitList = vData.filter(v => !isDeleted(v.visit_id));
                 window.clinicVisits = visitList;
             }
         }
@@ -18946,6 +19693,9 @@ async function loadBills(forceReload = false) {
         window.safeSetLocalStorage('clinic_bills_cache', (billsList || []).slice(0, 50));
     }
     renderBillsTable();
+    if (typeof window.updateDashboardBillsCount === 'function') {
+        window.updateDashboardBillsCount();
+    }
 }
 window.loadBills = loadBills;
 
@@ -18980,26 +19730,28 @@ function setBillDateFilter(type) {
     const endInput = document.getElementById('billEndDate');
     if (!startInput || !endInput) return;
 
-    const today = new Date();
-    const formatDate = function (d) {
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    };
-
-    if (type === 'today') {
-        startInput.value = formatDate(today);
-        endInput.value = formatDate(today);
-    } else if (type === 'month') {
-        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-        startInput.value = formatDate(firstDay);
-        endInput.value = formatDate(today);
-    } else {
+    if (type === 'all') {
+        window._billFilterExplicitAll = true;
         startInput.value = '';
         endInput.value = '';
+        loadBills(true);
+        return;
     }
-    renderBillsTable();
+    window._billFilterExplicitAll = false;
+
+    if (type === 'year') {
+        const vNow = getVientianeNow();
+        startInput.value = `${vNow.getFullYear()}-01-01`;
+        endInput.value = `${vNow.getFullYear()}-12-31`;
+        loadBills(true);
+        return;
+    }
+
+    let filterType = type;
+    if (type === 'month') filterType = 'thisMonth';
+    applyQuickDateFilter(filterType, 'billStartDate', 'billEndDate', () => {
+        loadBills(true);
+    });
 }
 window.setBillDateFilter = setBillDateFilter;
 
@@ -19095,7 +19847,7 @@ async function loadExpenseLabCases(force = false) {
             try {
                 const { data, error } = await _supabase
                     .from('visits')
-                    .select('visit_id, hn, patient_name, name, lab_tests, tests, items, total_price, price, created_at')
+                    .select('visit_id, hn, patient_name, lab_tests, created_at')
                     .order('created_at', { ascending: false })
                     .limit(100);
 
@@ -19404,7 +20156,127 @@ function isClinicAdminUser() {
 }
 window.isClinicAdminUser = isClinicAdminUser;
 
-function renderBillsTable() {
+const BILLS_PER_PAGE = 15;
+window.currentBillPage = 1;
+window.currentFilteredBills = [];
+
+function changeBillPage(page) {
+    if (typeof page === 'number' && !isNaN(page) && page >= 1) {
+        window.currentBillPage = page;
+        renderBillsTable(page);
+    }
+}
+window.changeBillPage = changeBillPage;
+
+function renderBillsPagination(totalItems, currentPage, totalPages) {
+    const listEl = document.getElementById('billsPaginationList');
+    const showingRangeEl = document.getElementById('billsShowingRange');
+    const totalCountEl = document.getElementById('billsTotalCount');
+    const curPageEl = document.getElementById('billsCurrentPageNum');
+    const totalPagesEl = document.getElementById('billsTotalPagesNum');
+
+    if (showingRangeEl) {
+        if (totalItems === 0) {
+            showingRangeEl.textContent = '0 - 0';
+        } else {
+            const s = (currentPage - 1) * BILLS_PER_PAGE + 1;
+            const e = Math.min(currentPage * BILLS_PER_PAGE, totalItems);
+            showingRangeEl.textContent = `${s} - ${e}`;
+        }
+    }
+    if (totalCountEl) totalCountEl.textContent = totalItems.toLocaleString();
+    if (curPageEl) curPageEl.textContent = currentPage;
+    if (totalPagesEl) totalPagesEl.textContent = totalPages;
+
+    if (!listEl) return;
+    if (totalItems === 0 || totalPages <= 1) {
+        listEl.innerHTML = '';
+        return;
+    }
+
+    let paginationHtml = '';
+    // Previous Button
+    const prevDisabled = currentPage <= 1 ? 'disabled' : '';
+    paginationHtml += `
+        <li class="page-item ${prevDisabled}">
+            <button class="page-link rounded-circle d-flex align-items-center justify-content-center" 
+                style="width: 32px; height: 32px; font-size: 0.8rem; border: none; ${currentPage <= 1 ? 'opacity: 0.5;' : ''}"
+                onclick="changeBillPage(${currentPage - 1})" ${prevDisabled ? 'disabled' : ''} title="Previous">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+        </li>
+    `;
+
+    // Page Numbers: 1, 2, 3...
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+    if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    if (startPage > 1) {
+        paginationHtml += `
+            <li class="page-item">
+                <button class="page-link rounded-circle d-flex align-items-center justify-content-center"
+                    style="width: 32px; height: 32px; font-size: 0.82rem; border: none;"
+                    onclick="changeBillPage(1)">1</button>
+            </li>
+        `;
+        if (startPage > 2) {
+            paginationHtml += `<li class="page-item disabled"><span class="page-link border-0 text-muted px-1" style="font-size: 0.8rem;">...</span></li>`;
+        }
+    }
+
+    for (let p = startPage; p <= endPage; p++) {
+        const isActive = p === currentPage;
+        paginationHtml += `
+            <li class="page-item ${isActive ? 'active' : ''}">
+                <button class="page-link rounded-circle d-flex align-items-center justify-content-center fw-semibold"
+                    style="width: 32px; height: 32px; font-size: 0.82rem; border: none; ${isActive ? 'background-color: #0b3c73; color: #ffffff;' : ''}"
+                    onclick="changeBillPage(${p})">${p}</button>
+            </li>
+        `;
+    }
+
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            paginationHtml += `<li class="page-item disabled"><span class="page-link border-0 text-muted px-1" style="font-size: 0.8rem;">...</span></li>`;
+        }
+        paginationHtml += `
+            <li class="page-item">
+                <button class="page-link rounded-circle d-flex align-items-center justify-content-center"
+                    style="width: 32px; height: 32px; font-size: 0.82rem; border: none;"
+                    onclick="changeBillPage(${totalPages})">${totalPages}</button>
+            </li>
+        `;
+    }
+
+    // Next Button
+    const nextDisabled = currentPage >= totalPages ? 'disabled' : '';
+    paginationHtml += `
+        <li class="page-item ${nextDisabled}">
+            <button class="page-link rounded-circle d-flex align-items-center justify-content-center"
+                style="width: 32px; height: 32px; font-size: 0.8rem; border: none; ${currentPage >= totalPages ? 'opacity: 0.5;' : ''}"
+                onclick="changeBillPage(${currentPage + 1})" ${nextDisabled ? 'disabled' : ''} title="Next">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+        </li>
+    `;
+
+    listEl.innerHTML = paginationHtml;
+}
+window.renderBillsPagination = renderBillsPagination;
+
+function renderBillsTable(page) {
+    if (typeof page === 'number' && !isNaN(page) && page >= 1) {
+        window.currentBillPage = page;
+    }
+    if (!window.currentBillPage || window.currentBillPage < 1) {
+        window.currentBillPage = 1;
+    }
+
     const tbody = document.getElementById('billsTableBody');
     if (!tbody) return;
 
@@ -19447,6 +20319,8 @@ function renderBillsTable() {
         });
     }
 
+    window.currentFilteredBills = bills;
+
     let grandSubtotal = 0;
     let grandDiscount = 0;
     let grandPayable = 0;
@@ -19455,7 +20329,12 @@ function renderBillsTable() {
 
     tbody.innerHTML = '';
     if (bills.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="13" class="text-center text-muted py-5"><i class="ph ph-receipt fs-2 text-primary opacity-25 d-block mb-2"></i>ไม่พบข้อมูลใบเสร็จรับเงินในระบบ</td></tr>';
+        const hasDate = Boolean(startVal || endVal);
+        let msg = 'ບໍ່ພົບຂໍ້ມູນໃບເສັດຮັບເງິນ / ไม่พบข้อมูลใบเสร็จรับเงินในระบบ';
+        if (hasDate) {
+            msg = `ບໍ່ພົບລາຍການໃບບິນໃນວັນທີເລືອກ (${startVal || 'ເລີ່ມຕົ້ນ'} ຫາ ${endVal || 'ປະຈຸບັນ'})<br><span class="extra-small text-muted mt-1.5 d-inline-block"><i class="bi bi-info-circle me-1"></i>ຖ້າຕ້ອງການເບິ່ງລາຍການຍ້ອນຫຼັງ ກະລຸນາປ່ຽນວັນທີ ຫຼື ກົດປຸ່ມ <strong>"ເດືອນນີ້"</strong> / <strong>"ທັງໝົດ"</strong></span>`;
+        }
+        tbody.innerHTML = `<tr><td colspan="13" class="text-center text-muted py-5"><i class="ph ph-receipt fs-2 text-primary opacity-25 d-block mb-2"></i>${msg}</td></tr>`;
         if (document.getElementById('billFooterCount')) document.getElementById('billFooterCount').textContent = '0';
         if (document.getElementById('billFooterTotal')) document.getElementById('billFooterTotal').textContent = '₭0';
         if (document.getElementById('billFooterCash')) document.getElementById('billFooterCash').textContent = '₭0';
@@ -19464,17 +20343,13 @@ function renderBillsTable() {
         if (document.getElementById('billStatSubtotal')) document.getElementById('billStatSubtotal').textContent = '₭0';
         if (document.getElementById('billStatDiscount')) document.getElementById('billStatDiscount').textContent = '₭0';
         if (document.getElementById('billStatPayable')) document.getElementById('billStatPayable').textContent = '₭0';
+        renderBillsPagination(0, 1, 1);
         return;
     }
 
-    const isAdmin = isClinicAdminUser();
-
-    bills.forEach(function (b, idx) {
-        // คิดเฉพาะรายการตรวจ (กรองรายการยา/อาหารเสริมออก)
+    // Precalculate totals across ALL filtered bills for stat cards and summary footer
+    bills.forEach(function (b) {
         let labItems = (Array.isArray(b.items) ? b.items : []).filter(item => item.type !== 'med');
-        const itemCount = labItems.length;
-
-        // คำนวณราคาแต่ละรายการตรวจและยอดรวมใหม่
         let itemsTotal = 0;
         labItems.forEach(function (item) {
             let price = parseFloat(item.price || 0);
@@ -19508,6 +20383,35 @@ function renderBillsTable() {
         grandPayable += payable;
         grandCash += cashAmount;
         grandTransfer += transferAmount;
+    });
+
+    // Pagination: 15 items per page
+    const totalItems = bills.length;
+    const totalPages = Math.ceil(totalItems / BILLS_PER_PAGE) || 1;
+    if (window.currentBillPage > totalPages) {
+        window.currentBillPage = totalPages;
+    }
+    const currentPage = window.currentBillPage;
+
+    const startIndex = (currentPage - 1) * BILLS_PER_PAGE;
+    const pageBills = bills.slice(startIndex, startIndex + BILLS_PER_PAGE);
+
+    const isAdmin = isClinicAdminUser();
+    let rowsHtml = '';
+
+    pageBills.forEach(function (b, index) {
+        const rowNum = startIndex + index + 1;
+        const labItems = b.items || [];
+        const itemCount = labItems.length;
+        const subtotal = b.subtotal || 0;
+        const discount = parseFloat(b.discount || 0);
+        const payable = b.payable_amount || 0;
+
+        let vMatch = null;
+        if (Array.isArray(window.clinicVisits)) {
+            vMatch = window.clinicVisits.find(x => x.visit_id === b.visit_id || (b.hn && x.hn === b.hn));
+        }
+        const { cashAmount, transferAmount } = parseBillPaymentSplit(b, vMatch);
 
         const d = b.created_at ? new Date(b.created_at) : null;
         const dateStr = d ? d.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
@@ -19521,8 +20425,8 @@ function renderBillsTable() {
         }
         actionButtons += '</div>';
 
-        tbody.innerHTML += '<tr class="border-bottom">' +
-            '<td class="ps-4 fw-bold text-muted" style="font-size:0.85rem;">' + (idx + 1) + '</td>' +
+        rowsHtml += '<tr class="border-bottom">' +
+            '<td class="ps-4 fw-bold text-muted" style="font-size:0.85rem;">' + rowNum + '</td>' +
             '<td class="fw-bold text-primary" style="font-size:0.88rem;">' + (b.bill_id || '-') + '</td>' +
             '<td class="small text-secondary">' + (b.visit_id || '-') + '</td>' +
             '<td><div class="fw-bold text-dark">' + (b.patient_name || '-') + '</div><div class="text-muted extra-small">HN: ' + (b.hn || '-') + '</div></td>' +
@@ -19538,16 +20442,20 @@ function renderBillsTable() {
             '</tr>';
     });
 
+    tbody.innerHTML = rowsHtml;
+
     // Update Stat Cards & Footer
-    if (document.getElementById('billStatCount')) document.getElementById('billStatCount').textContent = bills.length.toLocaleString();
+    if (document.getElementById('billStatCount')) document.getElementById('billStatCount').textContent = totalItems.toLocaleString();
     if (document.getElementById('billStatSubtotal')) document.getElementById('billStatSubtotal').textContent = '₭' + grandSubtotal.toLocaleString();
     if (document.getElementById('billStatDiscount')) document.getElementById('billStatDiscount').textContent = '₭' + grandDiscount.toLocaleString();
     if (document.getElementById('billStatPayable')) document.getElementById('billStatPayable').textContent = '₭' + grandPayable.toLocaleString();
 
-    if (document.getElementById('billFooterCount')) document.getElementById('billFooterCount').textContent = bills.length.toLocaleString();
+    if (document.getElementById('billFooterCount')) document.getElementById('billFooterCount').textContent = totalItems.toLocaleString();
     if (document.getElementById('billFooterTotal')) document.getElementById('billFooterTotal').textContent = '₭' + grandPayable.toLocaleString();
     if (document.getElementById('billFooterCash')) document.getElementById('billFooterCash').textContent = '₭' + grandCash.toLocaleString();
     if (document.getElementById('billFooterTransfer')) document.getElementById('billFooterTransfer').textContent = '₭' + grandTransfer.toLocaleString();
+
+    renderBillsPagination(totalItems, currentPage, totalPages);
 }
 window.renderBillsTable = renderBillsTable;
 
@@ -21377,6 +22285,10 @@ function getExpenseLocalDateStr(dateInput) {
 }
 
 window.clinicExpensesData = [];
+window.currentExpensePage = 1;
+window.currentFilteredExpenses = [];
+const EXPENSES_PER_PAGE = 15;
+
 async function loadExpenses() {
     try {
         let expenses = [];
@@ -21398,27 +22310,164 @@ async function loadExpenses() {
         if (q || cat || sDate || eDate) {
             filterExpensesTable();
         } else {
-            renderExpensesTable(expenses);
+            window.currentExpensePage = 1;
+            renderExpensesTable(expenses, 1);
         }
     } catch (e) {
         console.warn('loadExpenses error:', e);
     }
 }
-function renderExpensesTable(list) {
-    const tbody = document.getElementById('expensesTableBody');
-    if (!tbody) return;
-    if (!list || list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">ຍັງບໍ່ມີຂໍ້ມູນລາຍຈ່າຍ</td></tr>';
-        updateExpenseStats([]);
+
+function changeExpensePage(page) {
+    if (typeof page === 'number' && !isNaN(page) && page >= 1) {
+        window.currentExpensePage = page;
+        renderExpensesTable();
+    }
+}
+window.changeExpensePage = changeExpensePage;
+
+function renderExpensesPagination(totalItems, currentPage, totalPages) {
+    const listEl = document.getElementById('expensesPaginationList');
+    const showingRangeEl = document.getElementById('expensesShowingRange');
+    const totalCountEl = document.getElementById('expensesTotalCount');
+    const curPageEl = document.getElementById('expensesCurrentPageNum');
+    const totalPagesEl = document.getElementById('expensesTotalPagesNum');
+
+    if (showingRangeEl) {
+        if (totalItems === 0) {
+            showingRangeEl.textContent = '0 - 0';
+        } else {
+            const s = (currentPage - 1) * EXPENSES_PER_PAGE + 1;
+            const e = Math.min(currentPage * EXPENSES_PER_PAGE, totalItems);
+            showingRangeEl.textContent = `${s} - ${e}`;
+        }
+    }
+    if (totalCountEl) totalCountEl.textContent = totalItems.toLocaleString();
+    if (curPageEl) curPageEl.textContent = currentPage;
+    if (totalPagesEl) totalPagesEl.textContent = totalPages;
+
+    if (!listEl) return;
+    if (totalItems === 0 || totalPages <= 1) {
+        listEl.innerHTML = '';
         return;
     }
+
+    let paginationHtml = '';
+    // Previous Button
+    const prevDisabled = currentPage <= 1 ? 'disabled' : '';
+    paginationHtml += `
+        <li class="page-item ${prevDisabled}">
+            <button class="page-link rounded-circle d-flex align-items-center justify-content-center" 
+                style="width: 32px; height: 32px; font-size: 0.8rem; border: none; ${currentPage <= 1 ? 'opacity: 0.5;' : ''}"
+                onclick="changeExpensePage(${currentPage - 1})" ${prevDisabled ? 'disabled' : ''} title="Previous">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+        </li>
+    `;
+
+    // Page Numbers: 1, 2, 3...
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+    if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    if (startPage > 1) {
+        paginationHtml += `
+            <li class="page-item">
+                <button class="page-link rounded-circle d-flex align-items-center justify-content-center"
+                    style="width: 32px; height: 32px; font-size: 0.82rem; border: none;"
+                    onclick="changeExpensePage(1)">1</button>
+            </li>
+        `;
+        if (startPage > 2) {
+            paginationHtml += `<li class="page-item disabled"><span class="page-link border-0 text-muted px-1" style="font-size: 0.8rem;">...</span></li>`;
+        }
+    }
+
+    for (let p = startPage; p <= endPage; p++) {
+        const isActive = p === currentPage;
+        paginationHtml += `
+            <li class="page-item ${isActive ? 'active' : ''}">
+                <button class="page-link rounded-circle d-flex align-items-center justify-content-center fw-semibold"
+                    style="width: 32px; height: 32px; font-size: 0.82rem; border: none; ${isActive ? 'background-color: #0b3c73; color: #ffffff;' : ''}"
+                    onclick="changeExpensePage(${p})">${p}</button>
+            </li>
+        `;
+    }
+
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            paginationHtml += `<li class="page-item disabled"><span class="page-link border-0 text-muted px-1" style="font-size: 0.8rem;">...</span></li>`;
+        }
+        paginationHtml += `
+            <li class="page-item">
+                <button class="page-link rounded-circle d-flex align-items-center justify-content-center"
+                    style="width: 32px; height: 32px; font-size: 0.82rem; border: none;"
+                    onclick="changeExpensePage(${totalPages})">${totalPages}</button>
+            </li>
+        `;
+    }
+
+    // Next Button
+    const nextDisabled = currentPage >= totalPages ? 'disabled' : '';
+    paginationHtml += `
+        <li class="page-item ${nextDisabled}">
+            <button class="page-link rounded-circle d-flex align-items-center justify-content-center"
+                style="width: 32px; height: 32px; font-size: 0.8rem; border: none; ${currentPage >= totalPages ? 'opacity: 0.5;' : ''}"
+                onclick="changeExpensePage(${currentPage + 1})" ${nextDisabled ? 'disabled' : ''} title="Next">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+        </li>
+    `;
+
+    listEl.innerHTML = paginationHtml;
+}
+window.renderExpensesPagination = renderExpensesPagination;
+
+function renderExpensesTable(list, page) {
+    if (Array.isArray(list)) {
+        window.currentFilteredExpenses = list;
+    }
+    const fullList = window.currentFilteredExpenses || window.clinicExpensesData || [];
+
+    if (typeof page === 'number' && !isNaN(page) && page >= 1) {
+        window.currentExpensePage = page;
+    }
+    if (!window.currentExpensePage || window.currentExpensePage < 1) {
+        window.currentExpensePage = 1;
+    }
+
+    const tbody = document.getElementById('expensesTableBody');
+    if (!tbody) return;
+
+    const totalItems = fullList.length;
+    const totalPages = Math.ceil(totalItems / EXPENSES_PER_PAGE) || 1;
+    if (window.currentExpensePage > totalPages) {
+        window.currentExpensePage = totalPages;
+    }
+    const currentPage = window.currentExpensePage;
+
+    if (totalItems === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">ຍັງບໍ່ມີຂໍ້ມູນລາຍຈ່າຍ</td></tr>';
+        updateExpenseStats([]);
+        renderExpensesPagination(0, 1, 1);
+        return;
+    }
+
+    const startIndex = (currentPage - 1) * EXPENSES_PER_PAGE;
+    const pageItems = fullList.slice(startIndex, startIndex + EXPENSES_PER_PAGE);
+
     let html = '';
-    list.forEach((item, index) => {
+    pageItems.forEach((item, index) => {
+        const rowNum = startIndex + index + 1;
         const dateStr = item.date || (item.created_at ? getExpenseLocalDateStr(item.created_at) : '-');
         const amount = parseFloat(item.amount || 0);
         html += `
             <tr>
-                <td class="ps-3 py-3 text-muted text-center">${index + 1}</td>
+                <td class="ps-3 py-3 text-muted text-center">${rowNum}</td>
                 <td>${dateStr}</td>
                 <td><span class="badge bg-secondary-subtle text-secondary rounded-pill px-2.5 py-1">${item.category || 'ທົ່ວໄປ'}</span></td>
                 <td class="fw-semibold text-dark">${item.title || '-'}</td>
@@ -21432,8 +22481,11 @@ function renderExpensesTable(list) {
         `;
     });
     tbody.innerHTML = html;
-    updateExpenseStats(list);
+    updateExpenseStats(fullList);
+    renderExpensesPagination(totalItems, currentPage, totalPages);
 }
+window.renderExpensesTable = renderExpensesTable;
+
 function updateExpenseStats(list) {
     const todayStr = getExpenseLocalDateStr(new Date());
     const currentMonth = todayStr.substring(0, 7);
@@ -21455,6 +22507,7 @@ function updateExpenseStats(list) {
     if (document.getElementById('statTodayExpenseCount')) document.getElementById('statTodayExpenseCount').textContent = todayCount + ' ລາຍການ';
     if (document.getElementById('statMonthExpense')) document.getElementById('statMonthExpense').textContent = '₭' + monthTotal.toLocaleString();
 }
+
 function setExpenseDateFilter(mode) {
     const startInput = document.getElementById('expenseStartDate');
     const endInput = document.getElementById('expenseEndDate');
@@ -21500,8 +22553,10 @@ function filterExpensesTable() {
 
         return matchQ && matchCat && passDate;
     });
-    renderExpensesTable(filtered);
+    window.currentExpensePage = 1;
+    renderExpensesTable(filtered, 1);
 }
+window.filterExpensesTable = filterExpensesTable;
 
 function resetExpenseFilter() {
     if (document.getElementById('expenseSearchInput')) document.getElementById('expenseSearchInput').value = '';
@@ -21510,10 +22565,11 @@ function resetExpenseFilter() {
     if (document.getElementById('expenseEndDate')) document.getElementById('expenseEndDate').value = '';
     if (document.getElementById('expenseDateFilter')) document.getElementById('expenseDateFilter').value = '';
 
+    window.currentExpensePage = 1;
     if (typeof filterExpensesTable === 'function') {
         filterExpensesTable();
     } else {
-        renderExpensesTable(window.clinicExpensesData || []);
+        renderExpensesTable(window.clinicExpensesData || [], 1);
     }
 }
 
@@ -21781,8 +22837,14 @@ function switchBillsView(viewMode) {
         if (listView) listView.style.display = 'none';
         if (dailyView) dailyView.style.display = 'block';
 
+        // ซิงค์วันที่จากหน้า Bills มาให้ตรงกันทันที
+        const billStart = document.getElementById('billStartDate')?.value;
+        const billEnd = document.getElementById('billEndDate')?.value;
         const startInput = document.getElementById('dailyReportStartDate');
         const endInput = document.getElementById('dailyReportEndDate');
+        if (billStart && startInput) startInput.value = billStart;
+        if (billEnd && endInput) endInput.value = billEnd;
+
         if (startInput && !startInput.value) {
             startInput.value = (typeof getExpenseLocalDateStr === 'function') ? getExpenseLocalDateStr(new Date()) : new Date().toISOString().split('T')[0];
         }
@@ -21798,6 +22860,14 @@ function switchBillsView(viewMode) {
         if (dailyView) dailyView.style.display = 'none';
         if (listView) listView.style.display = 'block';
 
+        // ซิงค์วันที่จากหน้า Daily มาที่หน้า Bills
+        const dailyStart = document.getElementById('dailyReportStartDate')?.value;
+        const dailyEnd = document.getElementById('dailyReportEndDate')?.value;
+        const bStart = document.getElementById('billStartDate');
+        const bEnd = document.getElementById('billEndDate');
+        if (dailyStart && bStart) bStart.value = dailyStart;
+        if (dailyEnd && bEnd) bEnd.value = dailyEnd;
+
         if (typeof renderBillsTable === 'function') {
             renderBillsTable();
         }
@@ -21809,27 +22879,27 @@ window.switchBillsView = switchBillsView;
 function setClinicSummaryDateFilter(mode) {
     const startInput = document.getElementById('dailyReportStartDate');
     const endInput = document.getElementById('dailyReportEndDate');
-    const now = new Date();
 
-    if (mode === 'today') {
-        const todayStr = getExpenseLocalDateStr(now);
-        if (startInput) startInput.value = todayStr;
-        if (endInput) endInput.value = todayStr;
-    } else if (mode === 'month') {
-        const firstDay = getExpenseLocalDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
-        const lastDay = getExpenseLocalDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0));
-        if (startInput) startInput.value = firstDay;
-        if (endInput) endInput.value = lastDay;
-    } else if (mode === 'year') {
-        const firstDay = getExpenseLocalDateStr(new Date(now.getFullYear(), 0, 1));
-        const lastDay = getExpenseLocalDateStr(new Date(now.getFullYear(), 11, 31));
-        if (startInput) startInput.value = firstDay;
-        if (endInput) endInput.value = lastDay;
+    if (mode === 'all') {
+        if (startInput) startInput.value = '';
+        if (endInput) endInput.value = '';
+        if (typeof loadDailyClinicReport === 'function') loadDailyClinicReport();
+        return;
     }
 
-    if (typeof loadDailyClinicReport === 'function') {
-        loadDailyClinicReport();
+    if (mode === 'year') {
+        const vNow = getVientianeNow();
+        if (startInput) startInput.value = `${vNow.getFullYear()}-01-01`;
+        if (endInput) endInput.value = `${vNow.getFullYear()}-12-31`;
+        if (typeof loadDailyClinicReport === 'function') loadDailyClinicReport();
+        return;
     }
+
+    let filterType = mode;
+    if (mode === 'month') filterType = 'thisMonth';
+    applyQuickDateFilter(filterType, 'dailyReportStartDate', 'dailyReportEndDate', () => {
+        if (typeof loadDailyClinicReport === 'function') loadDailyClinicReport();
+    });
 }
 window.setClinicSummaryDateFilter = setClinicSummaryDateFilter;
 
@@ -21837,43 +22907,51 @@ window.setClinicSummaryDateFilter = setClinicSummaryDateFilter;
 // 3. ใบสรุปยอดคนมาตรวจคลินิกแต่ละวัน (Daily Clinic Summary)
 // ===============================================
 async function loadDailyClinicReport(customDate) {
-    const getCleanDateStr = (raw) => {
+    const parseYMD = (raw) => {
         if (!raw) return '';
         if (typeof raw === 'string') {
             const s = raw.trim();
             if (s.length >= 10 && s[4] === '-' && s[7] === '-') {
                 return s.slice(0, 10);
             }
+            const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+            if (dmy) {
+                let day = dmy[1].padStart(2, '0');
+                let month = dmy[2].padStart(2, '0');
+                let year = parseInt(dmy[3], 10);
+                if (year > 2400) year -= 543;
+                if (year < 100) year += 2000;
+                return `${year}-${month}-${day}`;
+            }
         }
         try {
             const d = new Date(raw);
             if (!isNaN(d.getTime())) {
-                const year = d.getFullYear();
-                const month = String(d.getMonth() + 1).padStart(2, '0');
+                let y = d.getFullYear();
+                if (y > 2400) y -= 543;
+                const m = String(d.getMonth() + 1).padStart(2, '0');
                 const day = String(d.getDate()).padStart(2, '0');
-                return `${year}-${month}-${day}`;
+                return `${y}-${m}-${day}`;
             }
         } catch (e) { }
-        return String(raw).slice(0, 10);
+        return '';
     };
 
-    const startDate = document.getElementById('dailyReportStartDate')?.value;
-    const endDate = document.getElementById('dailyReportEndDate')?.value;
-    const todayStr = getCleanDateStr(new Date());
+    const startInput = document.getElementById('dailyReportStartDate');
+    const endInput = document.getElementById('dailyReportEndDate');
+    const todayYMD = parseYMD(new Date());
 
-    let finalStartDate = getCleanDateStr(startDate || todayStr);
-    let finalEndDate = getCleanDateStr(endDate || finalStartDate);
+    let finalStartDate = parseYMD(startInput?.value || todayYMD);
+    let finalEndDate = parseYMD(endInput?.value || finalStartDate);
 
     if (customDate) {
-        finalStartDate = getCleanDateStr(customDate);
+        finalStartDate = parseYMD(customDate);
         finalEndDate = finalStartDate;
-        const startInput = document.getElementById('dailyReportStartDate');
-        const endInput = document.getElementById('dailyReportEndDate');
         if (startInput) startInput.value = finalStartDate;
         if (endInput) endInput.value = finalEndDate;
     }
 
-    if (finalStartDate > finalEndDate) {
+    if (finalStartDate && finalEndDate && finalStartDate > finalEndDate) {
         const temp = finalStartDate;
         finalStartDate = finalEndDate;
         finalEndDate = temp;
@@ -21881,47 +22959,48 @@ async function loadDailyClinicReport(customDate) {
 
     const dateDisplay = document.getElementById('dailyReportDateDisplay');
     if (dateDisplay) {
-        if (finalStartDate === finalEndDate) {
-            const parts = finalStartDate.split('-');
+        if (!finalStartDate && !finalEndDate) {
+            dateDisplay.textContent = 'ທັງໝົດ / ทั้งหมด';
+        } else if (finalStartDate === finalEndDate) {
+            const parts = (finalStartDate || '').split('-');
             if (parts.length === 3) {
                 dateDisplay.textContent = `ວັນທີ ${parts[2]}/${parts[1]}/${parts[0]}`;
             }
         } else {
-            const p1 = finalStartDate.split('-');
-            const p2 = finalEndDate.split('-');
-            if (p1.length === 3 && p2.length === 3) {
-                dateDisplay.textContent = `ວັນທີ ${p1[2]}/${p1[1]}/${p1[0]} ຫາ ${p2[2]}/${p2[1]}/${p2[0]}`;
-            }
+            const p1 = (finalStartDate || '').split('-');
+            const p2 = (finalEndDate || '').split('-');
+            dateDisplay.textContent = `ວັນທີ ${p1[2] || '?'}/${p1[1] || '?'}/${p1[0] || '?'} ຫາ ${p2[2] || '?'}/${p2[1] || '?'}/${p2[0] || '?'}`;
         }
     }
 
     const tbody = document.getElementById('dailyReportTableBody');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">ກຳລັງປະມວນຜົນຂໍ້ມູນ...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div>ກຳລັງປະມວນຜົນຂໍ້ມູນ...</td></tr>';
 
-    // โหลด Bills ล่าสุดจาก Supabase ก่อนถ้ายังไม่มี
     if (!window.allBillsData || window.allBillsData.length === 0) {
         try {
-            if (typeof loadBills === 'function') await loadBills();
+            if (typeof loadBills === 'function') await loadBills(false);
         } catch (e) { console.warn('loadDailyClinicReport loadBills error:', e); }
     }
 
-    // 1. ดึงข้อมูล Bills
+    // 1. ดึงข้อมูล Bills ชุดเดียวกัน 100% กับหน้า Bills
     const allBills = (window.allBillsData && window.allBillsData.length > 0)
         ? window.allBillsData
         : ((window.clinicBills && window.clinicBills.length > 0)
             ? window.clinicBills
             : JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]'));
 
+    // กรองบิลตามวันที่ด้วยตรรกะเดียวกันกับ renderBillsTable()
     const filteredBills = allBills.filter(b => {
-        const rowDate = getCleanDateStr(b.created_at || b.date);
-        let pass = true;
-        if (finalStartDate && rowDate < finalStartDate) pass = false;
-        if (finalEndDate && rowDate > finalEndDate) pass = false;
-        return pass;
+        if (!b) return false;
+        const rowDate = parseYMD(b.created_at || b.date || b.payment_date);
+        if (!rowDate) return true; // เก็บไว้ถ้าไม่มีวันที่ระบุชัดเจน เพื่อให้สอดคล้องกับ renderBillsTable
+        if (finalStartDate && rowDate < finalStartDate) return false;
+        if (finalEndDate && rowDate > finalEndDate) return false;
+        return true;
     });
 
-    // 2. ดึงข้อมูลคอมมิชชั่น & สมาชิก
+    // 2. ดึงข้อมูลคอมมิชชั่น & สมาชิก (Referrers)
     let comLogs = [];
     try {
         if (typeof _supabase !== 'undefined') {
@@ -21933,14 +23012,16 @@ async function loadDailyClinicReport(customDate) {
     // 3. ดึงข้อมูลรายจ่ายประจำวัน
     let allExpenses = window.clinicExpensesData || [];
     if (allExpenses.length === 0) {
-        allExpenses = JSON.parse(localStorage.getItem('clinic_expenses_data') || '[]');
+        try {
+            allExpenses = JSON.parse(localStorage.getItem('clinic_expenses_data') || '[]');
+        } catch (e) { }
     }
     const todayExpenses = allExpenses.filter(e => {
-        const rowDate = getCleanDateStr(e.date || e.created_at);
-        let pass = true;
-        if (finalStartDate && rowDate < finalStartDate) pass = false;
-        if (finalEndDate && rowDate > finalEndDate) pass = false;
-        return pass;
+        const rowDate = parseYMD(e.date || e.created_at);
+        if (!rowDate) return true;
+        if (finalStartDate && rowDate < finalStartDate) return false;
+        if (finalEndDate && rowDate > finalEndDate) return false;
+        return true;
     });
 
     if (filteredBills.length === 0) {
@@ -21956,14 +23037,33 @@ async function loadDailyClinicReport(customDate) {
     let sumTransfer = 0;
     let sumDividend = 0;
     let sumNet = 0;
-    let sumSendOutLab = 0;
     let totalQty = 0;
 
     filteredBills.forEach((b, idx) => {
-        const payable = parseFloat(b.payable_amount || 0);
+        let labItems = (Array.isArray(b.items) ? b.items : []).filter(item => item && item.type !== 'med');
+        let itemsTotal = 0;
+        labItems.forEach(function (item) {
+            let price = parseFloat(item.price || 0);
+            if (price === 0 && typeof getTestItemDetails === 'function') {
+                const details = getTestItemDetails(item.name);
+                if (details && details.price > 0) {
+                    price = details.price;
+                    item.price = price;
+                }
+            }
+            itemsTotal += price * (parseInt(item.qty || 1, 10));
+        });
+
+        const subtotal = b.subtotal !== undefined ? parseFloat(b.subtotal) : itemsTotal;
+        const discount = parseFloat(b.discount || 0);
+        const payable = b.payable_amount !== undefined ? parseFloat(b.payable_amount) : Math.max(0, subtotal - discount);
+
+        b.subtotal = subtotal;
+        b.payable_amount = payable;
+
         let vMatch = null;
         if (Array.isArray(window.clinicVisits)) {
-            vMatch = window.clinicVisits.find(x => x.visit_id === b.visit_id || (b.hn && x.hn === b.hn));
+            vMatch = window.clinicVisits.find(x => x && (x.visit_id === b.visit_id || (b.hn && x.hn === b.hn)));
         }
 
         const { cashAmount, transferAmount } = parseBillPaymentSplit(b, vMatch);
@@ -21975,23 +23075,26 @@ async function loadDailyClinicReport(customDate) {
         totalQty += rowQty;
 
         // หาเงินปันผลการตลาด
-        const matchCom = comLogs.find(c => c.visit_id === b.visit_id);
+        const matchCom = comLogs.find(c => c && (c.visit_id === b.visit_id || (b.hn && c.hn === b.hn)));
         const dividend = matchCom ? parseFloat(matchCom.amount || 0) : 0;
         sumDividend += dividend;
         const netAfterMarketing = (cashAmount + transferAmount) - dividend;
         sumNet += netAfterMarketing;
 
         // รายการตรวจ
-        const items = Array.isArray(b.items) ? b.items : [];
-        const testsStr = items.map(i => i.name).join(', ') || (b.tests || 'ກວດສຸຂະພາບທົ່ວໄປ');
+        const items = labItems.length > 0 ? labItems : (Array.isArray(b.items) ? b.items : []);
+        const testsStr = items.map(i => i.name || i.title || '').filter(Boolean).join(', ') || (b.tests || (vMatch && (vMatch.lab_tests || vMatch.tests)) || 'ກວດສຸຂະພາບທົ່ວໄປ');
+
+        const referrerName = matchCom ? matchCom.referrer_name : (b.referred_by || b.referrer_name || (vMatch ? (vMatch.referred_by || vMatch.referrer_name) : '-'));
+        const patientHn = b.hn || (vMatch ? vMatch.hn : '') || '-';
+        const patientName = b.patient_name || (vMatch ? vMatch.patient_name : '-');
 
         rowsHtml += `
             <tr>
                 <td class="text-center fw-bold">${idx + 1}</td>
-                <!-- เปลี่ยนให้ดึงรหัสผู้ป่วย (HN) มาแสดงแทน -->
-                <td class="fw-semibold text-center">${b.hn || (vMatch ? vMatch.hn : '') || '-'}</td>
-                <td>${matchCom ? matchCom.referrer_name : (b.referred_by || b.referrer_name || (vMatch ? (vMatch.referred_by || vMatch.referrer_name) : '-'))}</td>
-                <td class="fw-bold text-dark">${b.patient_name || (vMatch ? vMatch.patient_name : '-')}</td>
+                <td class="fw-semibold text-center">${patientHn}</td>
+                <td>${referrerName}</td>
+                <td class="fw-bold text-dark">${patientName}</td>
                 <td style="max-width: 250px; white-space: normal;">${testsStr}</td>
                 <td class="text-end fw-semibold text-primary" style="background-color: #f0f9ff;">${cashAmount > 0 ? cashAmount.toLocaleString() : '-'}</td>
                 <td class="text-end fw-semibold text-info" style="background-color: #f0f9ff;">${transferAmount > 0 ? transferAmount.toLocaleString() : '-'}</td>
@@ -22116,8 +23219,18 @@ window.printDailyClinicReport = printDailyClinicReport;
 
 // 1. ฟังก์ชันส่งออกเป็นไฟล์ Excel (CSV Format)
 window.exportExpensesExcel = function () {
-    const table = document.getElementById("expensesTable");
-    if (!table) return;
+    const list = (window.currentFilteredExpenses && window.currentFilteredExpenses.length > 0)
+        ? window.currentFilteredExpenses
+        : (window.clinicExpensesData || []);
+
+    if (!list || list.length === 0) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire('ແຈ້ງເຕືອນ', 'ບໍ່ມີຂໍ້ມູນລາຍຈ່າຍສຳລັບ Export', 'info');
+        } else {
+            alert('ບໍ່ມີຂໍ້ມູນລາຍຈ່າຍສຳລັບ Export');
+        }
+        return;
+    }
 
     let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // \uFEFF ช่วยให้ Excel อ่านภาษาลาว/ไทยได้ถูกต้อง
 
@@ -22125,30 +23238,23 @@ window.exportExpensesExcel = function () {
     const headers = ["ວັນທີ / ເວລາ", "ໝວດໝູ່", "ລາຍການ / ລາຍລະອຽດ", "ຈຳນວນເງິນ (LAK)", "ຊ່ອງທາງຈ່າຍ", "ຜູ້ເບີກ / ບັນທຶກ"];
     csvContent += headers.join(",") + "\n";
 
-    // วนลูปดึงข้อมูลจากแต่ละแถว (Rows)
-    const rows = table.querySelectorAll("tbody tr");
-    rows.forEach(row => {
-        const cols = row.querySelectorAll("td");
-        // เช็คให้แน่ใจว่าไม่ใช่แถว "ไม่มีข้อมูล"
-        if (cols.length > 1 && !cols[0].innerText.includes("ຍັງບໍ່ມີຂໍ້ມູນລາຍຈ່າຍ")) {
-            let rowData = [
-                `"${cols[1].innerText.trim()}"`,
-                `"${cols[2].innerText.trim()}"`,
-                `"${cols[3].innerText.trim()}"`,
-                // ลบลูกน้ำ (,) และสัญลักษณ์ ₭ ออก เพื่อให้ Excel มองเป็นตัวเลข
-                `"${cols[4].innerText.replace(/,/g, '').replace('₭', '').trim()}"`,
-                `"${cols[5].innerText.trim()}"`,
-                `"${cols[6].innerText.trim()}"`
-            ];
-            csvContent += rowData.join(",") + "\n";
-        }
+    list.forEach(item => {
+        const dateStr = item.date || (item.created_at ? getExpenseLocalDateStr(item.created_at) : '-');
+        const amount = parseFloat(item.amount || 0);
+        let rowData = [
+            `"${dateStr}"`,
+            `"${(item.category || 'ທົ່ວໄປ').replace(/"/g, '""')}"`,
+            `"${(item.title || '-').replace(/"/g, '""')}"`,
+            `"${amount}"`,
+            `"${(item.pay_mode || 'ເງິນສົດ').replace(/"/g, '""')}"`,
+            `"${(item.recorded_by || '-').replace(/"/g, '""')}"`
+        ];
+        csvContent += rowData.join(",") + "\n";
     });
 
-    // สร้างลิงก์จำลองเพื่อทำการดาวน์โหลด
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    // ตั้งชื่อไฟล์พร้อมวันที่ปัจจุบัน
     link.setAttribute("download", `Expenses_Report_${getExpenseLocalDateStr(new Date())}.csv`);
     document.body.appendChild(link);
     link.click();
@@ -22157,42 +23263,69 @@ window.exportExpensesExcel = function () {
 
 // 2. ฟังก์ชันพิมพ์รายงาน (Print) พร้อมยอดรวมและลายเซ็น
 window.printExpensesReport = function () {
-    const originalTable = document.getElementById("expensesTable");
-    if (!originalTable) return;
+    const list = (window.currentFilteredExpenses && window.currentFilteredExpenses.length > 0)
+        ? window.currentFilteredExpenses
+        : (window.clinicExpensesData || []);
 
-    // คัดลอกตารางเพื่อนำมาประมวลผลก่อนพิมพ์ (จะได้ไม่กระทบหน้าจอหลัก)
-    const clonedTable = originalTable.cloneNode(true);
-    const rows = clonedTable.querySelectorAll("tbody tr");
-
-    let totalAmount = 0;
-    let hasData = false;
-
-    // วนลูปคำนวณยอดเงินรวมจากคอลัมน์ที่ 4 (Index 4: ຈຳນວນເງິນ)
-    rows.forEach(row => {
-        const cols = row.querySelectorAll("td");
-        // เช็คให้แน่ใจว่าไม่ใช่แถว "ไม่มีข้อมูล"
-        if (cols.length > 1 && !cols[0].innerText.includes("ຍັງບໍ່ມີຂໍ້ມູນລາຍຈ່າຍ")) {
-            hasData = true;
-            // ดึงข้อความ ลบลูกน้ำ และดึงเฉพาะตัวเลขมาบวกกัน
-            const amountText = cols[4].innerText.replace(/,/g, '').replace(/[^0-9.-]+/g, '');
-            const amount = parseFloat(amountText) || 0;
-            totalAmount += amount;
+    if (!list || list.length === 0) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire('ແຈ້ງເຕືອນ', 'ບໍ່ມີຂໍ້ມູນລາຍຈ່າຍສຳລັບພິມ', 'info');
+        } else {
+            alert('ບໍ່ມີຂໍ້ມູນລາຍຈ່າຍສຳລັບພິມ');
         }
-    });
-
-    // ถ้ามีข้อมูล ให้สร้างแถวแสดง "ยอดรวม" ต่อท้ายตาราง
-    if (hasData) {
-        const tbody = clonedTable.querySelector("tbody");
-        const totalRow = document.createElement("tr");
-        totalRow.innerHTML = `
-            <td colspan="4" class="text-end" style="font-weight: bold; background-color: #f8f9fa;">ຍອດລວມທັງໝົດ (Total):</td>
-            <td class="text-end" style="font-weight: bold; color: #10b981; font-size: 16px;">${totalAmount.toLocaleString('en-US')} LAK</td>
-            <td colspan="3" style="background-color: #f8f9fa;"></td>
-        `;
-        tbody.appendChild(totalRow);
+        return;
     }
 
-    const tableHtml = clonedTable.outerHTML;
+    let totalAmount = 0;
+    let tableRowsHtml = '';
+    list.forEach((item, idx) => {
+        const dateStr = item.date || (item.created_at ? getExpenseLocalDateStr(item.created_at) : '-');
+        const amount = parseFloat(item.amount || 0);
+        totalAmount += amount;
+        tableRowsHtml += `
+            <tr>
+                <td class="text-center" style="width: 40px;">${idx + 1}</td>
+                <td>${dateStr}</td>
+                <td>${item.category || 'ທົ່ວໄປ'}</td>
+                <td>${item.title || '-'}</td>
+                <td class="text-end" style="color: #dc2626; font-weight: bold;">${amount.toLocaleString()} LAK</td>
+                <td class="text-center">${item.pay_mode || 'ເງິນສົດ'}</td>
+                <td>${item.recorded_by || '-'}</td>
+            </tr>
+        `;
+    });
+
+    const totalRowHtml = `
+        <tr style="background-color: #f8f9fa; font-weight: bold;">
+            <td colspan="4" class="text-end">ຍອດລວມທັງໝົດ (Total):</td>
+            <td class="text-end" style="color: #10b981; font-size: 15px;">${totalAmount.toLocaleString('en-US')} LAK</td>
+            <td colspan="2"></td>
+        </tr>
+    `;
+
+    const sDate = document.getElementById('expenseStartDate')?.value || '';
+    const eDate = document.getElementById('expenseEndDate')?.value || '';
+    const periodText = (sDate || eDate) ? `${sDate || 'ເລີ່ມຕົ້ນ'} ຫາ ${eDate || 'ປະຈຸບັນ'}` : 'ທັງໝົດ';
+
+    const tableHtml = `
+        <table>
+            <thead>
+                <tr>
+                    <th class="text-center">#</th>
+                    <th>ວັນທີ / ເວລາ</th>
+                    <th>ໝວດໝູ່</th>
+                    <th>ລາຍການ / ລາຍລະອຽດ</th>
+                    <th class="text-end">ຈຳນວນເງິນ (LAK)</th>
+                    <th class="text-center">ຊ່ອງທາງຈ່າຍ</th>
+                    <th>ຜູ້ເບີກ / ບັນທຶກ</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${tableRowsHtml}
+                ${totalRowHtml}
+            </tbody>
+        </table>
+    `;
 
     // สร้างส่วนบล็อกลายเซ็น (Signatures HTML)
     const signaturesHtml = `
@@ -22212,35 +23345,31 @@ window.printExpensesReport = function () {
 
     // สร้างหน้าต่างใหม่สำหรับการสั่งพิมพ์
     const printWindow = window.open('', '', 'width=1000,height=800');
+    if (!printWindow) return;
 
-    // เขียนโครงสร้าง HTML สำหรับหน้าพิมพ์
     printWindow.document.write(`
         <html>
             <head>
                 <title>ລາຍງານລາຍຈ່າຍປະຈຳວັນ</title>
                 <style>
                     body { font-family: 'Sarabun', 'Noto Sans Lao', sans-serif; padding: 20px; color: #333; }
-                    h2 { text-align: center; color: #0b3c73; }
-                    .header-info { text-align: center; margin-bottom: 20px; font-size: 14px; color: #555; }
-                    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
-                    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+                    h2 { text-align: center; color: #0b3c73; margin-bottom: 5px; }
+                    .header-info { text-align: center; margin-bottom: 20px; font-size: 13px; color: #555; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+                    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
                     th { background-color: #f8f9fa; color: #000; font-weight: bold; }
                     .text-end { text-align: right !important; }
                     .text-center { text-align: center !important; }
                     
-                    /* ซ่อนคอลัมน์ "จัดการ" ตอนปริ้น (คอลัมน์สุดท้ายของตาราง) */
-                    th:last-child, td:last-child { display: none; }
-                    
-                    /* CSS จัดรูปแบบช่องลายเซ็น */
                     .signatures { 
                         display: flex; 
                         justify-content: space-around; 
-                        margin-top: 80px; 
+                        margin-top: 60px; 
                         text-align: center; 
-                        font-size: 14px; 
+                        font-size: 13px; 
                         font-weight: bold;
                     }
-                    .sig-box { width: 260px; }
+                    .sig-box { width: 240px; }
                     .sig-line { 
                         border-bottom: 1px dashed #333; 
                         margin-bottom: 8px; 
@@ -22251,13 +23380,13 @@ window.printExpensesReport = function () {
             <body>
                 <h2>ລາຍງານລາຍຈ່າຍປະຈຳວັນ (Expenses Report)</h2>
                 <div class="header-info">
-                    <strong>ວັນທີພິມ:</strong> ${new Date().toLocaleDateString('lo-LA')} 
-                    <span style="margin-left: 15px;"><strong>ເວລາ:</strong> ${new Date().toLocaleTimeString('lo-LA')}</span>
+                    <span><strong>ຊ່ວງເວລາ:</strong> ${periodText}</span>
+                    <span style="margin-left: 15px;"><strong>ຈຳນວນ:</strong> ${list.length} ລາຍການ</span>
+                    <span style="margin-left: 15px;"><strong>ວັນທີພິມ:</strong> ${new Date().toLocaleDateString('lo-LA')} ${new Date().toLocaleTimeString('lo-LA')}</span>
                 </div>
                 ${tableHtml}
                 ${signaturesHtml}
                 <script>
-                    // สั่งปริ้นอัตโนมัติเมื่อโหลดเนื้อหาหน้าเว็บเสร็จ
                     setTimeout(() => { 
                         window.print(); 
                         window.close(); 
@@ -22379,8 +23508,18 @@ window.loadPharmacyHistory = async function () {
     const tbody = document.querySelector('#pharmacyHistoryTable tbody');
     if (!tbody) return;
 
-    const startFilter = document.getElementById('pharmacyHistoryStartDate')?.value || '';
-    const endFilter = document.getElementById('pharmacyHistoryEndDate')?.value || '';
+    let startInput = document.getElementById('pharmacyHistoryStartDate');
+    let endInput = document.getElementById('pharmacyHistoryEndDate');
+
+    // 🌟 ค่าเริ่มต้นเป็น "วันปัจจุบัน" (Today - Asia/Vientiane) หากยังไม่มีการเลือก
+    if ((!startInput?.value || !endInput?.value) && !window._pharmacyHistoryExplicitAll) {
+        const todayRange = getVientianeDateRange('today');
+        if (startInput && !startInput.value) startInput.value = todayRange.startStr;
+        if (endInput && !endInput.value) endInput.value = todayRange.endStr;
+    }
+
+    const startFilter = startInput?.value || '';
+    const endFilter = endInput?.value || '';
 
     let historyData = [];
 
@@ -22389,7 +23528,7 @@ window.loadPharmacyHistory = async function () {
         if (typeof _supabase !== 'undefined') {
             let q = _supabase
                 .from('visits')
-                .select('*')
+                .select('visit_id, hn, patient_name, meds, status, created_at')
                 .eq('status', 'เสร็จสิ้น')
                 .not('meds', 'is', null);
 
@@ -22400,7 +23539,7 @@ window.loadPharmacyHistory = async function () {
                 q = q.lte('created_at', endFilter + 'T23:59:59');
             }
 
-            const { data, error } = await q.order('created_at', { ascending: false }).limit(50);
+            const { data, error } = await q.order('created_at', { ascending: false }).limit(100);
 
             if (data && !error) {
                 historyData = data;
@@ -22408,9 +23547,9 @@ window.loadPharmacyHistory = async function () {
                 // Fallback กรณีตารางไม่มี created_at หรือมีข้อผิดพลาด
                 const { data: fallbackData } = await _supabase
                     .from('visits')
-                    .select('*')
+                    .select('visit_id, hn, patient_name, meds, status, created_at')
                     .eq('status', 'เสร็จสิ้น')
-                    .limit(50);
+                    .limit(100);
                 if (fallbackData) historyData = fallbackData;
             }
         }
@@ -22508,41 +23647,47 @@ window.loadPharmacyHistory = async function () {
 window.setPharmacyHistoryDateFilter = function (mode) {
     const startInput = document.getElementById('pharmacyHistoryStartDate');
     const endInput = document.getElementById('pharmacyHistoryEndDate');
-    const now = new Date();
 
-    if (mode === 'today') {
-        const todayStr = now.toISOString().slice(0, 10);
-        if (startInput) startInput.value = todayStr;
-        if (endInput) endInput.value = todayStr;
-    } else if (mode === 'month') {
-        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
-        if (startInput) startInput.value = firstDay;
-        if (endInput) endInput.value = lastDay;
-    } else if (mode === 'year') {
-        const firstDay = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
-        const lastDay = new Date(now.getFullYear(), 11, 31).toISOString().slice(0, 10);
-        if (startInput) startInput.value = firstDay;
-        if (endInput) endInput.value = lastDay;
+    if (mode === 'all') {
+        window._pharmacyHistoryExplicitAll = true;
+        if (startInput) startInput.value = '';
+        if (endInput) endInput.value = '';
+        if (typeof loadPharmacyHistory === 'function') loadPharmacyHistory();
+        return;
+    }
+    window._pharmacyHistoryExplicitAll = false;
+
+    if (mode === 'year') {
+        const vNow = getVientianeNow();
+        if (startInput) startInput.value = `${vNow.getFullYear()}-01-01`;
+        if (endInput) endInput.value = `${vNow.getFullYear()}-12-31`;
+        if (typeof loadPharmacyHistory === 'function') loadPharmacyHistory();
+        return;
     }
 
-    // โหลดข้อมูลอัตโนมัติหลังจากตั้งค่าวัดที่เสร็จ
-    if (typeof loadPharmacyHistory === 'function') loadPharmacyHistory();
+    let filterType = mode;
+    if (mode === 'month') filterType = 'thisMonth';
+    applyQuickDateFilter(filterType, 'pharmacyHistoryStartDate', 'pharmacyHistoryEndDate', () => {
+        if (typeof loadPharmacyHistory === 'function') loadPharmacyHistory();
+    });
 };
+
 // ฟังก์ชันสำหรับปุ่ม "รีเฟรชข้อมูล" ในหน้าห้องจ่ายยา (ทำงานครอบคลุมทั้งหน้า)
 window.refreshPharmacyPage = function () {
-    // 1. ล้างค่าในช่องกรองวันที่ของตารางประวัติ (รีเซ็ตกลับเป็นค่าว่าง)
+    // 1. ตั้งค่าเริ่มต้นตัวกรองวันที่ของตารางประวัติเป็นวันนี้ (Asia/Vientiane)
+    window._pharmacyHistoryExplicitAll = false;
+    const todayRange = getVientianeDateRange('today');
     const startInput = document.getElementById('pharmacyHistoryStartDate');
     const endInput = document.getElementById('pharmacyHistoryEndDate');
-    if (startInput) startInput.value = '';
-    if (endInput) endInput.value = '';
+    if (startInput) startInput.value = todayRange.startStr;
+    if (endInput) endInput.value = todayRange.endStr;
 
     // 2. สั่งให้ตารางคิวจ่ายยา (ด้านบน) โหลดข้อมูลใหม่
     if (typeof loadPharmacyQueue === 'function') {
         loadPharmacyQueue();
     }
 
-    // 3. สั่งให้ตารางประวัติการจ่ายยา (ด้านล่าง) โหลดข้อมูลใหม่ (แสดงทั้งหมด)
+    // 3. สั่งให้ตารางประวัติการจ่ายยา (ด้านล่าง) โหลดข้อมูลใหม่
     if (typeof loadPharmacyHistory === 'function') {
         loadPharmacyHistory();
     }
@@ -22558,27 +23703,20 @@ const TRIAGE_HISTORY_PER_PAGE = 10;
 
 // 1. ฟังก์ชันกำหนดปุ่มวันที่ด่วน
 window.setTriageHistoryDateFilter = function (mode) {
-    const startInput = document.getElementById('triageHistoryStartDate');
-    const endInput = document.getElementById('triageHistoryEndDate');
-    const now = new Date();
-
-    if (mode === 'today') {
-        const todayStr = now.toISOString().slice(0, 10);
-        if (startInput) startInput.value = todayStr;
-        if (endInput) endInput.value = todayStr;
-    } else if (mode === 'month') {
-        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
-        if (startInput) startInput.value = firstDay;
-        if (endInput) endInput.value = lastDay;
-    } else if (mode === 'year') {
-        const firstDay = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
-        const lastDay = new Date(now.getFullYear(), 11, 31).toISOString().slice(0, 10);
-        if (startInput) startInput.value = firstDay;
-        if (endInput) endInput.value = lastDay;
+    if (mode === 'year') {
+        const vNow = getVientianeNow();
+        const startInput = document.getElementById('triageHistoryStartDate');
+        const endInput = document.getElementById('triageHistoryEndDate');
+        if (startInput) startInput.value = `${vNow.getFullYear()}-01-01`;
+        if (endInput) endInput.value = `${vNow.getFullYear()}-12-31`;
+        if (typeof loadTriageHistory === 'function') loadTriageHistory();
+        return;
     }
-
-    if (typeof loadTriageHistory === 'function') loadTriageHistory();
+    let filterType = mode;
+    if (mode === 'month') filterType = 'thisMonth';
+    applyQuickDateFilter(filterType, 'triageHistoryStartDate', 'triageHistoryEndDate', () => {
+        if (typeof loadTriageHistory === 'function') loadTriageHistory();
+    });
 };
 
 // 2. ฟังก์ชันโหลดประวัติการคัดกรองจากฐานข้อมูล
@@ -22588,18 +23726,28 @@ window.loadTriageHistory = async function () {
 
     tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูลประวัติ...</td></tr>';
 
-    const startDate = document.getElementById('triageHistoryStartDate')?.value;
-    const endDate = document.getElementById('triageHistoryEndDate')?.value;
+    let startInput = document.getElementById('triageHistoryStartDate');
+    let endInput = document.getElementById('triageHistoryEndDate');
+
+    // 🌟 ค่าเริ่มต้นเป็น "วันปัจจุบัน" (Today - Asia/Vientiane) หากยังไม่มีการเลือก
+    if ((!startInput?.value || !endInput?.value) && !window._triageHistoryExplicitAll) {
+        const todayRange = getVientianeDateRange('today');
+        if (startInput && !startInput.value) startInput.value = todayRange.startStr;
+        if (endInput && !endInput.value) endInput.value = todayRange.endStr;
+    }
+
+    const startDate = startInput?.value;
+    const endDate = endInput?.value;
 
     window.triageHistoryData = [];
     window.triageHistoryFilteredData = [];
 
     try {
         if (typeof _supabase !== 'undefined') {
-            // ดึงข้อมูลทุกสถานะที่ผ่านคัดกรอง
+            // ดึงข้อมูลสถานะที่ผ่านคัดกรองแล้ว
             let query = _supabase
                 .from('visits')
-                .select('*')
+                .select('visit_id, hn, patient_name, status, symptom, temp, bp, pulse, weight, height, bmi, spo2, created_at')
                 .neq('status', 'รอคัดกรอง')
                 .neq('status', 'รอ')
                 .order('created_at', { ascending: false });
@@ -22616,7 +23764,7 @@ window.loadTriageHistory = async function () {
                 console.warn('Load triage history DB error, running fallback:', error);
                 const { data: fallbackData } = await _supabase
                     .from('visits')
-                    .select('*')
+                    .select('visit_id, hn, patient_name, status, symptom, temp, bp, pulse, weight, height, bmi, spo2, created_at')
                     .neq('status', 'รอคัดกรอง')
                     .neq('status', 'รอ')
                     .limit(100);
@@ -22625,17 +23773,15 @@ window.loadTriageHistory = async function () {
                 }
             }
 
-            // 🌟 ดึงข้อมูลเบอร์โทรศัพท์จากตาราง patients มาผูกกับ visits
+            // 🌟 ดึงข้อมูลเบอร์โทรศัพท์เฉพาะคนไข้ที่อยู่ในรายการนี้ (ไม่โหลดคนไข้ทั้งหมด)
             try {
                 let patientsMap = {};
-                if (window.allPatients && window.allPatients.length > 0) {
-                    window.allPatients.forEach(p => {
-                        const phoneVal = p.phone || p.tel || p.emergency_tel || '';
-                        if (p.hn) patientsMap[p.hn] = phoneVal;
-                        if (p.patient_name) patientsMap[p.patient_name] = phoneVal;
-                    });
-                } else {
-                    const { data: pList } = await _supabase.from('patients').select('hn, patient_name, phone, emergency_tel');
+                const uniqueHns = [...new Set(rows.map(r => r.hn).filter(Boolean))];
+                if (uniqueHns.length > 0) {
+                    const { data: pList } = await _supabase
+                        .from('patients')
+                        .select('hn, patient_name, phone, emergency_tel')
+                        .in('hn', uniqueHns);
                     if (pList) {
                         pList.forEach(p => {
                             const phoneVal = p.phone || p.emergency_tel || '';
@@ -22850,4 +23996,28 @@ window.populateReferrerDropdowns = async function () {
 // =====================================
 if (typeof filterStaffTable === 'function') {
     window.filterStaffTable = filterStaffTable;
+}
+// ฟังก์ชันสำหรับคำนวณและอัปเดตจำนวน Order อาหารเสริมของวันนี้
+// ฟังก์ชันสำหรับนับจำนวน Order อาหารเสริมทั้งหมด (เฉพาะรหัส VIS-ORD)
+function updateOrderCount() {
+    // 1. ดึงข้อมูลออเดอร์ทั้งหมดจากระบบ (ตรวจสอบให้แน่ใจว่าตัวแปรชื่อนี้)
+    const allOrders = window.stkNutrientOrders || [];
+
+    // 2. กรองข้อมูล (Filter) เอาเฉพาะที่มีคำว่า VIS-ORD
+    const orderItems = allOrders.filter(order => {
+        // ดึงค่า visit_id มาทำเป็นตัวพิมพ์ใหญ่เพื่อป้องกันปัญหาพิมพ์เล็กพิมพ์ใหญ่
+        const visitId = order.visit_id ? order.visit_id.toUpperCase() : "";
+        return visitId.includes("VIS-ORD");
+    });
+
+    // 🌟 3. แสดงค่าใน Console (กด F12 ดูได้) เพื่อเช็คว่าระบบดึงมา 20 จริงไหม
+    console.log("👉 จำนวนข้อมูลทั้งหมดในตาราง:", allOrders.length);
+    console.log("👉 จำนวนเฉพาะออเดอร์ VIS-ORD:", orderItems.length);
+
+    // 4. นำตัวเลขไปแสดงบนหน้า Dashboard การ์ดที่ 2
+    const dw = (typeof window.getDashboardFrameWindow === 'function') ? window.getDashboardFrameWindow() : null;
+    const countElement = (dw && dw.document) ? dw.document.getElementById('db-stat-rescheduled') : document.getElementById('db-stat-rescheduled');
+    if (countElement) {
+        countElement.innerText = orderItems.length;
+    }
 }

@@ -1028,10 +1028,10 @@ th {
     color: #2563eb;
 }
 
-/* Middle Row: 3 Columns */
+/* Middle Row: 2 Columns */
 .db-grid-3-v2 {
     display: grid;
-    grid-template-columns: 4.4fr 3.3fr 3.1fr;
+    grid-template-columns: 8.5fr 3.8fr;
     gap: 18px;
 }
 
@@ -1083,7 +1083,30 @@ th {
 /* Left Card: Appointments Table */
 .db-appt-table-container {
     flex-grow: 1;
+    min-height: 220px;
+    max-height: 235px;
+    overflow-y: auto;
     overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+
+.db-appt-table-container::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+}
+
+.db-appt-table-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.db-appt-table-container::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 8px;
+}
+
+.db-appt-table-container::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
 }
 
 .db-appt-table {
@@ -1098,6 +1121,10 @@ th {
     padding: 6px 8px 10px 8px;
     border-bottom: 1px solid #f1f5f9;
     text-align: left;
+    position: sticky;
+    top: 0;
+    background: #ffffff;
+    z-index: 2;
 }
 
 .db-appt-table td {
@@ -1124,7 +1151,7 @@ th {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 140px;
+    max-width: 180px;
 }
 
 .db-appt-service-col {
@@ -1133,7 +1160,7 @@ th {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 120px;
+    max-width: 160px;
 }
 
 .db-status-badge {
@@ -1167,19 +1194,66 @@ th {
 }
 
 .db-appt-footer-v2 {
-    margin-top: 12px;
+    margin-top: auto;
     padding-top: 10px;
     border-top: 1px solid #f8fafc;
     font-size: 0.8rem;
     font-weight: 600;
-    color: #0d9488;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.db-appt-footer-left {
     display: flex;
     align-items: center;
     gap: 6px;
+    color: #0d9488;
 }
 
-.db-appt-footer-v2 i {
+.db-appt-footer-left i {
     font-size: 1rem;
+}
+
+.db-appt-pagination {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.db-appt-page-btn {
+    min-width: 26px;
+    height: 26px;
+    padding: 0 6px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #475569;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.db-appt-page-btn:hover:not(:disabled) {
+    border-color: #0d9488;
+    color: #0d9488;
+    background: #f0fdfa;
+}
+
+.db-appt-page-btn.active {
+    background: #0d9488;
+    border-color: #0d9488;
+    color: #ffffff;
+    box-shadow: 0 2px 4px rgba(13, 148, 136, 0.25);
+}
+
+.db-appt-page-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
 }
 
 /* Middle Card: Donut Chart & Queue Status */
@@ -1471,8 +1545,51 @@ th {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 12px;
 }
 
+.db-chart-controls {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+/* Pill Toggle Button (6 ເດືອນ / 1 ປີ) */
+.db-chart-filter-pills {
+    display: inline-flex;
+    align-items: center;
+    background: #f1f5f9;
+    padding: 3px;
+    border-radius: 50px;
+    gap: 2px;
+}
+
+.db-chart-pill-btn {
+    border: none;
+    background: transparent;
+    padding: 5px 16px;
+    border-radius: 50px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    outline: none;
+    line-height: 1.2;
+}
+
+.db-chart-pill-btn:hover {
+    color: #0f172a;
+}
+
+.db-chart-pill-btn.active {
+    background: #0f172a;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2);
+}
+
+/* Legend with circle dots */
 .db-chart-legend-row {
     display: flex;
     align-items: center;
@@ -1484,48 +1601,24 @@ th {
 .db-chart-legend-item-v2 {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 7px;
     color: #475569;
 }
 
-.legend-line-teal {
-    width: 18px;
-    height: 3px;
-    background: #0d9488;
-    border-radius: 4px;
-    display: inline-block;
-    position: relative;
-}
-
-.legend-line-teal::after {
-    content: '';
-    position: absolute;
-    width: 7px;
-    height: 7px;
+.legend-dot-teal {
+    width: 8.5px;
+    height: 8.5px;
     border-radius: 50%;
     background: #0d9488;
-    top: -2px;
-    left: 5px;
-}
-
-.legend-line-blue {
-    width: 18px;
-    height: 3px;
-    background: #0284c7;
-    border-radius: 4px;
     display: inline-block;
-    position: relative;
 }
 
-.legend-line-blue::after {
-    content: '';
-    position: absolute;
-    width: 7px;
-    height: 7px;
+.legend-dot-blue {
+    width: 8.5px;
+    height: 8.5px;
     border-radius: 50%;
     background: #0284c7;
-    top: -2px;
-    left: 5px;
+    display: inline-block;
 }
 
 .db-area-chart-wrapper {
@@ -1534,14 +1627,107 @@ th {
     height: 185px;
 }
 
+/* Clean Dots without heavy effects */
+.chart-dot-btn {
+    cursor: pointer;
+    outline: none;
+}
+
+.chart-dot-circle {
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.chart-dot-btn:hover .chart-dot-circle {
+    transform-origin: center;
+    opacity: 1;
+}
+
+/* Tooltip Popup Card matching image */
+.chart-tooltip-card {
+    position: absolute;
+    background: #ffffff;
+    border: 1px solid #f1f5f9;
+    border-radius: 12px;
+    padding: 10px 16px;
+    box-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.1), 0 4px 10px -2px rgba(15, 23, 42, 0.04);
+    pointer-events: none;
+    z-index: 50;
+    min-width: 165px;
+    transform: translate(-50%, -100%);
+    margin-top: -12px;
+    transition: left 0.25s cubic-bezier(0.4, 0, 0.2, 1), top 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chart-tooltip-card .tooltip-header {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 8px;
+    font-family: 'Outfit', 'Kanit', sans-serif;
+}
+
+.chart-tooltip-card .tooltip-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 5px;
+    font-size: 0.78rem;
+}
+
+.chart-tooltip-card .tooltip-row:last-child {
+    margin-bottom: 0;
+}
+
+.chart-tooltip-card .tooltip-label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: #475569;
+    font-weight: 500;
+}
+
+.chart-tooltip-card .tooltip-label .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.chart-tooltip-card .tooltip-label .dot.teal {
+    background-color: #0d9488;
+}
+
+.chart-tooltip-card .tooltip-label .dot.blue {
+    background-color: #0284c7;
+}
+
+.chart-tooltip-card .tooltip-val {
+    font-weight: 700;
+    color: #0f172a;
+    font-family: 'Outfit', 'Kanit', sans-serif;
+    font-size: 0.88rem;
+}
+
 .db-area-chart-months {
     display: flex;
     justify-content: space-between;
-    padding: 0 20px 0 35px;
-    margin-top: 4px;
+    padding: 0 15px 0 45px;
+    margin-top: 6px;
     font-size: 0.72rem;
     color: #64748b;
     font-weight: 500;
+}
+
+.db-area-chart-months span {
+    cursor: pointer;
+    transition: color 0.15s ease, font-weight 0.15s ease;
+}
+
+.db-area-chart-months span:hover,
+.db-area-chart-months span.active {
+    color: #0f172a;
+    font-weight: 700;
 }
 
 /* Right Stacked KPI Cards */
