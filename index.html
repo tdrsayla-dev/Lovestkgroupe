@@ -2669,7 +2669,7 @@
             <h3 style="font-size: 1.1rem; font-weight: 800; color: #ffffff; margin-bottom: 1.2rem; text-transform: uppercase; letter-spacing: 0.04em;">ระบบ</h3>
             <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.55rem;">
               <li>
-                <a href="login.html" onclick="goToCeo(event)" style="color: rgba(255, 255, 255, 0.85); text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: color 0.2s;"
+                <a href="CEO/ceo-login.html" onclick="goToCeo(event)" style="color: rgba(255, 255, 255, 0.85); text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: color 0.2s;"
                    onmouseover="this.style.color='#60a5fa'" onmouseout="this.style.color='rgba(255, 255, 255, 0.85)'">
                   CEO Dashboard
                 </a>
@@ -2706,7 +2706,9 @@
   </footer>
 
   <!-- ===== JAVASCRIPT ===== -->
+  <!-- ⚙️ CEO Config — แยกอิสระเฉพาะระบบ CEO ไม่ชนกับ root config ของระบบอื่น -->
   <script src="company.js"></script>
+  <script src="ceo-config.js"></script>
   <script>
     function getAppRootPath() {
       let path = window.location.pathname;
@@ -2722,7 +2724,7 @@
 
     function goToCeo(e) {
       if (e) e.preventDefault();
-      window.location.href = 'login.html';
+      window.location.href = window.location.origin + getAppRootPath() + 'CEO/ceo-login.html';
     }
 
     function goToClinic(e) {
@@ -2732,7 +2734,7 @@
 
     function goToHr(e) {
       if (e) e.preventDefault();
-      window.location.href = window.location.origin + getAppRootPath() + 'login.html';
+      window.location.href = 'https://stkgroupe.com/Hr';
     }
 
     function goToMlm(e) {
@@ -2741,7 +2743,7 @@
     }
 
     </script>
-    <script src="company.js"></script>
+    <!-- company.js already loaded above, no duplicate needed -->
     <script src="js/i18n.js"></script>
     <script>
     // ─────────────────────────────────────────
@@ -2767,9 +2769,10 @@
 
     // =========================================
     // SUPABASE CONFIG
+    // ✅ URL & Key มาจาก config.js (window.APP_CONFIG) — ไม่ hardcode ซ้ำ
     // =========================================
-    const SUPABASE_URL = window.SUPABASE_URL || 'https://qqyotianqcgpdzrfgjif.supabase.co';
-    const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxeW90aWFucWNncGR6cmZnamlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwNDQ1MzcsImV4cCI6MjA5ODYyMDUzN30.6VlHbimuMkg0UtxCw2cbU5mN_c9zPmizNuzrL5tCtME';
+    const _sbUrl  = (window.APP_CONFIG && window.APP_CONFIG.SUPABASE_URL)  || window.SUPABASE_URL;
+    const _sbKey  = (window.APP_CONFIG && window.APP_CONFIG.SUPABASE_ANON_KEY) || window.SUPABASE_ANON_KEY;
 
     const apiCache = {};
 
@@ -2797,12 +2800,12 @@
       }
 
       try {
-        const url = `${SUPABASE_URL}/rest/v1/${table}?select=*${finalParams}`;
+        const url = `${_sbUrl}/rest/v1/${table}?select=*${finalParams}`;
         console.log('[Supabase] Fetching:', url);
         const res = await fetch(url, {
           headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            apikey: _sbKey,
+            Authorization: `Bearer ${_sbKey}`,
           }
         });
         console.log('[Supabase] Status:', res.status, res.statusText);
