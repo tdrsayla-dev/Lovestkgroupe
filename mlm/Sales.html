@@ -2040,8 +2040,8 @@
                         return;
                     }
 
-                    if (originalCust.closer !== custData.closer || originalCust.type !== custMode || originalCust.phone !== custData.phone || originalCust.lineId !== custData.lineId || originalCust.symptom !== custData.symptom) {
-                        const updatedCust = { ...originalCust, closer: custData.closer, type: custMode, phone: custData.phone, lineId: custData.lineId, symptom: custData.symptom, isExistingCustomer: true };
+                    if (originalCust.name !== custData.name || originalCust.closer !== custData.closer || originalCust.type !== custMode || originalCust.phone !== custData.phone || originalCust.lineId !== custData.lineId || originalCust.symptom !== custData.symptom) {
+                        const updatedCust = { ...originalCust, name: custData.name, closer: custData.closer, type: custMode, phone: custData.phone, lineId: custData.lineId, symptom: custData.symptom, isExistingCustomer: true };
                         newCustomerObj = updatedCust;
                     }
                 }
@@ -2603,7 +2603,20 @@
                                             currentCustId = "C" + custNum.toString().padStart(3, '0');
                                             custRetryCount++;
                                         } else {
-                                            // ลูกค้าที่มีรหัสอยู่แล้ว (เช่น HN-xxxxxx จากคลินิก) ให้ใช้รหัสเดิมได้ทันที
+                                            // ลูกค้าที่มีรหัสอยู่แล้ว (เช่น HN-xxxxxx จากคลินิก) ให้ใช้รหัสเดิมได้ทันที และอัปเดตข้อมูลล่าสุด
+                                            try {
+                                                const updatePayload = {};
+                                                if (custPayload.name && custPayload.name !== 'ลูกค้าใหม่มาตรวจ') updatePayload.name = custPayload.name;
+                                                if (custPayload.phone) updatePayload.phone = custPayload.phone;
+                                                if (custPayload.closer_id) updatePayload.closer_id = custPayload.closer_id;
+                                                if (custPayload.extra_details_json) updatePayload.extra_details_json = custPayload.extra_details_json;
+                                                if (custPayload.symptom_disease) updatePayload.symptom_disease = custPayload.symptom_disease;
+                                                if (Object.keys(updatePayload).length > 0 && typeof supabaseUpdate === 'function') {
+                                                    await supabaseUpdate('stk_customers', currentCustId, updatePayload, 'customer_id');
+                                                }
+                                            } catch (eUp) {
+                                                console.warn('Update customer on conflict error:', eUp);
+                                            }
                                             custInsertSuccess = true;
                                             newCustomerObj.id = currentCustId;
                                             newRecord.customerId = currentCustId;
@@ -2626,6 +2639,17 @@
                                                     currentCustId = "C" + custNum.toString().padStart(3, '0');
                                                     custRetryCount++;
                                                 } else {
+                                                    try {
+                                                        const updatePayload = {};
+                                                        if (custPayload.name && custPayload.name !== 'ลูกค้าใหม่มาตรวจ') updatePayload.name = custPayload.name;
+                                                        if (custPayload.phone) updatePayload.phone = custPayload.phone;
+                                                        if (custPayload.closer_id) updatePayload.closer_id = custPayload.closer_id;
+                                                        if (custPayload.extra_details_json) updatePayload.extra_details_json = custPayload.extra_details_json;
+                                                        if (custPayload.symptom_disease) updatePayload.symptom_disease = custPayload.symptom_disease;
+                                                        if (Object.keys(updatePayload).length > 0 && typeof supabaseUpdate === 'function') {
+                                                            await supabaseUpdate('stk_customers', currentCustId, updatePayload, 'customer_id');
+                                                        }
+                                                    } catch (eUp) {}
                                                     custInsertSuccess = true;
                                                     newCustomerObj.id = currentCustId;
                                                     newRecord.customerId = currentCustId;

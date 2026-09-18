@@ -88,6 +88,84 @@
     const ChevronLeftIcon = ({size=20}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>;
     const ChevronRightIcon = ({size=20}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>;
 
+    // 🏆 Clean, smooth SVG vector icons for Campaign UI (แทนที่ Emoji เดิมเพื่อความเรียบหรูและกลมกลืน)
+    const CampTrophyIcon = ({ size = 24, className = "text-amber-950" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+        <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+        <path d="M4 22h16" />
+        <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
+        <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+        <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+      </svg>
+    );
+    const CampCalendarIcon = ({ size = 14, className = "" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+        <line x1="16" y1="2" x2="16" y2="6" />
+        <line x1="8" y1="2" x2="8" y2="6" />
+        <line x1="3" y1="10" x2="21" y2="10" />
+      </svg>
+    );
+    const CampGiftIcon = ({ size = 14, className = "" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <polyline points="20 12 20 22 4 22 4 12" />
+        <rect x="2" y="7" width="20" height="5" />
+        <line x1="12" y1="22" x2="12" y2="7" />
+        <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" />
+        <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
+      </svg>
+    );
+    const CampStethoscopeIcon = ({ size = 14, className = "" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3" />
+        <path d="M8 15v1a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6v-4" />
+        <circle cx="20" cy="10" r="2" />
+      </svg>
+    );
+    const CampBoxIcon = ({ size = 14, className = "" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+        <line x1="12" y1="22.08" x2="12" y2="12" />
+      </svg>
+    );
+    const CampZapIcon = ({ size = 12, className = "" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      </svg>
+    );
+    const CampAwardIcon = ({ size = 18, className = "" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <circle cx="12" cy="8" r="7" />
+        <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+      </svg>
+    );
+    const CampHourglassIcon = ({ size = 36, className = "" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M5 22h14" />
+        <path d="M5 2h14" />
+        <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22" />
+        <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" />
+      </svg>
+    );
+    const CampTargetIcon = ({ size = 18, className = "" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <circle cx="12" cy="12" r="10" />
+        <circle cx="12" cy="12" r="6" />
+        <circle cx="12" cy="12" r="2" />
+      </svg>
+    );
+    const CampSparklesIcon = ({ size = 32, className = "" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+        <path d="M5 3v4" />
+        <path d="M19 17v4" />
+        <path d="M3 5h4" />
+        <path d="M17 19h4" />
+      </svg>
+    );
+
     // 🛡️ AVATAR URL SANITIZER: ป้องกันรูปภาพเสียและรองรับ Google Drive Links
     const cleanAvatarUrl = (url, name) => {
         let cleanUrl = String(url || '').trim();
@@ -156,12 +234,12 @@
         const campaignSections = useMemo(() => {
             if (!window.CampaignEngine || !Array.isArray(activeCampaigns) || activeCampaigns.length === 0) return [];
             return activeCampaigns.map(camp => {
-                const results = window.CampaignEngine.calcCampaignResults(camp, sales, members, customers);
+                const results = window.CampaignEngine.calcCampaignResults(camp, sales, members, customers, businessTeams);
                 const passed = results.filter(r => r.passed);
                 const notPassed = results.filter(r => !r.passed);
                 return { campaign: camp, results, passed, notPassed };
             });
-        }, [activeCampaigns, sales, members, customers]);
+        }, [activeCampaigns, sales, members, customers, businessTeams]);
 
         const [targetHistory, setTargetHistory] = useState(initialTargetHistory || []);
         const [showTargetHistoryModal, setShowTargetHistoryModal] = useState(false);
@@ -1017,26 +1095,27 @@
                 const passRate = totalMarketingCount > 0 ? Math.round((passedCount / totalMarketingCount) * 100) : 0;
 
                 return (
-                    <div key={camp.campaign_id} className={`${boxWrapper} flex flex-col relative overflow-hidden bg-gradient-to-b from-slate-900 via-indigo-950/40 to-slate-900 border border-amber-500/30 shadow-2xl mb-8 p-4 sm:p-6 rounded-3xl transition-all duration-300`}>
+                    <div key={camp.campaign_id} className={`${boxWrapper} flex flex-col relative overflow-hidden bg-slate-900/95 border border-slate-700/80 shadow-2xl mb-8 p-4 sm:p-6 rounded-3xl transition-all duration-300`}>
                         {/* Ambient Lighting */}
-                        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none opacity-25">
-                            <div className="absolute -top-32 -left-32 w-96 h-96 bg-amber-500 rounded-full blur-[110px]"></div>
-                            <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-blue-600 rounded-full blur-[130px]"></div>
+                        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none opacity-15">
+                            <div className="absolute -top-32 -left-32 w-96 h-96 bg-amber-500 rounded-full blur-[120px]"></div>
+                            <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-blue-600 rounded-full blur-[140px]"></div>
                         </div>
 
                         {/* Campaign Header Bar */}
-                        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 relative z-10 border-b border-white/10 pb-5 mb-5">
+                        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 relative z-10 border-b border-slate-700/70 pb-5 mb-5">
                             <div className="flex items-start sm:items-center gap-3.5">
-                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-2xl text-amber-950 shadow-lg shadow-amber-500/30 shrink-0 font-black">
-                                    🏆
+                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center text-amber-950 shadow-lg shadow-amber-500/20 shrink-0">
+                                    <CampTrophyIcon size={26} className="text-amber-950" />
                                 </div>
                                 <div>
                                     <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 bg-amber-400/10 px-2.5 py-0.5 rounded-md border border-amber-400/20">
+                                        <span className="text-[11px] font-black uppercase tracking-wider text-amber-300 bg-amber-500/20 px-2.5 py-0.5 rounded-md border border-amber-500/40">
                                             แคมเปญการแข่งขัน • {camp.campaign_id}
                                         </span>
-                                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-500/25 text-blue-200 border border-blue-400/50 font-black text-xs shadow-inner">
-                                            <span>🗓️ กำหนดวันที่:</span>
+                                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-500/20 text-blue-200 border border-blue-400/40 font-bold text-xs shadow-xs">
+                                            <CampCalendarIcon size={13} className="text-blue-300 shrink-0" />
+                                            <span>กำหนดวันที่:</span>
                                             <span className="text-white font-black">{camp.start_date} ถึง {camp.end_date}</span>
                                         </div>
                                     </div>
@@ -1044,21 +1123,23 @@
                                         {camp.name}
                                     </h3>
                                     {camp.description && (
-                                        <p className="text-xs font-semibold text-amber-200/90 mt-0.5">
-                                            🎁 รางวัล: {camp.description}
-                                        </p>
+                                        <div className="inline-flex items-center gap-2 mt-1.5 px-3 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-xs font-bold">
+                                            <CampGiftIcon size={14} className="text-amber-400 shrink-0" />
+                                            <span className="text-amber-400 font-black">รางวัล:</span>
+                                            <span className="text-amber-200 font-bold">{camp.description}</span>
+                                        </div>
                                     )}
                                 </div>
                             </div>
 
                             {/* Right controls: Summary Chips & Collapse */}
                             <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-start lg:justify-end">
-                                <div className="flex items-center gap-2 bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-white/10 text-xs">
-                                    <span className="text-slate-400 font-bold">ผู้เข้าแข่ง:</span>
+                                <div className="flex items-center gap-2 bg-slate-800/90 px-3.5 py-1.5 rounded-2xl border border-slate-700 text-xs font-bold text-slate-300">
+                                    <span>ผู้เข้าแข่ง:</span>
                                     <span className="text-white font-black">{totalMarketingCount} คน</span>
                                 </div>
 
-                                <div className="flex items-center gap-2 bg-emerald-950/40 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-emerald-500/30 text-xs text-emerald-400 font-bold">
+                                <div className="flex items-center gap-2 bg-emerald-950/80 px-3.5 py-1.5 rounded-2xl border border-emerald-500/40 text-xs text-emerald-300 font-bold">
                                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                                     <span>ผ่านเกณฑ์: <strong className="text-white font-black">{passedCount}</strong> คน ({passRate}%)</span>
                                 </div>
@@ -1066,7 +1147,7 @@
                                 <button
                                     type="button"
                                     onClick={() => setCampaignCollapsedMap(prev => ({ ...prev, [camp.campaign_id]: !prev[camp.campaign_id] }))}
-                                    className="px-3 py-1.5 rounded-2xl text-xs font-bold bg-white/10 hover:bg-white/20 text-slate-200 transition-colors flex items-center gap-1.5 border border-white/10 cursor-pointer"
+                                    className="px-3.5 py-1.5 rounded-2xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors flex items-center gap-1.5 border border-slate-700 cursor-pointer"
                                 >
                                     <span>{isCollapsed ? 'ขยายดู' : 'ย่อเก็บ'}</span>
                                     <ChevronDown size={14} className={`transition-transform duration-300 ${isCollapsed ? '' : 'rotate-180'}`} />
@@ -1075,97 +1156,94 @@
                         </div>
 
                         {/* Rules & Date Range Banner */}
-                        <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 bg-white/5 p-3.5 rounded-2xl border border-white/10 mb-6 text-xs">
-                            <div className="flex flex-wrap items-center gap-3">
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/20 text-amber-300 font-black border border-amber-500/40">
-                                    <span>🗓️ ช่วงเวลาแข่งขัน:</span>
+                        <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 bg-slate-800/80 p-3.5 sm:p-4 rounded-2xl border border-slate-700/80 mb-6 text-xs">
+                            <div className="flex flex-wrap items-center gap-2.5">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/20 text-amber-200 font-bold border border-amber-500/40">
+                                    <CampCalendarIcon size={13} className="text-amber-300 shrink-0" />
+                                    <span>ช่วงเวลาแข่งขัน:</span>
                                     <span className="text-white font-black">{camp.start_date} ถึง {camp.end_date}</span>
                                 </span>
-                                <span className="text-slate-500">|</span>
+                                <span className="text-slate-600 font-black">|</span>
                                 <span className="text-slate-300 font-bold">กฎเกณฑ์:</span>
                                 {camp.cond1_enabled && (
-                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-500/15 text-blue-300 font-black border border-blue-500/30">
-                                        🩺 คนมาตรวจ ≥ {camp.cond1_target} คน
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-sky-500/20 text-sky-200 font-black border border-sky-400/40 shadow-xs">
+                                        <CampStethoscopeIcon size={13} className="text-sky-300 shrink-0" />
+                                        <span>คนมาตรวจ ≥ {camp.cond1_target} คน</span>
                                     </span>
                                 )}
                                 {camp.cond2_enabled && (
-                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-purple-500/15 text-purple-300 font-black border border-purple-500/30">
-                                        📦 กล่องราคา ≥ {Number(camp.cond2_min_price || 0).toLocaleString()}฿ → ≥ {camp.cond2_target} กล่อง
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-purple-500/20 text-purple-200 font-black border border-purple-400/40 shadow-xs">
+                                        <CampBoxIcon size={13} className="text-purple-300 shrink-0" />
+                                        <span>กล่องราคา ≥ {Number(camp.cond2_min_price || 0).toLocaleString()}฿ → ≥ {camp.cond2_target} กล่อง</span>
                                     </span>
                                 )}
                             </div>
-                            <div className="text-[11px] text-amber-300/90 font-bold bg-black/40 px-3 py-1 rounded-lg border border-amber-500/20">
-                                ⚡ นับเฉพาะยอดขายและคนมาตรวจในช่วงวันที่ {camp.start_date} - {camp.end_date} เท่านั้น
+                            <div className="inline-flex items-center gap-1.5 text-[11px] text-amber-300 font-bold bg-slate-900/90 px-3 py-1 rounded-lg border border-amber-500/30">
+                                <CampZapIcon size={12} className="text-amber-400 shrink-0" />
+                                <span>นับเฉพาะยอดขายและคนมาตรวจในช่วงวันที่ {camp.start_date} - {camp.end_date} เท่านั้น</span>
                             </div>
                         </div>
 
                         {!isCollapsed && (
                             <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 relative z-10">
-                                {/* 🏆 Column 1: ผ่านเกณฑ์แล้ว */}
-                                <div className="xl:col-span-5 bg-gradient-to-b from-emerald-950/30 via-slate-900/60 to-black/40 rounded-3xl p-4 sm:p-5 border border-emerald-500/30 flex flex-col shadow-inner">
+                                {/* 🏆 Column 1: ผ่านเกณฑ์แล้ว (โชว์เฉพาะ #ลำดับที่ผ่าน, รูป, ชื่อ-นามสกุล เรียงตามคนที่ผ่านก่อน) */}
+                                <div className="xl:col-span-5 bg-slate-900/90 rounded-3xl p-4 sm:p-5 border border-emerald-500/40 flex flex-col shadow-lg">
                                     <div className="flex items-center justify-between border-b border-emerald-500/20 pb-3 mb-4">
                                         <div className="flex items-center gap-2">
-                                            <span className="text-xl">🎉</span>
-                                            <h4 className="text-sm font-black text-emerald-400 tracking-wide uppercase">
+                                            <div className="w-7 h-7 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shrink-0">
+                                                <CampAwardIcon size={16} className="text-emerald-400" />
+                                            </div>
+                                            <h4 className="text-sm font-black text-emerald-300 tracking-wide uppercase">
                                                 ผ่านเกณฑ์การแข่งขันแล้ว ({passedCount} คน)
                                             </h4>
                                         </div>
-                                        <span className="text-[10px] font-black bg-emerald-500 text-slate-950 px-2 py-0.5 rounded-full">
+                                        <span className="text-[10px] font-black bg-emerald-500 text-slate-950 px-2.5 py-0.5 rounded-full shadow-xs">
                                             Qualified
                                         </span>
                                     </div>
 
                                     {sec.passed.length === 0 ? (
                                         <div className="flex-1 flex flex-col items-center justify-center py-12 text-center text-slate-400">
-                                            <div className="text-4xl mb-3 animate-bounce">⏳</div>
-                                            <p className="text-xs font-bold text-slate-300">ยังไม่มีผู้ผ่านเกณฑ์ครบทุกเงื่อนไข</p>
-                                            <p className="text-[11px] text-slate-500 mt-1">ทุกคนกำลังแข่งขันสะสมยอดอย่างเข้มข้น!</p>
+                                            <div className="w-14 h-14 rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-center mb-3 shadow-inner">
+                                                <CampHourglassIcon size={28} className="text-slate-400" />
+                                            </div>
+                                            <p className="text-xs font-black text-slate-200">ยังไม่มีผู้ผ่านเกณฑ์ครบทุกเงื่อนไข</p>
+                                            <p className="text-[11px] text-slate-400 mt-1">ทุกคนกำลังแข่งขันสะสมยอดอย่างเข้มข้น!</p>
                                         </div>
                                     ) : (
-                                        <div className="space-y-3 overflow-y-auto max-h-[500px] pr-1 hide-scroll">
+                                        <div className="space-y-2.5 overflow-y-auto max-h-[500px] pr-1 hide-scroll">
                                             {sec.passed.map((m, idx) => {
                                                 const avatar = cleanAvatarUrl(m.profileUrl, m.name);
                                                 return (
                                                     <div
                                                         key={m.memberId || idx}
-                                                        className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3 shadow-md hover:bg-emerald-500/15 transition-all group"
+                                                        className="px-4 py-3 rounded-2xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 hover:border-emerald-500/50 flex items-center gap-3.5 shadow-md transition-all group"
                                                     >
-                                                        <div className="flex items-center gap-3 min-w-0">
-                                                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
-                                                                idx === 0 ? 'bg-amber-400 text-amber-950 shadow-md shadow-amber-400/40' :
-                                                                idx === 1 ? 'bg-slate-300 text-slate-900' :
-                                                                idx === 2 ? 'bg-amber-600 text-white' :
-                                                                'bg-emerald-800 text-emerald-100'
-                                                            }`}>
-                                                                {idx + 1}
-                                                            </div>
-                                                            <img src={avatar} alt={m.name} className="w-10 h-10 rounded-full object-cover border-2 border-emerald-400/50 shrink-0" />
-                                                            <div className="min-w-0">
-                                                                <p className="text-xs font-black text-white truncate group-hover:text-emerald-300 transition-colors">
-                                                                    {m.name}
-                                                                </p>
-                                                                <p className="text-[10px] text-emerald-400/80 font-semibold truncate">
-                                                                    {m.team || 'พนักงานการตลาด'}
-                                                                </p>
-                                                            </div>
+                                                        {/* ลำดับที่ผ่านเกณฑ์ (เรียง 1, 2, 3... ตามคนที่ผ่านก่อน) */}
+                                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 shadow-sm ${
+                                                            idx === 0 ? 'bg-gradient-to-br from-amber-300 to-amber-500 text-amber-950 ring-2 ring-amber-400/50 shadow-amber-500/20 font-black' :
+                                                            idx === 1 ? 'bg-gradient-to-br from-slate-200 to-slate-400 text-slate-900 ring-2 ring-slate-300/50 font-black' :
+                                                            idx === 2 ? 'bg-gradient-to-br from-amber-600 to-amber-700 text-white ring-2 ring-amber-500/40 font-black' :
+                                                            'bg-slate-700 text-slate-200 border border-slate-600 font-black'
+                                                        }`}>
+                                                            #{idx + 1}
                                                         </div>
 
-                                                        <div className="text-right shrink-0">
-                                                            <div className="flex items-center gap-2 justify-end text-[11px] font-black">
-                                                                {camp.cond1_enabled && (
-                                                                    <span className="text-blue-300 bg-blue-900/40 px-2 py-0.5 rounded-lg border border-blue-500/30" title="คนมาตรวจ">
-                                                                        🩺 {m.actual_cond1} คน
-                                                                    </span>
-                                                                )}
-                                                                {camp.cond2_enabled && (
-                                                                    <span className="text-purple-300 bg-purple-900/40 px-2 py-0.5 rounded-lg border border-purple-500/30" title="กล่องผ่านเกณฑ์">
-                                                                        📦 {m.actual_cond2} กล่อง
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            <span className="inline-block mt-1 text-[9px] font-black text-emerald-400 uppercase tracking-wider">
-                                                                ★ สำเร็จแล้ว
-                                                            </span>
+                                                        {/* รูปโปรไฟล์ */}
+                                                        <img
+                                                            src={avatar}
+                                                            alt={m.name}
+                                                            className="w-11 h-11 rounded-full object-cover border-2 border-emerald-400 shadow-sm shrink-0"
+                                                        />
+
+                                                        {/* ชื่อ - นามสกุล และทีม */}
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-sm font-black text-white truncate group-hover:text-emerald-300 transition-colors">
+                                                                {m.name}
+                                                            </p>
+                                                            <p className="text-[11px] text-emerald-400 font-bold truncate mt-0.5">
+                                                                {m.teamName || m.team || 'พนักงานการตลาด'}
+                                                            </p>
                                                         </div>
                                                     </div>
                                                 );
@@ -1175,22 +1253,26 @@
                                 </div>
 
                                 {/* ⏳ Column 2: กำลังสะสมผลงาน */}
-                                <div className="xl:col-span-7 bg-black/20 rounded-3xl p-4 sm:p-5 border border-white/10 flex flex-col shadow-inner">
-                                    <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
+                                <div className="xl:col-span-7 bg-slate-900/90 rounded-3xl p-4 sm:p-5 border border-slate-700/80 flex flex-col shadow-lg">
+                                    <div className="flex items-center justify-between border-b border-slate-700/80 pb-3 mb-4">
                                         <div className="flex items-center gap-2">
-                                            <span className="text-xl">🏃‍♂️</span>
+                                            <div className="w-7 h-7 rounded-lg bg-sky-500/20 border border-sky-500/40 flex items-center justify-center shrink-0">
+                                                <CampTargetIcon size={16} className="text-sky-400" />
+                                            </div>
                                             <h4 className="text-sm font-black text-white tracking-wide uppercase">
                                                 กำลังสะสมผลงาน / ขาดอีกเท่าไหร่ ({pendingCount} คน)
                                             </h4>
                                         </div>
-                                        <span className="text-[10px] font-bold text-slate-400">
+                                        <span className="text-xs font-bold text-slate-400">
                                             เป้าหมายร่วม
                                         </span>
                                     </div>
 
                                     {sec.notPassed.length === 0 ? (
                                         <div className="flex-1 flex flex-col items-center justify-center py-12 text-center text-slate-400">
-                                            <div className="text-4xl mb-3">🎊</div>
+                                            <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center mb-3 shadow-inner">
+                                                <CampSparklesIcon size={28} className="text-emerald-400" />
+                                            </div>
                                             <p className="text-sm font-black text-emerald-400">สุดยอดมาก! ทุกคนผ่านเกณฑ์ทั้งหมดแล้ว</p>
                                         </div>
                                     ) : (
@@ -1203,29 +1285,32 @@
                                                 return (
                                                     <div
                                                         key={m.memberId}
-                                                        className="p-3.5 rounded-2xl bg-white/5 border border-white/10 hover:border-white/20 transition-all flex flex-col justify-between gap-3 shadow-xs"
+                                                        className="p-4 rounded-2xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 transition-all flex flex-col justify-between gap-3 shadow-md"
                                                     >
                                                         <div className="flex items-center gap-3">
-                                                            <img src={avatar} alt={m.name} className="w-10 h-10 rounded-full object-cover border border-slate-600 shrink-0" />
-                                                            <div className="min-w-0">
-                                                                <p className="text-xs font-bold text-white truncate">{m.name}</p>
-                                                                <p className="text-[10px] text-slate-400 truncate">{m.team || 'พนักงานการตลาด'}</p>
+                                                            <img src={avatar} alt={m.name} className="w-11 h-11 rounded-full object-cover border-2 border-slate-600 shrink-0" />
+                                                            <div className="min-w-0 flex-1">
+                                                                <p className="text-xs sm:text-sm font-black text-white truncate">{m.name}</p>
+                                                                <p className="text-xs font-bold text-amber-400 truncate mt-0.5">{m.teamName || m.team || 'พนักงานการตลาด'}</p>
                                                             </div>
                                                         </div>
 
-                                                        {/* Progress bars */}
-                                                        <div className="space-y-2 pt-1 border-t border-white/5">
+                                                        {/* Progress bars with high contrast text */}
+                                                        <div className="space-y-2.5 pt-2 border-t border-slate-700/60">
                                                             {camp.cond1_enabled && (
                                                                 <div>
-                                                                    <div className="flex justify-between items-center text-[10px] font-bold mb-1">
-                                                                        <span className="text-slate-400">🩺 คนมาตรวจ ({m.actual_cond1}/{camp.cond1_target})</span>
-                                                                        <span className={diff1 === 0 ? 'text-emerald-400 font-black' : 'text-amber-400'}>
+                                                                    <div className="flex justify-between items-center text-xs font-bold mb-1">
+                                                                        <span className="text-slate-300 inline-flex items-center gap-1.5">
+                                                                            <CampStethoscopeIcon size={13} className="text-sky-400 shrink-0" />
+                                                                            <span>คนมาตรวจ ({m.actual_cond1}/{camp.cond1_target})</span>
+                                                                        </span>
+                                                                        <span className={diff1 === 0 ? 'text-emerald-400 font-black bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-500/30' : 'text-amber-300 font-black bg-amber-950/60 px-2 py-0.5 rounded-md border border-amber-500/30'}>
                                                                             {diff1 === 0 ? '✓ ครบแล้ว' : `ขาดอีก ${diff1} คน`}
                                                                         </span>
                                                                     </div>
-                                                                    <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                                                    <div className="w-full bg-slate-950/80 h-2 rounded-full overflow-hidden border border-slate-700/50">
                                                                         <div
-                                                                            className={`h-full rounded-full transition-all duration-500 ${diff1 === 0 ? 'bg-emerald-500' : 'bg-blue-500'}`}
+                                                                            className={`h-full rounded-full transition-all duration-500 ${diff1 === 0 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-sky-500 to-blue-500'}`}
                                                                             style={{ width: `${m.pct1 || 0}%` }}
                                                                         ></div>
                                                                     </div>
@@ -1234,15 +1319,18 @@
 
                                                             {camp.cond2_enabled && (
                                                                 <div>
-                                                                    <div className="flex justify-between items-center text-[10px] font-bold mb-1">
-                                                                        <span className="text-slate-400">📦 กล่อง ({m.actual_cond2}/{camp.cond2_target})</span>
-                                                                        <span className={diff2 === 0 ? 'text-emerald-400 font-black' : 'text-purple-400'}>
+                                                                    <div className="flex justify-between items-center text-xs font-bold mb-1">
+                                                                        <span className="text-slate-300 inline-flex items-center gap-1.5">
+                                                                            <CampBoxIcon size={13} className="text-purple-400 shrink-0" />
+                                                                            <span>กล่อง ({m.actual_cond2}/{camp.cond2_target})</span>
+                                                                        </span>
+                                                                        <span className={diff2 === 0 ? 'text-emerald-400 font-black bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-500/30' : 'text-purple-300 font-black bg-purple-950/60 px-2 py-0.5 rounded-md border border-purple-500/30'}>
                                                                             {diff2 === 0 ? '✓ ครบแล้ว' : `ขาดอีก ${diff2} กล่อง`}
                                                                         </span>
                                                                     </div>
-                                                                    <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                                                    <div className="w-full bg-slate-950/80 h-2 rounded-full overflow-hidden border border-slate-700/50">
                                                                         <div
-                                                                            className={`h-full rounded-full transition-all duration-500 ${diff2 === 0 ? 'bg-emerald-500' : 'bg-purple-500'}`}
+                                                                            className={`h-full rounded-full transition-all duration-500 ${diff2 === 0 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-purple-500 to-fuchsia-500'}`}
                                                                             style={{ width: `${m.pct2 || 0}%` }}
                                                                         ></div>
                                                                     </div>
