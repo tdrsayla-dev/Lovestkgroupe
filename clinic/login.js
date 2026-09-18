@@ -443,6 +443,7 @@ if (loginForm) {
                 authenticated_at: new Date().toISOString(),
                 has_2fa: true
             }));
+            localStorage.setItem('clinic_last_activity', Date.now().toString());
 
             Swal.fire({
                 icon: 'success',

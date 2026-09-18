@@ -2862,12 +2862,12 @@
             <div class="text-success fw-bold" style="font-size: 11px; letter-spacing: 1px;">PATIENT DIRECTORY</div>
             <div class="d-flex align-items-center gap-2 flex-wrap">
                 <h3 class="fw-bold mb-0" id="page-patient-title" style="color: #0b3c73;">ຜູ້ປ່ວຍຂອງຂ້ອຍ</h3>
-                <!-- Toggle Mode สำหรับ Admin สลับดูทั้งหมด หรือเฉพาะของฉัน -->
+                <!-- Toggle Mode สำหรับสลับดูทั้งหมด หรือเฉพาะของฉัน -->
                 <div id="adminViewToggle" class="btn-group btn-group-sm ms-2 shadow-sm"
-                    style="display: none; border-radius: 20px; overflow: hidden;">
+                    style="display: inline-flex; border-radius: 20px; overflow: hidden;">
                     <button type="button" class="btn btn-outline-primary btn-sm px-2.5 py-1 active fw-semibold"
                         id="btnAdminViewAll" onclick="setAdminPatientView('all')" style="font-size: 12px;">
-                        <i class="ph ph-globe me-1"></i>ທັງໝົດ (Admin)
+                        <i class="ph ph-globe me-1"></i>ທັງໝົດ
                     </button>
                     <button type="button" class="btn btn-outline-primary btn-sm px-2.5 py-1 fw-semibold"
                         id="btnAdminViewMy" onclick="setAdminPatientView('my')" style="font-size: 12px;">
@@ -2876,7 +2876,7 @@
                 </div>
             </div>
             <p class="text-muted mb-0 mt-1" id="page-patient-subtitle" style="font-size: 13px;">
-                ສະແດງສະເພາະຜູ້ປ່ວຍທີ່ທ່ານເປັນຜູ້ແນະນຳ</p>
+                ສະແດງລາຍຊື່ຜູ້ປ່ວຍທັງໝົດໃນລະບົບ</p>
         </div>
 
         <!-- Horizontal Tab Navigation & Action Buttons (Modern Minimal) -->
@@ -2942,11 +2942,11 @@
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     <!-- ปุ่มเลือกเวลาด่วน: ມື້ນີ້ / ທັງໝົດ -->
                     <div class="btn-group btn-group-sm shadow-sm" role="group" style="border-radius: 50rem;">
-                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary"
+                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary active"
                             id="btnFilterToday" onclick="setDateFilterMode('today')">
                             <i class="ph ph-calendar-check me-1 text-primary"></i>ມື້ນີ້
                         </button>
-                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary active"
+                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary"
                             id="btnFilterAll" onclick="setDateFilterMode('all')">
                             ທັງໝົດ
                         </button>
@@ -3187,11 +3187,11 @@
                     </div>
                     <!-- ປຸ່ມເລືອກເວລາດ່ວນ: ມື້ນີ້ / ທັງໝົດ -->
                     <div class="btn-group btn-group-sm shadow-sm" role="group" style="border-radius: 50rem;">
-                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary"
+                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary active"
                             id="btnFilterTodayHistory" onclick="setDateFilterMode('today')">
                             <i class="ph ph-calendar-check me-1 text-primary"></i>ມື້ນີ້
                         </button>
-                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary active"
+                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary"
                             id="btnFilterAllHistory" onclick="setDateFilterMode('all')">
                             ທັງໝົດ
                         </button>
@@ -3518,7 +3518,7 @@
         let allPatientsData = [];
         let filteredPatientsData = [];
         let currentSelectedPatient = null;
-        let currentDateFilterMode = 'all';
+        let currentDateFilterMode = 'today';
         let isCurrentUserAdmin = false;
         let currentUserNameGlobal = '';
 
@@ -3753,8 +3753,8 @@
             // ອັບເດດຂໍ້ຄວາມສະແດງຈຳນວນໃນ Subtitle ໃຫ້ຕົງກັບຂໍ້ມູນທີ່ກັ່ນຕອງຈິງ
             const subTitleEl = document.getElementById('page-patient-subtitle');
             if (subTitleEl) {
-                if (isCurrentUserAdmin && currentAdminViewMode === 'all') {
-                    subTitleEl.innerHTML = `ສະແດງລາຍຊື່ຜູ້ປ່ວຍ (ສິດທິ Admin) - ${filterLabel}: ພົບ <strong>${filteredPatientsData.length}</strong> ລາຍການ`;
+                if (currentAdminViewMode === 'all') {
+                    subTitleEl.innerHTML = `ສະແດງລາຍຊື່ຜູ້ປ່ວຍທັງໝົດ - ${filterLabel}: ພົບ <strong>${filteredPatientsData.length}</strong> ລາຍການ`;
                 } else {
                     subTitleEl.innerHTML = `ສະແດງສະເພາະຄົນໄຂ້ທີ່ທ່ານເປັນຜູ້ແນະນຳ - ${filterLabel}: ພົບ <strong>${filteredPatientsData.length}</strong> ຄົນ`;
                 }
@@ -4660,8 +4660,8 @@
 
             const titleEl = document.getElementById('page-patient-title');
             if (titleEl) {
-                if (isCurrentUserAdmin && currentAdminViewMode === 'all') {
-                    titleEl.innerHTML = `ຜູ້ປ່ວຍທັງໝົດ <span class="badge bg-danger-subtle text-danger fs-6 fw-semibold px-2.5 py-1 ms-1" style="border-radius:8px;"><i class="ph ph-shield-check me-1"></i>Admin Mode</span>`;
+                if (currentAdminViewMode === 'all') {
+                    titleEl.innerHTML = `ຜູ້ປ່ວຍທັງໝົດ <span class="badge bg-primary-subtle text-primary fs-6 fw-semibold px-2.5 py-1 ms-1" style="border-radius:8px;"><i class="ph ph-globe me-1"></i>ທັງໝົດ</span>`;
                 } else {
                     titleEl.innerHTML = `ຜູ້ປ່ວຍຂອງຂ້ອຍ <span class="badge bg-primary-subtle text-primary fs-6 fw-semibold px-2.5 py-1 ms-1" style="border-radius:8px;"><i class="ph ph-user me-1"></i>${currentUserNameGlobal || 'ສະເພາະຂອງຂ້ອຍ'}</span>`;
                 }
@@ -4733,21 +4733,27 @@
 
                 const toggleEl = document.getElementById('adminViewToggle');
                 if (toggleEl) {
-                    toggleEl.style.display = isCurrentUserAdmin ? 'inline-flex' : 'none';
+                    toggleEl.style.display = 'inline-flex';
                 }
 
-                if (isCurrentUserAdmin) {
-                    allPatientsData = currentAdminViewMode === 'my' ? [...rawMyPatients] : [...rawAllPatients];
-                    allOrdersData = currentAdminViewMode === 'my' ? [...rawMyOrders] : [...rawAllOrders];
+                // ค่าเริ่มต้นให้แสดงข้อมูลผู้ป่วยและ Order ทั้งหมด ('all') เพื่อให้มีข้อมูลแสดงทันที
+                if (currentAdminViewMode === 'my' && rawMyPatients && rawMyPatients.length > 0) {
+                    allPatientsData = [...rawMyPatients];
+                    allOrdersData = [...rawMyOrders];
                 } else {
-                    allPatientsData = [...(event.data.patients || rawMyPatients)];
-                    allOrdersData = [...(event.data.orders || rawMyOrders)];
+                    currentAdminViewMode = 'all';
+                    allPatientsData = [...rawAllPatients];
+                    allOrdersData = [...rawAllOrders];
+                    const btnAll = document.getElementById('btnAdminViewAll');
+                    const btnMy = document.getElementById('btnAdminViewMy');
+                    if (btnAll) btnAll.classList.add('active');
+                    if (btnMy) btnMy.classList.remove('active');
                 }
 
                 const titleEl = document.getElementById('page-patient-title');
                 if (titleEl) {
-                    if (isCurrentUserAdmin && currentAdminViewMode === 'all') {
-                        titleEl.innerHTML = `ຜູ້ປ່ວຍທັງໝົດ <span class="badge bg-danger-subtle text-danger fs-6 fw-semibold px-2.5 py-1 ms-1" style="border-radius:8px;"><i class="ph ph-shield-check me-1"></i>Admin Mode</span>`;
+                    if (currentAdminViewMode === 'all') {
+                        titleEl.innerHTML = `ຜູ້ປ່ວຍທັງໝົດ <span class="badge bg-primary-subtle text-primary fs-6 fw-semibold px-2.5 py-1 ms-1" style="border-radius:8px;"><i class="ph ph-globe me-1"></i>ທັງໝົດ</span>`;
                     } else {
                         titleEl.innerHTML = `ຜູ້ປ່ວຍຂອງຂ້ອຍ <span class="badge bg-primary-subtle text-primary fs-6 fw-semibold px-2.5 py-1 ms-1" style="border-radius:8px;"><i class="ph ph-user me-1"></i>${displayUser || 'ສະເພາະຂອງຂ້ອຍ'}</span>`;
                     }
@@ -7092,6 +7098,7 @@
         // โหลดข้อมูลอัตโนมัติเมื่อเปิดหน้า
         setupSearch();
         loadOrderMedicinesCatalog(); // โหลดคลังสินค้า stk_products ล่วงหน้า
+        try { setDateFilterMode('today'); } catch (e) { }
         if (window.self !== window.top) {
             setTimeout(loadLivePatientData, 300);
         } else {

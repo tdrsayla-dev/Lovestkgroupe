@@ -60,15 +60,36 @@ window.logoutUser = function() {
             }).then((res) => {
                 if (res.isConfirmed) {
                     localStorage.removeItem('clinicUser');
-                    window.location.href = 'login.html';
+                    localStorage.removeItem('clinic_last_activity');
+                    (window.top || window).location.href = 'login.html';
                 }
             });
         } else {
             localStorage.removeItem('clinicUser');
-            window.location.href = 'login.html';
+            localStorage.removeItem('clinic_last_activity');
+            (window.top || window).location.href = 'login.html';
         }
     }
 };
+
+// ບັນທຶກການເຄື່ອນໄຫວພາຍໃນ Dashboard ເພື່ອ Sync ກັບລະບົບ Auto-Logout
+(function initDashboardActivityTracking() {
+    let lastThrottledUpdate = 0;
+    function recordActivity() {
+        const now = Date.now();
+        if (now - lastThrottledUpdate > 1500) {
+            lastThrottledUpdate = now;
+            try {
+                localStorage.setItem('clinic_last_activity', now.toString());
+            } catch (e) { }
+        }
+    }
+    const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click', 'wheel'];
+    events.forEach(evt => {
+        window.addEventListener(evt, recordActivity, { passive: true });
+        document.addEventListener(evt, recordActivity, { passive: true });
+    });
+})();
 
 window.setClinicLanguage = function(lang) {
     localStorage.setItem('clinic_language', lang);
@@ -293,29 +314,18 @@ async function fetchSyncedBillsStats(startStr, endStr) {
     const startTimestamp = startStr + "T00:00:00";
     const endTimestamp = endStr + "T23:59:59";
 
-    // 1. ซิงค์ช่วงวันที่ไปยังหน้า Bill ของหน้าต่างหลัก
-    try {
-        const pDoc = (window.parent && window.parent.document) || document;
-        const bStartEl = pDoc.getElementById('billStartDate');
-        const bEndEl = pDoc.getElementById('billEndDate');
-        if (bStartEl && startStr && bStartEl.value !== startStr) bStartEl.value = startStr;
-        if (bEndEl && endStr && bEndEl.value !== endStr) bEndEl.value = endStr;
-    } catch (e) { }
-
+    // 1. ตรวจสอบว่าใน parent window มีข้อมูล bills ที่ตรงกับช่วงวันที่นี้อยู่แล้วหรือไม่ (ถ้ามีสามารถนำมาใช้ได้ทันทีโดยไม่ไปยุ่งกับช่องวันที่ของหน้า Bill)
     let billsList = [];
-
-    // 2. เรียกใช้ loadBills จากระบบหลัก เพื่อให้ได้ข้อมูลชุดเดียวกับหน้า Bill 100%
     try {
-        if (window.parent && typeof window.parent.loadBills === 'function') {
-            await window.parent.loadBills(true);
-            billsList = window.parent.allBillsData || [];
-        } else if (typeof window.loadBills === 'function') {
-            await window.loadBills(true);
-            billsList = window.allBillsData || [];
+        if (window.parent && Array.isArray(window.parent.allBillsData) && window.parent.allBillsData.length > 0) {
+            const pDoc = window.parent.document;
+            const pStart = (pDoc.getElementById('billStartDate') || {}).value;
+            const pEnd = (pDoc.getElementById('billEndDate') || {}).value;
+            if (pStart === startStr && pEnd === endStr) {
+                billsList = window.parent.allBillsData;
+            }
         }
-    } catch (e) {
-        console.warn('Sync loadBills warning:', e);
-    }
+    } catch (e) { }
 
     // 3. Fallback สำหรับ Standalone หรือถ้ายังไม่ได้ข้อมูลจาก loadBills
     if (!billsList || billsList.length === 0) {
@@ -352,7 +362,7 @@ async function fetchSyncedBillsStats(startStr, endStr) {
             if (client) {
                 const [{ data: bData }, { data: vData }] = await Promise.all([
                     client.from('bills').select('*').gte('created_at', startTimestamp).lte('created_at', endTimestamp).order('created_at', { ascending: false }),
-                    client.from('visits').select('visit_id, hn, patient_name, doctor_name, status, lab_tests, symptom, meds, lab_note, created_at, payment_status, payable_amount, cash_lak, transfer_lak').gte('created_at', startTimestamp).lte('created_at', endTimestamp).order('created_at', { ascending: false })
+                    client.from('visits').select('visit_id, hn, patient_name, doctor_name, status, lab_tests, symptom, meds, lab_note, created_at').gte('created_at', startTimestamp).lte('created_at', endTimestamp).order('created_at', { ascending: false })
                 ]);
 
                 if (Array.isArray(bData)) {
@@ -386,7 +396,7 @@ async function fetchSyncedBillsStats(startStr, endStr) {
                         if (vNote.includes('booking') || vNote.includes('order') || vNote.includes('ສັ່ງຊື້') || vNote.includes('สั่งซื้อ')) return false;
                         const pSt = (v.payment_status || '').trim();
                         if (vSt === 'ยกเลิก' || vSt === 'ຍົກເລີກ' || pSt === 'deleted' || pSt === 'cancelled' || pSt === 'unpaid') return false;
-                        const isPaidStatus = vSt === 'ชำระแล้ว' || vSt === 'ชำระเงินแล้ว' || vSt === 'รอผลแล็บ' || vSt === 'รอผลตรวจ Lab' || vSt === 'รออ่านผล' || vSt === 'รอจัดยา' || vSt === 'เสร็จสิ้น' || pSt === 'paid';
+                        const isPaidStatus = vSt === 'ชำระแล้ว' || vSt === 'ชำระเงินแล้ว' || vSt === 'ຊຳລະແລ້ວ' || pSt === 'paid';
                         const hasPayment = (parseFloat(v.payable_amount || 0) > 0 || parseFloat(v.cash_lak || 0) > 0 || parseFloat(v.transfer_lak || 0) > 0);
                         return isPaidStatus || hasPayment;
                     });
@@ -396,13 +406,18 @@ async function fetchSyncedBillsStats(startStr, endStr) {
                         if (isDeleted(vId) || isDeleted(`BILL-${String(vId).replace(/^VIS-/, '')}`)) return;
                         const alreadyInBills = billsList.some(b => (vId && (b.visit_id === vId || b.bill_id === vId)));
                         if (!alreadyInBills && vId) {
+                            const payable = parseFloat(v.payable_amount || 0);
+                            const rawTests = v.lab_tests || v.tests || '';
+                            if (payable <= 0 && !hasPayment && (!rawTests || String(rawTests).trim() === '')) {
+                                return;
+                            }
                             billsList.push({
                                 bill_id: `BILL-${vId.replace(/^VIS-/, '') || String(idx + 1001)}`,
                                 visit_id: vId,
                                 hn: v.hn || '-',
                                 patient_name: v.patient_name || v.name || 'ຜູ້ປ່ວຍ',
-                                payable_amount: parseFloat(v.payable_amount || 0) || 450000,
-                                subtotal: parseFloat(v.payable_amount || 0) || 450000,
+                                payable_amount: payable,
+                                subtotal: payable,
                                 discount: 0,
                                 created_at: v.created_at
                             });
@@ -606,7 +621,7 @@ window.updateDashboardStats = async function () {
                     } catch (e) { return false; }
                 }).length;
             } else {
-                const { data: pts } = await _supabase.from('patients').select('next_appointment_date');
+                const { data: pts } = await _supabase.from('patients').select('*');
                 if (Array.isArray(pts)) {
                     totalPatientsCount = pts.filter(row => {
                         if (!row.next_appointment_date) return false;

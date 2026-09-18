@@ -19,11 +19,9 @@ window.safeSetLocalStorage = function (key, value) {
         localStorage.setItem(k, str);
     };
 
-    // Trim value before writing
+    // ไม่ตัดทอนข้อมูล Array ในขั้นตอนนี้ เพื่อรักษาข้อมูลคนไข้/ผู้แนะนำให้ครบถ้วน
+    // การตัดทอนจะเกิดขึ้นเฉพาะเมื่อ quota เต็มจริงๆ (Phase 2/3 ด้านล่าง)
     let writeValue = value;
-    if (Array.isArray(value)) {
-        writeValue = value.slice(0, 20); // limit to 20 items max
-    }
 
     try {
         trySet(key, writeValue);
@@ -490,6 +488,9 @@ function showPage(pageId, element) {
             try {
                 const frame = document.getElementById('marketingFrame');
                 if (frame && frame.contentWindow) {
+                    if (typeof frame.contentWindow.setDateFilterMode === 'function') {
+                        frame.contentWindow.setDateFilterMode('today');
+                    }
                     if (typeof frame.contentWindow.loadLivePatientData === 'function') {
                         frame.contentWindow.loadLivePatientData();
                     }
@@ -502,7 +503,14 @@ function showPage(pageId, element) {
             if (typeof loadPharmacyQueue === 'function') loadPharmacyQueue();
             if (typeof loadPharmacyHistory === 'function') loadPharmacyHistory();
         } else if (pageId === 'history') {
-            if (typeof loadPatientHistory === 'function') loadPatientHistory();
+            const hStart = document.getElementById('historyStartDate');
+            const hEnd = document.getElementById('historyEndDate');
+            const todayStr = (typeof getVientianeDateRange === 'function')
+                ? getVientianeDateRange('today').startStr
+                : new Date().toLocaleDateString('en-CA');
+            if (hStart) hStart.value = todayStr;
+            if (hEnd) hEnd.value = todayStr;
+            if (typeof loadPatientHistory === 'function') loadPatientHistory(false);
         } else if (pageId === 'stock-equip') {
             if (typeof loadSupplyItems === 'function') loadSupplyItems();
             if (typeof loadSupplyRequests === 'function') loadSupplyRequests();
@@ -1201,7 +1209,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 // ผูก visit_status และ order ล่าสุดให้กับคนไข้แต่ละคนอย่างแม่นยำ
                 allPatients.forEach(p => {
                     const pVisits = (recentVisits || []).filter(v => (p.hn && v.hn === p.hn) || (!p.hn && v.patient_name && p.patient_name && v.patient_name.trim().toLowerCase() === p.patient_name.trim().toLowerCase()));
-                    
+
                     // 🌟 คัดกรองออเดอร์ของคนไข้: ถ้า Order มี HN ต้องตรงกับ HN ของคนไข้เท่านั้น (ป้องกันคนไข้ชื่อเหมือนกันแต่คนละ HN มาแย่งออเดอร์กัน)
                     const pOrders = combinedOrders.filter(o => {
                         if (o.hn && p.hn) {
@@ -1401,13 +1409,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (event.source) {
                     event.source.postMessage({
                         type: 'PATIENTS_DATA',
-                        patients: isAdmin ? allPatients : myPatients,
+                        patients: allPatients,
                         allPatients: allPatients,
                         myPatients: myPatients,
-                        orders: isAdmin ? allOrdersList : myOrdersList,
+                        orders: allOrdersList,
                         allOrders: allOrdersList,
                         myOrders: myOrdersList,
-                        isAdmin: isAdmin,
+                        isAdmin: true,
                         currentUserCode: userEmpCode,
                         currentUserName: currentUser ? (currentUser.name || currentUser.full_name || currentUser.email) : '',
                         targetHn: event.data.targetHn || null
@@ -1454,7 +1462,7 @@ async function loadAppointments() {
     // ตั้งค่าเริ่มต้นของตัวเลือกวันที่นัดหมายเป็นวันปัจจุบัน (Today) หากยังไม่ได้เลือก
     const dateInput = document.getElementById('appointmentDateFilter');
     if (dateInput && !dateInput.value) {
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = formatVientianeDate(getVientianeNow()); // ใช้เวลา UTC+7 ลาว/ไทย แก้ปัญหาวันผิดช่วงเช้ามืด
         dateInput.value = todayStr;
     }
 
@@ -1516,7 +1524,7 @@ function renderAppointmentsTable(list, selectedDate = '') {
     tbody.innerHTML = '';
     if (!list || list.length === 0) {
         if (selectedDate) {
-            const todayStr = new Date().toISOString().split('T')[0];
+            const todayStr = formatVientianeDate(getVientianeNow()); // ใช้เวลา UTC+7 ลาว/ไทย แก้ปัญหาวันผิดช่วงเช้ามืด
             const isToday = (selectedDate === todayStr);
             const dateLabel = isToday ? 'วันนี้' : selectedDate;
             tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-calendar-x text-warning me-2 fs-5"></i>ไม่มีรายการนัดหมายในประจำวัน (${dateLabel}) <button type="button" class="btn btn-sm btn-link text-primary text-decoration-none fw-semibold p-0 ms-2" onclick="clearAppointmentDateFilter()">ดูทั้งหมด</button></td></tr>`;
@@ -1719,7 +1727,7 @@ async function loadPatients() {
     const { data, error } = await _supabase
         .from('patients')
         .select('*')
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false }); // เรียงใหม่→เก่า เพื่อให้คนไข้ใหม่สุดไม่หายเมื่อข้อมูลเกิน 1,000 รายการ
 
     if (error) {
         if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
@@ -1797,7 +1805,7 @@ async function loadPatients() {
         const startInput = document.getElementById('patientFilterStartDate');
         const endInput = document.getElementById('patientFilterEndDate');
         if (startInput && endInput && !startInput.value && !endInput.value) {
-            const todayStr = new Date().toISOString().split('T')[0];
+            const todayStr = formatVientianeDate(getVientianeNow()); // ใช้เวลา UTC+7 ลาว/ไทย แก้ปัญหาวันผิดช่วงเช้ามืด
             startInput.value = todayStr;
             endInput.value = todayStr;
         }
@@ -2100,7 +2108,7 @@ function renderPatientsTable(page = window.patientCurrentPage) {
 }
 
 function setPatientTodayFilter() {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = formatVientianeDate(getVientianeNow()); // ใช้เวลา UTC+7 ลาว/ไทย แก้ปัญหาวันผิดช่วงเช้ามืด
     const startInput = document.getElementById('patientFilterStartDate');
     const endInput = document.getElementById('patientFilterEndDate');
     if (startInput) startInput.value = todayStr;
@@ -3483,6 +3491,13 @@ function getTestItemDetails(testStr) {
     }
 
     const testNameLower = cleanTest.toLowerCase();
+
+    // ป้องกัน Generic Placeholder ไม่ให้ไปจับคู่กับบริการจริง
+    const genericPlaceholders = ['ກວດ lab / ບໍລິການ', 'ກວດ lab', 'ກວດlab', 'ກວດ', 'ບໍລິການ', 'ตรวจ lab / บริการ', 'ตรวจ lab', 'ตรวจ', 'บริการ', 'lab', 'service', '-'];
+    if (genericPlaceholders.includes(testNameLower)) {
+        return { name: cleanTest, price: 0, isPackage: false, subItems: [] };
+    }
+
     const services = window.allServicesData || window.servicesData || [];
 
     // หาก testStr มีจุลภาคคั่นหลายรายการ (เช่น "T4,TSH") และไม่เจอรายการเดี่ยวแบบตรงเป๊ะ ให้แยกแมปแต่ละตัวแล้วนำมารวมกัน
@@ -3521,13 +3536,14 @@ function getTestItemDetails(testStr) {
         });
     }
 
-    // 3. แยกคำ แล้วตรวจดูว่ามีคำไหนตรงกันบ้าง (word match)
-    if (!match && testNameLower.length >= 2) {
+    // 3. แยกคำ แล้วตรวจดูว่ามีคำไหนตรงกันบ้าง (word match) - ละเว้นคำทั่วไป เช่น 'ກວດ', 'ตรวจ', 'lab', 'ບໍລິການ'
+    const stopWords = ['ກວດ', 'ตรวจ', 'lab', 'ບໍລິການ', 'บริการ', 'ค่า', 'ຄ່າ', 'ของ', 'ຂອງ', 'ใน', 'ໃນ', 'ທາດ', 'สาร', 'หา', 'ຫາ', 'เช็ค', 'ເຊັກ'];
+    if (!match && testNameLower.length >= 3) {
         match = services.find(s => {
             if (!s || !s.name) return false;
             const sLower = s.name.trim().toLowerCase();
-            const words = testNameLower.split(/[\s\-\/\(\)]+/).filter(w => w.length >= 2);
-            return words.some(w => sLower.includes(w));
+            const words = testNameLower.split(/[\s\-\/(\)]+/).filter(w => w.length >= 2 && !stopWords.includes(w));
+            return words.length > 0 && words.some(w => sLower.includes(w));
         });
     }
 
@@ -3920,7 +3936,7 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
 
     // 🌟 2. ກວດສອບລາຍການທີ່ເຄີຍອອກບິນ ແລະ ຊຳລະແລ້ວໃນບິນກ່ອນໜ້າ (Option B: ແຍກບິນ - ສະເພາະບິນໃນມື້ດຽວກັນເທົ່ານັ້ນ)
     const billedItemsSet = new Set();
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = formatVientianeDate(getVientianeNow()); // ใช้เวลา UTC+7 ลาว/ไทย - แก้ปัญหาบิลวันผิดช่วงเช้ามืด
     let existingBillsForVisit = (window.allBillsData || window.clinicBills || []).filter(b => b.visit_id === visitId);
 
     if (existingBillsForVisit.length === 0 && typeof _supabase !== 'undefined') {
@@ -3935,7 +3951,9 @@ async function showPaymentDetails(visitId, hn, patientName, testsString, discoun
     // ເພື່ອໃຫ້ການມາກວດໃນມື້ໃໝ່ ຄິດເງິນເຕັມ 100% ທຸກລາຍການ
     existingBillsForVisit = existingBillsForVisit.filter(b => {
         if (!b.created_at) return true;
-        const billDateStr = new Date(b.created_at).toISOString().split('T')[0];
+        // ใช้ UTC+7 เพื่อเปรียบเทียบวันที่บิล ป้องกันวันผิดช่วง 00:00-06:59
+        const bDate = new Date(b.created_at);
+        const billDateStr = formatVientianeDate(new Date(bDate.getTime() + (7 * 3600000 + bDate.getTimezoneOffset() * 60000)));
         return billDateStr === todayStr;
     });
 
@@ -10929,17 +10947,20 @@ window.loadPatientHistory = async function (forceAll = false) {
     tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูลประวัติ...</td></tr>';
 
     const startInput = document.getElementById('historyStartDate');
-    const endInput   = document.getElementById('historyEndDate');
+    const endInput = document.getElementById('historyEndDate');
 
-    // ✅ ถ้าไม่ได้เลือกวัน และไม่ได้กด "ทั้งหมด" → ใช้วันปัจจุบันเป็น default
+    // ✅ ถ้าไม่ได้เลือกวัน และไม่ได้กด "ทั้งหมด" → ใช้วันปัจจุบันเป็น default (ถ้าต้องการดูย้อนหลังให้เลือกวันที่เอา)
+    const todayRange = (typeof getVientianeDateRange === 'function')
+        ? getVientianeDateRange('today')
+        : { startStr: new Date().toLocaleDateString('en-CA'), endStr: new Date().toLocaleDateString('en-CA') };
+
     if (!forceAll) {
-        const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD (timezone local)
-        if (startInput && !startInput.value) startInput.value = todayStr;
-        if (endInput   && !endInput.value)   endInput.value   = todayStr;
+        if (startInput && !startInput.value) startInput.value = todayRange.startStr;
+        if (endInput && !endInput.value) endInput.value = todayRange.endStr;
     }
 
-    const startDate = startInput?.value;
-    const endDate   = endInput?.value;
+    const startDate = startInput?.value || (!forceAll ? todayRange.startStr : null);
+    const endDate = endInput?.value || (!forceAll ? todayRange.endStr : null);
 
     try {
         if (typeof _supabase !== 'undefined') {
@@ -11085,6 +11106,13 @@ window.loadPatientHistory = async function (forceAll = false) {
                             if (!o) return;
                             const vId = o.visitId || o.visit_id || ('VIS-ORD-' + String(o.orderId || o.order_id || '').replace(/\D/g, '').slice(-5));
                             if (isHistDeleted(vId) || isHistDeleted(o.orderId) || isHistDeleted(o.order_id) || o.status === 'ຍົກເລີກ' || o.status === 'ยกเลิก') return;
+                            if (startDate || endDate) {
+                                const oDate = o.created_at || o.date;
+                                if (!oDate) return;
+                                const oDateStr = new Date(oDate).toLocaleDateString('en-CA');
+                                if (startDate && oDateStr < startDate) return;
+                                if (endDate && oDateStr > endDate) return;
+                            }
                             if (vId && !rows.some(r => r.visit_id === vId)) {
                                 rows.push({
                                     visit_id: vId,
@@ -11117,6 +11145,13 @@ window.loadPatientHistory = async function (forceAll = false) {
                             if (!o) return;
                             const vId = o.visit_id || ('VIS-' + String(o.order_id || '').replace(/\D/g, '').slice(-6));
                             if (isHistDeleted(vId) || isHistDeleted(o.order_id) || o.status === 'ຍົກເລີກ' || o.status === 'ยกเลิก') return;
+                            if (startDate || endDate) {
+                                const oDate = o.created_at || o.date;
+                                if (!oDate) return;
+                                const oDateStr = new Date(oDate).toLocaleDateString('en-CA');
+                                if (startDate && oDateStr < startDate) return;
+                                if (endDate && oDateStr > endDate) return;
+                            }
                             if (vId && !rows.some(r => r.visit_id === vId)) {
                                 rows.push({
                                     visit_id: vId,
@@ -14561,10 +14596,131 @@ window.logoutUser = function () {
     }).then((result) => {
         if (result.isConfirmed) {
             localStorage.removeItem('clinicUser');
+            localStorage.removeItem('clinic_last_activity');
             window.location.href = 'login.html';
         }
     });
 };
+
+// =========================================================================
+// 🔒 ระบบ Auto Logout ອັດຕະໂນມັດ ເມື່ອບໍ່ມີການເຄື່ອນໄຫວເກີນ 60 ນາທີ (Inactivity Auto-Logout)
+// =========================================================================
+(function initInactivityAutoLogout() {
+    const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000; // 60 นาที (3,600,000 มิลลิวินาที)
+    const STORAGE_KEY = 'clinic_last_activity';
+    let lastThrottledUpdate = 0;
+    let isLoggingOut = false;
+
+    // 1. ບັນທຶກເວລາເຄື່ອນໄຫວຫຼ້າສຸດ (Throttled เพื่อประสิทธิภาพ ไม่หน่วงเครื่อง)
+    function recordActivity() {
+        const now = Date.now();
+        if (now - lastThrottledUpdate > 1500) { // อัปเดตทุก 1.5 วินาที
+            lastThrottledUpdate = now;
+            try {
+                localStorage.setItem(STORAGE_KEY, now.toString());
+            } catch (e) { }
+        }
+    }
+
+    // ເລີ່ມຕົ້ນເວລາຫາກຍັງບໍ່ມີຄ່າ
+    if (!localStorage.getItem(STORAGE_KEY)) {
+        try {
+            localStorage.setItem(STORAGE_KEY, Date.now().toString());
+        } catch (e) { }
+    }
+
+    // 2. ດັກຈັບ Event ການເຄື່ອນໄຫວ (Mouse, Keyboard, Touch, Scroll)
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click', 'wheel'];
+    activityEvents.forEach(evt => {
+        window.addEventListener(evt, recordActivity, { passive: true });
+        document.addEventListener(evt, recordActivity, { passive: true });
+    });
+
+    // ດັກຈັບ Event ພາຍໃນ iframe ຕ່າງໆ ເຊັ່ນ dashboardFrame, marketingFrame
+    function attachToIframe(iframe) {
+        try {
+            const iDoc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
+            if (iDoc) {
+                activityEvents.forEach(evt => {
+                    iDoc.addEventListener(evt, recordActivity, { passive: true });
+                });
+            }
+        } catch (e) {
+            // ละเว้นกรณี Cross-origin
+        }
+    }
+
+    function scanAndAttachIframes() {
+        try {
+            document.querySelectorAll('iframe').forEach(frame => {
+                attachToIframe(frame);
+                frame.removeEventListener('load', frame._activityLoadHandler);
+                frame._activityLoadHandler = () => attachToIframe(frame);
+                frame.addEventListener('load', frame._activityLoadHandler);
+            });
+        } catch (e) { }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', scanAndAttachIframes);
+    } else {
+        scanAndAttachIframes();
+    }
+    // ກວດສອບ iframe ທີ່ອາດໂຫຼດມາໃໝ່ທຸກ 10 ວິນາທີ
+    setInterval(scanAndAttachIframes, 10000);
+
+    // 3. ດຳເນີນການ Logout ອັດຕະໂນມັດ
+    window.performAutoLogout = function () {
+        if (isLoggingOut) return;
+        isLoggingOut = true;
+
+        try {
+            localStorage.removeItem('clinicUser');
+            localStorage.removeItem(STORAGE_KEY);
+        } catch (e) { }
+
+        const targetWindow = window.top || window;
+
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'warning',
+                title: 'ໝົດເວລາການນຳໃຊ້ (Session Timeout)',
+                html: '<div style="font-size: 1.05rem; line-height: 1.6; margin-bottom: 0.5rem;">' +
+                      'ລະບົບກວດບໍ່ພົບການເຄື່ອນໄຫວ ຫຼື ການກົດໃຊ້ງານເກີນ <strong>60 ນາທີ</strong><br>' +
+                      '<span class="text-muted" style="font-size: 0.9rem;">(ไม่มีการเคลื่อนไหวหรือกดใช้งานเกิน 60 นาที ระบบได้นำท่านออกจากระบบเพื่อความปลอดภัย)</span>' +
+                      '</div>',
+                confirmButtonColor: '#0b3c73',
+                confirmButtonText: '<i class="ph ph-sign-in me-1"></i> ເຂົ້າສູ່ລະບົບໃໝ່ (Login)',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                timer: 10000,
+                timerProgressBar: true
+            }).then(() => {
+                targetWindow.location.href = 'login.html';
+            });
+        } else {
+            alert('ໝົດເວລາການນຳໃຊ້: ບໍ່ມີການເຄື່ອນໄຫວເກີນ 60 ນາທີ ລະບົບໄດ້ນຳທ່ານອອກຈາກລະບົບ (Session Timeout)');
+            targetWindow.location.href = 'login.html';
+        }
+    };
+
+    // 4. ກວດສອບເວລາ Inactivity ທຸກໆ 15 ວິນາທີ
+    function checkInactivity() {
+        const currentUser = localStorage.getItem('clinicUser');
+        if (!currentUser) return; // ບໍ່ມີ User Logged in ບໍ່ຕ້ອງກວດ
+
+        const lastActivityStr = localStorage.getItem(STORAGE_KEY);
+        const lastActivity = lastActivityStr ? parseInt(lastActivityStr, 10) : Date.now();
+        const now = Date.now();
+
+        if (now - lastActivity >= INACTIVITY_TIMEOUT_MS) {
+            window.performAutoLogout();
+        }
+    }
+
+    setInterval(checkInactivity, 15000);
+})();
+
 
 // =====================================
 // ระบบปันผลและผู้แนะนำ (Referral & Dividend Commission System)
@@ -14716,7 +14872,7 @@ async function loadReferralData(isManualClick = false) {
     const endDateEl = document.getElementById('referrerReportEndDate');
     const todayRefStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD (timezone local)
     if (startDateEl && !startDateEl.value) startDateEl.value = todayRefStr;
-    if (endDateEl   && !endDateEl.value)   endDateEl.value   = todayRefStr;
+    if (endDateEl && !endDateEl.value) endDateEl.value = todayRefStr;
 
     const searchRefInput = document.getElementById('searchReferrerInput');
     if (searchRefInput) searchRefInput.value = '';
@@ -14732,9 +14888,9 @@ async function loadReferralData(isManualClick = false) {
 
     // ✅ Tab "ประวัติบิน/ปันผล" → default วันนี้ ถ้ายังไม่มีการเลือกวัน
     const filterLogStartEl = document.getElementById('filterLogStartDate');
-    const filterLogEndEl   = document.getElementById('filterLogEndDate');
+    const filterLogEndEl = document.getElementById('filterLogEndDate');
     if (filterLogStartEl && !filterLogStartEl.value) filterLogStartEl.value = todayRefStr;
-    if (filterLogEndEl   && !filterLogEndEl.value)   filterLogEndEl.value   = todayRefStr;
+    if (filterLogEndEl && !filterLogEndEl.value) filterLogEndEl.value = todayRefStr;
 
     // 2. Fetch fresh data from LocalStorage first as instant cache
     const localRef = localStorage.getItem('clinic_referrers');
@@ -14747,7 +14903,7 @@ async function loadReferralData(isManualClick = false) {
         } catch (e) { }
     }
 
-    window.isDeleted = window.isDeleted || function() { return false; };
+    window.isDeleted = window.isDeleted || function () { return false; };
     const isMockCommLog = (l) => {
         if (!l) return false;
         const id = String(l.id || '');
@@ -18195,7 +18351,7 @@ async function loadDailyReport(isManualClick = false) {
                 // Bug 5: คำนวณวันสุดท้ายของเดือนให้ถูกต้อง (ไม่ใช้ -31 คงที่)
                 const [mYear, mMon] = targetMonth.split('-').map(Number);
                 const lastDay = new Date(mYear, mMon, 0).getDate(); // วันสุดท้ายของเดือนนั้น
-                vQuery = vQuery.gte('created_at', targetMonth + "-01T00:00:00").lte('created_at', `${targetMonth}-${String(lastDay).padStart(2,'0')}T23:59:59`);
+                vQuery = vQuery.gte('created_at', targetMonth + "-01T00:00:00").lte('created_at', `${targetMonth}-${String(lastDay).padStart(2, '0')}T23:59:59`);
             } else if (periodMode === 'year') {
                 // Bug 4: เพิ่ม filter สำหรับ year mode
                 const vNow = getVientianeNow();
@@ -19638,7 +19794,8 @@ async function loadBills(forceReload = false) {
         const st = (v.status || '').trim();
         const pSt = (v.payment_status || '').trim();
         if (st === 'ยกเลิก' || st === 'ຍົກເລີກ' || pSt === 'deleted' || pSt === 'cancelled' || pSt === 'unpaid') return false;
-        const isPaidStatus = st === 'ชำระแล้ว' || st === 'ชำระเงินแล้ว' || st === 'รอผลแล็บ' || st === 'รอผลตรวจ Lab' || st === 'รออ่านผล' || st === 'รอจัดยา' || st === 'เสร็จสิ้น' || pSt === 'paid';
+        // ระบบบิลต้องนับเฉพาะเคสที่มีการชำระเงินจริงเท่านั้น (ตัด 'เสร็จสิ้น', 'รอผลแล็บ', 'รอจัดยา' ออกเพื่อป้องกันบิลปลอม)
+        const isPaidStatus = st === 'ชำระแล้ว' || st === 'ชำระเงินแล้ว' || st === 'ຊຳລະແລ້ວ' || pSt === 'paid';
         const hasPayment = (parseFloat(v.payable_amount || 0) > 0 || parseFloat(v.cash_lak || 0) > 0 || parseFloat(v.transfer_lak || 0) > 0);
         return isPaidStatus || hasPayment;
     });
@@ -19649,16 +19806,31 @@ async function loadBills(forceReload = false) {
         const alreadyInBills = billsList.some(b => (vId && (b.visit_id === vId || b.bill_id === vId)));
         if (!alreadyInBills && vId) {
             const rawTests = v.lab_tests || v.tests || '';
-            let testItems = [{ name: 'ກວດ Lab / ບໍລິການ', price: 0, type: 'lab' }];
+            let testItems = [];
             if (Array.isArray(rawTests) && rawTests.length > 0) {
                 testItems = rawTests.map(t => typeof t === 'object' ? { name: t.name || 'Lab', price: t.price || 0, type: 'lab' } : { name: String(t).trim(), price: 0, type: 'lab' });
             } else if (typeof rawTests === 'string' && rawTests.trim() !== '') {
                 const parsed = rawTests.split(/[,;\n]/).map(t => ({ name: t.trim(), price: 0, type: 'lab' })).filter(x => x.name);
                 if (parsed.length > 0) testItems = parsed;
             }
+
+            const hasRealPayment = (parseFloat(v.payable_amount || 0) > 0 || parseFloat(v.cash_lak || 0) > 0 || parseFloat(v.transfer_lak || 0) > 0);
+            // ป้องกันบิลปลอม: ถ้าไม่มีรายการตรวจจริง และไม่มียอดเงินที่ชำระจริง ไม่สร้างบิลจำลองเด็ดขาด
+            if (testItems.length === 0 && !hasRealPayment) {
+                return;
+            }
+            if (testItems.length === 0) {
+                testItems = [{ name: 'ກວດ Lab / ບໍລິການ', price: 0, type: 'lab' }];
+            }
+
             const subtotal = parseFloat(v.total_price || v.price || v.payable_amount || 0);
             const discount = parseFloat(v.discount || v.lab_discount || 0);
             const payable = parseFloat(v.payable_amount !== undefined ? v.payable_amount : Math.max(0, subtotal - discount));
+
+            // หากไม่มียอดเงินที่ต้องชำระ และไม่มีรายการตรวจจริง ข้ามไป
+            if (payable <= 0 && !hasRealPayment && (!rawTests || rawTests.length === 0)) {
+                return;
+            }
 
             // ตรวจสอบช่องทางการชำระเงิน (เงินสด / เงินโอน)
             const rawMethod = (v.payment_method || '').toString();
@@ -22876,19 +23048,20 @@ function switchBillsView(viewMode) {
         if (listView) listView.style.display = 'none';
         if (dailyView) dailyView.style.display = 'block';
 
-        // ซิงค์วันที่จากหน้า Bills มาให้ตรงกันทันที
-        const billStart = document.getElementById('billStartDate')?.value;
-        const billEnd = document.getElementById('billEndDate')?.value;
+        // แยกวันที่เป็นอิสระ: ไม่ดึงวันที่จากหน้า Bills มาทับ
         const startInput = document.getElementById('dailyReportStartDate');
         const endInput = document.getElementById('dailyReportEndDate');
-        if (billStart && startInput) startInput.value = billStart;
-        if (billEnd && endInput) endInput.value = billEnd;
 
+        // ถ้าหน้าสรุปยอดรายวันยังไม่มีการเลือกวันที่ ให้ตั้งค่าเริ่มต้นเป็นวันนี้ (เวลาท้องถิ่นเวียงจันทน์ UTC+7)
         if (startInput && !startInput.value) {
-            startInput.value = (typeof getExpenseLocalDateStr === 'function') ? getExpenseLocalDateStr(new Date()) : new Date().toISOString().split('T')[0];
+            startInput.value = (typeof getVientianeDateRange === 'function')
+                ? getVientianeDateRange('today').startStr
+                : ((typeof getExpenseLocalDateStr === 'function') ? getExpenseLocalDateStr(new Date()) : new Date().toISOString().split('T')[0]);
         }
         if (endInput && !endInput.value) {
-            endInput.value = (typeof getExpenseLocalDateStr === 'function') ? getExpenseLocalDateStr(new Date()) : new Date().toISOString().split('T')[0];
+            endInput.value = (typeof getVientianeDateRange === 'function')
+                ? getVientianeDateRange('today').endStr
+                : ((typeof getExpenseLocalDateStr === 'function') ? getExpenseLocalDateStr(new Date()) : new Date().toISOString().split('T')[0]);
         }
         if (typeof loadDailyClinicReport === 'function') {
             loadDailyClinicReport();
@@ -22899,14 +23072,7 @@ function switchBillsView(viewMode) {
         if (dailyView) dailyView.style.display = 'none';
         if (listView) listView.style.display = 'block';
 
-        // ซิงค์วันที่จากหน้า Daily มาที่หน้า Bills เฉพาะเมื่อหน้า Bills ยังไม่มีการกำหนดวันที่
-        const dailyStart = document.getElementById('dailyReportStartDate')?.value;
-        const dailyEnd = document.getElementById('dailyReportEndDate')?.value;
-        const bStart = document.getElementById('billStartDate');
-        const bEnd = document.getElementById('billEndDate');
-        if (dailyStart && bStart && !bStart.value) bStart.value = dailyStart;
-        if (dailyEnd && bEnd && !bEnd.value) bEnd.value = dailyEnd;
-
+        // แยกวันที่เป็นอิสระ: ไม่ซิงค์วันที่กลับไปทับหน้า Bills
         if (typeof renderBillsTable === 'function') {
             renderBillsTable();
         }
@@ -23016,28 +23182,68 @@ async function loadDailyClinicReport(customDate) {
     if (!tbody) return;
     tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div>ກຳລັງປະມວນຜົນຂໍ້ມູນ...</td></tr>';
 
-    if (!window.allBillsData || window.allBillsData.length === 0) {
+    // 1. ดึงข้อมูล Bills และ Visits สำหรับช่วงวันที่ที่เลือกในหน้าสรุปยอดรายวันโดยตรงจาก Supabase (แยกอิสระจากหน้า Bills)
+    let filteredBills = [];
+    let visitsForReport = Array.isArray(window.clinicVisits) ? [...window.clinicVisits] : [];
+
+    if (typeof _supabase !== 'undefined') {
         try {
-            if (typeof loadBills === 'function') await loadBills(false);
-        } catch (e) { console.warn('loadDailyClinicReport loadBills error:', e); }
+            let bQuery = _supabase
+                .from('bills')
+                .select('bill_id, visit_id, hn, patient_name, items, subtotal, discount, payable_amount, currency, status, created_by, created_at, note');
+            let vQuery = _supabase
+                .from('visits')
+                .select('visit_id, hn, patient_name, doctor_name, status, lab_tests, symptom, meds, lab_note, created_at');
+
+            if (finalStartDate) {
+                bQuery = bQuery.gte('created_at', finalStartDate + "T00:00:00+07:00");
+                vQuery = vQuery.gte('created_at', finalStartDate + "T00:00:00+07:00");
+            }
+            if (finalEndDate) {
+                bQuery = bQuery.lte('created_at', finalEndDate + "T23:59:59.999+07:00");
+                vQuery = vQuery.lte('created_at', finalEndDate + "T23:59:59.999+07:00");
+            }
+
+            const fetchPromise = Promise.all([
+                bQuery.order('created_at', { ascending: true }).limit(500),
+                vQuery.order('created_at', { ascending: true }).limit(500)
+            ]);
+            const timeoutPromise = new Promise(resolve => setTimeout(() => resolve([{ data: null }, { data: null }]), 8000));
+
+            const [{ data: bData }, { data: vData }] = await Promise.race([fetchPromise, timeoutPromise]);
+
+            if (bData && Array.isArray(bData)) {
+                filteredBills = bData;
+            }
+            if (vData && Array.isArray(vData)) {
+                const existingMap = new Map(visitsForReport.map(v => [v.visit_id, v]));
+                vData.forEach(v => {
+                    if (v && v.visit_id) existingMap.set(v.visit_id, v);
+                });
+                visitsForReport = Array.from(existingMap.values());
+            }
+        } catch (e) {
+            console.warn('loadDailyClinicReport fetch bills/visits notice:', e);
+        }
     }
 
-    // 1. ดึงข้อมูล Bills ชุดเดียวกัน 100% กับหน้า Bills
-    const allBills = (window.allBillsData && window.allBillsData.length > 0)
-        ? window.allBillsData
-        : ((window.clinicBills && window.clinicBills.length > 0)
-            ? window.clinicBills
-            : JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]'));
+    // กรณีออฟไลน์ หรือดึงจาก Supabase ไม่ได้ ให้ fallback ค้นจาก cache ในเครื่อง
+    if (filteredBills.length === 0 && (!window.navigator || !window.navigator.onLine || typeof _supabase === 'undefined')) {
+        const cached = (window.allBillsData && window.allBillsData.length > 0)
+            ? window.allBillsData
+            : ((window.clinicBills && window.clinicBills.length > 0)
+                ? window.clinicBills
+                : JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]'));
 
-    // กรองบิลตามวันที่ด้วยตรรกะเดียวกันกับ renderBillsTable()
-    const filteredBills = allBills.filter(b => {
-        if (!b) return false;
-        const rowDate = parseYMD(b.created_at || b.date || b.payment_date);
-        if (!rowDate) return true; // เก็บไว้ถ้าไม่มีวันที่ระบุชัดเจน เพื่อให้สอดคล้องกับ renderBillsTable
-        if (finalStartDate && rowDate < finalStartDate) return false;
-        if (finalEndDate && rowDate > finalEndDate) return false;
-        return true;
-    });
+        filteredBills = cached.filter(b => {
+            if (!b) return false;
+            const rowDate = parseYMD(b.created_at || b.date || b.payment_date);
+            if (!rowDate) return true;
+            if (finalStartDate && rowDate < finalStartDate) return false;
+            if (finalEndDate && rowDate > finalEndDate) return false;
+            return true;
+        });
+    }
 
     // 2. ดึงข้อมูลคอมมิชชั่น & สมาชิก (Referrers)
     let comLogs = [];
@@ -23049,6 +23255,9 @@ async function loadDailyClinicReport(customDate) {
     } catch (e) { }
 
     // 3. ดึงข้อมูลรายจ่ายประจำวัน
+    if (typeof loadExpenses === 'function' && (!window.clinicExpensesData || window.clinicExpensesData.length === 0)) {
+        try { await loadExpenses(); } catch (e) { }
+    }
     let allExpenses = window.clinicExpensesData || [];
     if (allExpenses.length === 0) {
         try {
@@ -23101,8 +23310,8 @@ async function loadDailyClinicReport(customDate) {
         b.payable_amount = payable;
 
         let vMatch = null;
-        if (Array.isArray(window.clinicVisits)) {
-            vMatch = window.clinicVisits.find(x => x && (x.visit_id === b.visit_id || (b.hn && x.hn === b.hn)));
+        if (Array.isArray(visitsForReport)) {
+            vMatch = visitsForReport.find(x => x && (x.visit_id === b.visit_id || (b.hn && x.hn === b.hn)));
         }
 
         const { cashAmount, transferAmount } = parseBillPaymentSplit(b, vMatch);
@@ -23768,15 +23977,17 @@ window.loadTriageHistory = async function () {
     let startInput = document.getElementById('triageHistoryStartDate');
     let endInput = document.getElementById('triageHistoryEndDate');
 
-    // 🌟 ค่าเริ่มต้นเป็น "วันปัจจุบัน" (Today - Asia/Vientiane) หากยังไม่มีการเลือก
-    if ((!startInput?.value || !endInput?.value) && !window._triageHistoryExplicitAll) {
-        const todayRange = getVientianeDateRange('today');
-        if (startInput && !startInput.value) startInput.value = todayRange.startStr;
-        if (endInput && !endInput.value) endInput.value = todayRange.endStr;
-    }
+    // 🌟 ค่าเริ่มต้นเป็น "วันปัจจุบัน" เสมอ (ถ้าต้องการดูย้อนหลังให้เลือกวันที่เอา)
+    const todayRange = (typeof getVientianeDateRange === 'function')
+        ? getVientianeDateRange('today')
+        : { startStr: new Date().toISOString().slice(0, 10), endStr: new Date().toISOString().slice(0, 10) };
 
-    const startDate = startInput?.value;
-    const endDate = endInput?.value;
+    if (startInput && !startInput.value) startInput.value = todayRange.startStr;
+    if (endInput && !endInput.value) endInput.value = todayRange.endStr;
+
+    // หากไม่มีการระบุช่วงเวลา ให้ยึดเฉพาะวันปัจจุบันเสมอ
+    const startDate = startInput?.value || todayRange.startStr;
+    const endDate = endInput?.value || todayRange.endStr;
 
     window.triageHistoryData = [];
     window.triageHistoryFilteredData = [];
@@ -23793,7 +24004,6 @@ window.loadTriageHistory = async function () {
 
             if (startDate) query = query.gte('created_at', startDate + "T00:00:00");
             if (endDate) query = query.lte('created_at', endDate + "T23:59:59");
-            if (!startDate && !endDate) query = query.limit(100);
 
             const { data, error } = await query;
             let rows = [];
@@ -23801,12 +24011,15 @@ window.loadTriageHistory = async function () {
                 rows = data;
             } else {
                 console.warn('Load triage history DB error, running fallback:', error);
-                const { data: fallbackData } = await _supabase
+                let fallbackQuery = _supabase
                     .from('visits')
                     .select('visit_id, hn, patient_name, status, symptom, temp, bp, pulse, weight, height, bmi, spo2, created_at')
                     .neq('status', 'รอคัดกรอง')
                     .neq('status', 'รอ')
-                    .limit(100);
+                    .order('created_at', { ascending: false });
+                if (startDate) fallbackQuery = fallbackQuery.gte('created_at', startDate + "T00:00:00");
+                if (endDate) fallbackQuery = fallbackQuery.lte('created_at', endDate + "T23:59:59");
+                const { data: fallbackData } = await fallbackQuery.limit(200);
                 if (fallbackData) {
                     rows = fallbackData;
                 }

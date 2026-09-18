@@ -319,13 +319,13 @@ async function loadReportData() {
     // 3. Raw Nutrient Orders (filtered by date range at DB level)
     const [resVisits, resBills, rawNutrientOrders] = await Promise.all([
       sbClient.from('visits')
-        .select('visit_id, hn, patient_name, doctor, doctor_name, status, symptoms, symptom, initial_symptom, diagnosis, disease, meds, created_at')
+        .select('visit_id, hn, patient_name, doctor_name, status, symptom, meds, created_at')
         .gte('created_at', queryStartISO)
         .lte('created_at', queryEndISO)
         .order('created_at', { ascending: false }),
 
       sbClient.from('bills')
-        .select('visit_id, doctor, doctor_name, created_at')
+        .select('visit_id, created_by, created_at')
         .gte('created_at', queryStartISO)
         .lte('created_at', queryEndISO),
 
@@ -356,7 +356,7 @@ async function loadReportData() {
       if (missingHns.length > 0) {
         const { data: patData } = await sbClient
           .from('patients')
-          .select('hn, name, gender, age, phone, created_at')
+          .select('*')
           .in('hn', missingHns);
         (patData || []).forEach(p => {
           if (p.hn) state.patientCache[p.hn] = p;

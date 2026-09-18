@@ -431,7 +431,7 @@
         <!-- 1. ภาพรวมระบบ (Dashboard) -->
         <div id="dashboard" class="page-section active"
             style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%;">
-            <iframe id="dashboardFrame" src="dashboard.html?v=2.0"
+            <iframe id="dashboardFrame" src="dashboard.html?v=2.1"
                 style="width: 100%; height: calc(100vh - 25px); border: none; min-height: 850px; display: block; border-radius: 16px;"
                 title="Clinic Dashboard"></iframe>
         </div>
@@ -509,7 +509,7 @@
         <!-- 2.5 Clinic Booking -->
         <div id="booking" class="page-section"
             style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%; overflow: hidden !important;">
-            <iframe id="marketingFrame" src="marketing.html?v=3.9.29" title="Clinic Booking System"></iframe>
+            <iframe id="marketingFrame" src="marketing.html?v=3.9.31" title="Clinic Booking System"></iframe>
         </div>
 
         <!-- 3. ทะเบียนผู้ป่วย (Registration) -->
@@ -3251,7 +3251,8 @@
                                 data-i18n="appts_th_code">รหัสการจอง</label><input type="text"
                                 class="form-control custom-input bg-light" id="displayApptId" readonly
                                 placeholder="กำลังสร้างรหัส..."></div>
-                        <div class="mb-3"><label class="form-label fw-bold" data-i18n="reg_name">ชื่อ-นามสกุล
+                        <div class="mb-3"><label class="form-label fw-bold"
+                                data-i18n="reg_name">ชื่อ-นามสกุล
                                 (ผู้จอง)</label><input type="text" class="form-control custom-input" name="guestName"
                                 required></div>
                         <div class="mb-3"><label class="form-label fw-bold"
@@ -3373,6 +3374,13 @@
                                         <i class="ph ph-lock me-1"></i>ລັອກຕາມການນັດໝາຍລ່ວງໜ້າ (ບໍ່ສາມາດແກ້ໄຂໄດ້)
                                     </span>
                                 </div>
+
+
+
+
+
+
+
                                 <input type="text" class="form-select custom-input" list="referrerDatalist"
                                     id="patientReferredBySelect" name="ReferredBy"
                                     data-i18n-placeholder="reg_modal_referrer_ph"
@@ -3693,7 +3701,11 @@
                                 </span>
                             </div>
                         </div>
-                        <div><button type="button" id="rxPdfBtn" class="btn btn-sm btn-danger px-3"><i
+                        <div class="d-flex gap-2 align-items-center flex-wrap">
+                            <button type="button" id="rxOrderMoreLabBtn" class="btn btn-sm btn-outline-primary px-3 fw-semibold shadow-xs" onclick="orderMoreLabFromPrescribe()">
+                                <i class="bi bi-plus-circle me-1"></i>ສັ່ງກວດ Lab ເພີ່ມ
+                            </button>
+                            <button type="button" id="rxPdfBtn" class="btn btn-sm btn-danger px-3"><i
                                     class="bi bi-file-pdf"></i> เปิดดูผล Lab</button></div>
                     </div>
                     <!-- กล่องแสดงหมายเหตุ / ข้อเน้นย้ำจากแพทย์ (Lab Note) -->
@@ -4797,7 +4809,7 @@
             document.write('<script src="../config.js"><\/script>');
         }
     </script>
-    <script src="function.js?v=3.9.54"></script>
+    <script src="function.js?v=3.9.60"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
     <script>
         document.addEventListener("DOMContentLoaded", function () {
