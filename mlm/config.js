@@ -46,13 +46,16 @@
     'stk_members': 3 * 60 * 1000,          // รายชื่อสมาชิก 3 นาที
     'stk_sales': 45 * 1000,                // ยอดขาย 45 วินาที
     'stk_customers': 60 * 1000,            // ข้อมูลลูกค้า 1 นาที
-    'stk_payout_logs': 45 * 1000           // ล็อกการจ่ายคอมมิชชั่น 45 วินาที
+    'stk_payout_logs': 45 * 1000,          // ล็อกการจ่ายคอมมิชชั่น 45 วินาที
+    'stk_campaigns': 2 * 60 * 1000         // แคมเปญแข่งขัน 2 นาที
   };
 
   // กำหนดคอลัมน์มาตรฐานสำหรับตารางต่างๆ (รวม id_card_url เพื่อให้รูปโปรไฟล์แสดงผล และ image_url เพื่อให้รูปสินค้าแสดงผล)
+  // stk_customers: ตัด extra_details_json ออก เพราะเป็น JSON ขนาดใหญ่ที่ไม่ได้ใช้แสดงผลในตาราง ลด Egress ได้มาก
   const DEFAULT_TABLE_SELECT = {
     'stk_members': 'user_id,username,name,business_team,permission_role,status,id_card_url,sponsor_id,phone_number,email,address,line_id,line_uid,bank_name,bank_account_no,bank_account_name,accumulated_pv,created_at',
-    'stk_products': 'product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,image_url,self_fee,level_1_fee,level_2_fee,level_3_fee,level_4_fee,level_5_fee,self_percent_full,level_1_percent_full,level_2_percent_full,level_3_percent_full,level_4_percent_full,level_5_percent_full,self_percent_member,level_1_percent_member,level_2_percent_member,level_3_percent_member,level_4_percent_member,level_5_percent_member,barcode,is_bundle,base_product,bundle_qty,full_margin_amount,full_margin_currency'
+    'stk_products': 'product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,image_url,self_fee,level_1_fee,level_2_fee,level_3_fee,level_4_fee,level_5_fee,self_percent_full,level_1_percent_full,level_2_percent_full,level_3_percent_full,level_4_percent_full,level_5_percent_full,self_percent_member,level_1_percent_member,level_2_percent_member,level_3_percent_member,level_4_percent_member,level_5_percent_member,barcode,is_bundle,base_product,bundle_qty,full_margin_amount,full_margin_currency',
+    'stk_customers': 'customer_id,name,phone,line_id,customer_type,symptom_disease,closer_id,owner_member_id,created_at'
   };
 
   function invalidateTableCache(table) {
@@ -164,5 +167,166 @@
       return res.json();
     };
   }
+
+  // ================================================================
+  // 4. ระบบ Session Inactivity Timeout (ระบบล็อกเอาต์อัตโนมัติเมื่อไม่มีการใช้งาน 60 นาที)
+  // ป้องกันการเปิดแท็บทิ้งไว้กิน Data Egress และรักษาความปลอดภัยของระบบ
+  // ================================================================
+  (function initSessionInactivityManager() {
+    const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000; // 60 นาที (3,600,000 มิลลิวินาที)
+    const WARNING_BEFORE_TIMEOUT_MS = 2 * 60 * 1000; // แจ้งเตือนล่วงหน้า 2 นาที (120,000 มิลลิวินาที)
+    const ACTIVITY_STORAGE_KEY = 'stk_last_activity';
+    const LOGOUT_REASON_KEY = 'stk_logout_reason';
+    const BROADCAST_KEY = 'stk_broadcast_session_event';
+
+    let lastRecordedTime = 0;
+    let warningBannerEl = null;
+
+    // 1) ดักจับความเคลื่อนไหวของผู้ใช้ (User Activity) แบบ Throttled
+    function recordActivity() {
+      const now = Date.now();
+      if (now - lastRecordedTime > 5000) {
+        lastRecordedTime = now;
+        try {
+          if (localStorage.getItem('stk_current_user')) {
+            localStorage.setItem(ACTIVITY_STORAGE_KEY, String(now));
+          }
+        } catch (e) {}
+      }
+      hideInactivityWarning();
+    }
+
+    // ติดตั้ง Event Listeners ดักจับการกระทำของผู้ใช้
+    const trackedEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+    trackedEvents.forEach(evt => {
+      window.addEventListener(evt, recordActivity, { passive: true });
+    });
+
+    // 2) แสดงแถบแจ้งเตือนล่วงหน้าก่อนหมดเวลา 2 นาที
+    function showInactivityWarning(minutesRemaining) {
+      if (!document.body) return;
+      if (warningBannerEl && document.body.contains(warningBannerEl)) return;
+
+      warningBannerEl = document.createElement('div');
+      warningBannerEl.id = 'stk-inactivity-warning';
+      warningBannerEl.style.cssText = [
+        'position: fixed',
+        'top: 18px',
+        'left: 50%',
+        'transform: translateX(-50%)',
+        'z-index: 9999999',
+        'background: linear-gradient(135deg, #f59e0b, #d97706)',
+        'color: #ffffff',
+        'padding: 12px 24px',
+        'border-radius: 9999px',
+        'box-shadow: 0 10px 25px -5px rgba(217, 119, 6, 0.5), 0 8px 10px -6px rgba(217, 119, 6, 0.3)',
+        'font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        'font-size: 13px',
+        'font-weight: 700',
+        'display: flex',
+        'align-items: center',
+        'gap: 10px',
+        'cursor: pointer',
+        'transition: all 0.3s ease',
+        'border: 2px solid rgba(255, 255, 255, 0.4)'
+      ].join(';');
+
+      warningBannerEl.innerHTML = `
+        <span style="font-size: 16px;">⏳</span>
+        <span>ไม่มีการใช้งานนานเกินไป ระบบจะออกจากระบบอัตโนมัติในอีก ${minutesRemaining} นาที (คลิกที่นี่เพื่อใช้งานต่อ)</span>
+      `;
+
+      warningBannerEl.addEventListener('click', () => {
+        recordActivity();
+      });
+
+      document.body.appendChild(warningBannerEl);
+    }
+
+    function hideInactivityWarning() {
+      if (warningBannerEl && document.body && document.body.contains(warningBannerEl)) {
+        try { document.body.removeChild(warningBannerEl); } catch (e) {}
+        warningBannerEl = null;
+      }
+    }
+
+    // 3) ตัวสั่งการ Logout เมื่อหมดเวลา 60 นาที
+    function performAutoLogout() {
+      hideInactivityWarning();
+      try {
+        localStorage.removeItem('stk_current_user');
+        sessionStorage.setItem(LOGOUT_REASON_KEY, 'inactivity_60m');
+        localStorage.setItem(BROADCAST_KEY, JSON.stringify({ action: 'logout', reason: 'inactivity_60m', time: Date.now() }));
+      } catch (e) {}
+
+      alert('⚠️ ท่านไม่มีการใช้งานระบบเกิน 60 นาที\nระบบได้ออกจากระบบอัตโนมัติเพื่อความปลอดภัยและประหยัดปริมาณข้อมูล');
+      try {
+        if (window.top && window.top.location && window.top !== window) {
+          window.top.location.reload();
+          return;
+        }
+      } catch (e) {}
+      window.location.reload();
+    }
+
+    // 4) Watchdog Timer ตรวจสอบสถานะทุก 10 วินาที
+    setInterval(() => {
+      try {
+        const userStr = localStorage.getItem('stk_current_user');
+        if (!userStr) {
+          hideInactivityWarning();
+          return;
+        }
+
+        const now = Date.now();
+        let lastActivity = Number(localStorage.getItem(ACTIVITY_STORAGE_KEY) || 0);
+        if (!lastActivity || isNaN(lastActivity)) {
+          lastActivity = now;
+          localStorage.setItem(ACTIVITY_STORAGE_KEY, String(now));
+        }
+
+        const inactiveDuration = now - lastActivity;
+
+        // ถ้าไม่มีการใช้งานเกิน 60 นาที -> Logout อัตโนมัติทันที
+        if (inactiveDuration >= INACTIVITY_TIMEOUT_MS) {
+          performAutoLogout();
+          return;
+        }
+
+        // ถ้าเข้าสู่ช่วง 2 นาทีสุดท้ายก่อนหมดเวลา -> แสดงแถบเตือนล่วงหน้า
+        if (inactiveDuration >= (INACTIVITY_TIMEOUT_MS - WARNING_BEFORE_TIMEOUT_MS)) {
+          const minsRemaining = Math.max(1, Math.ceil((INACTIVITY_TIMEOUT_MS - inactiveDuration) / 60000));
+          showInactivityWarning(minsRemaining);
+        } else {
+          hideInactivityWarning();
+        }
+      } catch (e) {}
+    }, 10000);
+
+    // 5) ซิงค์ข้ามแท็บ (Cross-Tab Sync): เมื่อแท็บใดแท็บหนึ่งออกจากระบบ ทุกแท็บจะออกจากระบบทันที
+    window.addEventListener('storage', (e) => {
+      if (e.key === BROADCAST_KEY || (e.key === 'stk_current_user' && !e.newValue)) {
+        if (sessionStorage.getItem(LOGOUT_REASON_KEY) !== 'inactivity_60m') {
+          sessionStorage.setItem(LOGOUT_REASON_KEY, 'inactivity_60m');
+        }
+        try {
+          if (window.top && window.top.location && window.top !== window) {
+            window.top.location.reload();
+            return;
+          }
+        } catch (err) {}
+        window.location.reload();
+      }
+    });
+
+    // 6) ฟังก์ชันรีเซ็ตเวลาสำหรับเรียกใช้ภายนอก (เช่น เมื่อเพิ่งกดเข้าสู่ระบบสำเร็จ)
+    window.resetSessionInactivityTimer = function () {
+      try {
+        const now = Date.now();
+        localStorage.setItem(ACTIVITY_STORAGE_KEY, String(now));
+        hideInactivityWarning();
+      } catch (e) {}
+    };
+  })();
 
 })();

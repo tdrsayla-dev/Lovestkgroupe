@@ -1030,7 +1030,7 @@
           supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
           supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
           supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,status,phone_number').catch(() => supabaseSelect('members')),
-          supabaseSelect('stk_customers', 'order=customer_id.desc&limit=3000').catch(() => supabaseSelect('customers')),
+          supabaseSelect('stk_customers', 'select=customer_id,name,phone,line_id,customer_type,symptom_disease,closer_id,owner_member_id,created_at&order=customer_id.desc&limit=3000').catch(() => supabaseSelect('customers')),
           // ⚡ SPEED FIX: ดึงประวัติการขายล่าสุดแค่ 200 รายการ เพื่อความรวดเร็วในการวิเคราะห์ข้อมูลลูกค้าล่าสุด
           supabaseSelect('stk_sales', 'order=order_id.desc&limit=200').catch(() => supabaseSelect('sales'))
         ]).then(([pRes, typeRes, cloRes, memRes, custRes, saleRes]) => {
@@ -1072,28 +1072,23 @@
            
            if (Array.isArray(response.customers)) {
                const formattedCustomers = response.customers.map(x => {
-                   let extra = {};
-                   if (x.extra_details_json) {
-                       try { extra = typeof x.extra_details_json === 'string' ? JSON.parse(x.extra_details_json) : x.extra_details_json; } catch(e){}
-                   }
-
                    const cid = String(x.id || x.customer_id || x.Customer_ID || '').trim();
                    const cName = String(x.name || x.customer_name || x.Customer_Name || '').trim();
-                   const cPhone = String(x.phone || x.phone_number || x.Phone || extra.phone || '').trim();
-                   const cLineId = String(x.lineId || x.line_id || x.LINE_ID || extra.lineId || '').trim();
-                   const cLineUid = String(x.lineUid || x.line_uid || x.LINE_UID || extra.lineUid || '').trim();
-                   const cType = String(x.type || x.customer_type || x.Customer_Type || extra.type || '').trim();
+                   const cPhone = String(x.phone || x.phone_number || x.Phone || '').trim();
+                   const cLineId = String(x.lineId || x.line_id || x.LINE_ID || '').trim();
+                   const cLineUid = String(x.lineUid || x.line_uid || x.LINE_UID || '').trim();
+                   const cType = String(x.type || x.customer_type || x.Customer_Type || '').trim();
 
                    const cSymptom = String(
-                       x.symptom || x.symptom_disease || x.disease || x.Symptom || extra.symptom || extra.disease || ''
+                       x.symptom || x.symptom_disease || x.disease || x.Symptom || ''
                    ).trim();
 
                    const cCloser = String(
-                       x.closer || x.closer_id || x.closer_name || x.Closer || extra.closer || ''
+                       x.closer || x.closer_id || x.closer_name || x.Closer || ''
                    ).trim();
 
                    const cMemberId = String(
-                       x.memberId || x.owner_member_id || x.member_id || x.User_ID || x.seller_id || x.marketing || extra.owner_id || extra.memberId || ''
+                       x.memberId || x.owner_member_id || x.member_id || x.User_ID || x.seller_id || x.marketing || ''
                    ).trim();
 
                    const mMatch = loadedMembers.find(m => m && (
@@ -1101,7 +1096,7 @@
                        String(m.name).trim().toUpperCase() === cMemberId.toUpperCase()
                    ));
                    const resolvedMemberId = mMatch ? mMatch.id : cMemberId;
-                   const cMemberName = mMatch ? mMatch.name : (x.memberName || x.member_name || extra.memberName || cMemberId);
+                   const cMemberName = mMatch ? mMatch.name : (x.memberName || x.member_name || cMemberId);
 
                    return {
                        ...x,

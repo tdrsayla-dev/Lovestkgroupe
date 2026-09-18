@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <script>
@@ -76,17 +76,52 @@
         setFormData(prev => ({ ...prev, [field]: val }));
       };
 
-      // จัดการอัปโหลดไฟล์รูปภาพโลโก้ แปลงเป็น Base64 Data URL (หรือ URL)
+      // จัดการอัปโหลดไฟล์รูปภาพโลโก้ขึ้น Supabase Storage และเก็บเพียง URL
       const handleImageUpload = async (e) => {
         const file = e.target.files && e.target.files[0];
         if (!file) return;
 
-        showToast('à¸à¸³à¸¥à¸±à¸‡à¸šà¸µà¸šà¸­à¸±à¸”à¸£à¸¹à¸›à¸ à¸²à¸žà¹‚à¸¥à¹‚à¸à¹‰...', 'info');
-        const compressed = typeof window.compressImageFile === 'function'
-          ? await window.compressImageFile(file, 400, 400, 0.8)
-          : await new Promise(r => { const reader = new FileReader(); reader.onload = ev => r(ev.target.result); reader.readAsDataURL(file); });
-        handleChange('logoUrl', compressed);
-        showToast('à¹€à¸¥à¸·à¸­à¸à¹à¸¥à¸°à¸šà¸µà¸šà¸­à¸±à¸”à¸£à¸¹à¸›à¸ à¸²à¸žà¹‚à¸¥à¹‚à¸à¹‰à¹€à¸£à¸µà¸¢à¸šà¸£à¹‰à¸­à¸¢', 'success');
+        if (!window.supabaseClient) {
+            showToast('ไม่สามารถเชื่อมต่อ Supabase ได้', 'error');
+            return;
+        }
+
+        showToast('กำลังอัปโหลดรูปภาพโลโก้...', 'info');
+        setIsSaving(true); // ปิดปุ่มเซฟชั่วคราวระหว่างอัปโหลด
+
+        try {
+            // ตั้งชื่อไฟล์ใหม่ให้ไม่ซ้ำกันด้วย Timestamp
+            const fileExt = file.name.split('.').pop();
+            const fileName = `logo_${Date.now()}.${fileExt}`;
+            const filePath = `logos/${fileName}`; // เก็บในโฟลเดอร์ logos
+
+            // 1. อัปโหลดไฟล์ไปที่ bucket ชื่อ 'assets' (ต้องสร้างไว้แล้วใน Supabase)
+            const { error: uploadError } = await window.supabaseClient.storage
+                .from('assets')
+                .upload(filePath, file, {
+                    cacheControl: '3600',
+                    upsert: true
+                });
+
+            if (uploadError) throw uploadError;
+
+            // 2. ดึง Public URL ของรูปที่เพิ่งอัปโหลด
+            const { data } = window.supabaseClient.storage
+                .from('assets')
+                .getPublicUrl(filePath);
+
+            // 3. นำ URL ที่ได้ไปใส่ใน Form แทน Base64 เดิม
+            handleChange('logoUrl', data.publicUrl);
+            showToast('อัปโหลดรูปภาพโลโก้เรียบร้อย', 'success');
+
+        } catch (err) {
+            console.error("Upload error:", err);
+            showToast('อัปโหลดรูปล้มเหลว: ' + (err.message || 'เกิดข้อผิดพลาด'), 'error');
+        } finally {
+            setIsSaving(false);
+            // รีเซ็ตค่า input file เพื่อให้เลือกไฟล์เดิมซ้ำได้ในกรณีที่ต้องการ
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
       };
 
       const handleSave = async (e) => {

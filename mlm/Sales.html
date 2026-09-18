@@ -934,19 +934,19 @@
 
                 let foundExistingCust = null;
 
-                // 1. ตรวจสอบด้วยรหัส HN ก่อนเป็นอันดับแรก (ต้องไม่ใช่ค่าว่าง และไม่ใช่ '-')
+                // 1. ตรวจสอบด้วยรหัส HN ก่อนเป็นอันดับแรก (ถ้ามี HN ส่งมา ต้องค้นหาเทียบกับ HN เท่านั้น ห้ามข้ามไปเทียบเบอร์โทรคนละคน)
                 if (pendingHn && pendingHn !== '-' && pendingHn !== '--') {
-                    foundExistingCust = (customers || []).find(c => c && safeUpper(c.id) === safeUpper(pendingHn));
-                }
+                    foundExistingCust = (customers || []).find(c => c && (safeUpper(c.id) === safeUpper(pendingHn) || safeUpper(c.customer_id) === safeUpper(pendingHn)));
+                } else {
+                    // 2. ค้นหาจากเบอร์โทรเฉพาะกรณีที่ไม่ได้ระบุรหัส HN มาเท่านั้น เพื่อป้องกันไม่ให้ข้อมูลลูกค้าคนละ HN มาทับซ้อนกัน
+                    if (isValidPhone(pendingPhone)) {
+                        foundExistingCust = (customers || []).find(c => c && isValidPhone(c.phone) && cleanDigits(c.phone) === cleanDigits(pendingPhone));
+                    }
 
-                // 2. ถ้าไม่พบด้วย HN และมีเบอร์โทรที่ถูกต้อง (ต้องมีตัวเลขเบอร์โทรจริงอย่างน้อย 8 หลักขึ้นไป และไม่ใช่ '-')
-                if (!foundExistingCust && isValidPhone(pendingPhone)) {
-                    foundExistingCust = (customers || []).find(c => c && isValidPhone(c.phone) && cleanDigits(c.phone) === cleanDigits(pendingPhone));
-                }
-
-                // 3. ถ้ายังไม่พบ และมีชื่อ (ต้องไม่ใช่ '-' และยาวกว่า 2 ตัวอักษร)
-                if (!foundExistingCust && pendingName && pendingName !== '-' && pendingName !== '--' && pendingName.length >= 2) {
-                    foundExistingCust = (customers || []).find(c => c && c.name && String(c.name).trim().toLowerCase() === pendingName.toLowerCase());
+                    // 3. ถ้ายังไม่พบ และมีชื่อ (ต้องไม่ใช่ '-' และยาวกว่า 2 ตัวอักษร)
+                    if (!foundExistingCust && pendingName && pendingName !== '-' && pendingName !== '--' && pendingName.length >= 2) {
+                        foundExistingCust = (customers || []).find(c => c && c.name && String(c.name).trim().toLowerCase() === pendingName.toLowerCase());
+                    }
                 }
 
                 let pastSymptom = pending.disease || '';
@@ -978,27 +978,26 @@
                 }
                 if (foundExistingCust) {
                     setCustMode(foundExistingCust.type || 'ลูกค้าเก่า');
-                    setCustData(prev => ({
-                        ...prev,
-                        id: foundExistingCust.id,
-                        name: pendingName || foundExistingCust.name || prev.name || '',
+                    setCustData({
+                        id: foundExistingCust.id || foundExistingCust.customer_id || '',
+                        name: pendingName || foundExistingCust.name || '',
                         phone: (isValidPhone(foundExistingCust.phone) ? foundExistingCust.phone : (isValidPhone(pendingPhone) ? pendingPhone : '')) || '',
-                        lineId: foundExistingCust.lineId || prev.lineId || '',
-                        symptom: pastSymptom || prev.symptom || '',
-                        closer: resolvedCloser || foundExistingCust.closer || prev.closer || '',
-                        closerTeam: resolvedCloserTeam || (foundExistingCust.closerTeam === 'Team A' ? 'Marketing' : foundExistingCust.closerTeam === 'Team B' ? 'Center' : foundExistingCust.closerTeam) || prev.closerTeam || ''
-                    }));
+                        lineId: foundExistingCust.lineId || '',
+                        symptom: pastSymptom || '',
+                        closer: resolvedCloser || foundExistingCust.closer || '',
+                        closerTeam: resolvedCloserTeam || (foundExistingCust.closerTeam === 'Team A' ? 'Marketing' : foundExistingCust.closerTeam === 'Team B' ? 'Center' : foundExistingCust.closerTeam) || ''
+                    });
                 } else {
                     setCustMode('ลูกค้าใหม่มาตรวจ');
-                    setCustData(prev => ({
-                        ...prev,
-                        id: (pendingHn && pendingHn !== '-') ? pendingHn : (prev.id || ''),
-                        name: (pendingName && pendingName !== '-') ? pendingName : (prev.name || ''),
-                        phone: isValidPhone(pendingPhone) ? pendingPhone : '',
-                        symptom: pastSymptom || prev.symptom || '',
-                        closer: resolvedCloser || prev.closer || '',
-                        closerTeam: resolvedCloserTeam || prev.closerTeam || ''
-                    }));
+                    setCustData({
+                        id: (pendingHn && pendingHn !== '-') ? pendingHn : '',
+                        name: (pendingName && pendingName !== '-') ? pendingName : '',
+                        phone: isValidPhone(pendingPhone) ? pendingPhone : (pendingPhone || ''),
+                        lineId: '',
+                        symptom: pastSymptom || '',
+                        closer: resolvedCloser || '',
+                        closerTeam: resolvedCloserTeam || ''
+                    });
                 }
             };
 
@@ -1039,13 +1038,15 @@
                             const cleanP = String(pending.phone || '').trim();
                             const validPhoneStr = (cleanP && cleanP !== '-' && cleanP !== '--') ? cleanP : '';
                             const validHnStr = (pending.hn && pending.hn !== '-' && pending.hn !== '--') ? pending.hn : '';
-                            setCustData(prev => ({
-                                ...prev,
-                                id: validHnStr || prev.id || '',
-                                name: pending.customer_name || prev.name || '',
-                                phone: validPhoneStr || prev.phone || '',
-                                symptom: pending.disease || prev.symptom || ''
-                            }));
+                            setCustData({
+                                id: validHnStr,
+                                name: pending.customer_name || '',
+                                phone: validPhoneStr,
+                                lineId: '',
+                                symptom: pending.disease || '',
+                                closer: '',
+                                closerTeam: ''
+                            });
                             loadCustomerFromPending(pending);
                         }
 
@@ -1091,45 +1092,24 @@
                                     || nameLower.includes('ราคาเต็ม') || nameLower.includes('ราคาปกติ') || nameLower.includes('ราคาขาย') || nameLower.includes('ປົກກະຕິ');
 
                                 // ⚡ ดักจับตามราคาจริง (Price-First Detection):
-                                // ถ้ามีราคาตัวเลขส่งมาตรงกับราคาสมาชิก/โปร/ปกติ หรือตรงกับราคา 1,500 ให้อิงตามราคาตัวเลขเป็นหลัก
+                                // ตรวจสอบตามลำดับความเฉพาะเจาะจง: ราคาศูนย์ -> ราคาโปร (800, 1000, หรือ pPromo) -> ราคาสมาชิก (1500 หรือ pMember) -> ราคาเต็ม (1800 หรือ pFull)
                                 if (isZeroType || (rawPrice !== null && rawPrice === 0)) {
                                     mappedPriceType = 'ราคาศูนย์';
                                     unitPrice = 0;
-                                } else if (rawPrice !== null && rawPrice > 0 && pMember > 0 && Math.abs(rawPrice - pMember) < 0.01) {
-                                    mappedPriceType = 'ราคาสมาชิก';
-                                    unitPrice = pMember;
-                                } else if (rawPrice !== null && rawPrice > 0 && pPromo > 0 && Math.abs(rawPrice - pPromo) < 0.01) {
+                                } else if (rawPrice === 800 || (rawPrice !== null && rawPrice > 0 && pPromo > 0 && Math.abs(rawPrice - pPromo) < 0.01) || rawPrice === 1000 || isPromoType) {
                                     mappedPriceType = 'ราคาโปร';
-                                    unitPrice = pPromo;
-                                } else if (rawPrice !== null && rawPrice > 0 && pFull > 0 && Math.abs(rawPrice - pFull) < 0.01) {
-                                    mappedPriceType = 'ราคาเต็ม';
-                                    unitPrice = pFull;
-                                } else if (rawPrice === 1500) {
-                                    // ดักจับราคาสมาชิกมาตรฐาน 1,500 บาทโดยตรง
+                                    unitPrice = (rawPrice !== null && rawPrice > 0) ? rawPrice : (pPromo > 0 ? pPromo : 800);
+                                } else if (rawPrice === 1500 || (rawPrice !== null && rawPrice > 0 && pMember > 0 && Math.abs(rawPrice - pMember) < 0.01) || isMemberType) {
                                     mappedPriceType = 'ราคาสมาชิก';
-                                    unitPrice = 1500;
-                                } else if (rawPrice === 1800) {
-                                    // ดักจับราคาปกติมาตรฐาน 1,800 บาทโดยตรง
+                                    unitPrice = (rawPrice !== null && rawPrice > 0) ? rawPrice : (pMember > 0 ? pMember : 1500);
+                                } else if (rawPrice === 1800 || (rawPrice !== null && rawPrice > 0 && pFull > 0 && Math.abs(rawPrice - pFull) < 0.01) || isFullType) {
                                     mappedPriceType = 'ราคาเต็ม';
-                                    unitPrice = 1800;
-                                } else if (rawPrice === 1000) {
-                                    // ดักจับราคาโปร 1,000 บาทโดยตรง
-                                    mappedPriceType = 'ราคาโปร';
-                                    unitPrice = 1000;
-                                } else if (isMemberType) {
-                                    mappedPriceType = 'ราคาสมาชิก';
-                                    unitPrice = (rawPrice !== null && rawPrice > 0) ? rawPrice : (pMember > 0 ? pMember : (pFull > 0 ? pFull : 0));
-                                } else if (isPromoType) {
-                                    mappedPriceType = 'ราคาโปร';
-                                    unitPrice = (rawPrice !== null && rawPrice > 0) ? rawPrice : (pPromo > 0 ? pPromo : (pFull > 0 ? pFull : 0));
-                                } else if (isFullType) {
-                                    mappedPriceType = 'ราคาเต็ม';
-                                    unitPrice = (rawPrice !== null && rawPrice > 0) ? rawPrice : (pFull > 0 ? pFull : 0);
+                                    unitPrice = (rawPrice !== null && rawPrice > 0) ? rawPrice : (pFull > 0 ? pFull : 1800);
                                 } else if (rawPrice !== null && rawPrice > 0) {
-                                    if (pMember > 0 && rawPrice <= pMember) {
-                                        mappedPriceType = 'ราคาสมาชิก';
-                                    } else if (pPromo > 0 && rawPrice <= pPromo) {
+                                    if (rawPrice <= 800) {
                                         mappedPriceType = 'ราคาโปร';
+                                    } else if (rawPrice <= 1500) {
+                                        mappedPriceType = 'ราคาสมาชิก';
                                     } else {
                                         mappedPriceType = 'ราคาเต็ม';
                                     }
@@ -3646,6 +3626,7 @@
 
                 let lastRefreshTime = Date.now();
                 const throttledRefresh = () => {
+                    if (!localStorage.getItem('stk_current_user')) return; // 🛡️ GUARD: หยุดดึงเมื่อออกจากระบบ
                     const now = Date.now();
                     if (now - lastRefreshTime < 45000) return;
                     lastRefreshTime = now;

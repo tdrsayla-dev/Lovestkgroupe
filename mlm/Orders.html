@@ -106,6 +106,52 @@
             return m;
         }, [products]);
 
+        const classifyOrderItem = (it, prodMapObj = {}) => {
+            const rawPrice = (it.price !== undefined && it.price !== null && String(it.price).trim() !== '' && !isNaN(Number(it.price)))
+                ? Number(it.price)
+                : ((it.unitPrice !== undefined && it.unitPrice !== null && String(it.unitPrice).trim() !== '' && !isNaN(Number(it.unitPrice))) ? Number(it.unitPrice) : null);
+            const typeStr = String(it.type || it.priceType || '').trim().toLowerCase();
+            const pName = String(it.prod || it.productName || it.name || '').trim();
+            const cleanPName = pName.replace(/\(.*?\)/g, '').trim();
+            const pNameLower = pName.toLowerCase();
+
+            const pObj = (it.id && prodMapObj[it.id]) || (it.product_id && prodMapObj[it.product_id]) || prodMapObj[pName] || prodMapObj[cleanPName] || {};
+            const pFull = Number(pObj.price_full ?? pObj.priceFull ?? 0);
+            const pMember = Number(pObj.price_member ?? pObj.priceMember ?? 0);
+            const pPromo = Number(pObj.price_promo ?? pObj.pricePromo ?? 0);
+
+            // 1. ตรวจสอบราคาศูนย์ (ตัดศูนย์ / แถมฟรี / 0 บาท)
+            if (rawPrice === 0 || typeStr.includes('ศูนย์') || typeStr.includes('ฟรี') || typeStr.includes('แถม') || typeStr.includes('zero') || typeStr.includes('free') || pNameLower.includes('แถม') || pNameLower.includes('ฟรี') || pNameLower.includes('ศูนย์') || pNameLower.includes('ຟຣີ')) {
+                return 'ราคาศูนย์';
+            }
+
+            // 2. ตรวจสอบราคาโปร (ราคาโปร 800 บาท, 1000 บาท, หรือตรงกับ price_promo หรือระบุเป็นโปร)
+            if ((rawPrice !== null && (rawPrice === 800 || rawPrice === 1000 || (pPromo > 0 && Math.abs(rawPrice - pPromo) < 0.01)))
+                || typeStr.includes('โปร') || typeStr.includes('promo') || typeStr.includes('พิเศษ') || typeStr.includes('ໂປຣ')
+                || pNameLower.includes('(โปร)') || pNameLower.includes('(ໂປຣ)') || pNameLower.includes('โปรโมชั่น')) {
+                return 'ราคาโปร';
+            }
+
+            // 3. ตรวจสอบราคาสมาชิก (ราคาสมาชิก 1500 บาท หรือตรงกับ price_member หรือระบุเป็นสมาชิก)
+            if ((rawPrice !== null && (rawPrice === 1500 || (pMember > 0 && Math.abs(rawPrice - pMember) < 0.01)))
+                || typeStr.includes('สมาชิก') || typeStr.includes('member') || typeStr.includes('ส่ง') || typeStr.includes('vip') || typeStr.includes('high') || typeStr.includes('ສະມາຊິກ') || typeStr.includes('ສົ່ງ')
+                || pNameLower.includes('(ส่ง/สมาชิก)') || pNameLower.includes('(สมาชิก)') || pNameLower.includes('(ສະມາຊິກ)')) {
+                return 'ราคาสมาชิก';
+            }
+
+            // 4. ตรวจสอบราคาเต็ม (ราคาเต็ม 1800 บาท หรือตรงกับ price_full หรือระบุเป็นราคาเต็ม/ปกติ)
+            if ((rawPrice !== null && (rawPrice === 1800 || (pFull > 0 && Math.abs(rawPrice - pFull) < 0.01)))
+                || typeStr.includes('เต็ม') || typeStr.includes('ปกติ') || typeStr.includes('full') || typeStr.includes('normal') || typeStr.includes('ປົກກະຕິ')) {
+                return 'ราคาเต็ม';
+            }
+
+            // 5. Fallback ตาม type หรือราคา
+            if (typeStr === 'ราคาโปร') return 'ราคาโปร';
+            if (typeStr === 'ราคาสมาชิก') return 'ราคาสมาชิก';
+            if (typeStr === 'ราคาศูนย์') return 'ราคาศูนย์';
+            return 'ราคาเต็ม';
+        };
+
         const parseSaleCurrencyAmounts = (s, exRate) => {
             const rawAmt = Number(s.totalAmount || s.total_amount || 0);
             const pModeStr = String(s.payMode || s.pay_mode || s.saleType || s.sale_type || s.payment_method || '').trim();
@@ -249,7 +295,7 @@
                 }
                 if (Array.isArray(itemsList) && itemsList.length > 0) {
                     itemsList.forEach(it => {
-                        const typeStr = String(it.type || it.priceType || '').trim();
+                        const typeStr = classifyOrderItem(it, prodMap);
                         const qtyNum = Number(it.qty || it.quantity || 1);
                         const pName = String(it.prod || it.productName || it.name || 'Unknown').trim();
                         s[`${pName}_${typeStr}`] = qtyNum;
@@ -372,9 +418,10 @@
                    itemsList.forEach(it => {
                        const qty = parseInt(it.qty) || 0;
                        if (qty > 0) {
-                           const type = it.type || it.priceType || 'ราคาเต็ม';
+                           const type = classifyOrderItem(it, prodMap);
                            const pName = String(it.prod || it.productName || it.name || '').trim();
-                           const pObj = prodMap[pName]; 
+                           const cleanPName = pName.replace(/\(.*?\)/g, '').trim();
+                           const pObj = prodMap[pName] || prodMap[cleanPName]; 
                            const multiplier = (pObj && (pObj.isBundle || pObj.is_bundle)) ? (parseInt(pObj.bundleQty || pObj.bundle_qty) || 1) : 1;
                            const realQty = qty * multiplier; 
 
@@ -1126,7 +1173,7 @@
                     const qty = parseInt(it.qty) || 0;
                     if (qty > 0) {
                         const name = it.prod || it.productName || 'สินค้า';
-                        const type = it.type || it.priceType || 'ราคาเต็ม';
+                        const type = classifyOrderItem(it, prodMap);
                         if (type === 'ราคาเต็ม') fullItems.push({name, qty});
                         else if (type === 'ราคาสมาชิก') memberItems.push({name, qty});
                         else if (type === 'ราคาโปร') proItems.push({name, qty});
@@ -1466,7 +1513,10 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                                  });
                               }
                               if (isMarketing) {
-                                  items = items.filter(it => it.type === 'ราคาเต็ม' || it.type === 'ราคาสมาชิก');
+                                  items = items.filter(it => {
+                                      const cType = classifyOrderItem(it, prodMap);
+                                      return cType === 'ราคาเต็ม' || cType === 'ราคาสมาชิก';
+                                  });
                               }
                               if (items.length === 0) return <div className="text-xs text-slate-400 font-bold p-2 text-center">ไม่มีข้อมูลรายการสินค้าช่อย่อย</div>;
                               return items.map((it, idx) => {
@@ -1475,11 +1525,12 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                                  const isBundle = pObj && (pObj.isBundle || pObj.is_bundle);
                                  const multiplier = isBundle ? (parseInt(pObj.bundleQty || pObj.bundle_qty) || 1) : 1;
                                  const unitLabel = isBundle ? 'เซ็ต' : 'กล่อง';
+                                 const displayType = classifyOrderItem(it, prodMap);
                                  
                                  return (
                                      <div key={idx} className="flex justify-between items-center bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100 text-xs font-bold">
                                         <span className="text-slate-800">
-                                            {pName} <span className="text-[10px] text-blue-600 font-normal">({it.type || it.priceType})</span>
+                                            {pName} <span className="text-[10px] text-blue-600 font-normal">({displayType})</span>
                                             {isBundle && multiplier > 1 && <span className="text-[10px] text-blue-500 font-bold ml-1">({multiplier * it.qty} กล่อง)</span>}
                                         </span>
                                         <span className="text-blue-700 font-black">x{it.qty} {unitLabel}</span>
@@ -1847,6 +1898,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
         // ⚡ REAL-TIME SYNC & QUICK MOUNT:
         let lastSalesRefreshTime = 0;
         const doSalesRefresh = async (force = false) => {
+            if (!localStorage.getItem('stk_current_user')) return; // 🛡️ GUARD: หยุดดึงเมื่อออกจากระบบ
             const now = Date.now();
             if (!force && now - lastSalesRefreshTime < 25000) {
                 return; // Throttled: ไม่รีเฟรชซ้ำถ้าเพิ่งดึงไปไม่ถึง 25 วินาที

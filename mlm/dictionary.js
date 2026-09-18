@@ -28,6 +28,7 @@ window.stkDict = {
     "menu_closers": { th: "จัดการผู้ปิดการขาย", lo: "ຈັດການຜູ້ປິດການຂາຍ", en: "Closers Management" },
     "menu_exchange_rate": { th: "ตั้งค่าอัตราแลกเปลี่ยน", lo: "ຕັ້ງຄ່າອັດຕາແລກປ່ຽນ", en: "Exchange Rates" },
     "menu_notification_settings": { th: "ตั้งค่าการแจ้งเตือน", lo: "ຕັ້ງຄ່າການແຈ້ງເຕືອນ", en: "Notification Settings" },
+    "menu_campaign_settings": { th: "ตั้งค่าแคมเปญ & โปรโมชั่น", lo: "ຕັ້ງຄ່າແຄມເປນ & ໂປຣໂມຊັ່ນ", en: "Campaign & Promotions" },
     
     // ---- ปุ่มและสถานะพื้นฐาน ----
     "btn_logout": { th: "ออกจากระบบ", lo: "ອອກຈາກລະບົບ", en: "Logout" },

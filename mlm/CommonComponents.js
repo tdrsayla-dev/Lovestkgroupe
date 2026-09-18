@@ -608,7 +608,8 @@
         'closers': 'Closers.html',
         'exchange_rate': 'ExchangeRate.html',
         'notification_settings': 'NotificationSettings.html',
-        'company_settings': 'CompanySettings.html'
+        'company_settings': 'CompanySettings.html',
+        'campaign_settings': 'CampaignSettings.html'
       };
       for (const [p, file] of Object.entries(pageFileMap)) {
         if (href.includes(`page=${p}`)) {
@@ -654,7 +655,8 @@
       'closers': hasHtmlExt ? 'Closers.html' : 'Closers',
       'exchange_rate': hasHtmlExt ? 'ExchangeRate.html' : 'ExchangeRate',
       'notification_settings': hasHtmlExt ? 'NotificationSettings.html' : 'NotificationSettings',
-      'company_settings': hasHtmlExt ? 'CompanySettings.html' : 'CompanySettings'
+      'company_settings': hasHtmlExt ? 'CompanySettings.html' : 'CompanySettings',
+      'campaign_settings': hasHtmlExt ? 'CampaignSettings.html' : 'CampaignSettings'
     };
 
     for (const [p, file] of Object.entries(pageFileMap)) {
@@ -792,11 +794,12 @@
     const canExRate = getUserPagePermission(currentUser, 'exchange_rate') !== 'none';
     const canNotif = getUserPagePermission(currentUser, 'notification_settings') !== 'none';
     const canCompany = isAdmin || getUserPagePermission(currentUser, 'company_settings') !== 'none';
+    const canCampaign = isAdmin || getUserPagePermission(currentUser, 'campaign_settings') !== 'none';
 
-    const hasAnySettings = canSysUsers || canTeam || canBusTeams || canStock || canCustTypes || canClosers || canExRate || canNotif || canCompany;
+    const hasAnySettings = canSysUsers || canTeam || canBusTeams || canStock || canCustTypes || canClosers || canExRate || canNotif || canCompany || canCampaign;
     if (!hasAnySettings) return null;
 
-    const settingsPages = ['system_users', 'team', 'business_teams', 'stock', 'customer_types', 'closers', 'exchange_rate', 'notification_settings', 'company_settings'];
+    const settingsPages = ['system_users', 'team', 'business_teams', 'stock', 'customer_types', 'closers', 'exchange_rate', 'notification_settings', 'company_settings', 'campaign_settings'];
     const isPageInSettings = settingsPages.includes(activeTab);
     const [isOpen, setIsOpen] = React.useState(isPageInSettings);
 
@@ -815,6 +818,7 @@
         canCustTypes ? React.createElement(SidebarItem, { icon: Tags, label: t('menu_customer_types', 'จัดการประเภทลูกค้า'), id: "customer_types", activeTab: activeTab, href: SCRIPT_URL + '?page=customer_types', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
         canClosers ? React.createElement(SidebarItem, { icon: Headset, label: t('menu_closers', 'จัดการผู้ปิดการขาย'), id: "closers", activeTab: activeTab, href: SCRIPT_URL + '?page=closers', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
         canExRate ? React.createElement(SidebarItem, { icon: Coins, label: t('menu_exchange_rate', 'ตั้งค่าอัตราแลกเปลี่ยน'), id: "exchange_rate", activeTab: activeTab, href: SCRIPT_URL + '?page=exchange_rate', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
+        canCampaign ? React.createElement(SidebarItem, { icon: Trophy, label: t('menu_campaign_settings', 'ตั้งค่าแคมเปญ & โปรโมชั่น'), id: "campaign_settings", activeTab: activeTab, href: SCRIPT_URL + '?page=campaign_settings', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null,
         canNotif ? React.createElement(SidebarItem, { icon: Bell, label: t('menu_notification_settings', 'ตั้งค่าการแจ้งเตือน'), id: "notification_settings", activeTab: activeTab, href: SCRIPT_URL + '?page=notification_settings', onTabClick: handleTabClick, isSidebarCollapsed: true }) : null
       );
     }
@@ -864,6 +868,7 @@
         canCustTypes ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=customer_types'), onClick: handleTabClick, className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'customer_types' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}` }, t('menu_customer_types', 'จัดการประเภทลูกค้า')) : null,
         canClosers ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=closers'), onClick: handleTabClick, className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'closers' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}` }, t('menu_closers', 'จัดการผู้ปิดการขาย')) : null,
         canExRate ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=exchange_rate'), onClick: handleTabClick, className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'exchange_rate' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}` }, t('menu_exchange_rate', 'ตั้งค่าอัตราแลกเปลี่ยน')) : null,
+        canCampaign ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=campaign_settings'), onClick: handleTabClick, className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'campaign_settings' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}` }, t('menu_campaign_settings', 'ตั้งค่าแคมเปญ & โปรโมชั่น')) : null,
         canNotif ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=notification_settings'), onClick: handleTabClick, className: `flex items-center px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'notification_settings' ? 'text-blue-400 bg-blue-950/20 border-l-2 border-blue-500 pl-3' : 'text-slate-400 hover:text-slate-200'}` }, t('menu_notification_settings', 'ตั้งค่าการแจ้งเตือน')) : null
       ) : null
       
@@ -901,6 +906,7 @@
     React.useEffect(() => {
       let isChecking = false;
       const checkPendingOrders = async () => {
+        if (!localStorage.getItem('stk_current_user')) return; // 🛡️ GUARD: หยุดดึงเมื่อออกจากระบบ
         if (isChecking) return;
         isChecking = true;
         try {
@@ -1086,7 +1092,8 @@
     const canClosers = getUserPagePermission(currentUser, 'closers') !== 'none';
     const canExRate = getUserPagePermission(currentUser, 'exchange_rate') !== 'none';
     const canNotif = getUserPagePermission(currentUser, 'notification_settings') !== 'none';
-    const canSettings = canSysUsers || canTeam || canBusTeams || canStock || canCustTypes || canClosers || canExRate || canNotif;
+    const canCampaign = isAdmin || getUserPagePermission(currentUser, 'campaign_settings') !== 'none';
+    const canSettings = canSysUsers || canTeam || canBusTeams || canStock || canCustTypes || canClosers || canExRate || canNotif || canCampaign;
 
     return React.createElement(React.Fragment, null,
       React.createElement('aside', { className: `hidden lg:flex flex-col bg-slate-900 border-r border-slate-800 fixed inset-y-0 left-0 h-full z-30 transition-all duration-300 shadow-xl ${isSidebarCollapsed ? 'w-20' : 'w-64'}` },
@@ -1291,6 +1298,9 @@
           }
         } catch (err) {
           console.warn("ไม่สามารถบันทึกการจดจำรหัสผ่านได้");
+        }
+        if (typeof window.resetSessionInactivityTimer === 'function') {
+          window.resetSessionInactivityTimer();
         }
         onLoginSuccess(user);
       };
@@ -1748,11 +1758,50 @@
       }
     };
 
+    // 🧠 Smart Cache Mutation: อัปเดตแคชเฉพาะจุด ไม่ต้องโหลดข้อมูลใหม่ทั้งตาราง
+    const mutateCache = (table, action, data, pk='id', id=null) => {
+      const currentCache = loadCache();
+      let mutated = false;
+      Object.keys(currentCache).forEach(key => {
+        if (key === table || key.startsWith(table + '?')) {
+          const entry = currentCache[key];
+          if (!entry) return;
+          const cachedData = entry.data;
+          if (Array.isArray(cachedData)) {
+            if (action === 'UPDATE' && id) {
+              const idx = cachedData.findIndex(item => item[pk] === id);
+              if (idx !== -1) {
+                cachedData[idx] = { ...cachedData[idx], ...data };
+                mutated = true;
+              }
+            } else if (action === 'INSERT') {
+              cachedData.unshift(data); // นำข้อมูลใหม่แทรกไว้บนสุด
+              mutated = true;
+            } else if (action === 'DELETE' && id) {
+              const idx = cachedData.findIndex(item => item[pk] === id);
+              if (idx !== -1) {
+                cachedData.splice(idx, 1);
+                mutated = true;
+              }
+            }
+          }
+        }
+      });
+      if (mutated) {
+        saveCache(currentCache);
+        window.top.stkDbCache = currentCache;
+        console.log(`%c⚡ [Smart Cache] อัปเดตข้อมูลในแคชสำเร็จ: ${table} (${action})`, "color:#3b82f6;font-weight:bold");
+      } else {
+        // ถ้าไม่เจอข้อมูลในแคช ให้เคลียร์แคชทิ้งตามปกติเพื่อบังคับโหลดใหม่ครั้งถัดไป
+        invalidateCache(table);
+      }
+    };
+
     // Decorate supabaseInsert
     if (typeof window.supabaseInsert === 'function') {
       const originalInsert = window.supabaseInsert;
       window.supabaseInsert = async function(table, data) {
-        invalidateCache(table);
+        mutateCache(table, 'INSERT', data);
         return await originalInsert(table, data);
       };
     }
@@ -1761,7 +1810,7 @@
     if (typeof window.supabaseUpdate === 'function') {
       const originalUpdate = window.supabaseUpdate;
       window.supabaseUpdate = async function(table, id, data, pk='id') {
-        invalidateCache(table);
+        mutateCache(table, 'UPDATE', data, pk, id);
         return await originalUpdate(table, id, data, pk);
       };
     }
@@ -1770,7 +1819,7 @@
     if (typeof window.supabaseDelete === 'function') {
       const originalDelete = window.supabaseDelete;
       window.supabaseDelete = async function(table, id, pk='id') {
-        invalidateCache(table);
+        mutateCache(table, 'DELETE', null, pk, id);
         return await originalDelete(table, id, pk);
       };
     }

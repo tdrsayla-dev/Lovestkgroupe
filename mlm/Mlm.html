@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <script>
@@ -31,6 +31,7 @@
   <script src="config.js"></script>
   <script src="dictionary.js"></script>
   <script src="CommonComponents.js?v=3"></script>
+  <script src="campaignLogic.js"></script>
   <script>
     
   </script>
@@ -132,6 +133,35 @@
         const [topCheckupTarget, setTopCheckupTarget] = useState(() => { try { const saved = localStorage.getItem('stk_top_checkup_target'); return saved ? Number(saved) : 200; } catch(e){ return 200; } });
         const [competitionPage, setCompetitionPage] = useState(0);
         const [showGoalCompetition, setShowGoalCompetition] = useState(false);
+
+        // 🏆 Campaign System State
+        const [activeCampaigns, setActiveCampaigns] = useState([]);
+        const [campaignCollapsedMap, setCampaignCollapsedMap] = useState({});
+
+        const loadCampaigns = useCallback(async () => {
+            if (typeof window.CampaignEngine !== 'undefined' && typeof window.CampaignEngine.fetchActiveCampaigns === 'function') {
+                try {
+                    const camps = await window.CampaignEngine.fetchActiveCampaigns();
+                    setActiveCampaigns(Array.isArray(camps) ? camps : []);
+                } catch(e) {
+                    console.warn("loadCampaigns error:", e);
+                }
+            }
+        }, []);
+
+        useEffect(() => {
+            loadCampaigns();
+        }, [loadCampaigns]);
+
+        const campaignSections = useMemo(() => {
+            if (!window.CampaignEngine || !Array.isArray(activeCampaigns) || activeCampaigns.length === 0) return [];
+            return activeCampaigns.map(camp => {
+                const results = window.CampaignEngine.calcCampaignResults(camp, sales, members, customers);
+                const passed = results.filter(r => r.passed);
+                const notPassed = results.filter(r => !r.passed);
+                return { campaign: camp, results, passed, notPassed };
+            });
+        }, [activeCampaigns, sales, members, customers]);
 
         const [targetHistory, setTargetHistory] = useState(initialTargetHistory || []);
         const [showTargetHistoryModal, setShowTargetHistoryModal] = useState(false);
@@ -976,6 +1006,260 @@
                     </div>
                 </div>
             </div>
+
+            {/* 🏆 แคมเปญแข่งขันโปรโมชั่นพนักงานการตลาด (แสดงเฉพาะเมื่อมีแคมเปญ active) */}
+            {campaignSections.map((sec) => {
+                const camp = sec.campaign;
+                const isCollapsed = campaignCollapsedMap[camp.campaign_id];
+                const totalMarketingCount = sec.results.length;
+                const passedCount = sec.passed.length;
+                const pendingCount = sec.notPassed.length;
+                const passRate = totalMarketingCount > 0 ? Math.round((passedCount / totalMarketingCount) * 100) : 0;
+
+                return (
+                    <div key={camp.campaign_id} className={`${boxWrapper} flex flex-col relative overflow-hidden bg-gradient-to-b from-slate-900 via-indigo-950/40 to-slate-900 border border-amber-500/30 shadow-2xl mb-8 p-4 sm:p-6 rounded-3xl transition-all duration-300`}>
+                        {/* Ambient Lighting */}
+                        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none opacity-25">
+                            <div className="absolute -top-32 -left-32 w-96 h-96 bg-amber-500 rounded-full blur-[110px]"></div>
+                            <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-blue-600 rounded-full blur-[130px]"></div>
+                        </div>
+
+                        {/* Campaign Header Bar */}
+                        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 relative z-10 border-b border-white/10 pb-5 mb-5">
+                            <div className="flex items-start sm:items-center gap-3.5">
+                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-2xl text-amber-950 shadow-lg shadow-amber-500/30 shrink-0 font-black">
+                                    🏆
+                                </div>
+                                <div>
+                                    <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 bg-amber-400/10 px-2.5 py-0.5 rounded-md border border-amber-400/20">
+                                            แคมเปญการแข่งขัน • {camp.campaign_id}
+                                        </span>
+                                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-500/25 text-blue-200 border border-blue-400/50 font-black text-xs shadow-inner">
+                                            <span>🗓️ กำหนดวันที่:</span>
+                                            <span className="text-white font-black">{camp.start_date} ถึง {camp.end_date}</span>
+                                        </div>
+                                    </div>
+                                    <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-1">
+                                        {camp.name}
+                                    </h3>
+                                    {camp.description && (
+                                        <p className="text-xs font-semibold text-amber-200/90 mt-0.5">
+                                            🎁 รางวัล: {camp.description}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Right controls: Summary Chips & Collapse */}
+                            <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-start lg:justify-end">
+                                <div className="flex items-center gap-2 bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-white/10 text-xs">
+                                    <span className="text-slate-400 font-bold">ผู้เข้าแข่ง:</span>
+                                    <span className="text-white font-black">{totalMarketingCount} คน</span>
+                                </div>
+
+                                <div className="flex items-center gap-2 bg-emerald-950/40 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-emerald-500/30 text-xs text-emerald-400 font-bold">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                    <span>ผ่านเกณฑ์: <strong className="text-white font-black">{passedCount}</strong> คน ({passRate}%)</span>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setCampaignCollapsedMap(prev => ({ ...prev, [camp.campaign_id]: !prev[camp.campaign_id] }))}
+                                    className="px-3 py-1.5 rounded-2xl text-xs font-bold bg-white/10 hover:bg-white/20 text-slate-200 transition-colors flex items-center gap-1.5 border border-white/10 cursor-pointer"
+                                >
+                                    <span>{isCollapsed ? 'ขยายดู' : 'ย่อเก็บ'}</span>
+                                    <ChevronDown size={14} className={`transition-transform duration-300 ${isCollapsed ? '' : 'rotate-180'}`} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Rules & Date Range Banner */}
+                        <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 bg-white/5 p-3.5 rounded-2xl border border-white/10 mb-6 text-xs">
+                            <div className="flex flex-wrap items-center gap-3">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/20 text-amber-300 font-black border border-amber-500/40">
+                                    <span>🗓️ ช่วงเวลาแข่งขัน:</span>
+                                    <span className="text-white font-black">{camp.start_date} ถึง {camp.end_date}</span>
+                                </span>
+                                <span className="text-slate-500">|</span>
+                                <span className="text-slate-300 font-bold">กฎเกณฑ์:</span>
+                                {camp.cond1_enabled && (
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-500/15 text-blue-300 font-black border border-blue-500/30">
+                                        🩺 คนมาตรวจ ≥ {camp.cond1_target} คน
+                                    </span>
+                                )}
+                                {camp.cond2_enabled && (
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-purple-500/15 text-purple-300 font-black border border-purple-500/30">
+                                        📦 กล่องราคา ≥ {Number(camp.cond2_min_price || 0).toLocaleString()}฿ → ≥ {camp.cond2_target} กล่อง
+                                    </span>
+                                )}
+                            </div>
+                            <div className="text-[11px] text-amber-300/90 font-bold bg-black/40 px-3 py-1 rounded-lg border border-amber-500/20">
+                                ⚡ นับเฉพาะยอดขายและคนมาตรวจในช่วงวันที่ {camp.start_date} - {camp.end_date} เท่านั้น
+                            </div>
+                        </div>
+
+                        {!isCollapsed && (
+                            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 relative z-10">
+                                {/* 🏆 Column 1: ผ่านเกณฑ์แล้ว */}
+                                <div className="xl:col-span-5 bg-gradient-to-b from-emerald-950/30 via-slate-900/60 to-black/40 rounded-3xl p-4 sm:p-5 border border-emerald-500/30 flex flex-col shadow-inner">
+                                    <div className="flex items-center justify-between border-b border-emerald-500/20 pb-3 mb-4">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xl">🎉</span>
+                                            <h4 className="text-sm font-black text-emerald-400 tracking-wide uppercase">
+                                                ผ่านเกณฑ์การแข่งขันแล้ว ({passedCount} คน)
+                                            </h4>
+                                        </div>
+                                        <span className="text-[10px] font-black bg-emerald-500 text-slate-950 px-2 py-0.5 rounded-full">
+                                            Qualified
+                                        </span>
+                                    </div>
+
+                                    {sec.passed.length === 0 ? (
+                                        <div className="flex-1 flex flex-col items-center justify-center py-12 text-center text-slate-400">
+                                            <div className="text-4xl mb-3 animate-bounce">⏳</div>
+                                            <p className="text-xs font-bold text-slate-300">ยังไม่มีผู้ผ่านเกณฑ์ครบทุกเงื่อนไข</p>
+                                            <p className="text-[11px] text-slate-500 mt-1">ทุกคนกำลังแข่งขันสะสมยอดอย่างเข้มข้น!</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3 overflow-y-auto max-h-[500px] pr-1 hide-scroll">
+                                            {sec.passed.map((m, idx) => {
+                                                const avatar = cleanAvatarUrl(m.profileUrl, m.name);
+                                                return (
+                                                    <div
+                                                        key={m.memberId || idx}
+                                                        className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3 shadow-md hover:bg-emerald-500/15 transition-all group"
+                                                    >
+                                                        <div className="flex items-center gap-3 min-w-0">
+                                                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
+                                                                idx === 0 ? 'bg-amber-400 text-amber-950 shadow-md shadow-amber-400/40' :
+                                                                idx === 1 ? 'bg-slate-300 text-slate-900' :
+                                                                idx === 2 ? 'bg-amber-600 text-white' :
+                                                                'bg-emerald-800 text-emerald-100'
+                                                            }`}>
+                                                                {idx + 1}
+                                                            </div>
+                                                            <img src={avatar} alt={m.name} className="w-10 h-10 rounded-full object-cover border-2 border-emerald-400/50 shrink-0" />
+                                                            <div className="min-w-0">
+                                                                <p className="text-xs font-black text-white truncate group-hover:text-emerald-300 transition-colors">
+                                                                    {m.name}
+                                                                </p>
+                                                                <p className="text-[10px] text-emerald-400/80 font-semibold truncate">
+                                                                    {m.team || 'พนักงานการตลาด'}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="text-right shrink-0">
+                                                            <div className="flex items-center gap-2 justify-end text-[11px] font-black">
+                                                                {camp.cond1_enabled && (
+                                                                    <span className="text-blue-300 bg-blue-900/40 px-2 py-0.5 rounded-lg border border-blue-500/30" title="คนมาตรวจ">
+                                                                        🩺 {m.actual_cond1} คน
+                                                                    </span>
+                                                                )}
+                                                                {camp.cond2_enabled && (
+                                                                    <span className="text-purple-300 bg-purple-900/40 px-2 py-0.5 rounded-lg border border-purple-500/30" title="กล่องผ่านเกณฑ์">
+                                                                        📦 {m.actual_cond2} กล่อง
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <span className="inline-block mt-1 text-[9px] font-black text-emerald-400 uppercase tracking-wider">
+                                                                ★ สำเร็จแล้ว
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ⏳ Column 2: กำลังสะสมผลงาน */}
+                                <div className="xl:col-span-7 bg-black/20 rounded-3xl p-4 sm:p-5 border border-white/10 flex flex-col shadow-inner">
+                                    <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xl">🏃‍♂️</span>
+                                            <h4 className="text-sm font-black text-white tracking-wide uppercase">
+                                                กำลังสะสมผลงาน / ขาดอีกเท่าไหร่ ({pendingCount} คน)
+                                            </h4>
+                                        </div>
+                                        <span className="text-[10px] font-bold text-slate-400">
+                                            เป้าหมายร่วม
+                                        </span>
+                                    </div>
+
+                                    {sec.notPassed.length === 0 ? (
+                                        <div className="flex-1 flex flex-col items-center justify-center py-12 text-center text-slate-400">
+                                            <div className="text-4xl mb-3">🎊</div>
+                                            <p className="text-sm font-black text-emerald-400">สุดยอดมาก! ทุกคนผ่านเกณฑ์ทั้งหมดแล้ว</p>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-y-auto max-h-[500px] pr-1 hide-scroll">
+                                            {sec.notPassed.map((m) => {
+                                                const avatar = cleanAvatarUrl(m.profileUrl, m.name);
+                                                const diff1 = camp.cond1_enabled ? Math.max(0, camp.cond1_target - m.actual_cond1) : 0;
+                                                const diff2 = camp.cond2_enabled ? Math.max(0, camp.cond2_target - m.actual_cond2) : 0;
+
+                                                return (
+                                                    <div
+                                                        key={m.memberId}
+                                                        className="p-3.5 rounded-2xl bg-white/5 border border-white/10 hover:border-white/20 transition-all flex flex-col justify-between gap-3 shadow-xs"
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <img src={avatar} alt={m.name} className="w-10 h-10 rounded-full object-cover border border-slate-600 shrink-0" />
+                                                            <div className="min-w-0">
+                                                                <p className="text-xs font-bold text-white truncate">{m.name}</p>
+                                                                <p className="text-[10px] text-slate-400 truncate">{m.team || 'พนักงานการตลาด'}</p>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Progress bars */}
+                                                        <div className="space-y-2 pt-1 border-t border-white/5">
+                                                            {camp.cond1_enabled && (
+                                                                <div>
+                                                                    <div className="flex justify-between items-center text-[10px] font-bold mb-1">
+                                                                        <span className="text-slate-400">🩺 คนมาตรวจ ({m.actual_cond1}/{camp.cond1_target})</span>
+                                                                        <span className={diff1 === 0 ? 'text-emerald-400 font-black' : 'text-amber-400'}>
+                                                                            {diff1 === 0 ? '✓ ครบแล้ว' : `ขาดอีก ${diff1} คน`}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                                                        <div
+                                                                            className={`h-full rounded-full transition-all duration-500 ${diff1 === 0 ? 'bg-emerald-500' : 'bg-blue-500'}`}
+                                                                            style={{ width: `${m.pct1 || 0}%` }}
+                                                                        ></div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            {camp.cond2_enabled && (
+                                                                <div>
+                                                                    <div className="flex justify-between items-center text-[10px] font-bold mb-1">
+                                                                        <span className="text-slate-400">📦 กล่อง ({m.actual_cond2}/{camp.cond2_target})</span>
+                                                                        <span className={diff2 === 0 ? 'text-emerald-400 font-black' : 'text-purple-400'}>
+                                                                            {diff2 === 0 ? '✓ ครบแล้ว' : `ขาดอีก ${diff2} กล่อง`}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                                                        <div
+                                                                            className={`h-full rounded-full transition-all duration-500 ${diff2 === 0 ? 'bg-emerald-500' : 'bg-purple-500'}`}
+                                                                            style={{ width: `${m.pct2 || 0}%` }}
+                                                                        ></div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
 
             {/* 🟢 การแข่งขันความคืบหน้าเป้าหมาย (จำกัด 6 ทีม/หน้า ถ้ามีไม่ถึง 6 ทีมจะอยู่หน้าเดียว ถ้าเกิน 6 ทีมจะมีปุ่มเลื่อนหน้า) */}
             {(() => {
@@ -1829,6 +2113,7 @@
       }, [customerTypes]);
 
             const fetchFreshData = (isBackground = false) => {
+        if (!localStorage.getItem('stk_current_user')) return; // 🛡️ GUARD: หยุดดึงเมื่อออกจากระบบ
         if (!isBackground) setIsAppLoading(true);
         if (isBackground) setIsSyncing(true);
         Promise.all([
@@ -1836,7 +2121,7 @@
           supabaseSelect('stk_customer_types').catch(() => []),
           supabaseSelect('stk_closers').catch(() => []),
           supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,status,sponsor_id,accumulated_pv,phone_number,email,line_id,line_uid,bank_name,bank_account_no,bank_account_name,id_card_url').catch(() => []),
-          supabaseSelect('stk_customers', 'select=customer_id,name,customer_type,owner_member_id&limit=3000').catch(() => supabaseSelect('stk_customers', 'limit=3000').catch(() => [])),
+          supabaseSelect('stk_customers', 'select=customer_id,name,customer_type,owner_member_id&order=created_at.desc&limit=3000').catch(() => supabaseSelect('stk_customers', 'limit=3000').catch(() => [])),
           (async () => {
               const now = new Date();
               const y = now.getFullYear();
