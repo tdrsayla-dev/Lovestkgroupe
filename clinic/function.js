@@ -2380,10 +2380,10 @@ window.loadDoctorQueue = async function () {
 
     const { data, error } = await _supabase
         .from('visits')
-        .select('visit_id, hn, patient_name, doctor_name, symptom, bp, pulse, temp, weight, height, bmi, spo2, status, created_at')
-        .eq('status', 'รอตรวจ')
+        .select('visit_id, hn, patient_name, doctor_name, symptom, bp, pulse, temp, weight, height, bmi, spo2, status, lab_tests, lab_note, created_at')
+        .in('status', ['รอตรวจ', 'รอผลแล็บ', 'รอผลตรวจ Lab', 'รอผลแล็บเพิ่มเติม'])
         .order('created_at', { ascending: true })
-        .limit(100);
+        .limit(150);
 
     if (error) {
         tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
@@ -2407,11 +2407,18 @@ window.filterDoctorTable = function () {
 
     let list = [...(window.allDoctorQueueData || [])];
 
-    // 1. กรองตามเงื่อนไขแพทย์ (เฉพาะคิวของฉัน / ยังไม่ระบุแพทย์ / ทั้งหมด)
-    if (filterVal === 'my' && isDoc) {
-        list = list.filter(row => isVisitAssignedToCurrentDoctor(row.doctor_name, currentUser));
+    // 1. กรองตามเงื่อนไขแพทย์ (เฉพาะคิวของฉัน / ยังไม่ระบุแพทย์ / ทั้งหมด / ຄົນໄຂ້ລໍຖ້າຜົນແລັບ)
+    if (filterVal === 'in_lab') {
+        list = list.filter(row => row.status === 'รอผลแล็บ' || row.status === 'รอผลตรวจ Lab' || row.status === 'รอผลแล็บเพิ่มเติม');
+    } else if (filterVal === 'my' && isDoc) {
+        list = list.filter(row => row.status === 'รอตรวจ' && isVisitAssignedToCurrentDoctor(row.doctor_name, currentUser));
     } else if (filterVal === 'unassigned') {
-        list = list.filter(row => isUnassignedDoctor(row.doctor_name));
+        list = list.filter(row => row.status === 'รอตรวจ' && isUnassignedDoctor(row.doctor_name));
+    } else if (filterVal === 'all') {
+        // ค่าเริ่มต้นเมื่อไม่มีคำค้นหาให้แสดงเฉพาะรอตรวจ แต่ถ้าพิมพ์ค้นหาให้ค้นได้ทั้งหมดรวมถึงคนไข้ในแล็บ
+        if (!searchQuery) {
+            list = list.filter(row => row.status === 'รอตรวจ');
+        }
     }
 
     // 2. กรองตามคำค้นหา (ชื่อผู้ป่วย, HN, รหัส VISIT, อาการ, ชื่อแพทย์)
@@ -2483,18 +2490,36 @@ window.renderDoctorTable = function (page = window.doctorCurrentPage) {
             ? `<span class="badge bg-info-subtle text-info border border-info-subtle ms-2"><i class="bi bi-person me-1"></i>${row.doctor_name}</span>`
             : `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-2"><i class="bi bi-clock me-1"></i>ยังไม่ระบุแพทย์</span>`;
 
+        const isInLab = (row.status === 'รอผลแล็บ' || row.status === 'รอผลตรวจ Lab' || row.status === 'รอผลแล็บเพิ่มเติม');
+        const labStatusBadge = isInLab 
+            ? `<span class="badge bg-warning text-dark border border-warning ms-2" style="font-size: 0.72rem;"><i class="bi bi-hourglass-split me-1"></i>ລໍຖ້າຜົນແລັບ</span>`
+            : '';
+
+        let actionBtns = '';
+        if (isInLab) {
+            actionBtns = `
+                <button class="btn btn-sm btn-warning text-dark shadow-sm rounded-pill fw-bold px-3 py-1" style="font-size: 0.75rem;" onclick="openLabOrder('${row.visit_id}', '${row.patient_name}', '${row.hn}')">
+                    <i class="bi bi-plus-circle-fill me-1"></i>ສັ່ງກວດເພີ່ມ
+                </button>
+            `;
+        } else {
+            actionBtns = `
+                <button class="btn btn-sm btn-outline-primary me-2 shadow-sm rounded-pill fw-semibold px-3 py-1" style="font-size: 0.75rem;" onclick="openLabOrder('${row.visit_id}', '${row.patient_name}', '${row.hn}')"><i class="bi bi-virus"></i> ${labBtnText}</button>
+                <button class="btn btn-sm btn-success px-3 shadow-sm rounded-pill fw-semibold py-1" style="font-size: 0.75rem;" onclick="completeDoctorCheck('${row.visit_id}')"><i class="bi bi-check-circle me-1"></i>${finishBtnText}</button>
+            `;
+        }
+
         tbody.innerHTML += `
             <tr class="border-bottom">
                 <td class="ps-4 text-center align-middle py-2">${no}</td>
                 <td class="fw-bold text-dark align-middle py-2" style="font-size: 0.92rem;">${row.visit_id}</td>
                 <td class="align-middle py-2">
-                    <div class="fw-bold text-dark" style="font-size: 0.92rem;">${row.patient_name}${docBadge}</div>
+                    <div class="fw-bold text-dark" style="font-size: 0.92rem;">${row.patient_name}${docBadge}${labStatusBadge}</div>
                     <div class="text-muted small">อาการ: <span class="text-danger fw-semibold">${row.symptom || '-'}</span></div>
                 </td>
                 <td class="text-muted small align-middle py-2">${vitals}</td>
                 <td class="text-end pe-4 align-middle py-2">
-                    <button class="btn btn-sm btn-outline-primary me-2 shadow-sm rounded-pill fw-semibold px-3 py-1" style="font-size: 0.75rem;" onclick="openLabOrder('${row.visit_id}', '${row.patient_name}', '${row.hn}')"><i class="bi bi-virus"></i> ${labBtnText}</button>
-                    <button class="btn btn-sm btn-success px-3 shadow-sm rounded-pill fw-semibold py-1" style="font-size: 0.75rem;" onclick="completeDoctorCheck('${row.visit_id}')"><i class="bi bi-check-circle me-1"></i>${finishBtnText}</button>
+                    ${actionBtns}
                 </td>
             </tr>
         `;
@@ -3727,9 +3752,22 @@ async function showLabDetails(visitId, hn, patientName, testsString, labNote = '
         }
     }
 
+    let addOnTests = [];
+    if (labNote && (labNote.includes('ສັ່ງກວດເພີ່ມ') || labNote.includes('ตรวจเพิ่ม'))) {
+        const m = labNote.match(/\[(?:ສັ່ງກວດເພີ່ມ|ตรวจเพิ่ม):\s*([^\]]+)\]/);
+        if (m && m[1]) {
+            addOnTests = m[1].split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+        }
+    }
+
     let rowsHtml = '';
     testsList.forEach((test, idx) => {
         const itemDetails = getTestItemDetails(test);
+        const testKey = test.trim().toLowerCase();
+        const isAddOn = addOnTests.some(a => testKey === a || testKey.includes(a) || a.includes(testKey));
+        const addOnBadge = isAddOn 
+            ? `<span class="badge bg-warning text-dark border border-warning px-2 py-0.5 rounded-pill fw-bold ms-2" style="font-size: 0.72rem;"><i class="bi bi-plus-circle-fill me-1"></i>ສັ່ງກວດເພີ່ມ</span>`
+            : (addOnTests.length > 0 ? `<span class="badge bg-secondary-subtle text-secondary border px-2 py-0.5 rounded-pill fw-semibold ms-2" style="font-size: 0.72rem;"><i class="bi bi-check2 me-1"></i>ຮອບທຳອິດ</span>` : '');
 
         if (itemDetails.isPackage && itemDetails.subItems.length > 0) {
             let subItemsHtml = itemDetails.subItems.map((sub) => {
@@ -3749,7 +3787,7 @@ async function showLabDetails(visitId, hn, patientName, testsString, labNote = '
                             <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill me-2 fw-semibold" style="font-size: 0.75rem;">
                                 <i class="bi bi-box-seam me-1"></i>แพ็กเกจ
                             </span>
-                            <span class="fw-bold text-dark fs-6">${itemDetails.name}</span>
+                            <span class="fw-bold text-dark fs-6">${itemDetails.name}</span>${addOnBadge}
                         </div>
                         <div class="p-2.5 rounded-3 bg-light border ms-1">
                             <div class="text-muted extra-small fw-bold mb-2" style="font-size: 0.75rem; color: #475569;">
@@ -3766,7 +3804,7 @@ async function showLabDetails(visitId, hn, patientName, testsString, labNote = '
             rowsHtml += `
                 <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-light'} border-bottom">
                     <td class="ps-3 py-2.5 text-muted fw-semibold align-middle" style="width: 70px; min-width: 70px;">${idx + 1}</td>
-                    <td class="py-2.5 text-dark fw-semibold align-middle">${itemDetails.name}</td>
+                    <td class="py-2.5 text-dark fw-semibold align-middle">${itemDetails.name}${addOnBadge}</td>
                 </tr>
             `;
         }
@@ -6705,6 +6743,10 @@ window.renderLabTable = function (page = window.labCurrentPage) {
             labNote: row.lab_note || ''
         };
 
+        const hasAddOn = (row.lab_note && (row.lab_note.includes('ສັ່ງກວດເພີ່ມ') || row.lab_note.includes('ตรวจเพิ่ม')));
+        const addOnBadgeHtml = hasAddOn 
+            ? `<span class="badge bg-warning text-dark border border-warning px-2 py-0.5 rounded-pill fw-bold ms-1" style="font-size: 0.72rem;"><i class="bi bi-plus-circle-fill me-1"></i>ສັ່ງກວດເພີ່ມ</span>`
+            : '';
         let labDetailsHtml = `<button class="btn btn-sm btn-light border" onclick="viewLabDetailsByVisitId('${row.visit_id}')"><i class="ph ph-flask text-primary me-1"></i> ${itemsLabel} (${testCount} รายการ)</button>`;
 
         const filesList = getLabFilesForVisit(row.visit_id, row.pdf_url);
@@ -6770,7 +6812,7 @@ window.renderLabTable = function (page = window.labCurrentPage) {
                 <td class="ps-4 text-center fw-semibold text-secondary">${no}</td>
                 <td class="fw-bold text-primary">${row.visit_id}</td>
                 <td>${hnDisplay}</td>
-                <td class="fw-bold">${row.patient_name}</td>
+                <td class="fw-bold">${row.patient_name}${addOnBadgeHtml}</td>
                 <td>${labDetailsHtml}</td>
                 <td class="text-center">${allResultDisplay}</td>
                 <td>${statusBadgeHtml}</td>
@@ -7095,6 +7137,101 @@ function openDoctorLabModal(visitId, hn, patientName) {
     openLabOrder(visitId, patientName, hn);
 }
 
+// 🌟 ฟังก์ชันเปิดหน้าต่างเลือกคนไข้ที่รอผลแล็บวันนี้ เพื่อสั่งตรวจเพิ่ม
+window.openDoctorAddLabModal = async function () {
+    Swal.fire({
+        title: 'ກຳລັງໂຫລດຂໍ້ມູນຄົນໄຂ້...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        const todayStr = (typeof getVientianeDateRange === 'function') 
+            ? getVientianeDateRange('today').startStr 
+            : new Date().toISOString().split('T')[0];
+
+        const { data, error } = await _supabase
+            .from('visits')
+            .select('visit_id, hn, patient_name, doctor_name, symptom, status, lab_tests, lab_note, created_at')
+            .in('status', ['รอผลแล็บ', 'รอผลตรวจ Lab', 'รอผลแล็บเพิ่มเติม'])
+            .gte('created_at', todayStr + 'T00:00:00')
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        const labPatients = data || [];
+        if (labPatients.length === 0) {
+            Swal.fire({
+                icon: 'info',
+                title: 'ບໍ່ພົບຄົນໄຂ້',
+                text: 'ບໍ່ມີຄົນໄຂ້ທີ່ກຳລັງລໍຖ້າຜົນແລັບໃນມື້ນີ້',
+                confirmButtonText: 'ຕົກລົງ'
+            });
+            return;
+        }
+
+        let rowsHtml = labPatients.map((p, idx) => {
+            const testList = (p.lab_tests || '').split(',').map(s => s.trim()).filter(Boolean);
+            const safeName = (p.patient_name || '').replace(/'/g, "\\'");
+            return `
+                <tr class="border-bottom">
+                    <td class="text-center py-2.5 text-muted fw-bold">${idx + 1}</td>
+                    <td class="py-2.5">
+                        <strong class="text-primary">${p.visit_id}</strong>
+                        <span class="badge bg-light text-secondary border ms-1">HN: ${p.hn || '-'}</span>
+                    </td>
+                    <td class="py-2.5">
+                        <div class="fw-bold text-dark">${p.patient_name}</div>
+                        <small class="text-muted">ລາຍການກວດເດີມ: <span class="text-info fw-semibold">${testList.join(', ') || '-'}</span></small>
+                    </td>
+                    <td class="text-end pe-3 py-2.5">
+                        <button class="btn btn-sm btn-warning text-dark fw-bold rounded-pill shadow-sm px-3"
+                            onclick="Swal.close(); openLabOrder('${p.visit_id}', '${safeName}', '${p.hn || ''}')">
+                            <i class="bi bi-plus-circle-fill me-1"></i>ເລືອກສັ່ງກວດເພີ່ມ
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        const modalHtml = `
+            <div class="text-start">
+                <div class="mb-3">
+                    <input type="text" id="swalSearchLabPatient" class="form-control"
+                        placeholder="🔍 ຄົ້ນຫາ ຊື່, HN, Visit ID..." 
+                        onkeyup="const val = this.value.toLowerCase(); document.querySelectorAll('#swalLabPatientsTable tbody tr').forEach(tr => tr.style.display = tr.innerText.toLowerCase().includes(val) ? '' : 'none')">
+                </div>
+                <div class="table-responsive border rounded-3" style="max-height: 380px; overflow-y: auto;">
+                    <table class="table table-hover align-middle mb-0" id="swalLabPatientsTable">
+                        <thead class="bg-light sticky-top">
+                            <tr class="text-secondary small fw-bold">
+                                <th class="text-center" width="50">#</th>
+                                <th width="160">Visit / HN</th>
+                                <th>ຊື່-ນາມສະກຸນ / ລາຍການກວດເດີມ</th>
+                                <th class="text-end pe-3" width="160">ຈັດການ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+        Swal.fire({
+            title: '<h5 class="fw-bold text-dark mb-0"><i class="bi bi-flask text-warning me-2"></i>ເລືອກຄົນໄຂ້ທີ່ລໍຖ້າຜົນແລັບ (ສັ່ງກວດເພີ່ມ)</h5>',
+            html: modalHtml,
+            width: '720px',
+            showConfirmButton: false,
+            showCloseButton: true
+        });
+
+    } catch (err) {
+        Swal.fire('Error', err.message || 'ບໍ່ສາມາດໂຫລດຂໍ້ມູນໄດ້', 'error');
+    }
+};
+
 async function submitLabOrder() {
     const form = document.getElementById('labOrderForm');
     const visitId = form.visitId.value;
@@ -7123,11 +7260,18 @@ async function submitLabOrder() {
     // 🌟 ຮວມລາຍການກວດເກົ່າ + ລາຍການກວດໃໝ່ ບໍ່ໃຫ້ລາຍການເກົ່າຖືກຂຽນທັບ
     const existingLabs = window.currentVisitExistingLabs || [];
     const mergedLabs = [...new Set([...existingLabs, ...selectedLabs])];
+    const newlyAddedLabs = selectedLabs.filter(x => !existingLabs.includes(x));
+
+    let finalLabNote = labNoteVal;
+    if (existingLabs.length > 0 && newlyAddedLabs.length > 0) {
+        finalLabNote = (finalLabNote || '').replace(/\[(?:ສັ່ງກວດເພີ່ມ|ตรวจเพิ่ม)(?::\s*[^\]]*)?\]/g, '').trim();
+        finalLabNote = `[ສັ່ງກວດເພີ່ມ: ${newlyAddedLabs.join(', ')}] ${finalLabNote}`.trim();
+    }
 
     // ข้อมูลที่จะอัปเดตลงฐานข้อมูล Supabase
     const updateData = {
         lab_tests: mergedLabs.join(', '),
-        lab_note: labNoteVal, // บันทึกข้อความหมายเหตุลงฐานข้อมูล
+        lab_note: finalLabNote, // บันทึกข้อความหมายเหตุและแท็กสั่งตรวจเพิ่มลงฐานข้อมูล
         status: 'รอชำระเงิน'
     };
 

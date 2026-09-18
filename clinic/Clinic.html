@@ -649,7 +649,6 @@
 
         </div>
 
-
         <!-- 4. จุดคัดกรอง (Triage) -->
         <div id="triage" class="page-section">
             <div class="d-flex justify-content-between align-items-end mb-4">
@@ -793,7 +792,12 @@
                         <option value="all">แสดงคิวตรวจทั้งหมด</option>
                         <option value="my">เฉพาะคิวของฉัน</option>
                         <option value="unassigned">คิวยังไม่ระบุแพทย์</option>
+                        <option value="in_lab">ຄົນໄຂ້ລໍຖ້າຜົນແລັບ (ສັ່ງກວດເພີ່ມ)</option>
                     </select>
+                    <button class="btn btn-sm btn-warning text-dark shadow-sm fw-semibold d-flex align-items-center gap-1 px-3 py-1.5 rounded-pill"
+                        onclick="openDoctorAddLabModal()">
+                        <i class="bi bi-plus-circle-fill"></i> ເລືອກຄົນໄຂ້ສັ່ງກວດເພີ່ມ
+                    </button>
                     <button class="btn btn-sm btn-outline-primary shadow-sm" onclick="loadDoctorQueue()"
                         title="รีเฟรชคิว">
                         <i class="bi bi-arrow-clockwise"></i>
@@ -4809,7 +4813,7 @@
             document.write('<script src="../config.js"><\/script>');
         }
     </script>
-    <script src="function.js?v=3.9.60"></script>
+    <script src="function.js?v=3.9.61"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
     <script>
         document.addEventListener("DOMContentLoaded", function () {
