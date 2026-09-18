@@ -3627,6 +3627,8 @@ function getTestItemDetails(testStr) {
     const displayName = match ? (match.name || cleanTest) : cleanTest;
 
     return {
+        id: match ? (match.id || '') : '',
+        service_id: match ? (match.id || '') : '',
         name: displayName,
         price: price,
         isPackage: isPackage,
@@ -4816,6 +4818,8 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
     const billItems = testsList.map(t => {
         const item = typeof getTestItemDetails === 'function' ? getTestItemDetails(t) : { name: t, price: 0 };
         return {
+            id: item.id || item.service_id || '',
+            service_id: item.service_id || item.id || '',
             name: item.name || t,
             price: item.price || 0,
             isPackage: !!item.isPackage
@@ -5050,8 +5054,35 @@ async function confirmAndSubmitClinicPayment(visitId, hn, patientName, testsStri
                 const { data } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
                 visitRecord = data;
             }
-            if (visitRecord && typeof calculateAndRecordCommission === 'function') {
-                await calculateAndRecordCommission(visitRecord, testsString);
+
+            // ค้นหารหัสผู้แนะนำจากข้อมูลคนไข้หากใน Visit ยังไม่มี
+            let resolvedReferrer = (visitRecord && (visitRecord.referrer || visitRecord.ref_code || visitRecord.doctor_ref || visitRecord.referred_by)) || '';
+            if (!resolvedReferrer && hn && hn !== '-') {
+                if (Array.isArray(window.allPatients)) {
+                    const p = window.allPatients.find(x => x.hn === hn);
+                    if (p) resolvedReferrer = p.referred_by || p.referrer || p.ref_code || '';
+                }
+                if (!resolvedReferrer && typeof _supabase !== 'undefined') {
+                    try {
+                        const { data: pDb } = await _supabase.from('patients').select('referred_by, referrer, ref_code').eq('hn', hn).maybeSingle();
+                        if (pDb) resolvedReferrer = pDb.referred_by || pDb.referrer || pDb.ref_code || '';
+                    } catch (e) { }
+                }
+            }
+
+            if (visitRecord) {
+                if (resolvedReferrer) visitRecord.referred_by = resolvedReferrer;
+            } else {
+                visitRecord = { visit_id: visitId, hn: hn, patient_name: patientName, referred_by: resolvedReferrer };
+            }
+
+            const targetBillObj = primaryBillPayload || billPayload;
+            if (targetBillObj && resolvedReferrer) {
+                targetBillObj.referred_by = resolvedReferrer;
+            }
+
+            if (typeof calculateAndRecordCommission === 'function') {
+                await calculateAndRecordCommission(visitRecord, effectiveBillTests, false, targetBillObj);
             }
         } catch (commErr) {
             console.warn('Commission calculation warning:', commErr);
@@ -15197,12 +15228,34 @@ async function loadReferralData(isManualClick = false) {
                     // โหลดการตั้งค่าปันผลรายรายการ (Item-based settings)
                     else if (row.type === 'item' || (row.id && row.id.startsWith('item_'))) {
                         const serviceId = row.id.replace(/^item_/, '');
-                        itemSettingsFromDb[serviceId] = parseFloat(row.value) || 0;
+                        const val = parseFloat(row.value) || 0;
+                        itemSettingsFromDb[serviceId] = val;
+                        itemSettingsFromDb['item_' + serviceId] = val;
                         hasItemSettingsInDb = true;
                     }
                 });
 
                 if (hasItemSettingsInDb) {
+                    if (!window.servicesData || window.servicesData.length === 0) {
+                        try {
+                            const { data: sDb } = await _supabase.from('services').select('id, name, price');
+                            if (sDb && sDb.length > 0) {
+                                window.servicesData = sDb;
+                                window.allServicesData = sDb;
+                            }
+                        } catch (e) { }
+                    }
+                    if (Array.isArray(window.servicesData)) {
+                        window.servicesData.forEach(s => {
+                            if (!s || !s.name) return;
+                            const sClean = String(s.id || '').replace(/^item_/, '');
+                            const val = itemSettingsFromDb[sClean] || itemSettingsFromDb['item_' + sClean];
+                            if (val > 0) {
+                                itemSettingsFromDb[s.name.trim()] = val;
+                                itemSettingsFromDb[s.name.trim().toLowerCase()] = val;
+                            }
+                        });
+                    }
                     localStorage.setItem('hr_item_commission_settings', JSON.stringify(itemSettingsFromDb));
                 }
             }
@@ -16471,6 +16524,8 @@ function renderCommissionLogsTable(page) {
                 if (matchedPat && matchedPat.hn) resolvedHn = matchedPat.hn;
             }
 
+            let billIdVal = l.bill_id || (l.id && l.id.startsWith('COM-BILL-') ? l.id.replace(/^COM-/, '') : '');
+            let billBadge = billIdVal ? `<span class="badge bg-info-subtle text-info border border-info-subtle px-1.5 py-0.5 me-1" style="font-size: 0.7rem; font-weight: 500;" title="Bill ID"><i class="bi bi-receipt me-1"></i>${billIdVal}</span>` : '';
             let visitBadge = l.visit_id ? `<span class="badge bg-light text-secondary border px-1.5 py-0.5 me-1" style="font-size: 0.7rem; font-weight: 500;" title="Visit ID"><i class="bi bi-tag me-1"></i>${l.visit_id}</span>` : '';
             let hnBadge = resolvedHn ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-1.5 py-0.5 me-1" style="font-size: 0.7rem; font-weight: 600;" title="HN ผู้ป่วย">HN: ${resolvedHn}</span>` : '';
 
@@ -16487,6 +16542,7 @@ function renderCommissionLogsTable(page) {
                         <div class="d-flex align-items-center gap-1 mt-1 flex-wrap">
                             ${hnBadge}
                             ${visitBadge}
+                            ${billBadge}
                         </div>
                     </td>
                     <td class="fw-semibold text-dark">${formatCommissionAmount(invoiceVal)}</td>
@@ -17912,9 +17968,13 @@ async function saveItemCommissionSettings() {
 }
 window.saveItemCommissionSettings = saveItemCommissionSettings;
 
-async function calculateAndRecordCommission(visitRecordOrId, testsString = '', isBatch = false) {
+async function calculateAndRecordCommission(visitRecordOrId, testsString = '', isBatch = false, targetBill = null) {
     let visitRecord = null;
     let visitId = null;
+
+    if (targetBill && typeof targetBill === 'object') {
+        visitId = targetBill.visit_id || null;
+    }
 
     if (typeof visitRecordOrId === 'string') {
         visitId = visitRecordOrId;
@@ -17931,78 +17991,132 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
             visitRecord = cachedVisits.find(v => (v.visit_id === visitId || v.id === visitId));
         }
     } else if (visitRecordOrId && typeof visitRecordOrId === 'object') {
+        if (visitRecordOrId.bill_id && !targetBill) {
+            targetBill = visitRecordOrId;
+        }
         visitRecord = visitRecordOrId;
-        visitId = visitRecord.visit_id || visitRecord.id;
+        visitId = visitRecord.visit_id || visitRecord.id || (targetBill ? targetBill.visit_id : null);
     }
 
-    if (!visitRecord) return;
-
-    // 🛑 CRITICAL CHECK: Visit MUST be PAID! Skip if status is 'รอชำระเงิน' (Waiting for payment)
-    const vStatus = (visitRecord.status || '').trim();
-    const isPaidStatus = (
-        visitRecord.payment_status === 'paid' ||
-        vStatus === 'รอผลแล็บ' ||
-        vStatus === 'ทำรายการสำเร็จ' ||
-        vStatus === 'สำเร็จ' ||
-        vStatus === 'ชำระแล้ว' ||
-        !!visitRecord.bill_id ||
-        (Array.isArray(window.clinicBills) && window.clinicBills.some(b => b.visit_id === visitId))
-    );
-
-    if (!isPaidStatus && vStatus === 'รอชำระเงิน') {
-        return;
+    // 🌟 ຖ້າບໍ່ມີ targetBill ແຕ່ມີ visitId: ກວດສອບວ່າມີບິນໃນຕາຕະລາງ bills ຫຼືບໍ່
+    // ຖ້າມີບິນ ໃຫ້ຄຳນວນແຍກຕາມແຕ່ລະບິນ (Option 1) ຫ້າມສ້າງ COM-VIS- ເດັດຂາດ
+    if (!targetBill && visitId) {
+        let vBills = (window.allBillsData || window.clinicBills || []).filter(b => b && b.visit_id === visitId && (b.status === 'ชำระแล้ว' || b.status === 'paid' || !b.status));
+        if (vBills.length === 0 && typeof _supabase !== 'undefined') {
+            try {
+                const { data: dbBills } = await _supabase.from('bills').select('*').eq('visit_id', visitId);
+                if (dbBills && dbBills.length > 0) vBills = dbBills.filter(b => b && (b.status === 'ชำระแล้ว' || b.status === 'paid' || !b.status));
+            } catch (e) { }
+        }
+        if (vBills.length > 0) {
+            for (const b of vBills) {
+                await calculateAndRecordCommission(visitRecord || visitId, '', isBatch, b);
+            }
+            return;
+        }
     }
 
-    // ตรวจสอบว่าเคยสร้าง Log สำหรับ visitId นี้แล้วหรือยัง เพื่อป้องกันการคำนวณซ้ำ
+    // Bill ID resolution (Option 1: ແຍກຕາມບິນຈິງ)
+    const billId = targetBill ? (targetBill.bill_id || targetBill.id) : null;
+    const logId = billId ? ('COM-' + billId) : (visitId ? ('COM-' + visitId) : generateId('COM'));
+
+    // Check payment status
+    if (!targetBill) {
+        if (!visitRecord) return;
+        const vStatus = (visitRecord.status || '').trim();
+        const isPaidStatus = (
+            visitRecord.payment_status === 'paid' ||
+            vStatus === 'รอผลแล็บ' ||
+            vStatus === 'ทำรายการสำเร็จ' ||
+            vStatus === 'สำเร็จ' ||
+            vStatus === 'ชำระแล้ว' ||
+            !!visitRecord.bill_id ||
+            (Array.isArray(window.clinicBills) && window.clinicBills.some(b => b.visit_id === visitId))
+        );
+        if (!isPaidStatus && vStatus === 'รอชำระเงิน') {
+            return;
+        }
+    } else {
+        const bStatus = (targetBill.status || '').trim();
+        if (bStatus && bStatus !== 'ชำระแล้ว' && bStatus !== 'paid') {
+            return;
+        }
+    }
+
+    // Deduplication check: check by logId or bill_id (NOT by visit_id, to allow multiple bills per visit)
     window.commissionLogs = window.commissionLogs || [];
-    const existingLog = window.commissionLogs.find(l => l.visit_id === visitId);
-    if (existingLog) return;
+    if (billId) {
+        const existingLog = window.commissionLogs.find(l => l.id === logId || l.bill_id === billId);
+        if (existingLog && existingLog.status === 'paid') return;
+    } else if (visitId) {
+        const existingLog = window.commissionLogs.find(l => l.id === logId || (!l.bill_id && l.visit_id === visitId));
+        if (existingLog && existingLog.status === 'paid') return;
+    }
 
-    // 1. ดึงรหัสผู้แนะนำจาก Visit หากไม่มีให้ค้นหาจากตาราง patients อัตโนมัติ
-    let referrerCode = visitRecord.referrer || visitRecord.ref_code || visitRecord.doctor_ref || visitRecord.referred_by || '';
+    // 1. ดึงรหัสผู้แนะนำจาก Bill หรือ Visit หรือค้นหาจากตาราง patients อัตโนมัติ
+    let referrerCode = (targetBill && (targetBill.referred_by || targetBill.referrer)) ||
+        (visitRecord && (visitRecord.referrer || visitRecord.ref_code || visitRecord.doctor_ref || visitRecord.referred_by)) || '';
+
+    const patientHn = (targetBill && targetBill.hn) || (visitRecord && visitRecord.hn) || '';
+    const rawPatientName = (targetBill && targetBill.patient_name) || (visitRecord && visitRecord.patient_name) || '';
 
     if (!referrerCode || referrerCode === '-' || referrerCode === 'null' || referrerCode === 'undefined') {
-        // ค้นหาผู้แนะนำจากตาราง patients ตาม HN หรือชื่อคนไข้
-        const patientHn = visitRecord.hn || '';
-        const patientName = visitRecord.patient_name || '';
-
-        // ค้นหาในหน่วยความจำ allPatients ก่อนเพื่อความเร็วและไม่เกิด 400 Bad Request (ยึด HN เป็นหลัก)
+        // ค้นหาผู้แนะนำจากตาราง patients ตาม HN หรือชื่อคนไข้ (ใน memory)
         if (Array.isArray(window.allPatients)) {
             let patObj = null;
             if (patientHn && patientHn !== '-') {
                 patObj = window.allPatients.find(p => p.hn === patientHn || p.HN === patientHn || p.id === patientHn);
             }
-            if (!patObj && patientName && patientName !== 'ผู้ป่วย') {
-                patObj = window.allPatients.find(p => p.patient_name === patientName || p.FullName === patientName);
+            if (!patObj && rawPatientName && rawPatientName !== 'ผู้ป่วย') {
+                patObj = window.allPatients.find(p => p.patient_name === rawPatientName || p.FullName === rawPatientName);
             }
             if (patObj) {
                 referrerCode = patObj.referrer || patObj.ref_code || patObj.referred_by || '';
             }
         }
+
+        // 🌟 Direct Database Fallback: หากใน memory ไม่มี ให้ค้นหาจากฐานข้อมูล Supabase patients ໂດຍກົງ
+        if ((!referrerCode || referrerCode === '-') && typeof _supabase !== 'undefined') {
+            try {
+                if (patientHn && patientHn !== '-') {
+                    const { data: pDb } = await _supabase.from('patients').select('referred_by, referrer, ref_code, patient_name').eq('hn', patientHn).maybeSingle();
+                    if (pDb) {
+                        referrerCode = pDb.referred_by || pDb.referrer || pDb.ref_code || '';
+                        if ((!rawPatientName || rawPatientName === 'ผู้ป่วย') && pDb.patient_name) rawPatientName = pDb.patient_name;
+                    }
+                }
+                if (!referrerCode && rawPatientName && rawPatientName !== 'ผู้ป่วย') {
+                    const { data: pDb } = await _supabase.from('patients').select('referred_by, referrer, ref_code, patient_name').ilike('patient_name', rawPatientName.trim()).maybeSingle();
+                    if (pDb) {
+                        referrerCode = pDb.referred_by || pDb.referrer || pDb.ref_code || '';
+                    }
+                }
+            } catch (e) { }
+        }
     }
 
     let referrerId = referrerCode || null;
-    let patientName = visitRecord.patient_name || 'ผู้ป่วย';
+    let patientName = rawPatientName || 'ผู้ป่วย';
 
     // 2. ค้นหาจาก LocalStorage Maps สำรอง (ยึด HN ก่อน)
     const patMap = JSON.parse(localStorage.getItem('clinic_patient_referrers') || '{}');
-    if (!referrerId && visitRecord.hn && patMap[visitRecord.hn]) {
-        referrerId = patMap[visitRecord.hn];
+    if (!referrerId && patientHn && patMap[patientHn]) {
+        referrerId = patMap[patientHn];
     }
 
     const apptMap = JSON.parse(localStorage.getItem('clinic_appointment_referrers') || '{}');
-    if (!referrerId && visitRecord.appointment_id && apptMap[visitRecord.appointment_id]) {
+    if (!referrerId && visitRecord && visitRecord.appointment_id && apptMap[visitRecord.appointment_id]) {
         referrerId = apptMap[visitRecord.appointment_id];
     }
 
     // 3. ค้นหาใน memory cache ของผู้ป่วย (patients) สำรอง (ยึด HN ก่อน)
-    if (!referrerId && (visitRecord.hn || visitRecord.patient_name)) {
+    if (!referrerId && (patientHn || patientName)) {
         let pat = null;
-        if (visitRecord.hn && visitRecord.hn !== '-') {
-            pat = (window.allPatients || []).find(p => p.hn === visitRecord.hn || p.HN === visitRecord.hn || p.id === visitRecord.hn);
+        if (patientHn && patientHn !== '-') {
+            pat = (window.allPatients || []).find(p => p.hn === patientHn || p.HN === patientHn || p.id === patientHn);
         }
-        if (!pat && visitRecord.patient_name && visitRecord.patient_name !== 'ผู้ป่วย') {
-            pat = (window.allPatients || []).find(p => p.patient_name === visitRecord.patient_name || p.FullName === visitRecord.patient_name);
+        if (!pat && patientName && patientName !== 'ผู้ป่วย') {
+            pat = (window.allPatients || []).find(p => p.patient_name === patientName || p.FullName === patientName);
         }
         if (pat && (pat.referrer || pat.ref_code || pat.referred_by)) {
             referrerId = pat.referrer || pat.ref_code || pat.referred_by;
@@ -18016,7 +18130,6 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
     let referrer = (window.referrersData || []).find(r => r.id === referrerId || r.code === referrerId || r.name === referrerId);
     let refName = referrer ? referrer.name : referrerId;
 
-    // หากไม่พบใน referrersData ให้ค้นหาจากรายชื่อพนักงาน (allEmployeesData / allStaffUsers)
     if (!referrer) {
         const emp = (window.allEmployeesData || []).find(e => e.emp_code === referrerId || e.full_name === referrerId) ||
             (window.allStaffUsers || []).find(s => s.emp_code === referrerId || s.full_name === referrerId);
@@ -18025,18 +18138,27 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
         }
     }
 
+    // Calculate totalInvoice: Prioritize bill's payable amount
     let totalInvoice = 0;
-    if (visitRecord.payable_amount !== undefined && parseFloat(visitRecord.payable_amount) > 0) {
-        totalInvoice = parseFloat(visitRecord.payable_amount);
-    } else if (visitRecord.total_price !== undefined && parseFloat(visitRecord.total_price) > 0) {
-        totalInvoice = parseFloat(visitRecord.total_price);
-    } else if (visitRecord.price !== undefined && parseFloat(visitRecord.price) > 0) {
-        totalInvoice = parseFloat(visitRecord.price);
-    } else if (visitRecord.total_amount !== undefined && parseFloat(visitRecord.total_amount) > 0) {
-        totalInvoice = parseFloat(visitRecord.total_amount);
+    if (targetBill) {
+        if (targetBill.payable_amount !== undefined && parseFloat(targetBill.payable_amount) >= 0) {
+            totalInvoice = parseFloat(targetBill.payable_amount);
+        } else if (targetBill.subtotal !== undefined && parseFloat(targetBill.subtotal) >= 0) {
+            totalInvoice = parseFloat(targetBill.subtotal);
+        }
+    } else if (visitRecord) {
+        if (visitRecord.payable_amount !== undefined && parseFloat(visitRecord.payable_amount) > 0) {
+            totalInvoice = parseFloat(visitRecord.payable_amount);
+        } else if (visitRecord.total_price !== undefined && parseFloat(visitRecord.total_price) > 0) {
+            totalInvoice = parseFloat(visitRecord.total_price);
+        } else if (visitRecord.price !== undefined && parseFloat(visitRecord.price) > 0) {
+            totalInvoice = parseFloat(visitRecord.price);
+        } else if (visitRecord.total_amount !== undefined && parseFloat(visitRecord.total_amount) > 0) {
+            totalInvoice = parseFloat(visitRecord.total_amount);
+        }
     }
 
-    if (totalInvoice <= 0 || totalInvoice === 1500) {
+    if (totalInvoice <= 0 && visitRecord) {
         let calcSum = 0;
         const testStr = testsString || visitRecord.lab_tests || '';
         if (testStr && typeof testStr === 'string') {
@@ -18100,7 +18222,7 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
     const itemModeEnabled = itemSwitch ? itemSwitch.checked : (
         localStorage.getItem('clinic_comm_item_enabled') !== null
             ? (localStorage.getItem('clinic_comm_item_enabled') === 'true' || localStorage.getItem('clinic_comm_item_enabled') === true)
-            : (localStorage.getItem('hr_item_commission_enabled') === 'true')
+            : (localStorage.getItem('hr_item_commission_enabled') !== 'false')
     );
 
     if (itemModeEnabled) {
@@ -18109,13 +18231,65 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
             itemSettings = window.allCommissionItemSettings;
         }
 
-        let itemList = [];
-        if (Array.isArray(visitRecord.items)) itemList = itemList.concat(visitRecord.items);
-        if (Array.isArray(visitRecord.services)) itemList = itemList.concat(visitRecord.services);
-        if (Array.isArray(visitRecord.lab_orders)) itemList = itemList.concat(visitRecord.lab_orders);
+        // 🌟 Ensure both commission_settings and services catalog are loaded
+        if (typeof _supabase !== 'undefined' && (Object.keys(itemSettings).length === 0 || !window.servicesData || window.servicesData.length === 0)) {
+            try {
+                const [{ data: cSettings }, { data: sData }] = await Promise.all([
+                    _supabase.from('commission_settings').select('*'),
+                    _supabase.from('services').select('id, name, price')
+                ]);
+                if (cSettings && cSettings.length > 0) {
+                    itemSettings = itemSettings || {};
+                    cSettings.forEach(cs => {
+                        if (cs.type === 'item') {
+                            const clean = cs.id.replace(/^item_/, '');
+                            itemSettings[clean] = cs.value;
+                            itemSettings[cs.id] = cs.value;
+                        }
+                    });
+                }
+                if (sData && sData.length > 0) {
+                    window.servicesData = sData;
+                    window.allServicesData = sData;
+                }
+            } catch (e) { }
+        }
 
-        const currentLabTests = testsString || visitRecord.lab_tests || '';
-        if (currentLabTests && typeof currentLabTests === 'string') {
+        // 🌟 Enrich itemSettings with all service names and normalized aliases
+        const allServicesList = (window.allServicesData || window.servicesData || JSON.parse(localStorage.getItem('clinic_services_packages') || '[]') || []);
+        if (Array.isArray(allServicesList) && allServicesList.length > 0) {
+            allServicesList.forEach(s => {
+                if (!s || !s.name) return;
+                const sClean = String(s.id || '').replace(/^item_/, '').trim();
+                const val = itemSettings[sClean] !== undefined ? itemSettings[sClean] : itemSettings['item_' + sClean];
+                if (val !== undefined && parseFloat(val) > 0) {
+                    const numVal = parseFloat(val);
+                    const sName = s.name.trim();
+                    itemSettings[sName] = numVal;
+                    itemSettings[sName.toLowerCase()] = numVal;
+                    const norm1 = sName.replace(/[.,\s]/g, '').toLowerCase();
+                    if (norm1) itemSettings[norm1] = numVal;
+                    const norm2 = sName.replace(/[.,]/g, ' ').replace(/\s+/g, ' ').toLowerCase();
+                    if (norm2) itemSettings[norm2] = numVal;
+                }
+            });
+        }
+
+        let itemList = [];
+        if (targetBill) {
+            let billItems = targetBill.items;
+            if (typeof billItems === 'string') {
+                try { billItems = JSON.parse(billItems); } catch (e) { billItems = []; }
+            }
+            if (Array.isArray(billItems)) itemList = itemList.concat(billItems);
+        } else if (visitRecord) {
+            if (Array.isArray(visitRecord.items)) itemList = itemList.concat(visitRecord.items);
+            if (Array.isArray(visitRecord.services)) itemList = itemList.concat(visitRecord.services);
+            if (Array.isArray(visitRecord.lab_orders)) itemList = itemList.concat(visitRecord.lab_orders);
+        }
+
+        const currentLabTests = testsString || (visitRecord ? visitRecord.lab_tests : '');
+        if (itemList.length === 0 && currentLabTests && typeof currentLabTests === 'string') {
             const labArr = currentLabTests.split(',').map(s => s.trim()).filter(Boolean);
             labArr.forEach(labName => {
                 const exists = itemList.some(it => String(it.name || it.title || it.id || '').trim().toLowerCase() === labName.toLowerCase());
@@ -18132,7 +18306,7 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
             const qty = parseFloat(item.qty || item.quantity || 1);
 
             let matchedVal = null;
-            // 1. Check direct keys in itemSettings
+            // 1. Check direct keys in itemSettings (ID or Name)
             if (itemSettings[cleanItemId] !== undefined && parseFloat(itemSettings[cleanItemId]) > 0) {
                 matchedVal = parseFloat(itemSettings[cleanItemId]);
             } else if (itemSettings['item_' + cleanItemId] !== undefined && parseFloat(itemSettings['item_' + cleanItemId]) > 0) {
@@ -18141,31 +18315,46 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
                 matchedVal = parseFloat(itemSettings[rawItemId]);
             } else if (itemSettings[itemName] !== undefined && parseFloat(itemSettings[itemName]) > 0) {
                 matchedVal = parseFloat(itemSettings[itemName]);
+            } else if (itemSettings[itemName.toLowerCase()] !== undefined && parseFloat(itemSettings[itemName.toLowerCase()]) > 0) {
+                matchedVal = parseFloat(itemSettings[itemName.toLowerCase()]);
             } else {
-                // 2. Case-insensitive key lookup in itemSettings
-                const foundKey = Object.keys(itemSettings).find(k =>
-                    k.trim().toLowerCase() === itemName.toLowerCase() ||
-                    k.trim().toLowerCase() === cleanItemId.toLowerCase() ||
-                    k.trim().toLowerCase() === ('item_' + cleanItemId).toLowerCase()
-                );
-
-                if (foundKey && parseFloat(itemSettings[foundKey]) > 0) {
-                    matchedVal = parseFloat(itemSettings[foundKey]);
+                // 2. Normalized punctuation / whitespace matching
+                const normName = itemName.replace(/[.,\s]/g, '').toLowerCase();
+                if (itemSettings[normName] !== undefined && parseFloat(itemSettings[normName]) > 0) {
+                    matchedVal = parseFloat(itemSettings[normName]);
                 } else {
-                    // 3. Search in catalog (allServicesData / servicesData)
-                    const allSvc = window.allServicesData || JSON.parse(localStorage.getItem('clinic_services_packages') || '[]') || window.servicesData || [];
-                    const foundSvc = allSvc.find(s =>
-                        String(s.name || '').trim().toLowerCase() === itemName.toLowerCase() ||
-                        String(s.id || '').trim().toLowerCase() === cleanItemId.toLowerCase()
+                    // 3. Case-insensitive key lookup in itemSettings
+                    const foundKey = Object.keys(itemSettings).find(k =>
+                        k.trim().toLowerCase() === itemName.toLowerCase() ||
+                        k.trim().toLowerCase() === cleanItemId.toLowerCase() ||
+                        k.trim().toLowerCase() === ('item_' + cleanItemId).toLowerCase() ||
+                        k.replace(/[.,\s]/g, '').toLowerCase() === normName
                     );
-                    if (foundSvc) {
-                        const sId = String(foundSvc.id).replace(/^item_/, '');
-                        if (itemSettings[sId] !== undefined && parseFloat(itemSettings[sId]) > 0) {
-                            matchedVal = parseFloat(itemSettings[sId]);
-                        } else if (itemSettings['item_' + sId] !== undefined && parseFloat(itemSettings['item_' + sId]) > 0) {
-                            matchedVal = parseFloat(itemSettings['item_' + sId]);
-                        } else if (foundSvc.name && itemSettings[foundSvc.name.trim()] !== undefined && parseFloat(itemSettings[foundSvc.name.trim()]) > 0) {
-                            matchedVal = parseFloat(itemSettings[foundSvc.name.trim()]);
+
+                    if (foundKey && parseFloat(itemSettings[foundKey]) > 0) {
+                        matchedVal = parseFloat(itemSettings[foundKey]);
+                    } else {
+                        // 4. Search in catalog (allServicesList)
+                        const foundSvc = allServicesList.find(s => {
+                            if (!s) return false;
+                            const sName = String(s.name || '').trim().toLowerCase();
+                            const sId = String(s.id || '').trim().toLowerCase().replace(/^item_/, '');
+                            const inName = itemName.toLowerCase();
+                            return sName === inName ||
+                                sId === cleanItemId.toLowerCase() ||
+                                sName.replace(/[.,\s]/g, '') === normName ||
+                                (inName.length >= 3 && (sName.includes(inName) || inName.includes(sName)));
+                        });
+
+                        if (foundSvc) {
+                            const sId = String(foundSvc.id).replace(/^item_/, '');
+                            if (itemSettings[sId] !== undefined && parseFloat(itemSettings[sId]) > 0) {
+                                matchedVal = parseFloat(itemSettings[sId]);
+                            } else if (itemSettings['item_' + sId] !== undefined && parseFloat(itemSettings['item_' + sId]) > 0) {
+                                matchedVal = parseFloat(itemSettings['item_' + sId]);
+                            } else if (foundSvc.name && itemSettings[foundSvc.name.trim()] !== undefined && parseFloat(itemSettings[foundSvc.name.trim()]) > 0) {
+                                matchedVal = parseFloat(itemSettings[foundSvc.name.trim()]);
+                            }
                         }
                     }
                 }
@@ -18182,18 +18371,15 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
     // Net dividend = Overall + Item-based
     commAmount = (isOverallActive ? overallComm : 0) + (itemModeEnabled ? itemCommSum : 0);
 
-    // 🌟 If no matching item with dividend in table 4 (or total dividend is 0), skip creating dividend log
+    // If no matching item with dividend and overall is 0, skip creating dividend log
     if ((!isOverallActive && !itemModeEnabled) || commAmount <= 0) {
         return;
     }
 
-    // Deterministic ID based on visitId if available to prevent duplicate entries
-    const logId = visitId ? ('COM-' + visitId) : generateId('COM');
-
-    // Resolve true transaction date: prioritize visit's created_at, date, or payment date
-    let trueCreatedAt = (visitRecord && (visitRecord.created_at || visitRecord.date || visitRecord.visit_date || visitRecord.payment_date))
-        ? (visitRecord.created_at || visitRecord.date || visitRecord.visit_date || visitRecord.payment_date)
-        : '';
+    // Resolve true transaction date
+    let trueCreatedAt = (targetBill && targetBill.created_at) ||
+        (visitRecord && (visitRecord.created_at || visitRecord.date || visitRecord.visit_date || visitRecord.payment_date)) ||
+        '';
     if (!trueCreatedAt && visitId) {
         const allV = (window.allVisitsCache || []).concat(window.clinicVisits || []);
         const foundV = allV.find(x => (x.visit_id || x.id) === visitId);
@@ -18201,15 +18387,15 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
     }
     if (!trueCreatedAt) trueCreatedAt = new Date().toISOString();
 
-    const existingIdx = window.commissionLogs.findIndex(l => (visitId && l.visit_id === visitId) || l.id === logId);
+    const existingIdx = window.commissionLogs.findIndex(l => l.id === logId || (billId && l.bill_id === billId));
     if (existingIdx !== -1) {
-        // If already paid, do not overwrite or reset payout status
         if (window.commissionLogs[existingIdx].status === 'paid') {
             return;
         }
-        // Update in-place
         window.commissionLogs[existingIdx] = {
             ...window.commissionLogs[existingIdx],
+            bill_id: billId || window.commissionLogs[existingIdx].bill_id || null,
+            visit_id: visitId || window.commissionLogs[existingIdx].visit_id || null,
             total_invoice: totalInvoice,
             base_amount: overallComm,
             item_amount: itemCommSum,
@@ -18230,20 +18416,22 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
 
             try {
                 if (typeof _supabase !== 'undefined') {
-                    const { error: comErr } = await _supabase.from('commission_logs').upsert([updatedLog], { onConflict: 'id' });
-                    if (comErr) {
-                        const coreLog = {
-                            id: updatedLog.id,
-                            referrer_id: updatedLog.referrer_id,
-                            referrer_name: updatedLog.referrer_name,
-                            patient_name: updatedLog.patient_name,
-                            visit_id: updatedLog.visit_id,
-                            amount: updatedLog.amount,
-                            status: updatedLog.status,
-                            created_at: updatedLog.created_at
-                        };
-                        await _supabase.from('commission_logs').upsert([coreLog], { onConflict: 'id' });
-                    }
+                    const dbPayload = {
+                        id: updatedLog.id,
+                        referrer_id: updatedLog.referrer_id,
+                        referrer_name: updatedLog.referrer_name,
+                        patient_name: updatedLog.patient_name,
+                        visit_id: updatedLog.visit_id,
+                        total_invoice: updatedLog.total_invoice,
+                        base_amount: updatedLog.base_amount,
+                        item_amount: updatedLog.item_amount,
+                        item_details: updatedLog.item_details,
+                        amount: updatedLog.amount,
+                        status: updatedLog.status,
+                        is_bonus: updatedLog.is_bonus,
+                        created_at: updatedLog.created_at
+                    };
+                    await _supabase.from('commission_logs').upsert([dbPayload], { onConflict: 'id' });
                 }
             } catch (e) { }
         }
@@ -18252,10 +18440,11 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
 
     const newLog = {
         id: logId,
+        bill_id: billId || null,
+        visit_id: visitId || null,
         referrer_id: referrerId,
         referrer_name: refName,
         patient_name: patientName,
-        visit_id: visitId,
         total_invoice: totalInvoice,
         base_amount: overallComm,
         item_amount: itemCommSum,
@@ -18268,6 +18457,19 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
 
     window.commissionLogs.unshift(newLog);
 
+    // If bill-based log created, clean up any superseded legacy visit-level log (COM-VIS-xxxx)
+    if (billId && visitId) {
+        const oldVisitLogIdx = window.commissionLogs.findIndex(l => l.id === ('COM-' + visitId) && !l.bill_id);
+        if (oldVisitLogIdx !== -1) {
+            window.commissionLogs.splice(oldVisitLogIdx, 1);
+            if (typeof _supabase !== 'undefined') {
+                try {
+                    _supabase.from('commission_logs').delete().eq('id', 'COM-' + visitId).then(() => { });
+                } catch (e) { }
+            }
+        }
+    }
+
     if (!isBatch) {
         saveReferralLocalData();
         updateReferralSummaryCards();
@@ -18276,39 +18478,50 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
 
         try {
             if (typeof _supabase !== 'undefined') {
-                const { error: comErr } = await _supabase.from('commission_logs').upsert([newLog], { onConflict: 'id' });
-                if (comErr) {
-                    const coreLog = {
-                        id: newLog.id,
-                        referrer_id: newLog.referrer_id,
-                        referrer_name: newLog.referrer_name,
-                        patient_name: newLog.patient_name,
-                        visit_id: newLog.visit_id,
-                        amount: newLog.amount,
-                        status: newLog.status,
-                        created_at: newLog.created_at
-                    };
-                    await _supabase.from('commission_logs').upsert([coreLog], { onConflict: 'id' });
-                }
+                const dbPayload = {
+                    id: newLog.id,
+                    referrer_id: newLog.referrer_id,
+                    referrer_name: newLog.referrer_name,
+                    patient_name: newLog.patient_name,
+                    visit_id: newLog.visit_id,
+                    total_invoice: newLog.total_invoice,
+                    base_amount: newLog.base_amount,
+                    item_amount: newLog.item_amount,
+                    item_details: newLog.item_details,
+                    amount: newLog.amount,
+                    status: newLog.status,
+                    is_bonus: newLog.is_bonus,
+                    created_at: newLog.created_at
+                };
+                await _supabase.from('commission_logs').upsert([dbPayload], { onConflict: 'id' });
             }
         } catch (e) { }
     }
 }
 window.calculateAndRecordCommission = calculateAndRecordCommission;
 window.processPaymentCommission = calculateAndRecordCommission;
+
 async function syncAllVisitsCommissionLogs() {
     window.commissionLogs = window.commissionLogs || [];
     let visits = [];
     let patients = window.allPatients || [];
+    let bills = [];
 
     try {
         if (typeof _supabase !== 'undefined') {
-            const [{ data: vData }, { data: pData }] = await Promise.all([
+            const [{ data: vData }, { data: pData }, { data: bData }, { data: sData }] = await Promise.all([
                 _supabase.from('visits').select('*'),
-                _supabase.from('patients').select('*')
+                _supabase.from('patients').select('*'),
+                _supabase.from('bills').select('*'),
+                _supabase.from('services').select('id, name, price')
             ]);
             if (vData && vData.length > 0) visits = vData;
             if (pData && pData.length > 0) patients = pData;
+            if (bData && bData.length > 0) bills = bData;
+            if (sData && sData.length > 0) {
+                window.servicesData = sData;
+                window.allServicesData = sData;
+            }
         }
     } catch (e) { }
 
@@ -18326,6 +18539,12 @@ async function syncAllVisitsCommissionLogs() {
         visits = Array.from(map.values());
     }
 
+    const localBills = (window.clinicBills || []).concat(window.allBillsData || []).concat(JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]'));
+    const billMap = new Map();
+    bills.forEach(b => { if (b && b.bill_id) billMap.set(b.bill_id, b); });
+    localBills.forEach(b => { if (b && b.bill_id && !billMap.has(b.bill_id)) billMap.set(b.bill_id, b); });
+    bills = Array.from(billMap.values());
+
     const patientMap = {};
     patients.forEach(p => {
         if (p.hn) patientMap[p.hn] = p;
@@ -18333,14 +18552,55 @@ async function syncAllVisitsCommissionLogs() {
         if (p.name) patientMap[p.name.trim().toLowerCase()] = p;
     });
 
-    const existingVisitIds = new Set(window.commissionLogs.map(l => l.visit_id).filter(Boolean));
+    const existingLogIds = new Set(window.commissionLogs.map(l => l.id).filter(Boolean));
+    const existingBillLogIds = new Set(window.commissionLogs.map(l => l.bill_id || (l.id && l.id.startsWith('COM-BILL-') ? l.id.replace(/^COM-/, '') : null)).filter(Boolean));
 
     let addedCount = 0;
+    const newLogsToUpsert = [];
+
+    // 1. Process commissions by BILL (Option 1: แยกตามบิลจริง)
+    const paidBills = bills.filter(b => b && (b.status === 'ชำระแล้ว' || b.status === 'paid' || !b.status));
+    for (const b of paidBills) {
+        const bId = b.bill_id;
+        if (!bId) continue;
+        const logId = 'COM-' + bId;
+        if (existingLogIds.has(logId) || existingBillLogIds.has(bId)) continue;
+
+        let v = visits.find(x => (x.visit_id || x.id) === b.visit_id) || {};
+        let p = null;
+        if (b.hn && patientMap[b.hn]) {
+            p = patientMap[b.hn];
+        } else if (v.hn && patientMap[v.hn]) {
+            p = patientMap[v.hn];
+        } else if (b.patient_name) {
+            const cleanName = b.patient_name.trim().toLowerCase();
+            p = patientMap[cleanName] || patients.find(pt => (pt.patient_name || pt.name || '').trim().toLowerCase() === cleanName);
+        }
+
+        const refBy = b.referred_by || b.referrer || v.referred_by || v.referrer || v.ref_code || v.doctor_ref || p?.referred_by || p?.referrer || p?.ref_code;
+        if (refBy && refBy !== '-' && refBy !== 'null' && refBy !== 'undefined') {
+            v.referrer = refBy;
+            if (!v.hn && b.hn) v.hn = b.hn;
+            if (!v.patient_name && b.patient_name) v.patient_name = b.patient_name;
+            const prevLen = window.commissionLogs.length;
+            await calculateAndRecordCommission(v, '', true, b);
+            if (window.commissionLogs.length > prevLen && window.commissionLogs[0]) {
+                newLogsToUpsert.push(window.commissionLogs[0]);
+            }
+            existingLogIds.add(logId);
+            existingBillLogIds.add(bId);
+            addedCount++;
+        }
+    }
+
+    // 2. Fallback: Process visits that have NO bills in the bills table
+    const visitIdsWithBills = new Set(bills.map(b => b.visit_id).filter(Boolean));
+    const existingVisitIds = new Set(window.commissionLogs.map(l => l.visit_id).filter(Boolean));
     for (const v of visits) {
         const vId = v.visit_id || v.id;
-        if (vId && existingVisitIds.has(vId)) continue;
+        if (!vId) continue;
+        if (visitIdsWithBills.has(vId) || existingVisitIds.has(vId)) continue;
 
-        // 🛑 Skip unpaid visits waiting for payment at Cashier
         const vStatus = (v.status || '').trim();
         const isPaidStatus = (
             v.payment_status === 'paid' ||
@@ -18348,8 +18608,7 @@ async function syncAllVisitsCommissionLogs() {
             vStatus === 'ทำรายการสำเร็จ' ||
             vStatus === 'สำเร็จ' ||
             vStatus === 'ชำระแล้ว' ||
-            !!v.bill_id ||
-            (Array.isArray(window.clinicBills) && window.clinicBills.some(b => b.visit_id === vId))
+            !!v.bill_id
         );
         if (!isPaidStatus && vStatus === 'รอชำระเงิน') continue;
 
@@ -18362,17 +18621,40 @@ async function syncAllVisitsCommissionLogs() {
         }
 
         const refBy = v.referred_by || v.referrer || v.ref_code || v.doctor_ref || p?.referred_by || p?.referrer || p?.ref_code;
-
         if (refBy && refBy !== '-' && refBy !== 'null' && refBy !== 'undefined') {
             v.referrer = refBy;
             if (!v.hn && p && p.hn) v.hn = p.hn;
-            await calculateAndRecordCommission(v, v.lab_tests || '', true);
-            if (vId) existingVisitIds.add(vId);
+            const prevLen = window.commissionLogs.length;
+            await calculateAndRecordCommission(v, v.lab_tests || '', true, null);
+            if (window.commissionLogs.length > prevLen && window.commissionLogs[0]) {
+                newLogsToUpsert.push(window.commissionLogs[0]);
+            }
+            existingVisitIds.add(vId);
             addedCount++;
         }
     }
 
-    // 🌟 Reconcile and fix transaction dates of all existing commission logs using true visits created_at
+    // 3. Clean up any old visit-level logs (COM-VIS-xxxx) that have been superseded by bill-level logs (COM-BILL-xxxx)
+    const billVisits = new Set(bills.map(b => b.visit_id).concat(window.commissionLogs.filter(l => l.bill_id || (l.id && l.id.startsWith('COM-BILL-'))).map(l => l.visit_id)).filter(Boolean));
+    if (billVisits.size > 0) {
+        const supersededLogIds = [];
+        window.commissionLogs = window.commissionLogs.filter(l => {
+            if (l.id && l.id.startsWith('COM-VIS-') && billVisits.has(l.visit_id) && !l.bill_id) {
+                supersededLogIds.push(l.id);
+                return false;
+            }
+            return true;
+        });
+        if (supersededLogIds.length > 0 && typeof _supabase !== 'undefined') {
+            try {
+                _supabase.from('commission_logs').delete().in('id', supersededLogIds).then(() => {
+                    console.log('✅ Cleaned up superseded visit-level commission logs:', supersededLogIds);
+                }).catch(() => { });
+            } catch (e) { }
+        }
+    }
+
+    // 🌟 Reconcile and fix transaction dates of all existing commission logs
     const visitDateMap = new Map();
     visits.forEach(v => {
         const vId = v.visit_id || v.id;
@@ -18380,9 +18662,21 @@ async function syncAllVisitsCommissionLogs() {
         if (vId && vDate) visitDateMap.set(vId, vDate);
     });
 
+    const billDateMap = new Map();
+    bills.forEach(b => {
+        if (b.bill_id && b.created_at) billDateMap.set(b.bill_id, b.created_at);
+    });
+
     const logsToFix = [];
     (window.commissionLogs || []).forEach(l => {
-        if (l.visit_id && visitDateMap.has(l.visit_id)) {
+        const bId = l.bill_id || (l.id && l.id.startsWith('COM-BILL-') ? l.id.replace(/^COM-/, '') : null);
+        if (bId && billDateMap.has(bId)) {
+            const trueDate = billDateMap.get(bId);
+            if (trueDate && l.created_at !== trueDate) {
+                l.created_at = trueDate;
+                logsToFix.push({ id: l.id, created_at: trueDate });
+            }
+        } else if (l.visit_id && visitDateMap.has(l.visit_id)) {
             const trueDate = visitDateMap.get(l.visit_id);
             if (trueDate && l.created_at !== trueDate) {
                 l.created_at = trueDate;
@@ -18391,15 +18685,37 @@ async function syncAllVisitsCommissionLogs() {
         }
     });
 
-    if (logsToFix.length > 0) {
-        saveReferralLocalData();
-        if (typeof _supabase !== 'undefined') {
-            _supabase.from('commission_logs').upsert(logsToFix, { onConflict: 'id' }).then(() => {
-                console.log(`✅ Synced transaction dates for ${logsToFix.length} commission logs from visits table`);
-            }).catch(err => {
-                console.warn('Sync commission log dates error:', err);
-            });
+    // 🌟 Direct Supabase cloud upsert for all batch-added logs
+    if (newLogsToUpsert.length > 0 && typeof _supabase !== 'undefined') {
+        try {
+            const cleanUpsert = newLogsToUpsert.map(l => ({
+                id: l.id,
+                referrer_id: l.referrer_id || null,
+                referrer_name: l.referrer_name || null,
+                patient_name: l.patient_name || null,
+                visit_id: l.visit_id || null,
+                total_invoice: parseFloat(l.total_invoice || 0),
+                base_amount: parseFloat(l.base_amount || 0),
+                item_amount: parseFloat(l.item_amount || 0),
+                item_details: l.item_details || '',
+                amount: parseFloat(l.amount || 0),
+                status: l.status || 'pending',
+                is_bonus: !!l.is_bonus,
+                created_at: l.created_at || new Date().toISOString()
+            }));
+            await _supabase.from('commission_logs').upsert(cleanUpsert, { onConflict: 'id' });
+            console.log(`✅ Upserted ${cleanUpsert.length} bill commission logs to Supabase cloud DB`);
+        } catch (e) {
+            console.warn('Batch commission upsert error:', e);
         }
+    }
+
+    if (logsToFix.length > 0 && typeof _supabase !== 'undefined') {
+        _supabase.from('commission_logs').upsert(logsToFix, { onConflict: 'id' }).then(() => {
+            console.log(`✅ Synced transaction dates for ${logsToFix.length} commission logs`);
+        }).catch(err => {
+            console.warn('Sync commission log dates error:', err);
+        });
     }
 
     if (addedCount > 0 || logsToFix.length > 0) {
@@ -23466,8 +23782,9 @@ async function loadDailyClinicReport(customDate) {
         const rowQty = parseInt(b.qty || 1, 10) || 1;
         totalQty += rowQty;
 
-        // หาเงินปันผลการตลาด
-        const matchCom = comLogs.find(c => c && (c.visit_id === b.visit_id || (b.hn && c.hn === b.hn)));
+        // หาเงินปันผลการตลาด (แยกตามบิลจริง หรือยึดตาม visit_id)
+        const matchCom = comLogs.find(c => c && (c.bill_id === b.bill_id || c.id === ('COM-' + b.bill_id))) ||
+            comLogs.find(c => c && (c.visit_id === b.visit_id || (b.hn && c.hn === b.hn)));
         const dividend = matchCom ? parseFloat(matchCom.amount || 0) : 0;
         sumDividend += dividend;
         const netAfterMarketing = (cashAmount + transferAmount) - dividend;
