@@ -939,22 +939,31 @@ document.addEventListener("DOMContentLoaded", function () {
     initMlmRealtimeSubscription();
     initClinicRealtimeHub();
 
-    // ⚡ Phase 2: ทยอยโหลดข้อมูลย้อนหลัง/ประวัติ/คลังสินค้าใน background หลัง 200ms ไม่ให้แย่ง Network Connections
+    // ⚡ Phase 2: ทยอยโหลดข้อมูลใน background แบบแบ่งกลุ่ม ไม่ให้แย่ง Network Connections (Browser 6-connection limit)
     setTimeout(() => {
         loadAppointments();
         loadPatients();
         loadTriage();
+    }, 200);
+
+    setTimeout(() => {
         loadLabQueue();
         loadPrescriptionList();
         loadPatientHistory();
+    }, 600);
+
+    setTimeout(() => {
         loadSupplyItems();
         loadSupplyRequests();
         loadServicesData();
+    }, 1000);
+
+    setTimeout(() => {
         loadReferralData();
         loadStaffUsers();
         loadBills();
         loadExpenses();
-    }, 200);
+    }, 1400);
 
     // Listen for messages from iframes (e.g. marketing.html) to circumvent CORS issues
     window.addEventListener('message', async function (event) {
@@ -19464,8 +19473,33 @@ async function loadBills(forceReload = false) {
     if (forceReload) {
         window.currentBillPage = 1;
     }
+
+    // 1. Concurrency Guard: ป้องกันการยิงโหลดซ้อนทับกันหลายคำขอพร้อมกัน
+    if (window._isLoadingBills) {
+        return;
+    }
+    window._isLoadingBills = true;
+
     const tbody = document.getElementById('billsTableBody');
-    if (tbody && (!window.allBillsData || window.allBillsData.length === 0 || forceReload)) {
+
+    // 2. Fast Display (Stale-While-Revalidate):
+    // ถ้ามีข้อมูลในหน่วยความจำหรือแคช ให้แสดงผลทันที ไม่ลบตารางทิ้งเป็นตัวหมุน
+    const hasRenderedRows = tbody && tbody.querySelectorAll('tr').length > 0 && !tbody.innerText.includes('กำลังโหลด');
+    const hasMemoryData = Array.isArray(window.allBillsData) && window.allBillsData.length > 0;
+
+    if (!hasMemoryData) {
+        try {
+            const cached = JSON.parse(localStorage.getItem('clinic_bills_cache') || '[]');
+            if (Array.isArray(cached) && cached.length > 0) {
+                window.allBillsData = cached;
+                window.clinicBills = cached;
+                renderBillsTable();
+            }
+        } catch (e) { }
+    }
+
+    // แสดงตัวหมุนเฉพาะเมื่อไม่มีข้อมูลใดๆ เลยจริงๆ (ครั้งแรกสุดที่เปิด)
+    if (tbody && (!window.allBillsData || window.allBillsData.length === 0) && !hasRenderedRows) {
         tbody.innerHTML = '<tr><td colspan="13" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>กำลังโหลดข้อมูลใบเสร็จ...</td></tr>';
     }
 
@@ -19518,12 +19552,11 @@ async function loadBills(forceReload = false) {
     let startInput = document.getElementById('billStartDate');
     let endInput = document.getElementById('billEndDate');
 
-    // ⚡ ค่าเริ่มต้น: ดึงเฉพาะข้อมูลวันปัจจุบัน เพื่อให้โหลดหน้าเว็บได้รวดเร็ว (Fast Load)
-    // หากต้องการดูย้อนหลัง ผู้ใช้สามารถเลือกช่วงเวลา หรือคลิกปุ่ม "เดือนนี้" / "ทั้งหมด"
-    if ((!startInput?.value || !endInput?.value) && !window._billFilterExplicitAll) {
+    // ⚡ ค่าเริ่มต้น: ดึงเฉพาะข้อมูลวันปัจจุบันเมื่อเปิดหน้าเว็บครั้งแรกและยังไม่มีการระบุวันที่ทั้งสองช่อง
+    if (!startInput?.value && !endInput?.value && !window._billFilterExplicitAll) {
         const todayRange = getVientianeDateRange('today');
-        if (startInput && !startInput.value) startInput.value = todayRange.startStr;
-        if (endInput && !endInput.value) endInput.value = todayRange.endStr;
+        if (startInput) startInput.value = todayRange.startStr;
+        if (endInput) endInput.value = todayRange.endStr;
     }
 
     const startDate = startInput?.value || '';
@@ -19547,22 +19580,16 @@ async function loadBills(forceReload = false) {
                 vQuery = vQuery.lte('created_at', endDate + "T23:59:59.999+07:00");
             }
 
-            const [{ data: bData }, { data: vData }] = await Promise.all([
+            // ใช้ Timeout 8 วินาที ป้องกันค้างถ้าเน็ตเวิร์กหน่วง
+            const fetchPromise = Promise.all([
                 bQuery.order('created_at', { ascending: false }).limit(200),
                 vQuery.order('created_at', { ascending: false }).limit(200)
             ]);
-            if (bData && Array.isArray(bData)) {
-                // ลบคำสั่งซื้อ Order เก่าที่เคยหลุดเข้าตาราง bills ออกอัตโนมัติ
-                const staleOrderBillIds = bData.filter(isBookingOrderBill).map(b => b.bill_id).filter(Boolean);
-                if (staleOrderBillIds.length > 0) {
-                    try {
-                        _supabase.from('bills').delete().in('bill_id', staleOrderBillIds).then(() => {
-                            console.log('✅ Auto-cleaned booking order bills from bills table:', staleOrderBillIds);
-                        });
-                    } catch (e) { }
-                }
+            const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve([{ data: null }, { data: null }]), 8000));
 
-                // Bug 1: ลบ !isDeleted(b.id) ออก เพราะ bills select ไม่ได้ดึง column id กลับมาแล้ว
+            const [{ data: bData }, { data: vData }] = await Promise.race([fetchPromise, timeoutPromise]);
+            if (bData && Array.isArray(bData)) {
+                // กรองเฉพาะบิลคลินิก ไม่รวม Order บิล (ไม่สั่ง DELETE เพื่อป้องกัน Realtime Event วนลูป)
                 billsList = bData.filter(b => !isDeleted(b.bill_id) && !isDeleted(b.visit_id) && !isBookingOrderBill(b)).map(b => {
                     const labItems = (Array.isArray(b.items) ? b.items : []).filter(i => i && i.type !== 'med');
                     return { ...b, total_price: b.subtotal || b.payable_amount || 0, items: labItems };
@@ -19702,6 +19729,7 @@ async function loadBills(forceReload = false) {
     if (typeof window.updateDashboardBillsCount === 'function') {
         window.updateDashboardBillsCount();
     }
+    window._isLoadingBills = false;
 }
 window.loadBills = loadBills;
 
@@ -22871,13 +22899,13 @@ function switchBillsView(viewMode) {
         if (dailyView) dailyView.style.display = 'none';
         if (listView) listView.style.display = 'block';
 
-        // ซิงค์วันที่จากหน้า Daily มาที่หน้า Bills
+        // ซิงค์วันที่จากหน้า Daily มาที่หน้า Bills เฉพาะเมื่อหน้า Bills ยังไม่มีการกำหนดวันที่
         const dailyStart = document.getElementById('dailyReportStartDate')?.value;
         const dailyEnd = document.getElementById('dailyReportEndDate')?.value;
         const bStart = document.getElementById('billStartDate');
         const bEnd = document.getElementById('billEndDate');
-        if (dailyStart && bStart) bStart.value = dailyStart;
-        if (dailyEnd && bEnd) bEnd.value = dailyEnd;
+        if (dailyStart && bStart && !bStart.value) bStart.value = dailyStart;
+        if (dailyEnd && bEnd && !bEnd.value) bEnd.value = dailyEnd;
 
         if (typeof renderBillsTable === 'function') {
             renderBillsTable();
