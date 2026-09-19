@@ -2,6 +2,7 @@
 <html lang="th">
 
 <head>
+    <meta charset="UTF-8">
 <script>
   (function() {
     try {
@@ -16,7 +17,6 @@
     } catch (e) {}
   })();
 </script>
-    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ผังองค์กร (Org Chart) - LOVE STK GROUPE</title>
     <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
@@ -30,573 +30,67 @@
     <script src="config.js"></script>
     <script src="dictionary.js"></script>
     <script src="CommonComponents.js?v=3"></script>
+    <script src="orgChartLogic.js"></script>
 </head>
 
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
-
-    
 
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useMemo, useEffect, useRef, useCallback } = React;
-        // 🛡️ GLOBAL ICONS DESTRUCTURING: ปลอดภัยจากตัวแปรซ้ำซ้อน และดึงโมดูลและคอมโพเนนต์มาครบถ้วน
         const { LayoutDashboard, ShoppingCart, Users, Contact, Headset, BarChart3, Plus, Edit, Trash2, UserCircle, Menu, X, Save, Info, PackageIcon, Package, Target, Trophy, Activity, Eye, Tags, CheckCircle, GitBranch, Archive, ChevronDown, FileText, SettingsIcon, Coins, ShieldCheck, AlertTriangle, AlertCircle, LoginModal, Toast, Sidebar, Header, ConfirmModal, EditModal, DonutChart, AutoSuggestInput, SearchIcon, getUserPagePermission, resolvePageUrl, fallbackCustomerTypes, fallbackProductsList } = window;
 
-
-
-        // Helper for Downline Lookup
-        let _lastMembersRef = null;
-        let _cachedChildrenMap = new Map();
-        const getChildren = (membersList, parentId) => {
-            if (membersList !== _lastMembersRef) {
-                _lastMembersRef = membersList;
-                _cachedChildrenMap = new Map();
-                (membersList || []).forEach(m => {
-                    const ref = String(m.referrer || '').trim().toUpperCase();
-                    const mid = String(m.id || '').trim().toUpperCase();
-                    if (ref && ref !== mid) {
-                        if (!_cachedChildrenMap.has(ref)) _cachedChildrenMap.set(ref, []);
-                        _cachedChildrenMap.get(ref).push(m);
-                    }
-                });
-            }
-            return _cachedChildrenMap.get(String(parentId).trim().toUpperCase()) || [];
-        };
-
-
-        // ✅ Helper: Get all downline member IDs (including self) for a given rootId
-        const getAllDownlineIds = (membersList, rootId) => {
-            const result = new Set();
-            const rootUp = String(rootId || '').trim().toUpperCase();
-            if (!rootUp) return result;
-            const queue = [rootUp];
-            while (queue.length > 0) {
-                const current = queue.shift();
-                if (result.has(current)) continue;
-                result.add(current);
-                const children = getChildren(membersList, current);
-                children.forEach(c => queue.push(String(c.id || '').trim().toUpperCase()));
-            }
-            return result;
-        };
-
-        // 🏷️ Categorize products into 4 clean category names & rates
-        const getProductCategoryAndRate = (prodName, dbProductsList) => {
-            const cleanName = String(prodName || '').trim().toUpperCase();
-
-            let defaultCat = { categoryKey: 'Supplement', categoryName: 'หมวด Supplement', rate: 250000, l1Rate: 200000, full_margin_amount: 0 };
-            if (cleanName.includes('COFFEE') || cleanName.includes('ARABICA')) {
-                defaultCat = { categoryKey: 'Coffee', categoryName: 'หมวด Coffee', rate: 20000, l1Rate: 10000, full_margin_amount: 0 };
-            } else if (cleanName.includes('SERUM') || cleanName.includes('SUNCREAM') || cleanName.includes('TONER') || cleanName.includes('CREAM') || cleanName.includes('APPLE') || cleanName.includes('ZINC')) {
-                defaultCat = { categoryKey: 'Cosmetic', categoryName: 'หมวด Cosmetic', rate: 70000, l1Rate: 30000, full_margin_amount: 0 };
-            } else if (cleanName.includes('GLUTA') || cleanName.includes('COLLAGEN') || cleanName.includes('BALANCE') || cleanName.includes('KUT-SO') || cleanName.includes('LIPO') || cleanName.includes('LUTEIN') || cleanName.includes('ORYZA')) {
-                defaultCat = { categoryKey: 'Supplement02', categoryName: 'หมวด Supplement 02', rate: 150000, l1Rate: 50000, full_margin_amount: 0 };
-            }
-
-            if (Array.isArray(dbProductsList)) {
-                const found = dbProductsList.find(p =>
-                    String(p.name || p.product_name || p.id || '').trim().toUpperCase() === cleanName ||
-                    String(p.category || '').trim().toUpperCase() === cleanName
-                );
-                if (found) {
-                    const cat = String(found.category || defaultCat.categoryKey).trim();
-                    const selfFee = Number(found.self_fee || 0) || defaultCat.rate;
-                    const l1Fee = Number(found.level_1_fee || 0) || defaultCat.l1Rate;
-                    const margin = Number(found.full_margin_amount ?? found.fullMarginAmount ?? 0);
-                    return { categoryKey: cat || defaultCat.categoryKey, categoryName: `หมวด ${cat || defaultCat.categoryKey}`, rate: selfFee, l1Rate: l1Fee, full_margin_amount: margin };
-                }
-            }
-
-            return defaultCat;
-        };
-
-        // 🟢 Detailed Modal Component (Match User Requirements)
+        // 🔀 OrgChartLogic Delegation
+        const OrgChartLogic = window.OrgChartLogic || {};
+        const getChildren = (membersList, parentId) => (OrgChartLogic.getChildren ? OrgChartLogic.getChildren(membersList, parentId) : []);
+        const getAllDownlineIds = (membersList, rootId) => (OrgChartLogic.getAllDownlineIds ? OrgChartLogic.getAllDownlineIds(membersList, rootId) : new Set());
         const MemberPerformanceDetailModal = ({ isOpen, onClose, member, sales, members, products, customerTypes, systemSettings, teamMap, startDate, endDate, isAdmin }) => {
             if (!isOpen || !member) return null;
 
-            // Payout Records Tracking
-            const paidRecords = useMemo(() => {
-                try {
-                    const saved = localStorage.getItem('stk_payout_history');
-                    return saved ? JSON.parse(saved) : {};
-                } catch (e) { return {}; }
-            }, []);
-
-            const getDefaultMonthRange = () => {
-                const now = new Date();
-                const y = now.getFullYear();
-                const m = String(now.getMonth() + 1).padStart(2, '0');
-                const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
-                return { start: `${y}-${m}-01`, end: `${y}-${m}-${String(lastDay).padStart(2, '0')}` };
-            };
-            const defRange = getDefaultMonthRange();
+            const defRange = (window.OrgChartLogic?.getDefaultMonthRange) ? window.OrgChartLogic.getDefaultMonthRange() : { start: '', end: '' };
             const [modalStartDate, setModalStartDate] = useState(startDate || defRange.start);
             const [modalEndDate, setModalEndDate] = useState(endDate || defRange.end);
-            const mId = useMemo(() => String(member.id || '').trim().toUpperCase(), [member]);
 
-            const filteredSales = useMemo(() => {
-                return (sales || []).filter(s => {
-                    const sellerId = String(s.sellerId || s.seller_id || s.seller || s.memberId || s.marketing || '').trim().toUpperCase();
-                    if (!sellerId) return false;
-                    const sDate = s.date || s.sale_date || '';
-                    if (modalStartDate && sDate < modalStartDate) return false;
-                    if (modalEndDate && sDate > modalEndDate) return false;
-                    return true;
+            const perf = useMemo(() => {
+                if (!window.OrgChartLogic?.calculateMemberPerformanceDetails) return null;
+                return window.OrgChartLogic.calculateMemberPerformanceDetails({
+                    member,
+                    sales,
+                    members,
+                    products,
+                    systemSettings,
+                    businessTeams: teamMap,
+                    startDate: modalStartDate,
+                    endDate: modalEndDate
                 });
-            }, [sales, modalStartDate, modalEndDate]);
+            }, [member, sales, members, products, systemSettings, teamMap, modalStartDate, modalEndDate]);
 
-            const personalSalesList = useMemo(() => {
-                return filteredSales.filter(s => {
-                    const sellerId = String(s.sellerId || s.seller_id || s.seller || s.memberId || s.marketing || '').trim().toUpperCase();
-                    return sellerId === mId;
-                });
-            }, [filteredSales, mId]);
-
-            const getDownlinesWithLevels = useCallback((parentId, depth = 1, visited = new Set()) => {
-                if (visited.has(parentId)) return [];
-                visited.add(parentId);
-                let res = [];
-                const children = getChildren(members, parentId);
-                (children || []).forEach(c => {
-                    res.push({ member: c, level: depth });
-                    res = res.concat(getDownlinesWithLevels(c.id, depth + 1, visited));
-                });
-                return res;
-            }, [members]);
-
-            const downlinesWithLevels = useMemo(() => getDownlinesWithLevels(mId), [mId, getDownlinesWithLevels]);
-            const downlineIdsSet = useMemo(() => new Set(downlinesWithLevels.map(d => String(d.member.id).trim().toUpperCase())), [downlinesWithLevels]);
-            const downlineLevelMap = useMemo(() => {
-                const map = {};
-                (downlinesWithLevels || []).forEach(d => {
-                    if (d && d.member && d.member.id) {
-                        map[String(d.member.id).trim().toUpperCase()] = d.level;
-                    }
-                });
-                return map;
-            }, [downlinesWithLevels]);
-
-            const maxCommLevels = useMemo(() => Math.max(2, Number(systemSettings?.commission_levels ?? 6)), [systemSettings]);
-            const maxDownlines = useMemo(() => Math.max(1, maxCommLevels - 1), [maxCommLevels]);
-
-            const downlineSalesList = useMemo(() => {
-                return filteredSales.filter(s => {
-                    const sellerId = String(s.sellerId || s.seller_id || s.seller || s.memberId || s.marketing || '').trim().toUpperCase();
-                    return downlineIdsSet.has(sellerId);
-                });
-            }, [filteredSales, downlineIdsSet]);
-
-            const isLeaderWithTeam = downlinesWithLevels.length > 0;
-
-            const calculatedPeriodPV = useMemo(() => {
-                let totalPV = 0;
-                (personalSalesList || []).forEach(s => {
-                    let itemsList = [];
-                    if (s.items_json) {
-                        try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch (e) { }
-                    }
-                    if (Array.isArray(itemsList) && itemsList.length > 0) {
-                        itemsList.forEach(it => {
-                            const typeStr = String(it.type || '').trim();
-                            const typeLower = typeStr.toLowerCase(); const isNotPromoOrZero = !typeLower.includes('โปร') && !typeLower.includes('ศูนย์') && !typeLower.includes('zero') && !typeLower.includes('promo') && !typeLower.includes('free'); if (typeStr === 'ราคาเต็ม' || typeStr === 'ราคาสมาชิก' || (typeStr !== 'ราคาโปร' && typeStr !== 'โปรโมชั่น' && typeStr !== 'ราคาศูนย์' && typeStr !== 'ราคาฟรี' && isNotPromoOrZero)) {
-                                totalPV += Number(it.qty || it.quantity || 1);
-                            }
-                        });
-                    } else {
-                        const f = Number(s['รวมชิ้นราคาเต็ม'] || 0);
-                        const m = Number(s['รวมชิ้นราคาสมาชิก'] || 0);
-                        totalPV += (f + m);
-                    }
-                });
-                return totalPV;
-            }, [personalSalesList]);
-
-            const memberAccumulatedPV = calculatedPeriodPV;
-
-            const downlinesByLevelCount = useMemo(() => {
-                const counts = {};
-                downlinesWithLevels.forEach(d => {
-                    counts[d.level] = (counts[d.level] || 0) + 1;
-                });
-                return counts;
-            }, [downlinesWithLevels]);
-
-            const levelSummaryText = useMemo(() => {
-                const parts = Object.entries(downlinesByLevelCount).map(([lvl, cnt]) => `ชั้น ${lvl}: ${cnt} คน`);
-                return parts.length > 0 ? parts.join(', ') : 'ไม่มีลูกทีม';
-            }, [downlinesByLevelCount]);
-
-            const parseSalesIntoCategories = useCallback((salesList, isDownline = false) => {
-                const catMap = {
-                    'Supplement': { key: 'Supplement', name: 'หมวด Supplement', rate: 250000, l1Rate: 200000, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, totalQty: 0, totalLAK: 0, marginLAK: 0 },
-                    'Supplement02': { key: 'Supplement02', name: 'หมวด Supplement 02', rate: 150000, l1Rate: 50000, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, totalQty: 0, totalLAK: 0, marginLAK: 0 },
-                    'Cosmetic': { key: 'Cosmetic', name: 'หมวด Cosmetic', rate: 70000, l1Rate: 30000, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, totalQty: 0, totalLAK: 0, marginLAK: 0 },
-                    'Coffee': { key: 'Coffee', name: 'หมวด Coffee', rate: 20000, l1Rate: 10000, fullQty: 0, memberQty: 0, promoQty: 0, zeroQty: 0, totalQty: 0, totalLAK: 0, marginLAK: 0 }
-                };
-
-                salesList.forEach(s => {
-                    const sellerId = String(s.sellerId || s.seller_id || s.seller || s.memberId || s.marketing || '').trim().toUpperCase();
-                    const sellerLevel = isDownline ? (downlineLevelMap[sellerId] || 1) : 0;
-
-                    let itemsList = [];
-                    if (s.items_json) {
-                        try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch (e) { }
-                    }
-
-                    if (!Array.isArray(itemsList) || itemsList.length === 0) {
-                        Object.entries(s || {}).forEach(([key, value]) => {
-                            if (key.endsWith('_ราคาเต็ม') || key.endsWith('_ราคาสมาชิก') || key.endsWith('_ราคาโปร') || key.endsWith('_ราคาศูนย์')) {
-                                const q = parseInt(value, 10);
-                                if (!isNaN(q) && q > 0) {
-                                    const lastUnderscore = key.lastIndexOf('_');
-                                    const pName = key.substring(0, lastUnderscore).replace(/\(.*?\)/g, '').trim();
-                                    const pType = key.substring(lastUnderscore + 1);
-                                    itemsList.push({ prod: pName, qty: q, type: pType });
-                                }
-                            }
-                        });
-                    }
-
-                    if (Array.isArray(itemsList) && itemsList.length > 0) {
-                        itemsList.forEach(it => {
-                            const pName = String(it.prod || it.productName || it.name || '').trim();
-                            const q = Number(it.qty || it.quantity || 1);
-                            const typeStr = String(it.type || it.priceType || '').trim();
-
-                            const catInfo = getProductCategoryAndRate(pName, products);
-                            let targetKey = 'Supplement';
-                            if (catInfo.categoryKey === 'Supplement02' || catInfo.categoryName.includes('02')) targetKey = 'Supplement02';
-                            else if (catInfo.categoryKey === 'Cosmetic' || catInfo.categoryName.includes('Cosmetic')) targetKey = 'Cosmetic';
-                            else if (catInfo.categoryKey === 'Coffee' || catInfo.categoryName.includes('Coffee')) targetKey = 'Coffee';
-
-                            if (typeStr === 'ราคาเต็ม') {
-                                catMap[targetKey].fullQty += q;
-                                if (!isDownline) {
-                                    catMap[targetKey].marginLAK += q * Number(catInfo.full_margin_amount || 0);
-                                }
-                            }
-                            else if (typeStr === 'ราคาสมาชิก') catMap[targetKey].memberQty += q;
-                            else if (typeStr === 'ราคาโปร' || typeStr === 'โปรโมชั่น') catMap[targetKey].promoQty += q;
-                            else if (typeStr === 'ราคาศูนย์' || typeStr === 'ราคาฟรี') catMap[targetKey].zeroQty += q;
-                            else catMap[targetKey].promoQty += q;
-
-                            const typeLower = typeStr.toLowerCase();
-                            const isNotPromoOrZero = !typeLower.includes('โปร') && !typeLower.includes('ศูนย์') && !typeLower.includes('zero') && !typeLower.includes('promo') && !typeLower.includes('free');
-                            if (typeStr === 'ราคาเต็ม' || typeStr === 'ราคาสมาชิก' || (typeStr !== 'ราคาโปร' && typeStr !== 'โปรโมชั่น' && typeStr !== 'ราคาศูนย์' && typeStr !== 'ราคาฟรี' && isNotPromoOrZero)) {
-                                catMap[targetKey].totalQty += q;
-
-                                let feePerBox = 0;
-                                if (sellerLevel === 0) {
-                                    feePerBox = catInfo.rate || catMap[targetKey].rate || 250000;
-                                } else if (sellerLevel <= maxDownlines) {
-                                    if (sellerLevel === 1) {
-                                        feePerBox = catInfo.l1Rate || catMap[targetKey].l1Rate || 200000;
-                                    } else {
-                                        const cleanTarget = pName.replace(/\(.*?\)/g, '').trim().toUpperCase();
-                                        const found = (products || []).find(p => {
-                                            const pNameUpper = String(p.name || p.product_name || p.id || '').replace(/\(.*?\)/g, '').trim().toUpperCase();
-                                            return pNameUpper === cleanTarget;
-                                        });
-                                        feePerBox = Number(found?.[`level${sellerLevel}Fee`] || found?.[`level_${sellerLevel}_fee`] || 0);
-                                    }
-                                } else {
-                                    feePerBox = 0;
-                                }
-
-                                catMap[targetKey].totalLAK += q * feePerBox;
-                                if (!isDownline && feePerBox > 0) catMap[targetKey].rate = feePerBox;
-                                if (isDownline && feePerBox > 0) catMap[targetKey].l1Rate = feePerBox;
-                            }
-                        });
-                    } else {
-                        const q = Number(s['ยอดรวมชิ้นทั้งหมด'] || 1);
-                        const f = Number(s['รวมชิ้นราคาเต็ม'] || 0);
-                        const m = Number(s['รวมชิ้นราคาสมาชิก'] || 0);
-                        const p = Number(s['รวมชิ้นราคาโปร'] || 0);
-                        const z = Number(s['รวมชิ้นราคาศูนย์'] || 0);
-
-                        catMap['Supplement'].fullQty += f;
-                        catMap['Supplement'].memberQty += m;
-                        catMap['Supplement'].promoQty += p;
-                        catMap['Supplement'].zeroQty += z;
-
-                        let validQty = f + m;
-                        if (f === 0 && m === 0 && p === 0 && z === 0) {
-                            catMap['Supplement'].fullQty += q;
-                            validQty = q;
-                        }
-
-                        catMap['Supplement'].totalQty += validQty;
-                        const applicableRate = isDownline ? (sellerLevel <= maxDownlines ? (catMap['Supplement'].l1Rate || 200000) : 0) : 250000;
-                        catMap['Supplement'].totalLAK += validQty * applicableRate;
-                        if (!isDownline) {
-                            const finalFullQty = (f === 0 && m === 0 && p === 0 && z === 0) ? q : f;
-                            catMap['Supplement'].marginLAK += finalFullQty * 200000;
-                        }
-                    }
-                });
-
-                return catMap;
-            }, [products, downlineLevelMap, maxDownlines]);
-
-            const salesByLevelStats = useMemo(() => {
-                const levelStats = {};
-                Object.keys(downlinesByLevelCount).forEach(lvl => {
-                    levelStats[lvl] = { qty: 0, lak: 0, members: downlinesByLevelCount[lvl] };
-                });
-
-                downlinesWithLevels.forEach(d => {
-                    const lvl = d.level;
-                    const dId = String(d.member.id).trim().toUpperCase();
-                    const memberSales = downlineSalesList.filter(s => {
-                        const sellerId = String(s.sellerId || s.seller_id || s.seller || s.memberId || s.marketing || '').trim().toUpperCase();
-                        return sellerId === dId;
-                    });
-                    const cat = parseSalesIntoCategories(memberSales, true);
-                    const memberQty = Object.values(cat).reduce((acc, c) => acc + c.totalQty, 0);
-                    const memberLak = Object.values(cat).reduce((acc, c) => acc + c.totalLAK, 0);
-                    if (levelStats[lvl]) {
-                        levelStats[lvl].qty += memberQty;
-                        levelStats[lvl].lak += memberLak;
-                    }
-                });
-                return levelStats;
-            }, [downlinesWithLevels, downlineSalesList, parseSalesIntoCategories, downlinesByLevelCount]);
-
-            const personalCategorized = useMemo(() => parseSalesIntoCategories(personalSalesList, false), [personalSalesList, parseSalesIntoCategories]);
-            
-            const personalTotalBoxes = useMemo(() => Object.values(personalCategorized).reduce((acc, c) => acc + c.totalQty, 0), [personalCategorized]);
-            const meetCommCondition = useMemo(() => {
-                // กฎ: Switch ปิด = return true เสมอ (ไม่มีเงื่อนไข แม่ทีมไม่มียอดขายก็รับปันผลได้)
-                //      Switch เปิด = ตรวจเกณฑ์ยกเว้น / ขอบเขต / ยอดขายขั้นต่ำ
-                try {
-                    let rawConfig = null;
-                    const localSaved = localStorage.getItem('stk_system_settings');
-                    if (localSaved) {
-                        const parsedSaved = JSON.parse(localSaved);
-                        if (parsedSaved?.commission_condition_config !== undefined && parsedSaved?.commission_condition_config !== null) {
-                            rawConfig = parsedSaved.commission_condition_config;
-                        }
-                    }
-                    if (rawConfig === null || rawConfig === undefined) {
-                        rawConfig = systemSettings?.commission_condition_config;
-                    }
-                    if (rawConfig !== null && rawConfig !== undefined) {
-                        let parsed = rawConfig;
-                        while (typeof parsed === 'string' && parsed.trim() !== '') parsed = JSON.parse(parsed);
-                        if (parsed && typeof parsed === 'object') {
-                            const isEnabled = parsed.is_enabled === true || parsed.is_enabled === 'true';
-                            if (!isEnabled) return true; // Switch ปิด: ไม่มีเงื่อนไข
-
-                            const safeId = mId ? String(mId).trim().toUpperCase() : '';
-                            const safeTeam = member?.team ? String(member.team).trim().toUpperCase() : '';
-
-                            // 1. ตรวจสอบการยกเว้นทีม (Exclude Teams)
-                            if (Array.isArray(parsed.exclude_teams) && parsed.exclude_teams.length > 0) {
-                                if (parsed.exclude_teams.some(t => String(t).trim().toUpperCase() === safeTeam)) return true;
-                            }
-                            // 2. ตรวจสอบการยกเว้นสมาชิกรายบุคคล (Exclude Members)
-                            if (Array.isArray(parsed.exclude_members) && parsed.exclude_members.length > 0) {
-                                if (parsed.exclude_members.some(id => String(id).trim().toUpperCase() === safeId)) return true;
-                            }
-
-                            // 3. ตรวจสอบขอบเขตการบังคับใช้ (Target Scope)
-                            const scope = parsed.target_scope || 'all';
-                            if (scope === 'specific_teams') {
-                                const teams = (parsed.selected_teams || []).map(t => String(t).trim().toUpperCase());
-                                if (!teams.includes(safeTeam)) return true;
-                            } else if (scope === 'specific_members') {
-                                const ids = (parsed.selected_members || []).map(id => String(id).trim().toUpperCase());
-                                if (!ids.includes(safeId)) return true;
-                            }
-
-                            const minBoxes = !isNaN(Number(parsed.min_boxes)) ? Number(parsed.min_boxes) : 0;
-                            const r = personalTotalBoxes >= minBoxes;
-                            console.log('[OrgChart] meetCommCondition:', { isEnabled, minBoxes, personalTotalBoxes, r, safeTeam, safeId });
-                            return r;
-                        }
-                    }
-                } catch(e) { console.error('[OrgChart] meetCommCondition error:', e); }
-                return true; // default: ไม่มี config = Switch ปิด = อนุญาตเสมอ
-            }, [systemSettings, personalTotalBoxes, mId, member]);
-
-            const downlineCategorized = useMemo(() => {
-                const categorized = parseSalesIntoCategories(downlineSalesList, true);
-                if (meetCommCondition === false) {
-                    Object.keys(categorized).forEach(k => {
-                        categorized[k].totalLAK = 0;
-                    });
-                }
-                return categorized;
-            }, [downlineSalesList, parseSalesIntoCategories, meetCommCondition]);
-
-            const totalTeamCategorized = useMemo(() => {
-                const keys = ['Supplement', 'Supplement02', 'Cosmetic', 'Coffee'];
-                const res = {};
-                keys.forEach(k => {
-                    const p = personalCategorized[k];
-                    const d = downlineCategorized[k];
-                    res[k] = {
-                        key: k,
-                        name: p.name,
-                        rate: p.rate,
-                        l1Rate: p.l1Rate,
-                        personalQty: p.totalQty,
-                        personalLAK: p.totalLAK,
-                        downlineQty: d.totalQty,
-                        downlineLAK: d.totalLAK,
-                        fullQty: p.fullQty + d.fullQty,
-                        memberQty: p.memberQty + d.memberQty,
-                        promoQty: p.promoQty + d.promoQty,
-                        zeroQty: p.zeroQty + d.zeroQty,
-                        totalQty: p.totalQty + d.totalQty,
-                        totalLAK: p.totalLAK + d.totalLAK
-                    };
-                });
-                return res;
-            }, [personalCategorized, downlineCategorized]);
-
-            const downlineTotalBoxes = useMemo(() => Object.values(downlineCategorized).reduce((acc, c) => acc + c.totalQty, 0), [downlineCategorized]);
-            const groupTotalBoxes = personalTotalBoxes + downlineTotalBoxes;
-
-            const totalFullBoxes = useMemo(() => Object.values(totalTeamCategorized).reduce((acc, c) => acc + c.fullQty, 0), [totalTeamCategorized]);
-            const totalMemberBoxes = useMemo(() => Object.values(totalTeamCategorized).reduce((acc, c) => acc + c.memberQty, 0), [totalTeamCategorized]);
-            const totalPromoBoxes = useMemo(() => Object.values(totalTeamCategorized).reduce((acc, c) => acc + c.promoQty, 0), [totalTeamCategorized]);
-            const totalZeroBoxes = useMemo(() => Object.values(totalTeamCategorized).reduce((acc, c) => acc + c.zeroQty, 0), [totalTeamCategorized]);
-
-            const personalTotalLAK = useMemo(() => Object.values(personalCategorized).reduce((acc, c) => acc + c.totalLAK, 0), [personalCategorized]);
-            const personalTotalMarginTHB = useMemo(() => Object.values(personalCategorized).reduce((acc, c) => acc + (c.marginLAK || 0), 0), [personalCategorized]);
-            const downlineTotalLAK = useMemo(() => Object.values(downlineCategorized).reduce((acc, c) => acc + c.totalLAK, 0), [downlineCategorized]);
-            const overallTeamTotalLAK = personalTotalLAK + downlineTotalLAK;
-
-            const marginConfig = useMemo(() => {
-                try {
-                    const confStr = systemSettings.retail_margin_config;
-                    return confStr ? (typeof confStr === 'string' ? JSON.parse(confStr) : confStr) : null;
-                } catch (e) { return null; }
-            }, [systemSettings.retail_margin_config]);
-
-            const marginMinBoxes = Number(marginConfig?.min_boxes ?? systemSettings.margin_min_boxes ?? 10);
-            const totalFullBoxesPersonal = useMemo(() => Object.values(personalCategorized).reduce((acc, c) => acc + c.fullQty, 0), [personalCategorized]);
-
-            const isEligibleForMargin = useMemo(() => {
-                if (totalFullBoxesPersonal < marginMinBoxes) return false;
-                if (!marginConfig) return true;
-
-                const scope = marginConfig.target_scope || 'all';
-                const memberIdUpper = mId.toUpperCase();
-                const memberTeamUpper = String(member.team || '').trim().toUpperCase();
-
-                let isScopeEligible = true;
-                if (scope === 'specific_members') {
-                    isScopeEligible = (marginConfig.selected_members || []).map(id => id.toUpperCase()).includes(memberIdUpper);
-                } else if (scope === 'specific_teams') {
-                    isScopeEligible = (marginConfig.selected_teams || []).map(t => t.toUpperCase()).includes(memberTeamUpper);
-                }
-
-                if (isScopeEligible) {
-                    if ((marginConfig.exclude_members || []).map(id => id.toUpperCase()).includes(memberIdUpper)) {
-                        isScopeEligible = false;
-                    }
-                    if ((marginConfig.exclude_teams || []).map(t => t.toUpperCase()).includes(memberTeamUpper)) {
-                        isScopeEligible = false;
-                    }
-                }
-
-                return isScopeEligible;
-            }, [totalFullBoxesPersonal, marginMinBoxes, marginConfig, mId, member]);
-
-            // Product Summary List with Gen-by-Gen Breakdown
-            const productSummaryMap = useMemo(() => {
-                const map = {};
-
-                const processSalesList = (salesList, isDownline) => {
-                    (salesList || []).forEach(s => {
-                        const sellerId = String(s.sellerId || s.seller_id || s.seller || s.memberId || s.marketing || '').trim().toUpperCase();
-                        const sellerLevel = isDownline ? (downlineLevelMap[sellerId] || 1) : 0;
-
-                        let itemsList = [];
-                        if (s.items_json) {
-                            try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch (e) { }
-                        }
-
-                        if (!Array.isArray(itemsList) || itemsList.length === 0) {
-                            Object.entries(s || {}).forEach(([key, value]) => {
-                                if (key.endsWith('_ราคาเต็ม') || key.endsWith('_ราคาสมาชิก') || key.endsWith('_ราคาโปร') || key.endsWith('_ราคาศูนย์')) {
-                                    const q = parseInt(value, 10);
-                                    if (!isNaN(q) && q > 0) {
-                                        const lastUnderscore = key.lastIndexOf('_');
-                                        const pName = key.substring(0, lastUnderscore).replace(/\(.*?\)/g, '').trim();
-                                        const pType = key.substring(lastUnderscore + 1);
-                                        itemsList.push({ prod: pName, qty: q, type: pType });
-                                    }
-                                }
-                            });
-                        }
-
-                        if (Array.isArray(itemsList) && itemsList.length > 0) {
-                            itemsList.forEach(it => {
-                                const pName = String(it.prod || it.productName || it.name || 'สินค้าอื่นๆ').trim();
-                                const q = Number(it.qty || it.quantity || 1);
-                                const typeStr = String(it.type || '').trim();
-
-                                if (typeStr !== 'ราคาเต็ม' && typeStr !== 'ราคาสมาชิก') {
-                                    return;
-                                }
-
-                                const catInfo = getProductCategoryAndRate(pName, products);
-
-                                let feePerBox = 0;
-                                if (sellerLevel === 0) {
-                                    feePerBox = catInfo.rate;
-                                } else if (sellerLevel <= maxDownlines) {
-                                    if (sellerLevel === 1) {
-                                        feePerBox = catInfo.l1Rate;
-                                    } else {
-                                        const cleanTarget = pName.replace(/\(.*?\)/g, '').trim().toUpperCase();
-                                        const found = (products || []).find(p => {
-                                            const pNameUpper = String(p.name || p.product_name || p.id || '').replace(/\(.*?\)/g, '').trim().toUpperCase();
-                                            return pNameUpper === cleanTarget;
-                                        });
-                                        feePerBox = Number(found?.[`level${sellerLevel}Fee`] || found?.[`level_${sellerLevel}_fee`] || 0);
-                                    }
-                                } else {
-                                    feePerBox = 0;
-                                }
-
-                                const earnedLAK = q * feePerBox;
-
-                                if (!map[pName]) {
-                                    map[pName] = {
-                                        name: pName,
-                                        category: catInfo.categoryName,
-                                        totalQty: 0,
-                                        totalLAK: 0,
-                                        byGen: {}
-                                    };
-                                }
-
-                                map[pName].totalQty += q;
-                                map[pName].totalLAK += earnedLAK;
-
-                                if (!map[pName].byGen[sellerLevel]) {
-                                    map[pName].byGen[sellerLevel] = { gen: sellerLevel, qty: 0, lak: 0 };
-                                }
-                                map[pName].byGen[sellerLevel].qty += q;
-                                map[pName].byGen[sellerLevel].lak += earnedLAK;
-                            });
-                        }
-                    });
-                };
-
-                processSalesList(personalSalesList, false);
-                if (isLeaderWithTeam) {
-                    processSalesList(downlineSalesList, true);
-                }
-
-                return Object.values(map).sort((a, b) => b.totalQty - a.totalQty);
-            }, [personalSalesList, downlineSalesList, products, isLeaderWithTeam, downlineLevelMap, maxDownlines]);
+            const isLeaderWithTeam = perf?.isLeaderWithTeam ?? false;
+            const downlinesWithLevels = perf?.downlinesWithLevels ?? [];
+            const levelSummaryText = perf?.levelSummaryText ?? 'ไม่มีลูกทีม';
+            const personalTotalBoxes = perf?.personalTotalBoxes ?? 0;
+            const downlineTotalBoxes = perf?.downlineTotalBoxes ?? 0;
+            const groupTotalBoxes = perf?.groupTotalBoxes ?? 0;
+            const memberAccumulatedPV = perf?.memberAccumulatedPV ?? 0;
+            const personalTotalLAK = perf?.personalTotalLAK ?? 0;
+            const downlineTotalLAK = perf?.downlineTotalLAK ?? 0;
+            const overallTeamTotalLAK = perf?.overallTeamTotalLAK ?? 0;
+            const meetCommCondition = perf?.meetCommCondition ?? true;
+            const personalCategorized = perf?.personalCategorized ?? {};
+            const downlineCategorized = perf?.downlineCategorized ?? {};
+            const totalTeamCategorized = perf?.totalTeamCategorized ?? {};
+            const totalFullBoxes = perf?.totalFullBoxes ?? 0;
+            const totalMemberBoxes = perf?.totalMemberBoxes ?? 0;
+            const totalPromoBoxes = perf?.totalPromoBoxes ?? 0;
+            const totalZeroBoxes = perf?.totalZeroBoxes ?? 0;
+            const totalFullBoxesPersonal = perf?.totalFullBoxesPersonal ?? 0;
+            const personalTotalMarginTHB = perf?.personalTotalMarginTHB ?? 0;
+            const marginMinBoxes = perf?.marginMinBoxes ?? 10;
+            const isEligibleForMargin = perf?.isEligibleForMargin ?? false;
+            const salesByLevelStats = perf?.salesByLevelStats ?? {};
+            const productSummaryMap = perf?.productSummaryMap ?? [];
+            const maxDownlines = perf?.maxDownlines ?? 5;
 
             return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm animation-fade-in overflow-y-auto">
@@ -629,7 +123,7 @@
                                             {member.id}
                                         </span>
                                         <span className={`text-xs font-black px-2.5 py-0.5 rounded-full ${isLeaderWithTeam || member.role === 'หัวหน้าสายงาน' ? 'bg-amber-400 text-slate-900' : 'bg-blue-400 text-slate-900'}`}>
-                                            {isLeaderWithTeam || member.role === 'หัวหน้าสายงาน' ? '👑 หัวหน้าสายงาน (แม่ทีม)' : `👤 ${member.role || 'พนักงาน'}`}
+                                            {isLeaderWithTeam || member.role === 'หัวหน้าสายงาน' ? '👑 หัวหน้าสายงาน (แม่ทีม)' : `👤 ${member.role || 'พนักงานการตลาด'}`}
                                         </span>
                                     </div>
                                     <p className="text-xs font-bold text-blue-100/90 mt-1">
@@ -1009,7 +503,7 @@
 
                                         {/* 📊 Generation / Level Breakdown Grid */}
                                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">
-                                            {Object.entries(salesByLevelStats).map(([lvl, stat]) => {
+                                            {Object.entries(salesByLevelStats).filter(([lvl, stat]) => (stat.members > 0 || stat.qty > 0)).map(([lvl, stat]) => {
                                                 const isPaidLevel = Number(lvl) <= maxDownlines;
                                                 return (
                                                     <div key={lvl} className={`p-2.5 rounded-xl border flex justify-between items-center ${isPaidLevel ? 'bg-pink-50/40 border-pink-200/70' : 'bg-slate-50 border-slate-200'}`}>
@@ -1115,52 +609,72 @@
             );
         };
 
-        // 🟢 Flexible Employee Card Component (Match Screenshot Layout with Level Badges)
-        const EmployeeCardNode = ({ node, allMembers, onSelect, onOpenDetail, memberSales, teamMap, level = 0, currentUser, isAdmin }) => {
+        // 🟢 Compact, Clean & Collapsible Employee Card Component
+        const EmployeeCardNode = ({ 
+            node, 
+            allMembers, 
+            onSelect, 
+            onOpenDetail, 
+            memberSales, 
+            teamMap, 
+            level = 0, 
+            currentUser, 
+            isAdmin,
+            collapsedNodeIds,
+            toggleCollapse
+        }) => {
             const children = getChildren(allMembers, node.id);
             const hasChildren = children.length > 0;
             const isLeader = hasChildren || node.role === 'หัวหน้าสายงาน' || node.role === 'Leader';
+            const isCollapsed = collapsedNodeIds ? collapsedNodeIds.has(node.id) : false;
 
-            // ✅ ตรวจว่า card นี้คือตัว currentUser เองหรือเปล่า
+            // ตรวจว่า card นี้คือตัว currentUser เองหรือเปล่า
             const currentUserId = String(currentUser?.id || '').trim().toUpperCase();
             const nodeId = String(node.id || '').trim().toUpperCase();
             const isSelf = !!currentUserId && currentUserId === nodeId;
-            // อนุญาตกดดูรายละเอียด: admin กดได้ทุกคน, non-admin กดได้เฉพาะตัวเอง
-            
             const canOpenDetail = isAdmin || isSelf;
 
             return (
                 <div className="flex flex-col items-center">
                     {/* Level Badge if level > 0 */}
                     {level > 0 && (
-                        <div className="mb-2 z-10">
-                            <span className="bg-emerald-100 text-emerald-700 text-[10px] font-black px-3 py-0.5 rounded-full border border-emerald-200 shadow-xs">
+                        <div className="mb-1.5 z-10">
+                            <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black px-2.5 py-0.5 rounded-full border border-emerald-200/80 shadow-xs">
                                 ชั้นที่ {level}
                             </span>
                         </div>
                     )}
 
-                    {/* Main Card Box */}
+                    {/* Main Compact Card Box */}
                     <div
                         onClick={() => onSelect(node)}
-                        className="p-4 w-full max-w-[260px] sm:w-64 rounded-3xl border border-slate-200 bg-white hover:border-blue-300 hover:shadow-xl transition-all duration-300 relative z-10 cursor-pointer flex flex-col items-center shadow-md"
+                        className={`p-3 w-[185px] rounded-2xl border transition-all duration-200 relative z-10 cursor-pointer flex flex-col items-center shadow-xs select-none bg-white ${
+                            isLeader 
+                                ? 'border-amber-200/90 hover:border-amber-400 hover:shadow-md' 
+                                : 'border-slate-200 hover:border-blue-400 hover:shadow-md'
+                        }`}
                     >
                         {/* Top Role Badge */}
-                        <div className="mb-2">
-                            <span className={`text-[10px] font-black px-3 py-0.5 rounded-full shadow-xs ${isLeader
-                                    ? 'bg-amber-100 text-amber-700 border border-amber-200'
-                                    : 'bg-slate-100 text-slate-600 border border-slate-200'
-                                }`}>
-                                {isLeader ? '👑 หัวหน้าสายงาน' : `👤 ${node.role || 'พนักงาน'}`}
-                            </span>
+                        <div className="mb-1.5">
+                            {isLeader ? (
+                                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 text-[8.5px] font-black px-2 py-0.5 rounded-full border border-amber-200/80">
+                                    <svg className="w-2.5 h-2.5 fill-amber-500 shrink-0" viewBox="0 0 24 24"><path d="M2 20h20v2H2v-2zm2-2h16l-3-9-4 4-3-7-3 7-4-4-3 9z"/></svg>
+                                    <span>หัวหน้าสายงาน</span>
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-[8.5px] font-bold px-2 py-0.5 rounded-full border border-blue-200/80">
+                                    <svg className="w-2.5 h-2.5 fill-blue-500 shrink-0" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                                    <span className="truncate max-w-[90px]">{node.role || 'พนักงานการตลาด'}</span>
+                                </span>
+                            )}
                         </div>
 
                         {/* Profile Picture Avatar */}
-                        <div className="w-16 h-16 rounded-full p-0.5 bg-gradient-to-r from-slate-200 to-slate-300 shadow-md flex items-center justify-center shrink-0 mb-2">
+                        <div className="w-11 h-11 rounded-full p-0.5 bg-slate-100 border border-slate-200 shadow-xs flex items-center justify-center shrink-0 mb-1.5 overflow-hidden">
                             {(node.profileUrl && node.profileUrl !== '-' && String(node.profileUrl).trim() !== '') ? (
-                                <img src={node.profileUrl} onError={e => e.target.style.display = 'none'} className="w-full h-full rounded-full object-cover border-2 border-white" />
+                                <img src={node.profileUrl} onError={e => e.target.style.display = 'none'} className="w-full h-full rounded-full object-cover" />
                             ) : (
-                                <div className="w-full h-full rounded-full bg-slate-100 text-slate-500 flex items-center justify-center font-black text-sm">
+                                <div className="w-full h-full rounded-full bg-blue-50 text-blue-700 flex items-center justify-center font-black text-xs">
                                     {node.name ? node.name.substring(0, 2) : node.id}
                                 </div>
                             )}
@@ -1168,37 +682,53 @@
 
                         {/* Details */}
                         <div className="text-center w-full space-y-1">
-                            <h4 className="text-xs font-black text-slate-800 truncate px-1">{node.name}</h4>
+                            <h4 className="text-[11px] font-black text-slate-800 truncate px-1" title={node.name}>{node.name}</h4>
 
-                            <div className="flex items-center justify-center gap-1.5">
-                                <span className="text-[9px] font-mono font-black text-slate-500">{node.id}</span>
-                                <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                            <div className="flex items-center justify-center gap-1 text-[8.5px]">
+                                <span className="font-mono font-bold text-slate-500">{node.id}</span>
+                                <span className="font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 truncate max-w-[85px]">
                                     {teamMap?.[String(node.team).trim().toUpperCase()] || node.team || 'Marketing'}
                                 </span>
                             </div>
 
-                            {/* Downlines Count Pill */}
+                            {/* Downlines Toggle Pill (Interactive Expand / Collapse) */}
                             {hasChildren && (
-                                <div className="pt-1">
-                                    <span className="bg-sky-50 text-sky-700 text-[9px] font-bold px-3 py-1 rounded-full border border-sky-100 block truncate">
-                                        มีลูกทีมดูแล {children.length} คน
-                                    </span>
+                                <div className="pt-0.5 w-full">
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (toggleCollapse) toggleCollapse(node.id);
+                                        }}
+                                        className={`w-full py-0.5 px-2 text-[8.5px] font-bold rounded-full border transition-all flex items-center justify-center gap-1 ${
+                                            isCollapsed 
+                                                ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' 
+                                                : 'bg-sky-50 text-sky-700 border-sky-100 hover:bg-sky-100'
+                                        }`}
+                                        title={isCollapsed ? 'คลิกเพื่อกางดูสายงานลูกทีม' : 'คลิกเพื่อพับเก็บสายงานลูกทีม'}
+                                    >
+                                        <svg className={`w-2.5 h-2.5 fill-current transition-transform duration-200 ${isCollapsed ? '-rotate-90' : 'rotate-0'}`} viewBox="0 0 24 24">
+                                            <path d="M7 10l5 5 5-5z"/>
+                                        </svg>
+                                        <span className="truncate">{isCollapsed ? `ขยายลูกทีม (${children.length} คน)` : `มีลูกทีมดูแล ${children.length} คน`}</span>
+                                    </button>
                                 </div>
                             )}
 
-                            {/* Action Button — ล็อคถ้าไม่ใช่ตัวเองและไม่ใช่ Admin */}
-                            <div className="pt-2">
+                            {/* Action Button */}
+                            <div className="pt-1">
                                 {canOpenDetail ? (
                                     <button
                                         type="button"
                                         onClick={(e) => { e.stopPropagation(); onSelect(node); if (onOpenDetail) onOpenDetail(node); }}
-                                        className="w-full py-1.5 bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 text-[10px] font-black rounded-xl transition-all border border-blue-200/60 shadow-xs flex items-center justify-center gap-1"
+                                        className="w-full py-1 bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 text-[9.5px] font-black rounded-lg transition-all border border-blue-200/60 shadow-xs flex items-center justify-center gap-1"
                                     >
-                                        📊 คลิกดูผลงานและสายงาน
+                                        <svg className="w-2.5 h-2.5 fill-current shrink-0" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+                                        <span>คลิกดูผลงานและสายงาน</span>
                                     </button>
                                 ) : (
-                                    <div className="w-full py-1.5 bg-slate-50 text-slate-400 text-[10px] font-bold rounded-xl border border-slate-200 flex items-center justify-center gap-1 cursor-not-allowed">
-                                        🔒 ไม่มีสิทธิ์ดูรายละเอียด
+                                    <div className="w-full py-1 bg-slate-50 text-slate-400 text-[9px] font-bold rounded-lg border border-slate-200 flex items-center justify-center gap-1 cursor-not-allowed">
+                                        <span>ไม่มีสิทธิ์ดูรายละเอียด</span>
                                     </div>
                                 )}
                             </div>
@@ -1206,43 +736,136 @@
                     </div>
 
                     {/* Recursive Children Level Breakdown with Hierarchy Lines */}
-                    {hasChildren && (
+                    {hasChildren && !isCollapsed && (
                         <div className="flex flex-col items-center w-full mt-1 relative">
                             {/* Vertical line from parent card down */}
-                            <div className="w-0.5 h-6 bg-blue-300"></div>
+                            <div className="w-px h-4 bg-slate-300"></div>
 
-                            {/* Children Container */}
-                            <div className="relative flex flex-wrap justify-center items-start gap-6 sm:gap-8 pt-3 border-t-2 border-blue-200 rounded-t-xl px-4">
-                                {children.map((child, cIdx) => (
-                                    <div key={child.id} className="relative flex flex-col items-center">
-                                        {/* Vertical line connecting top horizontal bar to child card */}
-                                        <div className="w-0.5 h-3 bg-blue-300 -mt-3 mb-1"></div>
-                                        <EmployeeCardNode
-                                            node={child}
-                                            allMembers={allMembers}
-                                            memberSales={memberSales}
-                                            onSelect={onSelect}
-                                            onOpenDetail={onOpenDetail}
-                                            teamMap={teamMap}
-                                            level={level + 1}
-                                            currentUser={currentUser}
-                                            isAdmin={isAdmin}
-                                        />
-                                    </div>
-                                ))}
+                            {/* Children Container: neatly arranged in row */}
+                            <div className="relative flex justify-center items-start gap-3 sm:gap-4 pt-4 px-2">
+                                {children.map((child, cIdx) => {
+                                    const isFirst = cIdx === 0;
+                                    const isLast = cIdx === children.length - 1;
+                                    const isSingle = children.length === 1;
+
+                                    return (
+                                        <div key={child.id} className="relative flex flex-col items-center">
+                                            {/* Precise Horizontal Connector Bar: center of first to center of last */}
+                                            {!isSingle && (
+                                                <div
+                                                    className="absolute top-0 h-px bg-slate-300 pointer-events-none"
+                                                    style={{
+                                                        left: isFirst ? '50%' : '0',
+                                                        right: isLast ? '50%' : '0'
+                                                    }}
+                                                />
+                                            )}
+                                            {/* Vertical connector down to child card */}
+                                            <div className="w-px h-4 bg-slate-300 -mt-4 mb-1 z-0 pointer-events-none"></div>
+                                            <EmployeeCardNode
+                                                node={child}
+                                                allMembers={allMembers}
+                                                memberSales={memberSales}
+                                                onSelect={onSelect}
+                                                onOpenDetail={onOpenDetail}
+                                                teamMap={teamMap}
+                                                level={level + 1}
+                                                currentUser={currentUser}
+                                                isAdmin={isAdmin}
+                                                collapsedNodeIds={collapsedNodeIds}
+                                                toggleCollapse={toggleCollapse}
+                                            />
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     )}
                 </div>
             );
         };
-
         // 🟢 Main View Component with Responsive Flexible Grid Layout
         const SalesTeamHierarchyView = ({ members, sales, businessTeams, products, customerTypes, systemSettings, currentUser, isAdmin, loading }) => {
             const [searchQuery, setSearchQuery] = useState('');
             const [viewMode, setViewMode] = useState('tree');
             const [selectedMember, setSelectedMember] = useState(null);
             const [detailModalOpen, setDetailModalOpen] = useState(false);
+            const [focusedLeaderId, setFocusedLeaderId] = useState('ALL');
+            const [collapsedNodeIds, setCollapsedNodeIds] = useState(() => new Set());
+            const [zoomScale, setZoomScale] = useState(100);
+
+            // ✅ กรองเฉพาะคนที่มีสิทธิ์เป็น "พนักงานการตลาด" (Marketing) เท่านั้นที่จะแสดงในผังองค์กร
+            const isMarketingRole = useCallback((m) => {
+                if (!m) return false;
+                const r = String(m.role || m.permission_role || m.Permission_Role || '').trim().toLowerCase();
+                return r === 'พนักงานการตลาด' || r === 'marketing';
+            }, []);
+
+            const currentUserId = String(currentUser?.id || '').trim().toUpperCase();
+            const isMarketingUser = currentUser && isMarketingRole(currentUser);
+            const isScopeOwn = isMarketingUser && !isAdmin && !!currentUserId;
+
+            const scopedMembers = useMemo(() => {
+                // กรองเฉพาะคนที่มีสิทธิ์เป็นพนักงานการตลาดเท่านั้น (ตัด Staff, admin second, พนักงานทั่วไป, ผู้ดูแลระบบ ออกทั้งหมด)
+                const marketingOnly = (members || []).filter(isMarketingRole);
+
+                if (!isScopeOwn) return marketingOnly;
+
+                // ถ้าเป็นพนักงานการตลาดล็อกอินเข้ามา (ไม่ใช่ Admin) ให้กรองดูได้เฉพาะตัวเองและ downline ในสายงาน
+                const allowedIds = getAllDownlineIds(marketingOnly, currentUserId);
+                return marketingOnly.filter(m => allowedIds.has(String(m.id || '').trim().toUpperCase()));
+            }, [members, isMarketingRole, isScopeOwn, currentUserId]);
+
+            const rootMembers = useMemo(() => {
+                return (scopedMembers).filter(m => {
+                    const ref = String(m.referrer || '').trim().toUpperCase();
+                    const mid = String(m.id || '').trim().toUpperCase();
+                    // root คือคนที่ไม่มี referrer, หรือ referrer ชี้มาที่ตัวเอง, หรือ referrer ไม่ได้อยู่ในกลุ่ม scopedMembers
+                    return !ref || ref === mid || !(scopedMembers).some(p => String(p.id).trim().toUpperCase() === ref);
+                });
+            }, [scopedMembers]);
+
+            // Filter root members by search query and focused leader
+            const filteredRootMembers = useMemo(() => {
+                if (!searchQuery) return rootMembers;
+                return scopedMembers.filter(m =>
+                    (m.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (m.id || '').toLowerCase().includes(searchQuery.toLowerCase())
+                );
+            }, [rootMembers, scopedMembers, searchQuery]);
+
+            const displayedRootMembers = useMemo(() => {
+                if (searchQuery) return filteredRootMembers;
+                if (focusedLeaderId && focusedLeaderId !== 'ALL') {
+                    const found = scopedMembers.find(m => String(m.id).trim().toUpperCase() === String(focusedLeaderId).trim().toUpperCase());
+                    return found ? [found] : filteredRootMembers;
+                }
+                return filteredRootMembers;
+            }, [focusedLeaderId, scopedMembers, filteredRootMembers, searchQuery]);
+
+            const toggleCollapse = useCallback((nodeId) => {
+                setCollapsedNodeIds(prev => {
+                    const next = new Set(prev);
+                    if (next.has(nodeId)) next.delete(nodeId);
+                    else next.add(nodeId);
+                    return next;
+                });
+            }, []);
+
+            const collapseDeepLevels = useCallback(() => {
+                const newCollapsed = new Set();
+                (scopedMembers || []).forEach(m => {
+                    const ch = getChildren(scopedMembers, m.id);
+                    if (ch.length > 0 && !rootMembers.some(r => r.id === m.id)) {
+                        newCollapsed.add(m.id);
+                    }
+                });
+                setCollapsedNodeIds(newCollapsed);
+            }, [scopedMembers, rootMembers]);
+
+            const expandAllNodes = useCallback(() => {
+                setCollapsedNodeIds(new Set());
+            }, []);
 
             // Filter Bar States
             const [bonusCondition, setBonusCondition] = useState('แผนที่ 1 (% จากยอดรวม)');
@@ -1259,18 +882,12 @@
             const [endDate, setEndDate] = useState(defMonthRange.end);
 
             const teamMap = useMemo(() => {
-                const map = {};
-                (businessTeams || []).forEach(t => {
-                    const idKey = String(t.id || '').trim().toUpperCase();
-                    const nameStr = t.name || t.team_name || t.Team_Name || idKey;
-                    if (idKey) map[idKey] = nameStr;
-                });
-                return map;
+                return (window.OrgChartLogic?.buildTeamMap) ? window.OrgChartLogic.buildTeamMap(businessTeams) : {};
             }, [businessTeams]);
 
             const memberSalesMap = useMemo(() => {
                 const salesMap = {};
-                (members || []).forEach(m => {
+                (scopedMembers || []).forEach(m => {
                     salesMap[m.id] = { personal: 0, group: 0 };
                 });
 
@@ -1282,56 +899,11 @@
                     }
                 });
 
-                const calculateGroup = (parentId) => {
-                    let total = salesMap[parentId]?.personal || 0;
-                    const children = getChildren(members, parentId);
-                    children.forEach(c => {
-                        total += calculateGroup(c.id);
-                    });
-                    if (salesMap[parentId]) {
-                        salesMap[parentId].group = total;
-                    }
-                    return total;
-                };
-
-                const rootNodes = (members || []).filter(m => !m.referrer || m.referrer === m.id || !(members || []).some(p => p.id === m.referrer));
-                rootNodes.forEach(r => calculateGroup(r.id));
-
+                if (window.OrgChartLogic?.calculateGroupSales) {
+                    return window.OrgChartLogic.calculateGroupSales(scopedMembers, salesMap);
+                }
                 return salesMap;
-            }, [members, sales]);
-
-            // ✅ สิทธิ์สายงาน: ถ้าไม่ใช่ Admin ให้กรองเฉพาะตัวเองและ downline
-            const currentUserId = String(currentUser?.id || '').trim().toUpperCase();
-            const isMarketing = currentUser && (
-                String(currentUser.role).trim() === 'พนักงานการตลาด' ||
-                String(currentUser.role).trim().toLowerCase() === 'marketing'
-            );
-            const isScopeOwn = isMarketing && !!currentUserId;
-
-            const scopedMembers = useMemo(() => {
-                if (!isScopeOwn) return members || [];
-                const allowedIds = getAllDownlineIds(members || [], currentUserId);
-                return (members || []).filter(m => allowedIds.has(String(m.id || '').trim().toUpperCase()));
-            }, [members, isScopeOwn, currentUserId]);
-
-            const rootMembers = useMemo(() => {
-                return (scopedMembers).filter(m => {
-                    const ref = String(m.referrer || '').trim().toUpperCase();
-                    const mid = String(m.id || '').trim().toUpperCase();
-                    // ถ้า scoped: root คือตัว currentUser เอง หรือคนที่ referrer ไม่มีใน scopedMembers
-                    return !ref || ref === mid || !(scopedMembers).some(p => String(p.id).trim().toUpperCase() === ref);
-                });
-            }, [scopedMembers]);
-
-            // Filter root members by search query
-            const filteredRootMembers = useMemo(() => {
-                if (!searchQuery) return rootMembers;
-                return scopedMembers.filter(m =>
-                    m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    m.id.toLowerCase().includes(searchQuery.toLowerCase())
-                );
-            }, [rootMembers, scopedMembers, searchQuery]);
-
+            }, [scopedMembers, sales]);
             return (
                 <div className="space-y-6 animation-fade-in pb-10 w-full">
 
@@ -1339,7 +911,9 @@
                     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 w-full">
                         <div>
                             <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                                <span className="text-2xl">🔀</span>
+                                <span className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
+                                    <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3h7zM4 5h3v4H4V5zm15 0h3v4h-3V5zm0 10h3v4h-3v-4z"/></svg>
+                                </span>
                                 <span>โครงสร้างทีมขาย (Sales Team Hierarchy)</span>
                             </h1>
                             <p className="text-xs text-slate-500 font-bold mt-1">
@@ -1348,30 +922,30 @@
                         </div>
 
                         {/* Top Right Toggle Buttons */}
-                        <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 w-full sm:w-auto">
+                        <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 w-full sm:w-auto">
                             <button
                                 onClick={() => setViewMode('tree')}
-                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${viewMode === 'tree' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:text-slate-900'}`}
+                                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${viewMode === 'tree' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
                             >
-                                <span>🌲</span>
-                                <span>สายงาน (ชั้น 1, 2)</span>
+                                <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3h7zM4 5h3v4H4V5zm15 0h3v4h-3V5zm0 10h3v4h-3v-4z"/></svg>
+                                <span>ผังสายงาน (Tree)</span>
                             </button>
                             <button
                                 onClick={() => setViewMode('team')}
-                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${viewMode === 'team' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:text-slate-900'}`}
+                                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${viewMode === 'team' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
                             >
-                                <span>📊</span>
-                                <span>แยกทีม (Marketing / Center)</span>
+                                <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M4 11h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1zm1-6h4v4H5V5zm10-2h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zm-1 6h-4V5h4v4zm-9 4H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1zm-1 6H5v-4h4v4zm10-6h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1zm-1 6h-4v-4h4v4z"/></svg>
+                                <span>แยกตามทีม (Teams)</span>
                             </button>
                         </div>
                     </div>
 
-                    {/* 🔍 Filter Bar */}
+                    {/* Filter Bar */}
                     <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex flex-wrap items-center gap-3 w-full">
                         <div className="relative flex-1 min-w-[220px]">
                             <input
                                 type="text"
-                                placeholder="🔍 ค้นหารหัส หรือชื่อพนักงาน..."
+                                placeholder="ค้นหารหัส หรือชื่อพนักงาน..."
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
                                 className="w-full bg-slate-50 border border-slate-200 text-xs font-bold rounded-xl px-3.5 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
@@ -1379,7 +953,7 @@
                         </div>
 
                         <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700">
-                            <span className="text-slate-400">⚙️ เงื่อนไขโบนัส:</span>
+                            <span className="text-slate-400">เงื่อนไขโบนัส:</span>
                             <select
                                 value={bonusCondition}
                                 onChange={e => setBonusCondition(e.target.value)}
@@ -1397,13 +971,13 @@
                                 onChange={e => setSelectedCategory(e.target.value)}
                                 className="bg-transparent text-amber-600 font-bold outline-none cursor-pointer"
                             >
-                                <option value="📦 สินค้าทั้งหมด">📦 สินค้าทั้งหมด</option>
+                                <option value="📦 สินค้าทั้งหมด">สินค้าทั้งหมด</option>
                                 <option value="หมวดทั่วไป">หมวดทั่วไป</option>
                             </select>
                         </div>
 
                         <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700">
-                            <span className="text-slate-400">📅 ปฏิทิน:</span>
+                            <span className="text-slate-400">ช่วงวันที่:</span>
                             <input
                                 type="date"
                                 value={startDate}
@@ -1420,127 +994,249 @@
                         </div>
 
                         <button
-                            onClick={() => { const r = getDefaultMonthRange(); setSearchQuery(''); setStartDate(r.start); setEndDate(r.end); }}
-                            className="px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1"
+                            type="button"
+                            onClick={() => {
+                                try {
+                                    localStorage.removeItem('stk_app_cache_data');
+                                    localStorage.removeItem('stk_app_cache_time');
+                                } catch(e) {}
+                                window.location.reload();
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-1.5 rounded-xl text-xs transition-colors flex items-center gap-1.5 shadow-sm active:scale-95"
                         >
-                            <span>🔄 รีเฟรช</span>
+                            <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                            <span>รีเฟรช</span>
                         </button>
                     </div>
 
-
-                    {/* 🌳 Responsive Tree / Team Layout Container */}
-                    <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8 w-full overflow-x-auto flex flex-col items-center min-h-[500px]">
-                        {loading ? (
-                            <div className="flex flex-col items-center justify-center py-32 gap-3 animation-fade-in w-full h-full">
-                                <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                                <span className="text-sm font-bold text-slate-500">กำลังโหลดโครงสร้างสายงานในระบบ...</span>
-                            </div>
-                        ) : (
-                            <React.Fragment>
-                                {/* Top Root Header Card: STK Sales Management — แสดงเฉพาะ Admin */}
-                                {isAdmin && viewMode === 'tree' && (
-                                    <>
-                                        <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-800 text-white rounded-3xl p-5 w-full max-w-xs sm:w-72 text-center shadow-xl border-2 border-white/20 relative z-10 flex flex-col items-center mb-2">
-                                            <div className="w-14 h-14 rounded-full bg-white text-blue-700 flex items-center justify-center font-black text-xl mb-2 shadow-md">
-                                                🏢
-                                            </div>
-                                            <h2 className="text-lg font-black tracking-tight">STK Sales Management</h2>
-                                            <p className="text-[11px] text-blue-200 font-bold mt-0.5">โครงสร้างสายงานในระบบ</p>
+                    {/* 🌟 Org Tree Canvas Container */}
+                    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col flex-1 min-h-[600px] mb-8">
+                        {/* Secondary Interactive Toolbar for Tree Mode */}
+                        {viewMode === 'tree' && (
+                            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/70 flex flex-wrap items-center justify-between gap-3 text-xs">
+                                {/* Left Side: สายงานผู้นำ Focus + Expand/Collapse Buttons */}
+                                <div className="flex flex-wrap items-center gap-3">
+                                    {isAdmin && (
+                                        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-2xs">
+                                            <span className="text-slate-500 font-bold flex items-center gap-1">
+                                                <svg className="w-3.5 h-3.5 text-blue-500 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                                                สายงานผู้นำ:
+                                            </span>
+                                            <select
+                                                value={focusedLeaderId}
+                                                onChange={e => setFocusedLeaderId(e.target.value)}
+                                                className="bg-transparent font-black text-blue-700 outline-none cursor-pointer max-w-[200px] sm:max-w-xs truncate"
+                                            >
+                                                <option value="ALL">🌐 ทุกสายงาน (ภาพรวมทั้งหมด {rootMembers.length} สาย)</option>
+                                                {rootMembers.map(r => (
+                                                    <option key={r.id} value={r.id}>
+                                                        👑 {r.name || r.id} ({teamMap[String(r.team || '').trim().toUpperCase()] || r.team || 'สายงาน'})
+                                                    </option>
+                                                ))}
+                                            </select>
                                         </div>
-                                        <div className="w-0.5 h-6 bg-blue-300 mb-4"></div>
-                                    </>
-                                )}
+                                    )}
 
-                                {viewMode === 'tree' ? (
-                                    /* 🌲 Tree View: Flexible Connected Hierarchy */
-                                    <div className="flex flex-wrap justify-center items-start gap-8 sm:gap-12 w-full pt-2">
-                                        {filteredRootMembers.map(r => (
-                                            <EmployeeCardNode
-                                                key={r.id}
-                                                node={r}
-                                                allMembers={scopedMembers}
-                                                memberSales={memberSalesMap}
-                                                onSelect={m => setSelectedMember(m)}
-                                                onOpenDetail={m => { setSelectedMember(m); setDetailModalOpen(true); }}
-                                                teamMap={teamMap}
-                                                level={0}
-                                                currentUser={currentUser}
-                                                isAdmin={isAdmin}
-                                            />
-                                        ))}
+                                    {/* Quick Expand / Collapse Actions */}
+                                    <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-0.5 shadow-2xs">
+                                        <button
+                                            type="button"
+                                            onClick={() => setCollapsedNodeIds(new Set())}
+                                            className="px-2.5 py-1 rounded-lg text-slate-700 hover:bg-slate-100 font-bold transition-all flex items-center gap-1"
+                                            title="ขยายทุกกิ่งสายงานในผัง"
+                                        >
+                                            <span className="text-blue-600 font-black">⊞</span>
+                                            <span>ขยายทั้งหมด</span>
+                                        </button>
+                                        <div className="w-px h-4 bg-slate-200"></div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const newCollapsed = new Set();
+                                                scopedMembers.forEach(m => {
+                                                    const isRoot = rootMembers.some(r => r.id === m.id);
+                                                    if (!isRoot) newCollapsed.add(m.id);
+                                                });
+                                                setCollapsedNodeIds(newCollapsed);
+                                            }}
+                                            className="px-2.5 py-1 rounded-lg text-slate-700 hover:bg-slate-100 font-bold transition-all flex items-center gap-1"
+                                            title="พับชั้นลูกทีมเพื่อดูเฉพาะระดับหัวหน้า"
+                                        >
+                                            <span className="text-amber-600 font-black">⊟</span>
+                                            <span>พับชั้นลึก (เหลือ Gen 1)</span>
+                                        </button>
                                     </div>
-                                ) : (
-                                    /* 📊 Team View: Grouped by Business Team (Marketing / Center / etc.) */
-                                    <div className="w-full space-y-8">
-                                        {(() => {
-                                            const groupedByTeam = {};
-                                            (scopedMembers || []).forEach(m => {
-                                                const tCode = String(m.team || 'Marketing').trim().toUpperCase();
-                                                const tName = teamMap[tCode] || m.team || 'ทีมการตลาด (Marketing)';
-                                                if (!groupedByTeam[tName]) groupedByTeam[tName] = [];
-                                                groupedByTeam[tName].push(m);
-                                            });
+                                </div>
 
-                                            return Object.entries(groupedByTeam).map(([teamName, teamMembers], tIdx) => {
-                                                const filteredTeamMembers = searchQuery
-                                                    ? teamMembers.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase()) || m.id.toLowerCase().includes(searchQuery.toLowerCase()))
-                                                    : teamMembers;
-
-                                                if (filteredTeamMembers.length === 0) return null;
-
-                                                return (
-                                                    <div key={tIdx} className="bg-slate-50/70 p-5 rounded-3xl border border-slate-200/80 space-y-4">
-                                                        <div className="flex items-center gap-3 border-b border-slate-200 pb-3">
-                                                            <span className="w-3 h-3 rounded-full bg-blue-600"></span>
-                                                            <h3 className="text-base font-black text-slate-800">{teamName}</h3>
-                                                            <span className="bg-blue-100 text-blue-700 text-xs font-black px-2.5 py-0.5 rounded-full">
-                                                                {filteredTeamMembers.length} คน
-                                                            </span>
-                                                        </div>
-
-                                                        <div className="flex flex-wrap gap-4">
-                                                            {filteredTeamMembers.map(m => (
-                                                                <div key={m.id} className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all w-64 flex items-center gap-3">
-                                                                    <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center font-black text-sm shrink-0 overflow-hidden">
-                                                                        {(m.profileUrl && m.profileUrl !== '-' && String(m.profileUrl).trim() !== '') ? <img src={m.profileUrl} onError={e => e.target.style.display = 'none'} className="w-full h-full object-cover rounded-full" /> : (m.name ? m.name.substring(0, 2) : m.id)}
-                                                                    </div>
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <h4 className="text-xs font-black text-slate-800 truncate">{m.name}</h4>
-                                                                        <p className="text-[10px] font-mono text-slate-400 font-bold">{m.id}</p>
-                                                                        {(() => {
-                                                                            const currentUserId = String(currentUser?.id || '').trim().toUpperCase();
-                                                                            const mId = String(m.id || '').trim().toUpperCase();
-                                                                            const isSelf = !!currentUserId && currentUserId === mId;
-                                                                            
-                                                                            const canOpenDetail = isAdmin || isSelf;
-
-                                                                            return canOpenDetail ? (
-                                                                                <button
-                                                                                    onClick={() => { setSelectedMember(m); setDetailModalOpen(true); }}
-                                                                                    className="mt-2 text-[10px] font-black text-blue-600 hover:text-blue-800 underline block"
-                                                                                >
-                                                                                    📊 ดูผลงานสายงาน
-                                                                                </button>
-                                                                            ) : (
-                                                                                <span className="mt-2 text-[10px] font-bold text-slate-400 block cursor-not-allowed opacity-60">
-                                                                                    🚫 ไม่มีสิทธิ์เข้าถึง
-                                                                                </span>
-                                                                            );
-                                                                        })()}
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            });
-                                        })()}
+                                {/* Right Side: Zoom Controls */}
+                                <div className="flex items-center gap-2">
+                                    <div className="flex items-center bg-white border border-slate-200 rounded-xl p-0.5 shadow-2xs">
+                                        <button
+                                            type="button"
+                                            onClick={() => setZoomScale(z => Math.max(40, z - 10))}
+                                            className="w-7 h-7 flex items-center justify-center font-black text-slate-600 hover:bg-slate-100 rounded-lg transition-all text-sm"
+                                            title="ย่อขนาด (Zoom Out)"
+                                        >
+                                            −
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setZoomScale(100)}
+                                            className="px-2 h-7 flex items-center justify-center font-mono font-black text-[11px] text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                            title="รีเซ็ตขนาด 100%"
+                                        >
+                                            {zoomScale}%
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setZoomScale(z => Math.min(150, z + 10))}
+                                            className="w-7 h-7 flex items-center justify-center font-black text-slate-600 hover:bg-slate-100 rounded-lg transition-all text-sm"
+                                            title="ขยายขนาด (Zoom In)"
+                                        >
+                                            +
+                                        </button>
                                     </div>
-                                )}
-                            </React.Fragment>
+                                    <button
+                                        type="button"
+                                        onClick={() => setZoomScale(75)}
+                                        className="px-2.5 h-8 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-[10.5px] font-black text-slate-700 shadow-xs flex items-center gap-1 transition-all"
+                                        title="ปรับขนาดผังให้พอดีจอ"
+                                    >
+                                        <svg className="w-3 h-3 text-slate-500 fill-current" viewBox="0 0 24 24"><path d="M15 3l2.3 2.3-2.89 2.87 1.42 1.42L18.7 6.7 21 9V3zM3 9l2.3-2.3 2.87 2.89 1.42-1.42L6.7 5.3 9 3H3zm6 12l-2.3-2.3 2.89-2.87-1.42-1.42L5.3 17.3 3 15v6zm12-6l-2.3 2.3-2.87-2.89-1.42 1.42 2.89 2.87L15 21h6z"/></svg>
+                                        <span>พอดีจอ (75%)</span>
+                                    </button>
+                                </div>
+                            </div>
                         )}
-                    </div>
 
+                        {/* 🎨 Canvas Interactive Viewport */}
+                        <div 
+                            className="w-full flex-1 overflow-auto p-6 sm:p-10 relative cursor-grab active:cursor-grabbing min-h-[500px]"
+                            style={{
+                                backgroundImage: 'radial-gradient(#cbd5e1 1.2px, transparent 1.2px)',
+                                backgroundSize: '24px 24px',
+                                backgroundColor: '#f8fafc'
+                            }}
+                        >
+                            {loading ? (
+                                <div className="flex flex-col items-center justify-center py-32 gap-3 animation-fade-in w-full h-full">
+                                    <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                                    <span className="text-sm font-bold text-slate-500">กำลังโหลดโครงสร้างสายงานในระบบ...</span>
+                                </div>
+                            ) : (
+                                <div
+                                    className="w-max min-w-full flex flex-col items-center justify-start pt-2 pb-12 transition-transform duration-200 origin-top"
+                                    style={{ transform: `scale(${zoomScale / 100})` }}
+                                >
+                                    {/* Top Root Header Card: STK Sales Management — แสดงเฉพาะ Admin เมื่อดูภาพรวม */}
+                                    {isAdmin && viewMode === 'tree' && focusedLeaderId === 'ALL' && (
+                                        <>
+                                            <div 
+                                                className="rounded-2xl p-3.5 w-full max-w-xs sm:w-64 text-center shadow-md border relative z-10 flex flex-col items-center mb-1 select-none"
+                                                style={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#ffffff' }}
+                                            >
+                                                <div className="w-9 h-9 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center mb-1.5 shadow-xs">
+                                                    <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z"/></svg>
+                                                </div>
+                                                <h2 className="text-sm font-black tracking-tight text-white">STK Sales Management</h2>
+                                                <p className="text-[10px] text-slate-400 font-bold">โครงสร้างสายงานในระบบ (ภาพรวม)</p>
+                                            </div>
+                                            <div className="w-px h-5 bg-slate-300 mb-2"></div>
+                                        </>
+                                    )}
+
+                                    {viewMode === 'tree' ? (
+                                        /* 🌲 Tree View: Flexible Connected Hierarchy */
+                                        <div className="flex justify-center items-start gap-6 sm:gap-8 w-full pt-2">
+                                            
+{displayedRootMembers.map(r => (
+                                                <EmployeeCardNode
+                                                    key={r.id}
+                                                    node={r}
+                                                    allMembers={scopedMembers}
+                                                    memberSales={memberSalesMap}
+                                                    onSelect={m => setSelectedMember(m)}
+                                                    onOpenDetail={m => { setSelectedMember(m); setDetailModalOpen(true); }}
+                                                    teamMap={teamMap}
+                                                    level={0}
+                                                    currentUser={currentUser}
+                                                    isAdmin={isAdmin}
+                                                    collapsedNodeIds={collapsedNodeIds}
+                                                    toggleCollapse={toggleCollapse}
+                                                />
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        /* 📊 Team View: Grouped by Business Team (Marketing / Center / etc.) */
+                                        <div className="w-full space-y-8">
+                                            {(() => {
+                                                const groupedByTeam = {};
+                                                (scopedMembers || []).forEach(m => {
+                                                    const tCode = String(m.team || 'Marketing').trim().toUpperCase();
+                                                    const tName = teamMap[tCode] || m.team || 'ทีมการตลาด (Marketing)';
+                                                    if (!groupedByTeam[tName]) groupedByTeam[tName] = [];
+                                                    groupedByTeam[tName].push(m);
+                                                });
+
+                                                return Object.entries(groupedByTeam).map(([teamName, teamMembers], tIdx) => {
+                                                    const filteredTeamMembers = searchQuery
+                                                        ? teamMembers.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase()) || m.id.toLowerCase().includes(searchQuery.toLowerCase()))
+                                                        : teamMembers;
+
+                                                    if (filteredTeamMembers.length === 0) return null;
+
+                                                    return (
+                                                        <div key={tIdx} className="bg-slate-50/70 p-5 rounded-3xl border border-slate-200/80 space-y-4">
+                                                            <div className="flex items-center gap-3 border-b border-slate-200 pb-3">
+                                                                <span className="w-3 h-3 rounded-full bg-blue-600"></span>
+                                                                <h3 className="text-base font-black text-slate-800">{teamName}</h3>
+                                                                <span className="bg-blue-100 text-blue-700 text-xs font-black px-2.5 py-0.5 rounded-full">
+                                                                    {filteredTeamMembers.length} คน
+                                                                </span>
+                                                            </div>
+
+                                                            <div className="flex flex-wrap gap-4">
+                                                                {filteredTeamMembers.map(m => (
+                                                                    <div key={m.id} className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all w-64 flex items-center gap-3">
+                                                                        <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center font-black text-sm shrink-0 overflow-hidden">
+                                                                            {(m.profileUrl && m.profileUrl !== '-' && String(m.profileUrl).trim() !== '') ? <img src={m.profileUrl} onError={e => e.target.style.display = 'none'} className="w-full h-full object-cover rounded-full" /> : (m.name ? m.name.substring(0, 2) : m.id)}
+                                                                        </div>
+                                                                        <div className="flex-1 min-w-0">
+                                                                            <h4 className="text-xs font-black text-slate-800 truncate">{m.name}</h4>
+                                                                            <p className="text-[10px] font-mono text-slate-400 font-bold">{m.id}</p>
+                                                                            {(() => {
+                                                                                const currentUserId = String(currentUser?.id || '').trim().toUpperCase();
+                                                                                const mId = String(m.id || '').trim().toUpperCase();
+                                                                                const isSelf = !!currentUserId && currentUserId === mId;
+                                                                                const canOpenDetail = isAdmin || isSelf;
+
+                                                                                return canOpenDetail ? (
+                                                                                    <button
+                                                                                        onClick={() => { setSelectedMember(m); setDetailModalOpen(true); }}
+                                                                                        className="mt-2 text-[10px] font-black text-blue-600 hover:text-blue-800 underline block"
+                                                                                    >
+                                                                                        📊 ดูผลงานสายงาน
+                                                                                    </button>
+                                                                                ) : (
+                                                                                    <span className="mt-2 text-[10px] font-bold text-slate-400 block cursor-not-allowed opacity-60">
+                                                                                        🚫 ไม่มีสิทธิ์เข้าถึง
+                                                                                    </span>
+                                                                                );
+                                                                            })()}
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                });
+                                            })()}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
                     {/* 🟢 Detail Modal Popup */}
                     <MemberPerformanceDetailModal
                         isOpen={detailModalOpen}
@@ -1566,13 +1262,37 @@
             const [showLoginModal, setShowLoginModal] = useState(false);
 
             const initialCache = (() => {
-                try { const data = localStorage.getItem('stk_app_cache_data'); return data ? JSON.parse(data) : null; }
+                try {
+                    const time = localStorage.getItem('stk_app_cache_time');
+                    // ถ้าแคชมีอายุเกิน 30 วินาที ให้ดึงสด ป้องกันแคชรายชื่อบทบาทเก่าค้าง
+                    if (time && Date.now() - Number(time) > 30000) {
+                        return null;
+                    }
+                    const data = localStorage.getItem('stk_app_cache_data'); 
+                    return data ? JSON.parse(data) : null; 
+                }
                 catch (e) { return null; }
             })();
 
             const [products, setProducts] = useState(() => initialCache && Array.isArray(initialCache.products) ? initialCache.products : []);
             const [customerTypes, setCustomerTypes] = useState(() => initialCache && Array.isArray(initialCache.customerTypes) ? initialCache.customerTypes : fallbackCustomerTypes);
-            const [members, setMembers] = useState(() => initialCache && Array.isArray(initialCache.members) ? initialCache.members.map(m => ({ ...m, id: m.id || m.user_id || m.member_id, name: m.name })) : []);
+            const [members, setMembers] = useState(() => {
+                if (!initialCache || !Array.isArray(initialCache.members)) return [];
+                return initialCache.members.map(m => ({
+                    ...m,
+                    id: String(m.id || m.user_id || m.member_id || m.User_ID || '').trim(),
+                    name: String(m.name || m.Name || '').trim(),
+                    referrer: String(m.referrer || m.sponsor_id || m.Sponsor_ID || '').trim(),
+                    team: String(m.team || m.business_team || m.Business_Team || 'Marketing').trim(),
+                    role: String(m.role || m.permission_role || m.Permission_Role || 'พนักงานทั่วไป').trim(),
+                    status: String(m.status || m.Status || 'ทำงานอยู่').trim(),
+                    profileUrl: m.profile_url || m.id_card_url || m.ID_Card_URL || '',
+                    phone: m.phone || m.phone_number || m.Phone_Number || '',
+                    email: m.email || m.Email || '',
+                    lineId: m.line_id || m.LINE_ID || '',
+                    accumulatedPV: Number(m.accumulated_pv || m.Accumulated_PV || 0)
+                })).filter(m => m.id !== '');
+            });
             const [customers, setCustomers] = useState(() => initialCache && Array.isArray(initialCache.customers) ? initialCache.customers : []);
             const [sales, setSales] = useState(() => initialCache && Array.isArray(initialCache.sales) ? initialCache.sales : []);
             const [businessTeams, setBusinessTeams] = useState(() => initialCache && Array.isArray(initialCache.businessTeams) ? initialCache.businessTeams.map(t => ({ ...t, id: t.id || t.team_id, name: t.name || t.team_name })) : []);
@@ -1631,7 +1351,7 @@
             const pagePerm = window.getUserPagePermission ? window.getUserPagePermission(currentUser, 'orgchart') : 'none';
             const isAdmin = currentUser && (
                 String(currentUser.role).trim() === 'ผู้ดูแลระบบ' ||
-                String(currentUser.role).trim().toLowerCase().includes('admin') || String(currentUser.role).trim().includes('à¹à¸­à¸”à¸¡à¸´à¸™') ||
+                String(currentUser.role).trim().toLowerCase().includes('admin') || String(currentUser.role).trim().includes('แอดมิน') ||
                 pagePerm === 'full'
             );
             const currentUserProfileUrl = currentUser?.profileUrl || '';
@@ -1650,9 +1370,9 @@
                 if (initialLoader) { initialLoader.style.opacity = '0'; setTimeout(() => { if (initialLoader) initialLoader.style.display = 'none'; }, 400); }
 
                 Promise.all([
-                    supabaseSelect('stk_products', 'select=product_id,name,category,price_full,price_member,price_promo,give_pv,status,image_url').catch(() => supabaseSelect('products')),
+                    supabaseSelect('stk_products', 'select=product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,image_url,self_fee,level_1_fee,level_2_fee,level_3_fee,level_4_fee,level_5_fee,self_percent_full,level_1_percent_full,self_percent_member,level_1_percent_member').catch(() => supabaseSelect('products')),
                     supabaseSelect('stk_customer_types').catch(() => supabaseSelect('customer_types')),
-                    supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status,accumulated_pv,phone_number,email,id_card_url').catch(() => supabaseSelect('members')),
+                    supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status,accumulated_pv,phone_number,email,id_card_url&nocache=true').catch(() => supabaseSelect('members')),
                     supabaseSelect('stk_customers', 'order=customer_id.desc&limit=2000').catch(() => supabaseSelect('customers')),
                     supabaseSelect('stk_sales', 'order=order_id.desc&limit=3000').catch(() => supabaseSelect('sales')),
                     supabaseSelect('stk_business_teams').catch(() => supabaseSelect('business_teams')),
@@ -1700,6 +1420,10 @@
                             category: String(p.category || '').trim(),
                             self_fee: Number(p.self_fee || p.selfFee || p.Self_Fee || p.SelfFee || 0),
                             level_1_fee: Number(p.level_1_fee || p.level1Fee || p.Level_1_Fee || p.Level1Fee || 0),
+                            level_2_fee: Number(p.level_2_fee || p.level2Fee || p.Level_2_Fee || 0),
+                            level_3_fee: Number(p.level_3_fee || p.level3Fee || p.Level_3_Fee || 0),
+                            level_4_fee: Number(p.level_4_fee || p.level4Fee || p.Level_4_Fee || 0),
+                            level_5_fee: Number(p.level_5_fee || p.level5Fee || p.Level_5_Fee || 0),
                             price_full: Number(p.price_full ?? p.priceFull ?? 0),
                             price_member: Number(p.price_member ?? p.priceMember ?? 0),
                             full_margin_amount: Number(margin.amount ?? 0),
@@ -1745,56 +1469,12 @@
                 if (Array.isArray(response.businessTeams)) setBusinessTeams(response.businessTeams.map(t => ({ ...t, id: String(t.id || t.team_id || t.Team_ID || "").trim(), name: String(t.name || t.team_name || t.Team_Name || t.TeamName || "").trim(), status: String(t.status || t.Status || "ใช้งาน").trim() })));
 
                 if (Array.isArray(response.sales)) {
-                    const processedSales = response.sales.map(s => {
-                        let sumF = 0, sumP = 0, sumZ = 0, sumM = 0;
-                        let itemsList = [];
-                        if (s.items_json) {
-                            try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch (e) { }
-                        }
-
-                        if (Array.isArray(itemsList) && itemsList.length > 0) {
-                            itemsList.forEach(it => {
-                                const typeStr = String(it.type || '').trim();
-                                const qtyNum = Number(it.qty || it.quantity || 1);
-                                const pName = String(it.prod || it.productName || it.name || 'Unknown').trim();
-                                s[`${pName}_${typeStr}`] = qtyNum;
-
-                                if (typeStr === 'ราคาเต็ม') sumF += qtyNum;
-                                else if (typeStr === 'ราคาสมาชิก') sumM += qtyNum;
-                                else if (typeStr === 'ราคาโปร' || typeStr === 'โปรโมชั่น') sumP += qtyNum;
-                                else if (typeStr === 'ราคาศูนย์' || typeStr === 'ราคาฟรี') sumZ += qtyNum;
-                                else sumM += qtyNum;
-                            });
-                        } else {
-                            Object.keys(s).forEach(k => {
-                                if (k !== 'รวมชิ้นราคาเต็ม' && k !== 'รวมชิ้นราคาโปร' && k !== 'รวมชิ้นราคาศูนย์' && k !== 'ยอดรวมชิ้นทั้งหมด') {
-                                    if (k.endsWith('_ราคาเต็ม')) sumF += (parseInt(s[k]) || 0);
-                                    else if (k.endsWith('_ราคาโปร')) sumP += (parseInt(s[k]) || 0);
-                                    else if (k.endsWith('_ราคาศูนย์')) sumZ += (parseInt(s[k]) || 0);
-                                    else if (k.endsWith('_ราคาสมาชิก')) sumM += (parseInt(s[k]) || 0);
-                                }
-                            });
-                        }
-                        s['รวมชิ้นราคาเต็ม'] = sumF; s['รวมชิ้นราคาโปร'] = sumP; s['รวมชิ้นราคาศูนย์'] = sumZ; s['รวมชิ้นราคาสมาชิก'] = sumM;
-                        s['ยอดรวมชิ้นทั้งหมด'] = sumF + sumM + sumP + sumZ;
-
-                        const cleanSeller = String(s.seller_id || s.sellerId || s.seller || s.memberId || s.marketing_name || s.marketing || '').trim().toUpperCase();
-                        s['memberId'] = cleanSeller;
-                        s['sellerId'] = cleanSeller;
-
-                        return {
-                            ...s,
-                            id: s.id || s.sale_id,
-                            date: s.date || s.sale_date,
-                            marketing: cleanSeller,
-                            seller: cleanSeller,
-                            customerName: s.customer_name || s.customerName
-                        };
-                    });
+                    const processedSales = (window.OrgChartLogic?.processOrgChartSales)
+                        ? window.OrgChartLogic.processOrgChartSales(response.sales)
+                        : response.sales;
                     setSales(processedSales);
                 }
             };
-
             return (
                 <div className="min-h-screen bg-slate-100 flex flex-col lg:flex-row font-sans antialiased text-slate-800 w-full">
                     <Toast toast={toast} setToast={setToast} />
@@ -1819,7 +1499,7 @@
                         setIsAppLoading={setIsAppLoading}
                     />
 
-                    <main className={`flex-1 flex flex-col min-h-screen bg-slate-50 transition-all duration-300 relative ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} w-full overflow-x-hidden`}>
+                    <main className={`flex-1 flex flex-col min-h-screen bg-slate-50 transition-all duration-300 relative ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} min-w-0 max-w-full overflow-x-hidden`}>
 
                         <div className="p-3 sm:p-6 lg:p-8 flex-1 w-full">
                             <div className="w-full">
