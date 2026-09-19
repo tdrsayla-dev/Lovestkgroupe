@@ -476,15 +476,28 @@ async function fetchSyncedBillsStats(startStr, endStr) {
         totalPayable += payable;
     });
 
+    // ຄຳນວນຈຳນວນຄົນທີ່ມາຕວດຈິງ (ບໍ່ນັບຊ້ຳ - Unique Patients ຕາມ HN / ຊື່)
+    const uniquePatients = new Set();
+    inRangeBills.forEach(b => {
+        const key = (b.hn && b.hn !== '-') 
+            ? b.hn.trim().toLowerCase() 
+            : (b.patient_name || b.visit_id || '').trim().toLowerCase();
+        if (key) {
+            uniquePatients.add(key);
+        }
+    });
+
     return {
         count: inRangeBills.length,
+        actualPatientsCount: uniquePatients.size,
         revenue: totalPayable
     };
 }
 
 window.updateDashboardBillsCount = async function () {
     const el = document.getElementById('db-stat-bills') || document.getElementById('db-stat-patients');
-    if (!el) return;
+    const actualEl = document.getElementById('db-stat-actual-patients');
+    if (!el && !actualEl) return;
     let minDate = (window.dbStartDate && window.dbEndDate) ? (window.dbStartDate < window.dbEndDate ? window.dbStartDate : window.dbEndDate) : new Date();
     let maxDate = (window.dbStartDate && window.dbEndDate) ? (window.dbStartDate > window.dbEndDate ? window.dbStartDate : window.dbEndDate) : new Date();
 
@@ -495,7 +508,8 @@ window.updateDashboardBillsCount = async function () {
 
     try {
         const stats = await fetchSyncedBillsStats(startStr, endStr);
-        el.textContent = stats.count.toLocaleString();
+        if (el) el.textContent = stats.count.toLocaleString();
+        if (actualEl) actualEl.textContent = (stats.actualPatientsCount !== undefined ? stats.actualPatientsCount : stats.count).toLocaleString();
         const revEl = document.getElementById('db-stat-payments');
         if (revEl) {
             revEl.textContent = stats.revenue > 0 ? '₭' + Math.round(stats.revenue).toLocaleString() : '₭0';
@@ -600,10 +614,12 @@ window.updateDashboardStats = async function () {
         // ดึงยอดรายรับรวมและจำนวนบิลที่ซิงค์ตรงกับระบบ Bill 100%
         let totalRevenueFromBills = 0;
         let totalBillsCount = 0;
+        let actualPatientsCount = 0;
         try {
             const billStats = await fetchSyncedBillsStats(startStr, endStr);
             totalBillsCount = billStats.count;
             totalRevenueFromBills = billStats.revenue;
+            actualPatientsCount = billStats.actualPatientsCount !== undefined ? billStats.actualPatientsCount : billStats.count;
         } catch (billRevErr) {
             console.warn('Error loading synced revenue from bills:', billRevErr);
         }
@@ -971,6 +987,9 @@ window.updateDashboardStats = async function () {
         }
         if (document.getElementById('db-stat-bills')) {
             document.getElementById('db-stat-bills').textContent = (totalBillsCount || 0).toLocaleString();
+        }
+        if (document.getElementById('db-stat-actual-patients')) {
+            document.getElementById('db-stat-actual-patients').textContent = (actualPatientsCount || 0).toLocaleString();
         }
 
 

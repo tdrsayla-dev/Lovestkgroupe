@@ -119,26 +119,26 @@ body.standalone-mode {
     gap: 12px;
 }
 
-/* --- Row 1: Top 6 Stat Cards --- */
-.db-grid-6-v2 {
+/* --- Row 1: Top 7 Stat Cards --- */
+.db-grid-6-v2, .db-grid-7-v2 {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 14px;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 12px;
 }
 
 .db-stat-card-v2 {
     background: #ffffff;
     border: 1px solid var(--border-light);
     border-radius: var(--card-radius);
-    padding: 16px 18px;
+    padding: 14px 14px;
     box-shadow: var(--card-shadow);
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
     position: relative;
     overflow: hidden;
     transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.22s ease;
-    min-height: 98px;
+    min-height: 96px;
 }
 
 .db-stat-card-v2::before {
@@ -162,6 +162,10 @@ body.standalone-mode {
 
 .db-stat-card-v2.cat-clinic::before {
     background: linear-gradient(90deg, #d97706 0%, #0284c7 100%);
+}
+
+.db-stat-card-v2.cat-actual::before {
+    background: linear-gradient(90deg, #10b981 0%, #059669 100%);
 }
 
 .db-stat-card-v2:hover {
@@ -220,6 +224,12 @@ body.standalone-mode {
     background: #eff6ff;
     color: #0284c7;
     border: 1px solid #dbeafe;
+}
+
+.db-stat-icon-wrapper.icon-emerald {
+    background: #ecfdf5;
+    color: #059669;
+    border: 1px solid #a7f3d0;
 }
 
 .db-stat-content-v2 {
@@ -1008,13 +1018,17 @@ body.standalone-mode {
 
 /* --- Responsive Breakpoints --- */
 @media (max-width: 1550px) {
-    .db-grid-6-v2 {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 14px;
+    .db-grid-6-v2, .db-grid-7-v2 {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
     }
 }
 
 @media (max-width: 1200px) {
+    .db-grid-6-v2, .db-grid-7-v2 {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+    }
     .db-grid-3-v2 {
         grid-template-columns: 1fr;
     }
@@ -1027,7 +1041,7 @@ body.standalone-mode {
 }
 
 @media (max-width: 991px) {
-    .db-grid-6-v2 {
+    .db-grid-6-v2, .db-grid-7-v2 {
         grid-template-columns: repeat(2, 1fr);
         gap: 12px;
     }
@@ -1037,7 +1051,7 @@ body.standalone-mode {
 }
 
 @media (max-width: 576px) {
-    .db-grid-6-v2 {
+    .db-grid-6-v2, .db-grid-7-v2 {
         grid-template-columns: 1fr;
         gap: 10px;
     }

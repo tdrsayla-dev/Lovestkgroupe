@@ -31,7 +31,7 @@
     <script src="i18n.js?v=2.5.2"></script>
 
     <!-- Dedicated Dashboard Stylesheet -->
-    <link rel="stylesheet" href="dashboard.css?v=2.0">
+    <link rel="stylesheet" href="dashboard.css?v=2.1">
 </head>
 <body>
 
@@ -107,15 +107,15 @@
             <path id="circle-noncomm"></path>
         </svg>
 
-        <!-- Row 1: Top 6 Stat Cards -->
-        <div class="db-grid-6-v2">
+        <!-- Row 1: Top 7 Stat Cards -->
+        <div class="db-grid-6-v2 db-grid-7-v2">
             <!-- Card 1: Order Revenue (stk_nutrient_orders VIS-ORD) -->
             <div class="db-stat-card-v2 cat-order">
                 <div class="db-stat-icon-wrapper icon-teal">
                     <i class="ph ph-chart-line-up"></i>
                 </div>
                 <div class="db-stat-content-v2">
-                    <span class="db-stat-title-v2">ຍອດເງິນ Order ອາຫານເສີມ</span>
+                    <span class="db-stat-title-v2">ຍອດ Marketing Order</span>
                     <div class="db-stat-value-box-v2">
                         <span class="db-stat-num-v2" id="db-stat-appointments">฿0</span>
                         <span class="db-stat-unit-v2" id="db-stat-appointments-unit">THB</span>
@@ -132,7 +132,7 @@
                     <i class="ph ph-shopping-cart"></i>
                 </div>
                 <div class="db-stat-content-v2">
-                    <span class="db-stat-title-v2">ຈຳນວນ Order ອາຫານເສີມ</span>
+                    <span class="db-stat-title-v2">ຍອດ Bill From Marketing</span>
                     <div class="db-stat-value-box-v2">
                         <span class="db-stat-num-v2" id="db-stat-rescheduled">0</span>
                         <span class="db-stat-unit-v2" data-i18n="unit_items">ລາຍການ</span>
@@ -194,19 +194,36 @@
                 </div>
             </div>
 
-            <!-- Card 6: Total Bills / Patients -->
+            <!-- Card 6: Total Bills -->
             <div class="db-stat-card-v2 cat-clinic">
                 <div class="db-stat-icon-wrapper icon-blue">
-                    <i class="ph ph-users"></i>
+                    <i class="ph ph-receipt"></i>
                 </div>
                 <div class="db-stat-content-v2">
-                    <span class="db-stat-title-v2">ຈຳນວນຄົນມາກວດ</span>
+                    <span class="db-stat-title-v2">ຈຳນວນໃບບິນ</span>
                     <div class="db-stat-value-box-v2">
                         <span class="db-stat-num-v2" id="db-stat-bills">0</span>
-                        <span class="db-stat-unit-v2">ຄົນ</span>
+                        <span class="db-stat-unit-v2">ໃບ</span>
                     </div>
                     <span class="db-stat-trend-v2 trend-up">
-                        <i class="ph ph-arrow-up"></i> 15% ເພີ່ມຂຶ້ນຈາກເດືອນກ່ອນ
+                        <i class="ph ph-receipt"></i> ບິນຄ່າກວດທັງໝົດ
+                    </span>
+                </div>
+            </div>
+
+            <!-- Card 7: Actual Patients (Unique Patients Who Visited) -->
+            <div class="db-stat-card-v2 cat-actual">
+                <div class="db-stat-icon-wrapper icon-emerald">
+                    <i class="ph ph-user-check"></i>
+                </div>
+                <div class="db-stat-content-v2">
+                    <span class="db-stat-title-v2">ຈຳນວນຄົນທີ່ມາຕວດຈິງ</span>
+                    <div class="db-stat-value-box-v2">
+                        <span class="db-stat-num-v2" id="db-stat-actual-patients">0</span>
+                        <span class="db-stat-unit-v2">ຄົນ</span>
+                    </div>
+                    <span class="db-stat-trend-v2 trend-up" id="db-stat-actual-patients-subtext">
+                        <i class="ph ph-check-circle"></i> ບໍ່ນັບຊ້ຳ (Unique HN)
                     </span>
                 </div>
             </div>
@@ -597,6 +614,6 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="dashboard.js?v=1.6"></script>
+    <script src="dashboard.js?v=1.7"></script>
 </body>
 </html>

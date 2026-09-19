@@ -1347,6 +1347,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 const isAdmin = userRole === 'admin' ||
                     userRole === 'administrator' ||
                     userRole === 'ผู้ดูแลระบบ' ||
+                    userRole === 'ຜູ້ດູແລລະບົບ' ||
+                    userRole === 'superadmin' ||
                     permissions.includes('all') ||
                     userEmp === 'admin01' ||
                     userName.includes('admin');
@@ -1409,13 +1411,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (event.source) {
                     event.source.postMessage({
                         type: 'PATIENTS_DATA',
-                        patients: allPatients,
-                        allPatients: allPatients,
+                        patients: isAdmin ? allPatients : myPatients,
+                        allPatients: isAdmin ? allPatients : myPatients,
                         myPatients: myPatients,
-                        orders: allOrdersList,
-                        allOrders: allOrdersList,
+                        orders: isAdmin ? allOrdersList : myOrdersList,
+                        allOrders: isAdmin ? allOrdersList : myOrdersList,
                         myOrders: myOrdersList,
-                        isAdmin: true,
+                        isAdmin: isAdmin,
                         currentUserCode: userEmpCode,
                         currentUserName: currentUser ? (currentUser.name || currentUser.full_name || currentUser.email) : '',
                         targetHn: event.data.targetHn || null
@@ -2268,8 +2270,72 @@ function onPatientProvinceChange(targetDistrictVal = null) {
 
 
 
+// 🌟 Date & Time Filter สำหรับจุดคัดกรอง (Triage)
+window.triageFilterMode = window.triageFilterMode || 'today';
+
+window.setTriageDateFilter = function (mode) {
+    window.triageFilterMode = mode;
+
+    const btnToday = document.getElementById('btnTriageToday');
+    const btnMonth = document.getElementById('btnTriageMonth');
+    const btnCustom = document.getElementById('btnTriageCustom');
+    const customBox = document.getElementById('triageCustomDateBox');
+
+    [btnToday, btnMonth, btnCustom].forEach(btn => {
+        if (!btn) return;
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-light', 'text-secondary');
+    });
+
+    if (mode === 'today') {
+        if (btnToday) {
+            btnToday.classList.add('btn-primary');
+            btnToday.classList.remove('btn-light', 'text-secondary');
+        }
+        if (customBox) {
+            customBox.classList.remove('d-flex');
+            customBox.classList.add('d-none');
+        }
+        loadTriage();
+    } else if (mode === 'month') {
+        if (btnMonth) {
+            btnMonth.classList.add('btn-primary');
+            btnMonth.classList.remove('btn-light', 'text-secondary');
+        }
+        if (customBox) {
+            customBox.classList.remove('d-flex');
+            customBox.classList.add('d-none');
+        }
+        loadTriage();
+    } else if (mode === 'custom') {
+        if (btnCustom) {
+            btnCustom.classList.add('btn-primary');
+            btnCustom.classList.remove('btn-light', 'text-secondary');
+        }
+        if (customBox) {
+            customBox.classList.remove('d-none');
+            customBox.classList.add('d-flex');
+        }
+
+        const startInput = document.getElementById('triageStartDateTime');
+        const endInput = document.getElementById('triageEndDateTime');
+        const vNow = typeof getVientianeNow === 'function' ? getVientianeNow() : new Date();
+        const y = vNow.getFullYear();
+        const m = String(vNow.getMonth() + 1).padStart(2, '0');
+        const d = String(vNow.getDate()).padStart(2, '0');
+        const todayStr = `${y}-${m}-${d}`;
+
+        if (startInput && !startInput.value) {
+            startInput.value = `${todayStr}T00:00`;
+        }
+        if (endInput && !endInput.value) {
+            endInput.value = `${todayStr}T23:59`;
+        }
+        loadTriage();
+    }
+};
+
 async function loadTriage() {
-    // โหลดประวัติการคัดกรองเบื้องต้น (ตารางล่าง) ควบคู่ไปด้วยเสมอ
     if (typeof loadTriageHistory === 'function') {
         loadTriageHistory();
     }
@@ -2277,12 +2343,55 @@ async function loadTriage() {
     const tbody = document.querySelector('#triageTable tbody');
     if (!tbody) return;
 
-    const { data, error } = await _supabase
+    // คำนวณช่วงวันและเวลาตามโหมดตัวกรอง
+    const mode = window.triageFilterMode || 'today';
+    let startISO = null;
+    let endISO = null;
+    let periodLabel = 'วันนี้';
+
+    const vNow = typeof getVientianeNow === 'function' ? getVientianeNow() : new Date();
+    const y = vNow.getFullYear();
+    const m = String(vNow.getMonth() + 1).padStart(2, '0');
+    const d = String(vNow.getDate()).padStart(2, '0');
+    const todayStr = `${y}-${m}-${d}`;
+
+    if (mode === 'today') {
+        startISO = `${todayStr}T00:00:00+07:00`;
+        endISO = `${todayStr}T23:59:59+07:00`;
+        periodLabel = typeof t === 'function' ? t('today', 'วันนี้') : 'วันนี้';
+    } else if (mode === 'month') {
+        const lastDay = new Date(y, vNow.getMonth() + 1, 0).getDate();
+        const lastDayStr = String(lastDay).padStart(2, '0');
+        startISO = `${y}-${m}-01T00:00:00+07:00`;
+        endISO = `${y}-${m}-${lastDayStr}T23:59:59+07:00`;
+        periodLabel = typeof t === 'function' ? t('this_month', 'เดือนนี้') : 'เดือนนี้';
+    } else if (mode === 'custom') {
+        const startVal = document.getElementById('triageStartDateTime')?.value;
+        const endVal = document.getElementById('triageEndDateTime')?.value;
+        if (startVal) {
+            startISO = startVal.length === 16 ? `${startVal}:00+07:00` : `${startVal}+07:00`;
+        }
+        if (endVal) {
+            endISO = endVal.length === 16 ? `${endVal}:59+07:00` : `${endVal}+07:00`;
+        }
+        periodLabel = typeof t === 'function' ? t('custom_date', 'กำหนดเอง') : 'กำหนดเอง';
+    }
+
+    let query = _supabase
         .from('visits')
         .select('visit_id, hn, patient_name, status, created_at')
-        .eq('status', 'รอคัดกรอง')
-        .order('created_at', { ascending: true })
-        .limit(100);
+        .eq('status', 'รอคัดกรอง');
+
+    if (startISO) {
+        query = query.gte('created_at', startISO);
+    }
+    if (endISO) {
+        query = query.lte('created_at', endISO);
+    }
+
+    query = query.order('created_at', { ascending: true }).limit(100);
+
+    const { data, error } = await query;
 
     tbody.innerHTML = '';
     if (error) {
@@ -2290,16 +2399,34 @@ async function loadTriage() {
         return;
     }
     if (!data || data.length === 0) {
-        const emptyText = typeof t === 'function' ? t('triage_empty', 'ยังไม่มีผู้ป่วยรอคัดกรอง') : 'ยังไม่มีผู้ป่วยรอคัดกรอง';
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">${emptyText}</td></tr>`;
+        const emptyMsg = `ยังไม่มีผู้ป่วยรอคัดกรอง (${periodLabel})`;
+        const switchMonthBtn = mode === 'today'
+            ? `<div class="mt-2"><button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="setTriageDateFilter('month')"><i class="bi bi-calendar-month me-1"></i>ดูคิวทั้งหมดในเดือนนี้</button></div>`
+            : '';
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-5"><i class="bi bi-calendar2-x text-warning d-block mb-2 fs-2 opacity-75"></i><div class="fw-semibold">${emptyMsg}</div>${switchMonthBtn}</td></tr>`;
         return;
     }
 
     const btnHistoryText = typeof t === 'function' ? t('triage_btn_history', 'ซักประวัติ') : 'ซักประวัติ';
     data.forEach((row, idx) => {
-        tbody.innerHTML += `<tr><td class="ps-4 text-center fw-semibold text-secondary">${idx + 1}</td><td class="fw-bold">${row.visit_id}</td><td><div class="fw-bold text-dark">${row.patient_name}</div><div class="text-muted small">HN: ${row.hn}</div></td><td class="text-end pe-4"><button class="btn btn-sm btn-primary px-3" onclick="openTriageModal('${row.visit_id}')">${btnHistoryText}</button></td></tr>`;
+        let timeStr = '';
+        if (row.created_at) {
+            try {
+                const dt = new Date(row.created_at);
+                timeStr = dt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+            } catch (e) { }
+        }
+        const timeBadge = timeStr ? `<span class="badge bg-light text-secondary ms-2 fw-normal" style="font-size: 0.75rem;"><i class="bi bi-clock me-1"></i>${timeStr}</span>` : '';
+
+        tbody.innerHTML += `<tr>
+            <td class="ps-4 text-center fw-semibold text-secondary">${idx + 1}</td>
+            <td class="fw-bold">${row.visit_id}${timeBadge}</td>
+            <td><div class="fw-bold text-dark">${row.patient_name}</div><div class="text-muted small">HN: ${row.hn}</div></td>
+            <td class="text-end pe-4"><button class="btn btn-sm btn-primary px-3" onclick="openTriageModal('${row.visit_id}')">${btnHistoryText}</button></td>
+        </tr>`;
     });
 }
+window.loadTriage = loadTriage;
 
 // ตรวจสอบว่าผู้ใช้ที่กำลังล็อกอินเป็นแพทย์หรือไม่
 function isDoctorUser(currentUser) {
@@ -2491,7 +2618,7 @@ window.renderDoctorTable = function (page = window.doctorCurrentPage) {
             : `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-2"><i class="bi bi-clock me-1"></i>ยังไม่ระบุแพทย์</span>`;
 
         const isInLab = (row.status === 'รอผลแล็บ' || row.status === 'รอผลตรวจ Lab' || row.status === 'รอผลแล็บเพิ่มเติม');
-        const labStatusBadge = isInLab 
+        const labStatusBadge = isInLab
             ? `<span class="badge bg-warning text-dark border border-warning ms-2" style="font-size: 0.72rem;"><i class="bi bi-hourglass-split me-1"></i>ລໍຖ້າຜົນແລັບ</span>`
             : '';
 
@@ -3767,7 +3894,7 @@ async function showLabDetails(visitId, hn, patientName, testsString, labNote = '
         const itemDetails = getTestItemDetails(test);
         const testKey = test.trim().toLowerCase();
         const isAddOn = addOnTests.some(a => testKey === a || testKey.includes(a) || a.includes(testKey));
-        const addOnBadge = isAddOn 
+        const addOnBadge = isAddOn
             ? `<span class="badge bg-warning text-dark border border-warning px-2 py-0.5 rounded-pill fw-bold ms-2" style="font-size: 0.72rem;"><i class="bi bi-plus-circle-fill me-1"></i>ສັ່ງກວດເພີ່ມ</span>`
             : (addOnTests.length > 0 ? `<span class="badge bg-secondary-subtle text-secondary border px-2 py-0.5 rounded-pill fw-semibold ms-2" style="font-size: 0.72rem;"><i class="bi bi-check2 me-1"></i>ຮອບທຳອິດ</span>` : '');
 
@@ -6775,7 +6902,7 @@ window.renderLabTable = function (page = window.labCurrentPage) {
         };
 
         const hasAddOn = (row.lab_note && (row.lab_note.includes('ສັ່ງກວດເພີ່ມ') || row.lab_note.includes('ตรวจเพิ่ม')));
-        const addOnBadgeHtml = hasAddOn 
+        const addOnBadgeHtml = hasAddOn
             ? `<span class="badge bg-warning text-dark border border-warning px-2 py-0.5 rounded-pill fw-bold ms-1" style="font-size: 0.72rem;"><i class="bi bi-plus-circle-fill me-1"></i>ສັ່ງກວດເພີ່ມ</span>`
             : '';
         let labDetailsHtml = `<button class="btn btn-sm btn-light border" onclick="viewLabDetailsByVisitId('${row.visit_id}')"><i class="ph ph-flask text-primary me-1"></i> ${itemsLabel} (${testCount} รายการ)</button>`;
@@ -7177,8 +7304,8 @@ window.openDoctorAddLabModal = async function () {
     });
 
     try {
-        const todayStr = (typeof getVientianeDateRange === 'function') 
-            ? getVientianeDateRange('today').startStr 
+        const todayStr = (typeof getVientianeDateRange === 'function')
+            ? getVientianeDateRange('today').startStr
             : new Date().toISOString().split('T')[0];
 
         const { data, error } = await _supabase
@@ -12979,7 +13106,7 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
                 'vdrl', 'tpha', 'cbc', 'lipid', 'fbs', 'glucose', 'hba1c', 'bun', 'creatinine', 'egfr',
                 'sgot', 'sgpt', 'alk phos', 'alp', 'uric acid', 'electrolyte', 'urinalysis', 'urine',
                 'stool', 'x-ray', 'xray', 'ultrasound', 'echo', 'ekg', 'ecg', 'vascular',
-                'ตรวจเลือด', 'ตรวจสุขภาพ', 'ตรวจปัสสาวะ', 'ตรวจอุจจาระ', 'ค่าตรวจ', 'ค่าบริการ'
+                'ກວດເລືອດ', 'ตรวจสุขภาพ', 'ตรวจปัสสาวะ', 'ตรวจอุจจาระ', 'ค่าตรวจ', 'ค่าบริการ'
             ];
             for (const kw of labKeywords) {
                 if (nameLower === kw) return true;
@@ -14861,9 +14988,9 @@ window.logoutUser = function () {
                 icon: 'warning',
                 title: 'ໝົດເວລາການນຳໃຊ້ (Session Timeout)',
                 html: '<div style="font-size: 1.05rem; line-height: 1.6; margin-bottom: 0.5rem;">' +
-                      'ລະບົບກວດບໍ່ພົບການເຄື່ອນໄຫວ ຫຼື ການກົດໃຊ້ງານເກີນ <strong>60 ນາທີ</strong><br>' +
-                      '<span class="text-muted" style="font-size: 0.9rem;">(ไม่มีการเคลื่อนไหวหรือกดใช้งานเกิน 60 นาที ระบบได้นำท่านออกจากระบบเพื่อความปลอดภัย)</span>' +
-                      '</div>',
+                    'ລະບົບກວດບໍ່ພົບການເຄື່ອນໄຫວ ຫຼື ການກົດໃຊ້ງານເກີນ <strong>60 ນາທີ</strong><br>' +
+                    '<span class="text-muted" style="font-size: 0.9rem;">(ไม่มีการเคลื่อนไหวหรือกดใช้งานเกิน 60 นาที ระบบได้นำท่านออกจากระบบเพื่อความปลอดภัย)</span>' +
+                    '</div>',
                 confirmButtonColor: '#0b3c73',
                 confirmButtonText: '<i class="ph ph-sign-in me-1"></i> ເຂົ້າສູ່ລະບົບໃໝ່ (Login)',
                 allowOutsideClick: false,
@@ -15107,13 +15234,36 @@ async function loadReferralData(isManualClick = false) {
         } catch (e) { }
     }
 
+    // ⚡ INSTANT RENDER (Stale-While-Revalidate): ສະແດງຜົນທັນທີຈາກ Cache/Memory ບໍ່ໃຫ້ຜູ້ໃຊ້ຕ້ອງລໍຖ້າ
+    try {
+        updateReferralSummaryCards();
+        renderReferrersTable();
+        if (!window.commLogFilterInitialized) {
+            window.commLogFilterInitialized = true;
+            setCommLogPeriodFilter('today');
+        } else {
+            renderCommissionLogsTable();
+        }
+    } catch (e) { }
+
     // 3. Query Supabase Cloud DB tables: referrers and commission_logs (Strict Single Source of Truth)
     try {
         if (typeof _supabase !== 'undefined') {
-            const resRef = await _supabase.from('referrers').select('*');
+            const resRef = await _supabase
+                .from('referrers')
+                .select('*');
             if (resRef && resRef.data) {
                 window.referrersData = resRef.data;
                 window.safeSetLocalStorage('clinic_referrers', window.referrersData);
+                resRef.data.forEach(m => {
+                    const empCode = m.code || m.id;
+                    const match = (window.allEmployeesData || []).find(e => e.emp_code === empCode);
+                    if (match) {
+                        if (m.phone) match.phone = m.phone;
+                        if (m.bank_name) match.bank_name = m.bank_name;
+                        if (m.bank_account) match.bank_account = m.bank_account;
+                    }
+                });
             }
         }
     } catch (e) { }
@@ -15147,24 +15297,6 @@ async function loadReferralData(isManualClick = false) {
                         return true;
                     });
                 window.safeSetLocalStorage('clinic_commission_logs', (window.commissionLogs || []).slice(0, 50));
-            }
-        }
-    } catch (e) { }
-
-    // Query active Supabase table: referrers
-    try {
-        if (typeof _supabase !== 'undefined') {
-            const resMembers = await _supabase.from('referrers').select('*');
-            if (resMembers && resMembers.data && resMembers.data.length > 0) {
-                resMembers.data.forEach(m => {
-                    const empCode = m.code || m.id;
-                    const match = (window.allEmployeesData || []).find(e => e.emp_code === empCode);
-                    if (match) {
-                        if (m.phone) match.phone = m.phone;
-                        if (m.bank_name) match.bank_name = m.bank_name;
-                        if (m.bank_account) match.bank_account = m.bank_account;
-                    }
-                });
             }
         }
     } catch (e) { }
@@ -15238,10 +15370,21 @@ async function loadReferralData(isManualClick = false) {
                 if (hasItemSettingsInDb) {
                     if (!window.servicesData || window.servicesData.length === 0) {
                         try {
-                            const { data: sDb } = await _supabase.from('services').select('id, name, price');
-                            if (sDb && sDb.length > 0) {
-                                window.servicesData = sDb;
-                                window.allServicesData = sDb;
+                            const cachedSrv = localStorage.getItem('clinic_services_cache');
+                            if (cachedSrv) {
+                                const parsed = JSON.parse(cachedSrv);
+                                if (Array.isArray(parsed) && parsed.length > 0) {
+                                    window.servicesData = parsed;
+                                    window.allServicesData = parsed;
+                                }
+                            }
+                            if (!window.servicesData || window.servicesData.length === 0) {
+                                const { data: sDb } = await _supabase.from('services').select('id, name, price');
+                                if (sDb && sDb.length > 0) {
+                                    window.servicesData = sDb;
+                                    window.allServicesData = sDb;
+                                    window.safeSetLocalStorage('clinic_services_cache', sDb);
+                                }
                             }
                         } catch (e) { }
                     }
@@ -15284,19 +15427,24 @@ async function loadReferralData(isManualClick = false) {
         console.warn('Load commission DB settings error:', e);
     }
 
-    // 5. ซิงค์และคำนวณปันผลอัตโนมัติจาก Visits และ Patients ที่มีผู้แนะนำ
-    if (typeof syncAllVisitsCommissionLogs === 'function') {
-        await syncAllVisitsCommissionLogs();
-    }
-
     saveReferralLocalData();
     updateReferralSummaryCards();
     renderReferrersTable();
     if (!window.commLogFilterInitialized) {
         window.commLogFilterInitialized = true;
-        setCommLogPeriodFilter('month');
+        setCommLogPeriodFilter('today');
     } else {
         renderCommissionLogsTable();
+    }
+
+    // 5. ซิงค์และคำนวณปันผลอัตโนมัติจาก Visits และ Patients (ทำในพื้นหลัง ไม่บล็อก UI)
+    if (typeof syncAllVisitsCommissionLogs === 'function') {
+        syncAllVisitsCommissionLogs().then(() => {
+            saveReferralLocalData();
+            updateReferralSummaryCards();
+            renderReferrersTable();
+            renderCommissionLogsTable();
+        }).catch(() => { });
     }
     renderDailyExamReport();
     populateReferrerDropdowns();
@@ -16314,12 +16462,35 @@ async function batchPayoutCommissionLogs() {
 window.batchPayoutCommissionLogs = batchPayoutCommissionLogs;
 
 window.commLogCurrentPage = 1;
-const COMM_LOGS_PER_PAGE = 15;
+const COMM_LOGS_PER_PAGE = 25;
 
 function changeCommLogPage(page) {
     renderCommissionLogsTable(page);
 }
 window.changeCommLogPage = changeCommLogPage;
+
+// ⏱️ Debounce Search (350ms) เพื่อลดภาระการประมวลผลขณะพิมพ์
+let commLogSearchTimer = null;
+function debounceCommLogSearch() {
+    clearTimeout(commLogSearchTimer);
+    commLogSearchTimer = setTimeout(() => {
+        if (typeof renderCommissionLogsTable === 'function') {
+            renderCommissionLogsTable(1);
+        }
+    }, 350);
+}
+window.debounceCommLogSearch = debounceCommLogSearch;
+
+let referrerSearchTimer = null;
+function debounceReferrerSearch() {
+    clearTimeout(referrerSearchTimer);
+    referrerSearchTimer = setTimeout(() => {
+        if (typeof filterReferrersTable === 'function') {
+            filterReferrersTable();
+        }
+    }, 350);
+}
+window.debounceReferrerSearch = debounceReferrerSearch;
 
 function renderCommissionLogsTable(page) {
     if (typeof page === 'number' && !isNaN(page)) {
@@ -18503,24 +18674,31 @@ window.processPaymentCommission = calculateAndRecordCommission;
 
 async function syncAllVisitsCommissionLogs() {
     window.commissionLogs = window.commissionLogs || [];
-    let visits = [];
-    let patients = window.allPatients || [];
-    let bills = [];
+    let visits = Array.isArray(window.clinicVisits) && window.clinicVisits.length > 0 ? window.clinicVisits : [];
+    let patients = Array.isArray(window.allPatients) && window.allPatients.length > 0 ? window.allPatients : [];
+    let bills = Array.isArray(window.allBillsData) && window.allBillsData.length > 0 ? window.allBillsData : [];
 
     try {
         if (typeof _supabase !== 'undefined') {
-            const [{ data: vData }, { data: pData }, { data: bData }, { data: sData }] = await Promise.all([
-                _supabase.from('visits').select('*'),
-                _supabase.from('patients').select('*'),
-                _supabase.from('bills').select('*'),
-                _supabase.from('services').select('id, name, price')
-            ]);
-            if (vData && vData.length > 0) visits = vData;
-            if (pData && pData.length > 0) patients = pData;
-            if (bData && bData.length > 0) bills = bData;
-            if (sData && sData.length > 0) {
-                window.servicesData = sData;
-                window.allServicesData = sData;
+            const needVisits = visits.length === 0;
+            const needPatients = patients.length === 0;
+            const needBills = bills.length === 0;
+            const needServices = (!window.servicesData || window.servicesData.length === 0);
+
+            if (needVisits || needPatients || needBills || needServices) {
+                const [{ data: vData }, { data: pData }, { data: bData }, { data: sData }] = await Promise.all([
+                    needVisits ? _supabase.from('visits').select('*').order('created_at', { ascending: false }).limit(100) : Promise.resolve({ data: visits }),
+                    needPatients ? _supabase.from('patients').select('*').order('created_at', { ascending: false }).limit(100) : Promise.resolve({ data: patients }),
+                    needBills ? _supabase.from('bills').select('*').order('created_at', { ascending: false }).limit(100) : Promise.resolve({ data: bills }),
+                    needServices ? _supabase.from('services').select('id, name, price') : Promise.resolve({ data: window.servicesData })
+                ]);
+                if (vData && vData.length > 0) visits = vData;
+                if (pData && pData.length > 0) patients = pData;
+                if (bData && bData.length > 0) bills = bData;
+                if (sData && sData.length > 0) {
+                    window.servicesData = sData;
+                    window.allServicesData = sData;
+                }
             }
         }
     } catch (e) { }
@@ -19028,9 +19206,45 @@ window.printDailyReport = printDailyReport;
 // ============================================================
 // รายงานสรุปค่าตรวจประจำวัน (Daily Examination Fee Summary Report) - ซิงค์ตรงกับ ระบบ Bill / ใบเสร็จรับเงิน 100%
 // ============================================================
+window.dailyExamCurrentPage = 1;
+const DAILY_EXAM_PER_PAGE = 25;
+
+function changeDailyExamPage(page) {
+    if (typeof page === 'number' && !isNaN(page)) {
+        window.dailyExamCurrentPage = page;
+    }
+    renderDailyExamReport();
+}
+window.changeDailyExamPage = changeDailyExamPage;
+
+function onDailyExamDateChange() {
+    window.dailyExamCurrentPage = 1;
+    renderDailyExamReport();
+}
+window.onDailyExamDateChange = onDailyExamDateChange;
+
+let dailyExamSearchTimer = null;
+function debounceDailyExamSearch() {
+    clearTimeout(dailyExamSearchTimer);
+    dailyExamSearchTimer = setTimeout(() => {
+        window.dailyExamCurrentPage = 1;
+        renderDailyExamReport();
+    }, 350);
+}
+window.debounceDailyExamSearch = debounceDailyExamSearch;
+
 function getFilteredDailyExamBills() {
-    const startDateVal = document.getElementById('dailyExamStartDate')?.value || '';
-    const endDateVal = document.getElementById('dailyExamEndDate')?.value || '';
+    const sInput = document.getElementById('dailyExamStartDate');
+    const eInput = document.getElementById('dailyExamEndDate');
+
+    // โหลดเฉพาะข้อมูลของ "วันปัจจุบัน" เป็นค่าเริ่มต้น
+    const now = new Date();
+    const todayStr = (typeof formatLocalDateYMD === 'function') ? formatLocalDateYMD(now) : now.toLocaleDateString('en-CA');
+    if (sInput && !sInput.value) sInput.value = todayStr;
+    if (eInput && !eInput.value) eInput.value = todayStr;
+
+    const startDateVal = sInput?.value || '';
+    const endDateVal = eInput?.value || '';
     const searchQuery = document.getElementById('searchDailyExamInput')?.value.toLowerCase().trim() || '';
 
     const startDate = startDateVal ? new Date(startDateVal + 'T00:00:00') : null;
@@ -19093,16 +19307,37 @@ function renderDailyExamReport() {
 
     tbody.innerHTML = '';
 
-    if (bills.length === 0) {
+    const totalItems = bills.length;
+
+    if (totalItems === 0) {
         tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5"><i class="ph ph-receipt fs-2 text-primary opacity-25 d-block mb-2"></i>ไม่พบข้อมูลรายงานสรุปค่าตรวจประจำวัน</td></tr>';
         if (document.getElementById('dailyExamFooterCount')) document.getElementById('dailyExamFooterCount').textContent = '0 รายการ';
         if (document.getElementById('dailyExamFooterService')) document.getElementById('dailyExamFooterService').textContent = '₭0';
+        const paginationContainer = document.getElementById('dailyExamPaginationContainer');
+        if (paginationContainer) paginationContainer.innerHTML = '';
         return;
     }
 
     let totalServiceSum = 0;
+    bills.forEach(b => {
+        totalServiceSum += calculateBillPayableAmount(b);
+    });
 
-    bills.forEach((b, index) => {
+    if (document.getElementById('dailyExamFooterCount')) document.getElementById('dailyExamFooterCount').textContent = `${totalItems} รายการ`;
+    if (document.getElementById('dailyExamFooterService')) document.getElementById('dailyExamFooterService').textContent = `₭${totalServiceSum.toLocaleString()}`;
+
+    // คำนวณ Pagination (25 รายการต่อหน้า)
+    const totalPages = Math.ceil(totalItems / DAILY_EXAM_PER_PAGE) || 1;
+    if (!window.dailyExamCurrentPage || window.dailyExamCurrentPage < 1) window.dailyExamCurrentPage = 1;
+    if (window.dailyExamCurrentPage > totalPages) window.dailyExamCurrentPage = totalPages;
+    const currentPage = window.dailyExamCurrentPage;
+
+    const startIndex = (currentPage - 1) * DAILY_EXAM_PER_PAGE;
+    const endIndex = Math.min(startIndex + DAILY_EXAM_PER_PAGE, totalItems);
+    const pageBills = bills.slice(startIndex, endIndex);
+
+    let rowsHtml = '';
+    pageBills.forEach((b, index) => {
         const d = b.created_at ? new Date(b.created_at) : new Date();
         const dateStr = `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear() + 543}`;
 
@@ -19110,11 +19345,9 @@ function renderDailyExamReport() {
         const examName = b.patient_name && b.patient_name !== '-' ? `ตรวจรักษาทั่วไป (${b.patient_name})` : 'ตรวจรักษาทั่วไป';
         const qty = 1;
 
-        totalServiceSum += payable;
-
-        tbody.innerHTML += `
+        rowsHtml += `
             <tr>
-                <td class="ps-4 fw-bold text-muted" style="width: 60px;">${index + 1}</td>
+                <td class="ps-4 fw-bold text-muted" style="width: 60px;">${startIndex + index + 1}</td>
                 <td class="fw-bold text-dark">${dateStr}</td>
                 <td class="fw-bold text-dark">${examName}</td>
                 <td class="text-end fw-semibold text-dark">₭${payable.toLocaleString()}</td>
@@ -19123,9 +19356,59 @@ function renderDailyExamReport() {
             </tr>
         `;
     });
+    tbody.innerHTML = rowsHtml;
 
-    if (document.getElementById('dailyExamFooterCount')) document.getElementById('dailyExamFooterCount').textContent = `${bills.length} รายการ`;
-    if (document.getElementById('dailyExamFooterService')) document.getElementById('dailyExamFooterService').textContent = `₭${totalServiceSum.toLocaleString()}`;
+    // Render Pagination Controls (แสดงครั้งละ 25 รายการ)
+    const paginationContainer = document.getElementById('dailyExamPaginationContainer');
+    if (paginationContainer) {
+        const startDisplay = startIndex + 1;
+        const endDisplay = endIndex;
+
+        let pagHtml = `
+            <div class="d-flex justify-content-between align-items-center w-100 px-2 flex-wrap gap-2">
+                <div class="text-muted small fw-semibold">
+                    แสดง <strong class="text-dark">${startDisplay} - ${endDisplay}</strong> จากทั้งหมด <strong class="text-dark">${totalItems}</strong> รายการ
+                </div>
+                <div class="d-flex justify-content-center align-items-center gap-1 flex-wrap">
+        `;
+
+        if (totalPages > 1) {
+            // ปุ่มย้อนกลับ
+            pagHtml += `
+                <button type="button" class="btn btn-sm btn-light border text-muted px-2.5 py-1 rounded-2" onclick="changeDailyExamPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''} style="font-size: 0.82rem;" title="หน้าก่อนหน้า">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+            `;
+
+            // ปุ่มเลขหน้า 1, 2, 3...
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+                    const activeClass = (i === currentPage)
+                        ? 'btn-primary text-white fw-bold shadow-xs'
+                        : 'btn-light border text-dark';
+                    pagHtml += `<button type="button" class="btn btn-sm ${activeClass} px-3 py-1 rounded-2" onclick="changeDailyExamPage(${i})" style="font-size: 0.82rem; min-width: 34px;">${i}</button>`;
+                } else if (i === currentPage - 3 || i === currentPage + 3) {
+                    pagHtml += `<span class="px-2 text-muted small">...</span>`;
+                }
+            }
+
+            // ปุ่มหน้าถัดไป
+            pagHtml += `
+                <button type="button" class="btn btn-sm btn-light border text-muted px-2.5 py-1 rounded-2" onclick="changeDailyExamPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''} style="font-size: 0.82rem;" title="หน้าถัดไป">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+            `;
+        }
+
+        pagHtml += `
+                </div>
+                <div class="text-muted small fw-semibold text-end d-none d-md-block" style="min-width: 140px;">
+                    หน้า <strong class="text-primary">${currentPage}</strong> / <strong class="text-dark">${totalPages}</strong>
+                </div>
+            </div>
+        `;
+        paginationContainer.innerHTML = pagHtml;
+    }
 }
 
 function exportDailyExamExcel() {

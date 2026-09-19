@@ -2862,11 +2862,11 @@
             <div class="text-success fw-bold" style="font-size: 11px; letter-spacing: 1px;">PATIENT DIRECTORY</div>
             <div class="d-flex align-items-center gap-2 flex-wrap">
                 <h3 class="fw-bold mb-0" id="page-patient-title" style="color: #0b3c73;">ຜູ້ປ່ວຍຂອງຂ້ອຍ</h3>
-                <!-- Toggle Mode สำหรับสลับดูทั้งหมด หรือเฉพาะของฉัน -->
+                <!-- Toggle Mode สำหรับสลับดูทั้งหมด หรือเฉพาะของฉัน (ซ่อนเป็นค่าเริ่มต้น จะแสดงเฉพาะเมื่อเป็น Admin) -->
                 <div id="adminViewToggle" class="btn-group btn-group-sm ms-2 shadow-sm"
-                    style="display: inline-flex; border-radius: 20px; overflow: hidden;">
+                    style="display: none; border-radius: 20px; overflow: hidden;">
                     <button type="button" class="btn btn-outline-primary btn-sm px-2.5 py-1 active fw-semibold"
-                        id="btnAdminViewAll" onclick="setAdminPatientView('all')" style="font-size: 12px;">
+                        id="btnAdminViewAll" onclick="setAdminPatientView('all')" style="font-size: 12px; display: none;">
                         <i class="ph ph-globe me-1"></i>ທັງໝົດ
                     </button>
                     <button type="button" class="btn btn-outline-primary btn-sm px-2.5 py-1 fw-semibold"
@@ -3162,7 +3162,7 @@
     <div id="content-history" class="card border-0 shadow-sm" style="border-radius: 16px; display: none;">
         <div class="card-body p-4">
             <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom flex-wrap gap-3">
-                <div>
+                <div class="w-100 mb-1">
                     <h5 class="fw-bold text-dark mb-0"><i
                             class="ph ph-clock-counter-clockwise text-primary me-2"></i>ປະຫວັດການເຂົ້າກວດຜູ້ປ່ວຍ</h5>
                     <small class="text-muted" id="history-subtitle">ລາຍການປະຫວັດການກວດ ແລະ ການຮັບບໍລິການທັງໝົດ</small>
@@ -3171,7 +3171,7 @@
                 <!-- ຕົວເລືອກເວລາ ແລະ ຊ່ອງຄົ້ນຫາໃນໜ້າປະຫວັດຜູ້ປ່ວຍ -->
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     <!-- ປຸ່ມກັ່ນຕອງປະເພດ: ທັງໝົດ / Order / ຄົນມາກວດ -->
-                    <div class="btn-group btn-group-sm shadow-sm ms-2" role="group" style="border-radius: 50rem;">
+                    <div class="btn-group btn-group-sm shadow-sm" role="group" style="border-radius: 50rem;">
                         <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary active"
                             id="btnFilterTypeAll" onclick="setTypeFilterMode('all')">
                             ທັງໝົດ
@@ -4164,11 +4164,14 @@
         function checkIsAdmin() {
             if (typeof isCurrentUserAdmin !== 'undefined' && isCurrentUserAdmin) return true;
             try {
-                const currentUserStr = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser');
+                const currentUserStr = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser') || localStorage.getItem('clinicUser');
                 if (currentUserStr) {
                     const u = JSON.parse(currentUserStr);
                     const role = String(u.role || '').toLowerCase();
-                    if (role === 'admin' || role === 'administrator' || role === 'ผู้ดูแลระบบ' || role === 'ຜູ້ດູແລລະບົບ' || role === 'superadmin') {
+                    const emp = String(u.emp_code || '').toLowerCase();
+                    const name = String(u.name || u.full_name || '').toLowerCase();
+                    const perms = Array.isArray(u.permissions) ? u.permissions : [];
+                    if (role === 'admin' || role === 'administrator' || role === 'ผู้ดูแลระบบ' || role === 'ຜູ້ດູແລລະບົບ' || role === 'superadmin' || perms.includes('all') || emp === 'admin01' || name.includes('admin')) {
                         return true;
                     }
                 }
@@ -4629,7 +4632,7 @@
             }
         }
 
-        let currentAdminViewMode = 'all'; // 'all' หรือ 'my'
+        let currentAdminViewMode = 'my'; // ค่าเริ่มต้นปลอดภัยเป็น 'my'
         let rawAllPatients = [];
         let rawMyPatients = [];
         let rawAllOrders = [];
@@ -4637,6 +4640,10 @@
         let allOrdersData = [];
 
         function setAdminPatientView(mode) {
+            // ล็อกสิทธิ์เด็ดขาด: หากไม่ใช่ Admin ไม่อนุญาตให้เข้าถึงโหมด 'all'
+            if (!checkIsAdmin() && mode === 'all') {
+                mode = 'my';
+            }
             currentAdminViewMode = mode;
             const btnAll = document.getElementById('btnAdminViewAll');
             const btnMy = document.getElementById('btnAdminViewMy');
@@ -4724,7 +4731,8 @@
                 rawMyPatients = event.data.myPatients || [];
                 rawAllOrders = event.data.allOrders || event.data.orders || [];
                 rawMyOrders = event.data.myOrders || [];
-                isCurrentUserAdmin = !!event.data.isAdmin;
+                // ตรวจสอบสิทธิ์ Admin จากทั้ง event และ helper function
+                isCurrentUserAdmin = (typeof event.data.isAdmin !== 'undefined') ? !!event.data.isAdmin : checkIsAdmin();
 
                 const userCode = event.data.currentUserCode || '';
                 const userName = event.data.currentUserName || '';
@@ -4732,22 +4740,30 @@
                 currentUserNameGlobal = displayUser;
 
                 const toggleEl = document.getElementById('adminViewToggle');
-                if (toggleEl) {
-                    toggleEl.style.display = 'inline-flex';
-                }
+                const btnAll = document.getElementById('btnAdminViewAll');
+                const btnMy = document.getElementById('btnAdminViewMy');
+                const subtitleEl = document.getElementById('page-patient-subtitle');
 
-                // ค่าเริ่มต้นให้แสดงข้อมูลผู้ป่วยและ Order ทั้งหมด ('all') เพื่อให้มีข้อมูลแสดงทันที
-                if (currentAdminViewMode === 'my' && rawMyPatients && rawMyPatients.length > 0) {
-                    allPatientsData = [...rawMyPatients];
-                    allOrdersData = [...rawMyOrders];
+                if (isCurrentUserAdmin) {
+                    // 👑 สิทธิ์ Admin: แสดง Toggle และปุ่มสลับ "ທັງໝົດ"
+                    if (toggleEl) toggleEl.style.display = 'inline-flex';
+                    if (btnAll) btnAll.style.display = 'inline-flex';
+                    if (btnMy) btnMy.style.display = 'inline-flex';
+                    if (subtitleEl) subtitleEl.textContent = 'ສະແດງລາຍຊື່ຜູ້ປ່ວຍທັງໝົດໃນລະບົບ (Admin)';
+
+                    // ค่าเริ่มต้นของ Admin สามารถเลือกดูทั้งหมดหรือของฉันได้
+                    if (currentAdminViewMode === 'my' && rawMyPatients && rawMyPatients.length > 0) {
+                        setAdminPatientView('my');
+                    } else {
+                        setAdminPatientView('all');
+                    }
                 } else {
-                    currentAdminViewMode = 'all';
-                    allPatientsData = [...rawAllPatients];
-                    allOrdersData = [...rawAllOrders];
-                    const btnAll = document.getElementById('btnAdminViewAll');
-                    const btnMy = document.getElementById('btnAdminViewMy');
-                    if (btnAll) btnAll.classList.add('active');
-                    if (btnMy) btnMy.classList.remove('active');
+                    // 🔒 สิทธิ์ User ทั่วไป: ล็อกสิทธิ์เด็ดขาด บังคับให้เห็นเฉพาะคนไข้ของตัวเองเท่านั้น และซ่อนปุ่ม "ທັງໝົດ"
+                    if (btnAll) btnAll.style.display = 'none';
+                    if (toggleEl) toggleEl.style.display = 'none';
+                    if (subtitleEl) subtitleEl.textContent = 'ສະແດງລາຍຊື່ຜູ້ປ່ວຍສະເພາະຂອງທ່ານ';
+
+                    setAdminPatientView('my');
                 }
 
                 const titleEl = document.getElementById('page-patient-title');
