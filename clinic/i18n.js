@@ -34,8 +34,6 @@ const CLINIC_I18N_DICTIONARY = {
         all: "ທັງໝົດ",
         today: "ມື້ນີ້",
         this_month: "ເດືອນນີ້",
-        custom_date: "ກຳນົດເອງ",
-        date_to: "ຫາ",
         details: "ລາຍລະອຽດ",
         print: "ພິມລາຍງານ",
         export_excel: "Export Excel",
@@ -181,6 +179,10 @@ const CLINIC_I18N_DICTIONARY = {
         triage_th_name: "ຊື່-ນາມສະກຸນ",
         triage_th_action: "ດຳເນີນການ",
         triage_btn_history: "ຊັກປະຫວັດ",
+        triage_btn_all: "ເບິ່ງໝົດ",
+        to_date: "ຫາ",
+        th_no: "ລຳດັບ",
+        triage_search_placeholder: "ຄົ້ນຫາ (ຊື່, HN, Visit...)",
 
         // Doctor Room
         doctor_title: "ຫ້ອງກວດແພດ",
@@ -399,8 +401,6 @@ const CLINIC_I18N_DICTIONARY = {
         all: "ทั้งหมด",
         today: "วันนี้",
         this_month: "เดือนนี้",
-        custom_date: "กำหนดเอง",
-        date_to: "ถึง",
         details: "รายละเอียด",
         print: "พิมพ์รายงาน",
         export_excel: "Export Excel",
@@ -546,6 +546,10 @@ const CLINIC_I18N_DICTIONARY = {
         triage_th_name: "ชื่อ-นามสกุล",
         triage_th_action: "ดำเนินการ",
         triage_btn_history: "ซักประวัติ",
+        triage_btn_all: "ดูทั้งหมด",
+        to_date: "ถึง",
+        th_no: "ลำดับ",
+        triage_search_placeholder: "ค้นหา (ชื่อ, HN, Visit...)",
 
         // Doctor Room
         doctor_title: "ห้องตรวจแพทย์",
@@ -763,8 +767,6 @@ const CLINIC_I18N_DICTIONARY = {
         all: "All",
         today: "Today",
         this_month: "This Month",
-        custom_date: "Custom",
-        date_to: "to",
         details: "Details",
         print: "Print Report",
         export_excel: "Export Excel",
@@ -893,6 +895,10 @@ const CLINIC_I18N_DICTIONARY = {
         triage_th_name: "Patient Name",
         triage_th_action: "Action",
         triage_btn_history: "Record Vitals",
+        triage_btn_all: "View All",
+        to_date: "to",
+        th_no: "No.",
+        triage_search_placeholder: "Search (Name, HN, Visit...)",
 
         // Doctor Room
         doctor_title: "Doctor Room",

@@ -25,7 +25,7 @@
     <!-- html2pdf.js for Exporting PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <!-- i18n Internationalization Engine -->
-    <script src="i18n.js?v=2.5.3"></script>
+    <script src="i18n.js?v=2.5.2"></script>
 
     <!-- สคริปต์ตรวจสอบการล็อกอิน -->
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
@@ -660,44 +660,54 @@
                         บันทึกสัญญาณชีพเบื้องต้น</p>
                 </div>
 
-                <!-- 🌟 Date & Time Filter แบบกล่องเดียว (Single Capsule Box) -->
-                <div class="d-inline-flex align-items-center bg-white border shadow-sm rounded-pill p-1 gap-1"
-                    id="triageFilterContainer" style="border-color: #cbd5e1; height: 42px;">
-                    <!-- Calendar Icon -->
-                    <div class="d-flex align-items-center ps-2 pe-1 text-primary">
-                        <i class="bi bi-calendar2-range fs-6"></i>
-                    </div>
-
-                    <!-- Preset Buttons: วันนี้, เดือนนี้, กำหนดเอง -->
-                    <div class="btn-group" role="group" id="triagePresetGroup">
-                        <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 fw-medium"
-                            id="btnTriageToday" onclick="setTriageDateFilter('today')">
-                            <span data-i18n="today">วันนี้</span>
+                <!-- Date & Time Filter + Search Toolbar (ຕາມຮູບ) -->
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <!-- ปุ่มเลือกเวลาด่วน: ມື້ນີ້ / ເບິ່ງໝົດ -->
+                    <div class="btn-group shadow-sm" role="group" style="border-radius: 8px; overflow: hidden;">
+                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary active"
+                            id="btnTriageFilterToday" onclick="setTriageDateFilterMode('today')" data-i18n="today">
+                            <i class="ph ph-calendar-check me-1 text-primary"></i>ມື້ນີ້
                         </button>
-                        <button type="button" class="btn btn-sm btn-light text-secondary rounded-pill px-3 fw-medium"
-                            id="btnTriageMonth" onclick="setTriageDateFilter('month')">
-                            <span data-i18n="this_month">เดือนนี้</span>
-                        </button>
-                        <button type="button" class="btn btn-sm btn-light text-secondary rounded-pill px-3 fw-medium"
-                            id="btnTriageCustom" onclick="setTriageDateFilter('custom')">
-                            <span data-i18n="custom_date">กำหนดเอง</span>
+                        <button type="button" class="btn btn-light border py-1.5 px-3 fw-semibold text-secondary"
+                            id="btnTriageFilterAll" onclick="setTriageDateFilterMode('all')" data-i18n="triage_btn_all">
+                            ເບິ່ງໝົດ
                         </button>
                     </div>
 
-                    <!-- Custom Date & Time Selection (Shown when 'กำหนดเอง' is selected) -->
-                    <div id="triageCustomDateBox" class="d-none align-items-center gap-1 ps-2 pe-1 border-start">
-                        <input type="datetime-local" id="triageStartDateTime"
-                            class="form-control form-control-sm border-0 bg-light rounded-pill px-2 text-secondary fw-medium"
-                            style="width: 175px; font-size: 0.82rem;" onchange="loadTriage()">
-                        <span class="text-muted small fw-semibold px-1" data-i18n="date_to">ถึง</span>
-                        <input type="datetime-local" id="triageEndDateTime"
-                            class="form-control form-control-sm border-0 bg-light rounded-pill px-2 text-secondary fw-medium"
-                            style="width: 175px; font-size: 0.82rem;" onchange="loadTriage()">
-                        <button type="button"
-                            class="btn btn-sm btn-primary rounded-circle p-1 d-flex align-items-center justify-content-center shadow-xs"
-                            style="width: 28px; height: 28px;" onclick="loadTriage()" title="ค้นหา">
-                            <i class="bi bi-search" style="font-size: 0.75rem;"></i>
+                    <!-- แคปซูลเลือกช่วงเวลา (ເລືອກຊ່ວງເວລາ) -->
+                    <div class="date-filter-capsule">
+                        <span class="text-muted small fw-semibold d-flex align-items-center"><i
+                                class="ph ph-calendar-blank text-primary me-1"></i><span data-i18n="date_range_label">ເລືອກຊ່ວງເວລາ</span>:</span>
+                        <input type="date" id="triageDateFilterStart"
+                            class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none"
+                            style="width: 115px; font-size: 13px;" onchange="onTriageCustomDateChange()">
+                        <span class="text-muted small fw-bold" data-i18n="to_date">ຫາ</span>
+                        <input type="date" id="triageDateFilterEnd"
+                            class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none"
+                            style="width: 115px; font-size: 13px;" onchange="onTriageCustomDateChange()">
+                        <button type="button" class="btn btn-link btn-sm text-muted p-0 ms-1 text-decoration-none"
+                            title="ລ້າງວັນທີ" onclick="setTriageDateFilterMode('all')">
+                            <i class="ph ph-x-circle fs-6"></i>
                         </button>
+                    </div>
+
+                    <!-- กล่องค้นหา (ຄົ້ນຫາ (ຊື່, HN, Visit...)) -->
+                    <div class="position-relative" style="width: 250px;">
+                        <div class="input-group shadow-sm"
+                            style="border-radius: 50rem; overflow: hidden; border: 1px solid #cbd5e1; background: #ffffff;">
+                            <span class="input-group-text bg-white border-0 text-muted ps-3 pe-1"><i
+                                    class="ph ph-magnifying-glass fs-6"></i></span>
+                            <input type="text" id="triageSearchInput"
+                                class="form-control bg-white border-0 shadow-none ps-1 pe-2"
+                                placeholder="ຄົ້ນຫາ (ຊື່, HN, Visit...)" data-i18n-placeholder="triage_search_placeholder"
+                                autocomplete="off" style="font-size: 13.5px;"
+                                oninput="applyTriageSearch()">
+                            <button class="btn btn-link text-muted border-0 p-0 pe-3 text-decoration-none d-none"
+                                type="button" id="btnClearTriageSearch" onclick="clearTriageSearch()"
+                                title="ລ້າງການຄົ້ນຫາ">
+                                <i class="ph ph-x-circle fs-6"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -707,7 +717,7 @@
                 <table class="table table-modern align-middle" id="triageTable">
                     <thead>
                         <tr>
-                            <th class="ps-4 text-center" style="width: 60px;">ลำดับ</th>
+                            <th class="ps-4 text-center" style="width: 60px;" data-i18n="th_no">ลำดับ</th>
                             <th data-i18n="triage_th_visit">รหัส VISIT</th>
                             <th data-i18n="triage_th_name">ชื่อ-นามสกุล</th>
                             <th class="text-end pe-4" data-i18n="triage_th_action">จัดการ</th>
@@ -1867,6 +1877,7 @@
                                     </th>
                                     <th class="ps-2" style="width: 50px;">#</th>
                                     <th>วันที่ทำรายการ</th>
+                                    <th style="width: 110px;">รหัส</th>
                                     <th>ผู้แนะนำ</th>
                                     <th>ผู้ป่วยที่แนะนำ</th>
                                     <th>ยอดค่าบริการ</th>
@@ -1879,7 +1890,7 @@
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td colspan="11" class="text-center text-muted py-5">กำลังโหลดข้อมูล...</td>
+                                    <td colspan="12" class="text-center text-muted py-5">กำลังโหลดข้อมูล...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1963,7 +1974,7 @@
                             <thead>
                                 <tr>
                                     <th class="ps-4" style="width: 60px;">#</th>
-                                    <th>รหัสสมาชิก</th>
+                                    <th class="text-center" style="width: 120px;">รหัสสมาชิก</th>
                                     <th>ชื่อ-นามสกุล</th>
                                     <th>เบอร์โทร</th>
                                     <th>ข้อมูลบัญชีธนาคาร</th>
@@ -4237,10 +4248,32 @@
                         </div>
                     </div>
 
-                    <h6 class="fw-bold mb-2 text-dark"><i
-                            class="bi bi-capsule-indicator text-primary me-2"></i>รายการสั่งจ่ายยา/อาหารเสริม</h6>
-                    <div class="table-responsive border rounded" style="max-height: 200px;">
-                        <table class="table table-hover mb-0" id="histMedsTable">
+                    <div class="card border mb-3 shadow-2xs" style="background-color: #f8fafc; border-radius: 10px;">
+                        <div class="card-body p-2.5">
+                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                                <h6 class="fw-bold mb-0 text-dark">
+                                    <i class="bi bi-capsule-indicator text-primary me-1.5"></i>รายการสั่งจ่ายยา/อาหารเสริม
+                                </h6>
+                                <!-- แถบปุ่มเลือกดูประวัติแต่ละชุด: ชุด 1, ชุด 2, ชุด 3... -->
+                                <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                                    <span class="small fw-bold text-secondary me-1"><i class="bi bi-layers-fill text-primary me-1"></i>เลือกดูชุดยา:</span>
+                                    <div id="histBatchSelectorContainer" class="d-flex align-items-center gap-1 flex-wrap">
+                                        <!-- ปุ่ม ชุด 1, ชุด 2, ชุด 3 จะแสดงตรงนี้ -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- แถบแสดงข้อมูลชุดยาที่กำลังเลือกดู -->
+                            <div id="histBatchInfoBar" class="p-2 mb-2 rounded-2 border bg-white d-flex align-items-center justify-content-between flex-wrap gap-2" style="font-size: 0.82rem; display: none !important;">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-primary text-white fw-bold px-2 py-1" id="histBatchCurrentBadge">ชุดที่ 1</span>
+                                    <span class="text-muted" id="histBatchCurrentDate">-</span>
+                                </div>
+                                <div class="text-secondary fw-semibold" id="histBatchCurrentDoctor"></div>
+                            </div>
+
+                            <div class="table-responsive border rounded bg-white" style="max-height: 220px;">
+                                <table class="table table-hover mb-0" id="histMedsTable">
                             <thead class="table-light">
                                 <tr>
                                     <th class="ps-3">ชื่อยา/อาหารเสริม</th>
@@ -4257,6 +4290,8 @@
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+                        </div>
                     </div>
 
                     <!-- กล่องสรุปยอดเงินสำหรับออเดอร์ยา/อาหารเสริม -->
@@ -4768,7 +4803,7 @@
             document.write('<script src="../config.js"><\/script>');
         }
     </script>
-    <script src="function.js?v=3.9.71"></script>
+    <script src="function.js?v=3.9.70"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
     <script>
         document.addEventListener("DOMContentLoaded", function () {

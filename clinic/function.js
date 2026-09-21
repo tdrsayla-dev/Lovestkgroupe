@@ -2270,72 +2270,134 @@ function onPatientProvinceChange(targetDistrictVal = null) {
 
 
 
-// 🌟 Date & Time Filter สำหรับจุดคัดกรอง (Triage)
-window.triageFilterMode = window.triageFilterMode || 'today';
+// ========================================================
+// ລະບົບຈັດການຄິວຈຸດຄັດກອງ (Triage Queue with Date & Search Filter)
+// ========================================================
+window.currentTriageDateFilterMode = window.currentTriageDateFilterMode || 'today';
+window.triageVisitsData = [];
 
-window.setTriageDateFilter = function (mode) {
-    window.triageFilterMode = mode;
+// 1. ฟังก์ชันตั้งค่าโหมดตัวกรองวันที่ (today / all / custom) สำหรับหน้าคัดกรอง
+function setTriageDateFilterMode(mode) {
+    const btnToday = document.getElementById('btnTriageFilterToday');
+    const btnAll = document.getElementById('btnTriageFilterAll');
+    const inputStart = document.getElementById('triageDateFilterStart');
+    const inputEnd = document.getElementById('triageDateFilterEnd');
 
-    const btnToday = document.getElementById('btnTriageToday');
-    const btnMonth = document.getElementById('btnTriageMonth');
-    const btnCustom = document.getElementById('btnTriageCustom');
-    const customBox = document.getElementById('triageCustomDateBox');
-
-    [btnToday, btnMonth, btnCustom].forEach(btn => {
-        if (!btn) return;
-        btn.classList.remove('btn-primary');
-        btn.classList.add('btn-light', 'text-secondary');
-    });
+    window.currentTriageDateFilterMode = mode;
 
     if (mode === 'today') {
-        if (btnToday) {
-            btnToday.classList.add('btn-primary');
-            btnToday.classList.remove('btn-light', 'text-secondary');
-        }
-        if (customBox) {
-            customBox.classList.remove('d-flex');
-            customBox.classList.add('d-none');
-        }
-        loadTriage();
-    } else if (mode === 'month') {
-        if (btnMonth) {
-            btnMonth.classList.add('btn-primary');
-            btnMonth.classList.remove('btn-light', 'text-secondary');
-        }
-        if (customBox) {
-            customBox.classList.remove('d-flex');
-            customBox.classList.add('d-none');
-        }
-        loadTriage();
+        const todayRange = (typeof getVientianeDateRange === 'function')
+            ? getVientianeDateRange('today')
+            : { startStr: new Date().toISOString().slice(0, 10), endStr: new Date().toISOString().slice(0, 10) };
+        if (inputStart) inputStart.value = todayRange.startStr;
+        if (inputEnd) inputEnd.value = todayRange.endStr;
+
+        if (btnToday) btnToday.classList.add('active');
+        if (btnAll) btnAll.classList.remove('active');
+    } else if (mode === 'all') {
+        if (inputStart) inputStart.value = '';
+        if (inputEnd) inputEnd.value = '';
+
+        if (btnToday) btnToday.classList.remove('active');
+        if (btnAll) btnAll.classList.add('active');
     } else if (mode === 'custom') {
-        if (btnCustom) {
-            btnCustom.classList.add('btn-primary');
-            btnCustom.classList.remove('btn-light', 'text-secondary');
-        }
-        if (customBox) {
-            customBox.classList.remove('d-none');
-            customBox.classList.add('d-flex');
-        }
-
-        const startInput = document.getElementById('triageStartDateTime');
-        const endInput = document.getElementById('triageEndDateTime');
-        const vNow = typeof getVientianeNow === 'function' ? getVientianeNow() : new Date();
-        const y = vNow.getFullYear();
-        const m = String(vNow.getMonth() + 1).padStart(2, '0');
-        const d = String(vNow.getDate()).padStart(2, '0');
-        const todayStr = `${y}-${m}-${d}`;
-
-        if (startInput && !startInput.value) {
-            startInput.value = `${todayStr}T00:00`;
-        }
-        if (endInput && !endInput.value) {
-            endInput.value = `${todayStr}T23:59`;
-        }
-        loadTriage();
+        if (btnToday) btnToday.classList.remove('active');
+        if (btnAll) btnAll.classList.remove('active');
     }
-};
 
+    loadTriage();
+}
+window.setTriageDateFilterMode = setTriageDateFilterMode;
+
+// 2. ฟังก์ชันเมื่อผู้ใช้เลือกวันที่เอง (Custom Date Range)
+function onTriageCustomDateChange() {
+    const inputStart = document.getElementById('triageDateFilterStart');
+    const inputEnd = document.getElementById('triageDateFilterEnd');
+
+    if (inputStart && inputEnd) {
+        if (inputStart.value && !inputEnd.value) {
+            inputEnd.value = inputStart.value;
+        } else if (!inputStart.value && inputEnd.value) {
+            inputStart.value = inputEnd.value;
+        }
+    }
+    setTriageDateFilterMode('custom');
+}
+window.onTriageCustomDateChange = onTriageCustomDateChange;
+
+// 3. ฟังก์ชันแสดงข้อมูลในตารางจุดคัดกรอง
+function renderTriageTable(dataToRender) {
+    const tbody = document.querySelector('#triageTable tbody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+    if (!dataToRender || dataToRender.length === 0) {
+        const emptyText = typeof t === 'function' ? t('triage_empty', 'ຍັງບໍ່ມີຜູ້ປ່ວຍລໍຖ້າຄັດກອງ') : 'ຍັງບໍ່ມີຜູ້ປ່ວຍລໍຖ້າຄັດກອງ';
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-5">${emptyText}</td></tr>`;
+        return;
+    }
+
+    const btnHistoryText = typeof t === 'function' ? t('triage_btn_history', 'ຊັກປະຫວັດ') : 'ຊັກປະຫວັດ';
+    dataToRender.forEach((row, idx) => {
+        tbody.innerHTML += `<tr>
+            <td class="ps-4 text-center fw-semibold text-secondary">${idx + 1}</td>
+            <td class="fw-bold">${row.visit_id || '-'}</td>
+            <td>
+                <div class="fw-bold text-dark">${row.patient_name || '-'}</div>
+                <div class="text-muted small">HN: ${row.hn || '-'}</div>
+            </td>
+            <td class="text-end pe-4">
+                <button class="btn btn-sm btn-primary px-3" onclick="openTriageModal('${row.visit_id}')">${btnHistoryText}</button>
+            </td>
+        </tr>`;
+    });
+}
+window.renderTriageTable = renderTriageTable;
+
+// 4. ฟังก์ชันค้นหาในตารางจุดคัดกรอง
+function applyTriageSearch() {
+    const searchInput = document.getElementById('triageSearchInput');
+    const clearBtn = document.getElementById('btnClearTriageSearch');
+    const val = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+    if (clearBtn) {
+        if (val) clearBtn.classList.remove('d-none');
+        else clearBtn.classList.add('d-none');
+    }
+
+    if (!window.triageVisitsData || window.triageVisitsData.length === 0) {
+        renderTriageTable([]);
+        return;
+    }
+
+    if (!val) {
+        renderTriageTable(window.triageVisitsData);
+        return;
+    }
+
+    const matches = window.triageVisitsData.filter(v =>
+        (v.patient_name && String(v.patient_name).toLowerCase().includes(val)) ||
+        (v.hn && String(v.hn).toLowerCase().includes(val)) ||
+        (v.visit_id && String(v.visit_id).toLowerCase().includes(val))
+    );
+
+    renderTriageTable(matches);
+}
+window.applyTriageSearch = applyTriageSearch;
+
+// 5. ฟังก์ชันล้างคำค้นหา
+function clearTriageSearch() {
+    const searchInput = document.getElementById('triageSearchInput');
+    const clearBtn = document.getElementById('btnClearTriageSearch');
+    if (searchInput) searchInput.value = '';
+    if (clearBtn) clearBtn.classList.add('d-none');
+    renderTriageTable(window.triageVisitsData || []);
+}
+window.clearTriageSearch = clearTriageSearch;
+
+// 6. ฟังก์ชันโหลดข้อมูลผู้ป่วยรอคัดกรอง
 async function loadTriage() {
+    // โหลดประวัติการคัดกรองเบื้องต้น (ถ้ามี)
     if (typeof loadTriageHistory === 'function') {
         loadTriageHistory();
     }
@@ -2343,88 +2405,64 @@ async function loadTriage() {
     const tbody = document.querySelector('#triageTable tbody');
     if (!tbody) return;
 
-    // คำนวณช่วงวันและเวลาตามโหมดตัวกรอง
-    const mode = window.triageFilterMode || 'today';
-    let startISO = null;
-    let endISO = null;
-    let periodLabel = 'วันนี้';
+    const mode = window.currentTriageDateFilterMode || 'today';
+    const inputStart = document.getElementById('triageDateFilterStart');
+    const inputEnd = document.getElementById('triageDateFilterEnd');
+    const btnToday = document.getElementById('btnTriageFilterToday');
+    const btnAll = document.getElementById('btnTriageFilterAll');
 
-    const vNow = typeof getVientianeNow === 'function' ? getVientianeNow() : new Date();
-    const y = vNow.getFullYear();
-    const m = String(vNow.getMonth() + 1).padStart(2, '0');
-    const d = String(vNow.getDate()).padStart(2, '0');
-    const todayStr = `${y}-${m}-${d}`;
-
+    // กำหนดค่าเริ่มต้นให้กับ input หากอยู่ในโหมด today
     if (mode === 'today') {
-        startISO = `${todayStr}T00:00:00+07:00`;
-        endISO = `${todayStr}T23:59:59+07:00`;
-        periodLabel = typeof t === 'function' ? t('today', 'วันนี้') : 'วันนี้';
-    } else if (mode === 'month') {
-        const lastDay = new Date(y, vNow.getMonth() + 1, 0).getDate();
-        const lastDayStr = String(lastDay).padStart(2, '0');
-        startISO = `${y}-${m}-01T00:00:00+07:00`;
-        endISO = `${y}-${m}-${lastDayStr}T23:59:59+07:00`;
-        periodLabel = typeof t === 'function' ? t('this_month', 'เดือนนี้') : 'เดือนนี้';
-    } else if (mode === 'custom') {
-        const startVal = document.getElementById('triageStartDateTime')?.value;
-        const endVal = document.getElementById('triageEndDateTime')?.value;
-        if (startVal) {
-            startISO = startVal.length === 16 ? `${startVal}:00+07:00` : `${startVal}+07:00`;
+        const todayRange = (typeof getVientianeDateRange === 'function')
+            ? getVientianeDateRange('today')
+            : { startStr: new Date().toISOString().slice(0, 10), endStr: new Date().toISOString().slice(0, 10) };
+        if (inputStart && !inputStart.value) inputStart.value = todayRange.startStr;
+        if (inputEnd && !inputEnd.value) inputEnd.value = todayRange.endStr;
+        if (btnToday) btnToday.classList.add('active');
+        if (btnAll) btnAll.classList.remove('active');
+    }
+
+    const startDate = inputStart?.value || '';
+    const endDate = inputEnd?.value || '';
+
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div>ກຳລັງໂຫຼດຂໍ້ມູນ...</td></tr>';
+
+    try {
+        let query = _supabase
+            .from('visits')
+            .select('visit_id, hn, patient_name, status, created_at')
+            .eq('status', 'รอคัดกรอง')
+            .order('created_at', { ascending: true });
+
+        if (mode === 'today') {
+            const todayRange = (typeof getVientianeDateRange === 'function')
+                ? getVientianeDateRange('today')
+                : { startStr: new Date().toISOString().slice(0, 10), endStr: new Date().toISOString().slice(0, 10) };
+            const sDate = startDate || todayRange.startStr;
+            const eDate = endDate || todayRange.endStr;
+            query = query.gte('created_at', sDate + "T00:00:00").lte('created_at', eDate + "T23:59:59");
+        } else if (mode === 'custom') {
+            if (startDate) query = query.gte('created_at', startDate + "T00:00:00");
+            if (endDate) query = query.lte('created_at', endDate + "T23:59:59");
         }
-        if (endVal) {
-            endISO = endVal.length === 16 ? `${endVal}:59+07:00` : `${endVal}+07:00`;
+        // โหมด 'all' จะไม่ใส่ filter created_at (แสดงทั้งหมด)
+
+        query = query.limit(200);
+
+        const { data, error } = await query;
+
+        if (error) {
+            console.error('loadTriage error:', error);
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
+            return;
         }
-        periodLabel = typeof t === 'function' ? t('custom_date', 'กำหนดเอง') : 'กำหนดเอง';
+
+        window.triageVisitsData = data || [];
+        applyTriageSearch();
+    } catch (err) {
+        console.error('loadTriage exception:', err);
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${err.message || err}</td></tr>`;
     }
-
-    let query = _supabase
-        .from('visits')
-        .select('visit_id, hn, patient_name, status, created_at')
-        .eq('status', 'รอคัดกรอง');
-
-    if (startISO) {
-        query = query.gte('created_at', startISO);
-    }
-    if (endISO) {
-        query = query.lte('created_at', endISO);
-    }
-
-    query = query.order('created_at', { ascending: true }).limit(100);
-
-    const { data, error } = await query;
-
-    tbody.innerHTML = '';
-    if (error) {
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger py-3">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
-        return;
-    }
-    if (!data || data.length === 0) {
-        const emptyMsg = `ยังไม่มีผู้ป่วยรอคัดกรอง (${periodLabel})`;
-        const switchMonthBtn = mode === 'today'
-            ? `<div class="mt-2"><button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="setTriageDateFilter('month')"><i class="bi bi-calendar-month me-1"></i>ดูคิวทั้งหมดในเดือนนี้</button></div>`
-            : '';
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-5"><i class="bi bi-calendar2-x text-warning d-block mb-2 fs-2 opacity-75"></i><div class="fw-semibold">${emptyMsg}</div>${switchMonthBtn}</td></tr>`;
-        return;
-    }
-
-    const btnHistoryText = typeof t === 'function' ? t('triage_btn_history', 'ซักประวัติ') : 'ซักประวัติ';
-    data.forEach((row, idx) => {
-        let timeStr = '';
-        if (row.created_at) {
-            try {
-                const dt = new Date(row.created_at);
-                timeStr = dt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-            } catch (e) { }
-        }
-        const timeBadge = timeStr ? `<span class="badge bg-light text-secondary ms-2 fw-normal" style="font-size: 0.75rem;"><i class="bi bi-clock me-1"></i>${timeStr}</span>` : '';
-
-        tbody.innerHTML += `<tr>
-            <td class="ps-4 text-center fw-semibold text-secondary">${idx + 1}</td>
-            <td class="fw-bold">${row.visit_id}${timeBadge}</td>
-            <td><div class="fw-bold text-dark">${row.patient_name}</div><div class="text-muted small">HN: ${row.hn}</div></td>
-            <td class="text-end pe-4"><button class="btn btn-sm btn-primary px-3" onclick="openTriageModal('${row.visit_id}')">${btnHistoryText}</button></td>
-        </tr>`;
-    });
 }
 window.loadTriage = loadTriage;
 
@@ -12697,10 +12735,10 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
     }
 
     // 🌟 แสดงรายการสั่งจ่ายยา/อาหารเสริม (histMedsTable)
+    let medsList = [];
     const medsTbody = document.querySelector('#histMedsTable tbody') || document.querySelector('#histMedsTable');
     if (medsTbody) {
         medsTbody.innerHTML = '';
-        let medsList = [];
 
         // 1. ดึงจาก matchedOrderData (items หรือ items_json)
         if (matchedOrderData && (matchedOrderData.items || matchedOrderData.items_json)) {
@@ -13185,6 +13223,14 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
             }
         };
         renderMedsList(medsList);
+        window.currentRenderMedsList = renderMedsList;
+    }
+
+    // 🌟 ประมวลผลและแสดงแถบประวัติชุดยา (Refill Batches Timeline: ชุดแรก, ชุดที่ 2, ชุดที่ 3...)
+    try {
+        await renderPatientMedBatchesTimeline(row, medsList);
+    } catch (batchErr) {
+        console.warn('Med batches timeline render warning:', batchErr);
     }
 
     // 🌟 แสดงกล่องสรุปยอดเงินสำหรับออเดอร์ (histOrderSummaryBox)
@@ -13324,9 +13370,341 @@ window.openLabUploadFromHistory = function (targetVisitId) {
     }, 250);
 };
 
+// =========================================================================
+// 🌟 ฟังก์ชันจัดการประวัติการสั่งยา/ต่อยาเป็นรอบๆ (Medication Refill Batches Timeline)
+// เช่น ชุด 1 รับยาอะไร, ชุด 2 รับยาอะไร, ชุด 3 รับยาอะไร
+// =========================================================================
+
+async function renderPatientMedBatchesTimeline(currentRow, currentMedsList) {
+    // หาก container ยังไม่มีใน DOM ให้สร้างและแทรกไว้เหนือตารางรายการยาอัตโนมัติ (ป้องกันปัญหา browser cache)
+    let container = document.getElementById('histBatchSelectorContainer');
+    if (!container) {
+        const medsTable = document.getElementById('histMedsTable');
+        const box = medsTable ? (medsTable.closest('.table-responsive') || medsTable) : null;
+        if (box && box.parentNode) {
+            const wrap = document.createElement('div');
+            wrap.className = 'd-flex align-items-center justify-content-between flex-wrap gap-2 mb-2 p-2 rounded bg-light border';
+            wrap.innerHTML = `
+                <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                    <span class="small fw-bold text-dark"><i class="bi bi-layers-fill text-primary me-1"></i>เลือกดูชุดยา:</span>
+                    <div id="histBatchSelectorContainer" class="d-flex align-items-center gap-1 flex-wrap"></div>
+                </div>
+            `;
+            box.parentNode.insertBefore(wrap, box);
+            container = document.getElementById('histBatchSelectorContainer');
+        }
+    }
+
+    const infoBar = document.getElementById('histBatchInfoBar');
+    const repeatBtn = document.getElementById('btnRepeatPrescription');
+    if (infoBar) infoBar.style.setProperty('display', 'none', 'important');
+
+    const patientHn = (currentRow.hn && currentRow.hn !== '-') ? String(currentRow.hn).trim() : '';
+    const patientName = currentRow.patient_name ? String(currentRow.patient_name).trim().toLowerCase() : '';
+
+    // บันทึกรายการยาของ visit ปัจจุบันลง cache และลง window.currentDisplayedMedsList
+    window.patientMedBatchesData = window.patientMedBatchesData || {};
+    if (Array.isArray(currentMedsList) && currentMedsList.length > 0) {
+        window.patientMedBatchesData[currentRow.visit_id] = currentMedsList;
+        window.currentDisplayedMedsList = currentMedsList;
+    }
+
+    // 1. ค้นหาประวัติ visits ทั้งหมดของคนไข้ท่านนี้
+    let allPatientVisits = [];
+    if (Array.isArray(window.allHistoryVisits)) {
+        allPatientVisits = window.allHistoryVisits.filter(v => {
+            if (!v) return false;
+            if (patientHn && v.hn && (v.hn === patientHn || String(v.hn).replace(/\D/g, '') === patientHn.replace(/\D/g, ''))) return true;
+            if (patientName && v.patient_name && v.patient_name.trim().toLowerCase() === patientName) return true;
+            return false;
+        });
+    }
+
+    // ดึงจาก Supabase visits table เพิ่มเติมเพื่อความสดใหม่ 100%
+    if (patientHn && typeof _supabase !== 'undefined') {
+        try {
+            const { data: dbVisits } = await _supabase
+                .from('visits')
+                .select('*')
+                .eq('hn', patientHn)
+                .order('created_at', { ascending: true });
+            if (Array.isArray(dbVisits) && dbVisits.length > 0) {
+                dbVisits.forEach(dv => {
+                    const idx = allPatientVisits.findIndex(pv => pv.visit_id === dv.visit_id);
+                    if (idx === -1) allPatientVisits.push(dv);
+                    else allPatientVisits[idx] = Object.assign({}, allPatientVisits[idx], dv);
+                });
+            }
+        } catch (e) { }
+    }
+
+    // รวมแถวปัจจุบันเข้าไปด้วยหากยังไม่มี
+    if (!allPatientVisits.some(pv => pv.visit_id === currentRow.visit_id)) {
+        allPatientVisits.push(currentRow);
+    }
+
+    // เรียงตาม created_at จากเก่าไปใหม่ (ชุด 1 อยู่แรกสุดเสมอ)
+    allPatientVisits.sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+
+    // 2. กำหนดข้อมูลแต่ละชุด (Batches)
+    const batches = allPatientVisits.map((v, idx) => {
+        let label = '';
+        if (v.refill_batch) {
+            label = v.refill_batch;
+        } else if (v.symptom && v.symptom.includes('ชุดที่')) {
+            const m = v.symptom.match(/ชุดที่\s*\d+/);
+            if (m) label = m[0];
+        }
+        if (!label) {
+            label = idx === 0 ? 'ชุด 1 (ชุดแรก)' : `ชุด ${idx + 1}`;
+        }
+        let shortBtnText = label.replace(/ชุดที่\s*/g, 'ชุด ').replace(/\(ชุดแรก\)/g, '').trim();
+        if (!shortBtnText.startsWith('ชุด')) shortBtnText = `ชุด ${idx + 1}`;
+
+        const dObj = new Date(v.created_at || Date.now());
+        const dateShort = !isNaN(dObj) ? dObj.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+        const fullDate = !isNaN(dObj) ? dObj.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' น.' : '-';
+
+        return {
+            visitId: v.visit_id,
+            batchNum: idx + 1,
+            label: label,
+            shortBtnText: shortBtnText,
+            dateShort: dateShort,
+            fullDate: fullDate,
+            doctor: v.doctor_name || v.closer_dr || '-',
+            visitObj: v
+        };
+    });
+
+    window.currentPatientMedBatches = batches;
+    const currentActiveVid = currentRow.visit_id;
+    window.currentActiveMedBatchVisitId = currentActiveVid;
+
+    // อัปเดตปุ่ม "ต่อยา / สั่งยา" ด้านล่างให้ระบุเลขชุดถัดไปชัดเจน
+    const nextNum = Math.max(2, batches.length + 1);
+    if (repeatBtn) {
+        repeatBtn.innerHTML = `<i class="bi bi-capsule-pill me-1"></i> ต่อยา (สั่งชุดที่ ${nextNum})`;
+    }
+
+    if (!container) return;
+    container.innerHTML = '';
+
+    // 3. วาดปุ่มเลือกชุดยา: แสดงปุ่ม ชุด 1, ชุด 2, ชุด 3 ให้คลิกดูได้เสมอ
+    let btnsHtml = '';
+    batches.forEach(b => {
+        const isActive = b.visitId === currentActiveVid;
+        const btnClass = isActive ? 'btn-primary text-white shadow-sm fw-bold' : 'btn-outline-primary bg-white text-primary';
+        const badgeClass = isActive ? 'bg-white text-primary fw-bold' : 'bg-primary-subtle text-primary';
+
+        btnsHtml += `
+            <button type="button" class="btn btn-sm ${btnClass} py-1 px-2.5 hist-batch-btn"
+                id="btnBatch_${b.visitId}"
+                onclick="switchHistoryMedBatch('${b.visitId}')"
+                style="border-radius: 6px; font-size: 0.82rem; font-weight: 600; transition: all 0.15s ease;">
+                <i class="bi bi-capsule me-1"></i>${b.shortBtnText}
+                <span class="badge ${badgeClass} ms-1" style="font-size: 0.72rem; font-weight: normal;">${b.dateShort}</span>
+            </button>
+        `;
+    });
+    container.innerHTML = btnsHtml;
+
+    // 4. แสดง Info Bar ของชุดยาปัจจุบัน
+    const activeBatch = batches.find(b => b.visitId === currentActiveVid) || batches[0];
+    if (activeBatch && infoBar) {
+        const badgeEl = document.getElementById('histBatchCurrentBadge');
+        const dateEl = document.getElementById('histBatchCurrentDate');
+        const docEl = document.getElementById('histBatchCurrentDoctor');
+        if (badgeEl) badgeEl.innerText = activeBatch.label;
+        if (dateEl) dateEl.innerText = `รหัส Visit: ${activeBatch.visitId} • วันที่: ${activeBatch.fullDate}`;
+        if (docEl) docEl.innerHTML = activeBatch.doctor && activeBatch.doctor !== '-' ? `<i class="bi bi-person-workspace me-1"></i>แพทย์: ${activeBatch.doctor}` : '';
+        infoBar.style.setProperty('display', 'flex', 'important');
+    }
+}
+
+// ฟังก์ชันสลับดูรายการยาของแต่ละชุด (ชุด 1, ชุด 2, ชุด 3...)
+window.switchHistoryMedBatch = async function (visitId) {
+    if (!visitId) return;
+    window.currentActiveMedBatchVisitId = visitId;
+
+    const batches = window.currentPatientMedBatches || [];
+    const targetBatch = batches.find(b => b.visitId === visitId);
+
+    // 1. อัปเดตสไตล์ปุ่มที่กดเลือก
+    document.querySelectorAll('.hist-batch-btn').forEach(btn => {
+        btn.className = 'btn btn-sm btn-outline-primary bg-white text-primary py-1 px-2.5 hist-batch-btn';
+        const sp = btn.querySelector('.badge');
+        if (sp) sp.className = 'badge bg-primary-subtle text-primary ms-1';
+    });
+    const activeBtn = document.getElementById(`btnBatch_${visitId}`);
+    if (activeBtn) {
+        activeBtn.className = 'btn btn-sm btn-primary text-white shadow-sm fw-bold py-1 px-2.5 hist-batch-btn';
+        const sp = activeBtn.querySelector('.badge');
+        if (sp) sp.className = 'badge bg-white text-primary fw-bold ms-1';
+    }
+
+    // 2. อัปเดต Info Bar
+    const infoBar = document.getElementById('histBatchInfoBar');
+    if (targetBatch && infoBar) {
+        const badgeEl = document.getElementById('histBatchCurrentBadge');
+        const dateEl = document.getElementById('histBatchCurrentDate');
+        const docEl = document.getElementById('histBatchCurrentDoctor');
+        if (badgeEl) badgeEl.innerText = targetBatch.label;
+        if (dateEl) dateEl.innerText = `รหัส Visit: ${targetBatch.visitId} • วันที่: ${targetBatch.fullDate}`;
+        if (docEl) docEl.innerHTML = targetBatch.doctor && targetBatch.doctor !== '-' ? `<i class="bi bi-person-workspace me-1"></i>แพทย์: ${targetBatch.doctor}` : '';
+        infoBar.style.setProperty('display', 'flex', 'important');
+    }
+
+    // 3. ดึงและประมวลผลรายการยาของชุดที่เลือก
+    window.patientMedBatchesData = window.patientMedBatchesData || {};
+    let medsList = window.patientMedBatchesData[visitId];
+
+    // ดึงข้อมูลจาก visitObj หรือ Supabase หากยังไม่มีใน cache
+    if (!Array.isArray(medsList) || medsList.length === 0) {
+        medsList = [];
+        const v = (targetBatch && targetBatch.visitObj) ? targetBatch.visitObj : null;
+
+        // ก. ลองดึงจาก items_json / order_data ของ visitObj
+        if (v) {
+            let rawItems = v.items_json || (v.order_data && (v.order_data.items || v.order_data.items_json));
+            if (typeof rawItems === 'string') {
+                try { rawItems = JSON.parse(rawItems); } catch (e) { }
+            }
+            if (Array.isArray(rawItems) && rawItems.length > 0) {
+                medsList = rawItems.map(it => ({
+                    name: it.name || it.product_name || 'ສິນຄ້າ',
+                    qty: Number(it.qty || 1),
+                    tier: it.tier || 'normal',
+                    tierName: it.tierName || it.priceType || 'ປົກກະຕິ',
+                    price: Number(it.price || 0),
+                    total: Number(it.total || (Number(it.price || 0) * Number(it.qty || 1))),
+                    source: it.source || 'mlm'
+                }));
+            }
+
+            // ข. ลองดึงจาก v.meds
+            if (medsList.length === 0 && v.meds) {
+                try {
+                    let medsRaw = v.meds;
+                    if (typeof medsRaw === 'string') {
+                        medsRaw = medsRaw.trim();
+                        if (medsRaw.startsWith('"[') || medsRaw.startsWith('"\\"')) {
+                            medsRaw = JSON.parse(medsRaw);
+                        }
+                    }
+                    const parsed = typeof medsRaw === 'string' ? JSON.parse(medsRaw) : medsRaw;
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        medsList = parsed.map(m => {
+                            if (typeof m === 'object' && m !== null) return m;
+                            return { name: String(m), qty: 1, tier: 'normal', tierName: 'ປົກກະຕິ', source: 'mlm' };
+                        });
+                    }
+                } catch (e) { }
+            }
+        }
+
+        // ค. ดึงตรงจาก Supabase visits table (สำคัญมาก: ดึงเฉพาะ visitId ที่เลือก)
+        if (medsList.length === 0 && typeof _supabase !== 'undefined') {
+            try {
+                console.log(`[MedBatch] Fetching meds from Supabase for visit: ${visitId}`);
+                const { data: vDb } = await _supabase.from('visits').select('visit_id, meds, items_json').eq('visit_id', visitId).maybeSingle();
+                if (vDb) {
+                    console.log(`[MedBatch] Supabase data for ${visitId}:`, vDb);
+                    let vItems = vDb.items_json;
+                    if (typeof vItems === 'string') {
+                        try { vItems = JSON.parse(vItems); } catch (e) { vItems = null; }
+                    }
+                    if (!Array.isArray(vItems) || vItems.length === 0) {
+                        vItems = vDb.meds;
+                        if (typeof vItems === 'string') {
+                            try { vItems = JSON.parse(vItems); } catch (e) { vItems = null; }
+                        }
+                        // double-parse (JSON stored as escaped string)
+                        if (typeof vItems === 'string') {
+                            try { vItems = JSON.parse(vItems); } catch (e) { vItems = null; }
+                        }
+                    }
+                    if (Array.isArray(vItems) && vItems.length > 0) {
+                        medsList = vItems.map(it => ({
+                            name: it.name || it.product_name || String(it),
+                            qty: Number(it.qty || 1),
+                            tier: it.tier || 'normal',
+                            tierName: it.tierName || it.priceType || 'ປົກກະຕິ',
+                            price: Number(it.price || 0),
+                            total: Number(it.total || (Number(it.price || 0) * Number(it.qty || 1))),
+                            source: it.source || 'mlm'
+                        }));
+                    }
+                }
+            } catch (e) { console.warn('[MedBatch] Supabase fetch error:', e); }
+        }
+
+        // ง. ค้นหาใน stk_nutrient_orders (สารอาหาร MLM)
+        if (medsList.length === 0 && typeof _supabase !== 'undefined') {
+            try {
+                const { data: nOrder } = await _supabase.from('stk_nutrient_orders').select('items_json').eq('visit_id', visitId).maybeSingle();
+                if (nOrder && nOrder.items_json) {
+                    let nItems = nOrder.items_json;
+                    if (typeof nItems === 'string') {
+                        try { nItems = JSON.parse(nItems); } catch (e) { }
+                    }
+                    if (Array.isArray(nItems) && nItems.length > 0) {
+                        medsList = nItems.map(it => ({
+                            name: it.name || it.product_name || String(it),
+                            qty: Number(it.qty || 1),
+                            tier: it.tier || 'normal',
+                            tierName: it.tierName || it.priceType || 'ປົກກະຕິ',
+                            price: Number(it.price || 0),
+                            total: Number(it.total || (Number(it.price || 0) * Number(it.qty || 1))),
+                            source: 'mlm'
+                        }));
+                    }
+                }
+            } catch (e) { }
+        }
+
+        // บันทึกลง cache
+        window.patientMedBatchesData[visitId] = medsList;
+    }
+
+    // ตรวจสอบและ normalize ให้แน่ใจว่าเป็น Array เสมอ
+    if (!Array.isArray(medsList)) medsList = [];
+    console.log(`[MedBatch] Rendering batch ${visitId} with ${medsList.length} meds:`, medsList.map(m => m.name));
+
+    // เก็บลง window.currentDisplayedMedsList เพื่อส่งต่อให้ปุ่ม "ต่อยา" ทันที
+    window.currentDisplayedMedsList = medsList;
+
+    // 4. วาดรายการยาลงตาราง
+    if (typeof window.currentRenderMedsList === 'function') {
+        window.currentRenderMedsList(medsList);
+    } else {
+        // Fallback: วาดตารางโดยตรงหาก closure ไม่พร้อมใช้งาน
+        const fallbackTbody = document.querySelector('#histMedsTable tbody') || document.querySelector('#histMedsTable');
+        if (fallbackTbody) {
+            if (medsList.length > 0) {
+                fallbackTbody.innerHTML = medsList.map(m => {
+                    const cleanName = (m.name || String(m)).replace(/ \(โปร\)| \(ส่ง\/สมาชิก\)| \(แถมฟรี\)/g, '');
+                    const qty = Number(m.qty || 1);
+                    const price = Number(m.price || 0);
+                    const total = Number(m.total || (price * qty));
+                    return `<tr>
+                        <td class="ps-3 align-middle text-dark fw-medium">${cleanName}</td>
+                        <td class="text-center align-middle"><span class="badge bg-secondary-subtle text-dark border">${m.tierName || 'ປົກກະຕິ'}</span></td>
+                        <td class="text-end align-middle text-muted small">${price > 0 ? price.toLocaleString('th-TH') + ' ฿' : '-'}</td>
+                        <td class="text-center align-middle fw-bold text-primary">${qty}</td>
+                        <td class="text-end pe-3 align-middle fw-semibold text-dark">${total > 0 ? total.toLocaleString('th-TH') + ' ฿' : '-'}</td>
+                    </tr>`;
+                }).join('');
+            } else {
+                fallbackTbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">ບໍ່ມີລາຍການຢາ/ອາຫານເສີມສັ່ງຈ່າຍ</td></tr>';
+            }
+        }
+    }
+};
+
 // ฟังก์ชันสำหรับ "ต่อยา / สั่งยา" (สั่งยาเดิมซ้ำ หรือสั่งยาใหม่จากประวัติการตรวจรักษา - Instant Flow)
 function repeatPrescriptionFromHistory(targetVisitId) {
-    const visitId = targetVisitId || (window.currentHistoryDetailVisit ? window.currentHistoryDetailVisit.visit_id : document.getElementById('histVisitId')?.innerText);
+    const visitId = targetVisitId || window.currentActiveMedBatchVisitId || (window.currentHistoryDetailVisit ? window.currentHistoryDetailVisit.visit_id : document.getElementById('histVisitId')?.innerText);
     const row = (window.allHistoryVisits || []).find(v => v.visit_id === visitId) || window.currentHistoryDetailVisit;
 
     if (!row) {
@@ -13334,23 +13712,72 @@ function repeatPrescriptionFromHistory(targetVisitId) {
         return;
     }
 
-    // 1. ดึงรายการยาเดิมจากประวัติ (หากไม่มี ให้เป็น array ว่างเพื่อเปิดสั่งยาใหม่ได้ทันที)
+    // 1. 🌟 ดึงรายการยาเดิมจากชุดที่กำลังเลือกดูบนหน้าจออย่างแม่นยำ 100%
     let medsList = [];
-    if (row.meds) {
-        try {
-            let medsRaw = row.meds;
-            if (typeof medsRaw === 'string') {
-                medsRaw = medsRaw.trim();
-                if (medsRaw.startsWith('"[') || medsRaw.startsWith('"\\"')) {
-                    medsRaw = JSON.parse(medsRaw);
-                }
-                medsList = typeof medsRaw === 'string' ? JSON.parse(medsRaw) : medsRaw;
-            } else if (Array.isArray(row.meds)) {
-                medsList = row.meds;
-            }
-        } catch (e) {
-            console.warn('Parse history meds for refill warning:', e);
+
+    // 1.1 ดึงจากรายการยาที่กำลังแสดงผลอยู่บนหน้าจอ ณ ตอนนี้เป็นอันดับ 1
+    if (Array.isArray(window.currentDisplayedMedsList) && window.currentDisplayedMedsList.length > 0) {
+        medsList = window.currentDisplayedMedsList.map(m => ({ ...m }));
+    }
+
+    // 1.2 ดึงจาก cache patientMedBatchesData ของ visit นี้
+    if (medsList.length === 0 && window.patientMedBatchesData && row && window.patientMedBatchesData[row.visit_id]) {
+        medsList = window.patientMedBatchesData[row.visit_id].map(m => ({ ...m }));
+    }
+
+    // 1.3 ดึงจาก row.items_json หรือ row.order_data หรือ row.meds
+    if (medsList.length === 0 && row) {
+        let rawItems = row.items_json || (row.order_data && (row.order_data.items || row.order_data.items_json));
+        if (typeof rawItems === 'string') {
+            try { rawItems = JSON.parse(rawItems); } catch (e) { }
         }
+        if (Array.isArray(rawItems) && rawItems.length > 0) {
+            medsList = rawItems.map(m => ({ ...m }));
+        } else if (row.meds) {
+            try {
+                let medsRaw = row.meds;
+                if (typeof medsRaw === 'string') {
+                    medsRaw = medsRaw.trim();
+                    if (medsRaw.startsWith('"[') || medsRaw.startsWith('"\\"')) {
+                        medsRaw = JSON.parse(medsRaw);
+                    }
+                }
+                const parsed = typeof medsRaw === 'string' ? JSON.parse(medsRaw) : medsRaw;
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    medsList = parsed.map(m => (typeof m === 'object' && m !== null) ? { ...m } : { name: String(m), qty: 1, price: 0 });
+                }
+            } catch (e) {
+                console.warn('Parse history meds for refill warning:', e);
+            }
+        }
+    }
+
+    // 1.4 Fallback: อ่านจากแถวในตาราง #histMedsTable โดยตรง (ป้องกันตะกร้าว่าง 100%)
+    if (medsList.length === 0) {
+        const domRows = document.querySelectorAll('#histMedsTable tbody tr');
+        domRows.forEach(tr => {
+            const nameTd = tr.querySelector('td:nth-child(1)');
+            const tierTd = tr.querySelector('td:nth-child(2)');
+            const priceTd = tr.querySelector('td:nth-child(3)');
+            const qtyTd = tr.querySelector('td:nth-child(4)');
+            if (nameTd && !nameTd.innerText.includes('ไม่มีรายการ') && !nameTd.innerText.includes('ບໍ່ມີລາຍການ')) {
+                let cleanName = nameTd.innerText.replace(/STK MLM|คลังยา|ຄັງຢາ/g, '').trim();
+                let qty = qtyTd ? parseInt(qtyTd.innerText, 10) || 1 : 1;
+                let price = priceTd ? parseFloat(priceTd.innerText.replace(/[^\d.]/g, '')) || 0 : 0;
+                let tier = tierTd ? tierTd.innerText.trim() : 'ราคาปกติ';
+                if (cleanName) {
+                    medsList.push({
+                        name: cleanName,
+                        qty: qty,
+                        price: price,
+                        source: 'mlm',
+                        sourceLabel: 'คลังสินค้า (STK Groupe / MLM)',
+                        type: tier,
+                        tier: 'normal'
+                    });
+                }
+            }
+        });
     }
 
     if (!Array.isArray(medsList)) {
@@ -13358,16 +13785,21 @@ function repeatPrescriptionFromHistory(targetVisitId) {
     }
 
     // 2. คำนวณลำดับชุดที่ต่อยา (ชุดที่ 2, ชุดที่ 3, ชุดที่ 4...)
-    const allVisits = window.allHistoryVisits || [];
-    const patientPastVisits = allVisits.filter(v => (row.hn && v.hn === row.hn) || (row.patient_name && v.patient_name === row.patient_name));
-    const nextBatchNum = Math.max(2, patientPastVisits.length + 1);
+    let nextBatchNum = 2;
+    if (window.currentPatientMedBatches && window.currentPatientMedBatches.length > 0) {
+        nextBatchNum = window.currentPatientMedBatches.length + 1;
+    } else {
+        const allVisits = window.allHistoryVisits || [];
+        const patientPastVisits = allVisits.filter(v => (row.hn && v.hn === row.hn) || (row.patient_name && v.patient_name === row.patient_name));
+        nextBatchNum = Math.max(2, patientPastVisits.length + 1);
+    }
     const batchTag = `ชุดที่ ${nextBatchNum}`;
 
     // ดึงชื่อแพทย์ผู้ตรวจจากเคสเดิม (ถ้ามี)
     let docName = (row.doctor_name && row.doctor_name !== '-' && row.doctor_name.trim() !== '') ? row.doctor_name : '';
-    if (!docName) {
-        const pastVisitWithDoc = patientPastVisits.find(v => v.doctor_name && v.doctor_name !== '-' && v.doctor_name.trim() !== '');
-        if (pastVisitWithDoc) docName = pastVisitWithDoc.doctor_name;
+    if (!docName && window.currentPatientMedBatches) {
+        const bDoc = window.currentPatientMedBatches.find(b => b.doctor && b.doctor !== '-');
+        if (bDoc) docName = bDoc.doctor;
     }
 
     window.currentRefillContext = {
@@ -13388,7 +13820,7 @@ function repeatPrescriptionFromHistory(targetVisitId) {
     // 4. สร้าง Visit ID ใหม่สำหรับการต่อยา/สั่งยา
     const newVisitId = `VIS-${Date.now().toString().slice(-6)}`;
 
-    // 5. เปิด Prescribe Modal พร้อมใส่รายการยาลงใน Cart (หากไม่มีรายการยาเดิม Cart จะว่างและพร้อมให้เลือกสั่งยาใหม่ได้ทันที)
+    // 5. เปิด Prescribe Modal พร้อมใส่รายการยาเดิมลงใน Cart 100%
     openPrescribeModal(newVisitId, row.hn, row.patient_name, row.pdf_url || '', medsList, batchTag);
 
     // 6. Toast แจ้งเตือนแบบ Real-time ไม่ขัดจังหวะการทำงาน
@@ -13402,7 +13834,7 @@ function repeatPrescriptionFromHistory(targetVisitId) {
     Toast.fire({
         icon: 'success',
         title: medsList.length > 0
-            ? `เปิดสั่งจ่ายต่อยา ${batchTag} (${medsList.length} รายการ) เรียบร้อย`
+            ? `เปิดสั่งจ่ายต่อยา ${batchTag} (${medsList.length} รายการจากชุดเดิม) เรียบร้อย`
             : `เปิดหน้าต่างสั่งยาสำหรับ ${row.patient_name || row.hn} เรียบร้อย`
     });
 }
@@ -15567,12 +15999,27 @@ function getFilteredReferrersData() {
     // Ensure referrers with paid commissionLogs exist in list
     (window.commissionLogs || []).forEach(log => {
         if (log.status === 'paid' && (log.referrer_id || log.referrer_name)) {
-            const found = list.find(r => r.id === log.referrer_id || r.code === log.referrer_id || r.name === log.referrer_name);
+            const rawRef = log.referrer_name || log.referrer_id || '';
+            let parsedCode = log.referrer_id || '';
+            let parsedName = log.referrer_name || '';
+            const sep = rawRef.match(/^([A-Za-z0-9_\-]+?)\s*[-–]\s*(.+)$/);
+            if (sep) {
+                parsedCode = sep[1].trim();
+                parsedName = sep[2].trim();
+            }
+
+            const found = list.find(r => 
+                r.id === log.referrer_id || 
+                r.code === log.referrer_id || 
+                r.code === parsedCode || 
+                r.name === log.referrer_name ||
+                r.name === parsedName
+            );
             if (!found) {
                 list.push({
-                    id: log.referrer_id || ('REF-' + Math.floor(Math.random() * 10000)),
-                    code: log.referrer_id || log.referrer_name,
-                    name: log.referrer_name || log.referrer_id,
+                    id: log.referrer_id || parsedCode || ('REF-' + Math.floor(Math.random() * 10000)),
+                    code: parsedCode || log.referrer_id || log.referrer_name,
+                    name: parsedName || log.referrer_name || log.referrer_id,
                     phone: '-',
                     bank_name: '-',
                     bank_account: '-'
@@ -15628,12 +16075,29 @@ function getFilteredReferrersData() {
             ? (mlmMatch.bankAccountNo || mlmMatch.bank_account_no || mlmMatch.bank_account)
             : ((r.bank_account && r.bank_account !== '-') ? r.bank_account : (empMatch && empMatch.bank_account ? empMatch.bank_account : '-'));
 
+        // แยก รหัส (code) และ ชื่อ (name) ให้เป็นอิสระต่อกันอย่างถูกต้อง
+        let displayCode = (r.code || r.id || '').trim();
+        let displayName = (r.name || '').trim();
+        const mC = displayCode.match(/^([A-Za-z0-9_\-]+?)\s*[-–]\s*(.+)$/);
+        const mN = displayName.match(/^([A-Za-z0-9_\-]+?)\s*[-–]\s*(.+)$/);
+        if (mC) {
+            displayCode = mC[1].trim();
+            if (!displayName || displayName === r.code) displayName = mC[2].trim();
+        } else if (mN) {
+            if (!displayCode || displayCode === r.name) displayCode = mN[1].trim();
+            displayName = mN[2].trim();
+        }
+
         // ONLY include paid logs for Tab 2 Report
         let paidLogs = (window.commissionLogs || []).filter(l =>
             l.status === 'paid' && (
                 l.referrer_id === r.id ||
                 l.referrer_id === r.code ||
-                l.referrer_name === r.name
+                l.referrer_id === displayCode ||
+                l.referrer_name === r.name ||
+                l.referrer_name === displayName ||
+                (displayCode && l.referrer_name && l.referrer_name.includes(displayCode)) ||
+                (r.code && l.referrer_name && l.referrer_name.includes(r.code))
             )
         );
 
@@ -15666,6 +16130,8 @@ function getFilteredReferrersData() {
 
             reportData.push({
                 ...r,
+                displayCode: displayCode,
+                displayName: displayName,
                 phone: phone,
                 bank_name: bankName,
                 bank_account: bankAccount,
@@ -15694,7 +16160,7 @@ function renderReferrersTable(filterText = '') {
     let totalPaidSum = 0;
 
     if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-5"><i class="bi bi-calendar-x fs-3 d-block mb-2 text-primary opacity-50"></i>ไม่พบข้อมูลสมาชิกผู้แนะนำในช่วงวันที่เลือก</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-5"><i class="bi bi-calendar-x fs-3 d-block mb-2 text-primary opacity-50"></i>ไม่พบข้อมูลสมาชิกผู้แนะนำในช่วงวันที่เลือก</td></tr>';
     } else {
         filtered.forEach((r, index) => {
             const baseEarned = r.baseEarned || 0;
@@ -15707,6 +16173,24 @@ function renderReferrersTable(filterText = '') {
             totalEarnedSum += totalEarned;
             totalPaidSum += paidEarned;
 
+            // แยกรหัสและชื่อให้ชัดเจน
+            let dispCode = r.displayCode || r.code || r.id || '-';
+            let dispName = r.displayName || r.name || '-';
+            const mC = String(dispCode).match(/^([A-Za-z0-9_\-]+?)\s*[-–]\s*(.+)$/);
+            if (mC) {
+                dispCode = mC[1].trim();
+                if (dispName === r.code || !dispName) dispName = mC[2].trim();
+            }
+            const mN = String(dispName).match(/^([A-Za-z0-9_\-]+?)\s*[-–]\s*(.+)$/);
+            if (mN) {
+                if (dispCode === '-' || dispCode === r.name) dispCode = mN[1].trim();
+                dispName = mN[2].trim();
+            }
+
+            const codeBadge = dispCode && dispCode !== '-'
+                ? `<span class="badge bg-dark-subtle text-dark border fw-bold font-monospace" style="font-size: 0.85rem; letter-spacing: 0.03em;">${dispCode}</span>`
+                : `<span class="text-muted small">-</span>`;
+
             const phoneDisplay = r.phone && r.phone !== '-' ? `<i class="ph ph-phone me-1 text-primary"></i>${r.phone}` : '-';
             const bankDisplay = r.bank_name && r.bank_name !== '-'
                 ? `<div class="fw-semibold text-dark">${r.bank_name}</div><small class="text-muted font-monospace">${r.bank_account || '-'}</small>`
@@ -15715,9 +16199,9 @@ function renderReferrersTable(filterText = '') {
             tbody.innerHTML += `
                 <tr>
                     <td class="ps-4 fw-bold text-muted" style="width: 50px;">${index + 1}</td>
-                    <td class="fw-bold text-primary">${r.code || r.id}</td>
+                    <td class="text-center">${codeBadge}</td>
                     <td>
-                        <div class="fw-bold text-dark">${r.name}</div>
+                        <div class="fw-bold text-dark">${dispName}</div>
                         <small class="text-muted">${r.notes || '-'}</small>
                     </td>
                     <td>${phoneDisplay}</td>
@@ -15865,8 +16349,12 @@ function exportReferrersExcel() {
     csvContent += "รหัสสมาชิก,ชื่อ-นามสกุล,เบอร์โทร,ธนาคาร,เลขที่บัญชี,ยอดปันผล (ภาพรวม),ยอดปันผล (แบบรายการ),ยอดรวม,ปันผลสะสม (จ่ายแล้ว)\n";
 
     data.forEach(r => {
-        const code = `"${(r.code || r.id || '').replace(/"/g, '""')}"`;
-        const name = `"${(r.name || '').replace(/"/g, '""')}"`;
+        let codeStr = r.displayCode || r.code || r.id || '';
+        let nameStr = r.displayName || r.name || '';
+        const m = codeStr.match(/^([A-Za-z0-9_\-]+?)\s*[-–]\s*(.+)$/);
+        if (m) { codeStr = m[1].trim(); if (!nameStr || nameStr === r.code) nameStr = m[2].trim(); }
+        const code = `"${codeStr.replace(/"/g, '""')}"`;
+        const name = `"${nameStr.replace(/"/g, '""')}"`;
         const phone = `"${(r.phone || '').replace(/"/g, '""')}"`;
         const bank = `"${(r.bank_name || '').replace(/"/g, '""')}"`;
         const acc = `"${(r.bank_account || '').replace(/"/g, '""')}"`;
@@ -15902,11 +16390,16 @@ function printReferrersReport() {
     const totalEarnedSum = data.reduce((sum, r) => sum + (r.totalEarned || 0), 0);
     const totalPaidSum = data.reduce((sum, r) => sum + (r.paidEarned || 0), 0);
 
-    const rowsHtml = data.map((r, i) => `
+    const rowsHtml = data.map((r, i) => {
+        let codeStr = r.displayCode || r.code || r.id || '-';
+        let nameStr = r.displayName || r.name || '-';
+        const m = String(codeStr).match(/^([A-Za-z0-9_\-]+?)\s*[-–]\s*(.+)$/);
+        if (m) { codeStr = m[1].trim(); if (nameStr === r.code || !nameStr) nameStr = m[2].trim(); }
+        return `
         <tr>
             <td style="text-align: center; border: 1px solid #cbd5e1; padding: 8px;">${i + 1}</td>
-            <td style="border: 1px solid #cbd5e1; padding: 8px; font-weight: bold; color: #003f88;">${r.code || r.id}</td>
-            <td style="border: 1px solid #cbd5e1; padding: 8px;">${r.name}</td>
+            <td style="border: 1px solid #cbd5e1; padding: 8px; font-weight: bold; color: #003f88; text-align: center;">${codeStr}</td>
+            <td style="border: 1px solid #cbd5e1; padding: 8px; font-weight: 600;">${nameStr}</td>
             <td style="border: 1px solid #cbd5e1; padding: 8px;">${r.phone || '-'}</td>
             <td style="border: 1px solid #cbd5e1; padding: 8px;">${r.bank_name || '-'} (${r.bank_account || '-'})</td>
             <td style="text-align: right; border: 1px solid #cbd5e1; padding: 8px;">${formatCommissionAmount(r.baseEarned || 0)}</td>
@@ -15914,7 +16407,7 @@ function printReferrersReport() {
             <td style="text-align: right; border: 1px solid #cbd5e1; padding: 8px; font-weight: bold; color: #0284c7;">${formatCommissionAmount(r.totalEarned || 0)}</td>
             <td style="text-align: right; border: 1px solid #cbd5e1; padding: 8px; font-weight: bold; color: #16a34a;">${formatCommissionAmount(r.paidEarned || 0)}</td>
         </tr>
-    `).join('');
+    `}).join('');
 
     const printWin = window.open('', '_blank', 'width=900,height=700');
     printWin.document.write(`
@@ -16217,11 +16710,18 @@ function printCommissionLogsReport() {
         const stText = l.status === 'paid' ? 'จ่ายแล้ว' : 'รอจ่าย';
         const bVal = parseFloat(l.base_amount || 0);
         const iVal = parseFloat(l.item_amount || 0);
+        // แยกรหัสออกจากชื่อผู้แนะนำ
+        const rawRef = l.referrer_name || '-';
+        let pCode = '', pName = rawRef;
+        const sep = rawRef.match(/^([A-Za-z0-9_\-]+?)\s*[-–]\s*(.+)$/);
+        if (sep) { pCode = sep[1].trim(); pName = sep[2].trim(); }
+        else if (l.referrer_id && l.referrer_id !== rawRef) { pCode = l.referrer_id; }
         return `
             <tr>
                 <td style="text-align: center; border: 1px solid #cbd5e1; padding: 6px;">${i + 1}</td>
                 <td style="border: 1px solid #cbd5e1; padding: 6px;">${dateStr}</td>
-                <td style="border: 1px solid #cbd5e1; padding: 6px; font-weight: bold;">${l.referrer_name || '-'}</td>
+                <td style="text-align: center; border: 1px solid #cbd5e1; padding: 6px; font-weight: bold;">${pCode || '-'}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 6px; font-weight: bold;">${pName}</td>
                 <td style="border: 1px solid #cbd5e1; padding: 6px;">${l.patient_name || '-'}</td>
                 <td style="text-align: right; border: 1px solid #cbd5e1; padding: 6px;">${formatCommissionAmount(l.total_invoice || 0)}</td>
                 <td style="text-align: right; border: 1px solid #cbd5e1; padding: 6px;">${formatCommissionAmount(bVal)}</td>
@@ -16282,7 +16782,8 @@ function printCommissionLogsReport() {
                     <tr>
                         <th style="text-align: center; width: 35px;">#</th>
                         <th style="width: 85px;">วันที่</th>
-                        <th>ผู้แนะนำ</th>
+                        <th style="text-align: center; width: 80px;">รหัส</th>
+                        <th>ชื่อผู้แนะนำ</th>
                         <th>ผู้ป่วย</th>
                         <th style="text-align: right; width: 95px;">ยอดค่าบริการ</th>
                         <th style="text-align: right; width: 95px;">ปันผลภาพรวม</th>
@@ -16645,7 +17146,7 @@ function renderCommissionLogsTable(page) {
     const pageLogs = logs.slice(startIndex, startIndex + COMM_LOGS_PER_PAGE);
 
     if (totalLogs === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-5">ไม่มีประวัติรายการเงินปันผล/คอมมิชชั่น</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" class="text-center text-muted py-5">ไม่มีประวัติรายการเงินปันผล/คอมมิชชั่น</td></tr>';
     } else {
         pageLogs.forEach((l, index) => {
             const rowNumber = startIndex + index + 1;
@@ -16700,6 +17201,25 @@ function renderCommissionLogsTable(page) {
             let visitBadge = l.visit_id ? `<span class="badge bg-light text-secondary border px-1.5 py-0.5 me-1" style="font-size: 0.7rem; font-weight: 500;" title="Visit ID"><i class="bi bi-tag me-1"></i>${l.visit_id}</span>` : '';
             let hnBadge = resolvedHn ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-1.5 py-0.5 me-1" style="font-size: 0.7rem; font-weight: 600;" title="HN ผู้ป่วย">HN: ${resolvedHn}</span>` : '';
 
+            // 🌟 แยกรหัสผู้แนะนำ (code) ออกจากชื่อ
+            // รูปแบบที่เป็นไปได้: "L04280 - LOVE STK" หรือ "L04280-LOVE STK" หรือ "L04280 LOVE STK"
+            const rawRefName = l.referrer_name || '-';
+            let refCode = '';
+            let refDisplayName = rawRefName;
+            const codeNameSep = rawRefName.match(/^([A-Za-z0-9_\-]+?)\s*[-–]\s*(.+)$/);
+            if (codeNameSep) {
+                refCode = codeNameSep[1].trim();
+                refDisplayName = codeNameSep[2].trim();
+            } else {
+                // ตรวจสอบจาก referrer_id โดยตรง
+                if (l.referrer_id && l.referrer_id !== rawRefName) {
+                    refCode = l.referrer_id;
+                }
+            }
+            const refCodeBadge = refCode
+                ? `<span class="badge bg-dark-subtle text-dark border fw-bold" style="font-size: 0.78rem; letter-spacing: 0.02em;">${refCode}</span>`
+                : `<span class="text-muted small">-</span>`;
+
             tbody.innerHTML += `
                 <tr class="${l.status === 'pending' ? 'table-warning-subtle fw-semibold' : ''}">
                     <td class="text-center ps-3" style="width: 40px;">
@@ -16707,7 +17227,8 @@ function renderCommissionLogsTable(page) {
                     </td>
                     <td class="ps-2 fw-bold text-muted" style="width: 50px;">${rowNumber}</td>
                     <td class="small text-muted">${dateStr}</td>
-                    <td class="fw-bold text-dark">${l.referrer_name || '-'}</td>
+                    <td class="text-center">${refCodeBadge}</td>
+                    <td class="fw-bold text-dark">${refDisplayName}</td>
                     <td class="fw-medium">
                         <div class="fw-semibold text-dark">${l.patient_name || '-'} ${bonusBadge}</div>
                         <div class="d-flex align-items-center gap-1 mt-1 flex-wrap">
@@ -18471,70 +18992,82 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
         }
 
         itemList.forEach(item => {
-            const rawItemId = String(item.id || item.service_id || item.item_id || item.name || '').trim();
-            const cleanItemId = rawItemId.replace(/^item_/, '');
-            const itemName = (item.name || item.title || rawItemId).trim();
-            const qty = parseFloat(item.qty || item.quantity || 1);
+            if (!item) return;
+            const rawItemId = String(item.id || item.service_id || item.item_id || '').trim();
+            const cleanItemId = rawItemId.replace(/^item_/, '').trim();
+            const itemName = (item.name || item.title || '').trim();
+            const qty = parseFloat(item.qty || item.quantity || 1) || 1;
 
             let matchedVal = null;
-            // 1. Check direct keys in itemSettings (ID or Name)
-            if (itemSettings[cleanItemId] !== undefined && parseFloat(itemSettings[cleanItemId]) > 0) {
-                matchedVal = parseFloat(itemSettings[cleanItemId]);
-            } else if (itemSettings['item_' + cleanItemId] !== undefined && parseFloat(itemSettings['item_' + cleanItemId]) > 0) {
-                matchedVal = parseFloat(itemSettings['item_' + cleanItemId]);
-            } else if (itemSettings[rawItemId] !== undefined && parseFloat(itemSettings[rawItemId]) > 0) {
-                matchedVal = parseFloat(itemSettings[rawItemId]);
-            } else if (itemSettings[itemName] !== undefined && parseFloat(itemSettings[itemName]) > 0) {
-                matchedVal = parseFloat(itemSettings[itemName]);
-            } else if (itemSettings[itemName.toLowerCase()] !== undefined && parseFloat(itemSettings[itemName.toLowerCase()]) > 0) {
-                matchedVal = parseFloat(itemSettings[itemName.toLowerCase()]);
-            } else {
-                // 2. Normalized punctuation / whitespace matching
-                const normName = itemName.replace(/[.,\s]/g, '').toLowerCase();
-                if (itemSettings[normName] !== undefined && parseFloat(itemSettings[normName]) > 0) {
-                    matchedVal = parseFloat(itemSettings[normName]);
+
+            // 1. ตรวจสอบโดยตรงจาก ID รายการบริการ (Direct Service ID)
+            if (cleanItemId && cleanItemId !== '-' && cleanItemId !== 'null' && cleanItemId !== 'undefined') {
+                if (itemSettings[cleanItemId] !== undefined && parseFloat(itemSettings[cleanItemId]) > 0) {
+                    matchedVal = parseFloat(itemSettings[cleanItemId]);
+                } else if (itemSettings['item_' + cleanItemId] !== undefined && parseFloat(itemSettings['item_' + cleanItemId]) > 0) {
+                    matchedVal = parseFloat(itemSettings['item_' + cleanItemId]);
+                }
+            }
+
+            // 2. ตรวจสอบโดยตรงจากชื่อรายการแบบตรงกันเป๊ะ (Exact Name Match 100%)
+            if ((matchedVal === null || isNaN(matchedVal) || matchedVal <= 0) && itemName && itemName !== '-') {
+                const lowerItemName = itemName.toLowerCase();
+                const normItemName = itemName.replace(/[.,\s]/g, '').toLowerCase();
+
+                if (itemSettings[itemName] !== undefined && parseFloat(itemSettings[itemName]) > 0) {
+                    matchedVal = parseFloat(itemSettings[itemName]);
+                } else if (itemSettings[lowerItemName] !== undefined && parseFloat(itemSettings[lowerItemName]) > 0) {
+                    matchedVal = parseFloat(itemSettings[lowerItemName]);
+                } else if (itemSettings[normItemName] !== undefined && parseFloat(itemSettings[normItemName]) > 0) {
+                    matchedVal = parseFloat(itemSettings[normItemName]);
                 } else {
-                    // 3. Case-insensitive key lookup in itemSettings
-                    const foundKey = Object.keys(itemSettings).find(k =>
-                        k.trim().toLowerCase() === itemName.toLowerCase() ||
-                        k.trim().toLowerCase() === cleanItemId.toLowerCase() ||
-                        k.trim().toLowerCase() === ('item_' + cleanItemId).toLowerCase() ||
-                        k.replace(/[.,\s]/g, '').toLowerCase() === normName
-                    );
+                    // ตรวจสอบ Case-insensitive ตรงตัวกับ Key ใน itemSettings
+                    const foundExactKey = Object.keys(itemSettings).find(k => {
+                        const cleanK = k.replace(/^item_/, '').trim();
+                        return (cleanK && cleanK.toLowerCase() === lowerItemName) ||
+                               (cleanK && cleanK.replace(/[.,\s]/g, '').toLowerCase() === normItemName);
+                    });
+                    if (foundExactKey && parseFloat(itemSettings[foundExactKey]) > 0) {
+                        matchedVal = parseFloat(itemSettings[foundExactKey]);
+                    }
+                }
 
-                    if (foundKey && parseFloat(itemSettings[foundKey]) > 0) {
-                        matchedVal = parseFloat(itemSettings[foundKey]);
-                    } else {
-                        // 4. Search in catalog (allServicesList)
-                        const foundSvc = allServicesList.find(s => {
-                            if (!s) return false;
-                            const sName = String(s.name || '').trim().toLowerCase();
-                            const sId = String(s.id || '').trim().toLowerCase().replace(/^item_/, '');
-                            const inName = itemName.toLowerCase();
-                            return sName === inName ||
-                                sId === cleanItemId.toLowerCase() ||
-                                sName.replace(/[.,\s]/g, '') === normName ||
-                                (inName.length >= 3 && (sName.includes(inName) || inName.includes(sName)));
-                        });
+                // 3. หากยังไม่พบ ค้นหาในรายการบริการหลัก (allServicesList) แบบตรงตัวเป๊ะเท่านั้น (Exact ID หรือ Exact Name)
+                // 🛑 ตัดระบบ .includes() สุ่มคำคล้ายออกทั้งหมด เพื่อไม่ให้รายการตรวจอื่นถูกดึงมาคิดปันผลโดยไม่ได้รับอนุญาต
+                if (matchedVal === null || isNaN(matchedVal) || matchedVal <= 0) {
+                    const matchedSvc = allServicesList.find(s => {
+                        if (!s) return false;
+                        const sId = String(s.id || s.service_id || '').replace(/^item_/, '').trim();
+                        const sName = String(s.name || '').trim();
+                        if (cleanItemId && sId && sId.toLowerCase() === cleanItemId.toLowerCase()) return true;
+                        if (sName && sName.toLowerCase() === lowerItemName) return true;
+                        if (sName && sName.replace(/[.,\s]/g, '').toLowerCase() === normItemName) return true;
+                        return false;
+                    });
 
-                        if (foundSvc) {
-                            const sId = String(foundSvc.id).replace(/^item_/, '');
-                            if (itemSettings[sId] !== undefined && parseFloat(itemSettings[sId]) > 0) {
-                                matchedVal = parseFloat(itemSettings[sId]);
-                            } else if (itemSettings['item_' + sId] !== undefined && parseFloat(itemSettings['item_' + sId]) > 0) {
-                                matchedVal = parseFloat(itemSettings['item_' + sId]);
-                            } else if (foundSvc.name && itemSettings[foundSvc.name.trim()] !== undefined && parseFloat(itemSettings[foundSvc.name.trim()]) > 0) {
-                                matchedVal = parseFloat(itemSettings[foundSvc.name.trim()]);
-                            }
+                    if (matchedSvc) {
+                        const sId = String(matchedSvc.id || matchedSvc.service_id || '').replace(/^item_/, '').trim();
+                        const sName = String(matchedSvc.name || '').trim();
+
+                        if (sId && itemSettings[sId] !== undefined && parseFloat(itemSettings[sId]) > 0) {
+                            matchedVal = parseFloat(itemSettings[sId]);
+                        } else if (sId && itemSettings['item_' + sId] !== undefined && parseFloat(itemSettings['item_' + sId]) > 0) {
+                            matchedVal = parseFloat(itemSettings['item_' + sId]);
+                        } else if (sName && itemSettings[sName] !== undefined && parseFloat(itemSettings[sName]) > 0) {
+                            matchedVal = parseFloat(itemSettings[sName]);
+                        } else if (sName && itemSettings[sName.toLowerCase()] !== undefined && parseFloat(itemSettings[sName.toLowerCase()]) > 0) {
+                            matchedVal = parseFloat(itemSettings[sName.toLowerCase()]);
                         }
                     }
                 }
             }
 
+            // 🌟 เฉพาะรายการที่เข้าเงื่อนไข (มีเงินปันผล > 0) เท่านั้นที่จะถูกนำมาคิดและบันทึก
+            // รายการใดที่ไม่อยู่ในเงื่อนไข จะถูกข้าม (Skip) 100%
             if (matchedVal !== null && !isNaN(matchedVal) && matchedVal > 0) {
                 const addVal = matchedVal * qty;
                 itemCommSum += addVal;
-                itemDetailsArr.push(`${itemName}: ${formatCommissionAmount(addVal)}`);
+                itemDetailsArr.push(`${itemName || 'รายการตรวจ'}: ${formatCommissionAmount(addVal)}`);
             }
         });
     }
@@ -18542,8 +19075,18 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
     // Net dividend = Overall + Item-based
     commAmount = (isOverallActive ? overallComm : 0) + (itemModeEnabled ? itemCommSum : 0);
 
-    // If no matching item with dividend and overall is 0, skip creating dividend log
+    // If no matching item with dividend and overall is 0, skip creating dividend log (and clean up any stale pending log)
     if ((!isOverallActive && !itemModeEnabled) || commAmount <= 0) {
+        const remIdx = window.commissionLogs.findIndex(l => (l.id === logId || (billId && l.bill_id === billId)) && l.status === 'pending');
+        if (remIdx !== -1) {
+            const remLogId = window.commissionLogs[remIdx].id;
+            window.commissionLogs.splice(remIdx, 1);
+            if (typeof _supabase !== 'undefined') {
+                try {
+                    _supabase.from('commission_logs').delete().eq('id', remLogId).then(() => { }).catch(() => { });
+                } catch (e) { }
+            }
+        }
         return;
     }
 
@@ -18742,7 +19285,8 @@ async function syncAllVisitsCommissionLogs() {
         const bId = b.bill_id;
         if (!bId) continue;
         const logId = 'COM-' + bId;
-        if (existingLogIds.has(logId) || existingBillLogIds.has(bId)) continue;
+        const existingLog = (window.commissionLogs || []).find(l => l.id === logId || (bId && l.bill_id === bId));
+        if (existingLog && existingLog.status === 'paid') continue;
 
         let v = visits.find(x => (x.visit_id || x.id) === b.visit_id) || {};
         let p = null;
@@ -18760,10 +19304,10 @@ async function syncAllVisitsCommissionLogs() {
             v.referrer = refBy;
             if (!v.hn && b.hn) v.hn = b.hn;
             if (!v.patient_name && b.patient_name) v.patient_name = b.patient_name;
-            const prevLen = window.commissionLogs.length;
             await calculateAndRecordCommission(v, '', true, b);
-            if (window.commissionLogs.length > prevLen && window.commissionLogs[0]) {
-                newLogsToUpsert.push(window.commissionLogs[0]);
+            const targetLog = (window.commissionLogs || []).find(l => l.id === logId || (bId && l.bill_id === bId));
+            if (targetLog && targetLog.status !== 'paid') {
+                newLogsToUpsert.push(targetLog);
             }
             existingLogIds.add(logId);
             existingBillLogIds.add(bId);
@@ -18773,11 +19317,12 @@ async function syncAllVisitsCommissionLogs() {
 
     // 2. Fallback: Process visits that have NO bills in the bills table
     const visitIdsWithBills = new Set(bills.map(b => b.visit_id).filter(Boolean));
-    const existingVisitIds = new Set(window.commissionLogs.map(l => l.visit_id).filter(Boolean));
     for (const v of visits) {
         const vId = v.visit_id || v.id;
         if (!vId) continue;
-        if (visitIdsWithBills.has(vId) || existingVisitIds.has(vId)) continue;
+        if (visitIdsWithBills.has(vId)) continue;
+        const existingLog = (window.commissionLogs || []).find(l => l.id === ('COM-' + vId) || (!l.bill_id && l.visit_id === vId));
+        if (existingLog && existingLog.status === 'paid') continue;
 
         const vStatus = (v.status || '').trim();
         const isPaidStatus = (
@@ -18802,12 +19347,11 @@ async function syncAllVisitsCommissionLogs() {
         if (refBy && refBy !== '-' && refBy !== 'null' && refBy !== 'undefined') {
             v.referrer = refBy;
             if (!v.hn && p && p.hn) v.hn = p.hn;
-            const prevLen = window.commissionLogs.length;
             await calculateAndRecordCommission(v, v.lab_tests || '', true, null);
-            if (window.commissionLogs.length > prevLen && window.commissionLogs[0]) {
-                newLogsToUpsert.push(window.commissionLogs[0]);
+            const targetLog = (window.commissionLogs || []).find(l => l.id === ('COM-' + vId) || (!l.bill_id && l.visit_id === vId));
+            if (targetLog && targetLog.status !== 'paid') {
+                newLogsToUpsert.push(targetLog);
             }
-            existingVisitIds.add(vId);
             addedCount++;
         }
     }
@@ -22084,7 +22628,8 @@ function generateCommissionLogsReportHtmlContent(logs) {
 
         thNum: '#',
         thDate: isLao ? 'ວັນທີ' : 'วันที่',
-        thReferrer: isLao ? 'ຜູ້ແນະນຳ' : 'ผู้แนะนำ',
+        thCode: isLao ? 'ລະຫັດ' : 'รหัส',
+        thReferrer: isLao ? 'ຊື່ຜູ້ແນະນຳ' : 'ชื่อผู้แนะนำ',
         thPatient: isLao ? 'ຄົນເຈັບທີ່ແນະນຳ' : 'ผู้ป่วยที่แนะนำ',
         thBillRef: isLao ? 'ອ້າງອີງບິນ' : 'อ้างอิงบิล',
         thServiceAmount: isLao ? 'ຍອດຄ່າບໍລິການ' : 'ยอดค่าบริการ',
@@ -22122,7 +22667,22 @@ function generateCommissionLogsReportHtmlContent(logs) {
     let rowsHtml = '';
     logs.forEach((l, index) => {
         const dateStr = l.created_at ? new Date(l.created_at).toLocaleDateString(dateLocale) : '-';
-        const refName = l.referrer_name || l.referrer_code || '-';
+
+        // แยกรหัสออกจากชื่อผู้แนะนำ (เช่น "L04280 - LOVE STK" → code="L04280", name="LOVE STK")
+        const rawRefName = l.referrer_name || l.referrer_code || '-';
+        let refCode = '';
+        let refName = rawRefName;
+        const codeSep = rawRefName.match(/^([A-Za-z0-9_\-]+?)\s*[-–]\s*(.+)$/);
+        if (codeSep) {
+            refCode = codeSep[1].trim();
+            refName = codeSep[2].trim();
+        } else if (l.referrer_id && l.referrer_id !== rawRefName) {
+            refCode = l.referrer_id;
+        }
+        const refCodeDisplay = refCode
+            ? `<span style="background:#1e293b;color:#fff;font-weight:700;padding:2px 7px;border-radius:10px;font-size:10px;letter-spacing:0.03em;">${refCode}</span>`
+            : '-';
+
         const patName = l.patient_name || '-';
         const billInfo = l.bill_id ? `${l.bill_id} (${l.visit_id || ''})` : (l.visit_id || '-');
 
@@ -22152,6 +22712,7 @@ function generateCommissionLogsReportHtmlContent(logs) {
             <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
                 <td style="padding: 8px; text-align: center; color: #64748b;">${index + 1}</td>
                 <td style="padding: 8px;">${dateStr}</td>
+                <td style="padding: 8px; text-align: center;">${refCodeDisplay}</td>
                 <td style="padding: 8px; font-weight: 600; color: #1e293b;">${refName}</td>
                 <td style="padding: 8px; color: #334155;">${patName}</td>
                 <td style="padding: 8px; text-align: center; color: #64748b;">${billInfo}</td>
@@ -22200,6 +22761,7 @@ function generateCommissionLogsReportHtmlContent(logs) {
                 <tr style="background: #0284c7; color: #ffffff; font-size: 11px; text-align: left;">
                     <th style="padding: 8px; text-align: center; width: 40px;">${labels.thNum}</th>
                     <th style="padding: 8px; width: 90px;">${labels.thDate}</th>
+                    <th style="padding: 8px; text-align: center; width: 80px;">${labels.thCode}</th>
                     <th style="padding: 8px;">${labels.thReferrer}</th>
                     <th style="padding: 8px;">${labels.thPatient}</th>
                     <th style="padding: 8px; text-align: center; width: 120px;">${labels.thBillRef}</th>
@@ -22215,7 +22777,7 @@ function generateCommissionLogsReportHtmlContent(logs) {
             </tbody>
             <tfoot>
                 <tr style="background: #f1f5f9; font-weight: 700; font-size: 11.5px; border-top: 2px solid #cbd5e1;">
-                    <td colspan="5" style="padding: 10px; text-align: right; color: #334155;">${labels.totalSumLabel(logs.length)}</td>
+                    <td colspan="6" style="padding: 10px; text-align: right; color: #334155;">${labels.totalSumLabel(logs.length)}</td>
                     <td style="padding: 10px; text-align: right; color: #1e293b;">${fmtNum(totalServiceSum)} ₭</td>
                     <td style="padding: 10px; text-align: right; color: #1e293b;">${fmtNum(totalBaseSum)} ₭</td>
                     <td style="padding: 10px; text-align: right; color: #1e293b;">${fmtNum(totalItemSum)} ₭</td>

@@ -3881,3 +3881,38 @@ body.login-page {
         border-bottom: 3px solid #003f88 !important;
     }
 }
+
+/* ========================================================
+   Triage Date & Time Filter & Search Toolbar (จุดคัดกรอง)
+   ======================================================== */
+#triage .date-filter-capsule {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 50rem;
+    padding: 4px 12px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#triage .date-filter-capsule input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.7;
+}
+
+#triage .btn-group .btn {
+    font-size: 13.5px;
+    font-weight: 600;
+    transition: all 0.15s ease-in-out;
+}
+
+#triage .btn-group .btn.active {
+    background-color: #0b3c73 !important;
+    color: #ffffff !important;
+    border-color: #0b3c73 !important;
+}
+
+#triage .btn-group .btn.active i {
+    color: #ffffff !important;
+}
