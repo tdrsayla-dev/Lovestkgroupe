@@ -11,6 +11,57 @@
     const safeUpper = (str) => String(str || '').trim().toUpperCase();
 
     /**
+     * คัดกรองและจับคู่ประเภทสินค้าราคา (Auto-Correct + รองรับภาษาลาว)
+     */
+    function classifyOrderItem(it, prodMapObj = {}) {
+        const rawPrice = (it.price !== undefined && it.price !== null && String(it.price).trim() !== '' && !isNaN(Number(it.price)))
+            ? Number(it.price)
+            : ((it.unitPrice !== undefined && it.unitPrice !== null && String(it.unitPrice).trim() !== '' && !isNaN(Number(it.unitPrice))) ? Number(it.unitPrice) : null);
+        
+        const typeStr = String(it.type || it.priceType || '').trim().toLowerCase();
+        const pName = String(it.prod || it.productName || it.name || '').trim();
+        const cleanPName = pName.replace(/\(.*?\)/g, '').trim();
+        const pNameLower = pName.toLowerCase();
+
+        const pObj = (it.id && prodMapObj[it.id]) || (it.product_id && prodMapObj[it.product_id]) || prodMapObj[pName] || prodMapObj[cleanPName] || {};
+        const pFull = Number(pObj.price_full ?? pObj.priceFull ?? 0);
+        const pMember = Number(pObj.price_member ?? pObj.priceMember ?? 0);
+        const pPromo = Number(pObj.price_promo ?? pObj.pricePromo ?? 0);
+
+        // 1. ถ้าระบุราคามาตรงๆ
+        if (rawPrice !== null) {
+            if (rawPrice === 0) return 'ราคาศูนย์';
+            if (pPromo > 0 && Math.abs(rawPrice - pPromo) < 0.01) return 'ราคาโปร';
+            if (pMember > 0 && Math.abs(rawPrice - pMember) < 0.01) return 'ราคาสมาชิก';
+            if (pFull > 0 && Math.abs(rawPrice - pFull) < 0.01) return 'ราคาเต็ม';
+        }
+
+        // 2. หาจากชื่อ (รองรับภาษาลาว)
+        if (pNameLower.includes('(แถม)') || pNameLower.includes('(ฟรี)') || pNameLower.includes('(ศูนย์)') || pNameLower.includes('(ຟຣີ)') || pNameLower.includes('(ແຖມ)')) return 'ราคาศูนย์';
+        if (pNameLower.includes('(โปร)') || pNameLower.includes('(โบร)') || pNameLower.includes('(ໂປຣ)') || pNameLower.includes('ພິເສດ')) return 'ราคาโปร';
+        if (pNameLower.includes('(สมาชิก)') || pNameLower.includes('(ส่ง)') || pNameLower.includes('(ສະມາຊິກ)') || pNameLower.includes('(ສົ່ງ)') || pNameLower.includes('ວີໄອພີ')) return 'ราคาสมาชิก';
+        if (pNameLower.includes('(เต็ม)') || pNameLower.includes('(ปกติ)') || pNameLower.includes('(ປົກກະຕິ)') || pNameLower.includes('(ເຕັມ)')) return 'ราคาเต็ม';
+
+        // 3. หาจากช่องประเภท
+        let pType = 'ราคาเต็ม';
+        if (typeStr.includes('ศูนย์') || typeStr.includes('ฟรี') || typeStr.includes('แถม') || typeStr.includes('ຟຣີ') || typeStr.includes('ແຖມ') || typeStr === 'zero' || typeStr === 'free') pType = 'ราคาศูนย์';
+        else if (typeStr.includes('โปร') || typeStr.includes('promo') || typeStr.includes('พิเศษ') || typeStr.includes('ໂປຣ') || typeStr.includes('ພິເສດ')) pType = 'ราคาโปร';
+        else if (typeStr.includes('สมาชิก') || typeStr.includes('member') || typeStr.includes('ส่ง') || typeStr.includes('vip') || typeStr.includes('ສະມາຊິກ') || typeStr.includes('ສົ່ງ') || typeStr.includes('ວີໄອພີ')) pType = 'ราคาสมาชิก';
+        else if (typeStr.includes('เต็ม') || typeStr.includes('ปกติ') || typeStr.includes('full') || typeStr.includes('normal') || typeStr.includes('ປົກກະຕິ') || typeStr.includes('ເຕັມ')) pType = 'ราคาเต็ม';
+
+        // 4. AUTO-CORRECT
+        if (pType === 'ราคาโปร' && pPromo === 0) {
+            if (pMember > 0) return 'ราคาสมาชิก';
+            return 'ราคาเต็ม';
+        }
+        if (pType === 'ราคาสมาชิก' && pMember === 0) {
+            if (pFull > 0) return 'ราคาเต็ม';
+        }
+
+        return pType;
+    }
+
+    /**
      * 1. แปลงชื่อทีมให้เป็นมาตรฐาน
      */
     function resolveTeamName(rawTeam, businessTeams) {
@@ -36,10 +87,14 @@
     /**
      * คลี่รายการขาย (Sales Unfolding) ตามช่วงวันที่และสิทธิ์
      */
+    /**
+     * คลี่รายการขาย (Sales Unfolding) ตามช่วงวันที่และสิทธิ์
+     */
     function unfoldSales({
         sales = [],
         members = [],
         customers = [],
+        products = [], // 👈 รับค่า products เข้ามาแล้ว
         startDate = '',
         endDate = '',
         permittedMemberSet = null,
@@ -54,7 +109,6 @@
             return true;
         });
 
-        // ⚡ O(1) Pre-indexing maps for high-performance unfolding
         const memberMap = new Map();
         (members || []).forEach(m => {
             if (m && m.id) memberMap.set(safeUpper(m.id), m);
@@ -65,8 +119,17 @@
             if (c) {
                 if (c.id) customerMap.set(String(c.id).trim(), c);
                 if (c.customer_id) customerMap.set(String(c.customer_id).trim(), c);
-                if (c.hn) customerMap.set(String(c.hn).trim().toUpperCase(), c);
             }
+        });
+
+        // ⭐ สร้าง Map ตารางสินค้าสำหรับ Auto-Correct
+        const cleanProdNameForMap = (name) => String(name || '').replace(/\(.*?\)/g, '').trim().toUpperCase();
+        const prodMap = {};
+        (products || []).forEach(p => {
+            if (p.id) prodMap[p.id] = p;
+            if (p.product_id) prodMap[p.product_id] = p;
+            if (p.name) prodMap[p.name] = p;
+            if (p.name) prodMap[cleanProdNameForMap(p.name)] = p;
         });
 
         const teamCache = new Map();
@@ -98,9 +161,15 @@
                         const qty = parseInt(value, 10);
                         if (!isNaN(qty) && qty > 0) {
                             const lastUnderscore = key.lastIndexOf('_');
+                            const pName = key.substring(0, lastUnderscore).replace(/\(.*?\)/g, '').trim();
+                            const legacyType = key.substring(lastUnderscore + 1);
+                            
+                            // ⭐ เรียก Auto-Correct ให้บิลเก่า
+                            const correctType = classifyOrderItem({ prod: pName, type: legacyType }, prodMap);
+                            
                             rawItems.push({
-                                prod: key.substring(0, lastUnderscore).replace(/\(.*?\)/g, '').trim(),
-                                type: key.substring(lastUnderscore + 1),
+                                prod: pName,
+                                type: correctType,
                                 qty: qty
                             });
                         }
@@ -112,6 +181,9 @@
                 rawItems.forEach(it => {
                     const q = Number(it.qty || it.quantity || 1);
                     if (q > 0) {
+                        // ⭐ เรียก Auto-Correct ให้บิลใหม่
+                        const correctType = classifyOrderItem(it, prodMap);
+
                         items.push({
                             billId: record.id,
                             date: record.date || record.sale_date || '',
@@ -121,7 +193,7 @@
                             custType: resolvedCustType,
                             productId: String(it.productId || it.product_id || it.id || '').trim(),
                             product: String(it.prod || it.productName || it.name || 'สินค้าอื่นๆ').trim(),
-                            priceType: String(it.type || it.priceType || 'ราคาเต็ม').trim(),
+                            priceType: correctType, 
                             qty: q
                         });
                     }
@@ -139,7 +211,6 @@
         });
         return items;
     }
-
     /**
      * 2. สกัดการตั้งค่าเงื่อนไขการรับค่าคอมมิชชั่น (Commission Condition Config)
      */

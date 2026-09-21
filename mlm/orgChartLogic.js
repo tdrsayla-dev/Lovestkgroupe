@@ -116,6 +116,50 @@
   function cleanProdName(name) {
     return String(name || '').replace(/\(.*?\)/g, '').trim().toUpperCase();
   }
+   // ─── 2.1 Auto-Correct Classification Helper ────────────────────
+  function classifyOrderItem(it, prodMapObj = {}) {
+      const rawPrice = (it.price !== undefined && it.price !== null && String(it.price).trim() !== '' && !isNaN(Number(it.price)))
+          ? Number(it.price)
+          : ((it.unitPrice !== undefined && it.unitPrice !== null && String(it.unitPrice).trim() !== '' && !isNaN(Number(it.unitPrice))) ? Number(it.unitPrice) : null);
+      
+      const typeStr = String(it.type || it.priceType || '').trim().toLowerCase();
+      const pName = String(it.prod || it.productName || it.name || '').trim();
+      const cleanPName = cleanProdName(pName);
+      const pNameLower = pName.toLowerCase();
+
+      const pObj = (it.id && prodMapObj.get(safeUpper(it.id))) || (it.product_id && prodMapObj.get(safeUpper(it.product_id))) || prodMapObj.get(safeUpper(pName)) || prodMapObj.get(safeUpper(cleanPName)) || {};
+      const pFull = Number(pObj.price_full ?? pObj.priceFull ?? 0);
+      const pMember = Number(pObj.price_member ?? pObj.priceMember ?? 0);
+      const pPromo = Number(pObj.price_promo ?? pObj.pricePromo ?? 0);
+
+      if (rawPrice !== null) {
+          if (rawPrice === 0) return 'ราคาศูนย์';
+          if (pPromo > 0 && Math.abs(rawPrice - pPromo) < 0.01) return 'ราคาโปร';
+          if (pMember > 0 && Math.abs(rawPrice - pMember) < 0.01) return 'ราคาสมาชิก';
+          if (pFull > 0 && Math.abs(rawPrice - pFull) < 0.01) return 'ราคาเต็ม';
+      }
+
+      if (pNameLower.includes('(แถม)') || pNameLower.includes('(ฟรี)') || pNameLower.includes('(ศูนย์)') || pNameLower.includes('(ຟຣີ)') || pNameLower.includes('(ແຖມ)')) return 'ราคาศูนย์';
+      if (pNameLower.includes('(โปร)') || pNameLower.includes('(โบร)') || pNameLower.includes('(ໂປຣ)') || pNameLower.includes('ພິເສດ')) return 'ราคาโปร';
+      if (pNameLower.includes('(สมาชิก)') || pNameLower.includes('(ส่ง)') || pNameLower.includes('(ສະມາຊິກ)') || pNameLower.includes('(ສົ່ງ)') || pNameLower.includes('ວີໄອພີ')) return 'ราคาสมาชิก';
+      if (pNameLower.includes('(เต็ม)') || pNameLower.includes('(ปกติ)') || pNameLower.includes('(ປົກກະຕິ)') || pNameLower.includes('(ເຕັມ)')) return 'ราคาเต็ม';
+
+      let pType = 'ราคาเต็ม';
+      if (typeStr.includes('ศูนย์') || typeStr.includes('ฟรี') || typeStr.includes('แถม') || typeStr.includes('ຟຣີ') || typeStr.includes('ແຖມ') || typeStr === 'zero' || typeStr === 'free') pType = 'ราคาศูนย์';
+      else if (typeStr.includes('โปร') || typeStr.includes('promo') || typeStr.includes('พิเศษ') || typeStr.includes('ໂປຣ') || typeStr.includes('ພິເສດ')) pType = 'ราคาโปร';
+      else if (typeStr.includes('สมาชิก') || typeStr.includes('member') || typeStr.includes('ส่ง') || typeStr.includes('vip') || typeStr.includes('ສະມາຊິກ') || typeStr.includes('ສົ່ງ') || typeStr.includes('ວີໄອພີ')) pType = 'ราคาสมาชิก';
+      else if (typeStr.includes('เต็ม') || typeStr.includes('ปกติ') || typeStr.includes('full') || typeStr.includes('normal') || typeStr.includes('ປົກກະຕິ') || typeStr.includes('ເຕັມ')) pType = 'ราคาเต็ม';
+
+      if (pType === 'ราคาโปร' && pPromo === 0) {
+          if (pMember > 0) return 'ราคาสมาชิก';
+          return 'ราคาเต็ม';
+      }
+      if (pType === 'ราคาสมาชิก' && pMember === 0) {
+          if (pFull > 0) return 'ราคาเต็ม';
+      }
+
+      return pType;
+  }
 
   function isProductEligibleForReferral(prodConfig) {
     if (!prodConfig) return false;
@@ -288,12 +332,14 @@
     let totalPromoBoxesTeam = 0;
     let totalZeroBoxesTeam = 0;
 
-    // Helper to unpack items from a sale row
+    // Helper to unpack items from a sale row (with Auto-Correct)
     const unpackItems = (s) => {
       let itemsList = [];
       if (s.items_json) {
         try { itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json; } catch (e) {}
       }
+      
+      // ถ้าเป็นบิลเก่า (ไม่มี items_json)
       if (!Array.isArray(itemsList) || itemsList.length === 0) {
         Object.entries(s || {}).forEach(([key, value]) => {
           if (key.endsWith('_ราคาเต็ม') || key.endsWith('_ราคาสมาชิก') || key.endsWith('_ราคาโปร') || key.endsWith('_ราคาศูนย์')) {
@@ -301,12 +347,23 @@
             if (!isNaN(q) && q > 0) {
               const lastUnderscore = key.lastIndexOf('_');
               const pName = key.substring(0, lastUnderscore).replace(/\(.*?\)/g, '').trim();
-              const pType = key.substring(lastUnderscore + 1);
-              itemsList.push({ prod: pName, qty: q, type: pType });
+              const legacyType = key.substring(lastUnderscore + 1);
+              
+              // ⭐ เรียกใช้ Auto-Correct กับบิลเก่า
+              const correctType = classifyOrderItem({ prod: pName, type: legacyType }, productLookup);
+              
+              itemsList.push({ prod: pName, qty: q, type: correctType });
             }
           }
         });
+      } else {
+        // ถ้าเป็นบิลใหม่ (มี items_json) ให้รัน Auto-Correct ทับอีกทีเพื่อความชัวร์
+        itemsList = itemsList.map(it => {
+            const correctType = classifyOrderItem(it, productLookup);
+            return { ...it, type: correctType };
+        });
       }
+      
       return itemsList;
     };
 
