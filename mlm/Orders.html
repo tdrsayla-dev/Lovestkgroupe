@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -110,6 +110,7 @@
             const rawPrice = (it.price !== undefined && it.price !== null && String(it.price).trim() !== '' && !isNaN(Number(it.price)))
                 ? Number(it.price)
                 : ((it.unitPrice !== undefined && it.unitPrice !== null && String(it.unitPrice).trim() !== '' && !isNaN(Number(it.unitPrice))) ? Number(it.unitPrice) : null);
+            
             const typeStr = String(it.type || it.priceType || '').trim().toLowerCase();
             const pName = String(it.prod || it.productName || it.name || '').trim();
             const cleanPName = pName.replace(/\(.*?\)/g, '').trim();
@@ -120,36 +121,38 @@
             const pMember = Number(pObj.price_member ?? pObj.priceMember ?? 0);
             const pPromo = Number(pObj.price_promo ?? pObj.pricePromo ?? 0);
 
-            // 1. ตรวจสอบราคาศูนย์ (ตัดศูนย์ / แถมฟรี / 0 บาท)
-            if (rawPrice === 0 || typeStr.includes('ศูนย์') || typeStr.includes('ฟรี') || typeStr.includes('แถม') || typeStr.includes('zero') || typeStr.includes('free') || pNameLower.includes('แถม') || pNameLower.includes('ฟรี') || pNameLower.includes('ศูนย์') || pNameLower.includes('ຟຣີ')) {
-                return 'ราคาศูนย์';
+            // 1. ถ้าระบุราคามา เทียบราคาตรงๆ กับตารางสินค้า (เชื่อราคา 100%)
+            if (rawPrice !== null) {
+                if (rawPrice === 0) return 'ราคาศูนย์';
+                if (pPromo > 0 && Math.abs(rawPrice - pPromo) < 0.01) return 'ราคาโปร';
+                if (pMember > 0 && Math.abs(rawPrice - pMember) < 0.01) return 'ราคาสมาชิก';
+                if (pFull > 0 && Math.abs(rawPrice - pFull) < 0.01) return 'ราคาเต็ม';
             }
 
-            // 2. ตรวจสอบราคาโปร (ราคาโปร 800 บาท, 1000 บาท, หรือตรงกับ price_promo หรือระบุเป็นโปร)
-            if ((rawPrice !== null && (rawPrice === 800 || rawPrice === 1000 || (pPromo > 0 && Math.abs(rawPrice - pPromo) < 0.01)))
-                || typeStr.includes('โปร') || typeStr.includes('promo') || typeStr.includes('พิเศษ') || typeStr.includes('ໂປຣ')
-                || pNameLower.includes('(โปร)') || pNameLower.includes('(ໂປຣ)') || pNameLower.includes('โปรโมชั่น')) {
-                return 'ราคาโปร';
-            }
+            // 2. ถ้าไม่ได้ระบุราคา ให้หาจากชื่อ (รองรับภาษาลาว)
+            if (pNameLower.includes('(แถม)') || pNameLower.includes('(ฟรี)') || pNameLower.includes('(ศูนย์)') || pNameLower.includes('(ຟຣີ)') || pNameLower.includes('(ແຖມ)')) return 'ราคาศูนย์';
+            if (pNameLower.includes('(โปร)') || pNameLower.includes('(โบร)') || pNameLower.includes('(ໂປຣ)') || pNameLower.includes('ພິເສດ')) return 'ราคาโปร';
+            if (pNameLower.includes('(สมาชิก)') || pNameLower.includes('(ส่ง)') || pNameLower.includes('(ສະມາຊິກ)') || pNameLower.includes('(ສົ່ງ)') || pNameLower.includes('ວີໄອພີ')) return 'ราคาสมาชิก';
+            if (pNameLower.includes('(เต็ม)') || pNameLower.includes('(ปกติ)') || pNameLower.includes('(ປົກກະຕິ)') || pNameLower.includes('(ເຕັມ)')) return 'ราคาเต็ม';
 
-            // 3. ตรวจสอบราคาสมาชิก (ราคาสมาชิก 1500 บาท หรือตรงกับ price_member หรือระบุเป็นสมาชิก)
-            if ((rawPrice !== null && (rawPrice === 1500 || (pMember > 0 && Math.abs(rawPrice - pMember) < 0.01)))
-                || typeStr.includes('สมาชิก') || typeStr.includes('member') || typeStr.includes('ส่ง') || typeStr.includes('vip') || typeStr.includes('high') || typeStr.includes('ສະມາຊິກ') || typeStr.includes('ສົ່ງ')
-                || pNameLower.includes('(ส่ง/สมาชิก)') || pNameLower.includes('(สมาชิก)') || pNameLower.includes('(ສະມາຊິກ)')) {
-                return 'ราคาสมาชิก';
-            }
+            // 3. หาจากช่องประเภท
+            let pType = 'ราคาเต็ม';
+            if (typeStr.includes('ศูนย์') || typeStr.includes('ฟรี') || typeStr.includes('แถม') || typeStr.includes('ຟຣີ') || typeStr.includes('ແຖມ') || typeStr === 'zero' || typeStr === 'free') pType = 'ราคาศูนย์';
+            else if (typeStr.includes('โปร') || typeStr.includes('promo') || typeStr.includes('พิเศษ') || typeStr.includes('ໂປຣ') || typeStr.includes('ພິເສດ')) pType = 'ราคาโปร';
+            else if (typeStr.includes('สมาชิก') || typeStr.includes('member') || typeStr.includes('ส่ง') || typeStr.includes('vip') || typeStr.includes('ສະມາຊິກ') || typeStr.includes('ສົ່ງ') || typeStr.includes('ວີໄອພີ')) pType = 'ราคาสมาชิก';
+            else if (typeStr.includes('เต็ม') || typeStr.includes('ปกติ') || typeStr.includes('full') || typeStr.includes('normal') || typeStr.includes('ປົກກະຕິ') || typeStr.includes('ເຕັມ')) pType = 'ราคาเต็ม';
 
-            // 4. ตรวจสอบราคาเต็ม (ราคาเต็ม 1800 บาท หรือตรงกับ price_full หรือระบุเป็นราคาเต็ม/ปกติ)
-            if ((rawPrice !== null && (rawPrice === 1800 || (pFull > 0 && Math.abs(rawPrice - pFull) < 0.01)))
-                || typeStr.includes('เต็ม') || typeStr.includes('ปกติ') || typeStr.includes('full') || typeStr.includes('normal') || typeStr.includes('ປົກກະຕິ')) {
+            // ⭐ 4. AUTO-CORRECT: ถ้าระบบบิลเก่าบอกว่าเป็น "ราคาโปร" แต่สินค้าตัวนี้ไม่มีการตั้ง "ราคาโปร" ไว้ในระบบ (pPromo = 0)
+            // ให้บังคับเด้งกลับไปที่ราคาสมาชิกหรือราคาเต็มอัตโนมัติ!
+            if (pType === 'ราคาโปร' && pPromo === 0) {
+                if (pMember > 0) return 'ราคาสมาชิก';
                 return 'ราคาเต็ม';
             }
+            if (pType === 'ราคาสมาชิก' && pMember === 0) {
+                if (pFull > 0) return 'ราคาเต็ม';
+            }
 
-            // 5. Fallback ตาม type หรือราคา
-            if (typeStr === 'ราคาโปร') return 'ราคาโปร';
-            if (typeStr === 'ราคาสมาชิก') return 'ราคาสมาชิก';
-            if (typeStr === 'ราคาศูนย์') return 'ราคาศูนย์';
-            return 'ราคาเต็ม';
+            return pType;
         };
 
         const parseSaleCurrencyAmounts = (s, exRate) => {
@@ -436,22 +439,25 @@
                    Object.keys(s).forEach(key => {
                        const qty = parseInt(s[key]) || 0;
                        if (qty > 0) {
-                           let pName = ''; let type = '';
-                           if (key.endsWith('_ราคาเต็ม') && key !== 'รวมชิ้นราคาเต็ม') { pName = key.replace('_ราคาเต็ม', ''); type = 'ราคาเต็ม'; }
-                           else if (key.endsWith('_ราคาสมาชิก') && key !== 'รวมชิ้นราคาสมาชิก') { pName = key.replace('_ราคาสมาชิก', ''); type = 'ราคาสมาชิก'; }
-                           else if (key.endsWith('_ราคาโปร') && key !== 'รวมชิ้นราคาโปร') { pName = key.replace('_ราคาโปร', ''); type = 'ราคาโปร'; }
-                           else if (key.endsWith('_ราคาศูนย์') && key !== 'รวมชิ้นราคาศูนย์') { pName = key.replace('_ราคาศูนย์', ''); type = 'ราคาศูนย์'; }
+                           let pName = ''; let legacyType = '';
+                           if (key.endsWith('_ราคาเต็ม') && key !== 'รวมชิ้นราคาเต็ม') { pName = key.replace('_ราคาเต็ม', ''); legacyType = 'ราคาเต็ม'; }
+                           else if (key.endsWith('_ราคาสมาชิก') && key !== 'รวมชิ้นราคาสมาชิก') { pName = key.replace('_ราคาสมาชิก', ''); legacyType = 'ราคาสมาชิก'; }
+                           else if (key.endsWith('_ราคาโปร') && key !== 'รวมชิ้นราคาโปร') { pName = key.replace('_ราคาโปร', ''); legacyType = 'ราคาโปร'; }
+                           else if (key.endsWith('_ราคาศูนย์') && key !== 'รวมชิ้นราคาศูนย์') { pName = key.replace('_ราคาศูนย์', ''); legacyType = 'ราคาศูนย์'; }
                            
                            if (pName) {
                                const cleanProdName = pName.replace(/\(.*?\)/g, '').trim();
-                               const pObj = prodMap[cleanProdName]; 
+                               const pObj = prodMap[pName] || prodMap[cleanProdName] || {}; 
                                const multiplier = (pObj && (pObj.isBundle || pObj.is_bundle)) ? (parseInt(pObj.bundleQty || pObj.bundle_qty) || 1) : 1;
                                const realQty = qty * multiplier;
 
-                               if (type === 'ราคาเต็ม') rowF += realQty;
-                               else if (type === 'ราคาสมาชิก') rowM += realQty;
-                               else if (type === 'ราคาโปร') rowP += realQty;
-                               else if (type === 'ราคาศูนย์') rowZ += realQty;
+                               // ⭐ บังคับให้บิลเก่าวิ่งผ่าน Auto-Correct ตัวเดียวกันกับตารางด้านบน
+                               const correctType = classifyOrderItem({ prod: pName, type: legacyType }, prodMap);
+
+                               if (correctType === 'ราคาเต็ม') rowF += realQty;
+                               else if (correctType === 'ราคาสมาชิก') rowM += realQty;
+                               else if (correctType === 'ราคาโปร') rowP += realQty;
+                               else if (correctType === 'ราคาศูนย์') rowZ += realQty;
                            }
                        }
                    });
@@ -1186,10 +1192,20 @@
                     const qty = parseInt(record[key]) || 0;
                     if (qty > 0) {
                         const cleanProdName = (raw) => raw.replace(/\(.*?\)/g, '').trim();
-                        if (key.endsWith('_ราคาเต็ม') && key !== 'รวมชิ้นราคาเต็ม') fullItems.push({name: cleanProdName(key.replace('_ราคาเต็ม', '')), qty});
-                        else if (key.endsWith('_ราคาสมาชิก') && key !== 'รวมชิ้นราคาสมาชิก') memberItems.push({name: cleanProdName(key.replace('_ราคาสมาชิก', '')), qty});
-                        else if (key.endsWith('_ราคาโปร') && key !== 'รวมชิ้นราคาโปร') proItems.push({name: cleanProdName(key.replace('_ราคาโปร', '')), qty});
-                        else if (key.endsWith('_ราคาศูนย์') && key !== 'รวมชิ้นราคาศูนย์') zeroItems.push({name: cleanProdName(key.replace('_ราคาศูนย์', '')), qty});
+                        let pName = ''; let legacyType = '';
+                        if (key.endsWith('_ราคาเต็ม') && key !== 'รวมชิ้นราคาเต็ม') { pName = cleanProdName(key.replace('_ราคาเต็ม', '')); legacyType = 'ราคาเต็ม'; }
+                        else if (key.endsWith('_ราคาสมาชิก') && key !== 'รวมชิ้นราคาสมาชิก') { pName = cleanProdName(key.replace('_ราคาสมาชิก', '')); legacyType = 'ราคาสมาชิก'; }
+                        else if (key.endsWith('_ราคาโปร') && key !== 'รวมชิ้นราคาโปร') { pName = cleanProdName(key.replace('_ราคาโปร', '')); legacyType = 'ราคาโปร'; }
+                        else if (key.endsWith('_ราคาศูนย์') && key !== 'รวมชิ้นราคาศูนย์') { pName = cleanProdName(key.replace('_ราคาศูนย์', '')); legacyType = 'ราคาศูนย์'; }
+                        
+                        if (pName) {
+                            // ⭐ ส่งบิลเก่าไปตรวจความถูกต้องกับฐานข้อมูลสินค้าใหม่
+                            const correctType = classifyOrderItem({ prod: pName, type: legacyType }, prodMap);
+                            if (correctType === 'ราคาเต็ม') fullItems.push({name: pName, qty});
+                            else if (correctType === 'ราคาสมาชิก') memberItems.push({name: pName, qty});
+                            else if (correctType === 'ราคาโปร') proItems.push({name: pName, qty});
+                            else if (correctType === 'ราคาศูนย์') zeroItems.push({name: pName, qty});
+                        }
                     }
                 });
             }
