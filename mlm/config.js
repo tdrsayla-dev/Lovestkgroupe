@@ -259,14 +259,39 @@
         localStorage.setItem(BROADCAST_KEY, JSON.stringify({ action: 'logout', reason: 'inactivity_60m', time: Date.now() }));
       } catch (e) {}
 
-      alert('⚠️ ท่านไม่มีการใช้งานระบบเกิน 60 นาที\nระบบได้ออกจากระบบอัตโนมัติเพื่อความปลอดภัยและประหยัดปริมาณข้อมูล');
-      try {
-        if (window.top && window.top.location && window.top !== window) {
-          window.top.location.reload();
-          return;
-        }
-      } catch (e) {}
-      window.location.reload();
+      // สร้าง Custom Popup แทน alert() พื้นฐาน
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(6px); z-index: 9999999; display: flex; align-items: center; justify-content: center; padding: 20px; animation: stkFadeIn 0.3s ease-out;';
+      
+      const popup = document.createElement('div');
+      popup.style.cssText = 'background: white; border-radius: 24px; padding: 32px; max-width: 380px; width: 100%; text-align: center; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); transform: scale(0.95); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;';
+      
+      popup.innerHTML = `
+        <style>@keyframes popIn { to { transform: scale(1); } }</style>
+        <div style="width: 72px; height: 72px; background: #fff1f2; color: #f43f5e; border-radius: 24px; display: flex; align-items: center; justify-content: center; font-size: 36px; margin: 0 auto 20px auto; box-shadow: inset 0 0 0 2px #ffe4e6;">⏳</div>
+        <h3 style="font-size: 22px; font-weight: 900; color: #0f172a; margin: 0 0 12px 0; font-family: sans-serif; letter-spacing: -0.5px;">หมดเวลาการใช้งาน</h3>
+        <p style="font-size: 14px; color: #64748b; margin: 0 0 28px 0; line-height: 1.6; font-weight: 500; font-family: sans-serif;">ท่านไม่มีการใช้งานระบบเกิน 60 นาที<br>ระบบได้ออกจากระบบอัตโนมัติ<br>เพื่อความปลอดภัยของข้อมูล</p>
+        <button id="stk-timeout-btn" style="width: 100%; padding: 14px; background: #2563eb; color: white; border: none; border-radius: 14px; font-size: 15px; font-weight: 800; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);">เข้าสู่ระบบใหม่</button>
+      `;
+
+      overlay.appendChild(popup);
+      document.body.appendChild(overlay);
+
+      // เมื่อกดปุ่มค่อยทำการรีเฟรชหน้าเว็บ
+      document.getElementById('stk-timeout-btn').addEventListener('click', () => {
+         try {
+          if (window.top && window.top.location && window.top !== window) {
+            window.top.location.reload();
+            return;
+          }
+        } catch (e) {}
+        window.location.reload();
+      });
+
+      // ดักจับการนำเมาส์ไปชี้ปุ่มให้มีเอฟเฟกต์
+      const btn = document.getElementById('stk-timeout-btn');
+      btn.onmouseover = () => btn.style.backgroundColor = '#1d4ed8';
+      btn.onmouseout = () => btn.style.backgroundColor = '#2563eb';
     }
 
     // 4) Watchdog Timer ตรวจสอบสถานะทุก 10 วินาที

@@ -211,7 +211,6 @@
       });
 
       // ── ประมวลผลบิลตามลำดับเวลาจริง (Chronological Evaluation) ──
-      // นับคนมาตรวจ และนับแต้มบิลยา พร้อมตรวจจับวินาทีที่ผ่านเกณฑ์
       salesInRange.forEach(function (s) {
         var memberId = parseSaleMemberId(s);
         if (!memberId) return;
@@ -221,82 +220,54 @@
         var custId = safeUp((s.customerId || s.customer_id || s.hn || s.customerName || s.customer_name) || '');
         var isCheckup = isNewCheckupSale(s, customersMap, startDate, endDate);
 
-        // 1. บันทึกคนมาตรวจ (unique customer)
-        if (campaign.cond1_enabled && isCheckup && custId) {
-          memberMap[key].newCustSet[custId] = true;
+        // ตรวจสอบว่าในบิลนี้ "มีสินค้าอย่างน้อย 1 รายการ" ที่ราคาต่อชิ้น >= minPrice หรือไม่
+        var minPrice = Number(campaign.cond2_min_price || 0);
+        var hasQualifyingItem = false;
+
+        var itemsList = null;
+        if (s.items_json) {
+          try {
+            itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json;
+          } catch(e) {}
         }
 
-        // 2. ตรวจสอบเงื่อนไขยอดกล่อง/บิล
-        if (campaign.cond2_enabled) {
-          var shouldCount = true;
-          if (campaign.cond1_enabled) {
-            shouldCount = isCheckup || (custId && !!memberMap[key].newCustSet[custId]);
+        if (Array.isArray(itemsList) && itemsList.length > 0) {
+          for (var i = 0; i < itemsList.length; i++) {
+            var it = itemsList[i];
+            var q = parseInt(it.qty || it.quantity || 1) || 0;
+            var p = parseFloat(it.unitPrice !== undefined ? it.unitPrice : (it.price !== undefined ? it.price : 0)) || 0;
+            
+            if (q > 0 && (minPrice === 0 || p >= minPrice)) {
+              hasQualifyingItem = true;
+              break; 
+            }
           }
+        } else {
+          var boxes = parseSaleBoxes(s);
+          var unitPrice = Number((s.unit_price || s.unitPrice || s.price_full || s.priceFull) || 0);
+          if (unitPrice === 0 && boxes > 0) {
+            var totalAmt = Number(s.total_amount_thb || s.totalAmountThb || s.total_amount || s.amount || 0);
+            if (totalAmt > 0) unitPrice = totalAmt / boxes;
+          }
+          if (boxes > 0 && (minPrice === 0 || unitPrice >= minPrice)) {
+            hasQualifyingItem = true;
+          }
+        }
 
-          if (shouldCount) {
-            var minPrice = Number(campaign.cond2_min_price || 0);
-            var hasQualifyingBox = false;
-            var itemsList = null;
-            if (s.items_json) {
-              try {
-                itemsList = typeof s.items_json === 'string' ? JSON.parse(s.items_json) : s.items_json;
-              } catch(e) {}
-            }
-            if (Array.isArray(itemsList) && itemsList.length > 0) {
-              for (var i = 0; i < itemsList.length; i++) {
-                var it = itemsList[i];
-                var q = parseInt(it.qty || it.quantity || 1) || 0;
-                var p = parseFloat(it.unitPrice !== undefined ? it.unitPrice : (it.price !== undefined ? it.price : 0)) || 0;
-                if (q > 0 && (minPrice === 0 || p >= minPrice)) {
-                  hasQualifyingBox = true;
-                  break;
-                }
-              }
-            } else {
-              var boxes = parseSaleBoxes(s);
-              var unitPrice = Number((s.unit_price || s.unitPrice || s.price_full || s.priceFull) || 0);
-              if (unitPrice === 0 && boxes > 0) {
-                var totalAmt = Number(s.total_amount_thb || s.totalAmountThb || s.total_amount || s.amount || 0);
-                if (totalAmt > 0) unitPrice = totalAmt / boxes;
-              }
-              if (boxes > 0 && (minPrice === 0 || unitPrice >= minPrice)) {
-                hasQualifyingBox = true;
-              }
-            }
-
+        // ⭐ การปรับปรุงใหม่: ผูก 2 เงื่อนไขเข้าด้วยกันเป๊ะๆ (1 บิลผ่านเกณฑ์ = ได้ 1 คนตรวจ + 1 บิลบวกพร้อมกัน)
+        if (isCheckup && custId && hasQualifyingItem) {
+            // ใช้ "รหัสบิล" เป็นตัวนับแทนรหัสลูกค้า เพื่อให้ลูกค้า 1 คน ซื้อ 2 บิล ก็นับให้ 2 แต้มเท่ากัน
+            var uniqueSaleKey = s.id || s.sale_id || s.bill_id || (custId + '_' + Math.random());
+            
             if (campaign.cond1_enabled) {
-              // 🎯 1 บิลที่มีการซื้อยา >= minPrice (1 กล่องขึ้นไป) = 1 แต้ม
-              if (hasQualifyingBox) {
-                memberMap[key].actual_cond2 += 1;
-              }
-            } else {
-              // กรณีแคมเปญยอดกล่องรวมทั่วไป
-              if (Array.isArray(itemsList) && itemsList.length > 0) {
-                var qualifiedBoxes = 0;
-                itemsList.forEach(function (it) {
-                  var q = parseInt(it.qty || it.quantity || 1) || 0;
-                  var p = parseFloat(it.unitPrice !== undefined ? it.unitPrice : (it.price !== undefined ? it.price : 0)) || 0;
-                  if (q > 0 && (minPrice === 0 || p >= minPrice)) {
-                    qualifiedBoxes += q;
-                  }
-                });
-                memberMap[key].actual_cond2 += qualifiedBoxes;
-              } else {
-                var bCount = parseSaleBoxes(s);
-                var uPrice = Number((s.unit_price || s.unitPrice || s.price_full || s.priceFull) || 0);
-                if (uPrice === 0 && bCount > 0) {
-                  var tAmt = Number(s.total_amount_thb || s.totalAmountThb || s.total_amount || s.amount || 0);
-                  if (tAmt > 0) uPrice = tAmt / bCount;
-                }
-                if (bCount > 0 && (minPrice === 0 || uPrice >= minPrice)) {
-                  memberMap[key].actual_cond2 += bCount;
-                }
-              }
+                memberMap[key].newCustSet[uniqueSaleKey] = true;
             }
-          }
+            if (campaign.cond2_enabled) {
+                memberMap[key].actual_cond2 += 1;
+            }
         }
 
-        // ตรวจสอบทันทีว่าคนนี้ผ่านครบทุกเกณฑ์ ณ บิลนี้หรือไม่ เพื่อบันทึกเวลาและลำดับคนที่ผ่านก่อน
+        // ตรวจสอบทันทีว่าคนนี้ผ่านครบทุกเกณฑ์ ณ บิลนี้หรือไม่
         var curActual1 = Object.keys(memberMap[key].newCustSet).length;
         var curActual2 = memberMap[key].actual_cond2;
         var passesNow = true;
