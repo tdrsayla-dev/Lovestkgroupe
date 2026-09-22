@@ -2707,42 +2707,36 @@
 
   <!-- ===== JAVASCRIPT ===== -->
   <!-- ⚙️ CEO Config — แยกอิสระเฉพาะระบบ CEO ไม่ชนกับ root config ของระบบอื่น -->
+   <script src="config.js"></script>
   <script src="company.js"></script>
   <script src="ceo-config.js"></script>
-  <script>
-    function getAppRootPath() {
-      let path = window.location.pathname;
-      if (path.endsWith('.html') || path.endsWith('.htm')) {
-        path = path.substring(0, path.lastIndexOf('/') + 1);
-      }
-      path = path.replace(/\/(clinic|Clinic|mlm|project-phase23)(\/.*)?$/i, '/');
-      if (!path.endsWith('/')) {
-        path += '/';
-      }
-      return path;
-    }
 
+  <script>
     function goToCeo(e) {
       if (e) e.preventDefault();
-      window.location.href = window.location.origin + getAppRootPath() + 'CEO/ceo-login.html';
+      // ใส่ลิงก์เว็บจริงของหน้า CEO
+      window.location.href = 'https://stkgroupe.com/CEO/ceo-login.html'; 
     }
 
     function goToClinic(e) {
       if (e) e.preventDefault();
-      window.location.href = window.location.origin + getAppRootPath() + 'clinic/login.html';
+      // ใส่ลิงก์เว็บจริงของหน้า Clinic
+      window.location.href = 'https://stkgroupe.com/clinic/login.html'; 
     }
 
     function goToHr(e) {
       if (e) e.preventDefault();
-      window.location.href = 'https://stkgroupe.com/Hr';
+      window.location.href = 'https://stkgroupe.com/Hr'; // อันนี้ใช้งานได้อยู่แล้ว
     }
 
     function goToMlm(e) {
       if (e) e.preventDefault();
-      window.location.href = window.location.origin + getAppRootPath() + 'mlm/Mlm.html';
+      // ใส่ลิงก์เว็บจริงของหน้า MLM
+      window.location.href = 'https://stkgroupe.com/mlm/Mlm.html'; 
     }
+  </script>
 
-    </script>
+
     <!-- company.js already loaded above, no duplicate needed -->
     <script src="js/i18n.js"></script>
     <script>
@@ -2767,12 +2761,17 @@
       }, 50);
     });
 
-    // =========================================
+     // =========================================
     // SUPABASE CONFIG
-    // ✅ URL & Key มาจาก config.js (window.APP_CONFIG) — ไม่ hardcode ซ้ำ
+    // ดึงค่าจากตัวแปร CONFIG ใน config.js ตรงๆ (บังคับใช้ระบบหลักเท่านั้น ตัดปัญหา APP_CONFIG ชนกัน)
     // =========================================
-    const _sbUrl  = (window.APP_CONFIG && window.APP_CONFIG.SUPABASE_URL)  || window.SUPABASE_URL;
-    const _sbKey  = (window.APP_CONFIG && window.APP_CONFIG.SUPABASE_ANON_KEY) || window.SUPABASE_ANON_KEY;
+    const _sbUrl  = CONFIG.SUPABASE_URL;
+    const _sbKey  = CONFIG.SUPABASE_ANON_KEY;
+    
+    // เผื่อไว้กรณีที่ไฟล์ config โหลดไม่ทันหรือเกิดข้อผิดพลาด
+    if (!_sbUrl || !_sbKey) {
+        console.error("Supabase URL or Key is missing. Please ensure config_2.js is loaded correctly.");
+    }
 
     const apiCache = {};
 
@@ -2795,20 +2794,23 @@
 
       const cacheKey = `${table}?${finalParams}`;
       if (apiCache[cacheKey]) {
-        console.log('[Supabase Cache] Returning cached rows for:', cacheKey);
+        // console.log('[Supabase Cache] Returning cached rows for:', cacheKey);
         return apiCache[cacheKey];
       }
 
       try {
         const url = `${_sbUrl}/rest/v1/${table}?select=*${finalParams}`;
-        console.log('[Supabase] Fetching:', url);
+        // console.log('[Supabase] Fetching:', url);
+        
         const res = await fetch(url, {
           headers: {
             apikey: _sbKey,
             Authorization: `Bearer ${_sbKey}`,
           }
         });
-        console.log('[Supabase] Status:', res.status, res.statusText);
+        
+        // console.log('[Supabase] Status:', res.status, res.statusText);
+        
         if (res.status === 521) {
           console.error('[Supabase Error] Project is paused/offline (Cloudflare 521).');
         }
@@ -2817,12 +2819,15 @@
           console.error('[Supabase] Error body:', errText);
           throw new Error('Fetch failed: ' + res.status);
         }
+        
         const data = await res.json();
-        console.log('[Supabase] Rows from', table, ':', data.length, data);
+        // console.log('[Supabase] Rows from', table, ':', data.length, data);
+        
         apiCache[cacheKey] = data;
         return data;
       } catch (e) {
-        console.warn('[Supabase]', e.message);
+        // เปลี่ยนจาก console.warn เป็นการปิดไว้ถ้าไม่อยากเห็นสีเหลือง
+        // console.warn('[Supabase]', e.message);
         return [];
       }
     }
@@ -2943,12 +2948,13 @@
       // --- SUPABASE FETCH ---
       let rows = [];
       try {
-        const url = `${SUPABASE_URL}/rest/v1/news?select=*&order=news_date.desc&limit=50`;
+        const url = `${_sbUrl}/rest/v1/news?select=*&order=news_date.desc&limit=50`;
         const res = await fetch(url, {
-          headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+          headers: { apikey: _sbKey, Authorization: `Bearer ${_sbKey}` }
         });
         if (res.ok) rows = await res.json();
       } catch (e) { console.warn('[Supabase news]', e.message); }
+      
 
       // Filter: hide only explicitly Internal
       const publicRows = (rows || []).filter(r =>
