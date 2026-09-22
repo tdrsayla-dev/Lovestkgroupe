@@ -1801,9 +1801,9 @@
         });
       };
 
-      const processSalesRows = (rawSales) => {
+      const processSalesRows = (rawSales, currentProducts) => {
           if (window.MlmLogic && typeof window.MlmLogic.processSalesRows === 'function') {
-              return window.MlmLogic.processSalesRows(rawSales);
+              return window.MlmLogic.processSalesRows(rawSales, currentProducts);
           }
           return rawSales || [];
       };
@@ -1818,7 +1818,7 @@
               } else {
                   salesData = await supabaseSelect('stk_sales', `date=gte.${start}&date=lte.${end}&limit=3500`).catch(()=>[]);
               }
-              const processed = processSalesRows(salesData || []);
+              const processed = processSalesRows(salesData || [], products); // 👈 ส่ง products เข้าไปคำนวณด้วย
               setSales(processed);
               const currentCache = (() => { try { return JSON.parse(localStorage.getItem('stk_app_cache_data')) || {}; } catch(e) { return {}; } })();
               currentCache.sales = processed;
@@ -1878,7 +1878,7 @@
            if (Array.isArray(response.targetHistory)) setTargetHistory(response.targetHistory);
            
            if (Array.isArray(response.sales)) {
-               setSales(processSalesRows(response.sales));
+               setSales(processSalesRows(response.sales, response.products)); // 👈 ส่ง response.products เข้าไปคำนวณด้วย
            }
       };
 

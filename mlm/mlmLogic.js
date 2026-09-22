@@ -36,9 +36,10 @@
   const parseSaleDate = (s) => String(s?.date || s?.created_at || s?.sale_date || '').trim().substring(0, 10);
   const parseSaleMemberId = (s) => s?.memberId || s?.member_id || s?.sellerId || s?.seller_id;
   const parseSaleBoxes = (s) => {
-    const fQty = Number(s?.['รวมชิ้นราคาเต็ม'] || s?.fullQty || s?.full_qty || s?.full_boxes || 0);
-    const mQty = Number(s?.['รวมชิ้นราคาสมาชิก'] || s?.memberQty || s?.member_qty || s?.member_boxes || 0);
-    return (fQty + mQty);
+    // แก้บั๊กไม่ให้ระบบดึงยอดเก่าที่ผิดพลาดในฐานข้อมูลมาแสดงเมื่อคำนวณได้ 0
+    const fQty = s?.['รวมชิ้นราคาเต็ม'] !== undefined ? Number(s['รวมชิ้นราคาเต็ม']) : Number(s?.fullQty || s?.full_qty || s?.full_boxes || 0);
+    const mQty = s?.['รวมชิ้นราคาสมาชิก'] !== undefined ? Number(s['รวมชิ้นราคาสมาชิก']) : Number(s?.memberQty || s?.member_qty || s?.member_boxes || 0);
+    return fQty + mQty;
   };
 
   const findSaleCustomer = (s, customersList) => {
@@ -133,10 +134,76 @@
     }));
   };
 
-  // ─── 3. Sales Rows Processing ──────────────────────────────────
+   // ─── 2.5 Auto-Correct Classification Helper ──────────────────────
+  function classifyOrderItem(it, prodMapObj = {}) {
+      const rawPrice = (it.price !== undefined && it.price !== null && String(it.price).trim() !== '' && !isNaN(Number(it.price)))
+          ? Number(it.price)
+          : ((it.unitPrice !== undefined && it.unitPrice !== null && String(it.unitPrice).trim() !== '' && !isNaN(Number(it.unitPrice))) ? Number(it.unitPrice) : null);
+      
+      const typeStr = String(it.type || it.priceType || '').trim().toLowerCase();
+      const pName = String(it.prod || it.productName || it.name || '').trim();
+      const cleanPName = pName.replace(/\(.*?\)/g, '').trim();
+      const pNameLower = pName.toLowerCase();
 
-  const processSalesRows = (rawSales) => {
+      // รองรับการทำงานทั้งแบบ Map และ Object ปกติ
+      let pObj = {};
+      if (typeof prodMapObj.get === 'function') {
+          pObj = (it.id && prodMapObj.get(safeUpper(it.id))) || (it.product_id && prodMapObj.get(safeUpper(it.product_id))) || prodMapObj.get(safeUpper(pName)) || prodMapObj.get(safeUpper(cleanPName)) || {};
+      } else {
+          pObj = (it.id && prodMapObj[safeUpper(it.id)]) || (it.product_id && prodMapObj[safeUpper(it.product_id)]) || prodMapObj[safeUpper(pName)] || prodMapObj[safeUpper(cleanPName)] || {};
+      }
+
+      const pFull = Number(pObj.price_full ?? pObj.priceFull ?? 0);
+      const pMember = Number(pObj.price_member ?? pObj.priceMember ?? 0);
+      const pPromo = Number(pObj.price_promo ?? pObj.pricePromo ?? 0);
+
+      // 1. ให้ความสำคัญกับคำในชื่อสินค้ามากที่สุด
+      if (pNameLower.includes('(แถม)') || pNameLower.includes('(ฟรี)') || pNameLower.includes('(ศูนย์)') || pNameLower.includes('(ຟຣີ)') || pNameLower.includes('(ແຖມ)')) return 'ราคาศูนย์';
+      if (pNameLower.includes('(โปร)') || pNameLower.includes('(โบร)') || pNameLower.includes('(ໂປຣ)') || pNameLower.includes('ພິເສດ')) return 'ราคาโปร';
+      if (pNameLower.includes('(สมาชิก)') || pNameLower.includes('(ส่ง)') || pNameLower.includes('(ສະມາຊິກ)') || pNameLower.includes('(ສົ່ງ)') || pNameLower.includes('ວີໄອພີ')) return 'ราคาสมาชิก';
+      if (pNameLower.includes('(เต็ม)') || pNameLower.includes('(ปกติ)') || pNameLower.includes('(ປົກກະຕິ)') || pNameLower.includes('(ເຕັມ)')) return 'ราคาเต็ม';
+
+      // 2. ตรวจสอบราคาขายจริง (ให้ความสำคัญกับ ราคาสมาชิก และ ราคาเต็ม ก่อนราคาโปร ป้องกันยอดตก)
+      if (rawPrice !== null) {
+          if (rawPrice === 0) return 'ราคาศูนย์';
+          if (pMember > 0 && Math.abs(rawPrice - pMember) < 0.01) return 'ราคาสมาชิก';
+          if (pFull > 0 && Math.abs(rawPrice - pFull) < 0.01) return 'ราคาเต็ม';
+          if (pPromo > 0 && Math.abs(rawPrice - pPromo) < 0.01) return 'ราคาโปร';
+      }
+
+      // 3. ตรวจสอบจากช่องประเภท (Type)
+      let pType = 'ราคาเต็ม';
+      if (typeStr.includes('ศูนย์') || typeStr.includes('ฟรี') || typeStr.includes('แถม') || typeStr.includes('ຟຣີ') || typeStr.includes('ແຖມ') || typeStr === 'zero' || typeStr === 'free') pType = 'ราคาศูนย์';
+      else if (typeStr.includes('โปร') || typeStr.includes('promo') || typeStr.includes('พิเศษ') || typeStr.includes('ໂປຣ') || typeStr.includes('ພິເສດ')) pType = 'ราคาโปร';
+      else if (typeStr.includes('สมาชิก') || typeStr.includes('member') || typeStr.includes('ส่ง') || typeStr.includes('vip') || typeStr.includes('ສະມາຊິກ') || typeStr.includes('ສົ່ງ') || typeStr.includes('ວີໄອພີ')) pType = 'ราคาสมาชิก';
+      else if (typeStr.includes('เต็ม') || typeStr.includes('ปกติ') || typeStr.includes('full') || typeStr.includes('normal') || typeStr.includes('ປົກກະຕິ') || typeStr.includes('ເຕັມ')) pType = 'ราคาเต็ม';
+
+      // 4. AUTO-CORRECT
+      const hasProductData = !!(pObj.id || pObj.product_id);
+      if (hasProductData) {
+          if (pType === 'ราคาโปร' && pPromo === 0) {
+              return pMember > 0 ? 'ราคาสมาชิก' : 'ราคาเต็ม';
+          }
+          if (pType === 'ราคาสมาชิก' && pMember === 0) {
+              return pFull > 0 ? 'ราคาเต็ม' : 'ราคาเต็ม';
+          }
+      }
+
+      return pType;
+  }
+  // ─── 3. Sales Rows Processing ──────────────────────────────────
+  const processSalesRows = (rawSales, productsList = []) => {
     if (!Array.isArray(rawSales)) return [];
+
+    // สร้าง Map สินค้าเพื่อป้อนให้ Auto-Correct
+    const prodMap = {};
+    (productsList || []).forEach(p => {
+        if (p.id) prodMap[safeUpper(p.id)] = p;
+        if (p.product_id) prodMap[safeUpper(p.product_id)] = p;
+        if (p.name) prodMap[safeUpper(p.name)] = p;
+        if (p.name) prodMap[safeUpper(p.name.replace(/\(.*?\)/g, '').trim())] = p;
+    });
+
     return rawSales.map(s => {
       let sumF = 0, sumP = 0, sumZ = 0, sumM = 0;
       let itemsList = [];
@@ -146,10 +213,11 @@
       
       if (Array.isArray(itemsList) && itemsList.length > 0) {
         itemsList.forEach(it => {
-          const typeStr = String(it.type || '').trim();
+          const typeStr = classifyOrderItem(it, prodMap);
           const qtyNum = Number(it.qty || it.quantity || 1);
           const pName = String(it.prod || it.productName || it.name || 'Unknown').trim();
           s[`${pName}_${typeStr}`] = qtyNum;
+          
           if (typeStr === 'ราคาเต็ม') sumF += qtyNum;
           else if (typeStr === 'ราคาสมาชิก') sumM += qtyNum;
           else if (typeStr === 'ราคาโปร' || typeStr === 'โปรโมชั่น') sumP += qtyNum;
@@ -159,10 +227,24 @@
       } else {
         Object.keys(s).forEach(k => {
           if (k !== 'รวมชิ้นราคาเต็ม' && k !== 'รวมชิ้นราคาโปร' && k !== 'รวมชิ้นราคาศูนย์' && k !== 'ยอดรวมชิ้นทั้งหมด') {
-            if (k.endsWith('_ราคาเต็ม')) sumF += (parseInt(s[k]) || 0);
-            else if (k.endsWith('_ราคาโปร')) sumP += (parseInt(s[k]) || 0);
-            else if (k.endsWith('_ราคาศูนย์')) sumZ += (parseInt(s[k]) || 0);
-            else if (k.endsWith('_ราคาสมาชิก')) sumM += (parseInt(s[k]) || 0);
+            const qty = parseInt(s[k]) || 0;
+            if (qty > 0) {
+                const cleanProdName = (raw) => raw.replace(/\(.*?\)/g, '').trim();
+                let pName = ''; let legacyType = '';
+                
+                if (k.endsWith('_ราคาเต็ม')) { pName = cleanProdName(k.replace('_ราคาเต็ม', '')); legacyType = 'ราคาเต็ม'; }
+                else if (k.endsWith('_ราคาสมาชิก')) { pName = cleanProdName(k.replace('_ราคาสมาชิก', '')); legacyType = 'ราคาสมาชิก'; }
+                else if (k.endsWith('_ราคาโปร')) { pName = cleanProdName(k.replace('_ราคาโปร', '')); legacyType = 'ราคาโปร'; }
+                else if (k.endsWith('_ราคาศูนย์')) { pName = cleanProdName(k.replace('_ราคาศูนย์', '')); legacyType = 'ราคาศูนย์'; }
+                
+                if (pName) {
+                    const correctType = classifyOrderItem({ prod: pName, type: legacyType }, prodMap);
+                    if (correctType === 'ราคาเต็ม') sumF += qty;
+                    else if (correctType === 'ราคาสมาชิก') sumM += qty;
+                    else if (correctType === 'ราคาโปร') sumP += qty;
+                    else if (correctType === 'ราคาศูนย์') sumZ += qty;
+                }
+            }
           }
         });
       }
@@ -185,7 +267,6 @@
       };
     });
   };
-
   // ─── 4. Active Teams & Members Filters ──────────────────────────
 
   const filterActiveBusinessTeams = (businessTeams) => {
