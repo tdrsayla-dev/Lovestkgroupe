@@ -354,6 +354,63 @@
                 return true;
             });
 
+            // 1. สร้าง Map สำหรับ Auto-Correct สินค้า
+            const cleanProdNameForMap = (name) => String(name || '').replace(/\(.*?\)/g, '').trim().toUpperCase();
+            const prodMap = {};
+            (products || []).forEach(p => {
+                if (p.id) prodMap[safeUpper(p.id)] = p;
+                if (p.product_id) prodMap[safeUpper(p.product_id)] = p;
+                if (p.name) prodMap[safeUpper(p.name)] = p;
+                if (p.name) prodMap[cleanProdNameForMap(p.name)] = p;
+            });
+
+            // 2. ฟังก์ชัน Auto-Correct (ระบบคัดกรองเดียวกันกับหน้าอื่นๆ)
+            const classifyOrderItem = (it) => {
+                const rawPrice = (it.price !== undefined && it.price !== null && String(it.price).trim() !== '' && !isNaN(Number(it.price)))
+                    ? Number(it.price)
+                    : ((it.unitPrice !== undefined && it.unitPrice !== null && String(it.unitPrice).trim() !== '' && !isNaN(Number(it.unitPrice))) ? Number(it.unitPrice) : null);
+                
+                const typeStr = String(it.type || it.priceType || '').trim().toLowerCase();
+                const pName = String(it.prod || it.productName || it.name || '').trim();
+                const cleanPName = pName.replace(/\(.*?\)/g, '').trim();
+                const pNameLower = pName.toLowerCase();
+
+                const pObj = (it.id && prodMap[safeUpper(it.id)]) || (it.product_id && prodMap[safeUpper(it.product_id)]) || prodMap[safeUpper(pName)] || prodMap[safeUpper(cleanPName)] || {};
+                const pFull = Number(pObj.price_full ?? pObj.priceFull ?? 0);
+                const pMember = Number(pObj.price_member ?? pObj.priceMember ?? 0);
+                const pPromo = Number(pObj.price_promo ?? pObj.pricePromo ?? 0);
+
+                if (pNameLower.includes('(แถม)') || pNameLower.includes('(ฟรี)') || pNameLower.includes('(ศูนย์)') || pNameLower.includes('(ຟຣີ)') || pNameLower.includes('(ແຖມ)')) return 'ราคาศูนย์';
+                if (pNameLower.includes('(โปร)') || pNameLower.includes('(โบร)') || pNameLower.includes('(ໂປຣ)') || pNameLower.includes('ພິເສດ')) return 'ราคาโปร';
+                if (pNameLower.includes('(สมาชิก)') || pNameLower.includes('(ส่ง)') || pNameLower.includes('(ສະມາຊິກ)') || pNameLower.includes('(ສົ່ງ)') || pNameLower.includes('ວີໄອພີ')) return 'ราคาสมาชิก';
+                if (pNameLower.includes('(เต็ม)') || pNameLower.includes('(ปกติ)') || pNameLower.includes('(ປົກກະຕິ)') || pNameLower.includes('(ເຕັມ)')) return 'ราคาเต็ม';
+
+                if (rawPrice !== null) {
+                    if (rawPrice === 0) return 'ราคาศูนย์';
+                    if (pMember > 0 && Math.abs(rawPrice - pMember) < 0.01) return 'ราคาสมาชิก';
+                    if (pFull > 0 && Math.abs(rawPrice - pFull) < 0.01) return 'ราคาเต็ม';
+                    if (pPromo > 0 && Math.abs(rawPrice - pPromo) < 0.01) return 'ราคาโปร';
+                }
+
+                let pType = 'ราคาเต็ม';
+                if (typeStr.includes('ศูนย์') || typeStr.includes('ฟรี') || typeStr.includes('แถม') || typeStr.includes('ຟຣີ') || typeStr.includes('ແຖມ') || typeStr === 'zero' || typeStr === 'free') pType = 'ราคาศูนย์';
+                else if (typeStr.includes('โปร') || typeStr.includes('promo') || typeStr.includes('พิเศษ') || typeStr.includes('ໂປຣ') || typeStr.includes('ພິເສດ')) pType = 'ราคาโปร';
+                else if (typeStr.includes('สมาชิก') || typeStr.includes('member') || typeStr.includes('ส่ง') || typeStr.includes('vip') || typeStr.includes('ສະມາຊິກ') || typeStr.includes('ສົ່ງ') || typeStr.includes('ວີໄອພີ')) pType = 'ราคาสมาชิก';
+                else if (typeStr.includes('เต็ม') || typeStr.includes('ปกติ') || typeStr.includes('full') || typeStr.includes('normal') || typeStr.includes('ປົກກະຕິ') || typeStr.includes('ເຕັມ')) pType = 'ราคาเต็ม';
+
+                const hasProductData = !!(pObj.id || pObj.product_id);
+                if (hasProductData) {
+                    if (pType === 'ราคาโปร' && pPromo === 0) {
+                        return pMember > 0 ? 'ราคาสมาชิก' : 'ราคาเต็ม';
+                    }
+                    if (pType === 'ราคาสมาชิก' && pMember === 0) {
+                        return pFull > 0 ? 'ราคาเต็ม' : 'ราคาเต็ม';
+                    }
+                }
+
+                return pType;
+            };
+
             dateFilteredSales.forEach(record => {
                 const recMemberId = safeUpper(record.memberId || record.member_id || record.sellerId || record.seller_id || record.seller || record.marketing);
                 const member = (members || []).find(m => m && safeUpper(m.id) === recMemberId);
@@ -372,13 +429,24 @@
                             const qty = parseInt(value, 10);
                             if (!isNaN(qty) && qty > 0) {
                                 const lastUnderscore = key.lastIndexOf('_');
+                                const pName = key.substring(0, lastUnderscore).replace(/\(.*?\)/g, '').trim();
+                                const legacyType = key.substring(lastUnderscore + 1);
+                                
+                                // ส่งบิลเก่าไปจัดกลุ่มให้ถูกต้อง
+                                const correctType = classifyOrderItem({ prod: pName, type: legacyType });
                                 rawItems.push({
-                                    prod: key.substring(0, lastUnderscore).replace(/\(.*?\)/g, '').trim(),
-                                    type: key.substring(lastUnderscore + 1),
+                                    prod: pName,
+                                    type: correctType,
                                     qty: qty
                                 });
                             }
                         }
+                    });
+                } else {
+                    // ส่งบิลใหม่ไปจัดกลุ่ม
+                    rawItems = rawItems.map(it => {
+                        const correctType = classifyOrderItem(it);
+                        return { ...it, type: correctType };
                     });
                 }
 
@@ -411,7 +479,7 @@
                 }
             });
             return items;
-        }, [sales, members, customers, startDate, endDate, permittedMemberSet, businessTeams]);
+        }, [sales, members, customers, startDate, endDate, permittedMemberSet, businessTeams, products]);
 
         const uplineTeamSummary = useMemo(() => {
             if (!currentUser || !permittedMemberSet) return null;
