@@ -973,6 +973,38 @@
 
     const isSidebarCollapsed = propCollapsed !== undefined ? propCollapsed : localCollapsed;
     const userProfileUrl = currentUserProfileUrl || currentUser?.profileUrl || currentUser?.profile_url || currentUser?.id_card_url || currentUser?.ID_Card_URL || '';
+
+    // 🔒 ระบบออกจากระบบสมบูรณ์แบบ: ล้างแคชและหน่วยความจำทั้งหมด + เด้งไปหน้าล็อกอินเสมอทุกครั้ง
+    const handleLogoutAction = (e) => {
+      if (e && e.preventDefault) e.preventDefault();
+      try {
+        localStorage.removeItem('stk_current_user');
+        localStorage.removeItem('stk_app_cache_data');
+        localStorage.removeItem('stk_last_activity');
+        sessionStorage.clear();
+        localStorage.setItem('stk_broadcast_session_event', JSON.stringify({ action: 'logout', reason: 'manual_logout', time: Date.now() }));
+      } catch (err) {
+        console.warn('Logout clear error:', err);
+      }
+
+      if (typeof onLogout === 'function') {
+        try {
+          onLogout();
+        } catch (err) {
+          console.warn('Custom onLogout error:', err);
+        }
+      }
+
+      const targetUrl = resolvePageUrl(SCRIPT_URL + '?page=dashboard&login=1');
+      try {
+        if (window.top && window.top !== window && window.top.location) {
+          window.top.location.href = targetUrl;
+          return;
+        }
+      } catch (err) {}
+      window.location.href = targetUrl;
+    };
+
     const setIsSidebarCollapsed = (val) => {
       const next = typeof val === 'function' ? val(isSidebarCollapsed) : val;
       try { localStorage.setItem('stk_sidebar_collapsed', String(next)); } catch (e) { }
@@ -1142,7 +1174,7 @@
               !isSidebarCollapsed ? React.createElement('div', { className: "w-full flex flex-col items-start overflow-hidden" },
                 React.createElement('p', { className: "text-[12px] font-bold text-white truncate w-full", title: currentUser ? currentUser.name : '' }, currentUser ? currentUser.name : ''),
                 React.createElement('p', { className: "text-[10px] font-bold text-slate-400 mb-1" }, currentUser ? currentUser.role : ''),
-                React.createElement('button', { onClick: onLogout, className: "text-[11px] font-bold text-red-400 hover:text-red-300 bg-red-950/30 px-2 py-0.5 rounded border border-red-900/50 transition-colors w-full text-left" }, t('btn_logout', 'ออกจากระบบ'))
+                React.createElement('button', { onClick: handleLogoutAction, className: "text-[11px] font-bold text-red-400 hover:text-red-300 bg-red-950/30 px-2 py-0.5 rounded border border-red-900/50 transition-colors w-full text-left" }, t('btn_logout', 'ออกจากระบบ'))
               ) : null
             ) : React.createElement('div', { className: "w-full flex flex-col items-center justify-center" },
               !isSidebarCollapsed ? React.createElement('p', { className: "text-[11px] font-bold text-slate-400 mb-2" }, t('msg_login_to_use', 'เข้าสู่ระบบเพื่อใช้งาน')) : null,
@@ -1159,7 +1191,7 @@
             React.createElement('h1', { className: "text-base font-black text-white tracking-tight truncate" }, "LOVE ", React.createElement('span', { className: "text-blue-500" }, "STK GROUPE"))
           ),
           isLoggedIn ? React.createElement('button', {
-            onClick: onLogout,
+            onClick: handleLogoutAction,
             className: "flex items-center gap-2 cursor-pointer focus:outline-none transition-all active:scale-95",
             title: "ออกจากระบบ"
           },
@@ -1242,7 +1274,7 @@
               React.createElement('div', { className: "w-full flex flex-col items-start overflow-hidden" },
                 React.createElement('p', { className: "text-[13px] font-bold text-white truncate w-full" }, currentUser ? currentUser.name : ''),
                 React.createElement('p', { className: "text-[11px] font-bold text-slate-400 mb-1" }, currentUser ? currentUser.role : ''),
-                React.createElement('button', { onClick: onLogout, className: "text-[11px] font-bold text-red-400 hover:text-red-300 bg-red-950/30 px-3 py-1 rounded border border-red-900/50 transition-colors" }, t('btn_logout', 'ออกจากระบบ'))
+                React.createElement('button', { onClick: handleLogoutAction, className: "text-[11px] font-bold text-red-400 hover:text-red-300 bg-red-950/30 px-3 py-1 rounded border border-red-900/50 transition-colors" }, t('btn_logout', 'ออกจากระบบ'))
               )
             ) : React.createElement('div', { className: "w-full flex flex-col items-center justify-center px-4" },
               React.createElement('p', { className: "text-[11px] font-bold text-slate-400 mb-2" }, t('msg_guest_mode', 'โหมดผู้เยี่ยมชม (ดูยอดขายได้เท่านั้น)')),
@@ -1517,6 +1549,28 @@
 
 
   const Header = ({ currentUser, onLogout }) => {
+    const handleHeaderLogout = (e) => {
+      if (e && e.preventDefault) e.preventDefault();
+      try {
+        localStorage.removeItem('stk_current_user');
+        localStorage.removeItem('stk_app_cache_data');
+        localStorage.removeItem('stk_last_activity');
+        sessionStorage.clear();
+        localStorage.setItem('stk_broadcast_session_event', JSON.stringify({ action: 'logout', reason: 'manual_logout', time: Date.now() }));
+      } catch (err) {}
+      if (typeof onLogout === 'function') {
+        try { onLogout(); } catch (err) {}
+      }
+      const targetUrl = resolvePageUrl('?page=dashboard&login=1');
+      try {
+        if (window.top && window.top !== window && window.top.location) {
+          window.top.location.href = targetUrl;
+          return;
+        }
+      } catch (err) {}
+      window.location.href = targetUrl;
+    };
+
     return React.createElement('header', {
       className: "bg-white border-b border-slate-200 h-[64px] px-6 flex items-center justify-between shadow-xs z-20 shrink-0"
     },
@@ -1530,15 +1584,30 @@
             React.createElement('div', { className: "text-xs font-bold text-slate-800" }, currentUser.name),
             React.createElement('div', { className: "text-[10px] font-medium text-slate-400" }, currentUser.role)
           ),
-          React.createElement('button', { onClick: onLogout, className: "text-xs font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 transition-colors ml-2" }, t('btn_logout', 'ออกจากระบบ'))
+          React.createElement('button', { onClick: handleHeaderLogout, className: "text-xs font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 transition-colors ml-2" }, t('btn_logout', 'ออกจากระบบ'))
         ) : null
       )
     );
   };
 
   // ==========================================
-  // 🌓 THEME SWITCHER — Dark / Light smooth toggle
+  // 🌓 THEME SWITCHER — Dark / Light smooth toggle (Clean SVG Icons)
   // ==========================================
+  const Sun = ({ size = 13, className = "" }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", className: className, ...IconProps },
+    React.createElement('circle', { cx: "12", cy: "12", r: "4" }),
+    React.createElement('path', { d: "M12 2v2" }),
+    React.createElement('path', { d: "M12 20v2" }),
+    React.createElement('path', { d: "m4.93 4.93 1.41 1.41" }),
+    React.createElement('path', { d: "m17.66 17.66 1.41 1.41" }),
+    React.createElement('path', { d: "M2 12h2" }),
+    React.createElement('path', { d: "M20 12h2" }),
+    React.createElement('path', { d: "m6.34 17.66-1.41 1.41" }),
+    React.createElement('path', { d: "m19.07 4.93-1.41 1.41" })
+  );
+  const Moon = ({ size = 13, className = "" }) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", className: className, ...IconProps },
+    React.createElement('path', { d: "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" })
+  );
+
   const ThemeSwitcher = ({ collapsed = false }) => {
     const [theme, setThemeState] = React.useState(
       () => (typeof window.getTheme === 'function') ? window.getTheme() : (localStorage.getItem('stk_theme') || 'light')
@@ -1566,7 +1635,7 @@
           isDark ? 'bg-slate-800 text-amber-400 hover:bg-slate-700' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
         }`
       },
-        React.createElement('span', { style: { fontSize: '13px', lineHeight: 1 } }, isDark ? '☀️' : '🌙')
+        isDark ? React.createElement(Sun, { size: 14 }) : React.createElement(Moon, { size: 14 })
       );
     }
 
@@ -1576,11 +1645,11 @@
     },
       React.createElement('div', { className: 'stk-theme-pill' },
         React.createElement('span', { className: `stk-theme-opt ${!isDark ? 'active' : ''}` },
-          React.createElement('span', { style: { fontSize: '12px' } }, '☀️'),
+          React.createElement(Sun, { size: 13, className: "shrink-0" }),
           React.createElement('span', null, t('theme_light', 'Light'))
         ),
         React.createElement('span', { className: `stk-theme-opt ${isDark ? 'active' : ''}` },
-          React.createElement('span', { style: { fontSize: '12px' } }, '🌙'),
+          React.createElement(Moon, { size: 13, className: "shrink-0" }),
           React.createElement('span', null, t('theme_dark', 'Dark'))
         )
       )
@@ -1588,6 +1657,8 @@
   };
 
   window.ThemeSwitcher = ThemeSwitcher;
+  window.Sun = Sun;
+  window.Moon = Moon;
 
   // ==========================================
   // 🌐 LANGUAGE SWITCHER — compact, smooth, no-reload
@@ -1614,7 +1685,7 @@
     const langs = [
       { code: 'th', label: 'TH' },
       { code: 'en', label: 'EN' },
-      { code: 'lo', label: 'LO' },
+      { code: 'lo', label: 'LA' },
     ];
 
     if (collapsed) {
@@ -1669,6 +1740,26 @@
   window.LoginModal = LoginModal;
   window.Toast = Toast;
   window.SystemFooter = SystemFooter;
+  window.performGlobalLogout = (cb) => {
+    try {
+      localStorage.removeItem('stk_current_user');
+      localStorage.removeItem('stk_app_cache_data');
+      localStorage.removeItem('stk_last_activity');
+      sessionStorage.clear();
+      localStorage.setItem('stk_broadcast_session_event', JSON.stringify({ action: 'logout', reason: 'manual_logout', time: Date.now() }));
+    } catch (err) {}
+    if (typeof cb === 'function') {
+      try { cb(); } catch (err) {}
+    }
+    const targetUrl = resolvePageUrl('?page=dashboard&login=1');
+    try {
+      if (window.top && window.top !== window && window.top.location) {
+        window.top.location.href = targetUrl;
+        return;
+      }
+    } catch (err) {}
+    window.location.href = targetUrl;
+  };
 
   // ⚡ HIGH-SPEED MEMORY CACHE ENGINE: แคชการดึงข้อมูลจาก Supabase ลงหน่วยความจำแบบ Real-time 
   // ทำให้อ่านข้อมูลซ้ำข้ามหน้าได้ทันที 0ms ไม่ต้องรอโหลดผ่านเน็ตเวิร์กใหม่ทุกครั้ง

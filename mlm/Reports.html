@@ -128,14 +128,31 @@
             return params.get('group') || 'sales';
         });
 
-        const [subTab, setSubTab] = useState(() => {
-            const params = new URLSearchParams(window.location.search);
-            const tabParam = params.get('tab');
-            if (tabParam) return tabParam;
-            const g = params.get('group') || 'sales';
-            if (g === 'referral') return 'referral_fee';
+        const [subTab, setSubTabState] = useState(() => {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const tabParam = params.get('tab');
+                if (tabParam) return tabParam;
+                const savedTab = sessionStorage.getItem('stk_reports_subtab');
+                if (savedTab) return savedTab;
+            } catch(e) {}
             return 'sales_member_day';
         });
+
+        const setSubTab = (tab) => {
+            setSubTabState(tab);
+            try {
+                sessionStorage.setItem('stk_reports_subtab', tab);
+                const url = new URL(window.location.href);
+                url.searchParams.set('tab', tab);
+                window.history.replaceState(null, '', url.pathname + url.search + window.location.hash);
+                if (window.top && window.top !== window && window.top.location) {
+                    const topUrl = new URL(window.top.location.href);
+                    topUrl.searchParams.set('tab', tab);
+                    window.top.history.replaceState(null, '', topUrl.pathname + topUrl.search + topUrl.hash);
+                }
+            } catch(e) {}
+        };
         const [searchQuery, setSearchQuery] = useState('');
         const [currencyMode, setCurrencyMode] = useState('LAK');
         const exchangeRate = Number(systemSettings?.exchange_rate || 700);
@@ -147,15 +164,15 @@
                 const params = new URLSearchParams(window.location.search);
                 const currentGroup = params.get('group') || 'sales';
                 if (currentGroup === 'finance') {
-                    window.location.replace('ReportFinance.html');
+                    window.location.replace('ReportFinance.html' + (window.location.search ? window.location.search.replace(/&?group=finance/, '') : ''));
                     return;
                 }
                 if (currentGroup === 'stock') {
-                    window.location.replace('ReportStock.html');
+                    window.location.replace('ReportStock.html' + (window.location.search ? window.location.search.replace(/&?group=stock/, '') : ''));
                     return;
                 }
                 if (currentGroup === 'referral') {
-                    window.location.replace('ReportReferral.html');
+                    window.location.replace('ReportReferral.html' + (window.location.search ? window.location.search.replace(/&?group=referral/, '') : ''));
                     return;
                 }
                 setActiveGroup(currentGroup);
@@ -173,8 +190,12 @@
             };
         }, []);
 
+        const initialGroupRef = useRef(activeGroup);
         useEffect(() => {
-            if (activeGroup === 'sales') setSubTab('sales_member_day');
+            if (initialGroupRef.current !== activeGroup) {
+                initialGroupRef.current = activeGroup;
+                if (activeGroup === 'sales') setSubTab('sales_member_day');
+            }
         }, [activeGroup]);
 
         const convertVal = useCallback((lakVal) => {
@@ -1548,9 +1569,28 @@
         };
 
         const handleLogout = () => {
-            localStorage.removeItem('stk_current_user');
+            try {
+                localStorage.removeItem('stk_current_user');
+                localStorage.removeItem('stk_app_cache_data');
+                localStorage.removeItem('stk_last_activity');
+                sessionStorage.clear();
+                localStorage.setItem('stk_broadcast_session_event', JSON.stringify({ action: 'logout', reason: 'manual_logout', time: Date.now() }));
+            } catch(e) {}
             setCurrentUser(null);
             setIsLoggedIn(false);
+            setSales([]);
+            setShowLoginModal(true);
+
+            const targetUrl = (typeof window.resolvePageUrl === 'function')
+                ? window.resolvePageUrl('?page=dashboard&login=1')
+                : 'Mlm.html?login=1';
+            try {
+                if (window.top && window.top !== window && window.top.location) {
+                    window.top.location.href = targetUrl;
+                    return;
+                }
+            } catch(e) {}
+            window.location.href = targetUrl;
         };
 
         return (

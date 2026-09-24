@@ -33,10 +33,12 @@
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="config.js"></script>
+  <script src="companySettings.js"></script>
   <script src="dictionary.js"></script>
-  <script src="CommonComponents.js?v=3"></script>
-  <script src="reportFinanceLogic.js"></script>
+  <script src="CommonComponents.js?v=5"></script>
+  <script src="reportFinanceLogic.js?v=7"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
@@ -88,12 +90,91 @@
         );
     };
 
+    // ═════════════════════════════════════════════════════════════════════
+    // 📊 EXCEL EXPORT ENGINE (SheetJS .xlsx & Safe CSV Engine)
+    // ═════════════════════════════════════════════════════════════════════
+    const ensureXlsxLoaded = () => {
+        return new Promise((resolve) => {
+            if (window.XLSX) return resolve(true);
+            const cdns = [
+                'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+                'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js'
+            ];
+            let idx = 0;
+            const tryLoad = () => {
+                if (window.XLSX) return resolve(true);
+                if (idx >= cdns.length) return resolve(false);
+                const s = document.createElement('script');
+                s.src = cdns[idx++];
+                s.onload = () => resolve(true);
+                s.onerror = () => tryLoad();
+                document.head.appendChild(s);
+            };
+            tryLoad();
+        });
+    };
+
+    const exportFinanceExcel = async (rows, filename, sheetName = "FinanceReport") => {
+        await ensureXlsxLoaded();
+        if (typeof window.XLSX !== 'undefined') {
+            try {
+                const ws = window.XLSX.utils.aoa_to_sheet(rows);
+                if (rows && rows.length > 0) {
+                    const colWidths = rows[0].map((_, colIdx) => {
+                        let maxLen = 12;
+                        rows.forEach(r => {
+                            const val = r[colIdx] !== null && r[colIdx] !== undefined ? String(r[colIdx]) : '';
+                            if (val.length > maxLen) maxLen = Math.min(val.length, 50);
+                        });
+                        return { wch: maxLen + 3 };
+                    });
+                    ws['!cols'] = colWidths;
+                }
+                const wb = window.XLSX.utils.book_new();
+                window.XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                const finalFilename = filename.toLowerCase().endsWith('.xlsx') ? filename : `${filename}.xlsx`;
+                window.XLSX.writeFile(wb, finalFilename, { compression: true });
+                return;
+            } catch (err) {
+                console.error('XLSX export error, falling back to CSV:', err);
+            }
+        }
+
+        // Fallback: ส่งออกเป็น CSV พร้อม UTF-8 BOM (เปิดใน Excel ได้ 100% ภาษาไทยไม่เพี้ยน ไม่ติด Error Format Mismatch)
+        try {
+            const csvFilename = filename.replace(/\.xlsx$/i, '') + '.csv';
+            const csvContent = '\uFEFF' + (rows || []).map(row => 
+                (row || []).map(cell => {
+                    let text = (cell === null || cell === undefined) ? '' : String(cell);
+                    if (text.includes('"') || text.includes(',') || text.includes('\n') || text.includes('\r')) {
+                        text = '"' + text.replace(/"/g, '""') + '"';
+                    }
+                    return text;
+                }).join(',')
+            ).join('\r\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = csvFilename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch(e) {
+            alert('ไม่สามารถดาวน์โหลดไฟล์ได้: ' + (e.message || ''));
+        }
+    };
+
     const { 
         parseSaleCurrencyAmounts, 
         processFinanceSales, 
         filterFinanceBills, 
         calculateFinanceKpi, 
-        calculateYearlyFinanceData 
+        calculateYearlyFinanceData,
+        groupSalesForProductReport
     } = window.ReportFinanceEngine || {};
 
 
@@ -115,18 +196,73 @@
             return () => window.removeEventListener('stk_theme_change', onThemeChange);
         }, []);
 
+        useEffect(() => {
+            if (typeof window.syncCompanySettingsFromSupabase === 'function') {
+                window.syncCompanySettingsFromSupabase().catch(() => {});
+            }
+        }, []);
+
         // Data States
         const [sales, setSales] = useState([]);
         const [members, setMembers] = useState([]);
+        const [products, setProducts] = useState(() => {
+            try {
+                if (window.top && window.top.stkDbCache && Array.isArray(window.top.stkDbCache.products)) {
+                    return window.top.stkDbCache.products;
+                }
+                const cached = sessionStorage.getItem('stkDbCache');
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    if (parsed && Array.isArray(parsed.products)) return parsed.products;
+                }
+            } catch(e) {}
+            return [];
+        });
         const [systemSettings, setSystemSettings] = useState({ exchange_rate: 700 });
+        const [yearlySummaryFromDb, setYearlySummaryFromDb] = useState([]); // รับข้อมูล Summary จาก Database
 
-        // Filter States
+        // Filter States & SubTab Persistence Across Browser Refresh
         const todayStr = getLocalISODate();
-        const [subTab, setSubTab] = useState('finance_summary'); // 'finance_summary' | 'finance_detail'
+        const [subTab, setSubTabState] = useState(() => {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const tabParam = params.get('tab');
+                if (tabParam && ['finance_summary', 'finance_detail', 'sale_product_report'].includes(tabParam)) {
+                    return tabParam;
+                }
+                const hash = (window.location.hash || '').replace('#', '').trim();
+                if (hash && ['finance_summary', 'finance_detail', 'sale_product_report'].includes(hash)) {
+                    return hash;
+                }
+                const savedTab = sessionStorage.getItem('stk_report_finance_subtab');
+                if (savedTab && ['finance_summary', 'finance_detail', 'sale_product_report'].includes(savedTab)) {
+                    return savedTab;
+                }
+            } catch(e) {}
+            return 'finance_summary';
+        });
+
+        const setSubTab = (tab) => {
+            setSubTabState(tab);
+            try {
+                sessionStorage.setItem('stk_report_finance_subtab', tab);
+                const url = new URL(window.location.href);
+                url.searchParams.set('tab', tab);
+                window.history.replaceState(null, '', url.pathname + url.search + window.location.hash);
+                if (window.top && window.top !== window && window.top.location) {
+                    const topUrl = new URL(window.top.location.href);
+                    topUrl.searchParams.set('tab', tab);
+                    window.top.history.replaceState(null, '', topUrl.pathname + topUrl.search + topUrl.hash);
+                }
+            } catch(e) {}
+        };
+
         const [startDate, setStartDate] = useState(todayStr);
         const [endDate, setEndDate] = useState(todayStr);
         const [searchQuery, setSearchQuery] = useState('');
         const debouncedSearchQuery = useDebounce(searchQuery, 300);
+        const [productReportGroupBy, setProductReportGroupBy] = useState('seller');
+        const [productReportViewMode, setProductReportViewMode] = useState('summary'); // 'summary' (ยุบรวมรายชื่อสินค้าตามพนักงานขาย) | 'bill' (แยกตามบิล)
         const [viewBillDetail, setViewBillDetail] = useState(null);
 
         const exchangeRate = Number(systemSettings?.exchange_rate || 700);
@@ -143,12 +279,34 @@
             setCurrentUser(user);
             setIsLoggedIn(true);
             setShowLoginModal(false);
+            if (typeof fetchFinanceData === 'function') fetchFinanceData();
         };
 
         const handleLogout = () => {
-            localStorage.removeItem('stk_current_user');
+            try {
+                localStorage.removeItem('stk_current_user');
+                localStorage.removeItem('stk_app_cache_data');
+                localStorage.removeItem('stk_last_activity');
+                sessionStorage.clear();
+                localStorage.setItem('stk_broadcast_session_event', JSON.stringify({ action: 'logout', reason: 'manual_logout', time: Date.now() }));
+            } catch(e) {}
             setCurrentUser(null);
             setIsLoggedIn(false);
+            setSales([]);
+            setMembers([]);
+            setYearlySummaryFromDb([]);
+            setShowLoginModal(true);
+
+            const targetUrl = (typeof window.resolvePageUrl === 'function')
+                ? window.resolvePageUrl('?page=dashboard&login=1')
+                : 'Mlm.html?login=1';
+            try {
+                if (window.top && window.top !== window && window.top.location) {
+                    window.top.location.href = targetUrl;
+                    return;
+                }
+            } catch(e) {}
+            window.location.href = targetUrl;
         };
 
         const permittedMemberSet = useMemo(() => {
@@ -175,13 +333,70 @@
             return downlines;
         }, [currentUser, isAdmin, members]);
 
-        const fetchFinanceData = useCallback(async () => {
+       const fetchFinanceData = useCallback(async () => {
             try {
-                const [saleRes, memRes, settingsRes] = await Promise.all([
-                    window.supabaseSelect('stk_sales', 'order=order_id.desc&limit=2500').catch(() => []),
+                const currentYear = new Date().getFullYear();
+                const startRange = `${currentYear - 1}-01-01`; 
+                const endRange = `${currentYear + 1}-12-31`;
+
+                // 1. ดึงสรุปรายปีจาก Database ตรงๆ
+                let dbSummary = [];
+                try {
+                    if (typeof window.supabaseRpc === 'function') {
+                        const summaryData = await window.supabaseRpc('get_monthly_finance_summary', { p_year: currentYear });
+                        if (Array.isArray(summaryData)) {
+                            dbSummary = summaryData.map(d => ({
+                                period: d.period,
+                                monthNum: parseInt(d.period.split('-')[1], 10),
+                                billsCount: Number(d.bills_count || 0),
+                                sumLak: Number(d.sum_lak || 0),
+                                sumThb: Number(d.sum_thb || 0)
+                            }));
+                        }
+                    }
+                } catch(e) { console.warn('RPC Summary Error:', e); }
+
+                // 2. Loop ดึงบิลดิบโดยใช้คำสั่งเฉพาะของระบบ (window.supabaseSelect) เพื่อหลีกเลี่ยง Error
+                let allSales = [];
+                if (typeof window.supabaseSelect === 'function') {
+                    let hasMore = true;
+                    let offset = 0;
+                    const limit = 1000;
+                    
+                    while (hasMore) {
+                        // ใช้ offset ในการเลื่อนดึงข้อมูลทีละ 1,000 บิล
+                        const queryStr = `date=gte.${startRange}&date=lte.${endRange}&order=order_id.desc&limit=${limit}&offset=${offset}`;
+                        const data = await window.supabaseSelect('stk_sales', queryStr).catch(() => null);
+                        
+                        if (data && Array.isArray(data) && data.length > 0) {
+                            allSales = allSales.concat(data);
+                            offset += limit;
+                            // ถ้าข้อมูลที่ดึงมาได้น้อยกว่า 1,000 แปลว่าบิลหมดสต๊อกแล้ว ให้หยุดลูป
+                            if (data.length < limit) {
+                                hasMore = false; 
+                            }
+                        } else {
+                            hasMore = false; 
+                        }
+                    }
+                }
+
+                // Fallback เผื่อกรณีเชื่อมต่อ Loop ไม่สำเร็จ
+                if (allSales.length === 0) {
+                    allSales = await window.supabaseSelect('stk_sales', 'order=order_id.desc&limit=15000').catch(() => []);
+                }
+
+                const [memRes, settingsRes, prodRes] = await Promise.all([
                     window.supabaseSelect('stk_members', 'select=user_id,name,sponsor_id,business_team,permission_role,status').catch(() => []),
-                    window.supabaseSelect('stk_system_settings').catch(() => [])
+                    window.supabaseSelect('stk_system_settings').catch(() => []),
+                    window.supabaseSelect('stk_products', 'select=product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,is_bundle,base_product,bundle_qty').catch(() => window.supabaseSelect('products')).catch(() => [])
                 ]);
+
+                setYearlySummaryFromDb(dbSummary);
+
+                if (Array.isArray(prodRes) && prodRes.length > 0) {
+                    setProducts(prodRes);
+                }
 
                 if (Array.isArray(memRes)) {
                     setSystemUsers(memRes);
@@ -208,8 +423,8 @@
                     })));
                 }
 
-                if (Array.isArray(saleRes)) {
-                    setSales(processFinanceSales ? processFinanceSales(saleRes) : saleRes);
+                if (Array.isArray(allSales)) {
+                    setSales(processFinanceSales ? processFinanceSales(allSales) : allSales);
                 }
             } catch (err) {
                 console.error("Finance fetch error:", err);
@@ -222,20 +437,22 @@
             const savedUserStr = localStorage.getItem('stk_current_user');
             if (savedUserStr) {
                 try {
-                    setCurrentUser(JSON.parse(savedUserStr));
+                    const parsedUser = JSON.parse(savedUserStr);
+                    setCurrentUser(parsedUser);
                     setIsLoggedIn(true);
+                    fetchFinanceData();
                 } catch(e) {
                     setShowLoginModal(true);
                 }
-            } else setShowLoginModal(true);
+            } else {
+                setShowLoginModal(true);
+            }
 
             const initialLoader = document.getElementById('initial-loader');
             if (initialLoader) { 
                 initialLoader.style.opacity = '0'; 
                 setTimeout(() => { if (initialLoader) initialLoader.style.display = 'none'; }, 400); 
             }
-
-            fetchFinanceData();
         }, [fetchFinanceData]);
 
         // Filtered Bills for Detail Tab
@@ -254,16 +471,64 @@
             return { sumLak: 0, sumThb: 0, grandCombinedTHB: 0, lakBillsCount: 0, thbBillsCount: 0 };
         }, [financeBills, exchangeRate]);
 
-        // 12 Months Summary (for Annual Table & Combo Chart)
+        // 12 Months Summary
         const currentYearNum = startDate ? new Date(startDate).getFullYear() : new Date().getFullYear();
         const activeYear = isNaN(currentYearNum) ? new Date().getFullYear() : currentYearNum;
 
         const financeSummaryData = useMemo(() => {
+            const query = String(debouncedSearchQuery || searchQuery || '').trim();
+
+            // 🎯 ข้อมูลประวัติศาสตร์จากระบบเก่า (ใช้เฉพาะเดือน 1 ถึง 7 เท่านั้น)
+            const legacyData2026 = {
+                1: 3008020,
+                2: 2993920,
+                3: 3176980,
+                4: 2855460,
+                5: 2406800,
+                6: 2670130,
+                7: 2377030
+            };
+
+            // 🌟 บังคับใช้ JS คำนวณจากบิลดิบเสมอ (เพราะดึง Loop มาครบแล้ว และ JS อ่านบิลสกุลเงินผสมได้ฉลาดกว่า SQL)
             if (calculateYearlyFinanceData) {
-                return calculateYearlyFinanceData(sales, activeYear, exchangeRate, permittedMemberSet, debouncedSearchQuery || searchQuery);
+                const calcData = calculateYearlyFinanceData(sales, activeYear, exchangeRate, permittedMemberSet, query);
+                
+                // 💡 แทรกยอดเก่าเฉพาะเดือน 1-7 ตอนที่ "ไม่ได้พิมพ์ค้นหาชื่อ"
+                if (activeYear === 2026 && query === '') {
+                    return calcData.map(d => {
+                        // ถ้าเป็นเดือน 1-7 และยอดบิลในระบบใหม่ยังไม่มี (หรือเป็น 0) ให้สวมยอดเก่า
+                        if (d.monthNum >= 1 && d.monthNum <= 7 && d.billsCount === 0) {
+                            return { ...d, sumThb: legacyData2026[d.monthNum], billsCount: 1 };
+                        }
+                        // ปล่อยเดือน 8, 9 และเดือนอื่นๆ ให้เป็นข้อมูลคำนวณจริงจากระบบใหม่ล้วนๆ 100%
+                        return d;
+                    });
+                }
+                return calcData;
             }
+
             return [];
         }, [sales, activeYear, permittedMemberSet, debouncedSearchQuery, searchQuery, exchangeRate]);
+
+        // 3. ข้อมูลสำหรับแท็บที่ 3: รายงานยอดขายและสินค้า (Sale Report Template) - ประมวลผลในหน่วยความจำ Egress = 0 Byte
+        const productReportData = useMemo(() => {
+            const filtered = filterFinanceBills ? filterFinanceBills(sales, startDate, endDate, permittedMemberSet, debouncedSearchQuery) : sales;
+            if (typeof groupSalesForProductReport === 'function') {
+                return groupSalesForProductReport(filtered, productReportGroupBy, products, members, productReportViewMode);
+            }
+            return { 
+                groups: [], 
+                totalBillsCount: 0, 
+                grandTotalQty: 0, 
+                grandTotalWg: 0, 
+                grandTotalAmount: 0,
+                grandQtyFull: 0, grandAmountFull: 0,
+                grandQtyMember: 0, grandAmountMember: 0,
+                grandQtyPromo: 0, grandAmountPromo: 0,
+                grandQtyFree: 0, grandAmountFree: 0 
+            };
+        }, [sales, startDate, endDate, permittedMemberSet, debouncedSearchQuery, productReportGroupBy, products, members, productReportViewMode]);
+
         // ═════════════════════════════════════════════════════════════════════
         // 🖨️ OFFICIAL PRINT & PDF REPORT GENERATOR (FOR FINANCE)
         // ═════════════════════════════════════════════════════════════════════
@@ -274,18 +539,66 @@
                 return;
             }
 
-            const compSettings = (typeof window.getCompanySettings === 'function') 
-                ? window.getCompanySettings() 
-                : { name: 'LOVE STK GROUPE', branch: 'สำนักงานใหญ่', address: 'เวียงจันทน์, สปป.ลาว', phone: '+856 20 xx xxx xxx', taxId: '' };
+            // ดึงข้อมูลบริษัทและการตั้งค่าโลโก้จาก CompanySettings / LocalStorage / Supabase
+            let compSettings = {
+                name: 'LOVE STK GROUPE',
+                branch: 'สำนักงานใหญ่',
+                address: 'เวียงจันทน์, สปป.ลาว',
+                phone: '+856 20 xx xxx xxx',
+                taxId: '',
+                logoUrl: ''
+            };
 
-            // ดึงโลโก้จากตั้งค่าระบบเพิ่มเติม
+            if (typeof window.getCompanySettings === 'function') {
+                try {
+                    const cs = window.getCompanySettings();
+                    if (cs) compSettings = Object.assign({}, compSettings, cs);
+                } catch(e) {}
+            }
+
+            // ตรวจสอบโลโก้จากทุกแหล่งที่เป็นไปได้
             let logoUrl = compSettings.logoUrl || '';
-            try {
-                const localSet = JSON.parse(localStorage.getItem('stk_system_settings') || '{}');
-                if (localSet.company_logo || localSet.logo_url) {
-                    logoUrl = localSet.company_logo || localSet.logo_url;
-                }
-            } catch(e) {}
+            if (!logoUrl) {
+                try {
+                    const direct = localStorage.getItem('stk_company_settings');
+                    if (direct) {
+                        const parsed = JSON.parse(direct);
+                        if (parsed && parsed.logoUrl) {
+                            logoUrl = parsed.logoUrl;
+                            compSettings = Object.assign({}, compSettings, parsed);
+                        }
+                    }
+                } catch(e) {}
+            }
+            if (!logoUrl) {
+                try {
+                    const sysStr = localStorage.getItem('stk_system_settings');
+                    if (sysStr) {
+                        const sys = JSON.parse(sysStr);
+                        if (sys.company_info) {
+                            const info = typeof sys.company_info === 'string' ? JSON.parse(sys.company_info) : sys.company_info;
+                            if (info && info.logoUrl) {
+                                logoUrl = info.logoUrl;
+                                compSettings = Object.assign({}, compSettings, info);
+                            }
+                        }
+                        if (!logoUrl && (sys.company_logo || sys.logo_url)) {
+                            logoUrl = sys.company_logo || sys.logo_url;
+                        }
+                    }
+                } catch(e) {}
+            }
+            if (!logoUrl && systemSettings) {
+                try {
+                    if (systemSettings.company_info) {
+                        const info = typeof systemSettings.company_info === 'string' ? JSON.parse(systemSettings.company_info) : systemSettings.company_info;
+                        if (info && info.logoUrl) logoUrl = info.logoUrl;
+                    }
+                    if (!logoUrl && (systemSettings.company_logo || systemSettings.logo_url)) {
+                        logoUrl = systemSettings.company_logo || systemSettings.logo_url;
+                    }
+                } catch(e) {}
+            }
 
             const now = new Date();
             const printDateStr = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -305,7 +618,12 @@
             };
 
             const isSummary = subTab === 'finance_summary';
-            const docTitle = isSummary ? `รายงานสรุปรายรับบริษัท_รายปี_${activeYear}` : `รายละเอียดรับเงินแยกตามบิล_${startDate}_ถึง_${endDate}`;
+            const isProductReport = subTab === 'sale_product_report';
+            const docTitle = isSummary 
+                ? `รายงานสรุปรายรับบริษัท_รายปี_${activeYear}` 
+                : isProductReport 
+                    ? `Sale_Report_${startDate}_ถึง_${endDate}` 
+                    : `รายละเอียดรับเงินแยกตามบิล_${startDate}_ถึง_${endDate}`;
 
             let tableHeadersHtml = '';
             let tableRowsHtml = '';
@@ -346,6 +664,92 @@
                         <td style="text-align: center; font-weight: 800;">${totalBills.toLocaleString()} บิล</td>
                         <td colspan="2" style="text-align: right; font-weight: 800;">ยอดรวมสุทธิคิดเป็นเงินบาท (THB):</td>
                         <td class="num-cell" style="font-size: 14px; font-weight: 900; background: #e0e7ff; color: #1e3a8a;">฿${totalThbRaw.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                    </tr>
+                `;
+            } else if (isProductReport) {
+                tableHeadersHtml = `
+                    <tr style="border-top: 2px solid #000; border-bottom: 2px solid #000; background: #fff;">
+                        <th style="text-align: left; padding: 6px 4px; width: 140px;">Customer / Seller</th>
+                        <th style="text-align: left; padding: 6px 4px; width: 110px;">Bill No</th>
+                        <th style="text-align: left; padding: 6px 4px;">Product</th>
+                        <th style="text-align: center; padding: 6px 4px; width: 50px;">QT</th>
+                        <th style="text-align: center; padding: 6px 4px; width: 50px;">WG</th>
+                        <th style="text-align: right; padding: 6px 4px; width: 90px;">Amount</th>
+                        <th style="text-align: right; padding: 6px 4px; width: 80px;">AR</th>
+                    </tr>
+                `;
+
+                tableRowsHtml = productReportData.groups.map((g, gIdx) => {
+                    const groupTitle = `${gIdx + 1}&nbsp;&nbsp;&nbsp;&nbsp;<strong>${escapeHtml(g.groupId)}</strong>&nbsp;&nbsp;&nbsp;&nbsp;<strong>${escapeHtml(g.groupName)}</strong>`;
+                    const itemRows = g.items.map((it) => {
+                        let tierBadges = '';
+                        if (it.priceTypeCounts && Object.keys(it.priceTypeCounts).length > 1) {
+                            tierBadges = Object.entries(it.priceTypeCounts).map(([pt, c]) => {
+                                let tc = '#6b21a8';
+                                if (pt === 'ราคาสมาชิก') tc = '#1e40af';
+                                else if (pt === 'ราคาโปร') tc = '#b45309';
+                                else if (pt === 'ราคาศูนย์') tc = '#047857';
+                                return `<span style="font-size: 9px; font-weight: bold; padding: 1px 4px; border-radius: 4px; margin-left: 4px; border: 1px solid #cbd5e1; background: #f8fafc; color: ${tc};">${escapeHtml(pt.replace('ราคา', ''))}: ${c}</span>`;
+                            }).join('');
+                        } else {
+                            let tierColor = '#6b21a8';
+                            if (it.priceType === 'ราคาสมาชิก') tierColor = '#1e40af';
+                            else if (it.priceType === 'ราคาโปร') tierColor = '#b45309';
+                            else if (it.priceType === 'ราคาศูนย์') tierColor = '#047857';
+                            tierBadges = `<span style="font-size: 9px; font-weight: bold; padding: 1px 4px; border-radius: 4px; margin-left: 6px; border: 1px solid #cbd5e1; background: #f8fafc; color: ${tierColor};">${escapeHtml(it.priceType)}</span>`;
+                        }
+
+                        return `
+                        <tr>
+                            <td></td>
+                            <td style="font-family: monospace; font-size: 11px; font-weight: bold; color: #1e293b;">${escapeHtml(it.billId)}</td>
+                            <td style="font-weight: 500;">
+                                ${escapeHtml(it.productName)}
+                                ${tierBadges}
+                            </td>
+                            <td style="text-align: center; font-family: monospace;">${it.qty.toLocaleString()}</td>
+                            <td style="text-align: center; font-family: monospace;">${it.wg.toLocaleString()}</td>
+                            <td class="num-cell" style="color: #0f172a;">${it.amount > 0 ? it.amount.toLocaleString(undefined, {minimumFractionDigits: 2}) : '-'}</td>
+                            <td class="num-cell" style="color: #475569;">${it.ar > 0 ? it.ar.toLocaleString(undefined, {minimumFractionDigits: 2}) : '-'}</td>
+                        </tr>
+                    `;
+                    }).join('');
+
+                    const subtotalRow = `
+                        <tr style="border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; font-weight: 800; background: #fdfdfd;">
+                            <td colspan="2" style="font-size: 10px; color: #475569; padding: 5px 6px;">
+                                ${g.qtyFull > 0 ? `<span style="margin-right: 8px;">🏷️เต็ม: <b>${g.qtyFull}</b></span>` : ''}
+                                ${g.qtyMember > 0 ? `<span style="margin-right: 8px;">👥สมาชิก: <b>${g.qtyMember}</b></span>` : ''}
+                                ${g.qtyPromo > 0 ? `<span style="margin-right: 8px;">⚡โปร: <b>${g.qtyPromo}</b></span>` : ''}
+                                ${g.qtyFree > 0 ? `<span>🎁แถม: <b>${g.qtyFree}</b></span>` : ''}
+                            </td>
+                            <td style="text-align: center; font-weight: 900;">ລວມ (${g.billsCount} ບິນ)</td>
+                            <td style="text-align: center; font-family: monospace; font-weight: 900;">${g.subtotalQty.toLocaleString()}</td>
+                            <td style="text-align: center; font-family: monospace; font-weight: 900;">${g.subtotalWg.toLocaleString()}</td>
+                            <td class="num-cell" style="font-weight: 900; color: #000;">${g.subtotalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                            <td></td>
+                        </tr>
+                        <tr><td colspan="7" style="height: 10px; border: none; background: transparent;"></td></tr>
+                    `;
+
+                    return `
+                        <tr style="background: #f8fafc; font-weight: bold; border-top: 1px solid #cbd5e1;">
+                            <td colspan="7" style="padding: 6px 4px; font-size: 12px; color: #000;">
+                                ${groupTitle}
+                            </td>
+                        </tr>
+                        ${itemRows}
+                        ${subtotalRow}
+                    `;
+                }).join('');
+
+                tableFootHtml = `
+                    <tr style="border-top: 2px solid #000; border-bottom: 4px double #000; font-weight: 900; font-size: 13px;">
+                        <td colspan="3" style="padding: 10px 4px; text-align: left; letter-spacing: 0.5px;">GRAND TOTAL (${productReportData.totalBillsCount.toLocaleString()} บิล):</td>
+                        <td style="text-align: center; font-family: monospace; padding: 10px 4px;">${productReportData.grandTotalQty.toLocaleString()}</td>
+                        <td style="text-align: center; font-family: monospace; padding: 10px 4px;">${productReportData.grandTotalWg.toLocaleString()}</td>
+                        <td class="num-cell" style="font-size: 14px; font-weight: 900; padding: 10px 4px; color: #000;">${productReportData.grandTotalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                        <td></td>
                     </tr>
                 `;
             } else {
@@ -401,7 +805,7 @@
   <meta charset="UTF-8">
   <title>${escapeHtml(docTitle)}</title>
   <style>
-    @page { size: A4 landscape; margin: 8mm 8mm 10mm 8mm; }
+    @page { size: ${isProductReport ? 'A4 portrait' : 'A4 landscape'}; margin: ${isProductReport ? '8mm 10mm 10mm 10mm' : '8mm 8mm 10mm 8mm'}; }
     * { box-sizing: border-box; }
     body {
       margin: 0; padding: 0; background-color: #f1f5f9;
@@ -418,12 +822,12 @@
     .btn-pdf { background-color: #e11d48; color: #fff; margin-right: 8px; }
     .btn-close { background-color: #475569; color: #fff; }
     .report-sheet {
-      background: #ffffff; width: 297mm; min-height: 210mm;
+      background: #ffffff; width: ${isProductReport ? '210mm' : '297mm'}; min-height: 210mm;
       margin: 16px auto; padding: 10mm 12mm; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border-radius: 6px;
     }
     .comp-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #1e3a8a; padding-bottom: 8px; margin-bottom: 10px; }
-    .comp-brand { display: flex; align-items: center; gap: 12px; }
-    .comp-logo { max-height: 48px; max-width: 120px; object-fit: contain; }
+    .comp-brand { display: flex; align-items: center; gap: 14px; }
+    .comp-logo { max-height: 52px; max-width: 140px; object-fit: contain; display: block; }
     .comp-info h2 { margin: 0; font-size: 18px; font-weight: 800; color: #1e3a8a; }
     .comp-info p { margin: 1px 0; font-size: 10px; color: #475569; }
     .doc-badge { text-align: right; }
@@ -476,42 +880,64 @@
   </div>
 
   <div class="report-sheet">
-    <div class="comp-header">
-      <div class="comp-brand">
-          ${logoUrl ? `<img src="${logoUrl}" class="comp-logo" alt="Logo" />` : ''}
-          <div class="comp-info">
-...
-          <h2>${escapeHtml(compSettings.name || 'LOVE STK GROUPE')}</h2>
-          ${compSettings.branch ? `<p style="font-weight: 600;">${escapeHtml(compSettings.branch)}</p>` : ''}
-          ${compSettings.address ? `<p>${escapeHtml(compSettings.address)}</p>` : ''}
-          ${compSettings.phone ? `<p>โทร: ${escapeHtml(compSettings.phone)}</p>` : ''}
-          ${compSettings.taxId ? `<p style="font-family: monospace;">เลขประจำตัวผู้เสียภาษี: ${escapeHtml(compSettings.taxId)}</p>` : ''}
+    ${isProductReport ? `
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; border-bottom: 2px solid #0f172a; padding-bottom: 10px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          ${logoUrl ? `<img src="${logoUrl}" class="comp-logo" alt="Logo" style="max-height: 54px; max-width: 130px; object-fit: contain;" />` : ''}
+          <div>
+            <h2 style="margin: 0; font-size: 15px; font-weight: 800; color: #0f172a;">${escapeHtml(compSettings.name || 'ບໍລິສັດ ເລີບເອັສທີເຄ ຂາອອກ-ຂາເຂົ້າ ຈຳກັດ')}</h2>
+            <p style="margin: 2px 0; font-size: 10.5px; color: #334155;"><strong>ສາຂາ:</strong> ${escapeHtml(compSettings.branch || 'ສຳນັກງານໃຫຍ່ວຽງຈັນ')}</p>
+            <p style="margin: 2px 0; font-size: 10.5px; color: #334155;"><strong>ບ້ານ:</strong> ${escapeHtml(compSettings.address || 'ໂພນທັນ ເມືອງໄຊເສດຖາ ນະຄອນຫຼວງວຽງຈັນ')}</p>
+            <p style="margin: 2px 0; font-size: 10.5px; color: #334155;"><strong>ໂທ:</strong> ${escapeHtml(compSettings.phone || '020 85387291')}</p>
+          </div>
+        </div>
+        <div style="text-align: right;">
+          <h1 style="margin: 0; font-size: 20px; font-weight: 900; color: #0f172a; text-transform: uppercase;">Sale Report</h1>
+          <p style="margin: 3px 0 0 0; font-size: 11px; font-weight: 700; color: #1e40af;">
+            ອັດຕາແລກປ່ຽນ: <span style="font-family: monospace; font-size: 13px;">${exchangeRate.toLocaleString()}</span>
+          </p>
+          <div style="margin-top: 5px; display: inline-block; background-color: #fef08a; border: 1px solid #facc15; padding: 2px 8px; font-weight: 800; font-size: 10.5px; border-radius: 4px; font-family: monospace;">
+            ${startDate} &nbsp;&nbsp; ${endDate}
+          </div>
         </div>
       </div>
-      <div class="doc-badge">
-        <div class="main-title">${isSummary ? 'รายงานสรุปรายรับบริษัท (รายปี)' : 'รายงานรายละเอียดรับเงินแยกตามบิล'}</div>
-        <div class="sub-title">${isSummary ? 'ANNUAL COMPANY REVENUE REPORT' : 'FINANCE & REVENUE DETAIL REPORT'}</div>
+    ` : `
+      <div class="comp-header">
+        <div class="comp-brand">
+          ${logoUrl ? `<img src="${logoUrl}" class="comp-logo" alt="Logo" />` : ''}
+          <div class="comp-info">
+            <h2>${escapeHtml(compSettings.name || 'LOVE STK GROUPE')}</h2>
+            ${compSettings.branch ? `<p style="font-weight: 600;">${escapeHtml(compSettings.branch)}</p>` : ''}
+            ${compSettings.address ? `<p>${escapeHtml(compSettings.address)}</p>` : ''}
+            ${compSettings.phone ? `<p>โทร: ${escapeHtml(compSettings.phone)}</p>` : ''}
+            ${compSettings.taxId ? `<p style="font-family: monospace;">เลขประจำตัวผู้เสียภาษี: ${escapeHtml(compSettings.taxId)}</p>` : ''}
+          </div>
+        </div>
+        <div class="doc-badge">
+          <div class="main-title">${isSummary ? 'รายงานสรุปรายรับบริษัท (รายปี)' : 'รายงานรายละเอียดรับเงินแยกตามบิล'}</div>
+          <div class="sub-title">${isSummary ? 'ANNUAL COMPANY REVENUE REPORT' : 'FINANCE & REVENUE DETAIL REPORT'}</div>
+        </div>
       </div>
-    </div>
 
-    <div class="meta-box">
-      <div class="meta-item">
-        <span class="meta-label">ข้อมูลรอบวันที่:</span>
-        <span class="meta-val" style="color: #2563eb; font-weight: 800;">${isSummary ? `ประจำปี ${activeYear}` : (startDate === endDate ? `ประจำวันที่ ${formatThaiDate(startDate)}` : `ประจำวันที่ ${formatThaiDate(startDate)} ถึง ${formatThaiDate(endDate)}`)}</span>
+      <div class="meta-box">
+        <div class="meta-item">
+          <span class="meta-label">ข้อมูลรอบวันที่:</span>
+          <span class="meta-val" style="color: #2563eb; font-weight: 800;">${isSummary ? `ประจำปี ${activeYear}` : (startDate === endDate ? `ประจำวันที่ ${formatThaiDate(startDate)}` : `ประจำวันที่ ${formatThaiDate(startDate)} ถึง ${formatThaiDate(endDate)}`)}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">วันที่สั่งพิมพ์เอกสาร:</span>
+          <span class="meta-val">${printDateStr} (${printTimeStr})</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">ผู้พิมพ์เอกสาร:</span>
+          <span class="meta-val">${escapeHtml(currentUser?.name || currentUser?.username || 'Administrator')}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">จำนวนรายการ:</span>
+          <span class="meta-val" style="font-weight: 800; color: #1e3a8a;">${isSummary ? financeSummaryData.length : financeBills.length} รายการ</span>
+        </div>
       </div>
-      <div class="meta-item">
-        <span class="meta-label">วันที่สั่งพิมพ์เอกสาร:</span>
-        <span class="meta-val">${printDateStr} (${printTimeStr})</span>
-      </div>
-      <div class="meta-item">
-        <span class="meta-label">ผู้พิมพ์เอกสาร:</span>
-        <span class="meta-val">${escapeHtml(currentUser?.name || currentUser?.username || 'Administrator')}</span>
-      </div>
-      <div class="meta-item">
-        <span class="meta-label">จำนวนรายการ:</span>
-        <span class="meta-val" style="font-weight: 800; color: #1e3a8a;">${isSummary ? financeSummaryData.length : financeBills.length} รายการ</span>
-      </div>
-    </div>
+    `}
 
     <div class="table-container">
       <table class="report-table">
@@ -526,6 +952,59 @@
         </tfoot>
       </table>
     </div>
+
+    ${isProductReport ? `
+      <div style="margin-top: 18px; margin-bottom: 20px; page-break-inside: avoid;">
+        <div style="font-weight: 800; font-size: 11.5px; color: #0f172a; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
+          <span>📊 ສະຫຼຸບຍອດຂາຍຕາມ 4 ປະເພດລາຄາ (Price Tier Summary Breakdown):</span>
+          <span style="font-size: 10.5px; font-weight: 700; color: #475569;">ລວມທັງໝົດ: <b>${productReportData.totalBillsCount.toLocaleString()}</b> ບິນ</span>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 10.5px; border: 1px solid #cbd5e1;">
+          <thead>
+            <tr style="background: #f1f5f9; border-bottom: 1.5px solid #94a3b8; font-weight: 800; color: #1e293b;">
+              <th style="padding: 5px 8px; text-align: left; border-right: 1px solid #cbd5e1;">ປະເພດລາຄາ (Price Tier)</th>
+              <th style="padding: 5px 8px; text-align: center; border-right: 1px solid #cbd5e1; width: 140px;">ຈຳນວນ (QT)</th>
+              <th style="padding: 5px 8px; text-align: right; border-right: 1px solid #cbd5e1; width: 160px;">ຍອດເງິນລວມ (Amount THB)</th>
+              <th style="padding: 5px 8px; text-align: center; width: 90px;">ສັດສ່ວນ (Ratio)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding: 5px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #cbd5e1; font-weight: bold; color: #6b21a8;">🏷️ ລາຄາເຕັມ (Full Price)</td>
+              <td style="padding: 5px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #cbd5e1; text-align: center; font-family: monospace; font-weight: bold;">${productReportData.grandQtyFull.toLocaleString()} ກ່ອງ</td>
+              <td style="padding: 5px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #cbd5e1; text-align: right; font-family: monospace; font-weight: bold;">฿${productReportData.grandAmountFull.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+              <td style="padding: 5px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #64748b;">${productReportData.grandTotalQty > 0 ? ((productReportData.grandQtyFull / productReportData.grandTotalQty) * 100).toFixed(1) : 0}%</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #cbd5e1; font-weight: bold; color: #1e40af;">👥 ລາຄາສະມາຊິກ (Member Price)</td>
+              <td style="padding: 5px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #cbd5e1; text-align: center; font-family: monospace; font-weight: bold;">${productReportData.grandQtyMember.toLocaleString()} ກ່ອງ</td>
+              <td style="padding: 5px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #cbd5e1; text-align: right; font-family: monospace; font-weight: bold;">฿${productReportData.grandAmountMember.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+              <td style="padding: 5px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #64748b;">${productReportData.grandTotalQty > 0 ? ((productReportData.grandQtyMember / productReportData.grandTotalQty) * 100).toFixed(1) : 0}%</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #cbd5e1; font-weight: bold; color: #b45309;">⚡ ລາຄາໂປຣ (Promotion Price)</td>
+              <td style="padding: 5px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #cbd5e1; text-align: center; font-family: monospace; font-weight: bold;">${productReportData.grandQtyPromo.toLocaleString()} ກ່ອງ</td>
+              <td style="padding: 5px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #cbd5e1; text-align: right; font-family: monospace; font-weight: bold;">฿${productReportData.grandAmountPromo.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+              <td style="padding: 5px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #64748b;">${productReportData.grandTotalQty > 0 ? ((productReportData.grandQtyPromo / productReportData.grandTotalQty) * 100).toFixed(1) : 0}%</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px 8px; border-bottom: 1px solid #cbd5e1; border-right: 1px solid #cbd5e1; font-weight: bold; color: #047857;">🎁 ລາຄາສູນ / ແຖມຟຣີ (Free Gift)</td>
+              <td style="padding: 5px 8px; border-bottom: 1px solid #cbd5e1; border-right: 1px solid #cbd5e1; text-align: center; font-family: monospace; font-weight: bold;">${productReportData.grandQtyFree.toLocaleString()} ກ່ອງ</td>
+              <td style="padding: 5px 8px; border-bottom: 1px solid #cbd5e1; border-right: 1px solid #cbd5e1; text-align: right; font-family: monospace; font-weight: bold; color: #047857;">฿0.00</td>
+              <td style="padding: 5px 8px; border-bottom: 1px solid #cbd5e1; text-align: center; color: #64748b;">${productReportData.grandTotalQty > 0 ? ((productReportData.grandQtyFree / productReportData.grandTotalQty) * 100).toFixed(1) : 0}%</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr style="background: #f8fafc; font-weight: 900; border-top: 1.5px solid #000; font-size: 11px;">
+              <td style="padding: 6px 8px; border-right: 1px solid #cbd5e1;">ລວມທັງໝົດ (Grand Total)</td>
+              <td style="padding: 6px 8px; border-right: 1px solid #cbd5e1; text-align: center; font-family: monospace; color: #000;">${productReportData.grandTotalQty.toLocaleString()} ກ່ອງ</td>
+              <td style="padding: 6px 8px; border-right: 1px solid #cbd5e1; text-align: right; font-family: monospace; color: #1e3a8a;">฿${productReportData.grandTotalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+              <td style="padding: 6px 8px; text-align: center;">100%</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    ` : ''}
 
     <div class="signature-section">
       <div class="sig-box">
@@ -556,11 +1035,24 @@
   </div>
 
   <script>
-    window.onload = function() {
-      setTimeout(function() {
-        window.print();
-      }, 500);
-    };
+    window.addEventListener('load', function() {
+      var img = document.querySelector('.comp-logo');
+      var printed = false;
+      function triggerPrint() {
+        if (printed) return;
+        printed = true;
+        setTimeout(function() {
+          window.print();
+        }, 300);
+      }
+      if (img && !img.complete) {
+        img.onload = triggerPrint;
+        img.onerror = triggerPrint;
+        setTimeout(triggerPrint, 1500);
+      } else {
+        setTimeout(triggerPrint, 350);
+      }
+    });
   <\/script>
 </body>
 </html>
@@ -594,6 +1086,26 @@
 
                 <main className={`flex-1 flex flex-col min-h-screen bg-slate-50 transition-all duration-300 relative ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} w-full overflow-x-hidden`}>
                     <div className="p-3 sm:p-6 flex-1 w-full relative z-0">
+                        {!isLoggedIn ? (
+                            <div className="flex flex-col items-center justify-center py-28 px-4 text-center animation-fade-in">
+                                <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-3xl mb-4 shadow-sm border border-blue-100">
+                                    🔒
+                                </div>
+                                <h3 className="text-lg font-black text-slate-800 mb-1">
+                                    กรุณาเข้าสู่ระบบเพื่อดูรายงานการเงิน
+                                </h3>
+                                <p className="text-xs text-slate-500 max-w-sm mb-6 font-medium">
+                                    ข้อมูลการเงินและรายงานถูกจำกัดสิทธิ์เฉพาะผู้ใช้ที่เข้าสู่ระบบแล้วเท่านั้น
+                                </p>
+                                <button
+                                    onClick={() => setShowLoginModal(true)}
+                                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-2"
+                                >
+                                    <span>🔐</span> เข้าสู่ระบบ (Login)
+                                </button>
+                            </div>
+                        ) : (
+                            <React.Fragment>
                         {/* Page Header matching Reports.html */}
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-4 mb-6 no-print">
                             <div>
@@ -610,19 +1122,64 @@
                         <div className="flex flex-wrap gap-2 pb-2 w-full border-b border-slate-200 no-print mb-6">
                             <SubTabButton id="finance_summary" label="💵 สรุปรายรับบริษัท (รายปี)" activeTab={subTab} setSubTab={setSubTab} />
                             <SubTabButton id="finance_detail" label="📜 รายละเอียดรับเงินแยกตามบิล" activeTab={subTab} setSubTab={setSubTab} isData={true} />
+                            <SubTabButton id="sale_product_report" label="📦 รายงานยอดขายและสินค้า (Sale Report)" activeTab={subTab} setSubTab={setSubTab} isSpecial={true} />
                         </div>
 
-                        {/* กล่องตัวกรองวันที่และการค้นหา (ซ่อนในหน้ารายปี แต่แสดงในหน้ารายละเอียดบิล ตามแบบ Reports.html) */}
-                        {subTab === 'finance_detail' && (
+                        {/* กล่องตัวกรองวันที่และการค้นหา */}
+                        {(subTab === 'finance_detail' || subTab === 'sale_product_report') && (
                             <div className={`${boxWrapper} py-4 mb-6`}>
                                 <div className="flex flex-col md:flex-row flex-wrap items-start md:items-end gap-4">
                                     <div><label className={labelClassHud}>ตั้งแต่วันที่</label><input type="date" className={inputClassHud} value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
                                     <div><label className={labelClassHud}>ถึงวันที่</label><input type="date" className={inputClassHud} value={endDate} onChange={e => setEndDate(e.target.value)} /></div>
+                                    {subTab === 'sale_product_report' && (
+                                        <>
+                                            <div className="w-full sm:w-auto">
+                                                <label className={labelClassHud}>จัดกลุ่มตาม</label>
+                                                <select 
+                                                    value={productReportGroupBy} 
+                                                    onChange={e => setProductReportGroupBy(e.target.value)}
+                                                    className={`${inputClassHud} cursor-pointer font-bold text-blue-700 bg-blue-50/40`}
+                                                >
+                                                    <option value="seller">👤 ผู้ขาย / สมาชิก (Seller)</option>
+                                                    <option value="customer">👥 ลูกค้า (Customer)</option>
+                                                </select>
+                                            </div>
+                                            <div className="w-full sm:w-auto">
+                                                <label className={labelClassHud}>รูปแบบแสดงผล</label>
+                                                <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 h-[38px] sm:h-[40px] items-center">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setProductReportViewMode('summary')}
+                                                        className={`px-3 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                                                            productReportViewMode === 'summary' 
+                                                                ? 'bg-blue-600 text-white shadow-sm' 
+                                                                : 'text-slate-600 hover:text-slate-900'
+                                                        }`}
+                                                        title="ยุบรวมสินค้าชนิดเดียวกันต่อพนักงานขายเป็น 1 แถว สรุปยอดรวมจำนวนและเงิน"
+                                                    >
+                                                        <span>📦</span> รวมตามสินค้า (สรุปยอด)
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setProductReportViewMode('bill')}
+                                                        className={`px-3 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                                                            productReportViewMode === 'bill' 
+                                                                ? 'bg-blue-600 text-white shadow-sm' 
+                                                                : 'text-slate-600 hover:text-slate-900'
+                                                        }`}
+                                                        title="แสดงแยกตามบิลขายแต่ละใบ"
+                                                    >
+                                                        <span>📄</span> แยกตามบิล
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
                                     <div className="w-full md:w-auto md:pl-4 md:border-l border-slate-200 flex-1 md:min-w-[200px]">
                                         <label className={labelClassHud}>พิมพ์ค้นหาข้อมูล</label>
                                         <div className="flex items-center bg-slate-50/30 focus-within:bg-white border border-slate-200 rounded-xl px-3 shadow-sm focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 transition-all duration-300 w-full h-[38px] sm:h-[40px]">
                                             <SearchIcon size={18} className="text-slate-400 shrink-0" />
-                                            <input type="text" placeholder="พิมพ์ชื่อ/รหัส/เลขที่บิล..." className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                                            <input type="text" placeholder="พิมพ์ชื่อ/รหัส/เลขที่บิล/สินค้า..." className="w-full bg-transparent border-none outline-none text-[13px] font-medium text-slate-800 placeholder-slate-400 pl-2 h-full" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                                         </div>
                                     </div>
                                 </div>
@@ -740,11 +1297,14 @@
                                                         return (
                                                             <g key={`bar-${i}`} className="group cursor-pointer">
                                                                 <rect x={barX} y={finalBarY} width={barWidth} height={barHeight} rx="8" fill={isPeak ? "url(#barGradHighlight)" : "url(#barGradNormal)"} className="transition-all duration-300 group-hover:opacity-90" />
+                                                                
+                                                                {/* โชว์ตัวเลขยอดเงินแบบเต็มจำนวนเป๊ะๆ ไม่ปัดเศษ (ปรับขนาดฟอนต์ให้เล็กลงนิดนึงเพื่อไม่ให้เบียดกัน) */}
                                                                 {d.totalTHB > 0 && (
-                                                                    <text x={cx} y={finalBarY - 8} textAnchor="middle" fontSize="10" className="font-black fill-slate-700">
-                                                                        {d.totalTHB >= 1000000 ? `${(d.totalTHB / 1000000).toFixed(1)}M` : `${Math.round(d.totalTHB / 1000)}K`}
+                                                                    <text x={cx} y={finalBarY - 8} textAnchor="middle" fontSize="9" className="font-black fill-slate-800">
+                                                                        {Math.round(d.totalTHB).toLocaleString()}
                                                                     </text>
                                                                 )}
+                                                                
                                                                 <text x={cx} y={paddingTop + usableHeight + 20} textAnchor="middle" fontSize="11" className="font-bold fill-slate-600">
                                                                     {d.label}
                                                                 </text>
@@ -768,17 +1328,27 @@
                                 {/* Table: สรุปรายรับ 12 เดือน */}
                                 <div className="space-y-4">
                                     <div className="flex justify-end gap-3 print-hide">
-                                        <button type="button" onClick={() => {
-                                            let rows = [['เลขที่บิล', 'วันที่', 'ผู้ขาย (พนักงาน)', 'ชื่อลูกค้า', 'ช่องทางชำระ', 'ยอดรับ (เงินกีบ)', 'ยอดรับ (เงินบาท)']];
-                                            financeBills.forEach(s => {
-                                                const displayCust = (s.customerName && s.customerName !== 'ไม่ระบุชื่อ') ? s.customerName : (s.customerId ? `ลูกค้า (${s.customerId})` : 'ลูกค้าทั่วไป');
-                                                const { lakAmt, thbAmt, realPayMode } = parseSaleCurrencyAmounts(s, exchangeRate);
-                                                const payMode = String(realPayMode || 'เงินโอน').trim();
-                                                rows.push([s.id, s.date, s.sellerName || s.memberId, displayCust, payMode, lakAmt, thbAmt]);
+                                        <button type="button" onClick={async () => {
+                                            let rows = [['ลำดับ', 'ช่วงเวลา (เดือน)', 'จำนวนบิลทั้งหมด', 'รายรับ (เงินกีบ ₭)', 'รายรับ (เงินบาท ฿)', 'ยอดรวมสุทธิ (คิดเป็นบาท ฿)']];
+                                            financeSummaryData.forEach((row, idx) => {
+                                                const netThb = row.sumThb + (row.sumLak / exchangeRate);
+                                                rows.push([
+                                                    idx + 1, 
+                                                    row.period, 
+                                                    row.billsCount, 
+                                                    row.sumLak, 
+                                                    row.sumThb, 
+                                                    Math.round(netThb * 100) / 100
+                                                ]);
                                             });
-                                            if (typeof window.exportToCSV === 'function') {
-                                                window.exportToCSV(rows, `finance_bills_${getLocalISODate()}.csv`); // ใช้ .csv
-                                            }
+                                            const totalBills = financeSummaryData.reduce((a, r) => a + r.billsCount, 0);
+                                            const totalLak = financeSummaryData.reduce((a, r) => a + r.sumLak, 0);
+                                            const totalThb = financeSummaryData.reduce((a, r) => a + r.sumThb, 0);
+                                            const grandNetThb = financeSummaryData.reduce((a, r) => a + r.sumThb + (r.sumLak / exchangeRate), 0);
+                                            rows.push(['', 'ยอดรวมสุทธิทั้งปี', totalBills, totalLak, totalThb, Math.round(grandNetThb * 100) / 100]);
+
+                                            const filename = `finance_annual_summary_${activeYear}_${getLocalISODate()}.xlsx`;
+                                            await exportFinanceExcel(rows, filename, `AnnualSummary_${activeYear}`);
                                         }} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
                                             <Archive size={16}/> Export Excel
                                         </button>
@@ -843,7 +1413,7 @@
                                     </div>
                                 </div>
                             </div>
-                        ) : (
+                        ) : subTab === 'finance_detail' ? (
                             /* TAB 2: รายละเอียดรับเงินแยกตามบิล */
                             <div className="space-y-6 animation-fade-in">
                                 {/* KPI Cards */}
@@ -867,23 +1437,22 @@
                                 {/* Table: บิลทั้งหมด */}
                                 <div className="space-y-4">
                                     <div className="flex justify-end gap-3 print-hide">
-                                        <button type="button" onClick={() => {
+                                        <button type="button" onClick={async () => {
                                             let rows = [['เลขที่บิล', 'วันที่', 'ผู้ขาย (พนักงาน)', 'ชื่อลูกค้า', 'ช่องทางชำระ', 'ยอดรับ (เงินกีบ)', 'ยอดรับ (เงินบาท)']];
+                                            let sumLak = 0; 
+                                            let sumThb = 0;
                                             financeBills.forEach(s => {
                                                 const displayCust = (s.customerName && s.customerName !== 'ไม่ระบุชื่อ') ? s.customerName : (s.customerId ? `ลูกค้า (${s.customerId})` : 'ลูกค้าทั่วไป');
                                                 const { lakAmt, thbAmt, realPayMode } = parseSaleCurrencyAmounts(s, exchangeRate);
                                                 const payMode = String(realPayMode || 'เงินโอน').trim();
+                                                sumLak += lakAmt; 
+                                                sumThb += thbAmt;
                                                 rows.push([s.id, s.date, s.sellerName || s.memberId, displayCust, payMode, lakAmt, thbAmt]);
                                             });
-                                            let sumLak = 0; let sumThb = 0;
-                                            financeBills.forEach(s => {
-                                                const { lakAmt, thbAmt } = parseSaleCurrencyAmounts(s, exchangeRate);
-                                                sumLak += lakAmt; sumThb += thbAmt;
-                                            });
                                             rows.push(['', '', '', '', 'ยอดรวมสุทธิ', sumLak, sumThb]);
-                                            if (typeof window.exportToCSV === 'function') {
-                                                window.exportToCSV(rows, `finance_bills_${getLocalISODate()}.csv`);
-                                            }
+
+                                            const filename = `finance_bills_${startDate}_to_${endDate}.xlsx`;
+                                            await exportFinanceExcel(rows, filename, "FinanceBills");
                                         }} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
                                             <Archive size={16}/> Export Excel
                                         </button>
@@ -1047,6 +1616,311 @@
                                     </div>
                                 </div>
                             </div>
+                        ) : (
+                            /* TAB 3: รายงานยอดขายและสินค้า (Sale Report Template) */
+                            <div className="space-y-6 animation-fade-in">
+                                {/* KPI Cards */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div className="bg-gradient-to-br from-indigo-600 to-blue-700 p-4 rounded-2xl shadow-md text-white">
+                                        <div className="text-xs font-bold text-indigo-100 mb-1">💰 ยอดขายรวม (Grand Total)</div>
+                                        <div className="text-2xl font-black">฿{productReportData.grandTotalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                                        <div className="text-[11px] text-indigo-200 mt-1 flex items-center justify-between">
+                                            <span>{productReportData.groups.length.toLocaleString()} {productReportGroupBy === 'seller' ? 'ผู้ขาย' : 'ลูกค้า'}</span>
+                                            <span className="font-bold bg-white/20 px-2 py-0.5 rounded text-[10px]">รวม {productReportData.totalBillsCount.toLocaleString()} บิล</span>
+                                        </div>
+                                    </div>
+                                    <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl shadow-sm">
+                                        <div className="text-xs font-bold text-emerald-700 mb-1">📦 จำนวนชิ้นทั้งหมด (QT)</div>
+                                        <div className="text-2xl font-black text-emerald-700">{productReportData.grandTotalQty.toLocaleString()} ชิ้น</div>
+                                        <div className="text-[11px] text-emerald-600 font-bold mt-1">ยอดรวมจำนวนสินค้าทุกรายการ</div>
+                                    </div>
+                                    <div className="bg-sky-50 border border-sky-200 p-4 rounded-2xl shadow-sm">
+                                        <div className="text-xs font-bold text-sky-700 mb-1">⚖️ รวมหน่วยนับ (WG)</div>
+                                        <div className="text-2xl font-black text-sky-700">{productReportData.grandTotalWg.toLocaleString()}</div>
+                                        <div className="text-[11px] text-sky-600 font-bold mt-1">น้ำหนัก/หน่วยนับสินค้า</div>
+                                    </div>
+                                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl shadow-sm">
+                                        <div className="text-xs font-bold text-amber-700 mb-1">👥 {productReportGroupBy === 'seller' ? 'จำนวนผู้ขาย' : 'จำนวนลูกค้า'}</div>
+                                        <div className="text-2xl font-black text-amber-700">{productReportData.groups.length.toLocaleString()} ราย</div>
+                                        <div className="text-[11px] text-amber-600 font-bold mt-1">ที่มีรายการขายในช่วงวันที่เลือก</div>
+                                    </div>
+                                </div>
+
+                                {/* แถบสรุป 4 ประเภทราคา: เต็ม / สมาชิก / โปร / แถมฟรี (Clean & Modern Minimalist) */}
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                    <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs hover:border-slate-300 transition-all flex flex-col justify-between">
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                            <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">ราคาเต็ม</span>
+                                        </div>
+                                        <div className="text-xl font-bold font-mono text-slate-800 tracking-tight">
+                                            {productReportData.grandQtyFull.toLocaleString()} <span className="text-xs font-normal text-slate-500">ชิ้น</span>
+                                        </div>
+                                        <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                                            ฿{productReportData.grandAmountFull.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs hover:border-blue-200 transition-all flex flex-col justify-between">
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                            <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                                            <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wide">ราคาสมาชิก</span>
+                                        </div>
+                                        <div className="text-xl font-bold font-mono text-slate-900 tracking-tight">
+                                            {productReportData.grandQtyMember.toLocaleString()} <span className="text-xs font-normal text-slate-500">ชิ้น</span>
+                                        </div>
+                                        <div className="text-[11px] text-blue-700 font-mono font-medium mt-0.5">
+                                            ฿{productReportData.grandAmountMember.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs hover:border-amber-200 transition-all flex flex-col justify-between">
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                            <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                                            <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wide">ราคาโปร</span>
+                                        </div>
+                                        <div className="text-xl font-bold font-mono text-slate-900 tracking-tight">
+                                            {productReportData.grandQtyPromo.toLocaleString()} <span className="text-xs font-normal text-slate-500">ชิ้น</span>
+                                        </div>
+                                        <div className="text-[11px] text-amber-700 font-mono font-medium mt-0.5">
+                                            ฿{productReportData.grandAmountPromo.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs hover:border-emerald-200 transition-all flex flex-col justify-between">
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                            <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wide">แถมฟรี (ราคา 0)</span>
+                                        </div>
+                                        <div className="text-xl font-bold font-mono text-slate-900 tracking-tight">
+                                            {productReportData.grandQtyFree.toLocaleString()} <span className="text-xs font-normal text-slate-500">ชิ้น</span>
+                                        </div>
+                                        <div className="text-[11px] text-emerald-700 font-mono font-medium mt-0.5">
+                                            ฿0.00 (ฟรี)
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Table Actions Bar */}
+                                <div className="space-y-4">
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 print-hide">
+                                        <div className="flex items-center gap-2">
+                                            <span className="inline-block px-3 py-1 bg-yellow-100 border border-yellow-300 rounded-lg text-xs font-bold text-yellow-900 font-mono">
+                                                📅 {startDate} ถึง {endDate}
+                                            </span>
+                                            <span className="text-xs font-bold text-slate-500">
+                                                (อัตราแลกเปลี่ยน: {exchangeRate.toLocaleString()} กีบ/บาท)
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                                            <button type="button" onClick={async () => {
+                                                let rows = [
+                                                    ['Sale Report - LOVE STK GROUPE (ບໍລິສັດ ເລີບເອັສທີເຄ ຂາອອກ-ຂາເຂົ້າ ຈຳກັດ)'],
+                                                    [`ช่วงวันที่: ${startDate} ถึง ${endDate}`, '', `อัตราแลกเปลี่ยน: ${exchangeRate}`, '', '', `จำนวนบิลทั้งหมด: ${productReportData.totalBillsCount}`],
+                                                    [],
+                                                    ['ลำดับ', 'ผู้ขาย / ลูกค้า', 'เลขที่บิล', 'Product (สินค้า)', 'ประเภทราคา', 'QT (จำนวน)', 'WG (หน่วย/น้ำหนัก)', 'Amount (ยอดเงิน)', 'AR (ราคาต่อหน่วย)']
+                                                ];
+
+                                                productReportData.groups.forEach((g, gIdx) => {
+                                                    rows.push([gIdx + 1, `${g.groupName || g.groupId} (${g.groupId})`, '', '', '', '', '', '', '']);
+                                                    g.items.forEach(it => {
+                                                        const pDisplay = it.productName + (it.bundleMultiplier > 1 ? ` (${it.orderedQty} เซ็ต = ตัดสต๊อก ${it.qty} กล่อง)` : '');
+                                                        const priceTypeStr = (it.priceTypeCounts && Object.keys(it.priceTypeCounts).length > 1)
+                                                            ? Object.entries(it.priceTypeCounts).map(([pt, c]) => `${pt}:${c}`).join(', ')
+                                                            : it.priceType;
+                                                        rows.push(['', '', it.billId, pDisplay, priceTypeStr, it.qty, it.wg, it.amount, it.ar]);
+                                                    });
+                                                    rows.push(['', '', '', `ລວມ (เต็ม:${g.qtyFull}, สมาชิก:${g.qtyMember}, โปร:${g.qtyPromo}, แถม:${g.qtyFree})`, '', g.subtotalQty, g.subtotalWg, g.subtotalAmount, '']);
+                                                    rows.push([]);
+                                                });
+
+                                                rows.push(['', '', '', `GRAND TOTAL (${productReportData.totalBillsCount} บิล)`, '', productReportData.grandTotalQty, productReportData.grandTotalWg, productReportData.grandTotalAmount, '']);
+                                                rows.push([]);
+                                                rows.push(['--- สรุปยอดขายแยกตาม 4 ประเภทราคา ---']);
+                                                rows.push(['ประเภทราคา', 'จำนวน (กล่อง)', 'ยอดเงินรวม (บาท)', 'สัดส่วน']);
+                                                rows.push(['ราคาเต็ม', productReportData.grandQtyFull, productReportData.grandAmountFull, productReportData.grandTotalQty > 0 ? `${((productReportData.grandQtyFull / productReportData.grandTotalQty) * 100).toFixed(1)}%` : '0%']);
+                                                rows.push(['ราคาสมาชิก', productReportData.grandQtyMember, productReportData.grandAmountMember, productReportData.grandTotalQty > 0 ? `${((productReportData.grandQtyMember / productReportData.grandTotalQty) * 100).toFixed(1)}%` : '0%']);
+                                                rows.push(['ราคาโปรโมชั่น', productReportData.grandQtyPromo, productReportData.grandAmountPromo, productReportData.grandTotalQty > 0 ? `${((productReportData.grandQtyPromo / productReportData.grandTotalQty) * 100).toFixed(1)}%` : '0%']);
+                                                rows.push(['ของแถม (ราคา 0)', productReportData.grandQtyFree, 0, productReportData.grandTotalQty > 0 ? `${((productReportData.grandQtyFree / productReportData.grandTotalQty) * 100).toFixed(1)}%` : '0%']);
+                                                rows.push(['ยอดรวมสุทธิทั้งหมด', productReportData.grandTotalQty, productReportData.grandTotalAmount, '100%']);
+
+                                                const filename = `sale_report_products_${startDate}_to_${endDate}.xlsx`;
+                                                await exportFinanceExcel(rows, filename, "SaleReport");
+                                            }} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
+                                                <Archive size={16}/> Export Excel
+                                            </button>
+                                            <button type="button" onClick={() => handlePrintReport(true)} className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
+                                                <FileText size={16}/> Export PDF
+                                            </button>
+                                            <button type="button" onClick={() => handlePrintReport(false)} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
+                                                <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg> 
+                                                พิมพ์ (Print)
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Table Content */}
+                                    <div className={`${boxWrapper} p-0 overflow-hidden`}>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left border-collapse min-w-[850px]">
+                                                <thead>
+                                                    <tr className="bg-slate-100 border-b-2 border-slate-300">
+                                                        <th className="p-3 text-[12px] font-extrabold text-slate-700 uppercase tracking-wide w-12 text-center">#</th>
+                                                        <th className="p-3 text-[12px] font-extrabold text-slate-700 uppercase tracking-wide w-48">ผู้ขาย / ลูกค้า</th>
+                                                        <th className="p-3 text-[12px] font-extrabold text-slate-700 uppercase tracking-wide w-36">เลขที่บิล</th>
+                                                        <th className="p-3 text-[12px] font-extrabold text-slate-700 uppercase tracking-wide">Product (สินค้า)</th>
+                                                        <th className="p-3 text-[12px] font-extrabold text-slate-700 uppercase tracking-wide text-center w-20">QT</th>
+                                                        <th className="p-3 text-[12px] font-extrabold text-slate-700 uppercase tracking-wide text-center w-20">WG</th>
+                                                        <th className="p-3 text-[12px] font-extrabold text-slate-700 uppercase tracking-wide text-right w-28">Amount</th>
+                                                        <th className="p-3 text-[12px] font-extrabold text-slate-700 uppercase tracking-wide text-right w-24">AR</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {productReportData.groups.length === 0 ? (
+                                                        <tr>
+                                                            <td colSpan={8} className="p-12 text-center text-slate-400 font-bold">
+                                                                ไม่พบข้อมูลรายการขายและสินค้าในช่วงวันที่ที่เลือก
+                                                            </td>
+                                                        </tr>
+                                                    ) : (
+                                                        productReportData.groups.map((g, gIdx) => (
+                                                            <React.Fragment key={g.groupId + '_' + gIdx}>
+                                                                {/* Group Header Row: Name First, then Code Badge */}
+                                                                <tr className="bg-slate-50/80 border-t-2 border-slate-200 font-bold text-slate-800">
+                                                                    <td className="p-3 text-center text-slate-400 font-bold">{gIdx + 1}</td>
+                                                                    <td colSpan={7} className="p-3">
+                                                                        <div className="flex items-center gap-2.5 flex-wrap">
+                                                                            <span className="font-extrabold text-slate-900 text-sm">{g.groupName || g.groupId}</span>
+                                                                            {g.groupId && (
+                                                                                <span className="font-mono text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-200/80 text-slate-700 border border-slate-300/60">
+                                                                                    {g.groupId}
+                                                                                </span>
+                                                                            )}
+                                                                            <span className="text-xs text-slate-400 font-normal">({productReportViewMode === 'summary' ? `${g.items.length} สินค้า` : `${g.items.length} รายการ`} จาก {g.billsCount} บิล)</span>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                                {/* Group Items */}
+                                                                {g.items.map((it, itIdx) => (
+                                                                    <tr key={it.billId + '_' + itIdx} className="border-b border-slate-100 hover:bg-slate-50/70 transition-colors text-xs">
+                                                                        <td></td>
+                                                                        <td></td>
+                                                                        <td className="p-2.5 font-mono font-bold text-blue-600">{it.billId}</td>
+                                                                        <td className="p-2.5 font-medium text-slate-800">
+                                                                            <div className="flex items-center justify-between gap-2">
+                                                                                <div className="flex flex-col">
+                                                                                    <span className="font-semibold text-slate-900">{it.productName}</span>
+                                                                                    {it.bundleMultiplier > 1 && (
+                                                                                        <span className="text-[10px] text-blue-600 font-bold mt-0.5">
+                                                                                            ({it.orderedQty} เซ็ต = ตัดสต๊อก {it.qty} กล่อง{it.baseProduct ? ` ↳ ${it.baseProduct}` : ''})
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                                {it.priceTypeCounts && Object.keys(it.priceTypeCounts).length > 1 ? (
+                                                                                    <div className="flex flex-wrap gap-1 items-center">
+                                                                                        {Object.entries(it.priceTypeCounts).map(([pt, count]) => (
+                                                                                            <span key={pt} className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${
+                                                                                                pt === 'ราคาสมาชิก' ? 'bg-blue-50 text-blue-700 border-blue-200/70' :
+                                                                                                pt === 'ราคาโปร' ? 'bg-amber-50 text-amber-700 border-amber-200/70' :
+                                                                                                pt === 'ราคาศูนย์' ? 'bg-emerald-50 text-emerald-700 border-emerald-200/70' :
+                                                                                                'bg-slate-100 text-slate-600 border-slate-200'
+                                                                                            }`}>
+                                                                                                {pt === 'ราคาสมาชิก' ? 'สมาชิก' : pt === 'ราคาโปร' ? 'โปร' : pt === 'ราคาศูนย์' ? 'แถม' : 'เต็ม'}: {count}
+                                                                                            </span>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${
+                                                                                        it.priceType === 'ราคาสมาชิก' ? 'bg-blue-50 text-blue-700 border-blue-200/70' :
+                                                                                        it.priceType === 'ราคาโปร' ? 'bg-amber-50 text-amber-700 border-amber-200/70' :
+                                                                                        it.priceType === 'ราคาศูนย์' ? 'bg-emerald-50 text-emerald-700 border-emerald-200/70' :
+                                                                                        'bg-slate-100 text-slate-600 border-slate-200'
+                                                                                    }`}>
+                                                                                        {it.priceType === 'ราคาสมาชิก' ? 'สมาชิก' :
+                                                                                         it.priceType === 'ราคาโปร' ? 'โปร' :
+                                                                                         it.priceType === 'ราคาศูนย์' ? 'แถมฟรี' :
+                                                                                         'ราคาเต็ม'}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                        </td>
+                                                                        <td className="p-2.5 text-center font-mono font-bold text-slate-700">{it.qty}</td>
+                                                                        <td className="p-2.5 text-center font-mono font-bold text-slate-600">{it.wg}</td>
+                                                                        <td className="p-2.5 text-right font-mono font-bold text-emerald-700">{it.amount > 0 ? it.amount.toLocaleString(undefined, {minimumFractionDigits: 2}) : '-'}</td>
+                                                                        <td className="p-2.5 text-right font-mono font-bold text-slate-500">{it.ar > 0 ? it.ar.toLocaleString(undefined, {minimumFractionDigits: 2}) : '-'}</td>
+                                                                    </tr>
+                                                                ))}
+                                                                {/* Group Subtotal Row */}
+                                                                <tr className="border-t border-b-2 border-slate-300 bg-slate-100/90 font-extrabold text-xs">
+                                                                    <td colSpan={3} className="p-2.5 pl-4">
+                                                                        <div className="flex flex-wrap items-center gap-1.5">
+                                                                            <span className="text-slate-500 font-bold mr-1">แยกประเภท:</span>
+                                                                            {g.qtyFull > 0 && <span className="inline-flex items-center px-2 py-0.5 rounded bg-white text-slate-700 text-[11px] font-bold border border-slate-200">เต็ม: {g.qtyFull.toLocaleString()}</span>}
+                                                                            {g.qtyMember > 0 && <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[11px] font-bold border border-blue-200/60">สมาชิก: {g.qtyMember.toLocaleString()}</span>}
+                                                                            {g.qtyPromo > 0 && <span className="inline-flex items-center px-2 py-0.5 rounded bg-amber-50 text-amber-700 text-[11px] font-bold border border-amber-200/60">โปร: {g.qtyPromo.toLocaleString()}</span>}
+                                                                            {g.qtyFree > 0 && <span className="inline-flex items-center px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-200/60">แถม: {g.qtyFree.toLocaleString()}</span>}
+                                                                            <span className="text-slate-400 text-[11px] font-normal ml-1">({g.billsCount} บิล)</span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="p-2.5 text-right text-slate-700 font-black">รวม (ລວມ)</td>
+                                                                    <td className="p-2.5 text-center font-mono font-black text-slate-900 bg-slate-200/50">{g.subtotalQty.toLocaleString()}</td>
+                                                                    <td className="p-2.5 text-center font-mono font-black text-slate-900 bg-slate-200/50">{g.subtotalWg.toLocaleString()}</td>
+                                                                    <td className="p-2.5 text-right font-mono font-black text-emerald-800 bg-emerald-50">฿{g.subtotalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                                                    <td></td>
+                                                                </tr>
+                                                            </React.Fragment>
+                                                        ))
+                                                    )}
+                                                </tbody>
+                                                {productReportData.groups.length > 0 && (
+                                                    <tfoot>
+                                                        <tr className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white font-black text-sm">
+                                                            <td colSpan={4} className="p-4 text-left font-black tracking-wider uppercase">
+                                                                GRAND TOTAL (ยอดรวมทั้งหมด {productReportData.totalBillsCount.toLocaleString()} บิล)
+                                                            </td>
+                                                            <td className="p-4 text-center font-mono text-base text-yellow-300">{productReportData.grandTotalQty.toLocaleString()}</td>
+                                                            <td className="p-4 text-center font-mono text-base text-yellow-300">{productReportData.grandTotalWg.toLocaleString()}</td>
+                                                            <td className="p-4 text-right font-mono text-lg text-emerald-300">฿{productReportData.grandTotalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                                            <td></td>
+                                                        </tr>
+                                                        <tr className="bg-slate-900 text-white font-medium text-xs border-t border-slate-800">
+                                                            <td colSpan={8} className="p-3">
+                                                                <div className="flex flex-wrap items-center justify-between gap-3 px-2">
+                                                                    <span className="font-bold text-slate-400 tracking-wide uppercase flex items-center gap-1.5">
+                                                                        <Activity size={14} className="text-blue-400"/> สรุปแยก 4 ประเภทราคา:
+                                                                    </span>
+                                                                    <div className="flex flex-wrap items-center gap-2">
+                                                                        <span className="inline-flex items-center gap-1.5 bg-slate-800/90 border border-slate-700 text-slate-200 px-2.5 py-1 rounded-md text-[11px]">
+                                                                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                                                            <span>เต็ม:</span> <strong className="text-white font-mono">{productReportData.grandQtyFull.toLocaleString()} ชิ้น</strong>
+                                                                            <span className="text-slate-400 text-[10px] font-mono">(฿{productReportData.grandAmountFull.toLocaleString(undefined, {minimumFractionDigits: 2})})</span>
+                                                                        </span>
+                                                                        <span className="inline-flex items-center gap-1.5 bg-slate-800/90 border border-blue-900/60 text-blue-200 px-2.5 py-1 rounded-md text-[11px]">
+                                                                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                                                                            <span>สมาชิก:</span> <strong className="text-white font-mono">{productReportData.grandQtyMember.toLocaleString()} ชิ้น</strong>
+                                                                            <span className="text-blue-300 text-[10px] font-mono">(฿{productReportData.grandAmountMember.toLocaleString(undefined, {minimumFractionDigits: 2})})</span>
+                                                                        </span>
+                                                                        <span className="inline-flex items-center gap-1.5 bg-slate-800/90 border border-amber-900/60 text-amber-200 px-2.5 py-1 rounded-md text-[11px]">
+                                                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                                                                            <span>โปร:</span> <strong className="text-white font-mono">{productReportData.grandQtyPromo.toLocaleString()} ชิ้น</strong>
+                                                                            <span className="text-amber-300 text-[10px] font-mono">(฿{productReportData.grandAmountPromo.toLocaleString(undefined, {minimumFractionDigits: 2})})</span>
+                                                                        </span>
+                                                                        <span className="inline-flex items-center gap-1.5 bg-slate-800/90 border border-emerald-900/60 text-emerald-200 px-2.5 py-1 rounded-md text-[11px]">
+                                                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                                                            <span>แถมฟรี:</span> <strong className="text-white font-mono">{productReportData.grandQtyFree.toLocaleString()} ชิ้น</strong>
+                                                                            <span className="text-emerald-300 text-[10px] font-mono">(฿0.00)</span>
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    </tfoot>
+                                                )}
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         )}
 
                         {/* Modal: ดูรายละเอียดบิลอย่างสมบูรณ์แบบ (เหมือน Reports.html) */}
@@ -1152,6 +2026,8 @@
                                 </div>
                             )}
                         </EditModal>
+                            </React.Fragment>
+                        )}
                     </div>
                 </main>
                 <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} onLoginSuccess={handleLoginSuccess} systemUsers={systemUsers} />

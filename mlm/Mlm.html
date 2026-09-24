@@ -30,7 +30,7 @@
   <!-- ✅ STK Supabase Config -->
   <script src="config.js"></script>
   <script src="dictionary.js"></script>
-  <script src="CommonComponents.js?v=3"></script>
+  <script src="CommonComponents.js?v=5"></script>
   <script src="campaignLogic.js"></script>
   <script src="mlmLogic.js"></script>
   <script>
@@ -1835,9 +1835,18 @@
       useEffect(() => {
         const savedUserStr = localStorage.getItem('stk_current_user');
         if (savedUserStr) {
-          const user = JSON.parse(savedUserStr);
-          setCurrentUser(user);
-          setIsLoggedIn(true);
+          try {
+            const user = JSON.parse(savedUserStr);
+            setCurrentUser(user);
+            setIsLoggedIn(true);
+          } catch(e) {
+            setShowLoginModal(true);
+          }
+        } else {
+          const params = new URLSearchParams(window.location.search);
+          if (params.get('login') === '1' || !savedUserStr) {
+            setShowLoginModal(true);
+          }
         }
 
         const initialLoader = document.getElementById('initial-loader');
@@ -1891,12 +1900,19 @@
       };
 
       const handleLogout = () => {
-        localStorage.removeItem('stk_current_user');
+        try {
+          localStorage.removeItem('stk_current_user');
+          localStorage.removeItem('stk_app_cache_data');
+          localStorage.removeItem('stk_last_activity');
+          sessionStorage.clear();
+          localStorage.setItem('stk_broadcast_session_event', JSON.stringify({ action: 'logout', reason: 'manual_logout', time: Date.now() }));
+        } catch(e) {}
         setCurrentUser(null);
         setIsLoggedIn(false);
         setActivePage('dashboard');
         setIframeSrc('');
-        window.history.pushState(null, '', '?page=dashboard');
+        setShowLoginModal(true);
+        window.history.pushState(null, '', '?page=dashboard&login=1');
         showToast('ออกจากระบบสำเร็จ', 'success');
       };
 

@@ -75,6 +75,14 @@
         'exchange_rate': 'ExchangeRate.html',
         'reports': 'Reports.html'
       };
+
+      if (page === 'reports') {
+        const group = url.searchParams.get('group');
+        if (group === 'finance') return 'ReportFinance.html' + search;
+        if (group === 'stock') return 'ReportStock.html' + search;
+        if (group === 'referral') return 'ReportReferral.html' + search;
+      }
+
       return (pageMap[page] || 'Mlm.html') + search;
     } catch (e) {
       return 'Mlm.html';

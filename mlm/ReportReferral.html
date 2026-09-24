@@ -164,7 +164,39 @@
 
         // Filter States
         const todayStr = getLocalISODate();
-        const [subTab, setSubTab] = useState('referral_fee'); // 'referral_fee' | 'referral_payout' | 'monthly_self' | 'monthly_team'
+        const [subTab, setSubTabState] = useState(() => {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const tabParam = params.get('tab');
+                if (tabParam && ['referral_fee', 'referral_payout', 'monthly_self', 'monthly_team'].includes(tabParam)) {
+                    return tabParam;
+                }
+                const hash = (window.location.hash || '').replace('#', '').trim();
+                if (hash && ['referral_fee', 'referral_payout', 'monthly_self', 'monthly_team'].includes(hash)) {
+                    return hash;
+                }
+                const savedTab = sessionStorage.getItem('stk_report_referral_subtab');
+                if (savedTab && ['referral_fee', 'referral_payout', 'monthly_self', 'monthly_team'].includes(savedTab)) {
+                    return savedTab;
+                }
+            } catch(e) {}
+            return 'referral_fee';
+        });
+
+        const setSubTab = (tab) => {
+            setSubTabState(tab);
+            try {
+                sessionStorage.setItem('stk_report_referral_subtab', tab);
+                const url = new URL(window.location.href);
+                url.searchParams.set('tab', tab);
+                window.history.replaceState(null, '', url.pathname + url.search + window.location.hash);
+                if (window.top && window.top !== window && window.top.location) {
+                    const topUrl = new URL(window.top.location.href);
+                    topUrl.searchParams.set('tab', tab);
+                    window.top.history.replaceState(null, '', topUrl.pathname + topUrl.search + topUrl.hash);
+                }
+            } catch(e) {}
+        };
         const [summaryStartDate, setSummaryStartDate] = useState(() => {
             const now = new Date();
             return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
@@ -257,9 +289,29 @@
         };
 
         const handleLogout = () => {
-            localStorage.removeItem('stk_current_user');
+            try {
+                localStorage.removeItem('stk_current_user');
+                localStorage.removeItem('stk_app_cache_data');
+                localStorage.removeItem('stk_last_activity');
+                sessionStorage.clear();
+                localStorage.setItem('stk_broadcast_session_event', JSON.stringify({ action: 'logout', reason: 'manual_logout', time: Date.now() }));
+            } catch(e) {}
             setCurrentUser(null);
             setIsLoggedIn(false);
+            setSales([]);
+            setMembers([]);
+            setShowLoginModal(true);
+
+            const targetUrl = (typeof window.resolvePageUrl === 'function')
+                ? window.resolvePageUrl('?page=dashboard&login=1')
+                : 'Mlm.html?login=1';
+            try {
+                if (window.top && window.top !== window && window.top.location) {
+                    window.top.location.href = targetUrl;
+                    return;
+                }
+            } catch(e) {}
+            window.location.href = targetUrl;
         };
 
         const permittedMemberSet = useMemo(() => {
