@@ -271,7 +271,9 @@
         memberId: s.memberId || s.seller_id || s.seller,
         customerId: s.customer_id || s.customerId || s.hn || '',
         customerName: s.customer_name || s.customerName || '',
-        customerType: s.customer_type || s.customerType || ''
+        customerType: s.customer_type || s.customerType || '',
+        paymentNote: s.paymentNote || s.payment_note || '',
+        payment_note: s.payment_note || s.paymentNote || ''
       };
     });
   };

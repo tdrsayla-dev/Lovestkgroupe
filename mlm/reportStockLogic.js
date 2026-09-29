@@ -199,7 +199,7 @@
 
         // ข. คำนวณประวัติรับเข้า / ปรับลดสต๊อก
         validStockMovements.forEach(m => {
-            const targetName = String(m.product_name || m.product || m.name || '').trim();
+            const targetName = String(m.product_id || m.productId || m.product_name || m.product || m.name || '').trim();
             if (!targetName) return;
             let foundKey = Object.keys(map).find(k => k.toUpperCase() === targetName.toUpperCase() || map[k].id.toUpperCase() === targetName.toUpperCase());
             
@@ -210,7 +210,7 @@
 
             const recDate = (m.created_at || m.date || '').substring(0, 10);
             const qty = Number(m.quantity || m.qty || 0);
-            const isOutbound = (m.type === 'out' || m.type === 'reduce' || m.type === 'deduct');
+            const isOutbound = (m.type && String(m.type).toLowerCase() === 'out') || (m.type === 'reduce' || m.type === 'deduct');
 
             if (recDate < startDate) {
                 if (isOutbound) map[foundKey].openingBalance -= qty;

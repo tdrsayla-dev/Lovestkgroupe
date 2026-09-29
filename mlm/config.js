@@ -59,6 +59,10 @@
   };
 
   function invalidateTableCache(table) {
+    if (!table) {
+      queryCache.clear();
+      return;
+    }
     for (const key of queryCache.keys()) {
       if (key === table || key.startsWith(table + ':') || key.startsWith(table + '?')) {
         queryCache.delete(key);
@@ -66,11 +70,13 @@
     }
   }
 
+  window.invalidateTableCache = invalidateTableCache;
+
   // 4. Helper Functions สำหรับเรียก REST API Supabase (SELECT, INSERT, UPDATE, UPSERT, DELETE)
   if (typeof window.supabaseSelect !== 'function') {
     window.supabaseSelect = async function (table, query) {
-      const isNoCache = query && query.includes('nocache=true');
-      let cleanQuery = query ? query.replace(/&?nocache=true/g, '').replace(/^\?/, '') : '';
+      const isNoCache = query && (query.includes('nocache=true') || query.includes('nocache=1'));
+      let cleanQuery = query ? query.replace(/[?&]?nocache=[^&]+&?/g, '&').replace(/^[?&]+/, '').replace(/&$/, '') : '';
       
       // Auto-filter heavy Base64: หากไม่ได้ระบุ select= มา ให้ใช้ Safe Columns อัตโนมัติ (ประหยัด Egress 85-98%)
       if (DEFAULT_TABLE_SELECT[table] && (!cleanQuery || (!cleanQuery.includes('select=') && !cleanQuery.includes('*')))) {

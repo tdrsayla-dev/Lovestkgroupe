@@ -29,6 +29,7 @@
   <script src="config.js"></script>
   <script src="dictionary.js"></script>
   <script src="CommonComponents.js?v=3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
@@ -116,6 +117,84 @@
                 {label}
             </button>
         );
+    };
+
+    // ═════════════════════════════════════════════════════════════════════
+    // 📊 EXCEL EXPORT ENGINE (SheetJS / XLSX with UTF-8 BOM CSV Fallback)
+    // ═════════════════════════════════════════════════════════════════════
+    const ensureXlsxLoaded = () => {
+        return new Promise((resolve) => {
+            if (window.XLSX) return resolve(true);
+            const cdns = [
+                'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+                'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js'
+            ];
+            let idx = 0;
+            const tryLoad = () => {
+                if (window.XLSX) return resolve(true);
+                if (idx >= cdns.length) return resolve(false);
+                const s = document.createElement('script');
+                s.src = cdns[idx++];
+                s.onload = () => resolve(true);
+                s.onerror = () => tryLoad();
+                document.head.appendChild(s);
+            };
+            tryLoad();
+        });
+    };
+
+    const exportSalesExcel = async (rows, filename, sheetName = "SalesReport") => {
+        await ensureXlsxLoaded();
+        if (typeof window.XLSX !== 'undefined') {
+            try {
+                const ws = window.XLSX.utils.aoa_to_sheet(rows);
+                if (rows && rows.length > 0) {
+                    const colWidths = rows[0].map((_, colIdx) => {
+                        let maxLen = 12;
+                        rows.forEach(r => {
+                            const val = r[colIdx] !== null && r[colIdx] !== undefined ? String(r[colIdx]) : '';
+                            if (val.length > maxLen) maxLen = Math.min(val.length, 60);
+                        });
+                        return { wch: maxLen + 3 };
+                    });
+                    ws['!cols'] = colWidths;
+                }
+                const wb = window.XLSX.utils.book_new();
+                window.XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                const finalFilename = filename.toLowerCase().endsWith('.xlsx') ? filename : `${filename}.xlsx`;
+                window.XLSX.writeFile(wb, finalFilename, { compression: true });
+                return;
+            } catch (err) {
+                console.error('XLSX export error, falling back to CSV:', err);
+            }
+        }
+
+        // Fallback: CSV พร้อม UTF-8 BOM
+        try {
+            const csvFilename = filename.replace(/\.xlsx$/i, '') + '.csv';
+            const csvContent = '\uFEFF' + (rows || []).map(row => 
+                (row || []).map(cell => {
+                    let text = (cell === null || cell === undefined) ? '' : String(cell);
+                    if (text.includes('"') || text.includes(',') || text.includes('\n') || text.includes('\r')) {
+                        text = '"' + text.replace(/"/g, '""') + '"';
+                    }
+                    return text;
+                }).join(',')
+            ).join('\r\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = csvFilename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch(e) {
+            alert('ไม่สามารถดาวน์โหลดไฟล์ได้: ' + (e.message || ''));
+        }
     };
 
     const ReportsView = ({ sales, members, closers = [], customers, activeCustomerTypes, products, systemSettings, businessTeams, currentUser, isAdmin, onRefreshData, stockMovements, payoutLogs = [] }) => {
@@ -647,30 +726,450 @@
                         return { sumFull, sumMember, sumPro, sumZero, sumTotal };
                     })();
 
-                    const handleExportSalesExcel = () => {
+                    const handleExportSalesExcel = async () => {
                         let rows = [];
                         if (isRanking) {
-                            rows = [['หมวดหมู่', 'อันดับ', 'ชื่อ/รหัส', 'ยอดรวม (กล่อง)']];
-                            rankingsData.products.full.forEach((p, i) => rows.push(['ราคาเต็ม', i+1, p[0], p[1]]));
-                            rankingsData.products.member.forEach((p, i) => rows.push(['ราคาสมาชิก', i+1, p[0], p[1]]));
-                            rankingsData.products.pro.forEach((p, i) => rows.push(['ราคาโปร', i+1, p[0], p[1]]));
-                            rankingsData.products.zero.forEach((p, i) => rows.push(['ราคาศูนย์', i+1, p[0], p[1]]));
+                            rows.push(['หมวดหมู่', 'อันดับ', 'ชื่อ/รหัส', 'ยอดรวม (กล่อง)']);
+                            rankingsData.products.full.forEach((p, i) => rows.push(['สินค้า - ราคาเต็ม', i+1, p[0], p[1]]));
+                            rankingsData.products.member.forEach((p, i) => rows.push(['สินค้า - ราคาสมาชิก', i+1, p[0], p[1]]));
+                            rankingsData.products.pro.forEach((p, i) => rows.push(['สินค้า - ราคาโปร', i+1, p[0], p[1]]));
+                            rankingsData.products.zero.forEach((p, i) => rows.push(['สินค้า - ราคาศูนย์', i+1, p[0], p[1]]));
+                            rankingsData.members.full.forEach((m, i) => rows.push(['พนักงาน - ราคาเต็ม', i+1, m[0], m[1]]));
+                            rankingsData.members.member.forEach((m, i) => rows.push(['พนักงาน - ราคาสมาชิก', i+1, m[0], m[1]]));
+                            rankingsData.members.pro.forEach((m, i) => rows.push(['พนักงาน - ราคาโปร', i+1, m[0], m[1]]));
+                            rankingsData.members.zero.forEach((m, i) => rows.push(['พนักงาน - ราคาศูนย์', i+1, m[0], m[1]]));
                         } else {
-                            rows = [['เดือน/ช่วงเวลา', 'พนักงาน/ทีม', 'รายการ (เต็ม)', 'รายการ (สมาชิก)', 'รายการ (โปร)', 'รายการ (ศูนย์)', 'รวมทั้งหมด']];
+                            const colLabel2 = isTeamView ? 'ทีมสังกัด' : (isCustTypeView ? 'ประเภทลูกค้า' : 'พนักงาน');
+                            rows.push(['เดือน/ช่วงเวลา', colLabel2, 'รายการ (เต็ม)', 'รายการ (สมาชิก)', 'รายการ (โปร)', 'รายการ (ศูนย์)', 'รวมทั้งหมด (กล่อง)']);
+                            
+                            const formatDetailText = (details) => {
+                                const entries = Object.entries(details || {});
+                                if (entries.length === 0) return '-';
+                                return entries.map(([p, q]) => `${p} (${q})`).join(', ');
+                            };
+
                             salesReportData.forEach(row => {
-                                const sumF = Object.values(row.detailsFull).reduce((a,b)=>a+b,0);
-                                const sumM = Object.values(row.detailsMember).reduce((a,b)=>a+b,0);
-                                const sumP = Object.values(row.detailsPro).reduce((a,b)=>a+b,0);
-                                const sumZ = Object.values(row.detailsZero).reduce((a,b)=>a+b,0);
-                                rows.push([row.label1, row.label2 + (row.subLabel2 ? ` (${row.subLabel2})` : ''), sumF, sumM, sumP, sumZ, row.total]);
+                                const personOrTeam = row.label2 + (row.subLabel2 ? ` (${row.subLabel2})` : '');
+                                rows.push([
+                                    row.label1,
+                                    personOrTeam,
+                                    formatDetailText(row.detailsFull),
+                                    formatDetailText(row.detailsMember),
+                                    formatDetailText(row.detailsPro),
+                                    formatDetailText(row.detailsZero),
+                                    row.total
+                                ]);
                             });
-                            rows.push(['', 'ยอดรวมสุทธิ (Grand Total)', reportTotals.sumFull, reportTotals.sumMember, reportTotals.sumPro, reportTotals.sumZero, reportTotals.sumTotal]);
+                            rows.push(['', 'ยอดรวมสุทธิ (Grand Total)', `${reportTotals.sumFull} กล่อง`, `${reportTotals.sumMember} กล่อง`, `${reportTotals.sumPro} กล่อง`, `${reportTotals.sumZero} กล่อง`, reportTotals.sumTotal]);
                         }
-                        if (typeof window.exportToCSV === 'function') {
-                            window.exportToCSV(rows, `sales_report_${getLocalISODate()}.csv`);
-                        }
+                        const filename = `sales_report_${subTab}_${startDate}_to_${endDate}.xlsx`;
+                        await exportSalesExcel(rows, filename, 'SalesReport');
                     };
 
+                    // ═════════════════════════════════════════════════════════════════════
+                    // 🖨️ OFFICIAL PRINT & PDF REPORT GENERATOR (FOR SALES)
+                    // ═════════════════════════════════════════════════════════════════════
+                    const handlePrintSalesReport = (isPdf = false) => {
+                        const printWin = window.open('', '_blank');
+                        if (!printWin) {
+                            alert('เบราว์เซอร์บล็อกหน้าต่าง Popup กรุณาอนุญาต (Allow Pop-ups) ก่อนพิมพ์เอกสารรายงาน');
+                            return;
+                        }
+
+                        let compSettings = {
+                            name: 'LOVE STK GROUPE',
+                            branch: 'สำนักงานใหญ่',
+                            address: 'เวียงจันทน์, สปป.ลาว',
+                            phone: '+856 20 xx xxx xxx',
+                            taxId: '',
+                            logoUrl: ''
+                        };
+
+                        if (typeof window.getCompanySettings === 'function') {
+                            try {
+                                const cs = window.getCompanySettings();
+                                if (cs) compSettings = Object.assign({}, compSettings, cs);
+                            } catch(e) {}
+                        }
+
+                        let logoUrl = compSettings.logoUrl || '';
+                        if (!logoUrl) {
+                            try {
+                                const direct = localStorage.getItem('stk_company_settings');
+                                if (direct) {
+                                    const parsed = JSON.parse(direct);
+                                    if (parsed && parsed.logoUrl) {
+                                        logoUrl = parsed.logoUrl;
+                                        compSettings = Object.assign({}, compSettings, parsed);
+                                    }
+                                }
+                            } catch(e) {}
+                        }
+                        if (!logoUrl) {
+                            try {
+                                const sysStr = localStorage.getItem('stk_system_settings');
+                                if (sysStr) {
+                                    const sys = JSON.parse(sysStr);
+                                    if (sys.company_info) {
+                                        const info = typeof sys.company_info === 'string' ? JSON.parse(sys.company_info) : sys.company_info;
+                                        if (info && info.logoUrl) {
+                                            logoUrl = info.logoUrl;
+                                            compSettings = Object.assign({}, compSettings, info);
+                                        }
+                                    }
+                                    if (!logoUrl && (sys.company_logo || sys.logo_url)) {
+                                        logoUrl = sys.company_logo || sys.logo_url;
+                                    }
+                                }
+                            } catch(e) {}
+                        }
+                        if (!logoUrl && systemSettings) {
+                            try {
+                                if (systemSettings.company_info) {
+                                    const info = typeof systemSettings.company_info === 'string' ? JSON.parse(systemSettings.company_info) : systemSettings.company_info;
+                                    if (info && info.logoUrl) logoUrl = info.logoUrl;
+                                }
+                                if (!logoUrl && (systemSettings.company_logo || systemSettings.logo_url)) {
+                                    logoUrl = systemSettings.company_logo || systemSettings.logo_url;
+                                }
+                            } catch(e) {}
+                        }
+
+                        const now = new Date();
+                        const printDateStr = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+                        const printTimeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+                        const escapeHtml = (str) => String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+                        const formatThaiDate = (dateStr) => {
+                            if (!dateStr) return '-';
+                            try {
+                                const parts = String(dateStr).split('-');
+                                if (parts.length === 3) {
+                                    const dt = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                                    if (!isNaN(dt.getTime())) return dt.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+                                }
+                                return dateStr;
+                            } catch(e) { return dateStr; }
+                        };
+
+                        const subTabTitles = {
+                            sales_member_day: { title: 'รายงานสรุปยอดขายพนักงานรายวัน (ยอดบุคคล)', enTitle: 'DAILY SALES SUMMARY REPORT (BY MEMBER)' },
+                            sales_member_month: { title: 'รายงานสรุปยอดขายพนักงานรายเดือน (ยอดบุคคล)', enTitle: 'MONTHLY SALES SUMMARY REPORT (BY MEMBER)' },
+                            total_member_day: { title: 'รายงานรวมยอดขายบุคคล (รายวัน)', enTitle: 'DAILY AGGREGATE SALES REPORT (MEMBER)' },
+                            total_member_month: { title: 'รายงานรวมยอดขายบุคคล (รายเดือน)', enTitle: 'MONTHLY AGGREGATE SALES REPORT (MEMBER)' },
+                            total_team_day: { title: 'รายงานยอดขายแยกตามทีม (รายวัน)', enTitle: 'DAILY TEAM SALES REPORT' },
+                            total_team_month: { title: 'รายงานยอดขายแยกตามทีม (รายเดือน)', enTitle: 'MONTHLY TEAM SALES REPORT' },
+                            sales_by_cust_type: { title: 'รายงานยอดขายแยกตามประเภทลูกค้า', enTitle: 'SALES REPORT BY CUSTOMER TYPE' },
+                            ranking: { title: 'รายงานสรุปการจัดอันดับยอดขาย (Ranking)', enTitle: 'SALES PERFORMANCE & PRODUCT RANKING REPORT' }
+                        };
+
+                        const currentTabInfo = subTabTitles[subTab] || { title: 'รายงานสรุปยอดขายและพนักงาน', enTitle: 'SALES SUMMARY & PERFORMANCE REPORT' };
+                        const docTitle = `${currentTabInfo.title}_${startDate}_ถึง_${endDate}`;
+
+                        let bodyContentHtml = '';
+
+                        if (isRanking) {
+                            const renderRankList = (list, title, colorClass, borderClass) => `
+                                <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; margin-bottom: 12px; page-break-inside: avoid;">
+                                    <div style="font-weight: 800; font-size: 11px; margin-bottom: 8px; border-bottom: 1.5px solid ${borderClass}; padding-bottom: 4px; color: ${colorClass};">
+                                        ${title} (${list.length} รายการ)
+                                    </div>
+                                    <table style="width: 100%; border-collapse: collapse; font-size: 10.5px;">
+                                        <thead>
+                                            <tr style="background: #f8fafc; border-bottom: 1px solid #cbd5e1;">
+                                                <th style="padding: 4px 6px; text-align: center; width: 40px;">อันดับ</th>
+                                                <th style="padding: 4px 6px; text-align: left;">ชื่อ / รหัส</th>
+                                                <th style="padding: 4px 6px; text-align: right; width: 80px;">จำนวน (กล่อง)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${list.length > 0 ? list.map(([name, qty], idx) => `
+                                                <tr style="border-bottom: 1px solid #f1f5f9; ${idx % 2 === 1 ? 'background: #f8fafc;' : ''}">
+                                                    <td style="text-align: center; font-weight: bold; color: ${idx === 0 ? '#d97706' : idx === 1 ? '#64748b' : idx === 2 ? '#b45309' : '#94a3b8'};">${idx + 1}</td>
+                                                    <td style="font-weight: 600;">${escapeHtml(name)}</td>
+                                                    <td style="text-align: right; font-weight: 800; font-family: monospace; color: ${colorClass};">${qty.toLocaleString()}</td>
+                                                </tr>
+                                            `).join('') : '<tr><td colspan="3" style="text-align: center; color: #94a3b8; padding: 8px;">ไม่มีข้อมูล</td></tr>'}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            `;
+
+                            bodyContentHtml = `
+                                <div style="margin-bottom: 18px;">
+                                    <h3 style="font-size: 13px; font-weight: 800; color: #0f172a; margin-bottom: 8px; border-left: 4px solid #2563eb; padding-left: 8px;">📦 อันดับสินค้าขายดี (จำแนกตามราคา)</h3>
+                                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+                                        ${renderRankList(rankingsData.products.full, 'ราคาเต็ม', '#047857', '#059669')}
+                                        ${renderRankList(rankingsData.products.member, 'ราคาสมาชิก', '#1d4ed8', '#2563eb')}
+                                        ${renderRankList(rankingsData.products.pro, 'ราคาโปร', '#b45309', '#d97706')}
+                                        ${renderRankList(rankingsData.products.zero, 'ราคาศูนย์', '#475569', '#64748b')}
+                                    </div>
+                                </div>
+                                <div style="margin-bottom: 18px;">
+                                    <h3 style="font-size: 13px; font-weight: 800; color: #0f172a; margin-bottom: 8px; border-left: 4px solid #f59e0b; padding-left: 8px;">🏆 อันดับพนักงานยอดเยี่ยม (Top Sellers)</h3>
+                                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+                                        ${renderRankList(rankingsData.members.full, 'ราคาเต็ม', '#047857', '#059669')}
+                                        ${renderRankList(rankingsData.members.member, 'ราคาสมาชิก', '#1d4ed8', '#2563eb')}
+                                        ${renderRankList(rankingsData.members.pro, 'ราคาโปร', '#b45309', '#d97706')}
+                                        ${renderRankList(rankingsData.members.zero, 'ราคาศูนย์', '#475569', '#64748b')}
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            const renderPrintBadges = (detailsObj, bgCol, textCol, borderCol) => {
+                                const keys = Object.keys(detailsObj || {});
+                                if (keys.length === 0) return '<span style="color: #94a3b8; font-size: 10px;">-</span>';
+                                return keys.map(k => `
+                                    <span style="display: inline-block; padding: 2px 6px; margin: 1px 2px; border-radius: 4px; font-size: 9.5px; font-weight: 700; background: ${bgCol}; color: ${textCol}; border: 1px solid ${borderCol}; white-space: nowrap;">
+                                        ${escapeHtml(k)} <b style="background: rgba(255,255,255,0.95); padding: 0 4px; border-radius: 3px; margin-left: 2px; border: 1px solid rgba(0,0,0,0.1); font-family: monospace;">${detailsObj[k]}</b>
+                                    </span>
+                                `).join('');
+                            };
+
+                            const colLabel2 = isTeamView ? 'ทีมสังกัด' : (isCustTypeView ? 'ประเภทลูกค้า' : 'พนักงาน');
+
+                            const tableHeadersHtml = `
+                                <tr>
+                                    <th style="width: 85px;">เดือน/ช่วงเวลา</th>
+                                    <th style="text-align: left; width: 140px;">${colLabel2}</th>
+                                    <th style="text-align: left;">รายการ (เต็ม)</th>
+                                    <th style="text-align: left;">รายการ (สมาชิก)</th>
+                                    <th style="text-align: left;">รายการ (โปร)</th>
+                                    <th style="text-align: left;">รายการ (ศูนย์)</th>
+                                    <th style="width: 75px; text-align: center;">รวม (กล่อง)</th>
+                                </tr>
+                            `;
+
+                            let tableRowsHtml = '';
+                            if (salesReportData.length === 0) {
+                                tableRowsHtml = `<tr><td colspan="7" style="text-align: center; padding: 24px; color: #94a3b8; font-weight: bold;">ไม่พบข้อมูลยอดขายตามเงื่อนไขที่ระบุ</td></tr>`;
+                            } else {
+                                tableRowsHtml = salesReportData.map((row, idx) => `
+                                    <tr>
+                                        <td style="text-align: center; font-weight: 700; white-space: nowrap; font-family: monospace; font-size: 11px;">${escapeHtml(row.label1)}</td>
+                                        <td>
+                                            <div style="font-weight: 800; color: #0f172a; font-size: 11px;">${escapeHtml(row.label2)}</div>
+                                            ${row.subLabel2 ? `<div style="font-size: 9.5px; color: #2563eb; font-weight: 600; margin-top: 1px;">${escapeHtml(row.subLabel2)}</div>` : ''}
+                                        </td>
+                                        <td style="background-color: #f0fdf4;">${renderPrintBadges(row.detailsFull, '#dcfce7', '#166534', '#86efac')}</td>
+                                        <td style="background-color: #eff6ff;">${renderPrintBadges(row.detailsMember, '#dbeafe', '#1e40af', '#93c5fd')}</td>
+                                        <td style="background-color: #fffbeb;">${renderPrintBadges(row.detailsPro, '#fef3c7', '#92400e', '#fde68a')}</td>
+                                        <td style="background-color: #f8fafc;">${renderPrintBadges(row.detailsZero, '#f1f5f9', '#475569', '#cbd5e1')}</td>
+                                        <td style="text-align: center; background-color: #eff6ff; font-weight: 900; font-family: monospace; font-size: 12.5px; color: #1e40af;">
+                                            ${row.total.toLocaleString()}
+                                        </td>
+                                    </tr>
+                                `).join('');
+                            }
+
+                            const tableFootHtml = `
+                                <tr style="background-color: #0f172a; color: #ffffff; font-weight: 800; font-size: 11px;">
+                                    <td colspan="2" style="padding: 8px 10px; text-align: center; color: #ffffff; border: 1px solid #1e293b;">
+                                        ยอดรวมสุทธิ (Grand Total) - ${salesReportData.length.toLocaleString()} รายการ
+                                    </td>
+                                    <td style="text-align: center; background-color: #064e3b; color: #34d399; font-family: monospace; font-size: 12px; border: 1px solid #1e293b; white-space: nowrap;">
+                                        ${reportTotals.sumFull.toLocaleString()} <span style="font-size: 9px; color: #a7f3d0;">(เต็ม)</span>
+                                    </td>
+                                    <td style="text-align: center; background-color: #1e3a8a; color: #60a5fa; font-family: monospace; font-size: 12px; border: 1px solid #1e293b; white-space: nowrap;">
+                                        ${reportTotals.sumMember.toLocaleString()} <span style="font-size: 9px; color: #bfdbfe;">(สมาชิก)</span>
+                                    </td>
+                                    <td style="text-align: center; background-color: #78350f; color: #fbbf24; font-family: monospace; font-size: 12px; border: 1px solid #1e293b; white-space: nowrap;">
+                                        ${reportTotals.sumPro.toLocaleString()} <span style="font-size: 9px; color: #fde68a;">(โปร)</span>
+                                    </td>
+                                    <td style="text-align: center; background-color: #334155; color: #cbd5e1; font-family: monospace; font-size: 12px; border: 1px solid #1e293b; white-space: nowrap;">
+                                        ${reportTotals.sumZero.toLocaleString()} <span style="font-size: 9px; color: #e2e8f0;">(ศูนย์)</span>
+                                    </td>
+                                    <td style="text-align: center; background-color: #1d4ed8; color: #ffffff; font-family: monospace; font-size: 13.5px; font-weight: 900; border: 1px solid #1e293b; white-space: nowrap;">
+                                        ${reportTotals.sumTotal.toLocaleString()} <span style="font-size: 9.5px; font-weight: normal; color: #dbeafe;">กล่อง</span>
+                                    </td>
+                                </tr>
+                            `;
+
+                            bodyContentHtml = `
+                                <div class="table-container">
+                                    <table class="report-table">
+                                        <thead>${tableHeadersHtml}</thead>
+                                        <tbody>${tableRowsHtml}</tbody>
+                                        <tfoot>${tableFootHtml}</tfoot>
+                                    </table>
+                                </div>
+                            `;
+                        }
+
+                        const htmlContent = `
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>${escapeHtml(docTitle)}</title>
+  <style>
+    @page { size: A4 landscape; margin: 8mm 8mm 10mm 8mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 0; background-color: #f1f5f9;
+      font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif;
+      color: #0f172a; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
+    }
+    .no-print {
+      display: flex; justify-content: space-between; align-items: center;
+      background-color: #0f172a; color: #ffffff; padding: 10px 24px;
+      position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+    .no-print .btn { padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer; border: none; transition: all 0.2s; }
+    .btn-print { background-color: #2563eb; color: #fff; margin-right: 8px; }
+    .btn-pdf { background-color: #e11d48; color: #fff; margin-right: 8px; }
+    .btn-close { background-color: #475569; color: #fff; }
+    .report-sheet {
+      background: #ffffff; width: 297mm; min-height: 210mm;
+      margin: 16px auto; padding: 10mm 12mm; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border-radius: 6px;
+    }
+    .comp-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #1e3a8a; padding-bottom: 8px; margin-bottom: 10px; }
+    .comp-brand { display: flex; align-items: center; gap: 14px; }
+    .comp-logo { max-height: 52px; max-width: 140px; object-fit: contain; display: block; }
+    .comp-info h2 { margin: 0; font-size: 18px; font-weight: 800; color: #1e3a8a; }
+    .comp-info p { margin: 1px 0; font-size: 10px; color: #475569; }
+    .doc-badge { text-align: right; }
+    .doc-badge .main-title { font-size: 16px; font-weight: 800; color: #0f172a; margin: 0; }
+    .doc-badge .sub-title { font-size: 11px; font-weight: 700; color: #2563eb; margin: 1px 0 0 0; letter-spacing: 0.5px; }
+    .meta-box {
+      background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;
+      padding: 7px 14px; margin-bottom: 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; font-size: 10.5px;
+    }
+    .meta-item { display: flex; flex-direction: column; }
+    .meta-label { color: #64748b; font-weight: 600; font-size: 9.5px; margin-bottom: 1px; }
+    .meta-val { color: #0f172a; font-weight: 700; }
+    .table-container { width: 100%; margin-bottom: 12px; }
+    table.report-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    table.report-table th { background-color: #f1f5f9; color: #0f172a; font-weight: 700; border: 1px solid #cbd5e1; padding: 6px 8px; text-align: center; white-space: nowrap; }
+    table.report-table td { border: 1px solid #e2e8f0; padding: 5px 8px; vertical-align: middle; }
+    table.report-table tbody tr:nth-child(even) { background-color: #f8fafc; }
+    table.report-table tfoot td { border: 1px solid #cbd5e1; padding: 6px 8px; }
+    .signature-section { margin-top: 32px; display: flex; justify-content: space-between; gap: 24px; page-break-inside: avoid; }
+    .sig-box { flex: 1; border: none; background: transparent; padding: 10px 6px; text-align: center; }
+    .sig-title { font-weight: 700; font-size: 11px; color: #0f172a; margin-bottom: 45px; }
+    .sig-line { border-bottom: 1px dotted #64748b; width: 190px; max-width: 85%; margin: 0 auto 6px auto; }
+    .sig-name { font-size: 10px; color: #334155; margin-bottom: 2px; }
+    .sig-role { font-size: 9.5px; color: #64748b; margin-top: 1px; }
+    .sig-date { font-size: 9.5px; color: #64748b; margin-top: 4px; }
+    
+    @media print {
+      .no-print { display: none !important; }
+      body { background: white !important; }
+      .report-sheet { box-shadow: none !important; border: none !important; margin: 0 !important; padding: 0 !important; width: 100% !important; min-height: auto !important; }
+      table.report-table { page-break-inside: auto; }
+      table.report-table tr { page-break-inside: avoid; page-break-after: auto; }
+      table.report-table thead { display: table-header-group; }
+      table.report-table tfoot { display: table-row-group; page-break-inside: avoid; }
+      .signature-section { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print">
+    <div>
+      <span style="font-weight: 800; font-size: 14px;">🖨️ หน้าต่างตัวอย่างเอกสารรายงาน (${isPdf ? 'ส่งออก PDF' : 'สั่งพิมพ์'})</span>
+      ${isPdf ? '<span style="margin-left: 12px; background: #e11d48; color: white; padding: 3px 8px; border-radius: 6px; font-size: 11.5px; font-weight: 700;">💡 เคล็ดลับ PDF: ในหน้าต่างพิมพ์ ให้เลือกปลายทาง (Destination) เป็น "บันทึกเป็น PDF" (Save as PDF)</span>' : ''}
+    </div>
+    <div>
+      <button onclick="window.print()" class="btn btn-print">🖨️ สั่งพิมพ์</button>
+      <button onclick="window.print()" class="btn btn-pdf">📄 บันทึกเป็น PDF</button>
+      <button onclick="window.close()" class="btn btn-close">❌ ปิดหน้าต่าง</button>
+    </div>
+  </div>
+
+  <div class="report-sheet">
+    <div class="comp-header">
+      <div class="comp-brand">
+        ${logoUrl ? `<img src="${logoUrl}" class="comp-logo" alt="Logo" />` : ''}
+        <div class="comp-info">
+          <h2>${escapeHtml(compSettings.name || 'LOVE STK GROUPE')}</h2>
+          ${compSettings.branch ? `<p style="font-weight: 600;">${escapeHtml(compSettings.branch)}</p>` : ''}
+          ${compSettings.address ? `<p>${escapeHtml(compSettings.address)}</p>` : ''}
+          ${compSettings.phone ? `<p>โทร: ${escapeHtml(compSettings.phone)}</p>` : ''}
+          ${compSettings.taxId ? `<p style="font-family: monospace;">เลขประจำตัวผู้เสียภาษี: ${escapeHtml(compSettings.taxId)}</p>` : ''}
+        </div>
+      </div>
+      <div class="doc-badge">
+        <div class="main-title">${escapeHtml(currentTabInfo.title)}</div>
+        <div class="sub-title">${escapeHtml(currentTabInfo.enTitle)}</div>
+      </div>
+    </div>
+
+    <div class="meta-box">
+      <div class="meta-item">
+        <span class="meta-label">ข้อมูลรอบวันที่:</span>
+        <span class="meta-val" style="color: #2563eb; font-weight: 800;">${startDate === endDate ? `ประจำวันที่ ${formatThaiDate(startDate)}` : `ประจำวันที่ ${formatThaiDate(startDate)} ถึง ${formatThaiDate(endDate)}`}</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">วันที่สั่งพิมพ์เอกสาร:</span>
+        <span class="meta-val">${printDateStr} (${printTimeStr})</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">ผู้พิมพ์เอกสาร:</span>
+        <span class="meta-val">${escapeHtml(currentUser?.name || currentUser?.username || 'Administrator')}</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">จำนวนรายการ:</span>
+        <span class="meta-val" style="font-weight: 800; color: #1e3a8a;">${isRanking ? `${(rankingsData?.products?.full?.length || 0) + (rankingsData?.members?.full?.length || 0)} รายการ` : `${salesReportData.length} รายการ (รวม ${reportTotals.sumTotal.toLocaleString()} กล่อง)`}</span>
+      </div>
+    </div>
+
+    ${bodyContentHtml}
+
+    <div class="signature-section">
+      <div class="sig-box">
+        <div class="sig-title">ผู้จัดทำรายงาน</div>
+        <div class="sig-line"></div>
+        <div class="sig-name">( ............................................................ )</div>
+        <div class="sig-role">เจ้าหน้าที่ฝ่ายขาย / ผู้จัดทำ</div>
+        <div class="sig-date">วันที่ ........ / ........ / ................</div>
+      </div>
+      <div class="sig-box">
+        <div class="sig-title">ผู้ตรวจสอบเอกสาร</div>
+        <div class="sig-line"></div>
+        <div class="sig-name">( ............................................................ )</div>
+        <div class="sig-role">หัวหน้าฝ่ายบริหารยอดขาย</div>
+        <div class="sig-date">วันที่ ........ / ........ / ................</div>
+      </div>
+      <div class="sig-box">
+        <div class="sig-title">ผู้อนุมัติ</div>
+        <div class="sig-line"></div>
+        <div class="sig-name">( ............................................................ )</div>
+        <div class="sig-role">ผู้บริหาร / กรรมการผู้จัดการ</div>
+        <div class="sig-date">วันที่ ........ / ........ / ................</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener('load', function() {
+      var img = document.querySelector('.comp-logo');
+      var printed = false;
+      function triggerPrint() {
+        if (printed) return;
+        printed = true;
+        setTimeout(function() {
+          window.print();
+        }, 300);
+      }
+      if (img && !img.complete) {
+        img.onload = triggerPrint;
+        img.onerror = triggerPrint;
+        setTimeout(triggerPrint, 1500);
+      } else {
+        setTimeout(triggerPrint, 350);
+      }
+    });
+  <\/script>
+</body>
+</html>
+                        `;
+
+                        printWin.document.open();
+                        printWin.document.write(htmlContent);
+                        printWin.document.close();
+                        printWin.focus();
+                    };
 
                     if (isRanking) {
                         return (
@@ -679,10 +1178,10 @@
                                     <button type="button" onClick={handleExportSalesExcel} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
                                         <Archive size={16}/> Export Excel
                                     </button>
-                                    <button type="button" onClick={() => window.print()} className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
+                                    <button type="button" onClick={() => handlePrintSalesReport(true)} className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
                                         <FileText size={16}/> Export PDF
                                     </button>
-                                    <button type="button" onClick={() => window.print()} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
+                                    <button type="button" onClick={() => handlePrintSalesReport(false)} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
                                         <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg> 
                                         พิมพ์ (Print)
                                     </button>
@@ -975,7 +1474,7 @@
                         const marketingTotals = calcTotals(marketingClosers);
                         const centerTotals = calcTotals(centerClosers);
 
-                        const handleExportClosersExcel = (list, title = 'closers_ranking') => {
+                        const handleExportClosersExcel = async (list, title = 'closers_ranking') => {
                             const rows = [
                                 ['อันดับ', 'ชื่อผู้ปิดการขาย', 'รหัส', 'ทีม', 'จำนวนเคสที่ปิด', 'รวมกล่องทั้งหมด', 'ราคาโปร (กล่อง)', 'ราคาเต็ม (กล่อง)', 'ราคาสมาชิก (กล่อง)', 'ราคาศูนย์ (กล่อง)', 'ยอดเงินรวม (กีบ)', 'ยอดเงินรวม (บาท)']
                             ];
@@ -986,9 +1485,319 @@
                                 ]);
                             });
                             rows.push(['', 'รวมสุทธิ', '', '', tTotals.cases, tTotals.boxes, tTotals.pro, tTotals.full, tTotals.member, tTotals.zero, tTotals.lak, tTotals.thb]);
-                            if (typeof window.exportToCSV === 'function') {
-                                window.exportToCSV(rows, `${title}_${getLocalISODate()}.csv`);
+                            const filename = `${title}_${startDate}_to_${endDate}.xlsx`;
+                            await exportSalesExcel(rows, filename, 'ClosersRanking');
+                        };
+
+                        const handlePrintClosersReport = (list, teamName, isPdf = false) => {
+                            const printWin = window.open('', '_blank');
+                            if (!printWin) {
+                                alert('เบราว์เซอร์บล็อกหน้าต่าง Popup กรุณาอนุญาต (Allow Pop-ups) ก่อนพิมพ์เอกสารรายงาน');
+                                return;
                             }
+
+                            let compSettings = {
+                                name: 'LOVE STK GROUPE',
+                                branch: 'สำนักงานใหญ่',
+                                address: 'เวียงจันทน์, สปป.ลาว',
+                                phone: '+856 20 xx xxx xxx',
+                                taxId: '',
+                                logoUrl: ''
+                            };
+
+                            if (typeof window.getCompanySettings === 'function') {
+                                try {
+                                    const cs = window.getCompanySettings();
+                                    if (cs) compSettings = Object.assign({}, compSettings, cs);
+                                } catch(e) {}
+                            }
+
+                            let logoUrl = compSettings.logoUrl || '';
+                            if (!logoUrl) {
+                                try {
+                                    const direct = localStorage.getItem('stk_company_settings');
+                                    if (direct) {
+                                        const parsed = JSON.parse(direct);
+                                        if (parsed && parsed.logoUrl) {
+                                            logoUrl = parsed.logoUrl;
+                                            compSettings = Object.assign({}, compSettings, parsed);
+                                        }
+                                    }
+                                } catch(e) {}
+                            }
+                            if (!logoUrl) {
+                                try {
+                                    const sysStr = localStorage.getItem('stk_system_settings');
+                                    if (sysStr) {
+                                        const sys = JSON.parse(sysStr);
+                                        if (sys.company_info) {
+                                            const info = typeof sys.company_info === 'string' ? JSON.parse(sys.company_info) : sys.company_info;
+                                            if (info && info.logoUrl) {
+                                                logoUrl = info.logoUrl;
+                                                compSettings = Object.assign({}, compSettings, info);
+                                            }
+                                        }
+                                        if (!logoUrl && (sys.company_logo || sys.logo_url)) {
+                                            logoUrl = sys.company_logo || sys.logo_url;
+                                        }
+                                    }
+                                } catch(e) {}
+                            }
+                            if (!logoUrl && systemSettings) {
+                                try {
+                                    if (systemSettings.company_info) {
+                                        const info = typeof systemSettings.company_info === 'string' ? JSON.parse(systemSettings.company_info) : systemSettings.company_info;
+                                        if (info && info.logoUrl) logoUrl = info.logoUrl;
+                                    }
+                                    if (!logoUrl && (systemSettings.company_logo || systemSettings.logo_url)) {
+                                        logoUrl = systemSettings.company_logo || systemSettings.logo_url;
+                                    }
+                                } catch(e) {}
+                            }
+
+                            const now = new Date();
+                            const printDateStr = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+                            const printTimeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+                            const escapeHtml = (str) => String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+                            const formatThaiDate = (dateStr) => {
+                                if (!dateStr) return '-';
+                                try {
+                                    const parts = String(dateStr).split('-');
+                                    if (parts.length === 3) {
+                                        const dt = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                                        if (!isNaN(dt.getTime())) return dt.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+                                    }
+                                    return dateStr;
+                                } catch(e) { return dateStr; }
+                            };
+
+                            const docTitle = `รายงานจัดอันดับผู้ปิดการขาย_${teamName}_${startDate}_ถึง_${endDate}`;
+                            const tTotals = calcTotals(list);
+                            const combinedThb = tTotals.thb + (tTotals.lak / exchangeRate);
+
+                            const htmlContent = `
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>${escapeHtml(docTitle)}</title>
+  <style>
+    @page { size: A4 landscape; margin: 8mm 8mm 10mm 8mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 0; background-color: #f1f5f9;
+      font-family: 'Sukhumvit Set', 'Noto Sans Thai', 'Sarabun', 'Noto Sans Lao', sans-serif;
+      color: #0f172a; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
+    }
+    .no-print {
+      display: flex; justify-content: space-between; align-items: center;
+      background-color: #0f172a; color: #ffffff; padding: 10px 24px;
+      position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+    .no-print .btn { padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer; border: none; transition: all 0.2s; }
+    .btn-print { background-color: #2563eb; color: #fff; margin-right: 8px; }
+    .btn-pdf { background-color: #e11d48; color: #fff; margin-right: 8px; }
+    .btn-close { background-color: #475569; color: #fff; }
+    .report-sheet {
+      background: #ffffff; width: 297mm; min-height: 210mm;
+      margin: 16px auto; padding: 10mm 12mm; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border-radius: 6px;
+    }
+    .comp-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #1e3a8a; padding-bottom: 8px; margin-bottom: 10px; }
+    .comp-brand { display: flex; align-items: center; gap: 14px; }
+    .comp-logo { max-height: 52px; max-width: 140px; object-fit: contain; display: block; }
+    .comp-info h2 { margin: 0; font-size: 18px; font-weight: 800; color: #1e3a8a; }
+    .comp-info p { margin: 1px 0; font-size: 10px; color: #475569; }
+    .doc-badge { text-align: right; }
+    .doc-badge .main-title { font-size: 16px; font-weight: 800; color: #0f172a; margin: 0; }
+    .doc-badge .sub-title { font-size: 11px; font-weight: 700; color: #2563eb; margin: 1px 0 0 0; letter-spacing: 0.5px; }
+    .meta-box {
+      background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;
+      padding: 7px 14px; margin-bottom: 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; font-size: 10.5px;
+    }
+    .meta-item { display: flex; flex-direction: column; }
+    .meta-label { color: #64748b; font-weight: 600; font-size: 9.5px; margin-bottom: 1px; }
+    .meta-val { color: #0f172a; font-weight: 700; }
+    .table-container { width: 100%; margin-bottom: 12px; }
+    table.report-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+    table.report-table th { background-color: #f1f5f9; color: #0f172a; font-weight: 700; border: 1px solid #cbd5e1; padding: 6px 8px; text-align: center; white-space: nowrap; }
+    table.report-table td { border: 1px solid #e2e8f0; padding: 5px 8px; vertical-align: middle; }
+    table.report-table tbody tr:nth-child(even) { background-color: #f8fafc; }
+    table.report-table tfoot td { border: 1px solid #cbd5e1; padding: 6px 8px; }
+    .signature-section { margin-top: 32px; display: flex; justify-content: space-between; gap: 24px; page-break-inside: avoid; }
+    .sig-box { flex: 1; border: none; background: transparent; padding: 10px 6px; text-align: center; }
+    .sig-title { font-weight: 700; font-size: 11px; color: #0f172a; margin-bottom: 45px; }
+    .sig-line { border-bottom: 1px dotted #64748b; width: 190px; max-width: 85%; margin: 0 auto 6px auto; }
+    .sig-name { font-size: 10px; color: #334155; margin-bottom: 2px; }
+    .sig-role { font-size: 9.5px; color: #64748b; margin-top: 1px; }
+    .sig-date { font-size: 9.5px; color: #64748b; margin-top: 4px; }
+    
+    @media print {
+      .no-print { display: none !important; }
+      body { background: white !important; }
+      .report-sheet { box-shadow: none !important; border: none !important; margin: 0 !important; padding: 0 !important; width: 100% !important; min-height: auto !important; }
+      table.report-table { page-break-inside: auto; }
+      table.report-table tr { page-break-inside: avoid; page-break-after: auto; }
+      table.report-table thead { display: table-header-group; }
+      table.report-table tfoot { display: table-row-group; page-break-inside: avoid; }
+      .signature-section { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print">
+    <div>
+      <span style="font-weight: 800; font-size: 14px;">🖨️ หน้าต่างตัวอย่างเอกสารรายงาน (${isPdf ? 'ส่งออก PDF' : 'สั่งพิมพ์'})</span>
+      ${isPdf ? '<span style="margin-left: 12px; background: #e11d48; color: white; padding: 3px 8px; border-radius: 6px; font-size: 11.5px; font-weight: 700;">💡 เคล็ดลับ PDF: ในหน้าต่างพิมพ์ ให้เลือกปลายทาง (Destination) เป็น "บันทึกเป็น PDF" (Save as PDF)</span>' : ''}
+    </div>
+    <div>
+      <button onclick="window.print()" class="btn btn-print">🖨️ สั่งพิมพ์</button>
+      <button onclick="window.print()" class="btn btn-pdf">📄 บันทึกเป็น PDF</button>
+      <button onclick="window.close()" class="btn btn-close">❌ ปิดหน้าต่าง</button>
+    </div>
+  </div>
+
+  <div class="report-sheet">
+    <div class="comp-header">
+      <div class="comp-brand">
+        ${logoUrl ? `<img src="${logoUrl}" class="comp-logo" alt="Logo" />` : ''}
+        <div class="comp-info">
+          <h2>${escapeHtml(compSettings.name || 'LOVE STK GROUPE')}</h2>
+          ${compSettings.branch ? `<p style="font-weight: 600;">${escapeHtml(compSettings.branch)}</p>` : ''}
+          ${compSettings.address ? `<p>${escapeHtml(compSettings.address)}</p>` : ''}
+          ${compSettings.phone ? `<p>โทร: ${escapeHtml(compSettings.phone)}</p>` : ''}
+        </div>
+      </div>
+      <div class="doc-badge">
+        <div class="main-title">รายงานจัดอันดับผู้ปิดการขาย (${escapeHtml(teamName)})</div>
+        <div class="sub-title">CLOSERS PERFORMANCE RANKING REPORT</div>
+      </div>
+    </div>
+
+    <div class="meta-box">
+      <div class="meta-item">
+        <span class="meta-label">ข้อมูลรอบวันที่:</span>
+        <span class="meta-val" style="color: #2563eb; font-weight: 800;">${startDate === endDate ? `ประจำวันที่ ${formatThaiDate(startDate)}` : `ประจำวันที่ ${formatThaiDate(startDate)} ถึง ${formatThaiDate(endDate)}`}</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">วันที่สั่งพิมพ์เอกสาร:</span>
+        <span class="meta-val">${printDateStr} (${printTimeStr})</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">ผู้พิมพ์เอกสาร:</span>
+        <span class="meta-val">${escapeHtml(currentUser?.name || currentUser?.username || 'Administrator')}</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">จำนวนผู้ปิดการขาย:</span>
+        <span class="meta-val" style="font-weight: 800; color: #1e3a8a;">${list.length} คน (ปิดได้ ${tTotals.cases.toLocaleString()} เคส / ${tTotals.boxes.toLocaleString()} กล่อง)</span>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <table class="report-table">
+        <thead>
+          <tr>
+            <th style="width: 45px;">อันดับ</th>
+            <th style="text-align: left;">ผู้ปิดการขาย</th>
+            <th style="width: 80px;">รหัส</th>
+            <th style="width: 90px;">ทีม</th>
+            <th style="width: 75px; text-align: center;">เคสที่ปิด</th>
+            <th style="width: 80px; text-align: center;">รวม (กล่อง)</th>
+            <th style="width: 70px; text-align: center;">ราคาโปร</th>
+            <th style="width: 70px; text-align: center;">ราคาเต็ม</th>
+            <th style="width: 70px; text-align: center;">ราคาสมาชิก</th>
+            <th style="width: 70px; text-align: center;">ราคาศูนย์</th>
+            <th style="width: 120px; text-align: right;">ยอดเงินรวม (บาท)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${list.map((r, idx) => {
+            const rowCombinedThb = r.totalAmountThb + (r.totalAmountLak / exchangeRate);
+            return `
+              <tr>
+                <td style="text-align: center; font-weight: 800;">${idx + 1}</td>
+                <td style="font-weight: 800; color: #0f172a;">${escapeHtml(r.name)}</td>
+                <td style="text-align: center; font-family: monospace; font-size: 10px; color: #64748b;">${escapeHtml(r.code || '-')}</td>
+                <td style="text-align: center;">${escapeHtml(r.team || '-')}</td>
+                <td style="text-align: center; font-weight: 800; color: #4338ca;">${r.casesCount.toLocaleString()}</td>
+                <td style="text-align: center; font-weight: 900; color: #1e40af; font-family: monospace;">${r.totalBoxes.toLocaleString()}</td>
+                <td style="text-align: center; color: #b45309; font-weight: 700;">${r.proBoxes.toLocaleString()}</td>
+                <td style="text-align: center; color: #047857; font-weight: 700;">${r.fullBoxes.toLocaleString()}</td>
+                <td style="text-align: center; color: #1d4ed8; font-weight: 700;">${r.memberBoxes.toLocaleString()}</td>
+                <td style="text-align: center; color: #64748b;">${r.zeroBoxes.toLocaleString()}</td>
+                <td style="text-align: right; font-weight: 800; font-family: monospace; color: #0f172a;">฿${(Math.round(rowCombinedThb * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+        <tfoot>
+          <tr style="background-color: #0f172a; color: #ffffff; font-weight: 800; font-size: 11px;">
+            <td colspan="4" style="padding: 8px 10px; text-align: center; color: #ffffff;">รวมทั้งสิ้น (${list.length} คน)</td>
+            <td style="text-align: center; color: #a5b4fc; font-family: monospace;">${tTotals.cases.toLocaleString()}</td>
+            <td style="text-align: center; color: #93c5fd; font-family: monospace; font-size: 12px;">${tTotals.boxes.toLocaleString()}</td>
+            <td style="text-align: center; color: #fde68a;">${tTotals.pro.toLocaleString()}</td>
+            <td style="text-align: center; color: #a7f3d0;">${tTotals.full.toLocaleString()}</td>
+            <td style="text-align: center; color: #bfdbfe;">${tTotals.member.toLocaleString()}</td>
+            <td style="text-align: center; color: #e2e8f0;">${tTotals.zero.toLocaleString()}</td>
+            <td style="text-align: right; color: #fef08a; font-family: monospace; font-size: 13px;">฿${(Math.round(combinedThb * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="signature-section">
+      <div class="sig-box">
+        <div class="sig-title">ผู้จัดทำรายงาน</div>
+        <div class="sig-line"></div>
+        <div class="sig-name">( ............................................................ )</div>
+        <div class="sig-role">เจ้าหน้าที่ฝ่ายขาย / ผู้จัดทำ</div>
+        <div class="sig-date">วันที่ ........ / ........ / ................</div>
+      </div>
+      <div class="sig-box">
+        <div class="sig-title">ผู้ตรวจสอบเอกสาร</div>
+        <div class="sig-line"></div>
+        <div class="sig-name">( ............................................................ )</div>
+        <div class="sig-role">หัวหน้าฝ่ายบริหารยอดขาย</div>
+        <div class="sig-date">วันที่ ........ / ........ / ................</div>
+      </div>
+      <div class="sig-box">
+        <div class="sig-title">ผู้อนุมัติ</div>
+        <div class="sig-line"></div>
+        <div class="sig-name">( ............................................................ )</div>
+        <div class="sig-role">ผู้บริหาร / กรรมการผู้จัดการ</div>
+        <div class="sig-date">วันที่ ........ / ........ / ................</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener('load', function() {
+      var img = document.querySelector('.comp-logo');
+      var printed = false;
+      function triggerPrint() {
+        if (printed) return;
+        printed = true;
+        setTimeout(function() {
+          window.print();
+        }, 300);
+      }
+      if (img && !img.complete) {
+        img.onload = triggerPrint;
+        img.onerror = triggerPrint;
+        setTimeout(triggerPrint, 1500);
+      } else {
+        setTimeout(triggerPrint, 350);
+      }
+    });
+  <\/script>
+</body>
+</html>
+                            `;
+
+                            printWin.document.open();
+                            printWin.document.write(htmlContent);
+                            printWin.document.close();
+                            printWin.focus();
                         };
 
                         // 🎨 Sub-component: ฟังก์ชั่นแสดงตารางของแต่ละทีม
@@ -1016,6 +1825,21 @@
                                             className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors"
                                         >
                                             <Archive size={13}/> Export
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => handlePrintClosersReport(list, teamName, true)} 
+                                            className="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors"
+                                        >
+                                            <FileText size={13}/> PDF
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => handlePrintClosersReport(list, teamName, false)} 
+                                            className="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors"
+                                        >
+                                            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg> 
+                                            พิมพ์
                                         </button>
                                     </div>
                                 </div>
@@ -1179,10 +2003,10 @@
                                 <button type="button" onClick={handleExportSalesExcel} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
                                     <Archive size={16}/> Export Excel
                                 </button>
-                                <button type="button" onClick={() => window.print()} className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
+                                <button type="button" onClick={() => handlePrintSalesReport(true)} className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
                                     <FileText size={16}/> Export PDF
                                 </button>
-                                <button type="button" onClick={() => window.print()} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
+                                <button type="button" onClick={() => handlePrintSalesReport(false)} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-colors no-print">
                                     <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg> 
                                     พิมพ์ (Print)
                                 </button>

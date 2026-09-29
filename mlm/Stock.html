@@ -18,7 +18,7 @@
   <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Stock - LOVE STK GROUPE</title>
+  <title>ตั้งค่าสินค้า (Product Settings) - LOVE STK GROUPE</title>
   <!-- Standalone & GAS Libraries -->
   <link rel="stylesheet" href="mainstyle.css?v=6">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
@@ -30,6 +30,7 @@
   <script src="config.js"></script>
   <script src="dictionary.js"></script>
   <script src="CommonComponents.js?v=3"></script>
+  <script src="stockLogic.js"></script>
   <script>
     
   </script>
@@ -415,18 +416,28 @@
               });
            });
 
-           Promise.all(promises).then(() => {
+           Promise.all(promises).then(async () => {
               setIsSubmitting(false);
               showToast(`รับสินค้านำเข้าสำเร็จ ${validItems.length} รายการ`, 'success');
               
+              const updatedItemsMap = {};
+              for (const it of validItems) {
+                 const addQty = Number(it.quantity);
+                 const liveStock = window.StockLogic ? await window.StockLogic.fetchLiveProductStock(it.productId) : 0;
+                 const newStock = liveStock + addQty;
+                 await supabaseUpdate('stk_products', it.productId, { current_stock: newStock }, 'product_id').catch(e=>{});
+                 updatedItemsMap[it.productId.toUpperCase()] = newStock;
+              }
               setProducts(prev => (prev || []).map(p => {
-                 const match = validItems.find(it => it.productId.toUpperCase() === p.id.toUpperCase());
-                 if (match) {
-                    const addQty = Number(match.quantity);
-                    supabaseUpdate('stk_products', p.id, { current_stock: (p.stock || 0) + addQty }, 'product_id').catch(e=>{});
-                    return { ...p, stock: (p.stock || 0) + addQty };
-                 }
+                 const upperId = (p.id || '').toUpperCase();
+                 if (updatedItemsMap[upperId] !== undefined) return { ...p, stock: updatedItemsMap[upperId] };
                  return p;
+
+
+
+
+
+
               }));
 
               setItems([{ productId: '', quantity: '' }]);
@@ -667,18 +678,28 @@
               });
            });
 
-           Promise.all(promises).then(() => {
+           Promise.all(promises).then(async () => {
               setIsSubmitting(false);
               showToast(`เบิกสินค้าสำเร็จ ${validItems.length} รายการ`, 'success');
               
+              const updatedItemsMap = {};
+              for (const it of validItems) {
+                 const reduceQty = Number(it.quantity);
+                 const liveStock = window.StockLogic ? await window.StockLogic.fetchLiveProductStock(it.productId) : 0;
+                 const newStock = Math.max(0, liveStock - reduceQty);
+                 await supabaseUpdate('stk_products', it.productId, { current_stock: newStock }, 'product_id').catch(e=>{});
+                 updatedItemsMap[it.productId.toUpperCase()] = newStock;
+              }
               setProducts(prev => (prev || []).map(p => {
-                 const reduceQty = productQtyMap[p.id.toUpperCase()] || 0;
-                 if (reduceQty > 0) {
-                    const newStock = Math.max(0, (p.stock || 0) - reduceQty);
-                    supabaseUpdate('stk_products', p.id, { current_stock: newStock }, 'product_id').catch(e=>{});
-                    return { ...p, stock: newStock };
-                 }
+                 const upperId = (p.id || '').toUpperCase();
+                 if (updatedItemsMap[upperId] !== undefined) return { ...p, stock: updatedItemsMap[upperId] };
                  return p;
+
+
+
+
+
+
               }));
 
               setItems([{ productId: '', quantity: '' }]);
@@ -1191,12 +1212,12 @@
                    }
                    
                     const req = isEditing 
-                        ? supabaseUpdate('stk_products', dataToSave.id, supaData, 'product_id')
+                        ? supabaseUpdate('stk_products', dataToSave.id, (window.StockLogic ? window.StockLogic.sanitizeProductSaveData(supaData, true) : supaData), 'product_id')
                        : supabaseInsert('stk_products', supaData);
                        
                    req.then(async () => {
                         if (isEditing) {
-                            setProducts((products || []).map(p => p && safeUpper(p.id) === safeUpper(dataToSave.id) ? dataToSave : p));
+                            setProducts((products || []).map(p => p && safeUpper(p.id) === safeUpper(dataToSave.id) ? { ...dataToSave, stock: p.stock } : p));
                         } else {
                             setProducts([...(products || []), dataToSave]);
                         }
@@ -1684,7 +1705,7 @@
                };
                for (let i = 1; i < maxLevels; i++) { supaData[`level_${i}_fee`] = dataToSave[`level${i}Fee`]; supaData[`level_${i}_percent_full`] = dataToSave[`level${i}PercentFull`]; supaData[`level_${i}_percent_member`] = dataToSave[`level${i}PercentMember`]; }
                
-               const req = isEditing ? supabaseUpdate('stk_products', dataToSave.id, supaData, 'product_id') : supabaseInsert('stk_products', supaData);
+               const req = isEditing ? supabaseUpdate('stk_products', dataToSave.id, (window.StockLogic ? window.StockLogic.sanitizeProductSaveData(supaData, true) : supaData), 'product_id') : supabaseInsert('stk_products', supaData);
                    
                req.then(async () => {
                     if (isEditing) setProducts((products || []).map(p => p && safeUpper(p.id) === safeUpper(dataToSave.id) ? dataToSave : p));
@@ -3109,13 +3130,13 @@
           const pageParam = urlParams.get('page') || 'stock';
           if (pageParam === 'products') return 'products';
         } catch(e) {}
-        return 'dashboard';
+        return 'products';
       });
       const tabs = [
-        { id: 'dashboard', label: '📊 ภาพรวมสต๊อก', icon: null },
-        { id: 'stock_in',  label: '📥 นำเข้าสต๊อก', icon: null },
-        { id: 'stock_out', label: '📤 เบิกสินค้า', icon: null },
-        { id: 'movement_log', label: '📜 ประวัติการเคลื่อนไหว', icon: null },
+
+
+
+
         ...(isAdmin ? [
           { id: 'products', label: '📦 จัดการสินค้า', icon: null },
           { id: 'bundles', label: '🎁 จัดการเซ็ตโปรโมชั่น', icon: null },
@@ -3132,17 +3153,21 @@
             <div>
               <div className="flex items-center gap-2 mb-1.5">
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-blue-100 text-blue-700 border border-blue-200">
-                  Inventory System
+                  Product Settings
                 </span>
                 <span className="text-xs text-slate-400 font-bold">● STK GROUPE</span>
               </div>
               <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-snug">
-                คลังสินค้าและสต๊อก
+                ตั้งค่าสินค้าและคอมมิชชั่น
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1 leading-relaxed">
-                จัดการสินค้าในคลัง ตรวจสอบยอดคงเหลือ บันทึกรับเข้า เบิกออก และติดตามประวัติการเคลื่อนไหวแบบเรียลไทม์
+                จัดการข้อมูลสินค้า ราคาขาย เซ็ตโปรโมชั่น หมวดหมู่ และโครงสร้างการจ่ายคอมมิชชั่นในระบบ
               </p>
             </div>
+            <a href="Warehouse.html" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow-md shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 transition-all shrink-0 self-start sm:self-center">
+              <span>🏬 ไปที่ระบบคลังสินค้า (Warehouse)</span>
+              <span>&rarr;</span>
+            </a>
           </div>
 
           {/* Glassmorphism Navigation Bar */}
@@ -3165,19 +3190,19 @@
             })}
           </div>
 
-          {activeTab === 'dashboard' && (
-            <StockDashboardTab products={products} stockMovements={stockMovements}/>
-          )}
-          {activeTab === 'stock_in' && (
-            <StockInTab products={products} stockMovements={stockMovements} setStockMovements={setStockMovements} setProducts={setProducts} currentUser={currentUser} showToast={showToast}/>
-          )}
-          {activeTab === 'stock_out' && (
-            <StockOutTab products={products} stockMovements={stockMovements} setStockMovements={setStockMovements} setProducts={setProducts} currentUser={currentUser} showToast={showToast}/>
-          )}
-          {activeTab === 'movement_log' && (
-            <MovementLogTab products={products} stockMovements={stockMovements} setStockMovements={setStockMovements} showToast={showToast}/>
-          )}
-          {activeTab === 'products' && isAdmin && (
+
+
+
+
+
+
+
+
+
+
+
+
+          {activeTab === 'products' && (
             <ProductsManagementView 
               products={products} 
               setProducts={setProducts} 

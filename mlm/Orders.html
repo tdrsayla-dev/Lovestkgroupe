@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -14,6 +14,7 @@
   <script src="config.js"></script>
   <script src="CommonComponents.js?v=3"></script>
   <script src="companySettings.js"></script>
+  <script src="stockLogic.js"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
@@ -987,6 +988,20 @@
                         });
 
                         // 3. เริ่มกระบวนการคืนสต็อก
+                        if (window.StockLogic) {
+                            let currentProducts = [];
+                            if (typeof supabaseSelect === 'function') {
+                                currentProducts = await supabaseSelect('stk_products').catch(() => []) || [];
+                            }
+                            await window.StockLogic.returnBillStock({
+                                bill: saleToCancel,
+                                productsList: currentProducts || [],
+                                actor: currentUser ? (currentUser.name || currentUser.username || 'Admin') : 'Admin',
+                                billId: confirmDelete.id,
+                                reason: 'คืนสต๊อกจากการลบบิล'
+                            });
+                        }
+                        if (false) {
                         let currentProducts = [];
                         if (typeof supabaseSelect === 'function') {
                             currentProducts = await supabaseSelect('stk_products').catch(() => supabaseSelect('products')).catch(() => []) || [];
@@ -1052,6 +1067,7 @@
                                     }).catch(() => {});
                                 }
                             }
+                        }
                         }
                     }
                 }

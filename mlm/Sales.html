@@ -16,6 +16,7 @@
     <script src="dictionary.js"></script>
     <script src="CommonComponents.js?v=3"></script>
     <script src="companySettings.js"></script>
+    <script src="stockLogic.js"></script>
     <script>
 
     </script>
@@ -1715,7 +1716,16 @@
                             });
                         }
 
-                        if (itemsList.length > 0) {
+                        if (window.StockLogic) {
+                            await window.StockLogic.returnBillStock({
+                                bill: saleToCancel,
+                                productsList: products || [],
+                                actor: currentUser ? (currentUser.name || currentUser.username || 'Admin') : 'Admin',
+                                billId: confirmDelete.id,
+                                reason: 'คืนสต๊อกจากการลบบิล'
+                            });
+                        }
+                        if (false) {
                             let currentProducts = [];
                             if (typeof supabaseSelect === 'function') {
                                 currentProducts = await supabaseSelect('stk_products').catch(() => []) || [];
@@ -2385,6 +2395,23 @@
                                 await supabaseUpsert('stk_sales', fallbackData).catch(e2 => console.error('stk_sales fallback upsert failed:', e2));
                             }
                         }
+                        if (!isHistoryBypass && window.StockLogic) {
+                            const oldRecord = (sales || []).find(s => s.id === editingSaleId);
+                            const stockChangeRes = await window.StockLogic.applyBillStockChange({
+                                oldBill: oldRecord,
+                                newBill: newRecord,
+                                productsList: products || [],
+                                actor: currentUser ? (currentUser.name || currentUser.username) : 'SYSTEM',
+                                billId: newRecord.id,
+                                billDate: newRecord.date
+                            });
+                            if (stockChangeRes && stockChangeRes.details && setProducts) {
+                                setProducts(prev => (prev || []).map(p => {
+                                    const matched = stockChangeRes.details.find(d => d.productId === p.id);
+                                    return matched ? { ...p, stock: matched.newStock } : p;
+                                }));
+                            }
+                        }
                         const oldQtyMap = {};
                         const oldRecord = (sales || []).find(s => s.id === editingSaleId);
                         if (oldRecord) {
@@ -2408,7 +2435,7 @@
                             });
                         }
 
-                        if (!isHistoryBypass && typeof supabaseUpdate === 'function') {
+                        if (false && !isHistoryBypass && typeof supabaseUpdate === 'function') {
                             for (const pid of [...new Set([...Object.keys(oldQtyMap), ...Object.keys(qtyMap)])]) {
                                 const diff = (qtyMap[pid] || 0) - (oldQtyMap[pid] || 0);
                                 if (diff !== 0) {
@@ -2445,7 +2472,7 @@
                             }
                         }
 
-                        if (!isHistoryBypass && setProducts) {
+                        if (false && !isHistoryBypass && setProducts) {
                             setProducts(prev => prev.map(p => {
                                 const diff = (qtyMap[p.id] || 0) - (oldQtyMap[p.id] || 0);
                                 return diff !== 0 ? { ...p, stock: Math.max(0, p.stock - diff) } : p;
@@ -2681,8 +2708,23 @@
                         }
                     }
 
-                    // ⚡ FIX: ตัดสต็อกเปิดบิลใหม่ ดึงค่าสดจากฐานข้อมูลเช่นกัน
-                    if (!isHistoryBypass) {
+                    if (!isHistoryBypass && window.StockLogic) {
+                        const stockChangeRes = await window.StockLogic.applyBillStockChange({
+                            oldBill: null,
+                            newBill: newRecord,
+                            productsList: products || [],
+                            actor: newRecord.recordedBy || (currentUser ? (currentUser.name || currentUser.username) : 'SYSTEM'),
+                            billId: newRecord.id,
+                            billDate: newRecord.date
+                        });
+                        if (stockChangeRes && stockChangeRes.details && setProducts) {
+                            setProducts(prev => (prev || []).map(p => {
+                                const matched = stockChangeRes.details.find(d => d.productId === p.id);
+                                return matched ? { ...p, stock: matched.newStock } : p;
+                            }));
+                        }
+                    }
+                    if (false && !isHistoryBypass) {
                         for (const pid of Object.keys(qtyMap)) {
                             const deductQty = qtyMap[pid];
                             if (deductQty > 0) {
@@ -2722,7 +2764,7 @@
                     }
                     if (foundMember && foundMember.id && pvChange !== 0) await updateMemberPVInSupabase(foundMember.id, pvChange, 'user_id');
 
-                    if (!isHistoryBypass && setProducts) {
+                    if (false && !isHistoryBypass && setProducts) {
                         setProducts(prev => prev.map(p => {
                             const deduct = qtyMap[p.id] || 0;
                             return deduct > 0 ? { ...p, stock: Math.max(0, p.stock - deduct) } : p;

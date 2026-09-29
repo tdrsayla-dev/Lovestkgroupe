@@ -62,6 +62,38 @@
   }
 
   function isNewCheckupSale(s, customersMap, startDate, endDate) {
+    if (!s) return false;
+
+    // 🛡️ 1. ตรวจสอบหมายเหตุ / รหัส visit ตามคำสั่งผู้ใช้:
+    // ดักจับรหัส visit: ถ้ามี VISIT-ORD- หรือ VIS-ORD- จะไม่นับเป็นลูกค้าใหม่มาตรวจ (เป็นออเดอร์ที่คีย์ขายเองเท่านั้น)
+    // ตัวไหนที่เป็นรหัส VISIT แล้วก็ขีดตัวเลขเลย (เช่น VISIT: VIS-882756 หรือ VIS-882756) ตัวนั้นถึงจะเป็นลูกค้าใหม่มาตรวจ
+    var noteStr = String(
+      s.payment_note || 
+      s.paymentNote || 
+      s.visit_id || 
+      s.visitId || 
+      s.rxVisitId || 
+      s.notes || 
+      s.note || 
+      s.remark || 
+      s.remarks || 
+      ''
+    ).trim();
+
+    var upperNote = noteStr.toUpperCase();
+
+    // 1.1 ถ้าพบคำว่า VIS-ORD, VISIT-ORD หรือ ORD- ถือเป็นออเดอร์ที่คีย์ขายเองเด็ดขาด -> ไม่นับเป็นลูกค้าใหม่มาตรวจ
+    if (upperNote.indexOf('VIS-ORD') !== -1 || upperNote.indexOf('VISIT-ORD') !== -1 || upperNote.indexOf('ORD-') !== -1) {
+      return false;
+    }
+
+    // 1.2 ต้องมีรหัส VISIT แล้วตามด้วยตัวเลข (เช่น "VISIT: VIS-882756", "VIS-882756", "VISIT: 882756", "VISIT-882756")
+    var hasClinicVisit = /VIS(?:IT)?[:\s\-]+(?:VIS[-:\s]*)?\d+/i.test(noteStr) || /VIS-\d+/i.test(noteStr);
+    if (!hasClinicVisit) {
+      return false;
+    }
+
+    // 2. ตรวจสอบประเภทลูกค้า
     var cType = String((s && (s.customerType || s.customer_type)) || '').trim();
     var cust = null;
     if (customersMap) {
@@ -74,22 +106,21 @@
         cType = String(cust.customer_type || cust.customerType || cust.type || '').trim();
       }
     }
-    if (!cType) return false;
 
-    // กฎสำคัญ: ต้องเป็น "ลูกค้าใหม่มาตรวจ" หรือ "ลูกค้าใหม่นำผลตรวจมาปรึกษา" เท่านั้น
-    // ลูกค้าเก่า, ต่อยา, ไม่มาตรวจ, โทรปิดการขาย, ส่วนกลาง ไม่นับเด็ดขาด
-    var hasCheckup = cType.indexOf('มาตรวจ') !== -1 || (cType.indexOf('ตรวจ') !== -1 && cType.indexOf('ไม่มาตรวจ') === -1);
-    var notOld = cType.indexOf('เก่า') === -1 && cType.indexOf('ต่อยา') === -1 && cType.indexOf('ไม่มาตรวจ') === -1 && cType.indexOf('โทร') === -1;
-    if (!hasCheckup || !notOld) return false;
+    // หากระบุประเภทลูกค้า ต้องไม่ใช่ลูกค้าเก่า, ต่อยา, ไม่มาตรวจ, โทรปิดการขาย
+    if (cType) {
+      var notOld = cType.indexOf('เก่า') === -1 && cType.indexOf('ต่อยา') === -1 && cType.indexOf('ไม่มาตรวจ') === -1 && cType.indexOf('โทร') === -1;
+      if (!notOld) return false;
+    }
 
     // 🛡️ ปฏิบัติตามฟิลเตอร์วันที่อย่างเคร่งครัด:
-    // 1. วันที่ของบิลขายต้องอยู่ในช่วงวันที่แคมเปญ (startDate ถึง endDate)
+    // 3.1 วันที่ของบิลขายต้องอยู่ในช่วงวันที่แคมเปญ (startDate ถึง endDate)
     if (s && startDate && endDate) {
       var sDate = parseSaleDate(s);
       if (sDate && (sDate < startDate || sDate > endDate)) return false;
     }
 
-    // 2. ลูกค้าต้องเป็นลูกค้าใหม่ที่มาตรวจในช่วงแคมเปญนี้เท่านั้น
+    // 3.2 ลูกค้าต้องเป็นลูกค้าใหม่ที่มาตรวจในช่วงแคมเปญนี้เท่านั้น
     // หากข้อมูลลูกค้าบันทึกว่าสร้าง/สมัครไว้ก่อน startDate จะถือเป็นลูกค้าเดิมที่เคยมาตรวจก่อนหน้า ไม่นับเป็นคนใหม่ของแคมเปญนี้
     if (cust && startDate) {
       var custDate = String(cust.created_date || cust.created_at || '').trim().substring(0, 10);
@@ -220,9 +251,9 @@
         var custId = safeUp((s.customerId || s.customer_id || s.hn || s.customerName || s.customer_name) || '');
         var isCheckup = isNewCheckupSale(s, customersMap, startDate, endDate);
 
-        // ตรวจสอบว่าในบิลนี้ "มีสินค้าอย่างน้อย 1 รายการ" ที่ราคาต่อชิ้น >= minPrice หรือไม่
+        // คำนวณจำนวนกล่องที่ราคาต่อชิ้น >= minPrice
         var minPrice = Number(campaign.cond2_min_price || 0);
-        var hasQualifyingItem = false;
+        var qualifyingBoxes = 0;
 
         var itemsList = null;
         if (s.items_json) {
@@ -238,11 +269,12 @@
             var p = parseFloat(it.unitPrice !== undefined ? it.unitPrice : (it.price !== undefined ? it.price : 0)) || 0;
             
             if (q > 0 && (minPrice === 0 || p >= minPrice)) {
-              hasQualifyingItem = true;
-              break; 
+              qualifyingBoxes += q;
             }
           }
-        } else {
+        }
+        
+        if (qualifyingBoxes === 0) {
           var boxes = parseSaleBoxes(s);
           var unitPrice = Number((s.unit_price || s.unitPrice || s.price_full || s.priceFull) || 0);
           if (unitPrice === 0 && boxes > 0) {
@@ -250,21 +282,20 @@
             if (totalAmt > 0) unitPrice = totalAmt / boxes;
           }
           if (boxes > 0 && (minPrice === 0 || unitPrice >= minPrice)) {
-            hasQualifyingItem = true;
+            qualifyingBoxes += boxes;
           }
         }
 
-        // ⭐ การปรับปรุงใหม่: ผูก 2 เงื่อนไขเข้าด้วยกันเป๊ะๆ (1 บิลผ่านเกณฑ์ = ได้ 1 คนตรวจ + 1 บิลบวกพร้อมกัน)
-        if (isCheckup && custId && hasQualifyingItem) {
-            // ใช้ "รหัสบิล" เป็นตัวนับแทนรหัสลูกค้า เพื่อให้ลูกค้า 1 คน ซื้อ 2 บิล ก็นับให้ 2 แต้มเท่ากัน
-            var uniqueSaleKey = s.id || s.sale_id || s.bill_id || (custId + '_' + Math.random());
-            
-            if (campaign.cond1_enabled) {
-                memberMap[key].newCustSet[uniqueSaleKey] = true;
-            }
-            if (campaign.cond2_enabled) {
-                memberMap[key].actual_cond2 += 1;
-            }
+        // 🛡️ นับเฉพาะคนมาตรวจคลินิกจริง (VISIT: VIS-<ตัวเลข> ที่ไม่ใช่ VIS-ORD-) และในบิลนั้นต้องมีสินค้าราคา >= 1,500 บาท
+        // หากตรงเงื่อนไขจะนับเป็น 1 แต้ม (1 คนมาตรวจ = 1 บิลสินค้า >= 1,500 บาท) ค่าทั้งสองจะเท่ากันพอดี ไม่นับบิลออเดอร์คีย์ขายเอง
+        if (isCheckup && qualifyingBoxes > 0) {
+          var uniqueSaleKey = s.id || s.sale_id || s.bill_id || (custId ? (custId + '_' + (s.date || '') + '_' + (s.time || '')) : ('sale_' + Math.random()));
+          if (campaign.cond1_enabled) {
+            memberMap[key].newCustSet[uniqueSaleKey] = true;
+          }
+          if (campaign.cond2_enabled) {
+            memberMap[key].actual_cond2 += 1;
+          }
         }
 
         // ตรวจสอบทันทีว่าคนนี้ผ่านครบทุกเกณฑ์ ณ บิลนี้หรือไม่
@@ -329,6 +360,11 @@
           var sA = (a.pct2 !== null ? a.pct2 : (a.pct1 || 0));
           var sB = (b.pct2 !== null ? b.pct2 : (b.pct1 || 0));
           return sB - sA;
+        }
+        // จัดเรียงคนที่ยังไม่ผ่าน: ให้ความสำคัญกับคนที่ได้คนมาตรวจ (actual_cond1) สูงสุดขึ้นมาก่อน
+        // หากคนมาตรวจเท่ากัน ให้เรียงตามความคืบหน้ารวม/จำนวนบิล (actual_cond2)
+        if (a.actual_cond1 !== b.actual_cond1) {
+          return b.actual_cond1 - a.actual_cond1;
         }
         var scoreA = (a.pct2 !== null ? a.pct2 : (a.pct1 || 0));
         var scoreB = (b.pct2 !== null ? b.pct2 : (b.pct1 || 0));
