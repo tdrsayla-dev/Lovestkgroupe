@@ -1,0 +1,92 @@
+  :root{font-family:system-ui,"Noto Sans Thai",sans-serif;color:#18334e;background:#eef4f8}*{box-sizing:border-box}body{margin:0}button,input,textarea{font:inherit}button{cursor:pointer}.shell{max-width:1250px;margin:auto;padding:28px 20px 70px}.hero{background:linear-gradient(115deg,#073756,#146e87);color:white;border-radius:22px;padding:26px 30px;display:flex;justify-content:space-between;gap:20px;align-items:center}.eyebrow{font-size:12px;letter-spacing:.16em;color:#b3e3ed;font-weight:700}.hero h1{margin:5px 0;font-size:30px}.hero p{margin:0;color:#d9ecf1}.badge{border:1px solid #a7e2e2;border-radius:40px;padding:9px 16px;white-space:nowrap;font-size:13px}.card{background:#fff;border:1px solid #dce8ee;border-radius:18px;box-shadow:0 8px 25px #0834540b;margin-top:18px;padding:22px}.card h2{font-size:18px;margin:0 0 16px}.sub{font-size:13px;color:#597387;margin:-7px 0 16px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.field label{display:block;font-size:13px;color:#526b7d;font-weight:650;margin-bottom:6px}.field input,.field textarea{width:100%;border:1px solid #cddde5;border-radius:10px;background:#fff;padding:10px 12px;color:#17384e;outline:none}.field input:focus,.field textarea:focus,.value:focus{border-color:#008d9c;box-shadow:0 0 0 3px #008d9c1c}.field textarea{resize:vertical;min-height:72px}.span2{grid-column:span 2}.toolbar{display:flex;gap:9px;flex-wrap:wrap;margin:18px 0}.toolbar button{border:1px solid #c8dce4;background:white;color:#164360;padding:10px 15px;border-radius:11px;font-weight:700}.toolbar .primary{background:#086779;color:white;border-color:#086779}.toolbar button:hover{filter:brightness(.95)}.tablewrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:750px}th{text-align:left;background:#eaf4f7;color:#31556c;font-size:12px;letter-spacing:.04em;padding:12px 9px}td{border-bottom:1px solid #e7eef2;padding:7px 9px;font-size:14px}tr:last-child td{border-bottom:0}td:first-child{font-weight:700;white-space:nowrap}.value{width:105px;padding:7px 8px;border:1px solid #cbdde5;border-radius:8px;color:#17384e}.range{width:84px;padding:7px 8px;border:1px solid #d6e2e8;border-radius:8px}.unit{white-space:nowrap;color:#4f687a}.status{display:inline-block;padding:5px 9px;border-radius:20px;font-size:12px;font-weight:800}.normal{background:#e9f7f2;color:#087453}.low{background:#fff1df;color:#995400}.high{background:#feeae8;color:#aa352b}.empty{background:#eef2f5;color:#647487}.sectionrow td{background:#f7fafc;font-size:12px;color:#557489;letter-spacing:.08em;padding:10px}.footer{font-size:12px;color:#61798a;margin:16px 4px;line-height:1.6}.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#123e53;color:#fff;padding:10px 16px;border-radius:10px;display:none;z-index:10}@media(max-width:720px){.shell{padding:12px 10px 50px}.hero{padding:20px;display:block}.hero h1{font-size:25px}.badge{display:inline-block;margin-top:15px}.grid{grid-template-columns:repeat(2,1fr)}.span2{grid-column:span 2}.card{padding:16px}.toolbar button{flex:1 1 140px}}@media print{body{background:white}.shell{padding:0;max-width:none}.hero{background:white;color:#17384e;border-radius:0;border-bottom:2px solid #0b6678;padding:12px 0}.hero p,.eyebrow{color:#536f7d}.badge,.toolbar,.footer,.toast{display:none!important}.card{box-shadow:none;border:0;border-radius:0;margin:0;padding:12px 0}.field input,.field textarea,.value,.range{border:0;padding:2px 0;box-shadow:none!important;appearance:none}.tablewrap{overflow:visible}table{min-width:0}td,th{padding:4px 6px}.status{padding:0;background:none!important;color:#333!important}tr{break-inside:avoid}}
+  /* Keep every editable CBC cell legible even when the browser uses dark mode. */
+  :root{color-scheme:light}
+  input.value,input.range{background:#f5fbfd!important;color:#14354c!important;caret-color:#086779;border:1px solid #a9c6d3;opacity:1;-webkit-text-fill-color:#14354c!important}
+  input.value{font-weight:700;font-size:15px}
+  input.value:focus,input.range:focus{background:#fff!important;border-color:#008d9c;outline:2px solid #008d9c;outline-offset:1px}
+  @media print{input.value,input.range{background:#fff!important;border:0;-webkit-text-fill-color:#17384e!important}}
+  .histogram-grid{display:grid;grid-template-columns:1fr;gap:12px;max-width:720px;margin:18px auto}
+  .hist-plot{border:1px solid #d8e6ec;border-radius:14px;background:#fff;padding:14px 16px 10px;break-inside:avoid}
+  .hist-title{font-weight:800;font-size:15px;color:#17384e;margin-bottom:3px}
+  .hist-plot svg{display:block;width:100%;height:auto;max-height:160px}
+  .hist-plot svg text{font:11px system-ui,sans-serif;fill:#536b7b}
+  .hist-plot .axis-line{stroke:#506777;stroke-width:1.3}
+  .hist-plot .gate{stroke:#9aafba;stroke-width:1.2}
+  .hist-plot .trace{fill:none;stroke:#174e6c;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+  .hist-caption{font-size:12px;color:#60788a;margin:8px 0 0;line-height:1.5}
+  .uploadbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:16px;background:#f3fafc;border:1px dashed #95bdca;border-radius:12px}
+  .uploadbar input{max-width:100%;font-size:13px}
+  .uploadbar code{font-size:12px;color:#385a70}
+  .graph-message{color:#526d7e;font-size:13px;margin:12px 0}
+  .graph-error{color:#a3322c}
+  .preview-label{display:inline-block;background:#fff1d9;color:#835300;border:1px solid #efce89;border-radius:5px;padding:3px 6px;font-size:10px;font-weight:700;margin:4px 0}
+  /* Compact lab slip layout */
+  body{font-size:13px}
+  .shell{max-width:860px;padding:10px 12px 28px}
+  .card{margin-top:10px;padding:14px 16px;border-radius:12px;box-shadow:0 3px 12px #08345409}
+  .card h2{font-size:16px;margin-bottom:10px}
+  .sub{font-size:12px;margin:-4px 0 10px}
+  table{min-width:650px}
+  th{font-size:11px;padding:8px 7px}
+  td{font-size:12px;padding:4px 7px}
+  td:first-child{width:115px}
+  .sectionrow td{font-size:11px;padding:7px}
+  input.value,input.range{font-size:13px;padding:5px 7px;height:30px}
+  input.value{width:76px;font-size:13px}
+  input.range{width:68px}
+  .status{font-size:11px;padding:4px 7px}
+  .uploadbar{padding:10px;gap:8px;font-size:12px}
+  .uploadbar input{font-size:12px}
+  #sample{width:130px;padding:5px 7px;border:1px solid #a9c6d3;border-radius:7px;background:#fff;color:#17384e}
+  .graph-message,.hist-caption{font-size:11px;margin:8px 0}
+  .histogram-grid{max-width:500px;gap:8px;margin:10px auto}
+  .hist-plot{padding:8px 10px 5px;border-radius:9px}
+  .hist-plot svg{max-height:105px}
+  .hist-title{font-size:12px;margin-bottom:0}
+  .toolbar{gap:6px;margin:10px 0}
+  .toolbar button{font-size:12px;padding:7px 10px;border-radius:7px}
+  .footer{font-size:11px;margin:8px 2px}
+  @media(max-width:720px){.shell{padding:6px 7px 20px}.card{padding:11px 9px}.toolbar button{flex:1 1 120px}}
+  @media print{@page{size:A4 portrait;margin:10mm}.shell{max-width:none;padding:0}.card{padding:8px 0;margin-top:4px;border:0;box-shadow:none}table{min-width:0}.histogram-grid{max-width:360px}}
+  /* A5 landscape: results and analyzer plots on the same page */
+  .shell{width:min(100%,794px);max-width:794px;display:grid;grid-template-columns:minmax(0,1.8fr) minmax(0,1fr);align-items:start;gap:8px;padding:9px}
+  .shell>.card{min-width:0;margin:0;padding:9px 8px;border-radius:8px}
+  .shell>.toolbar,.shell>.footer{grid-column:1/-1}
+  .card h2{font-size:13px;margin-bottom:5px}
+  .sub{font-size:10px;line-height:1.25;margin:0 0 5px}
+  .tablewrap{overflow:visible}
+  table{min-width:0;table-layout:fixed;width:100%}
+  th{font-size:9px;padding:4px 2px;line-height:1.15}
+  td{font-size:10px;padding:2px;line-height:1.15}
+  td:first-child{width:25%;white-space:nowrap}
+  th:nth-child(2){width:14%}th:nth-child(3){width:15%}th:nth-child(4),th:nth-child(5){width:13%}th:nth-child(6){width:20%}
+  .sectionrow td{font-size:9px;padding:4px 3px}
+  input.value,input.range{width:100%;height:19px;padding:1px 3px;font-size:10px;border-radius:4px}
+  .status{font-size:9px;padding:2px 3px;white-space:nowrap}
+  .unit{white-space:normal;overflow-wrap:anywhere}
+  .uploadbar{display:block;padding:7px}
+  .uploadbar label{display:block;margin:0 0 3px}
+  .uploadbar input{display:block;width:100%;margin-bottom:6px;font-size:10px}
+  .uploadbar #sample{width:100%;height:24px;font-size:10px}
+  .uploadbar code{font-size:9px;overflow-wrap:anywhere}
+  .graph-message,.hist-caption{font-size:10px;line-height:1.25}
+  .histogram-grid{max-width:none;gap:5px;margin:7px 0}
+  .hist-plot{padding:4px 5px}
+  .hist-plot svg{max-height:73px}
+  .hist-title{font-size:10px}
+  .toolbar{margin:1px 0;gap:5px}
+  .toolbar button{padding:5px 7px;font-size:10px}
+  .footer{font-size:9px;line-height:1.3;margin:1px}
+  @media(max-width:750px){.shell{display:block;width:100%}.shell>.card{margin-bottom:8px}.tablewrap{overflow-x:auto}table{min-width:470px}.toolbar{display:flex;flex-wrap:wrap}}
+  @media print{
+    html,body{width:auto;background:#fff}
+    .shell{width:100%;max-width:none;display:grid;grid-template-columns:minmax(0,1.8fr) minmax(0,1fr);gap:5px;padding:0}
+    .shell>.card{margin:0;padding:4px;border:0;box-shadow:none;break-inside:avoid}
+    .tablewrap{overflow:visible}table{min-width:0}
+    td{padding:1px 2px}th{padding:2px}input.value,input.range{height:14px;font-size:9px;padding:0 2px}
+    .sectionrow td{padding:2px 3px}
+    .uploadbar,.toolbar,.toast{display:none!important}
+    .hist-plot svg{max-height:69px}
+    .footer{font-size:8px}
+  }
+  @page{size:A5 landscape;margin:5mm}

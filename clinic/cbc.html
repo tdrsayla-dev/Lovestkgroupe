@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ฟอร์มบันทึกผล CBC | STK</title>
+<link rel="stylesheet" href="cbc.css">
+<style>
+  .print-header { display: none; }
+  @media print {
+    .print-header {
+      display: block !important;
+      border-bottom: 2px solid #0b3c73;
+      padding-bottom: 5px;
+      margin-bottom: 8px;
+      grid-column: 1 / -1;
+    }
+  }
+</style>
+</head>
+<body><main class="shell">
+  <div class="print-header" id="printHeader">
+    <div style="font-weight: 700; font-size: 13.5px; color: #0b3c73;">STK CLINIC — ລາຍງານຜົນກວດເລືອດ CBC (Complete Blood Count)</div>
+    <div id="cbcPrintMeta" style="font-size: 10.5px; margin-top: 3px; color: #334155;"></div>
+  </div>
+  <section class="card"><h2>รายการตรวจ CBC</h2><p class="sub">ค่าตัวอย่างและช่วงอ้างอิงถอดจากภาพที่ให้มา · เครื่องหมายสูง/ต่ำคำนวณจากช่วงที่กรอก</p><div class="tablewrap"><table><thead><tr><th>รายการตรวจ</th><th>ผลตรวจ</th><th>หน่วย</th><th>ค่าต่ำสุด</th><th>ค่าสูงสุด</th><th>สถานะ</th></tr></thead><tbody id="cbc"></tbody></table></div></section>
+  <section class="card">
+    <div class="histogram-grid" id="real-histograms"></div>
+    <p class="hist-caption">กราฟจำลองใช้แสดงภาพประกอบเท่านั้น ไม่ใช่กราฟการกระจายตัวจริงของผู้ป่วย ผลรวม CBC ไม่เพียงพอที่จะคำนวณเส้นจริงจากเครื่องตรวจ</p>
+  </section>
+  <div class="toolbar">
+    <button type="button" class="primary" id="print">บันทึก</button>
+    <button type="button" id="clear">ล้างผลตรวจ</button>
+  </div>
+</main><div class="toast" id="toast" role="status"></div>
+<script src="cbc.js" defer></script></body></html>

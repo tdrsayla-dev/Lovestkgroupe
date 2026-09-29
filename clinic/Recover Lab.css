@@ -1,0 +1,481 @@
+/* =====================================================
+   Recover Lab.css
+   สไตล์สำหรับระบบแปลงผลตรวจใส่ Frame คลินิก
+   (Lab Result with Clinic Frame & Stamp)
+   ===================================================== */
+
+/* ---- Body & Base ---- */
+body {
+    margin: 0;
+    padding: 0;
+    background: #e2e8f0;
+    font-family: 'Sarabun', 'Noto Sans Lao', sans-serif;
+    color: #0f172a;
+}
+
+/* ---- Preview Container ---- */
+.rl-preview-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    padding: 24px 16px;
+    background: #e2e8f0;
+}
+
+/* ---- A4 Report Card ---- */
+.rl-report-card {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 16mm 14mm 20mm 14mm;
+    background: #ffffff;
+    color: #0f172a;
+    box-sizing: border-box;
+    margin: 0 auto;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.18);
+    border-radius: 4px;
+}
+
+/* ---- Toolbar / Action Bar ---- */
+.rl-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: #0b3c73;
+    color: #fff;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    box-shadow: 0 2px 12px rgba(11, 60, 115, 0.3);
+}
+
+.rl-toolbar-title {
+    font-size: 15px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.rl-toolbar-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* ---- Buttons ---- */
+.rl-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 18px;
+    border-radius: 50rem;
+    border: none;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+}
+
+.rl-btn:active {
+    transform: scale(0.97);
+}
+
+.rl-btn-print {
+    background: #2563eb;
+    color: #fff;
+}
+
+.rl-btn-print:hover {
+    background: #1d4ed8;
+}
+
+.rl-btn-close {
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.3);
+}
+
+.rl-btn-close:hover {
+    background: rgba(255,255,255,0.25);
+}
+
+/* ---- Report Header ---- */
+.rl-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 14px;
+}
+
+.rl-logo-block {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.rl-logo-img {
+    height: 58px;
+    max-width: 90px;
+    object-fit: contain;
+}
+
+.rl-logo-fallback {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: #0b3c73;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 24px;
+}
+
+.rl-clinic-name-la {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+    line-height: 1.3;
+}
+
+.rl-clinic-name-en {
+    font-size: 10px;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.rl-doc-title-block {
+    text-align: right;
+}
+
+.rl-doc-title-main {
+    font-size: 22px;
+    font-weight: 900;
+    color: #2563eb;
+    letter-spacing: 0.5px;
+    line-height: 1.1;
+}
+
+.rl-doc-title-sub {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+/* ---- Patient Info Box ---- */
+.rl-patient-box {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #bfdbfe;
+    margin-bottom: 14px;
+}
+
+.rl-patient-box-header {
+    background: #0b3c73;
+    color: #ffffff;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.rl-patient-box-body {
+    background: #f8fafc;
+    padding: 10px 14px;
+    font-size: 11px;
+}
+
+.rl-patient-grid {
+    display: grid;
+    grid-template-columns: 2.2fr 2.2fr 1.6fr;
+    gap: 6px 16px;
+}
+
+.rl-patient-label {
+    display: inline-block;
+    width: 65px;
+    color: #64748b;
+}
+
+.rl-patient-label-wide {
+    display: inline-block;
+    width: 75px;
+    color: #64748b;
+}
+
+.rl-patient-sep {
+    color: #64748b;
+    margin-right: 6px;
+}
+
+.rl-patient-value {
+    color: #0f172a;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+/* ---- Report Section Title ---- */
+.rl-section-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: #0b3c73;
+    margin-bottom: 8px;
+}
+
+/* ---- Lab Table ---- */
+.rl-lab-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    margin-bottom: 14px;
+}
+
+.rl-lab-table thead tr {
+    background: #0b3c73;
+    color: #ffffff;
+    text-align: left;
+    height: 30px;
+}
+
+.rl-lab-table thead th {
+    padding: 4px 12px;
+    font-weight: 700;
+}
+
+.rl-lab-table tbody tr {
+    border-bottom: 1px solid #e2e8f0;
+    height: 32px;
+}
+
+.rl-lab-table tbody tr:nth-child(even) {
+    background: #f8fafc;
+}
+
+.rl-lab-table tbody td {
+    padding: 4px 12px;
+    color: #475569;
+}
+
+.rl-lab-table .td-test {
+    font-weight: 700;
+    color: #1e293b;
+    text-align: left;
+}
+
+.rl-lab-table .td-sample {
+    text-align: center;
+    color: #64748b;
+    font-size: 11px;
+}
+
+.rl-lab-table .td-result {
+    font-weight: 700;
+    color: #0f172a;
+    text-align: left;
+}
+
+.rl-lab-table .td-flag {
+    text-align: center;
+    font-weight: 800;
+}
+
+.rl-lab-table .td-flag.flag-h { color: #dc2626; }
+.rl-lab-table .td-flag.flag-l { color: #2563eb; }
+.rl-lab-table .td-flag.flag-n { color: #64748b; }
+
+/* ---- Bottom Section ---- */
+.rl-bottom-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 20px;
+    margin-bottom: 16px;
+}
+
+/* ---- Recommendation Box ---- */
+.rl-recommendation {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px 16px;
+    min-height: 100px;
+    flex: 1;
+}
+
+.rl-recommendation-title {
+    font-weight: 700;
+    color: #0b3c73;
+    font-size: 13px;
+    margin-bottom: 6px;
+}
+
+.rl-recommendation-body {
+    font-size: 11px;
+    line-height: 1.6;
+    color: #334155;
+}
+
+/* ---- Stamp & Doctor Block ---- */
+.rl-stamp-block {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 220px;
+}
+
+.rl-stamp-img-wrapper {
+    width: 130px;
+    height: 130px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 6px;
+    position: relative;
+}
+
+.rl-stamp-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.rl-stamp-fallback {
+    width: 120px;
+    height: 120px;
+    border: 2.5px solid #1d4ed8;
+    border-radius: 50%;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #1d4ed8;
+    text-align: center;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1.2;
+    box-sizing: border-box;
+}
+
+.rl-stamp-fallback-inner {
+    border: 1px dashed #1d4ed8;
+    border-radius: 50%;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+}
+
+.rl-doctor-name-la {
+    font-size: 14px;
+    font-weight: 800;
+    color: #1e3a8a;
+    line-height: 1.3;
+}
+
+.rl-doctor-name-en {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1e3a8a;
+}
+
+/* ---- Footer Bar ---- */
+.rl-footer-bar {
+    background: #0b3c73;
+    color: #ffffff;
+    padding: 7px 16px;
+    border-radius: 4px;
+    font-size: 10.5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+}
+
+.rl-footer-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ---- Loading Overlay ---- */
+.rl-loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(11, 60, 115, 0.55);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    color: #fff;
+    gap: 14px;
+}
+
+.rl-loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 5px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: rl-spin 0.8s linear infinite;
+}
+
+@keyframes rl-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ---- Print Styles ---- */
+@media print {
+    .rl-toolbar,
+    .rl-loading-overlay {
+        display: none !important;
+    }
+
+    body {
+        background: #fff !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .rl-preview-wrapper {
+        padding: 0 !important;
+        background: #fff !important;
+    }
+
+    #printableLabReport,
+    .rl-report-card {
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        width: 100% !important;
+        min-height: auto !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+
+    thead {
+        display: table-row-group !important;
+    }
+
+    tr {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+
+    @page {
+        size: A4 portrait;
+        margin: 20mm 0 20mm 0;
+    }
+}

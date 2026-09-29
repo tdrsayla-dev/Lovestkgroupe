@@ -317,8 +317,7 @@ async function loadReportData() {
     // 1. Visits for selected date range (only required columns)
     // 2. Bills for selected date range (only for doctor resolution fallback)
     // 3. Raw Nutrient Orders (filtered by date range at DB level)
-    // 4. Staff users with doctor role
-    const [resVisits, resBills, rawNutrientOrders, resDoctors] = await Promise.all([
+    const [resVisits, resBills, rawNutrientOrders] = await Promise.all([
       sbClient.from('visits')
         .select('visit_id, hn, patient_name, doctor_name, status, symptom, meds, created_at')
         .gte('created_at', queryStartISO)
@@ -330,19 +329,8 @@ async function loadReportData() {
         .gte('created_at', queryStartISO)
         .lte('created_at', queryEndISO),
 
-      fetchRawNutrientOrders(queryStartISO, queryEndISO),
-
-      sbClient.from('staff_users')
-        .select('full_name, emp_code, email, role')
-        .in('role', ['doctor', 'แพทย์', 'ທ່ານໝໍ'])
+      fetchRawNutrientOrders(queryStartISO, queryEndISO)
     ]);
-
-    // Save clinic doctors list
-    let clinicDoctors = (resDoctors && Array.isArray(resDoctors.data)) ? resDoctors.data : [];
-    if (clinicDoctors.length === 0 && window.parent && Array.isArray(window.parent._cachedDoctorsList)) {
-      clinicDoctors = window.parent._cachedDoctorsList;
-    }
-    state.clinicDoctors = clinicDoctors;
 
     // Filter visits by exact local date (UTC+7)
     const rawVisits = resVisits.data || [];
@@ -564,81 +552,6 @@ async function fetchRawNutrientOrders(startUtcISO, endUtcISO) {
   return rawOrders;
 }
 
-// Format doctor names into clean standardized doctor titles
-function formatDoctorName(raw) {
-  if (!raw || typeof raw !== 'string') return '';
-  const s = raw.trim();
-  const lower = s.toLowerCase();
-
-  if (lower.includes('khanittha') || lower.includes('phoutthaamat')) {
-    return 'Khanittha PHOUTTHAAMAT';
-  }
-  if (lower.includes('nuna') || lower.includes('sytathep')) {
-    return 'Nuna SYTATHEP';
-  }
-  if (lower.includes('chiatong')) {
-    return 'Dr. Chiatong';
-  }
-  if (lower.includes('lava')) {
-    return 'Dr. Lava';
-  }
-  if (lower.includes('phengphan') || lower.includes('souvannaphoume')) {
-    return 'Phengphan SOUVANNAPHOUME';
-  }
-  if (lower.includes('souksakhone') || lower.includes('doungviengxay')) {
-    return 'Souksakhone DOUNGVIENGXAY';
-  }
-  if (lower.includes('dr. noy') || lower.includes('dr noy')) {
-    return 'Dr. Noy';
-  }
-  if (lower.includes('dr. bee') || lower.includes('dr bee')) {
-    return 'Dr. Bee';
-  }
-
-  return s.replace(/^(ທ່ານໝໍ|แพทย์|หมอ|dr\.|dr)\s*/i, '').trim() || s;
-}
-
-// Helper to verify if a name represents a genuine clinic doctor
-function isRealDoctor(name) {
-  if (!name || typeof name !== 'string') return false;
-  const s = name.trim();
-  if (!s || s === '-' || s === 'null' || s === 'undefined' || s === 'ບໍ່ລະບຸທ່ານໝໍ' || s === 'ไม่ได้ระบุ') return false;
-
-  // 1. กรองผู้แนะนำ / สมาชิก MLM / รหัสสมาชิก ออกอย่างเด็ดขาด 100%
-  // เช่น "L03732 - MS KHEMPHONE KHEMPHONE", "L04289 - LOVE STK"
-  if (/^[A-Za-z0-9_\-]{3,10}\s*[-–]\s*/.test(s)) return false;
-  if (/^L\d+/i.test(s) || /^REF-/i.test(s) || /^MEM-/i.test(s)) return false;
-
-  const lower = s.toLowerCase();
-
-  // 2. คำนำหน้าคุณหมอ (แพทย์ / ดร. / ດຣ. / Dr.)
-  const docPrefixes = ['ดร.', 'ດຣ.', 'dr.', 'dr ', 'นพ.', 'พญ.', 'แพทย์', 'ທ່ານໝໍ', 'หมอ'];
-  if (docPrefixes.some(p => lower.startsWith(p) || lower.includes(p))) {
-    return true;
-  }
-
-  // 3. Keywords แพทย์ผู้อ่านผลตรวจประจำคลินิก (เช่น Khanittha PHOUTTHAAMAT, Nuna SYTATHEP)
-  const knownDoctorKeywords = [
-    'khanittha', 'phoutthaamat', 'lava', 'chiatong', 'nuna', 'sytathep',
-    'phengphan', 'souvannaphoume', 'souksakhone', 'doungviengxay', 'dr noy', 'dr bee', 'ແພດປະຈຳຄລີນິກ'
-  ];
-  if (knownDoctorKeywords.some(k => lower.includes(k))) {
-    return true;
-  }
-
-  // 4. ตรวจสอบกับรายชื่อแพทย์ในคลินิกที่ดึงมาจาก staff_users (role: doctor / แพทย์)
-  const clinicDocs = state.clinicDoctors || [];
-  for (const doc of clinicDocs) {
-    const docName = (doc.full_name || doc.name || doc.emp_code || '').trim().toLowerCase();
-    if (!docName) continue;
-    if (lower === docName || lower.includes(docName) || docName.includes(lower)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 // Process and Unify Nutrient Orders with Doctor Prescriptions
 function processNutrientOrders(rawOrders, visitsList) {
   const currentVisits = visitsList || state.visits || [];
@@ -691,59 +604,22 @@ function processNutrientOrders(rawOrders, visitsList) {
     const totalQty = cleanItems.reduce((sum, it) => sum + it.qty, 0);
     const totalAmount = cleanItems.reduce((sum, it) => sum + it.total_price, 0);
 
-    // 🌟 ดึงเฉพาะคุณหมอที่อ่านผลตรวจเท่านั้น (Doctor only):
-    let doctor = '';
-
-    // 1. ค้นหาจาก visit_id ของเคสคนไข้ในคลินิก
-    let vId = o.visit_id;
-    if (!vId && o.order_id && o.order_id.includes('VIS-')) {
-      vId = 'VIS-' + o.order_id.split('VIS-')[1];
-    }
-    let matchedVisit = null;
-    if (vId && currentVisits) {
-      matchedVisit = currentVisits.find(x => x.visit_id === vId);
-    }
-
-    // 2. ถ้าไม่มี visit_id ให้จับคู่จาก HN ในวันเดียวกัน (หรือ HN ล่าสุด)
-    if (!matchedVisit && o.hn && o.hn !== '-' && currentVisits) {
-      const oDate = toLocalDateStr(o.date || o.created_at);
-      matchedVisit = currentVisits.find(x => x.hn === o.hn && toLocalDateStr(x.created_at) === oDate);
-      if (!matchedVisit) {
-        matchedVisit = currentVisits.find(x => x.hn === o.hn && isRealDoctor(x.doctor_name || x.doctor));
+    // Resolve Doctor / Prescriber
+    let doctor = o.closer_dr;
+    if (!doctor || doctor === '-' || doctor.trim() === '') {
+      let vId = o.visit_id;
+      if (!vId && o.order_id && o.order_id.includes('VIS-')) {
+        vId = 'VIS-' + o.order_id.split('VIS-')[1];
+      }
+      if (vId && currentVisits) {
+        const v = currentVisits.find(x => x.visit_id === vId);
+        if (v && (v.doctor || v.doctor_name)) {
+          doctor = v.doctor || v.doctor_name;
+        }
       }
     }
-
-    // 3. ถ้ายังไม่เจอ ให้จับคู่จากชื่อคนไข้ (Customer Name) ในวันเดียวกัน
-    if (!matchedVisit && o.customer_name && o.customer_name !== '-' && currentVisits) {
-      const oDate = toLocalDateStr(o.date || o.created_at);
-      matchedVisit = currentVisits.find(x => x.patient_name === o.customer_name && toLocalDateStr(x.created_at) === oDate);
-    }
-
-    // ดึงชื่อคุณหมอที่อ่านผลตรวจจาก Visit ที่จับคู่ได้
-    if (matchedVisit) {
-      const vDoc = (matchedVisit.doctor_name || matchedVisit.doctor || '').trim();
-      if (isRealDoctor(vDoc)) {
-        doctor = formatDoctorName(vDoc);
-      }
-    }
-
-    // 4. ถ้ายังไม่ได้ ให้ตรวจจาก closer_dr เฉพาะเมื่อเป็นคุณหมออ่านผลตรวจจริงเท่านั้น
-    if (!doctor && o.closer_dr && isRealDoctor(o.closer_dr)) {
-      doctor = formatDoctorName(o.closer_dr);
-    }
-
-    // 5. ถ้ายังไม่มี ให้ตรวจสอบจาก patient profile cache ว่าคนไข้มีแพทย์ผู้ตรวจประจำตัวไหม
-    if (!doctor && o.hn && state.patientCache && state.patientCache[o.hn]) {
-      const p = state.patientCache[o.hn];
-      const pDoc = (p.doctor_name || p.doctor || '').trim();
-      if (isRealDoctor(pDoc)) {
-        doctor = formatDoctorName(pDoc);
-      }
-    }
-
-    // 6. ถ้าไม่มี หรือไม่ใช่แพทย์ ให้กำหนดเป็น 'ບໍ່ລະບຸທ່ານໝໍ' (ไม่เอาผู้แนะนำ / recorded_by มาเป็นแพทย์เด็ดขาด)
-    if (!doctor) {
-      doctor = 'ບໍ່ລະບຸທ່ານໝໍ';
+    if (!doctor || doctor === '-' || doctor.trim() === '') {
+      doctor = o.recorded_by || 'ບໍ່ລະບຸທ່ານໝໍ';
     }
 
     unified.push({
@@ -804,8 +680,7 @@ function processNutrientOrders(rawOrders, visitsList) {
     if (items.length > 0) {
       const totalQty = items.reduce((sum, it) => sum + it.qty, 0);
       const totalAmount = items.reduce((sum, it) => sum + it.total_price, 0);
-      let doctor = v.doctor_name || v.doctor || '';
-      if (!isRealDoctor(doctor)) doctor = 'ບໍ່ລະບຸທ່ານໝໍ';
+      const doctor = v.doctor_name || v.doctor || 'ບໍ່ລະບຸທ່ານໝໍ';
       unified.push({
         id: v.visit_id || '-',
         date: v.created_at,
@@ -1150,8 +1025,7 @@ function renderNutrientsTab() {
   const medStats = {};
 
   orders.forEach(o => {
-    let dr = (o.doctor && isRealDoctor(o.doctor)) ? o.doctor.trim() : 'ບໍ່ລະບຸທ່ານໝໍ';
-    o.doctor = dr;
+    const dr = o.doctor || 'ບໍ່ລະບຸທ່ານໝໍ';
     doctorSet.add(dr);
 
     if (!doctorStats[dr]) {
@@ -1283,32 +1157,16 @@ function populateDoctorFilter(doctors) {
   const select = document.getElementById('filterDoctorSelect');
   if (!select) return;
 
-  // 🌟 Filter out non-doctors strictly (e.g. referrers, member IDs)
-  let validDoctors = doctors.filter(dr => isRealDoctor(dr) && dr !== 'ບໍ່ລະບຸທ່ານໝໍ');
-
-  // เพิ่มแพทย์อ่านผลตรวจหลักของคลินิก หากมีใน doctorStatsMap
-  const coreReadingDoctors = ['Khanittha PHOUTTHAAMAT', 'Nuna SYTATHEP'];
-  coreReadingDoctors.forEach(docName => {
-    if (!validDoctors.includes(docName) && state.doctorStatsMap && state.doctorStatsMap[docName]) {
-      validDoctors.push(docName);
-    }
-  });
-
-  // 🌟 Sort doctors by total order count descending, real doctors first
-  currentSortedDoctors = validDoctors.slice().sort((a, b) => {
+  // 🌟 Sort doctors by total order count descending (top prescriber first)
+  currentSortedDoctors = doctors.slice().sort((a, b) => {
     const aCount = state.doctorStatsMap[a]?.orderCount || 0;
     const bCount = state.doctorStatsMap[b]?.orderCount || 0;
     return bCount - aCount;
   });
 
-  // ใส่ 'ບໍ່ລະບຸທ່ານໝໍ' ไว้หลังสุด หากมีออเดอร์ที่ไม่ระบุแพทย์
-  if (doctors.includes('ບໍ່ລະບຸທ່ານໝໍ') && state.doctorStatsMap['ບໍ່ລະບຸທ່ານໝໍ']?.orderCount > 0) {
-    currentSortedDoctors.push('ບໍ່ລະບຸທ່ານໝໍ');
-  }
-
-  // 🌟 Default to the FIRST real doctor so it displays doctor breakdown by default
+  // 🌟 Default to the FIRST doctor so it displays only ONE doctor at a time
   let targetVal = select.value;
-  if (!targetVal || targetVal === 'all' || !currentSortedDoctors.includes(targetVal)) {
+  if (!targetVal || targetVal === 'all' || !doctors.includes(targetVal)) {
     targetVal = currentSortedDoctors.length > 0 ? currentSortedDoctors[0] : 'all';
   }
 
@@ -1317,15 +1175,14 @@ function populateDoctorFilter(doctors) {
     const count = state.doctorStatsMap[dr]?.orderCount || 0;
     const opt = document.createElement('option');
     opt.value = dr;
-    const prefix = dr === 'ບໍ່ລະບຸທ່ານໝໍ' ? '⚠️ ' : '👨‍⚕️ ';
-    opt.textContent = `${prefix}${dr} (${count} ໃບສັ່ງ)`;
+    opt.textContent = `${dr} (${count} ໃບສັ່ງ)`;
     select.appendChild(opt);
   });
 
   // Also add 'ທັງໝົດ' option at the very bottom
   const optAll = document.createElement('option');
   optAll.value = 'all';
-  optAll.textContent = `--- ສະແດງທ່ານໝໍທັງໝົດ (${currentSortedDoctors.length} ທ່ານ) ---`;
+  optAll.textContent = `--- ສະແດງທ່ານໝໍທັງໝົດ (${doctors.length} ທ່ານ) ---`;
   select.appendChild(optAll);
 
   select.value = targetVal;
@@ -1593,24 +1450,36 @@ function renderDoctorStatsCards(doctorList) {
 
 // Resolve Doctor for clinical visits (checks v.doctor, v.doctor_name, v.closer_dr, linked nutrient orders, bills, and fallback)
 function resolveVisitDoctor(v, visitNutrientMap) {
-  let doc = v.doctor || v.doctor_name;
-  if (isRealDoctor(doc)) return doc.trim();
-
-  // Check from bills by visit_id
-  if (v.visit_id && state.bills) {
-    const b = state.bills.find(x => x.visit_id === v.visit_id);
-    if (b && (b.doctor || b.doctor_name) && isRealDoctor(b.doctor || b.doctor_name)) {
-      return (b.doctor || b.doctor_name).trim();
-    }
-  }
+  let doc = v.doctor || v.doctor_name || v.closer_dr;
+  if (doc && doc !== '-' && doc !== 'null' && doc.trim() !== '') return doc.trim();
 
   // Check from nutrient orders linked to this visit_id
   if (v.visit_id && visitNutrientMap && visitNutrientMap[v.visit_id]) {
     const nDoc = visitNutrientMap[v.visit_id].doctor;
-    if (isRealDoctor(nDoc)) return nDoc;
+    if (nDoc && nDoc !== '-' && nDoc !== 'ບໍ່ລະບຸທ່ານໝໍ') return nDoc;
   }
 
-  return 'ບໍ່ລະບຸທ່ານໝໍ';
+  // Check from bills by visit_id
+  if (v.visit_id && state.bills) {
+    const b = state.bills.find(x => x.visit_id === v.visit_id);
+    if (b && (b.doctor || b.doctor_name)) return (b.doctor || b.doctor_name);
+  }
+
+  // Match by patient HN and same day
+  const vDate = toLocalDateStr(v.created_at);
+  if (v.hn && state.nutrientOrders) {
+    const nOrder = state.nutrientOrders.find(o => o.hn === v.hn && toLocalDateStr(o.date || o.created_at) === vDate);
+    if (nOrder && nOrder.doctor && nOrder.doctor !== '-' && nOrder.doctor !== 'ບໍ່ລະບຸທ່ານໝໍ') {
+      return nOrder.doctor;
+    }
+  }
+
+  // Fallback: check recorded_by
+  if (v.recorded_by && v.recorded_by !== '-' && !v.recorded_by.toLowerCase().includes('admin')) {
+    return v.recorded_by;
+  }
+
+  return 'ທ່ານໝໍປະຈຳຄລີນິກ';
 }
 
 // Check if patient is New (ຜູ້ປ່ວຍໃໝ່) or Old/Returning (ຜູ້ປ່ວຍເກົ່າ)
@@ -1758,32 +1627,16 @@ function populatePatientDoctorFilter(doctors) {
   const select = document.getElementById('filterPatientDoctorSelect');
   if (!select) return;
 
-  // 🌟 Filter out non-doctors strictly (e.g. referrers, member IDs)
-  let validDoctors = doctors.filter(dr => isRealDoctor(dr) && dr !== 'ບໍ່ລະບຸທ່ານໝໍ');
-
-  // เพิ่มแพทย์อ่านผลตรวจหลักของคลินิก หากมีใน patientDoctorStats
-  const coreReadingDoctors = ['Khanittha PHOUTTHAAMAT', 'Nuna SYTATHEP'];
-  coreReadingDoctors.forEach(docName => {
-    if (!validDoctors.includes(docName) && state.patientDoctorStats && state.patientDoctorStats[docName]) {
-      validDoctors.push(docName);
-    }
-  });
-
-  // 🌟 Sort doctors by total visits/patients descending, real doctors first
-  currentSortedPatientDoctors = validDoctors.slice().sort((a, b) => {
+  // 🌟 Sort doctors by total visits/patients descending (busiest doctor first)
+  currentSortedPatientDoctors = doctors.slice().sort((a, b) => {
     const aVisits = state.patientDoctorStats[a]?.totalVisits || 0;
     const bVisits = state.patientDoctorStats[b]?.totalVisits || 0;
     return bVisits - aVisits;
   });
 
-  // ใส่ 'ບໍ່ລະບຸທ່ານໝໍ' ไว้หลังสุด หากมีเคสที่ไม่ระบุแพทย์
-  if (doctors.includes('ບໍ່ລະບຸທ່ານໝໍ') && state.patientDoctorStats['ບໍ່ລະບຸທ່ານໝໍ']?.totalVisits > 0) {
-    currentSortedPatientDoctors.push('ບໍ່ລະບຸທ່ານໝໍ');
-  }
-
-  // 🌟 Default to the FIRST real doctor so it displays only ONE doctor at a time
+  // 🌟 Default to the FIRST doctor so it displays only ONE doctor at a time
   let targetVal = select.value;
-  if (!targetVal || targetVal === 'all' || !currentSortedPatientDoctors.includes(targetVal)) {
+  if (!targetVal || targetVal === 'all' || !doctors.includes(targetVal)) {
     targetVal = currentSortedPatientDoctors.length > 0 ? currentSortedPatientDoctors[0] : 'all';
   }
 
@@ -1792,8 +1645,7 @@ function populatePatientDoctorFilter(doctors) {
     const visits = state.patientDoctorStats[dr]?.totalVisits || 0;
     const opt = document.createElement('option');
     opt.value = dr;
-    const prefix = dr === 'ບໍ່ລະບຸທ່ານໝໍ' ? '⚠️ ' : '👨‍⚕️ ';
-    opt.textContent = `${prefix}${dr} (${visits} ເທື່ອກວດ)`;
+    opt.textContent = `👨‍⚕️ ${dr} (${visits} ເທື່ອກວດ)`;
     if (dr === targetVal) opt.selected = true;
     select.appendChild(opt);
   });
@@ -1801,7 +1653,7 @@ function populatePatientDoctorFilter(doctors) {
   // Option to view all doctors together
   const allOpt = document.createElement('option');
   allOpt.value = 'all';
-  allOpt.textContent = `-- ສະແດງທຸກທ່ານໝໍ (${currentSortedPatientDoctors.length} ທ່ານ) --`;
+  allOpt.textContent = `-- ສະແດງທຸກທ່ານໝໍ (${doctors.length} ທ່ານ) --`;
   if (targetVal === 'all') allOpt.selected = true;
   select.appendChild(allOpt);
 

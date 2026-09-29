@@ -161,14 +161,16 @@ textarea.form-control {
 }
 
 /* Ellipsis for long URL / base64 string */
-#clinic_logo_url {
+#clinic_logo_url,
+#clinic_stamp_url {
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow: hidden;
 }
 
-/* ── Logo Preview Box ────────────────────────────────────────── */
-#logoBox {
+/* ── Logo & Stamp Preview Box ────────────────────────────────── */
+#logoBox,
+#stampBox {
   width: 95px;
   height: 95px;
   border: 2px dashed #cbd5e1;
@@ -183,18 +185,21 @@ textarea.form-control {
   flex-shrink: 0;
   position: relative;
 }
-#logoBox:hover {
+#logoBox:hover,
+#stampBox:hover {
   border-color: var(--primary-light);
   background: #eff6ff;
   transform: scale(1.02);
 }
-#logoBox img {
+#logoBox img,
+#stampBox img {
   width: 100%;
   height: 100%;
   object-fit: contain;
   padding: 4px;
 }
-#logoBox .ph {
+#logoBox .ph,
+#stampBox .ph {
   font-size: 2.2rem;
   color: #94a3b8;
 }
