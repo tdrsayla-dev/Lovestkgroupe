@@ -7626,11 +7626,11 @@ async function resolvePatientHn(patientName, visitId, phone, autoGenerateIfNotFo
     // Phone match
     if (phone) {
         const cleanPhone = String(phone).replace(/\D/g, '');
-        if (cleanPhone.length >= 6) {
+        if (cleanPhone.length >= 7) {
             for (const p of allPatientsList) {
                 const pPhone = String(p.phone || p.emergency_tel || '').replace(/\D/g, '');
                 const pHn = (p.hn && p.hn !== 'null' && p.hn !== 'undefined' && p.hn !== '-') ? p.hn.trim() : '';
-                if (pHn && pPhone && (pPhone === cleanPhone || pPhone.includes(cleanPhone) || cleanPhone.includes(pPhone))) {
+                if (pHn && pPhone && (pPhone === cleanPhone || (pPhone.length >= 8 && cleanPhone.length >= 8 && (pPhone.endsWith(cleanPhone) || cleanPhone.endsWith(pPhone))))) {
                     return pHn;
                 }
             }
@@ -9586,7 +9586,7 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
         }
     } catch (e) { }
 
-    // 5. ดึงปุ่มผลตรวจทั้งหมด
+    // 6. ดึงปุ่มผลตรวจทั้งหมด
     const pdfBtn = document.getElementById('rxPdfBtn');
     const pdfContainer = pdfBtn ? (pdfBtn.parentElement || pdfBtn) : null;
 
@@ -9653,190 +9653,13 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
             `);
         }
 
-        let cachedCbcOrder = null;
-        try {
-            const allCbc = JSON.parse(localStorage.getItem('clinic_cbc_results') || '{}');
-            cachedCbcOrder = allCbc[visitId];
-        } catch (e) { }
-        const hasCbcInOrderFiles = filesList.some(f => f && (f.category === 'CBC' || (f.fileName && f.fileName.includes('CBC'))));
-        const hasCbcOrderNote = visitRow && visitRow.lab_note && visitRow.lab_note.includes('[ผลตรวจ CBC]');
-        if (!hasCbcInOrderFiles && (cachedCbcOrder || hasCbcOrderNote)) {
-            allResultButtons.push(`
-                <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມຜົນກວດ CBC" onclick="openCbcPage('${visitId}', 'print')">
-                    <i class="bi bi-file-earmark-pdf me-1"></i> CBC (PDF)
-                </button>
-            `);
-        }
-
-        if (allResultButtons.length > 0) {
-            pdfContainer.innerHTML = allResultButtons.join(' ');
-        } else {
-            pdfContainer.innerHTML = `<button type="button" class="btn btn-sm btn-outline-secondary px-3 opacity-75 rounded-pill" disabled><i class="bi bi-file-earmark-x me-1"></i> ยังไม่มีผล Lab</button>`;
-        }
-    }
-
-    // 6. ดึงข้อมูลหมายเหตุ / ข้อเน้นย้ำจากแพทย์ (Lab Note) ที่บันทึกไว้ตอนสั่งตรวจ Lab
-    let doctorLabNote = '';
-    if (visitRow) {
-        if (visitRow.lab_note) doctorLabNote = visitRow.lab_note;
-        else if (visitRow.doctor_note) doctorLabNote = visitRow.doctor_note;
-        else if (visitRow.notes) doctorLabNote = visitRow.notes;
-    }
-
-    // กรองส่วนหัวแท็กไฟล์/ผลตรวจหลอดเลือดออก เพื่อแสดงเฉพาะข้อความเน้นย้ำจากแพทย์
-    let cleanLabNote = (doctorLabNote || '')
-        .replace(/\[เอกสารผลตรวจ[^\]]*\]/gi, '')
-        .replace(/\[เอกสารแนบ[^\]]*\]/gi, '')
-        .replace(/\[ไฟล์แนบ[^\]]*\]/gi, '');
-
-    if (cleanLabNote.includes('[ผลตรวจหลอดเลือด]')) {
-        cleanLabNote = cleanLabNote.split('[ผลตรวจหลอดเลือด]')[0].trim();
-    } else {
-        cleanLabNote = cleanLabNote.trim();
-    }
-
-    const labNoteBox = document.getElementById('rxDoctorLabNoteBox');
-    const labNoteText = document.getElementById('rxDoctorLabNoteText');
-    if (labNoteBox && labNoteText) {
-        if (cleanLabNote && cleanLabNote !== '' && cleanLabNote !== '-') {
-            labNoteText.innerText = cleanLabNote;
-            labNoteBox.style.display = 'flex';
-        } else {
-            labNoteBox.style.display = 'none';
-        }
-    }
-
-    // 7. โหลด/อัปเดตสต็อกใน background หากจำเป็น
-    if (!window.allStockMedicines || window.allStockMedicines.length === 0 || !window.allMlmProducts || window.allMlmProducts.length === 0) {
-        Promise.all([
-            typeof loadStockList === 'function' ? loadStockList() : Promise.resolve(),
-            loadMlmProducts()
-        ]).then(() => {
-            populateRxMedDropdown();
-        });
+        pdfContainer.innerHTML = allResultButtons.join('');
     }
 }
 
-function addMedToRx() {
-    const select = document.getElementById('rxMedSelect');
-    const qtyInput = document.getElementById('rxMedQty');
-    const tierSelect = document.getElementById('rxPriceTierSelect');
-    if (!select || !select.value || !tierSelect) return;
-
-    const rawVal = select.value;
-
-    // 🌟 จุดที่แก้ไข: ตัดเอาเฉพาะ "รหัส" ที่อยู่ด้านหน้าสุดมาใช้ค้นหา
-    const medId = rawVal.split(' - ')[0].trim();
-
-    const qty = parseInt(qtyInput.value) || 1;
-    const selectedTier = tierSelect.value;
-
-    let medDetails = null;
-    let itemSource = 'clinic';
-
-    // ค้นหาในคลัง MLM ก่อน ถ้าไม่เจอค่อยไปหาในคลังคลินิก
-    medDetails = (window.allMlmProducts || []).find(m => m.id === medId || m.product_id === medId);
-    if (medDetails) {
-        itemSource = 'mlm';
-    } else {
-        medDetails = (window.allMedicines || []).find(m => m.id === medId);
-        itemSource = 'clinic';
-    }
-
-    if (!medDetails) return;
-
-    // ดักจับการเพิ่มสินค้าที่หมดสต็อก
-    if (medDetails.stock <= 0) {
-        Swal.fire('แจ้งเตือน', 'รายการนี้สต็อกหมด ไม่สามารถสั่งจ่ายได้', 'warning');
-        return;
-    }
-
-    const medName = medDetails.name;
-    const sourceLabel = itemSource === 'mlm' ? 'STK MLM' : 'คลังยา';
-
-    let medPrice = 0;
-    let tierLabel = '';
-
-    // จัดการประเภทราคา
-    if (selectedTier === 'normal') {
-        medPrice = medDetails.price_normal || medDetails.price || 0;
-    } else if (selectedTier === 'promo') {
-        medPrice = medDetails.price_promo || 0;
-        tierLabel = ' (โปร)';
-    } else if (selectedTier === 'high') {
-        medPrice = medDetails.price_high || 0;
-        tierLabel = ' (ส่ง/สมาชิก)';
-    } else if (selectedTier === 'free') {
-        medPrice = 0;
-        tierLabel = ' (แถมฟรี)';
-    }
-
-    const displayName = medName + tierLabel;
-
-    // ตรวจสอบว่ามีรายการนี้ในบิลแล้วหรือไม่
-    const existing = window.currentRxMeds.find(m => m.id === medId && m.tier === selectedTier && m.source === itemSource);
-    if (existing) {
-        existing.qty += qty;
-    } else {
-        window.currentRxMeds.push({
-            id: medId, name: displayName, price: medPrice,
-            qty: qty, tier: selectedTier, source: itemSource, sourceLabel: sourceLabel
-        });
-    }
-
-    renderRxMedsTable();
-
-    // เคลียร์ช่องค้นหาให้ว่าง เพื่อเตรียมพิมพ์รายการต่อไป
-    select.value = '';
-}
-
-function removeMedFromRx(index) { window.currentRxMeds.splice(index, 1); renderRxMedsTable(); }
-
-function renderRxMedsTable() {
-    const tbody = document.querySelector('#rxMedsTable tbody');
-    tbody.innerHTML = '';
-    if (window.currentRxMeds.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">ยังไม่มีรายการยา/อาหารเสริม</td></tr>';
-        return;
-    }
-
-    window.currentRxMeds.forEach((med, index) => {
-        let tierText = 'ปกติ';
-        if (med.tier === 'promo') tierText = 'โปรโมชั่น';
-        else if (med.tier === 'high') tierText = 'ส่ง/สมาชิก';
-        else if (med.tier === 'free') tierText = 'แถมฟรี';
-
-        const unitPrice = med.price || 0;
-        const qty = med.qty || 0;
-        const total = unitPrice * qty;
-
-        // แยกเอาชื่อสะอาดๆ ที่ไม่มีวงเล็บมาแสดงผล
-        let cleanName = med.name;
-        if (cleanName.endsWith(' (โปร)')) cleanName = cleanName.replace(' (โปร)', '');
-        else if (cleanName.endsWith(' (ส่ง/สมาชิก)')) cleanName = cleanName.replace(' (ส่ง/สมาชิก)', '');
-        else if (cleanName.endsWith(' (แถมฟรี)')) cleanName = cleanName.replace(' (แถมฟรี)', '');
-
-        let sourceBadge = med.source === 'mlm'
-            ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2" style="font-size: 0.7rem;">STK MLM</span>'
-            : '<span class="badge bg-info-subtle text-info border border-info-subtle ms-2" style="font-size: 0.7rem;">คลังยา</span>';
-
-        tbody.innerHTML += `
-            <tr>
-                <td class="ps-3 align-middle text-dark fw-medium">${cleanName} ${sourceBadge}</td>
-                <td class="text-center align-middle"><span class="badge bg-light text-dark border">${tierText}</span></td>
-                <td class="text-end align-middle text-secondary">${unitPrice} ฿</td>
-                <td class="text-center align-middle fw-bold">${qty}</td>
-                <td class="text-end align-middle fw-bold text-primary">${total} ฿</td>
-                <td class="text-center align-middle">
-                    <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="removeMedFromRx(${index})"><i class="bi bi-trash"></i></button>
-                </td>
-            </tr>
-        `;
-    });
-    if (typeof updateRxTotals === 'function') updateRxTotals();
-}
-
-
+// ----------------------------------------------------
+// Submit Prescription (Rx)
+// ----------------------------------------------------
 async function submitPrescription() {
     const visitId = document.getElementById('rxVisitId')?.value || '';
     const hn = document.getElementById('rxHN')?.value || '';
@@ -9864,6 +9687,7 @@ async function submitPrescription() {
         const v = window.clinicVisits.find(x => x.visit_id === visitId);
         if (v && v.symptom && v.symptom !== 'สั่งจ่ายยา') originalSymptom = v.symptom;
     }
+
     if (!originalSymptom && typeof _supabase !== 'undefined') {
         try {
             const { data: vDb } = await _supabase.from('visits').select('symptom').eq('visit_id', visitId).maybeSingle();
@@ -11030,7 +10854,6 @@ window.viewPharmacyBillDetails = async function (visitId, billType) {
                     </div>
                     <div><strong>รหัส VISIT:</strong> <span class="text-primary fw-bold">${visit.visit_id}</span></div>
                     <div><span class="me-3 text-muted">แพทย์ผู้ตรวจ: <strong class="text-dark">${doctorName}</strong></span></div>
-                    <!-- ส่วนที่เพิ่มใหม่: แสดงผู้แนะนำ & อาการเบื้องต้น -->
                     <div class="w-100 mt-1 pt-2 border-top d-flex flex-wrap align-items-center justify-content-between gap-2">
                         <div><strong>ผู้แนะนำ:</strong> <span class="text-primary fw-bold">${referrerText}</span></div>
                         <div><span class="text-muted">อาการเบื้องต้น: <strong class="text-danger">${patientSymptom}</strong></span></div>
@@ -12410,16 +12233,20 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
         if (s1 === s2) return true;
         const d1 = s1.replace(/\D/g, '');
         const d2 = s2.replace(/\D/g, '');
-        if (d1 && d2 && (d1 === d2 || d1.endsWith(d2) || d2.endsWith(d1))) return true;
+        // ✅ ต้องตรงกันทั้งหมดเท่านั้น (ไม่ใช้ endsWith เพราะทำให้ HN/ID คนละคนเข้าใจผิด)
+        if (d1 && d2 && d1 === d2) return true;
         return false;
     };
 
     // 0. ถ้ามี directOrderData ส่งตรงมาจากหน้าจอ ให้สร้าง row ทันที
     if (directOrderData) {
+        // ✅ targetHn (HN ที่กดดูจากตาราง) ต้องมาก่อนเสมอ เพื่อป้องกันการแสดงผู้ป่วยผิดคน
+        const resolvedHn = (targetHn && targetHn !== '-') ? targetHn : (directOrderData.hn || '-');
+        const resolvedName = (targetName && targetName !== '-') ? targetName : (directOrderData.customer_name || directOrderData.patient_name || '-');
         row = {
             visit_id: directOrderData.visitId || directOrderData.visit_id || cleanVisitId,
-            hn: directOrderData.hn || targetHn || '-',
-            patient_name: directOrderData.customer_name || directOrderData.patient_name || targetName || '-',
+            hn: resolvedHn,
+            patient_name: resolvedName,
             doctor_name: directOrderData.closer_dr || directOrderData.doctor_advice || 'ແພດປະຈຳຄລີນິກ',
             assistant_name: directOrderData.assistant_advice || directOrderData.recorded_by || '-',
             symptom: directOrderData.disease || directOrderData.symptom || 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ',
@@ -12464,16 +12291,25 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
                 }
             }
             if (freshVisit) {
-                if (!row) {
-                    row = freshVisit;
-                } else {
-                    const preservedItems = row.items_json || (row.order_data && (row.order_data.items_json || row.order_data.items));
-                    const preservedOrderData = row.order_data;
-                    const preservedMeds = row.meds;
-                    Object.assign(row, freshVisit);
-                    if (!row.items_json && preservedItems) row.items_json = preservedItems;
-                    if (!row.order_data && preservedOrderData) row.order_data = preservedOrderData;
-                    if (!row.meds && preservedMeds) row.meds = preservedMeds;
+                // ✅ ต้องแน่ใจว่า freshVisit เป็นของคนไข้คนนี้ ไม่ใช่ของผู้ป่วยคนอื่น
+                const isMatchingPat = !targetHn || targetHn === '-' || !freshVisit.hn || freshVisit.hn === targetHn || isMatchVisitId(freshVisit.hn, targetHn);
+                if (isMatchingPat) {
+                    if (!row) {
+                        row = freshVisit;
+                    } else {
+                        const preservedItems = row.items_json || (row.order_data && (row.order_data.items_json || row.order_data.items));
+                        const preservedOrderData = row.order_data;
+                        const preservedMeds = row.meds;
+                        const preservedHn = row.hn;
+                        const preservedName = row.patient_name;
+                        Object.assign(row, freshVisit);
+                        // ✅ ป้องกันไม่ให้ freshVisit ไป overwrite ชื่อและ HN ของคนที่ staff คลิกดู
+                        if (preservedHn && preservedHn !== '-') row.hn = preservedHn;
+                        if (preservedName && preservedName !== '-') row.patient_name = preservedName;
+                        if (!row.items_json && preservedItems) row.items_json = preservedItems;
+                        if (!row.order_data && preservedOrderData) row.order_data = preservedOrderData;
+                        if (!row.meds && preservedMeds) row.meds = preservedMeds;
+                    }
                 }
             }
         } catch (err) {
@@ -12542,6 +12378,49 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
         } catch (e) { }
     }
 
+    // 🌟 1.4 ถ้ายังไม่พบประวัติการตรวจหรือออเดอร์ ให้ดึงจากข้อมูลคนไข้ที่ลงทะเบียนไว้ (Step 01 ລົງທະບຽນ)
+    if (!row && (targetHn || targetName)) {
+        let foundPat = null;
+        const patientPool = (window.allPatients || []).concat(window.allPatientsData || []).concat(window.rawAllPatients || []);
+        if (targetHn && targetHn !== '-') {
+            const cleanHn = String(targetHn).trim();
+            foundPat = patientPool.find(p => p && (p.hn === cleanHn || (p.hn && String(p.hn).replace(/\D/g, '') === cleanHn.replace(/\D/g, ''))));
+        }
+        if (!foundPat && targetName && targetName !== '-') {
+            const cleanName = String(targetName).trim().toLowerCase();
+            foundPat = patientPool.find(p => p && ((p.patient_name && p.patient_name.trim().toLowerCase() === cleanName) || (p.name && p.name.trim().toLowerCase() === cleanName)));
+        }
+        if (!foundPat && targetHn && targetHn !== '-' && typeof _supabase !== 'undefined') {
+            try {
+                const { data: pDb } = await _supabase.from('patients').select('*').eq('hn', String(targetHn).trim()).maybeSingle();
+                if (pDb) foundPat = pDb;
+            } catch (pe) { }
+        }
+        if (foundPat) {
+            row = {
+                visit_id: cleanVisitId || '-',
+                hn: foundPat.hn || targetHn || '-',
+                patient_name: foundPat.patient_name || foundPat.name || targetName || '-',
+                doctor_name: '-',
+                assistant_name: foundPat.referred_by || '-',
+                symptom: foundPat.symptom || foundPat.past_history || foundPat.disease || 'ລົງທະບຽນໃໝ່ (ຍັງບໍ່ມີປະຫວັດການກວດ)',
+                disease: foundPat.disease || foundPat.past_history || null,
+                status: '01 ລົງທະບຽນ',
+                created_at: foundPat.created_at || new Date().toISOString(),
+                phone: foundPat.phone || foundPat.tel || '',
+                age: foundPat.age || null,
+                gender: foundPat.gender || null,
+                province: foundPat.province || null,
+                district: foundPat.district || null,
+                village: foundPat.village || null,
+                order_id: null,
+                order_data: null,
+                items_json: null,
+                is_patient_only: true
+            };
+        }
+    }
+
     if (!row) {
         Swal.fire({
             icon: 'info',
@@ -12598,11 +12477,11 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
             if (!o) return false;
             const oV = o.visit_id || o.visitId;
             const oO = o.order_id || o.orderId;
+            // ✅ Match เฉพาะ visit_id / order_id เท่านั้น (ไม่ match HN เพียงอย่างเดียว เพราะทำให้เปิดผู้ป่วยผิดคน)
             if (row && row.visit_id && oV && isMatchVisitId(oV, row.visit_id)) return true;
             if (row && row.order_id && oO && isMatchVisitId(oO, row.order_id)) return true;
             if (cleanVisitId && oV && isMatchVisitId(oV, cleanVisitId)) return true;
             if (cleanVisitId && oO && isMatchVisitId(oO, cleanVisitId)) return true;
-            if (row && row.hn && o.hn && row.hn !== '-' && (o.hn === row.hn || String(o.hn).replace(/\D/g, '') === String(row.hn).replace(/\D/g, ''))) return true;
             return false;
         });
         if (foundDirect) {
