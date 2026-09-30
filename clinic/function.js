@@ -6976,7 +6976,7 @@ window.renderLabTable = function (page = window.labCurrentPage) {
 
             const safeCat = catName.replace(/'/g, "\\'");
             const isCbcCat = (catName === 'CBC');
-            const btnOnClick = isCbcCat ? `openCbcPage('${row.visit_id}', 'lab')` : `viewRealLabFile('', '${row.visit_id}', '${safeName}', '${safeCat}')`;
+            const btnOnClick = isCbcCat ? `openCbcPage('${row.visit_id}', 'lab', '${row.hn || ''}', '${safeName}')` : `viewRealLabFile('', '${row.visit_id}', '${safeName}', '${safeCat}')`;
             const btnLabel = isCbcCat ? 'CBC (PDF)' : catName;
 
             allResultButtons.push(`
@@ -7000,7 +7000,7 @@ window.renderLabTable = function (page = window.labCurrentPage) {
         const hasCbcNote = (row.lab_note && row.lab_note.includes('[ผลตรวจ CBC]'));
         if (!hasCbcInFiles && (cachedCbc || hasCbcNote)) {
             allResultButtons.push(`
-                <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມຜົນກວດ CBC" onclick="openCbcPage('${row.visit_id}', 'lab')">
+                <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມຜົນກວດ CBC" onclick="openCbcPage('${row.visit_id}', 'lab', '${row.hn || ''}', '${safeName}')">
                     <i class="bi bi-file-earmark-pdf me-1"></i> CBC (PDF)
                 </button>
             `);
@@ -9660,8 +9660,8 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
             const safeCat = catName.replace(/'/g, "\\'");
             const isCbcCat = (catName === 'CBC');
             const targetFileUrl = (fileItem.url || fileItem.publicUrl || fileItem.id || '').replace(/'/g, "\\'");
-            const btnOnClick = isCbcCat 
-                ? `openCbcPage('${visitId}', 'print')` 
+            const btnOnClick = isCbcCat
+                ? `openCbcPage('${visitId}', 'print', '${(hn || '').replace(/'/g, "\\'")}', '${safeName}')` 
                 : `viewRealLabFile('${targetFileUrl}', '${visitId}', '${safeName}', '${safeCat}')`;
             const btnLabel = isCbcCat ? 'CBC (PDF)' : catName;
 
@@ -13129,7 +13129,7 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
 
         const safeCat = catName.replace(/'/g, "\\'");
         const isCbcCat = (catName === 'CBC');
-        const btnOnClick = isCbcCat ? `openCbcPage('${row.visit_id}', 'print')` : `viewRealLabFile('', '${row.visit_id}', '${safeName}', '${safeCat}')`;
+        const btnOnClick = isCbcCat ? `openCbcPage('${row.visit_id}', 'print', '${row.hn || ''}', '${safeName}')` : `viewRealLabFile('', '${row.visit_id}', '${safeName}', '${safeCat}')`;
         const btnLabel = isCbcCat ? 'CBC (PDF)' : catName;
 
         allResultButtons.push(`
@@ -13158,7 +13158,7 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
     const hasCbcHistNote = (row.lab_note && row.lab_note.includes('[ผลตรวจ CBC]'));
     if (!hasCbcInHistFiles && (cachedCbcHist || hasCbcHistNote)) {
         allResultButtons.push(`
-            <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມຜົນກວດ CBC" onclick="openCbcPage('${row.visit_id}', 'print')">
+            <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມຜົນກວດ CBC" onclick="openCbcPage('${row.visit_id}', 'print', '${row.hn || ''}', '${safeName}')">
                 <i class="bi bi-file-earmark-pdf me-1"></i> CBC (PDF)
             </button>
         `);
@@ -23462,27 +23462,95 @@ function clearCbcModalValues() {
     renderCbcModalHistograms();
 }
 
-async function openCbcPage(targetVisitId, mode) {
+async function openCbcPage(targetVisitId, mode, targetHn, targetPatientName) {
     let visitId = targetVisitId || document.getElementById('uploadVisitId')?.value || document.getElementById('vascVisitId')?.value || '';
-    let hn = '';
-    let patientName = '';
+    let hn = targetHn || '';
+    let patientName = targetPatientName || '';
 
-    // 1. ดึงจาก labRowCache
-    if (visitId && window.labRowCache && window.labRowCache[visitId]) {
-        hn = window.labRowCache[visitId].hn || '';
-        patientName = window.labRowCache[visitId].patientName || '';
-    }
-
-    // 2. ดึงจาก window.labQueueData
-    if ((!hn || !patientName) && visitId && Array.isArray(window.labQueueData)) {
-        const found = window.labQueueData.find(item => item.visit_id === visitId);
-        if (found) {
-            hn = found.hn || hn;
-            patientName = found.patient_name || patientName;
+    // ถ้าเปิดจากหน้าสั่งยา (prescribeModal) ให้ดึงข้อมูลคนไข้จากฟอร์มสั่งยาโดยตรง
+    const rxVId = document.getElementById('rxVisitId')?.value;
+    if ((!visitId || visitId === rxVId) && rxVId) {
+        if (!visitId) visitId = rxVId;
+        if (!patientName || patientName === '-' || patientName === 'ผู้ป่วย') {
+            const rxPName = document.getElementById('rxPatientName')?.value || document.getElementById('rxPatientNameDisplay')?.innerText;
+            if (rxPName && rxPName !== '-' && rxPName !== 'ผู้ป่วย') patientName = rxPName.trim();
+        }
+        if (!hn || hn === '-') {
+            const rxHnVal = document.getElementById('rxHN')?.value;
+            if (rxHnVal && rxHnVal !== '-') hn = rxHnVal.trim();
         }
     }
 
-    // 3. ค้นจากตาราง #labTableBody
+    // 1. ค้นหาจาก visit records ในหน่วยความจำ (window.clinicVisits, window.allVisits, window.allHistoryVisits, window.allQueueData)
+    let visitRow = null;
+    if (visitId) {
+        if (window.clinicVisits) visitRow = window.clinicVisits.find(v => v.visit_id === visitId);
+        if (!visitRow && window.allVisits) visitRow = window.allVisits.find(v => v.visit_id === visitId);
+        if (!visitRow && window.allHistoryVisits) visitRow = window.allHistoryVisits.find(v => v.visit_id === visitId);
+        if (!visitRow && window.allQueueData) visitRow = window.allQueueData.find(v => v.visit_id === visitId);
+    }
+    if (visitRow) {
+        if (!hn || hn === '-') hn = visitRow.hn || hn;
+        if ((!patientName || patientName === '-' || patientName === 'ผู้ป่วย') && visitRow.patient_name && visitRow.patient_name !== '-') {
+            patientName = visitRow.patient_name;
+        }
+    }
+
+    // 2. ค้นหาจากทะเบียนผู้ป่วย window.allPatients โดยใช้ HN เพื่อให้ได้ชื่อคนไข้จริงเสมอ
+    if (hn && hn !== '-' && (!patientName || patientName === '-' || patientName === 'ผู้ป่วย')) {
+        const pat = (window.allPatients || []).find(p => p.hn === hn);
+        if (pat && pat.patient_name) {
+            patientName = pat.patient_name;
+        }
+    }
+
+    // 3. ดึงโดยตรงจากฐานข้อมูล Supabase (ตาราง visits และ patients) เพื่อความแม่นยำ 100%
+    const sup = window._supabase || (window.parent && window.parent._supabase);
+    if (visitId && (!hn || hn === '-' || !patientName || patientName === '-' || patientName === 'ผู้ป่วย') && sup) {
+        try {
+            const { data: vDb } = await sup
+                .from('visits')
+                .select('visit_id, hn, patient_name')
+                .eq('visit_id', visitId)
+                .maybeSingle();
+            if (vDb) {
+                if (!hn || hn === '-') hn = vDb.hn || '';
+                if ((!patientName || patientName === '-' || patientName === 'ผู้ป่วย') && vDb.patient_name) {
+                    patientName = vDb.patient_name;
+                }
+            }
+        } catch (e) { }
+
+        if (hn && hn !== '-' && (!patientName || patientName === '-' || patientName === 'ผู้ป่วย')) {
+            try {
+                const { data: pDb } = await sup
+                    .from('patients')
+                    .select('hn, patient_name')
+                    .eq('hn', hn)
+                    .maybeSingle();
+                if (pDb && pDb.patient_name) {
+                    patientName = pDb.patient_name;
+                }
+            } catch (e) { }
+        }
+    }
+
+    // 4. ดึงจาก labRowCache
+    if ((!hn || hn === '-' || !patientName || patientName === '-') && visitId && window.labRowCache && window.labRowCache[visitId]) {
+        if (!hn || hn === '-') hn = window.labRowCache[visitId].hn || '';
+        if (!patientName || patientName === '-') patientName = window.labRowCache[visitId].patientName || '';
+    }
+
+    // 5. ดึงจาก window.labQueueData
+    if ((!hn || hn === '-' || !patientName || patientName === '-') && visitId && Array.isArray(window.labQueueData)) {
+        const found = window.labQueueData.find(item => item.visit_id === visitId);
+        if (found) {
+            if (!hn || hn === '-') hn = found.hn || hn;
+            if (!patientName || patientName === '-') patientName = found.patient_name || patientName;
+        }
+    }
+
+    // 6. ค้นจากตาราง #labTableBody
     if ((!hn || !patientName) && visitId) {
         try {
             const rows = document.querySelectorAll('#labTableBody tr');
@@ -23499,13 +23567,18 @@ async function openCbcPage(targetVisitId, mode) {
         } catch (e) { }
     }
 
-    if (!patientName) {
-        patientName = document.getElementById('vascPatientName')?.innerText || '';
-        if (patientName === '-') patientName = '';
-    }
-    if (!hn) {
-        hn = document.getElementById('vascHN')?.innerText || '';
-        if (hn === '-') hn = '';
+    // ป้องกันกรณีติดชื่อแพทย์มาแทนชื่อคนไข้ (เช่น Soulsakhone DOUNGVIENGXAY)
+    if (patientName && (patientName.includes('DOUNGVIENGXAY') || patientName.includes('Soulsakhone') || patientName.includes('SOULS') || patientName.includes('SOUKSAKHONE'))) {
+        if (visitRow && visitRow.patient_name && !visitRow.patient_name.includes('DOUNGVIENGXAY')) {
+            patientName = visitRow.patient_name;
+        } else {
+            const pat = (window.allPatients || []).find(p => p.hn === hn);
+            if (pat && pat.patient_name && !pat.patient_name.includes('DOUNGVIENGXAY')) {
+                patientName = pat.patient_name;
+            } else {
+                patientName = '';
+            }
+        }
     }
 
     window._currentCbcVisitId = visitId;
@@ -23616,7 +23689,24 @@ async function openCbcPage(targetVisitId, mode) {
         // 🌟 ดึงข้อมูลจากฐานข้อมูลกลาง Supabase เสมอ เพื่อให้ทุกเครื่องตรงกัน
         if (sup && !visitId.startsWith('VISIT-')) {
             try {
-                const { data: vData } = await sup.from('visits').select('lab_note').eq('visit_id', visitId).single();
+                const { data: vData } = await sup.from('visits').select('hn, patient_name, lab_note').eq('visit_id', visitId).single();
+                if (vData) {
+                    if (vData.hn && (!hn || hn === '-')) {
+                        hn = vData.hn;
+                        window._currentCbcHn = hn;
+                    }
+                    if (vData.patient_name && (!patientName || patientName === '-' || patientName.includes('DOUNGVIENGXAY'))) {
+                        patientName = vData.patient_name;
+                        window._currentCbcPatientName = patientName;
+                        if (cbcInfoBadge) {
+                            cbcInfoBadge.innerText = visitId ? `Visit: ${visitId}${hn ? ' | HN: ' + hn : ''}${patientName ? ' | ' + patientName : ''}` : '';
+                        }
+                        if (metaDisplay) {
+                            const dateStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+                            metaDisplay.innerText = `Visit: ${visitId || '-'}  |  HN: ${hn || '-'}  |  ชื่อผู้ป่วย: ${patientName || '-'}  |  วันที่: ${dateStr}`;
+                        }
+                    }
+                }
                 if (vData && vData.lab_note && vData.lab_note.includes('[ผลตรวจ CBC]')) {
                     const match = vData.lab_note.match(/\[ผลตรวจ CBC\]\s*([\s\S]*?)\s*\[\/ผลตรวจ CBC\]/);
                     if (match && match[1]) {
@@ -24242,7 +24332,7 @@ function printCbcSlipLandscape(visitId, hn, patientName, items) {
     }
 }
 
-// 🌟 ฟังก์ชันพิมพ์สลิปผลตรวจ CBC ในรูปแบบแนวตั้ง (Portrait Slip: 80mm x 200mm หรือ A4 แนวตั้ง)
+// 🌟 ฟังก์ชันพิมพ์รายงาน CBC แบบ Hematology Analysis Report (A4 Portrait - 3 column layout)
 function printCbcSlipPortrait(visitId, hn, patientName, items) {
     const now = new Date();
     const mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -24263,273 +24353,225 @@ function printCbcSlipPortrait(visitId, hn, patientName, items) {
         });
     }
 
-    const allParamsConfig = [
-        { key: 'WBC', name: 'WBC', unit: '10^9/L', defMin: 3.5, defMax: 10.0, defRange: '3.5-10.0' },
-        { key: 'LYM%', name: 'LYM%', unit: '%', defMin: 20.0, defMax: 40.0, defRange: '20.0-40.0' },
-        { key: 'MID%', name: 'MID%', unit: '%', defMin: 1.0, defMax: 15.0, defRange: '1.0-15.0' },
-        { key: 'GRAN%', name: 'GRAN%', unit: '%', defMin: 50.0, defMax: 70.0, defRange: '50.0-70.0' },
-        { key: 'LYM#', name: 'LYM#', unit: '10^9/L', defMin: 0.6, defMax: 4.1, defRange: '0.6-4.1' },
-        { key: 'MID#', name: 'MID#', unit: '10^9/L', defMin: 0.1, defMax: 1.8, defRange: '0.1-1.8' },
-        { key: 'GRAN#', name: 'GRAN#', unit: '10^9/L', defMin: 2.0, defMax: 7.8, defRange: '2.0-7.8' },
-        { key: 'RBC', name: 'RBC', unit: '10^12/L', defMin: 3.50, defMax: 6.00, defRange: '3.50-6.00' },
-        { key: 'HGB', name: 'HGB', unit: 'g/dL', defMin: 11.0, defMax: 17.5, defRange: '11.0-17.5' },
-        { key: 'HCT', name: 'HCT', unit: '%', defMin: 35.0, defMax: 54.0, defRange: '35.0-54.0' },
-        { key: 'MCV', name: 'MCV', unit: 'fL', defMin: 80.0, defMax: 100.0, defRange: '80.0-100.0' },
-        { key: 'MCH', name: 'MCH', unit: 'pg', defMin: 26.0, defMax: 34.0, defRange: '26.0-34.0' },
-        { key: 'MCHC', name: 'MCHC', unit: 'g/dL', defMin: 31.5, defMax: 36.0, defRange: '31.5-36.0' },
-        { key: 'RDW_CV', name: 'RDW_CV', unit: '%', defMin: 11.0, defMax: 16.0, defRange: '11.0-16.0' },
-        { key: 'RDW_SD', name: 'RDW_SD', unit: 'fL', defMin: 35.0, defMax: 56.0, defRange: '35.0-56.0' },
-        { key: 'PLT', name: 'PLT', unit: '10^9/L', defMin: 100, defMax: 350, defRange: '100-350' },
-        { key: 'MPV', name: 'MPV', unit: 'fL', defMin: 6.5, defMax: 12.0, defRange: '6.5-12.0' },
-        { key: 'PCT', name: 'PCT', unit: '%', defMin: 0.10, defMax: 0.28, defRange: '0.10-0.28' },
-        { key: 'P_LCR', name: 'P_LCR', unit: '%', defMin: 11.0, defMax: 45.0, defRange: '11.0-45.0' },
-        { key: 'P_LCC', name: 'P_LCC', unit: '10^9/L', defMin: 11, defMax: 135, defRange: '11-135' },
-        { key: 'PDW_SD', name: 'PDW_SD', unit: 'fL', defMin: 9.0, defMax: 17.0, defRange: '9.0-17.0' },
-        { key: 'PDW_CV', name: 'PDW_CV', unit: '%', defMin: 15.0, defMax: 18.0, defRange: '15.0-18.0' }
+    // 3-column layout config
+    const col1Config = [
+        { key: 'WBC',   name: 'WBC',   unit: '10^9/L', defMin: 3.5,  defMax: 10.0,  defRange: '3.5-10.0' },
+        { key: 'LYM%',  name: 'LYM%',  unit: '%',      defMin: 20.0, defMax: 40.0,  defRange: '20.0-40.0' },
+        { key: 'MID%',  name: 'MID%',  unit: '%',      defMin: 1.0,  defMax: 15.0,  defRange: '1.0-15.0' },
+        { key: 'GRAN%', name: 'GRAN%', unit: '%',      defMin: 50.0, defMax: 70.0,  defRange: '50.0-70.0' },
+        { key: 'LYM#',  name: 'LYM#',  unit: '10^9/L', defMin: 0.6,  defMax: 4.1,   defRange: '0.6-4.1' },
+        { key: 'MID#',  name: 'MID#',  unit: '10^9/L', defMin: 0.1,  defMax: 1.8,   defRange: '0.1-1.8' },
+        { key: 'GRAN#', name: 'GRAN#', unit: '10^9/L', defMin: 2.0,  defMax: 7.8,   defRange: '2.0-7.8' },
+    ];
+    const col2Config = [
+        { key: 'RBC',    name: 'RBC',    unit: '10^12/L', defMin: 3.50, defMax: 6.00,  defRange: '3.50-6.00' },
+        { key: 'HGB',    name: 'HGB',    unit: 'g/dL',    defMin: 11.0, defMax: 17.5,  defRange: '11.0-17.5' },
+        { key: 'HCT',    name: 'HCT',    unit: '%',       defMin: 35.0, defMax: 54.0,  defRange: '35.0-54.0' },
+        { key: 'MCV',    name: 'MCV',    unit: 'fL',      defMin: 80.0, defMax: 100.0, defRange: '80.0-100.0' },
+        { key: 'MCH',    name: 'MCH',    unit: 'pg',      defMin: 26.0, defMax: 34.0,  defRange: '26.0-34.0' },
+        { key: 'MCHC',   name: 'MCHC',   unit: 'g/dL',    defMin: 31.5, defMax: 36.0,  defRange: '31.5-36.0' },
+        { key: 'RDW_CV', name: 'RDW_CV', unit: '%',       defMin: 11.0, defMax: 16.0,  defRange: '11.0-16.0' },
+        { key: 'RDW_SD', name: 'RDW_SD', unit: 'fL',      defMin: 35.0, defMax: 56.0,  defRange: '35.0-56.0' },
+    ];
+    const col3Config = [
+        { key: 'PLT',    name: 'PLT',    unit: '10^9/L', defMin: 100,  defMax: 350,   defRange: '100-350' },
+        { key: 'MPV',    name: 'MPV',    unit: 'fL',     defMin: 6.5,  defMax: 12.0,  defRange: '0.5-12.0' },
+        { key: 'PCT',    name: 'PCT',    unit: '%',      defMin: 0.10, defMax: 0.28,  defRange: '0.10-0.28' },
+        { key: 'P_LCR',  name: 'P_LCR',  unit: '%',      defMin: 11.0, defMax: 45.0,  defRange: '11.0-45.0' },
+        { key: 'P_LCC',  name: 'P_LCC',  unit: '10^9/L', defMin: 11,   defMax: 135,   defRange: '11-135' },
+        { key: 'PDW_SD', name: 'PDW_SD', unit: 'fL',     defMin: 9.0,  defMax: 17.0,  defRange: '9.0-17.0' },
+        { key: 'PDW_CV', name: 'PDW_CV', unit: '%',      defMin: 15.0, defMax: 18.0,  defRange: '15.0-18.0' },
     ];
 
-    function renderPortraitRow(cfg) {
+    function renderRow(cfg) {
         const item = itemMap[cfg.key] || itemMap[cfg.name] || {};
-        const valStr = (item.val !== undefined ? item.val : item.value) ?? '';
+        const valStr = String((item.val !== undefined ? item.val : item.value) ?? '');
         const unit = item.unit || cfg.unit;
-        let minVal = parseFloat(item.min ?? cfg.defMin);
-        let maxVal = parseFloat(item.max ?? cfg.defMax);
-        let rangeStr = (item.min && item.max) ? `${item.min}-${item.max}` : cfg.defRange;
-
+        const minVal = parseFloat(item.min ?? cfg.defMin);
+        const maxVal = parseFloat(item.max ?? cfg.defMax);
+        const rangeStr = (item.min && item.max) ? `${item.min}-${item.max}` : cfg.defRange;
         let flag = '&nbsp;';
         if (valStr !== '' && !isNaN(parseFloat(valStr))) {
             const v = parseFloat(valStr);
-            if (!isNaN(minVal) && v < minVal) flag = '<b style="font-weight:bold; color:#b45309;">L</b>';
-            else if (!isNaN(maxVal) && v > maxVal) flag = '<b style="font-weight:bold; color:#b91c1c;">H</b>';
+            if (!isNaN(minVal) && v < minVal) flag = '<b style="color:#b91c1c;font-weight:bold;">L</b>';
+            else if (!isNaN(maxVal) && v > maxVal) flag = '<b style="color:#b91c1c;font-weight:bold;">H</b>';
         }
-
-        return `<tr>
-            <td style="padding: 2px 4px; font-weight: bold; white-space: nowrap;">${cfg.name}</td>
-            <td style="padding: 2px 4px; text-align: right; font-weight: bold;">${valStr || '-'}</td>
-            <td style="padding: 2px 4px; text-align: left; font-size: 8.5px; color: #333;">${unit}</td>
-            <td style="padding: 2px 4px; text-align: center; font-size: 9px;">${flag}</td>
-            <td style="padding: 2px 4px; text-align: right; font-size: 8.5px; white-space: nowrap; color: #555;">${rangeStr}</td>
+        const tdS = 'padding:1.5px 3px;';
+        return `<tr style="border-bottom:1px solid #f0f0f0;">
+            <td style="${tdS}font-weight:bold;white-space:nowrap;width:42px;">${cfg.name}</td>
+            <td style="${tdS}text-align:right;width:32px;font-weight:bold;">${valStr || '-'}</td>
+            <td style="${tdS}width:36px;font-size:8px;color:#333;">${unit}</td>
+            <td style="${tdS}text-align:center;width:14px;font-size:9px;">${flag}</td>
+            <td style="${tdS}text-align:right;font-size:8px;white-space:nowrap;color:#444;">${rangeStr}</td>
         </tr>`;
     }
 
-    const rowsHtml = allParamsConfig.map(renderPortraitRow).join('');
+    const col1Rows = col1Config.map(renderRow).join('');
+    const col2Rows = col2Config.map(renderRow).join('');
+    const col3Rows = col3Config.map(renderRow).join('');
 
-    function generateSlipSvgPath(points, width, height, padX, padY, fixedMinX, fixedMaxX, fixedMaxY) {
+    const thS = 'padding:2px 3px;font-size:8.5px;font-family:Arial,sans-serif;border-bottom:1.5px solid #000;text-align:left;';
+    const thR = 'padding:2px 3px;font-size:8.5px;font-family:Arial,sans-serif;border-bottom:1.5px solid #000;text-align:right;';
+    const thC = 'padding:2px 3px;font-size:8.5px;font-family:Arial,sans-serif;border-bottom:1.5px solid #000;text-align:center;';
+    const tableHead = `<thead><tr>
+        <th style="${thS}">PARAM.</th>
+        <th style="${thR}">RESULT</th>
+        <th style="${thS}">UNIT</th>
+        <th style="${thC}">Info</th>
+        <th style="${thR}">Reference Range</th>
+    </tr></thead>`;
+
+    // SVG Histograms
+    function getNum(key) {
+        const it = itemMap[key] || itemMap[key.replace('-','_')] || {};
+        const v = parseFloat((it.val !== undefined ? it.val : it.value) ?? '');
+        return isNaN(v) ? null : v;
+    }
+
+    function makePath(points, w, h, padX, padY, minX, maxX, maxY) {
         if (!points || points.length === 0) return '';
-        const innerW = width - padX * 2;
-        const innerH = height - padY * 2;
-        const minX = (fixedMinX !== undefined) ? fixedMinX : Math.min(...points.map(p => p[0]));
-        const maxX = (fixedMaxX !== undefined) ? fixedMaxX : Math.max(...points.map(p => p[0]));
-        const maxY = fixedMaxY || 100;
-        const scaleX = x => padX + ((Math.max(minX, Math.min(maxX, x)) - minX) / (maxX - minX || 1)) * innerW;
-        const scaleY = y => {
-            const clampedY = Math.max(0, Math.min(y, maxY * 1.05));
-            return (height - padY) - (clampedY / maxY) * innerH;
-        };
-        let d = `M ${scaleX(points[0][0])} ${scaleY(points[0][1])}`;
-        for (let i = 1; i < points.length; i++) {
-            d += ` L ${scaleX(points[i][0])} ${scaleY(points[i][1])}`;
-        }
+        const iW = w - padX * 2, iH = h - padY * 2;
+        const sX = x => padX + ((Math.max(minX, Math.min(maxX, x)) - minX) / (maxX - minX || 1)) * iW;
+        const sY = y => (h - padY) - (Math.max(0, Math.min(y, maxY * 1.05)) / maxY) * iH;
+        let d = `M ${sX(points[0][0])} ${sY(points[0][1])}`;
+        for (let i = 1; i < points.length; i++) d += ` L ${sX(points[i][0])} ${sY(points[i][1])}`;
         return d;
     }
 
-    const getSlipNum = (key) => {
-        const item = itemMap[key] || itemMap[key.replace('-', '_')] || {};
-        const valStr = (item.val !== undefined ? item.val : item.value) ?? '';
-        if (valStr === '' || valStr === undefined || valStr === null) return null;
-        const v = parseFloat(valStr);
-        return isNaN(v) ? null : v;
-    };
+    const sWbc = getNum('WBC'), sLym = getNum('LYM%'), sMid = getNum('MID%'), sGran = getNum('GRAN%');
+    const sRbc = getNum('RBC'), sMcv = getNum('MCV'), sRdw = getNum('RDW-SD') || getNum('RDW_SD');
+    const sPlt = getNum('PLT'), sMpv = getNum('MPV');
 
-    const sWbc = getSlipNum('WBC');
-    const sLym = getSlipNum('LYM%');
-    const sMid = getSlipNum('MID%');
-    const sGran = getSlipNum('GRAN%');
-    const sRbc = getSlipNum('RBC');
-    const sMcv = getSlipNum('MCV');
-    const sRdw = getSlipNum('RDW-SD') || getSlipNum('RDW_SD');
-    const sPlt = getSlipNum('PLT');
-    const sMpv = getSlipNum('MPV');
-
-    const slipWbcPoints = [];
+    const wbcPts = [];
     if (sWbc !== null && sWbc > 0) {
-        const lp = (sLym !== null && sLym > 0) ? sLym : 30;
-        const mp = (sMid !== null && sMid > 0) ? sMid : 6;
-        const gp = (sGran !== null && sGran > 0) ? sGran : 60;
-        const wbcScale = Math.max(0.05, sWbc / 7.0);
+        const lp = sLym || 30, mp = sMid || 6, gp = sGran || 60, sc = Math.max(0.05, sWbc / 7.0);
         for (let x = 30; x <= 450; x += 5) {
-            const p1 = (lp / 30) * 55 * Math.exp(-Math.pow((x - 85) / 22, 2));
-            const p2 = (mp / 6) * 18 * Math.exp(-Math.pow((x - 135) / 20, 2));
-            const p3 = (gp / 50) * 75 * Math.exp(-Math.pow((x - 240) / 48, 2));
-            const y = (p1 + p2 + p3) * wbcScale;
-            slipWbcPoints.push([x, Math.max(0, y)]);
+            const y = (lp/30*55*Math.exp(-Math.pow((x-85)/22,2)) + mp/6*18*Math.exp(-Math.pow((x-135)/20,2)) + gp/50*75*Math.exp(-Math.pow((x-240)/48,2))) * sc;
+            wbcPts.push([x, Math.max(0, y)]);
         }
-    } else {
-        for (let x = 30; x <= 450; x += 30) { slipWbcPoints.push([x, 0]); }
-    }
+    } else { for (let x=30;x<=450;x+=30) wbcPts.push([x,0]); }
 
-    const slipRbcPoints = [];
-    if ((sRbc !== null && sRbc > 0) || (sMcv !== null && sMcv > 0)) {
-        const rv = (sRbc !== null && sRbc > 0) ? sRbc : 4.85;
-        const mv = (sMcv !== null && sMcv > 0) ? sMcv : 88.0;
-        const rw = (sRdw !== null && sRdw > 0) ? sRdw : 41.5;
-        const rbcScale = Math.max(0.05, rv / 4.85);
-        const sigma = Math.max(6, rw * 0.35);
-        for (let x = 20; x <= 250; x += 2) {
-            const y = rbcScale * 85 * Math.exp(-Math.pow((x - mv) / sigma, 2));
-            slipRbcPoints.push([x, Math.max(0, y)]);
-        }
-    } else {
-        for (let x = 20; x <= 250; x += 20) { slipRbcPoints.push([x, 0]); }
-    }
+    const rbcPts = [];
+    if (sRbc !== null && sRbc > 0) {
+        const rv = sRbc || 4.85, mv = sMcv || 88, rw = sRdw || 41.5, sc = Math.max(0.05, rv/4.85), sigma = Math.max(6, rw*0.35);
+        for (let x=20;x<=250;x+=2) rbcPts.push([x, Math.max(0, sc*85*Math.exp(-Math.pow((x-mv)/sigma,2)))]);
+    } else { for (let x=20;x<=250;x+=20) rbcPts.push([x,0]); }
 
-    const slipPltPoints = [];
+    const pltPts = [];
     if (sPlt !== null && sPlt > 0) {
-        const mpv = (sMpv !== null && sMpv > 0) ? sMpv : 9.4;
-        const pltScale = Math.max(0.05, sPlt / 240);
-        const mpvPos = Math.max(3, Math.min(18, mpv));
-        for (let x = 0.5; x <= 32; x += 0.5) {
-            const y = pltScale * 85 * Math.exp(-Math.pow((Math.log(x) - Math.log(mpvPos)) / 0.55, 2));
-            slipPltPoints.push([x, Math.max(0, y)]);
-        }
-    } else {
-        for (let x = 0.5; x <= 32; x += 3) { slipPltPoints.push([x, 0]); }
+        const mpv = sMpv || 9.4, sc = Math.max(0.05, sPlt/240), mp = Math.max(3,Math.min(18,mpv));
+        for (let x=0.5;x<=32;x+=0.5) pltPts.push([x, Math.max(0, sc*85*Math.exp(-Math.pow((Math.log(x)-Math.log(mp))/0.55,2)))]);
+    } else { for (let x=0.5;x<=32;x+=3) pltPts.push([x,0]); }
+
+    const wbcPath = makePath(wbcPts, 300, 80, 12, 10, 30, 450, 150);
+    const rbcPath = makePath(rbcPts, 300, 80, 12, 10, 20, 250, 130);
+    const pltPath = makePath(pltPts, 300, 80, 12, 10, 0.5, 32, 160);
+
+    function svgHist(pathD, labels) {
+        const tickHtml = labels.map(l => `<line x1="${l.x}" y1="70" x2="${l.x}" y2="73" stroke="#000" stroke-width="0.8"/>
+<text x="${l.x}" y="81" font-size="7" font-family="Arial,sans-serif" text-anchor="middle">${l.label}</text>`).join('');
+        return `<svg viewBox="0 0 300 88" style="width:100%;height:auto;max-height:52px;display:block;">
+            <line x1="12" y1="70" x2="288" y2="70" stroke="#000" stroke-width="1.2"/>
+            ${tickHtml}
+            <path d="${pathD}" fill="none" stroke="#000" stroke-width="1.4"/>
+        </svg>`;
     }
 
-    const slipWbcPathD = generateSlipSvgPath(slipWbcPoints, 320, 85, 15, 15, 30, 450, 150);
-    const slipRbcPathD = generateSlipSvgPath(slipRbcPoints, 320, 85, 15, 15, 20, 250, 130);
-    const slipPltPathD = generateSlipSvgPath(slipPltPoints, 320, 85, 15, 15, 0.5, 32, 160);
+    const wbcSvg = svgHist(wbcPath, [{x:12,label:'0'},{x:100,label:'150'},{x:200,label:'300'},{x:280,label:'450'}]);
+    const rbcSvg = svgHist(rbcPath, [{x:12,label:'0'},{x:80,label:'50'},{x:160,label:'150'},{x:240,label:'250'}]);
+    const pltSvg = svgHist(pltPath, [{x:12,label:'0'},{x:90,label:'10'},{x:180,label:'20'},{x:260,label:'30'}]);
 
-    const slipPortraitHtml = `
-    <div style="width: 100%; max-width: 190mm; margin: 0 auto; box-sizing: border-box; font-family: 'Consolas', 'Courier New', monospace; font-size: 10px; color: #000; line-height: 1.25; background: #fff; padding: 4mm;">
-        <!-- Header -->
-        <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 6px;">
-            <div style="font-weight: bold; font-size: 15px; font-family: 'Arial', sans-serif; letter-spacing: 0.5px;">
-                Hematology Analysis Report
-            </div>
-            <div style="font-size: 9px; font-family: 'Arial', sans-serif; color: #444; margin-top: 2px;">
-                STK CLINIC — CBC Complete Blood Count
-            </div>
+    const html = `<div style="width:100%;max-width:210mm;margin:0 auto;box-sizing:border-box;font-family:'Consolas','Courier New',monospace;font-size:9.5px;color:#000;line-height:1.3;background:#fff;">
+    <!-- HEADER -->
+    <div style="margin-bottom:4px;">
+        <div style="font-size:16px;font-weight:bold;font-family:Arial,sans-serif;">Hematology Analysis Report</div>
+        <div style="font-size:9px;font-family:Arial,sans-serif;color:#444;margin-top:1px;">STK CLINIC — CBC Complete Blood Count</div>
+        <div style="font-size:8px;font-family:Arial,sans-serif;color:#555;margin-top:1px;">Whole Blood for Venous Blood · *This result is valid only for current sample*</div>
+    </div>
+    <!-- PATIENT INFO ROW -->
+    <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #000;border-bottom:1px solid #000;padding:3px 0;margin-bottom:6px;font-size:8.5px;font-family:Arial,sans-serif;">
+        <div><span style="color:#555;">ID:</span> <strong>${hn || '-'}</strong></div>
+        <div><span style="color:#555;">Case ID:</span> <strong>${visitId || '-'}</strong></div>
+        <div><span style="color:#555;">Name:</span> <strong>${patientName || '-'}</strong></div>
+        <div style="text-align:right;"><span style="color:#555;">Time:</span> ${formattedTime}</div>
+    </div>
+    <!-- 3-COLUMN RESULTS TABLE -->
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <div style="flex:1;">
+            <table style="width:100%;border-collapse:collapse;font-size:9px;">
+                ${tableHead}<tbody>${col1Rows}</tbody>
+            </table>
         </div>
-
-        <!-- Patient Info -->
-        <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px; font-size: 9.5px; font-family: 'Arial', sans-serif; border-bottom: 1px dashed #999; padding-bottom: 5px; margin-bottom: 6px;">
-            <div><strong>ID:</strong> ${hn || visitId || '-'}</div>
-            <div><strong>Name:</strong> ${patientName || '-'}</div>
-            <div><strong>Case ID:</strong> ${visitId || '-'}</div>
-            <div><strong>Time:</strong> ${formattedTime}</div>
+        <div style="width:1px;background:#ddd;flex-shrink:0;"></div>
+        <div style="flex:1;">
+            <table style="width:100%;border-collapse:collapse;font-size:9px;">
+                ${tableHead}<tbody>${col2Rows}</tbody>
+            </table>
         </div>
-
-        <!-- Table of Results -->
-        <table style="width: 100%; border-collapse: collapse; font-size: 9.5px; margin-bottom: 8px;">
-            <thead>
-                <tr style="border-bottom: 1.5px solid #000; font-size: 9px; font-family: 'Arial', sans-serif;">
-                    <th style="text-align: left; padding: 3px 4px;">PARAM.</th>
-                    <th style="text-align: right; padding: 3px 4px;">RESULT</th>
-                    <th style="text-align: left; padding: 3px 4px;">UNIT</th>
-                    <th style="text-align: center; padding: 3px 4px;">Info</th>
-                    <th style="text-align: right; padding: 3px 4px;">Reference Range</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${rowsHtml}
-            </tbody>
-        </table>
-
-        <!-- Histograms Section -->
-        <div style="border-top: 1px dashed #999; padding-top: 6px; margin-top: 6px;">
-            <div style="font-weight: bold; font-size: 10px; font-family: 'Arial', sans-serif; margin-bottom: 4px;">Histograms</div>
-            <div style="display: flex; justify-content: space-between; gap: 8px;">
-                <!-- WBC -->
-                <div style="flex: 1; border: 1px solid #ccc; border-radius: 4px; padding: 4px;">
-                    <div style="text-align: center; font-weight: bold; font-size: 9px;">WBC</div>
-                    <svg viewBox="0 0 320 85" style="width: 100%; height: auto; max-height: 55px; display: block;">
-                        <line x1="10" y1="70" x2="310" y2="70" stroke="#000" stroke-width="1.2"/>
-                        <line x1="28" y1="8" x2="28" y2="70" stroke="#000" stroke-width="0.8"/>
-                        <line x1="290" y1="8" x2="290" y2="70" stroke="#000" stroke-width="0.8"/>
-                        <path d="${slipWbcPathD}" fill="none" stroke="#000" stroke-width="1.4"/>
-                        <line x1="15" y1="70" x2="15" y2="73" stroke="#000" stroke-width="0.8"/>
-                        <text x="15" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">0</text>
-                        <line x1="150" y1="70" x2="150" y2="73" stroke="#000" stroke-width="0.8"/>
-                        <text x="150" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">150</text>
-                        <line x1="285" y1="70" x2="285" y2="73" stroke="#000" stroke-width="0.8"/>
-                        <text x="285" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">300</text>
-                    </svg>
-                </div>
-                <!-- RBC -->
-                <div style="flex: 1; border: 1px solid #ccc; border-radius: 4px; padding: 4px;">
-                    <div style="text-align: center; font-weight: bold; font-size: 9px;">RBC</div>
-                    <svg viewBox="0 0 320 85" style="width: 100%; height: auto; max-height: 55px; display: block;">
-                        <line x1="10" y1="70" x2="310" y2="70" stroke="#000" stroke-width="1.2"/>
-                        <line x1="26" y1="8" x2="26" y2="70" stroke="#000" stroke-width="0.8"/>
-                        <line x1="265" y1="8" x2="265" y2="70" stroke="#000" stroke-width="0.8"/>
-                        <path d="${slipRbcPathD}" fill="none" stroke="#000" stroke-width="1.4"/>
-                        <line x1="15" y1="70" x2="15" y2="73" stroke="#000" stroke-width="0.8"/>
-                        <text x="15" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">0</text>
-                        <line x1="165" y1="70" x2="165" y2="73" stroke="#000" stroke-width="0.8"/>
-                        <text x="165" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">150</text>
-                        <line x1="265" y1="70" x2="265" y2="73" stroke="#000" stroke-width="0.8"/>
-                        <text x="265" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">250</text>
-                    </svg>
-                </div>
-                <!-- PLT -->
-                <div style="flex: 1; border: 1px solid #ccc; border-radius: 4px; padding: 4px;">
-                    <div style="text-align: center; font-weight: bold; font-size: 9px;">PLT</div>
-                    <svg viewBox="0 0 320 85" style="width: 100%; height: auto; max-height: 55px; display: block;">
-                        <line x1="10" y1="70" x2="310" y2="70" stroke="#000" stroke-width="1.2"/>
-                        <line x1="18" y1="8" x2="18" y2="70" stroke="#000" stroke-width="0.8"/>
-                        <line x1="230" y1="8" x2="230" y2="70" stroke="#000" stroke-width="0.8"/>
-                        <path d="${slipPltPathD}" fill="none" stroke="#000" stroke-width="1.4"/>
-                        <line x1="15" y1="70" x2="15" y2="73" stroke="#000" stroke-width="0.8"/>
-                        <text x="15" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">0</text>
-                        <line x1="165" y1="70" x2="165" y2="73" stroke="#000" stroke-width="0.8"/>
-                        <text x="165" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">15</text>
-                        <line x1="265" y1="70" x2="265" y2="73" stroke="#000" stroke-width="0.8"/>
-                        <text x="265" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">25</text>
-                    </svg>
-                </div>
-            </div>
-        </div>
-
-        <!-- Footer -->
-        <div style="margin-top: 10px; font-size: 8px; color: #555; text-align: center; border-top: 1px solid #eee; padding-top: 4px;">
-            Whole Blood for Venous Blood · *This result is valid only for current sample*
+        <div style="width:1px;background:#ddd;flex-shrink:0;"></div>
+        <div style="flex:1;">
+            <table style="width:100%;border-collapse:collapse;font-size:9px;">
+                ${tableHead}<tbody>${col3Rows}</tbody>
+            </table>
         </div>
     </div>
-    `;
+    <!-- HISTOGRAMS -->
+    <div style="border-top:1px solid #ddd;padding-top:8px;">
+        <div style="font-weight:bold;font-size:11px;font-family:Arial,sans-serif;margin-bottom:6px;">Histograms</div>
+        <div style="display:flex;gap:16px;align-items:flex-start;">
+            <!-- WBC -->
+            <div style="flex:1;">
+                <div style="font-size:8.5px;font-family:Arial,sans-serif;color:#555;margin-bottom:1px;">WBC Histogram (40 - 450 fL)</div>
+                <div style="display:flex;align-items:flex-end;gap:2px;">
+                    <div style="font-size:7.5px;font-family:Arial,sans-serif;line-height:1.8;color:#333;">W<br>B<br>C</div>
+                    <div style="flex:1;">${wbcSvg}</div>
+                </div>
+            </div>
+            <!-- RBC -->
+            <div style="flex:1;">
+                <div style="font-size:8.5px;font-family:Arial,sans-serif;color:#555;margin-bottom:1px;">Red Blood Cell (RBC)</div>
+                <div style="display:flex;align-items:flex-end;gap:2px;">
+                    <div style="font-size:7.5px;font-family:Arial,sans-serif;line-height:1.8;color:#333;">R<br>B<br>C</div>
+                    <div style="flex:1;">${rbcSvg}</div>
+                </div>
+            </div>
+            <!-- PLT -->
+            <div style="flex:1;">
+                <div style="font-size:8.5px;font-family:Arial,sans-serif;color:#555;margin-bottom:1px;">Platelet (PLT)</div>
+                <div style="display:flex;align-items:flex-end;gap:2px;">
+                    <div style="font-size:7.5px;font-family:Arial,sans-serif;line-height:1.8;color:#333;">P<br>L<br>T</div>
+                    <div style="flex:1;">${pltSvg}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>`;
 
-    const printWin = window.open('', '_blank', 'width=800,height=900');
+    const printWin = window.open('', '_blank', 'width=900,height=1050');
     if (printWin) {
         printWin.document.open();
         printWin.document.write(`<!DOCTYPE html>
-        <html>
-        <head>
-            <title>Hematology_Report_Portrait_${visitId || 'Report'}</title>
-            <meta charset="UTF-8">
-            <style>
-                * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                body { margin: 0; padding: 6mm 8mm; background: #fff; font-family: 'Consolas', 'Courier New', monospace; }
-                @page {
-                    size: portrait;
-                    margin: 6mm 8mm;
-                }
-                @media print {
-                    body { padding: 0; }
-                }
-            </style>
-        </head>
-        <body>
-            ${slipPortraitHtml}
-            <script>
-                window.onload = function() {
-                    window.focus();
-                    setTimeout(function() {
-                        window.print();
-                    }, 300);
-                };
-            <\/script>
-        </body>
-        </html>`);
+<html>
+<head>
+    <title>Hematology_Report_${visitId || 'CBC'}</title>
+    <meta charset="UTF-8">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        body { margin: 0; padding: 12mm 14mm; background: #fff; font-family: 'Consolas', 'Courier New', monospace; }
+        @page { size: A4 portrait; margin: 12mm 14mm; }
+        @media print { body { padding: 0; } }
+    </style>
+</head>
+<body>
+    ${html}
+    <script>
+        window.onload = function() {
+            window.focus();
+            setTimeout(function() { window.print(); }, 300);
+        };
+    <\/script>
+</body>
+</html>`);
         printWin.document.close();
     }
 }
