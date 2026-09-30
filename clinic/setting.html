@@ -11,7 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js?v=1.0"></script>
-<link rel="stylesheet" href="setting.css?v=2.6">
+<link rel="stylesheet" href="setting.css?v=2.5">
 </head>
 <body>
 
@@ -38,19 +38,19 @@
   <!-- Status -->
   <div id="statusBanner" class="mb-4"></div>
 
-  <!-- TIER 1: ຂໍ້ມູນທົ່ວໄປ, ໂລໂກ້ ແລະ ຕາປະທັບຄລີນິກ (Full Width) -->
+  <!-- TIER 1: ຂໍ້ມູນທົ່ວໄປ ແລະ ໂລໂກ້ຄລີນິກ (Full Width) -->
   <div class="s-card mb-4">
     <div class="s-card-hdr">
       <div class="hdr-icon ic-blue"><i class="bi bi-building"></i></div>
       <div class="hdr-info">
-        <h5>ຂໍ້ມູນທົ່ວໄປ, ໂລໂກ້ ແລະ ຕາປະທັບຄລີນິກ</h5>
-        <p>ຊື່ຄລີນິກ, ປະເພດ, ເລກທະບຽນ, ຮູບພາບໂລໂກ້ ແລະ ຕາປະທັບປະຈຳຄລີນິກ</p>
+        <h5>ຂໍ້ມູນທົ່ວໄປ ແລະ ໂລໂກ້ຄລີນິກ</h5>
+        <p>ຊື່ຄລີນິກ, ປະເພດ, ເລກທະບຽນ ແລະ ຮູບພາບໂລໂກ້ປະຈຳຄລີນິກ</p>
       </div>
     </div>
     <div class="s-card-body">
       <div class="row g-4 align-items-center">
         <!-- Clinic Details (Left) -->
-        <div class="col-lg-6 border-end-lg pe-lg-4">
+        <div class="col-lg-8 border-end-lg pe-lg-4">
           <div class="row g-3">
             <div class="col-md-8">
               <label class="form-label"><i class="bi bi-hospital text-primary"></i> ຊື່ຄລີນິກ (ລາວ)</label>
@@ -71,8 +71,8 @@
           </div>
         </div>
 
-        <!-- Logo & Branding (Middle) -->
-        <div class="col-lg-3 border-end-lg pe-lg-3 ps-lg-3">
+        <!-- Logo & Branding (Right) -->
+        <div class="col-lg-4 ps-lg-4">
           <label class="form-label mb-2"><i class="bi bi-image text-primary"></i> ໂລໂກ້ຄລີນິກ (Logo)</label>
           <div class="d-flex align-items-center gap-3">
             <div id="logoBox" onclick="document.getElementById('logoFile').click()" title="ກົດເພື່ອອັບໂຫຼດຮູບ">
@@ -80,50 +80,23 @@
               <span class="ph" id="logoPh"><i class="bi bi-image"></i></span>
             </div>
             <div class="flex-grow-1">
-              <div class="d-flex gap-1.5 mb-1.5">
-                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-2.5" onclick="document.getElementById('logoFile').click()">
+              <div class="d-flex gap-2 mb-2">
+                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="document.getElementById('logoFile').click()">
                   <i class="bi bi-upload me-1"></i> ອັບໂຫຼດ
                 </button>
-                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2" onclick="clearLogo()" title="ລົບໂລໂກ້">
+                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2.5" onclick="clearLogo()" title="ລົບໂລໂກ້">
                   <i class="bi bi-trash"></i>
                 </button>
               </div>
-              <div class="text-muted small mb-1.5" style="font-size:0.72rem;">PNG, WebP, JPG (max 500 KB)</div>
-              <input type="text" class="form-control form-control-sm" id="clinic_logo_url" placeholder="URL ໂລໂກ້ ຫຼື ອັບໂຫຼດ" oninput="previewLogo(this.value)">
+              <div class="text-muted small mb-2" style="font-size:0.75rem;">JPG, PNG, WebP (max 500 KB)</div>
+              <input type="text" class="form-control form-control-sm" id="clinic_logo_url" placeholder="ວາງ URL ໂລໂກ້ ຫຼື ອັບໂຫຼດ" oninput="previewLogo(this.value)">
               <input type="file" id="logoFile" accept="image/*" style="display:none" onchange="onLogoFile(event)">
             </div>
           </div>
-          <div class="d-flex gap-1 flex-wrap mt-2">
-            <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size:0.68rem;">ໃບເສັດ / ໃບບິນ</span>
-            <span class="badge" style="background:#f0fdfa;color:#0d9488;border:1px solid #99f6e4;font-size:0.68rem;">ລາຍງານ PDF</span>
-          </div>
-        </div>
-
-        <!-- Stamp & Seal (Right) -->
-        <div class="col-lg-3 ps-lg-3">
-          <label class="form-label mb-2"><i class="bi bi-patch-check text-primary"></i> ຕາປະທັບຄລີນິກ (Stamp)</label>
-          <div class="d-flex align-items-center gap-3">
-            <div id="stampBox" onclick="document.getElementById('stampFile').click()" title="ກົດເພື່ອອັບໂຫຼດຕາປະທັບ (ແນະນຳໄຟລ໌ PNG ໂປ່ງໃສ)">
-              <img id="stampImg" src="" alt="" style="display:none">
-              <span class="ph" id="stampPh"><i class="bi bi-patch-check"></i></span>
-            </div>
-            <div class="flex-grow-1">
-              <div class="d-flex gap-1.5 mb-1.5">
-                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-2.5" onclick="document.getElementById('stampFile').click()">
-                  <i class="bi bi-upload me-1"></i> ອັບໂຫຼດ
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2" onclick="clearStamp()" title="ລົບຕາປະທັບ">
-                  <i class="bi bi-trash"></i>
-                </button>
-              </div>
-              <div class="text-muted small mb-1.5" style="font-size:0.72rem;">ແນະນຳ PNG ໂປ່ງໃສ (max 500 KB)</div>
-              <input type="text" class="form-control form-control-sm" id="clinic_stamp_url" placeholder="URL ຕາປະທັບ ຫຼື ອັບໂຫຼດ" oninput="previewStamp(this.value)">
-              <input type="file" id="stampFile" accept="image/*" style="display:none" onchange="onStampFile(event)">
-            </div>
-          </div>
-          <div class="d-flex gap-1 flex-wrap mt-2">
-            <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size:0.68rem;">ຕາປະທັບໃບເສັດ</span>
-            <span class="badge" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-size:0.68rem;">ໃບຮັບຮອງແພດ</span>
+          <div class="d-flex gap-1.5 flex-wrap mt-2.5">
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size:0.72rem;">ໃບເສັດ / ໃບບິນ</span>
+            <span class="badge" style="background:#f0fdfa;color:#0d9488;border:1px solid #99f6e4;font-size:0.72rem;">ລາຍງານ PDF</span>
+            <span class="badge bg-secondary-subtle text-secondary border" style="font-size:0.72rem;">Header ໜ້າເວັບ</span>
           </div>
         </div>
       </div>
@@ -318,7 +291,6 @@ const FIELDS = [
   'clinic_phone','clinic_phone2','clinic_email','clinic_website',
   'clinic_facebook','clinic_line','clinic_social_other',
   'clinic_logo_url',
-  'clinic_stamp_url',
   'clinic_login_bg_url',
   'clinic_receipt_footer','clinic_policy'
 ];
@@ -385,42 +357,6 @@ function clearLogo() {
   document.getElementById('logoFile').value = '';
   document.getElementById('logoImg').style.display = 'none';
   document.getElementById('logoPh').style.display  = 'block';
-}
-
-// ── Stamp ────────────────────────────────────────────────────────
-function previewStamp(url) {
-  const img = document.getElementById('stampImg');
-  const ph  = document.getElementById('stampPh');
-  if (url && url.trim()) {
-    img.src = url.trim();
-    img.onload  = () => { img.style.display = 'block'; ph.style.display = 'none'; };
-    img.onerror = () => { img.style.display = 'none';  ph.style.display = 'block'; };
-  } else {
-    img.style.display = 'none';
-    ph.style.display  = 'block';
-  }
-}
-
-function onStampFile(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  if (file.size > 512 * 1024) {
-    showStatus('error', 'ໄຟລ໌ຕາປະທັບຂະໜາດໃຫຍ່ເກີນ 500 KB — ກະລຸນາ resize ກ່ອນ');
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = ev => {
-    document.getElementById('clinic_stamp_url').value = ev.target.result;
-    previewStamp(ev.target.result);
-  };
-  reader.readAsDataURL(file);
-}
-
-function clearStamp() {
-  document.getElementById('clinic_stamp_url').value = '';
-  document.getElementById('stampFile').value = '';
-  document.getElementById('stampImg').style.display = 'none';
-  document.getElementById('stampPh').style.display  = 'block';
 }
 
 // ── Login Background ─────────────────────────────────────────────
@@ -524,7 +460,6 @@ async function loadSettings() {
       if (el && map[id] !== undefined) el.value = map[id] || '';
     });
     if (map['clinic_logo_url']) previewLogo(map['clinic_logo_url']);
-    if (map['clinic_stamp_url']) previewStamp(map['clinic_stamp_url']);
     if (map['clinic_login_bg_url']) {
       previewLoginBg(map['clinic_login_bg_url']);
       safeSetStorage('clinic_login_bg_url', map['clinic_login_bg_url']);
