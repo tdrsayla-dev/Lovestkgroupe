@@ -9399,7 +9399,7 @@ function populateRxMedDropdown() {
             id: p.id, name: p.name, type: p.type || 'อาหารเสริม',
             stock: p.stock || 0, price_normal: p.price_normal || 0,
             price_promo: p.price_promo || 0, price_high: p.price_high || 0,
-            status: p.status || 'ใช้งาน', source: 'mlm', sourceLabel: 'STK MLM'
+            status: p.status || 'ใช้งาน', source: 'mlm', sourceLabel: 'STK Groupe'
         }));
         items = items.concat(mlmItems);
     }
@@ -9552,8 +9552,8 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
         window.currentRxMeds = initialMeds.map(i => ({
             id: i.id || ('MED-' + Math.random().toString(36).substr(2, 6)),
             name: i.name || i.product_name || i.title || 'ยา/อาหารเสริม',
-            source: i.source || (i.sourceLabel && i.sourceLabel.includes('MLM') ? 'mlm' : 'clinic'),
-            sourceLabel: i.sourceLabel || (i.source === 'mlm' ? 'คลังสินค้า (STK Groupe / MLM)' : 'คลังยา'),
+            source: i.source || (i.sourceLabel && (i.sourceLabel.includes('MLM') || i.sourceLabel.includes('STK')) ? 'mlm' : 'clinic'),
+            sourceLabel: i.sourceLabel || (i.source === 'mlm' ? 'คลังสินค้า (STK Groupe)' : 'คลังยา'),
             tier: i.tier || 'normal',
             type: i.type || i.priceType || 'ราคาปกติ',
             priceType: i.priceType || i.type || 'ราคาปกติ',
@@ -9701,14 +9701,11 @@ function renderRxMedsTable() {
         const price = Number(item.price || 0);
         const subtotal = qty * price;
         const tierLabel = item.type || item.priceType || 'ราคาปกติ';
-        const sourceBadge = (item.source === 'mlm' || (item.sourceLabel && item.sourceLabel.includes('MLM')))
-            ? '<span class="badge bg-success-subtle text-success border border-success-subtle ms-1" style="font-size: 0.72rem;">MLM</span>'
-            : '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size: 0.72rem;">Clinic</span>';
 
         rowsHtml += `
             <tr>
                 <td class="ps-3 align-middle">
-                    <div class="fw-semibold text-dark">${item.name || item.product_name || '-'} ${sourceBadge}</div>
+                    <div class="fw-semibold text-dark">${item.name || item.product_name || '-'}</div>
                 </td>
                 <td class="text-center align-middle">
                     <span class="badge bg-light text-dark border" style="font-size: 0.75rem;">${tierLabel}</span>
@@ -9774,7 +9771,7 @@ function addMedToRx() {
     med = (window.allMlmProducts || []).find(m => m.id === medId || m.product_id === medId);
     if (med) {
         itemSource = 'mlm';
-        sourceLabel = 'คลังสินค้า (STK Groupe / MLM)';
+        sourceLabel = 'คลังสินค้า (STK Groupe)';
     } else {
         med = (window.allMedicines || []).find(m => m.id === medId);
         itemSource = 'clinic';
@@ -9786,7 +9783,7 @@ function addMedToRx() {
         med = (window.allMlmProducts || []).find(m => m.name === namePart) || (window.allMedicines || []).find(m => m.name === namePart);
         if (med) {
             itemSource = med.source || (window.allMlmProducts.includes(med) ? 'mlm' : 'clinic');
-            sourceLabel = (itemSource === 'mlm') ? 'คลังสินค้า (STK Groupe / MLM)' : 'คลังยา';
+            sourceLabel = (itemSource === 'mlm') ? 'คลังสินค้า (STK Groupe)' : 'คลังยา';
         }
     }
 
@@ -25162,8 +25159,11 @@ async function getVascularPatientData(visitId) {
                     checkedLevels = matchLevels[1].split(',').map(s => s.trim()).filter(Boolean);
                 }
                 const matchAdvice = noteStr.match(/คำแนะนำแพทย์:\s*([\s\S]+)/);
-                if (matchAdvice && matchAdvice[1] && matchAdvice[1].trim() !== '-') {
-                    notes = matchAdvice[1].trim();
+                if (matchAdvice && matchAdvice[1]) {
+                    const cleanAdvice = matchAdvice[1].split(/\[ผลตรวจ/)[0].trim();
+                    if (cleanAdvice && cleanAdvice !== '-') {
+                        notes = cleanAdvice;
+                    }
                 }
             }
         }
@@ -25199,9 +25199,12 @@ async function getVascularPatientData(visitId) {
                         checkedLevels = matchLevels[1].split(',').map(s => s.trim()).filter(Boolean);
                     }
                     const matchAdvice = noteStr.match(/คำแนะนำแพทย์:\s*([\s\S]+)/);
-                    if (matchAdvice && matchAdvice[1] && matchAdvice[1].trim() !== '-') {
-                        notes = matchAdvice[1].trim();
+                if (matchAdvice && matchAdvice[1]) {
+                    const cleanAdvice = matchAdvice[1].split(/\[ผลตรวจ/)[0].trim();
+                    if (cleanAdvice && cleanAdvice !== '-') {
+                        notes = cleanAdvice;
                     }
+                }
                 }
             }
         } catch (dbErr) {

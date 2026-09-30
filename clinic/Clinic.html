@@ -3695,12 +3695,7 @@
                                 </span>
                             </div>
                         </div>
-                        <div class="d-flex gap-2 align-items-center flex-wrap">
-                            <button type="button" id="rxOrderMoreLabBtn"
-                                class="btn btn-sm btn-outline-primary px-3 fw-semibold shadow-xs"
-                                onclick="orderMoreLabFromPrescribe()">
-                                <i class="bi bi-plus-circle me-1"></i>ສັ່ງກວດ Lab ເພີ່ມ
-                            </button>
+                        <div id="rxLabButtonsContainer" class="d-flex gap-1 align-items-center flex-wrap">
                             <button type="button" id="rxPdfBtn" class="btn btn-sm btn-danger px-3"><i
                                     class="bi bi-file-pdf"></i> เปิดดูผล Lab</button>
                         </div>
@@ -4931,7 +4926,7 @@
             document.write('<script src="../config.js"><\/script>');
         }
     </script>
-    <script src="function.js?v=3.9.72"></script>
+    <script src="function.js?v=3.9.76"></script>
     <!-- ✅ Recover Lab — แปลงผลตรวจใส่ Frame คลินิก (โหลดหลัง function.js เพื่อ Override) -->
     <script src="Recover Lab.js?v=6.1"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
