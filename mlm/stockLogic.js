@@ -565,8 +565,12 @@
         const sanitized = { ...supaData };
 
         if (isEditing) {
-            // ห้ามเขียนทับ current_stock เด็ดขาดเมื่อเป็นการแก้ไขสินค้า
-            delete sanitized.current_stock;
+            // อนุญาตให้อัปเดต current_stock เมื่อมีการส่งค่ามา (ปรับปรุงสต๊อกในระบบหลังบ้าน)
+            if (sanitized.current_stock !== undefined && sanitized.current_stock !== null && sanitized.current_stock !== '') {
+                sanitized.current_stock = Math.max(0, parseInt(sanitized.current_stock, 10) || 0);
+            } else if (sanitized.stock !== undefined && sanitized.stock !== null && sanitized.stock !== '') {
+                sanitized.current_stock = Math.max(0, parseInt(sanitized.stock, 10) || 0);
+            }
             delete sanitized.stock;
         } else {
             // กรณีเพิ่มสินค้าใหม่ครั้งแรก
@@ -575,6 +579,7 @@
             } else {
                 sanitized.current_stock = Math.max(0, parseInt(sanitized.current_stock, 10) || 0);
             }
+            delete sanitized.stock;
         }
 
         return sanitized;

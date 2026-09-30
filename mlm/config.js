@@ -76,7 +76,7 @@
   if (typeof window.supabaseSelect !== 'function') {
     window.supabaseSelect = async function (table, query) {
       const isNoCache = query && (query.includes('nocache=true') || query.includes('nocache=1'));
-      let cleanQuery = query ? query.replace(/[?&]?nocache=[^&]+&?/g, '&').replace(/^[?&]+/, '').replace(/&$/, '') : '';
+      let cleanQuery = query ? query.replace(/[?&]?nocache=[^&]+&?/g, '&').replace(/[?&]?_t=[^&]+&?/g, '&').replace(/^[?&]+/, '').replace(/&$/, '') : '';
       
       // Auto-filter heavy Base64: หากไม่ได้ระบุ select= มา ให้ใช้ Safe Columns อัตโนมัติ (ประหยัด Egress 85-98%)
       if (DEFAULT_TABLE_SELECT[table] && (!cleanQuery || (!cleanQuery.includes('select=') && !cleanQuery.includes('*')))) {
@@ -95,7 +95,10 @@
       }
 
       const url = window.SUPABASE_REST_URL + '/' + table + (cleanQuery ? '?' + cleanQuery : '');
-      const res = await fetch(url, { method: 'GET', headers: window.SUPABASE_HEADERS });
+      const fetchHeaders = isNoCache
+        ? Object.assign({}, window.SUPABASE_HEADERS, { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' })
+        : window.SUPABASE_HEADERS;
+      const res = await fetch(url, { method: 'GET', headers: fetchHeaders, cache: isNoCache ? 'no-store' : 'default' });
       if (!res.ok) {
         const t = await res.text();
         throw new Error('SELECT ' + table + ': ' + res.status + ' ' + t);

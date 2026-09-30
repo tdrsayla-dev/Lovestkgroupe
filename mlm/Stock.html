@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
 <head>
 <script>
@@ -1217,7 +1217,7 @@
                        
                    req.then(async () => {
                         if (isEditing) {
-                            setProducts((products || []).map(p => p && safeUpper(p.id) === safeUpper(dataToSave.id) ? { ...dataToSave, stock: p.stock } : p));
+                            setProducts((products || []).map(p => p && safeUpper(p.id) === safeUpper(dataToSave.id) ? { ...dataToSave, stock: dataToSave.stock, current_stock: dataToSave.stock } : p));
                         } else {
                             setProducts([...(products || []), dataToSave]);
                         }

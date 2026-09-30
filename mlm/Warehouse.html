@@ -232,6 +232,10 @@
         else setRefreshing(true);
 
         try {
+          try {
+            sessionStorage.removeItem('stk_warehouse_products');
+          } catch(e) {}
+
           if (typeof window.invalidateTableCache === 'function') {
             window.invalidateTableCache('stk_products');
             window.invalidateTableCache('stk_warehouse_transfers');
@@ -309,10 +313,10 @@
             }
           }
 
-          // D. Load Movements (Recent 200)
+          // D. Load Movements (Recent 500)
           if (typeof window.supabaseSelect === 'function') {
             try {
-              const movRes = await window.supabaseSelect('stk_stock_movements', `order=created_at.desc&limit=200`);
+              const movRes = await window.supabaseSelect('stk_stock_movements', `order=created_at.desc&limit=500`);
               if (Array.isArray(movRes)) setMovements(movRes);
             } catch(e) {
               console.warn('movements fallback:', e);
@@ -498,13 +502,14 @@
         // 1. สร้าง Map สำหรับสินค้าทั้งหมด (สินค้าโปรโมชั่นจะเซ็ตสต๊อกเริ่มต้นเป็น 0 เสมอ ไม่ใช้ตัวเลขหลอก 100,000)
         filteredProducts.forEach(p => {
           const isBundle = isPromoBundleProduct(p);
+          const rawStock = Number(p.current_stock !== undefined && p.current_stock !== null ? p.current_stock : (p.stock || 0));
           map[p.product_id] = {
             product: p,
             isPromoBundle: isBundle,
             baseInfo: null,
             mainStock: 0,
             frontStock: 0,
-            totalStock: isBundle ? 0 : Number(p.current_stock || 0),
+            totalStock: isBundle ? 0 : Math.max(0, rawStock),
             earliestExpiry: null,
             earliestStatus: 'NORMAL',
             daysRemaining: null,
@@ -590,8 +595,11 @@
         // 3. จัดสรรสต๊อกระหว่างคลังใหญ่และห้องขายหน้าร้าน โดยยึด current_stock ในฐานข้อมูลเป็นหลักสูงสุด (Single Source of Truth)
         Object.values(map).forEach(item => {
           if (!item.isPromoBundle) {
-            // ยอดสต๊อกรวมจริงอ้างอิงจาก current_stock ของสินค้าเสมอ
-            item.totalStock = Math.max(0, Number(item.product.current_stock || 0));
+            // ยอดสต๊อกรวมจริงอ้างอิงจาก current_stock ของสินค้าเสมอ (Single Source of Truth)
+            const liveCurrentStock = Number(item.product?.current_stock !== undefined && item.product?.current_stock !== null 
+              ? item.product.current_stock 
+              : (item.product?.stock !== undefined && item.product?.stock !== null ? item.product.stock : (item.totalStock || 0)));
+            item.totalStock = Math.max(0, liveCurrentStock);
 
             // ยอดหน้าร้าน: คำนวณจากล็อตที่มีอยู่ใน FRONT_STORE รวมกับยอดที่เบิกย้าย (TRF) หักยอดขายหน้าร้าน
             const netSales = Math.max(0, (item.salesOutSum || 0) - (item.salesReturnSum || 0));
@@ -691,8 +699,8 @@
           } else if (inventorySortBy === 'frontStock') {
             cmp = (a.frontStock || 0) - (b.frontStock || 0);
           } else if (inventorySortBy === 'totalStock') {
-            const totA = a.isPromoBundle ? (a.totalStock || 0) : ((a.mainStock || 0) + (a.frontStock || 0));
-            const totB = b.isPromoBundle ? (b.totalStock || 0) : ((b.mainStock || 0) + (b.frontStock || 0));
+            const totA = a.totalStock || 0;
+            const totB = b.totalStock || 0;
             cmp = totA - totB;
           } else if (inventorySortBy === 'expiry') {
             const expA = a.earliestExpiry || '9999-12-31';
@@ -725,7 +733,7 @@
           physicalSkus++;
           mainUnits += item.mainStock;
           frontUnits += item.frontStock;
-          totalUnits += (item.mainStock + item.frontStock);
+          totalUnits += item.totalStock;
           if (item.earliestStatus === 'WARNING' || item.earliestStatus === 'CRITICAL') nearExpiryCount++;
           if (item.earliestStatus === 'EXPIRED') expiredCount++;
         });
@@ -1635,7 +1643,7 @@
                                           </div>
                                         ) : (
                                           <span className="font-black text-slate-900 dark:text-white text-sm">
-                                            {(item.mainStock + item.frontStock).toLocaleString()}
+                                            {item.totalStock.toLocaleString()}
                                           </span>
                                         )}
                                       </td>
