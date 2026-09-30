@@ -3700,9 +3700,8 @@
                 // Deduplicate baseOrders ตามรหัส Order เพื่อรับประกันความถูกต้อง 100%
                 const seenOrderKeys = new Set();
                 baseOrders = baseOrders.filter(o => {
-                    const vid = o.latest_visit_id || o.visit_id || o.order_id || (o.order_data && (o.order_data.visit_id || o.order_data.order_id)) || '';
-                    const num = String(vid).replace(/\D/g, '');
-                    const k = num ? ('ORD-' + num.slice(-5)) : (String(vid) || String(o.id || Math.random()));
+                    const vid = o.order_id || (o.order_data && o.order_data.order_id) || o.latest_visit_id || o.visit_id || (o.order_data && o.order_data.visit_id) || '';
+                    const k = String(vid).trim() || String(o.id || Math.random());
                     if (seenOrderKeys.has(k)) return false;
                     seenOrderKeys.add(k);
                     return true;
@@ -4221,15 +4220,11 @@
                         await clinicClient.from('visits').delete().eq('visit_id', visitId);
                     }
                     if (isOrderRecord) {
-                        const ordNum = String(visitId || '').replace(/\D/g, '');
-                        if (ordNum) {
+                        if (visitId && visitId !== '-') {
                             try {
-                                await clinicClient.from('stk_nutrient_orders').delete().ilike('order_id', `%${ordNum.slice(-5)}%`);
+                                await clinicClient.from('stk_nutrient_orders').delete().eq('order_id', visitId);
                             } catch (e) { }
                         }
-                    } else if (hn && hn !== '-') {
-                        await clinicClient.from('visits').delete().eq('hn', hn);
-                        await clinicClient.from('patients').delete().eq('hn', hn);
                     }
                 }
 
@@ -4910,13 +4905,18 @@
                     const localOrders = JSON.parse(localStorage.getItem('clinic_orders') || '[]');
                     const localStk = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
                     const allLocal = localOrders.concat(localStk);
+                    // ✅ Match เฉพาะ visitId/orderId ตรงๆ เท่านั้น — ห้าม match ด้วย HN เพราะทำให้เปิดผู้ป่วยผิดคน
                     ordData = allLocal.find(o => {
-                        if (!o) return false;
-                        const oV = o.visit_id || o.visitId;
-                        const oO = o.order_id || o.orderId;
-                        if (visitId && oV && (oV === visitId || String(oV).endsWith(visitId.replace(/\D/g, '')) || visitId.endsWith(String(oV).replace(/\D/g, '')))) return true;
-                        if (visitId && oO && (oO === visitId || String(oO).endsWith(visitId.replace(/\D/g, '')) || visitId.endsWith(String(oO).replace(/\D/g, '')))) return true;
-                        if (hn && o.hn && hn !== '-' && (o.hn === hn || String(o.hn).replace(/\D/g, '') === String(hn).replace(/\D/g, ''))) return true;
+                        if (!o || !visitId || visitId === '-') return false;
+                        const oV = String(o.visit_id || o.visitId || '').trim();
+                        const oO = String(o.order_id || o.orderId || '').trim();
+                        const vClean = String(visitId).trim();
+                        if (oV && oV === vClean) return true;
+                        if (oO && oO === vClean) return true;
+                        // digit-only exact match (e.g. VIS-119900 vs 119900)
+                        const vDigits = vClean.replace(/\D/g, '');
+                        if (vDigits && oV.replace(/\D/g, '') === vDigits) return true;
+                        if (vDigits && oO.replace(/\D/g, '') === vDigits) return true;
                         return false;
                     }) || null;
                 } catch (e) { }
@@ -4947,13 +4947,35 @@
             try { localStkOrders = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]'); } catch (e) { }
             const allLocalOrders = localOrders.concat(localStkOrders);
 
+            // ✅ Match เฉพาะ visitId/orderId — ห้าม match ด้วย HN คนเดียว
             let matchedOrder = allLocalOrders.find(o =>
-                (visitId && visitId !== '-' && (o.visitId === visitId || o.visit_id === visitId || o.orderId === visitId || o.order_id === visitId)) ||
-                (hn && hn !== '-' && (o.hn === hn || String(o.hn) === String(hn)))
+                visitId && visitId !== '-' && (
+                    o.visitId === visitId || o.visit_id === visitId ||
+                    o.orderId === visitId || o.order_id === visitId
+                )
             );
 
             if (matchedOrder || (pt && pt.order_data)) {
                 showOrderDetailPopup(matchedOrder || (pt ? pt.order_data : null));
+                return;
+            }
+
+            if (pt) {
+                showOrderDetailPopup({
+                    visitId: '-',
+                    hn: pt.hn || hn || '-',
+                    patient_name: pt.patient_name || pName || '-',
+                    phone: pt.phone || pt.tel || '-',
+                    age: pt.age || '-',
+                    gender: pt.gender || '-',
+                    village: pt.village || '',
+                    district: pt.district || '',
+                    province: pt.province || '',
+                    doctor_advice: '-',
+                    assistant_advice: pt.referred_by || '-',
+                    disease: pt.symptom || pt.past_history || pt.disease || 'ລົງທະບຽນໃໝ່ (ຍັງບໍ່ມີປະຫວັດການກວດ)',
+                    items: []
+                });
                 return;
             }
 

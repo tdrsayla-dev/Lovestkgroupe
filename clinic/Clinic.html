@@ -24,6 +24,8 @@
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <!-- html2pdf.js for Exporting PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- Tesseract.js for OCR Lab Results -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <!-- i18n Internationalization Engine -->
     <script src="i18n.js?v=2.5.3"></script>
 
@@ -663,14 +665,18 @@
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     <!-- 1. กลุ่มปุ่มเลือกเวลาด่วน: ມື້ນີ້ (วันนี้) / ເບິ່ງໝົດ (ทั้งหมด) -->
                     <div class="btn-group shadow-sm" role="group" style="height: 38px;">
-                        <button type="button" class="btn px-3 fw-semibold d-flex align-items-center gap-1 text-white border-0"
-                            id="btnTriageToday" style="background-color: #003f88; border-top-left-radius: 50rem; border-bottom-left-radius: 50rem; font-size: 13.5px;"
+                        <button type="button"
+                            class="btn px-3 fw-semibold d-flex align-items-center gap-1 text-white border-0"
+                            id="btnTriageToday"
+                            style="background-color: #003f88; border-top-left-radius: 50rem; border-bottom-left-radius: 50rem; font-size: 13.5px;"
                             onclick="setTriageDateFilter('today')">
                             <i class="ph ph-calendar-check fs-6"></i>
                             <span data-i18n="today">ມື້ນີ້</span>
                         </button>
-                        <button type="button" class="btn btn-light bg-white border fw-semibold text-secondary px-3 d-flex align-items-center"
-                            id="btnTriageAll" style="border-color: #cbd5e1 !important; border-top-right-radius: 50rem; border-bottom-right-radius: 50rem; font-size: 13.5px;"
+                        <button type="button"
+                            class="btn btn-light bg-white border fw-semibold text-secondary px-3 d-flex align-items-center"
+                            id="btnTriageAll"
+                            style="border-color: #cbd5e1 !important; border-top-right-radius: 50rem; border-bottom-right-radius: 50rem; font-size: 13.5px;"
                             onclick="setTriageDateFilter('all')">
                             <span data-i18n="all">ເບິ່ງໝົດ</span>
                         </button>
@@ -679,7 +685,8 @@
                     <!-- 2. แคปซูลเลือกช่วงเวลา (ເລືອກຊ່ວງເວລາ) -->
                     <div class="d-flex align-items-center bg-white border rounded-pill px-3 shadow-sm gap-2"
                         style="height: 38px; border-color: #cbd5e1 !important;">
-                        <span class="text-muted small fw-semibold d-flex align-items-center text-nowrap" style="font-size: 12.5px;">
+                        <span class="text-muted small fw-semibold d-flex align-items-center text-nowrap"
+                            style="font-size: 12.5px;">
                             <i class="ph ph-calendar-blank text-primary me-1.5 fs-6"></i>ເລືອກຊ່ວງເວລາ:
                         </span>
                         <input type="date" id="triageStartDate"
@@ -763,7 +770,8 @@
                         <option value="unassigned">คิวยังไม่ระบุแพทย์</option>
                         <option value="in_lab">ຄົນໄຂ້ລໍຖ້າຜົນແລັບ (ສັ່ງກວດເພີ່ມ)</option>
                     </select>
-                    <button class="btn btn-sm btn-warning text-dark shadow-sm fw-semibold d-flex align-items-center gap-1 px-3 py-1.5 rounded-pill"
+                    <button
+                        class="btn btn-sm btn-warning text-dark shadow-sm fw-semibold d-flex align-items-center gap-1 px-3 py-1.5 rounded-pill"
                         onclick="openDoctorAddLabModal()">
                         <i class="bi bi-plus-circle-fill"></i> ເລືອກຄົນໄຂ້ສັ່ງກວດເພີ່ມ
                     </button>
@@ -1661,7 +1669,8 @@
             <div class="row g-3 mb-4">
                 <div class="col-md-3">
                     <div class="p-3 border rounded shadow-sm bg-white d-flex align-items-center gap-3"
-                        id="cardStaffTotal" style="cursor:pointer;" onclick="showAllStaff()" title="ຜູ້ໃຊ້ລະບົບທັງໝົດ (ຄລິກເພື່ອເບິ່ງທັງໝົດ)">
+                        id="cardStaffTotal" style="cursor:pointer;" onclick="showAllStaff()"
+                        title="ຜູ້ໃຊ້ລະບົບທັງໝົດ (ຄລິກເພື່ອເບິ່ງທັງໝົດ)">
                         <div class="rounded-circle d-flex align-items-center justify-content-center"
                             style="width:48px;height:48px;background:linear-gradient(135deg,#3b82f6,#2563eb);">
                             <i class="bi bi-people-fill text-white fs-5"></i>
@@ -1674,7 +1683,8 @@
                 </div>
                 <div class="col-md-3">
                     <div class="p-3 border rounded shadow-sm bg-white d-flex align-items-center gap-3"
-                        id="cardStaffMedical" style="cursor:pointer;" onclick="filterStaffByMedical()" title="Doctor, Pharmacist, Nurse (ຄລິກເພື່ອເບິ່ງກຸ່ມນີ້)">
+                        id="cardStaffMedical" style="cursor:pointer;" onclick="filterStaffByMedical()"
+                        title="Doctor, Pharmacist, Nurse (ຄລິກເພື່ອເບິ່ງກຸ່ມນີ້)">
                         <div class="rounded-circle d-flex align-items-center justify-content-center"
                             style="width:48px;height:48px;background:linear-gradient(135deg,#10b981,#059669);">
                             <i class="bi bi-stethoscope text-white fs-5"></i>
@@ -1777,7 +1787,7 @@
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="ref-members-tab" data-bs-toggle="tab"
-                        data-bs-target="#ref-members-pane" type="button" role="tab">
+                        data-bs-target="#ref-members-pane" type="button" role="tab" onclick="filterReferrersTable()">
                         <i class="ph ph-chart-line-up me-1"></i> <span
                             data-i18n="ref_tab_members">รายงานปันผลผู้แนะนำ</span>
                     </button>
@@ -1850,15 +1860,16 @@
                             </div>
 
                             <!-- Capsule ช่วงวันที่: วันที่เริ่มต้น - วันที่สิ้นสุด -->
-                            <div class="d-flex align-items-center bg-white border rounded-pill px-2.5 py-1 shadow-xs gap-1.5 ms-1">
+                            <div
+                                class="d-flex align-items-center bg-white border rounded-pill px-3 py-1 shadow-xs gap-2 ms-1">
                                 <i class="bi bi-calendar-event text-primary small"></i>
                                 <input type="date" id="filterLogStartDate"
                                     class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none"
-                                    style="width: 110px; font-size: 0.85rem;" onchange="onCommLogDateRangeChange()">
-                                <span class="text-muted small fw-bold">ຫາ</span>
+                                    style="width: 125px; font-size: 0.85rem;" onchange="onCommLogDateRangeChange()">
+                                <span class="text-muted small fw-bold px-1">ຫາ</span>
                                 <input type="date" id="filterLogEndDate"
                                     class="form-control form-control-sm border-0 p-0 bg-transparent shadow-none"
-                                    style="width: 110px; font-size: 0.85rem;" onchange="onCommLogDateRangeChange()">
+                                    style="width: 125px; font-size: 0.85rem;" onchange="onCommLogDateRangeChange()">
                             </div>
 
                             <div class="vr mx-1 d-none d-sm-block" style="height: 20px;"></div>
@@ -1946,12 +1957,12 @@
                             <span class="text-muted fw-bold small"><i
                                     class="ph ph-calendar-blank me-1 text-primary"></i>Date</span>
                             <input type="date" id="referrerReportStartDate"
-                                class="form-control form-control-sm custom-input border-0 bg-transparent p-0"
-                                style="width: 120px; font-size: 0.85rem;" onchange="filterReferrersTable()">
-                            <span class="text-muted small">-</span>
+                                class="form-control form-control-sm custom-input border-0 bg-transparent px-1 py-0"
+                                style="width: 125px; font-size: 0.85rem;" onchange="filterReferrersTable()">
+                            <span class="text-muted small px-1">-</span>
                             <input type="date" id="referrerReportEndDate"
-                                class="form-control form-control-sm custom-input border-0 bg-transparent p-0"
-                                style="width: 120px; font-size: 0.85rem;" onchange="filterReferrersTable()">
+                                class="form-control form-control-sm custom-input border-0 bg-transparent px-1 py-0"
+                                style="width: 125px; font-size: 0.85rem;" onchange="filterReferrersTable()">
 
                             <div class="vr mx-1 d-none d-sm-block" style="height: 20px;"></div>
 
@@ -2753,7 +2764,8 @@
                     <div class="card-footer bg-white border-top py-2.5 px-4 d-flex align-items-center justify-content-between flex-wrap gap-2"
                         id="billsPaginationFooter">
                         <div class="text-muted small">
-                            ສະແດງ <span id="billsShowingRange" class="fw-semibold text-dark">0 - 0</span> ຈາກທັງໝົດ <span id="billsTotalCount" class="fw-semibold text-dark">0</span> ລາຍການ
+                            ສະແດງ <span id="billsShowingRange" class="fw-semibold text-dark">0 - 0</span> ຈາກທັງໝົດ
+                            <span id="billsTotalCount" class="fw-semibold text-dark">0</span> ລາຍການ
                         </div>
                         <div class="d-flex align-items-center gap-1">
                             <nav aria-label="Bills Page Navigation">
@@ -2763,7 +2775,8 @@
                             </nav>
                         </div>
                         <div class="text-muted small">
-                            ໜ້າ <span id="billsCurrentPageNum" class="fw-semibold text-primary">1</span>/<span id="billsTotalPagesNum" class="fw-semibold">1</span>
+                            ໜ້າ <span id="billsCurrentPageNum" class="fw-semibold text-primary">1</span>/<span
+                                id="billsTotalPagesNum" class="fw-semibold">1</span>
                         </div>
                     </div>
 
@@ -3033,7 +3046,8 @@
                 <div class="card-footer bg-white border-top py-2.5 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2"
                     id="expensesPaginationFooter">
                     <div class="text-muted small">
-                        ສະແດງ <span id="expensesShowingRange" class="fw-semibold text-dark">0 - 0</span> ຈາກທັງໝົດ <span id="expensesTotalCount" class="fw-semibold text-dark">0</span> ລາຍການ
+                        ສະແດງ <span id="expensesShowingRange" class="fw-semibold text-dark">0 - 0</span> ຈາກທັງໝົດ <span
+                            id="expensesTotalCount" class="fw-semibold text-dark">0</span> ລາຍການ
                     </div>
                     <div class="d-flex align-items-center gap-1">
                         <nav aria-label="Expenses Page Navigation">
@@ -3043,7 +3057,8 @@
                         </nav>
                     </div>
                     <div class="text-muted small">
-                        ໜ້າ <span id="expensesCurrentPageNum" class="fw-semibold text-primary">1</span>/<span id="expensesTotalPagesNum" class="fw-semibold">1</span>
+                        ໜ້າ <span id="expensesCurrentPageNum" class="fw-semibold text-primary">1</span>/<span
+                            id="expensesTotalPagesNum" class="fw-semibold">1</span>
                     </div>
                 </div>
             </div>
@@ -3226,8 +3241,7 @@
                                 data-i18n="appts_th_code">รหัสการจอง</label><input type="text"
                                 class="form-control custom-input bg-light" id="displayApptId" readonly
                                 placeholder="กำลังสร้างรหัส..."></div>
-                        <div class="mb-3"><label class="form-label fw-bold"
-                                data-i18n="reg_name">ชื่อ-นามสกุล
+                        <div class="mb-3"><label class="form-label fw-bold" data-i18n="reg_name">ชื่อ-นามสกุล
                                 (ผู้จอง)</label><input type="text" class="form-control custom-input" name="guestName"
                                 required></div>
                         <div class="mb-3"><label class="form-label fw-bold"
@@ -3629,6 +3643,11 @@
                             <button type="button" class="btn btn-primary px-4 fw-bold" id="extraCategoryBtn"
                                 style="border-radius: 8px; background-color: #0b3c73;"
                                 onclick="openVascularCheckModal()">ตรวจหลอดเลือด</button>
+
+                            <!-- ปุ่มพิเศษ (CBC) -->
+                            <button type="button" class="btn btn-primary px-4 fw-bold" id="cbcCategoryBtn"
+                                style="border-radius: 8px; background-color: #0b3c73;"
+                                onclick="if(typeof openCbcPage==='function'){openCbcPage(undefined, 'lab');}else{window.open('cbc.html?mode=lab','_blank');}">CBC</button>
                         </div>
 
                     </form>
@@ -3677,11 +3696,14 @@
                             </div>
                         </div>
                         <div class="d-flex gap-2 align-items-center flex-wrap">
-                            <button type="button" id="rxOrderMoreLabBtn" class="btn btn-sm btn-outline-primary px-3 fw-semibold shadow-xs" onclick="orderMoreLabFromPrescribe()">
+                            <button type="button" id="rxOrderMoreLabBtn"
+                                class="btn btn-sm btn-outline-primary px-3 fw-semibold shadow-xs"
+                                onclick="orderMoreLabFromPrescribe()">
                                 <i class="bi bi-plus-circle me-1"></i>ສັ່ງກວດ Lab ເພີ່ມ
                             </button>
                             <button type="button" id="rxPdfBtn" class="btn btn-sm btn-danger px-3"><i
-                                    class="bi bi-file-pdf"></i> เปิดดูผล Lab</button></div>
+                                    class="bi bi-file-pdf"></i> เปิดดูผล Lab</button>
+                        </div>
                     </div>
                     <!-- กล่องแสดงหมายเหตุ / ข้อเน้นย้ำจากแพทย์ (Lab Note) -->
                     <div id="rxDoctorLabNoteBox"
@@ -4643,6 +4665,131 @@
         </div>
     </div>
 
+    <!-- Modal: ฟอร์มผลตรวจ CBC (Complete Blood Count Popup Modal) -->
+    <div class="modal fade" id="cbcLabModal" tabindex="-1" style="z-index: 1065;" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width: 960px;">
+            <div class="modal-content"
+                style="border-radius: 16px; border: none; box-shadow: 0 12px 35px rgba(0,0,0,0.18); overflow: hidden;">
+                <div class="modal-header bg-white border-bottom py-2.5 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                        <h5 class="modal-title fw-bold m-0" style="color: #0b3c73; font-size: 1.15rem;">
+                            <i class="bi bi-droplet-half text-danger me-2"></i><span id="cbcModalTitleText">ฟอร์มบันทึกผลตรวจเลือด CBC</span>
+                        </h5>
+                        <span id="cbcModalPatientInfo" class="badge bg-light text-primary border fw-semibold" style="font-size: 0.85rem;"></span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openCbcInNewTab()" title="เปิดในแท็บใหม่">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>เปิดแท็บใหม่
+                        </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                </div>
+                <div class="modal-body p-3" style="background-color: #eef4f8; max-height: 85vh; overflow-y: auto;">
+                    <style>
+                        .cbc-input-val { width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 3px 6px; font-weight: 700; font-size: 13px; color: #1e293b; background: #fff; }
+                        .cbc-input-val:focus { border-color: #0284c7; outline: none; background: #f0f9ff; }
+                        .cbc-input-range { width: 100%; border: 1px solid #e2e8f0; border-radius: 6px; padding: 3px 5px; font-size: 11.5px; color: #475569; background: #fff; }
+                        .cbc-status-badge { display: inline-block; padding: 2px 7px; border-radius: 12px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+                        .cbc-status-normal { background: #dcfce7; color: #15803d; }
+                        .cbc-status-low { background: #fef3c7; color: #b45309; }
+                        .cbc-status-high { background: #fee2e2; color: #b91c1c; }
+                        .cbc-status-empty { background: #f1f5f9; color: #64748b; }
+                        .cbc-hist-card { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; padding: 6px 10px 4px; margin-bottom: 8px; }
+                        .cbc-hist-title { font-weight: 700; font-size: 11.5px; color: #1e293b; margin-bottom: 2px; }
+                        .cbc-hist-card svg { display: block; width: 100%; height: auto; max-height: 75px; }
+                        .cbc-hist-card .axis-line { stroke: #64748b; stroke-width: 1.2; }
+                        .cbc-hist-card .gate { stroke: #94a3b8; stroke-width: 1; stroke-dasharray: 3,3; }
+                        .cbc-hist-card .trace { fill: none; stroke: #0369a1; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+                    </style>
+
+                    <!-- Container สำหรับพิมพ์/สร้าง PDF -->
+                    <div id="cbcPrintContainer" style="background: #fff; padding: 16px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.04);">
+                        <!-- หัวเอกสารรายงานผลตรวจแล็บ -->
+                        <div id="cbcDocHeader" class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom" style="border-color: #0b3c73 !important;">
+                            <div>
+                                <h5 class="fw-bold mb-1" style="color: #0b3c73;"><i class="bi bi-droplet-half text-danger me-2"></i>STK CLINIC — แบบบันทึกผลตรวจเลือด CBC</h5>
+                                <div class="small text-muted" id="cbcDocMetaDisplay">Visit: - | HN: - | ชื่อผู้ป่วย: -</div>
+                            </div>
+                            <div class="badge px-3 py-2 text-white fw-bold" style="background-color: #0b3c73; font-size: 0.85rem;">HEMATOLOGY</div>
+                        </div>
+
+                        <div class="row g-3">
+                            <!-- ตารางฝั่งซ้าย -->
+                            <div class="col-lg-7">
+                                <div class="p-2 border rounded-3 bg-white h-100">
+                                    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-1">
+                                        <div>
+                                            <div class="fw-bold text-dark mb-0" style="font-size: 13px;">รายการตรวจ CBC</div>
+                                            <div class="text-muted" style="font-size: 10.5px;">ค่าผลตรวจและช่วงอ้างอิง · สถานะคำนวณอัตโนมัติ</div>
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-outline-primary fw-bold px-2 py-0.5 shadow-xs" id="btnSaveCbcRanges" onclick="saveClinicCbcRanges(true)" style="font-size: 11px; border-radius: 6px;" title="บันทึกจำค่าต่ำสุดและค่าสูงสุดนี้ไว้ใช้กับผู้ป่วยทุกคนโดยอัตโนมัติ">
+                                            <i class="bi bi-bookmark-check me-1"></i> ຈື່ຄ່າອ້າງອີງນີ້ (Save Defaults)
+                                        </button>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-hover align-middle mb-0" style="font-size: 11.5px;" id="cbcModalTable">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th style="width: 26%;">รายการตรวจ</th>
+                                                    <th style="width: 18%;">ผลตรวจ</th>
+                                                    <th style="width: 14%;">หน่วย</th>
+                                                    <th style="width: 14%;">ค่าต่ำสุด</th>
+                                                    <th style="width: 14%;">ค่าสูงสุด</th>
+                                                    <th style="width: 14%;">สถานะ</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="cbcModalTbody">
+                                                <!-- Rows injected by JS -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- กราฟฝั่งขวา -->
+                            <div class="col-lg-5">
+                                <div class="p-2 border rounded-3 bg-white h-100">
+                                    <div id="cbcModalHistograms" class="d-flex flex-column">
+                                        <!-- Histograms injected by JS -->
+                                    </div>
+                                    <p class="text-muted mt-2 mb-0" style="font-size: 10px; line-height: 1.3;">
+                                        * กราฟจำลองแสดงภาพประกอบเบื้องต้นตามผลตรวจที่กรอก
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ปุ่มจัดการด้านล่าง -->
+                    <div class="d-flex justify-content-between align-items-center gap-2 mt-3 pt-2 flex-wrap">
+                        <div class="d-flex align-items-center gap-1.5" id="cbcPaperSizeBox">
+                            <label class="small text-muted fw-bold mb-0 me-1" style="font-size: 11.5px;">
+                                <i class="bi bi-aspect-ratio me-1 text-primary"></i>ຂະໜາດພິມ (Size):
+                            </label>
+                            <select class="form-select form-select-sm" id="cbcPaperSizeSelect" style="width: auto; font-size: 12px; border-radius: 6px; padding: 3px 24px 3px 8px; font-weight: 600;">
+                                <option value="slip_portrait" selected>📄 สลิปแนวตั้ง (Portrait Report)</option>
+                                <option value="slip_20x8">สลิปแนวนอน 20 cm x 8 cm (Landscape Slip)</option>
+                                <option value="A4">A4 (กระดาษเต็มแผ่น)</option>
+                            </select>
+                        </div>
+                        <div class="d-flex align-items-center gap-2 ms-auto">
+                            <button type="button" class="btn btn-light border px-3" id="cbcClearBtn" onclick="clearCbcModalValues()">
+                                <i class="bi bi-eraser me-1"></i> ล้างผลตรวจ
+                            </button>
+                            <button type="button" class="btn btn-success fw-bold px-3 shadow-sm text-white" id="cbcSaveBtn" onclick="saveCbcData(true)">
+                                <i class="bi bi-check2-circle me-1"></i> บันทึก
+                            </button>
+                            <button type="button" class="btn btn-primary fw-bold px-4 shadow-sm text-white" id="cbcPrintBtn"
+                                style="background-color: #0b3c73; border-color: #0b3c73;" onclick="printCbcReportOnly()">
+                                <i class="bi bi-printer-fill me-1"></i> Print
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal: บันทึกรายจ่ายใหม่ -->
     <div class="modal fade" id="expenseModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -4784,7 +4931,9 @@
             document.write('<script src="../config.js"><\/script>');
         }
     </script>
-    <script src="function.js?v=3.9.71"></script>
+    <script src="function.js?v=3.9.72"></script>
+    <!-- ✅ Recover Lab — แปลงผลตรวจใส่ Frame คลินิก (โหลดหลัง function.js เพื่อ Override) -->
+    <script src="Recover Lab.js?v=6.1"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
     <script>
         document.addEventListener("DOMContentLoaded", function () {
