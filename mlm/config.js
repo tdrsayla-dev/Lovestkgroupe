@@ -47,14 +47,16 @@
     'stk_sales': 45 * 1000,                // ยอดขาย 45 วินาที
     'stk_customers': 60 * 1000,            // ข้อมูลลูกค้า 1 นาที
     'stk_payout_logs': 45 * 1000,          // ล็อกการจ่ายคอมมิชชั่น 45 วินาที
-    'stk_campaigns': 2 * 60 * 1000         // แคมเปญแข่งขัน 2 นาที
+    'stk_campaigns': 2 * 60 * 1000,        // แคมเปญแข่งขัน 2 นาที
+    'stk_b2b_price_tiers': 3 * 60 * 1000,  // เรทราคาส่ง B2B 3 นาที
+    'stk_b2b_orders': 45 * 1000            // ออเดอร์ขายส่ง B2B 45 วินาที
   };
 
   // กำหนดคอลัมน์มาตรฐานสำหรับตารางต่างๆ (รวม id_card_url เพื่อให้รูปโปรไฟล์แสดงผล และ image_url เพื่อให้รูปสินค้าแสดงผล)
   // stk_customers: ตัด extra_details_json ออก เพราะเป็น JSON ขนาดใหญ่ที่ไม่ได้ใช้แสดงผลในตาราง ลด Egress ได้มาก
   const DEFAULT_TABLE_SELECT = {
-    'stk_members': 'user_id,username,name,business_team,permission_role,status,id_card_url,sponsor_id,phone_number,email,address,line_id,line_uid,bank_name,bank_account_no,bank_account_name,accumulated_pv,created_at',
-    'stk_products': 'product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,image_url,self_fee,level_1_fee,level_2_fee,level_3_fee,level_4_fee,level_5_fee,self_percent_full,level_1_percent_full,level_2_percent_full,level_3_percent_full,level_4_percent_full,level_5_percent_full,self_percent_member,level_1_percent_member,level_2_percent_member,level_3_percent_member,level_4_percent_member,level_5_percent_member,barcode,is_bundle,base_product,bundle_qty,full_margin_amount,full_margin_currency',
+    'stk_members': 'user_id,username,name,business_team,permission_role,status,id_card_url,sponsor_id,phone_number,email,address,line_id,line_uid,bank_name,bank_account_no,bank_account_name,bank_account_status,accumulated_pv,created_at',
+    'stk_products': 'product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,barcode,is_bundle,base_product,bundle_qty',
     'stk_customers': 'customer_id,name,phone,line_id,customer_type,symptom_disease,closer_id,owner_member_id,created_at'
   };
 

@@ -401,7 +401,7 @@
      * - billId: รหัสบิล (string)
      * - billDate: วันที่ของบิล (string YYYY-MM-DD)
      */
-    async function applyBillStockChange({ oldBill, newBill, productsList, actor, billId, billDate }) {
+    async function applyBillStockChange({ oldBill, newBill, productsList, actor, billId, billDate, preferredWarehouse, saleType, reasonNote }) {
         if (typeof window.supabaseUpdate !== 'function') {
             console.warn('⚠️ StockLogic: Supabase client unavailable');
             return { success: false, error: 'Supabase unavailable' };
@@ -417,6 +417,8 @@
 
         const dateStr = billDate || (typeof window.getLocalISODate === 'function' ? window.getLocalISODate() : new Date().toISOString().split('T')[0]);
         const userName = actor || 'SYSTEM';
+        const isB2B = (saleType === 'B2B') || (billId && billId.startsWith('B2B'));
+        const targetWH = preferredWarehouse || (isB2B ? 'MAIN_WH' : 'FRONT_STORE');
         const results = [];
 
         for (const pid of changedPids) {
@@ -437,9 +439,9 @@
             // 1.1 ปรับปรุงตาราง stk_lots ตามหลัก FEFO
             let lotDeductInfo = null;
             if (diff > 0) {
-                lotDeductInfo = await deductLotsFEFO(pid, diff, 'FRONT_STORE');
+                lotDeductInfo = await deductLotsFEFO(pid, diff, targetWH);
             } else if (diff < 0) {
-                await returnLotsStock(pid, Math.abs(diff), 'FRONT_STORE');
+                await returnLotsStock(pid, Math.abs(diff), targetWH);
             }
 
             // 2. บันทึกประวัติลง stk_stock_movements
@@ -448,11 +450,17 @@
                 const movId = `MOV-${isDeduct ? 'OUT' : 'IN'}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
                 const subType = oldBill
                     ? (isDeduct ? 'แก้ไขบิล (ตัดสต๊อกเพิ่ม)' : 'แก้ไขบิล (คืนสต๊อก)')
-                    : 'ตัดสต๊อกขาย';
+                    : (isB2B ? 'ตัดสต๊อกขายส่ง (B2B)' : 'ตัดสต๊อกขาย');
 
                 const allocatedLotIds = (lotDeductInfo && lotDeductInfo.lotAllocations && lotDeductInfo.lotAllocations.length > 0)
                     ? lotDeductInfo.lotAllocations.map(a => a.lotId).join(', ')
                     : (billId || '');
+
+                const whLabel = targetWH === 'MAIN_WH' ? 'คลังใหญ่' : 'หน้าร้าน';
+                const movNotes = reasonNote 
+                    ? `${reasonNote}${lotDeductInfo && lotDeductInfo.lotAllocations && lotDeductInfo.lotAllocations.length > 0 ? ` [FEFO Lots: ${allocatedLotIds}]` : ''}`
+                    : ((oldBill ? 'อัปเดตจากการแก้ไขบิล ' : (isB2B ? `ตัดสต๊อกขายส่ง (B2B) ออกจาก${whLabel} บิล ` : 'ตัดสต๊อกบิล ')) + (billId || '') +
+                        (lotDeductInfo && lotDeductInfo.lotAllocations && lotDeductInfo.lotAllocations.length > 0 ? ` [FEFO Lots: ${allocatedLotIds}]` : ''));
 
                 await window.supabaseInsert('stk_stock_movements', {
                     movement_id: movId,
@@ -462,8 +470,7 @@
                     sub_type: subType,
                     quantity: Math.abs(diff),
                     lot_id: allocatedLotIds,
-                    notes: (oldBill ? 'อัปเดตจากการแก้ไขบิล ' : 'ตัดสต๊อกบิล ') + (billId || '') +
-                        (lotDeductInfo && lotDeductInfo.lotAllocations && lotDeductInfo.lotAllocations.length > 0 ? ` [FEFO Lots: ${allocatedLotIds}]` : ''),
+                    notes: movNotes,
                     created_by: userName,
                     items_json: (lotDeductInfo && lotDeductInfo.lotAllocations && lotDeductInfo.lotAllocations.length > 0)
                         ? JSON.stringify({ bill_id: billId, allocations: lotDeductInfo.lotAllocations })
@@ -492,7 +499,7 @@
      * - billId: รหัสบิล
      * - reason: เหตุผล (เช่น 'ลบบิล', 'ยกเลิกบิล')
      */
-    async function returnBillStock({ bill, productsList, actor, billId, reason }) {
+    async function returnBillStock({ bill, productsList, actor, billId, reason, preferredWarehouse }) {
         if (!bill) return { success: false, error: 'No bill provided' };
         if (typeof window.supabaseUpdate !== 'function') {
             return { success: false, error: 'Supabase unavailable' };
@@ -508,6 +515,8 @@
         const orderId = billId || bill.order_id || bill.id || '';
         const userName = actor || 'SYSTEM';
         const dateStr = typeof window.getLocalISODate === 'function' ? window.getLocalISODate() : new Date().toISOString().split('T')[0];
+        const isB2B = (orderId && orderId.startsWith('B2B')) || (bill && (bill.buyer_type || bill.warehouse_id));
+        const targetWH = preferredWarehouse || (bill && bill.warehouse_id) || (isB2B ? 'MAIN_WH' : 'FRONT_STORE');
         const results = [];
 
         for (const pid of pids) {
@@ -526,20 +535,23 @@
             }
 
             // 1.1 คืนสต๊อกกลับสู่ stk_lots
-            const lotReturnInfo = await returnLotsStock(pid, qtyToReturn, 'FRONT_STORE');
+            const lotReturnInfo = await returnLotsStock(pid, qtyToReturn, targetWH);
 
             // 2. บันทึกประวัติลง stk_stock_movements
             if (typeof window.supabaseInsert === 'function') {
                 const movId = `MOV-IN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+                const whLabel = targetWH === 'MAIN_WH' ? 'คลังใหญ่' : 'หน้าร้าน';
+                const subType = isB2B ? 'คืนสต๊อกขายส่ง (B2B)' : (reason || 'คืนสต๊อกจากการลบบิล');
+
                 await window.supabaseInsert('stk_stock_movements', {
                     movement_id: movId,
                     date: dateStr,
                     product_id: pid,
                     type: 'IN',
-                    sub_type: reason || 'คืนสต๊อกจากการลบบิล',
+                    sub_type: subType,
                     quantity: qtyToReturn,
                     lot_id: (lotReturnInfo && lotReturnInfo.lotId) ? lotReturnInfo.lotId : orderId,
-                    notes: `คืนสต๊อกบิล ${orderId} (${reason || 'ยกเลิกบิล'})` + (lotReturnInfo && lotReturnInfo.lotId ? ` [Lot: ${lotReturnInfo.lotId}]` : ''),
+                    notes: `คืนสต๊อกบิล ${orderId} (${reason || 'ยกเลิกบิล'}) เข้า${whLabel}` + (lotReturnInfo && lotReturnInfo.lotId ? ` [Lot: ${lotReturnInfo.lotId}]` : ''),
                     created_by: userName
                 }).catch(e => console.warn('⚠️ Stock return log error:', e));
             }

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -2068,10 +2068,21 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
            applyDataToStates(resObj);
            
            try {
+              let productsToCache = prodRes;
+              try {
+                  const existingCache = JSON.parse(localStorage.getItem('stk_app_cache_data') || '{}');
+                  if (Array.isArray(existingCache.products) && existingCache.products.length > 0 && (existingCache.products[0].self_fee !== undefined || existingCache.products[0].image_url !== undefined)) {
+                      const pMap = new Map((prodRes || []).map(p => [p.product_id || p.id, p]));
+                      productsToCache = existingCache.products.map(ep => {
+                          const updated = pMap.get(ep.product_id || ep.id);
+                          return updated ? Object.assign({}, ep, updated, { image_url: ep.image_url || updated.image_url, self_fee: ep.self_fee !== undefined ? ep.self_fee : updated.self_fee }) : ep;
+                      });
+                  }
+              } catch(mergeErr){}
                const cleanCache = {
                    members: memRes,
                    customers: (custRes || []).slice(0, 500),
-                   products: prodRes,
+                    products: productsToCache,
                    systemSettings: settingsObj,
                    closers: closerRes,
                    sales: (saleRes || []).slice(0, 500)

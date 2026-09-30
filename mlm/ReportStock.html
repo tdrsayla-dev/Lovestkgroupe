@@ -319,10 +319,10 @@
 
         const stockSalesReport = useMemo(() => {
             if (calculateStockSalesReport) {
-                return calculateStockSalesReport(products, stockMovements, sales, startDate, endDate, isZeroPromoView, debouncedSearchQuery || searchQuery, permittedMemberSet);
+                return calculateStockSalesReport(products, stockMovements, sales, startDate, endDate, isZeroPromoView, debouncedSearchQuery || searchQuery, permittedMemberSet, isBalanceView);
             }
             return [];
-        }, [products, stockMovements, sales, startDate, endDate, isZeroPromoView, debouncedSearchQuery, searchQuery, permittedMemberSet]);
+        }, [products, stockMovements, sales, startDate, endDate, isZeroPromoView, debouncedSearchQuery, searchQuery, permittedMemberSet, isBalanceView]);
 
         // 2. รายงานบิลสินค้าแถมและสินค้าตัดศูนย์แบบเจาะลึกตามบิล (Zero & Promo Items Bills Log)
         const zeroPromoBills = useMemo(() => {

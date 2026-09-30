@@ -757,7 +757,12 @@
                    </div>
 
                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">ข้อมูลบัญชีธนาคาร</span>
+                      <div className="flex items-center justify-between">
+                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">ข้อมูลบัญชีธนาคาร</span>
+                         <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${selectedMember.bankAccountStatus === 'อนุมัติแล้ว' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                            สถานะ: {selectedMember.bankAccountStatus || 'รอตรวจสอบ'}
+                         </span>
+                      </div>
                       <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-sm grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm w-full">
                          <div className="space-y-1">
                             <span className="text-slate-400 font-bold text-xs text-slate-500">ธนาคาร</span>
@@ -1262,7 +1267,7 @@
 
       const fetchData = () => {
         Promise.all([
-            supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,status,sponsor_id,accumulated_pv,phone_number,email,address,line_id,line_uid,bank_name,bank_account_no,bank_account_name,created_at,id_card_url,password_hash').catch(() => []),
+            supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,status,sponsor_id,accumulated_pv,phone_number,email,address,line_id,line_uid,bank_name,bank_account_no,bank_account_name,bank_account_status,created_at,id_card_url,password_hash').catch(() => []),
             supabaseSelect('stk_business_teams').catch(() => [])
         ]).then(([members, businessTeams]) => {
             let initialCache = {};
@@ -1328,6 +1333,7 @@
                bankName: m.bank_name || m.bankName || '',
                bankAccountNo: m.bank_account_no || m.bankAccountNo || '',
                bankAccountName: m.bank_account_name || m.bankAccountName || '',
+               bankAccountStatus: m.bank_account_status || m.bankAccountStatus || 'รอตรวจสอบ',
                idCardNumber: m.id_card_number || m.idCardNumber || '',
                password: m.password_hash || m.password || '1234', // <--- เพิ่ม 1
                startDate: m.start_date || m.startDate || m.created_at || getLocalISODate() // <--- เพิ่ม 2

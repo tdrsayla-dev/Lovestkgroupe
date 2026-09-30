@@ -624,7 +624,9 @@
         'exchange_rate': 'ExchangeRate.html',
         'notification_settings': 'NotificationSettings.html',
         'company_settings': 'CompanySettings.html',
-        'campaign_settings': 'CampaignSettings.html'
+        'campaign_settings': 'CampaignSettings.html',
+        'b2b': 'B2B.html',
+        'wholesale': 'B2B.html'
       };
       for (const [p, file] of Object.entries(pageFileMap)) {
         if (href.includes(`page=${p}`)) {
@@ -1175,6 +1177,7 @@
             canOrgChart ? React.createElement(SidebarItem, { icon: GitBranch, label: t('menu_org_chart', 'ผังองค์กรสายงาน'), id: "org_chart", activeTab: activePage, href: SCRIPT_URL + '?page=org_chart', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
             (canSales || canCustomers || canOrders || canStock) ? React.createElement('div', { className: "pt-3 pb-1.5" }, React.createElement('p', { className: `text-[10px] font-black text-slate-500 uppercase tracking-widest ${isSidebarCollapsed ? 'text-center' : 'px-4'}` }, t('menu_daily_transactions', 'ธุรกรรมประจำวัน'))) : null,
             canSales ? React.createElement(SidebarItem, { icon: ShoppingCart, label: t('menu_sales', 'ป้อนข้อมูลขาย'), id: "sales", activeTab: activePage, href: SCRIPT_URL + '?page=sales', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
+            canSales ? React.createElement(SidebarItem, { icon: PackageIcon, label: 'ขายส่ง (B2B)', id: "b2b", activeTab: activePage, href: SCRIPT_URL + '?page=b2b', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
             canNutrients ? React.createElement(SidebarItem, { icon: PillIcon, label: t('menu_nutrients', 'จ่ายยา'), id: "nutrients", activeTab: activePage, href: SCRIPT_URL + '?page=nutrients', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed, badgeCount: pendingNutrientCount }) : null,
             canOrders ? React.createElement(SidebarItem, { icon: FileText, label: t('menu_orders', 'จัดการบิล'), id: "orders", activeTab: activePage, href: SCRIPT_URL + '?page=orders', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
             canStock ? React.createElement(SidebarItem, { icon: Archive, label: t('menu_warehouse', 'คลังสินค้า'), id: "warehouse", activeTab: activePage, href: SCRIPT_URL + '?page=warehouse', onTabClick: handleTabClick, isSidebarCollapsed: isSidebarCollapsed }) : null,
@@ -1276,6 +1279,7 @@
             canOrgChart ? React.createElement(SidebarItem, { icon: GitBranch, label: t('menu_org_chart', 'ผังองค์กรสายงาน'), id: "org_chart", activeTab: activePage, href: SCRIPT_URL + '?page=org_chart', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
             (canSales || canCustomers || canOrders) ? React.createElement('div', { className: "pt-3 pb-1.5" }, React.createElement('p', { className: "text-[10px] font-black text-slate-500 uppercase tracking-widest px-4" }, t('menu_daily_transactions', 'ธุรกรรมประจำวัน'))) : null,
             canSales ? React.createElement(SidebarItem, { icon: ShoppingCart, label: t('menu_sales', 'ป้อนข้อมูลขาย'), id: "sales", activeTab: activePage, href: SCRIPT_URL + '?page=sales', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
+            canSales ? React.createElement(SidebarItem, { icon: PackageIcon, label: 'ขายส่ง (B2B)', id: "b2b", activeTab: activePage, href: SCRIPT_URL + '?page=b2b', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
             canNutrients ? React.createElement(SidebarItem, { icon: PillIcon, label: t('menu_nutrients', 'จ่ายยา'), id: "nutrients", activeTab: activePage, href: SCRIPT_URL + '?page=nutrients', onTabClick: handleTabClick, isSidebarCollapsed: false, badgeCount: pendingNutrientCount }) : null,
             canOrders ? React.createElement(SidebarItem, { icon: FileText, label: t('menu_orders', 'จัดการบิล'), id: "orders", activeTab: activePage, href: SCRIPT_URL + '?page=orders', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,
             canCustomers ? React.createElement(SidebarItem, { icon: Contact, label: t('menu_customers', 'ข้อมูลลูกค้า'), id: "customers", activeTab: activePage, href: SCRIPT_URL + '?page=customers', onTabClick: handleTabClick, isSidebarCollapsed: false }) : null,

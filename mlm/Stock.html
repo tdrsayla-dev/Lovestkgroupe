@@ -43,7 +43,7 @@
 
   <script type="text/babel">
     const { useState, useMemo, useEffect, useRef, useCallback } = React;
-    // ðŸ›¡ï¸ GLOBAL ICONS DESTRUCTURING: à¸›à¸¥à¸­à¸”à¸ à¸±à¸¢à¸ˆà¸²à¸à¸•à¸±à¸§à¹à¸›à¸£à¸‹à¹‰à¸³à¸‹à¹‰à¸­à¸™ à¹à¸¥à¸°à¸”à¸¶à¸‡à¹‚à¸¡à¸”à¸¹à¸¥à¹à¸¥à¸°à¸„à¸­à¸¡à¹‚à¸žà¹€à¸™à¸™à¸•à¹Œà¸¡à¸²à¸„à¸£à¸šà¸–à¹‰à¸§à¸™
+    // 🛡️ GLOBAL ICONS DESTRUCTURING: ปลอดภัยจากตัวแปรซ้ำซ้อน และดืงโมดูลและคอมโพเนนต์มาครบถ้วน
     const { LayoutDashboard, ShoppingCart, Users, Contact, Headset, BarChart3, Plus, Edit, Trash2, UserCircle, Menu, X, Save, Info, PackageIcon, Target, Trophy, Activity, Eye, Tags, CheckCircle, GitBranch, Archive, ChevronDown, FileText, SettingsIcon, Coins, ShieldCheck, LoginModal, Toast, Sidebar, Header, ConfirmModal, EditModal, DonutChart, AutoSuggestInput, SearchIcon } = window;
     
     
@@ -1221,7 +1221,7 @@
                         } else {
                             setProducts([...(products || []), dataToSave]);
                         }
-                        try { localStorage.removeItem('stk_app_cache_data'); localStorage.removeItem('stk_app_cache_time'); } catch(e){}
+                        try { localStorage.removeItem('stk_app_cache_data'); sessionStorage.removeItem('stk_admin_products_full'); localStorage.removeItem('stk_app_cache_time'); } catch(e){}
                         setShowForm(false); setIsSubmitting(false); showToast(isEditing ? 'แก้ไขสินค้าสำเร็จ' : 'เพิ่มสินค้าสำเร็จ', 'success');
                     }).catch(err => {
                          setIsSubmitting(false); showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
@@ -1249,7 +1249,7 @@
              const id = confirmDelete.id;
              supabaseDelete('stk_products', id, 'product_id').then(() => {
                 setProducts((products || []).filter(p => p && p.id !== id)); 
-                try { localStorage.removeItem('stk_app_cache_data'); localStorage.removeItem('stk_app_cache_time'); } catch(e){}
+                try { localStorage.removeItem('stk_app_cache_data'); sessionStorage.removeItem('stk_admin_products_full'); localStorage.removeItem('stk_app_cache_time'); } catch(e){}
                 showToast('ลบสำเร็จ', 'success');
              }).catch(err => {
                 showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error');
@@ -1384,12 +1384,12 @@
                               onChange={async (e) => {
                                 const file = e.target.files[0];
                                 if (file) {
-                                  showToast('à¸à¸³à¸¥à¸±à¸‡à¸šà¸µà¸šà¸­à¸±à¸”à¸£à¸¹à¸›à¸ à¸²à¸ž...', 'info');
+                                  showToast('กำลังบีบอัดรูปภาพ...', 'info');
                                   const compressed = typeof window.compressImageFile === 'function'
                                     ? await window.compressImageFile(file, 500, 500, 0.75)
                                     : await new Promise(r => { const reader = new FileReader(); reader.onload = ev => r(ev.target.result); reader.readAsDataURL(file); });
                                   setFormData({ ...formData, imageUrl: compressed });
-                                  showToast('à¸­à¸±à¸›à¹‚à¸«à¸¥à¸”à¹à¸¥à¸°à¸šà¸µà¸šà¸­à¸±à¸”à¸£à¸¹à¸›à¸ à¸²à¸žà¸ªà¸³à¹€à¸£à¹‡à¸ˆ', 'success');
+                                  showToast('อัปโหลดและบีบอัดรูปภาพสำเร็จ', 'success');
                                 }
                               }}
                             />
@@ -1596,21 +1596,32 @@
                                      {(() => {
                                           const catObj = productCategories.find(c => c && c.name && c.name.trim().toLowerCase() === String(p?.category || '').trim().toLowerCase());
                                          const isPct = catObj?.commissionMode === 'เปอร์เซ็นต์';
-                                         
-                                         if (isPct) {
-                                           return (
-                                             <div className="text-[11px] space-y-0.5">
-                                               <div className="font-semibold text-indigo-600">ราคาเต็ม: {p?.selfPercentFull || 0}% &rarr; {p?.level1PercentFull || 0}% &rarr; {p?.level2PercentFull || 0}% ...</div>
-                                               <div className="font-medium text-fuchsia-600">สมาชิก: {p?.selfPercentMember || 0}% &rarr; {p?.level1PercentMember || 0}% &rarr; {p?.level2PercentMember || 0}% ...</div>
-                                             </div>
-                                           );
-                                         } else {
-                                           return (
-                                             <div className="text-[11px] font-bold text-emerald-600">
-                                               กล่อง: {Number(p?.selfFee || 0).toLocaleString()} &rarr; {Number(p?.level1Fee || p?.directFee || 0).toLocaleString()} &rarr; {Number(p?.level2Fee || p?.uplineFee || 0).toLocaleString()} ...
-                                             </div>
-                                           );
-                                         }
+                                          if (isPct) {
+                                            return (
+                                              <div className="text-[11px] space-y-0.5">
+                                                <div className="font-semibold text-indigo-600">ราคาเต็ม: {p?.selfPercentFull || 0}% &rarr; {p?.level1PercentFull || 0}% &rarr; {p?.level2PercentFull || 0}% ...</div>
+                                                <div className="font-medium text-fuchsia-600">สมาชิก: {p?.selfPercentMember || 0}% &rarr; {p?.level1PercentMember || 0}% &rarr; {p?.level2PercentMember || 0}% ...</div>
+                                                {Number(p?.fullMarginAmount || 0) > 0 && (
+                                                  <div className="mt-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                                    ส่วนต่าง: {Number(p.fullMarginAmount).toLocaleString()} {p.fullMarginCurrency || 'LAK'}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          } else {
+                                            return (
+                                              <div className="text-[11px] space-y-0.5">
+                                                <div className="font-bold text-emerald-600">
+                                                  กล่อง: {Number(p?.selfFee || 0).toLocaleString()} &rarr; {Number(p?.level1Fee || p?.directFee || 0).toLocaleString()} &rarr; {Number(p?.level2Fee || p?.uplineFee || 0).toLocaleString()} ...
+                                                </div>
+                                                {Number(p?.fullMarginAmount || 0) > 0 && (
+                                                  <div className="mt-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                                    ส่วนต่าง: {Number(p.fullMarginAmount).toLocaleString()} {p.fullMarginCurrency || 'LAK'}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          }
                                      })()}
                                  </td>
                                  <td className={tableCellClass}><span className="text-[11px] font-bold px-3 py-1.5 bg-slate-100 border border-slate-200 text-slate-600 rounded-lg">{p?.status}</span></td>
@@ -1717,7 +1728,7 @@
         const executeDelete = () => { 
              supabaseDelete('stk_products', confirmDelete.id, 'product_id').then(() => { 
                  setProducts((products || []).filter(p => p && p.id !== confirmDelete.id)); 
-                 try { localStorage.removeItem('stk_app_cache_data'); localStorage.removeItem('stk_app_cache_time'); } catch(e){}
+                 try { localStorage.removeItem('stk_app_cache_data'); sessionStorage.removeItem('stk_admin_products_full'); localStorage.removeItem('stk_app_cache_time'); } catch(e){}
                  showToast('ลบสำเร็จ', 'success'); 
              }).catch(err => { showToast('ข้อผิดพลาด Supabase: ' + err.message, 'error'); });
          };
@@ -1890,8 +1901,26 @@
                                      {(() => {
                                           const catObj = productCategories.find(c => c && c.name && c.name.trim().toLowerCase() === String(p?.category || '').trim().toLowerCase());
                                          const isPct = catObj?.commissionMode === 'เปอร์เซ็นต์';
-                                         if (isPct) return (<div className="text-[11px] font-semibold text-indigo-600">ราคาเต็ม: {p?.selfPercentFull || 0}% &rarr; {p?.level1PercentFull || 0}% ...</div>);
-                                         return (<div className="text-[11px] font-bold text-emerald-600">กล่อง: {Number(p?.selfFee || 0).toLocaleString()} &rarr; {Number(p?.level1Fee || p?.directFee || 0).toLocaleString()} ...</div>);
+                                          if (isPct) return (
+                                            <div className="space-y-0.5">
+                                              <div className="text-[11px] font-semibold text-indigo-600">ราคาเต็ม: {p?.selfPercentFull || 0}% &rarr; {p?.level1PercentFull || 0}% ...</div>
+                                              {Number(p?.fullMarginAmount || 0) > 0 && (
+                                                <div className="mt-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                                  ส่วนต่าง: {Number(p.fullMarginAmount).toLocaleString()} {p.fullMarginCurrency || 'LAK'}
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                          return (
+                                            <div className="space-y-0.5">
+                                              <div className="text-[11px] font-bold text-emerald-600">กล่อง: {Number(p?.selfFee || 0).toLocaleString()} &rarr; {Number(p?.level1Fee || p?.directFee || 0).toLocaleString()} ...</div>
+                                              {Number(p?.fullMarginAmount || 0) > 0 && (
+                                                <div className="mt-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                                  ส่วนต่าง: {Number(p.fullMarginAmount).toLocaleString()} {p.fullMarginCurrency || 'LAK'}
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
                                      })()}
                                  </td>
                                  <td className={`${tableCellClass} text-center whitespace-nowrap`}><button onClick={()=>handleOpenEdit(p)} className="text-blue-500 hover:text-blue-700 mx-1 transition-colors bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm"><Edit size={16}/></button>{isAdmin && <button onClick={()=>setConfirmDelete({show: true, id: p.id, title: p.name})} className="text-red-500 hover:text-red-700 transition-colors bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm"><Trash2 size={16}/></button>}</td>
@@ -3324,6 +3353,7 @@
                  id: pId,
                  name: p.name,
                  barcode: p.barcode || '',
+                  description: p.description || '',
                  category: p.category,
                  status: p.status || 'เข้าใช้งาน',
                  stock: parseInt(p.current_stock || p.stock || 0),
@@ -3374,44 +3404,36 @@
           if (Array.isArray(data.businessTeams)) setBusinessTeams(data.businessTeams);
         };
 
+        // SMART CACHING: Render from dedicated full-product cache in sessionStorage immediately
         try {
-            const cachedData = localStorage.getItem('stk_app_cache_data');
-            const cacheTime = localStorage.getItem('stk_app_cache_time');
-            if (cachedData && cacheTime) {
-                const parsedData = JSON.parse(cachedData);
-                // ค้นหา settings ใน cache
+            let cachedFullProducts = null;
+            try {
+              const sess = sessionStorage.getItem('stk_admin_products_full');
+              if (sess) cachedFullProducts = JSON.parse(sess);
+            } catch(e){}
+
+            if (Array.isArray(cachedFullProducts) && cachedFullProducts.length > 0) {
                 let savedSettings = null;
                 try {
                   const localSettingsStr = localStorage.getItem('stk_system_settings');
                   if (localSettingsStr) savedSettings = JSON.parse(localSettingsStr);
                 } catch(e){}
-                
                 applyStockDataToStates({
-                   products: parsedData.products,
+                   products: cachedFullProducts,
                    productCategories: JSON.parse(localStorage.getItem('stk_app_cache_categories') || '[]'),
                    stockMovements: JSON.parse(localStorage.getItem('stk_app_cache_movements') || '[]'),
-                   members: parsedData.members,
-                   closers: parsedData.closers,
-                   customerTypes: parsedData.customerTypes,
                    systemSettings: savedSettings
                 });
-                
-                const age = Date.now() - Number(cacheTime);
-                if (age < 20000) { // 20 วินาที
-                    isCacheFresh = true;
-                    setIsAppLoading(false);
-                }
+                setIsAppLoading(false);
             }
-        } catch (e) { console.warn("Cache error", e); }
+        } catch (e) { console.warn('Cache error', e); }
 
-        if (isCacheFresh) {
-            return;
-        }
+        // SPECIFIC FETCH: Query full product fields specifically for Stock.html
+        const FULL_PRODUCT_SELECT = 'select=product_id,name,category,description,price_full,price_member,price_promo,give_pv,min_pv_comm,current_stock,status,image_url,self_fee,level_1_fee,level_2_fee,level_3_fee,level_4_fee,level_5_fee,self_percent_full,level_1_percent_full,level_2_percent_full,level_3_percent_full,level_4_percent_full,level_5_percent_full,self_percent_member,level_1_percent_member,level_2_percent_member,level_3_percent_member,level_4_percent_member,level_5_percent_member,barcode,is_bundle,base_product,bundle_qty,full_margin_amount,full_margin_currency&nocache=true';
 
         Promise.all([
-          supabaseSelect('stk_products').catch(() => supabaseSelect('products')),
-          supabaseSelect('stk_product_categories').catch(() => supabaseSelect('product_categories')),
-          // ⚡ SPEED FIX: จำกัดการโหลดประวัติการรับจ่ายสินค้าเอาไว้แค่ 400 ล็อกล่าสุด ป้องกันค้าง
+          supabaseSelect('stk_products', FULL_PRODUCT_SELECT).catch(() => supabaseSelect('products')),
+          supabaseSelect('stk_product_categories', 'nocache=true').catch(() => supabaseSelect('product_categories', 'nocache=true')),
           supabaseSelect('stk_stock_movements', 'order=created_at.desc&limit=400').catch(() => supabaseSelect('stock_movements')),
           supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,status,id_card_url').catch(() => supabaseSelect('members')),
           supabaseSelect('stk_closers').catch(() => supabaseSelect('closers')),
@@ -3459,20 +3481,40 @@
 
           applyStockDataToStates(freshData);
 
+          // Store full products specifically for Stock.html in sessionStorage
           try {
-              // ซิงค์ผลิตภัณฑ์หลัก
+              sessionStorage.setItem('stk_admin_products_full', JSON.stringify(pRes));
+          } catch(e){}
+
+          // Store only lightweight product list in global cache for other pages
+          try {
               const resObj = JSON.parse(localStorage.getItem('stk_app_cache_data') || '{}');
-              resObj.products = pRes;
+              resObj.products = (pRes || []).map(p => ({
+                  id: p.product_id || p.id,
+                  product_id: p.product_id || p.id,
+                  name: p.name,
+                  category: p.category,
+                  price_full: p.price_full,
+                  price_member: p.price_member,
+                  price_promo: p.price_promo,
+                  give_pv: p.give_pv,
+                  current_stock: p.current_stock,
+                  status: p.status,
+                  barcode: p.barcode,
+                  is_bundle: p.is_bundle,
+                  base_product: p.base_product,
+                  bundle_qty: p.bundle_qty
+              }));
               resObj.members = memRes;
               resObj.closers = cloRes;
               resObj.customerTypes = typeRes;
               localStorage.setItem('stk_app_cache_data', JSON.stringify(resObj));
               localStorage.setItem('stk_app_cache_categories', JSON.stringify(catRes));
-              localStorage.setItem('stk_app_cache_movements', JSON.stringify(movRes));
+              localStorage.setItem('stk_app_cache_movements', JSON.stringify((movRes || []).slice(0, 50)));
               localStorage.setItem('stk_app_cache_time', String(Date.now()));
           } catch(e){}
         }).catch(err => {
-          console.error("Supabase load error:", err);
+          console.error('Supabase load error:', err);
         }).finally(() => {
           setIsAppLoading(false);
         });
