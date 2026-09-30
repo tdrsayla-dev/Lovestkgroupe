@@ -6931,9 +6931,6 @@ window.renderLabTable = function (page = window.labCurrentPage) {
     let cachedVascularMap = {};
     try { cachedVascularMap = JSON.parse(localStorage.getItem('clinic_vascular_results') || '{}'); } catch (e) { }
 
-    let cachedCbcMap = {};
-    try { cachedCbcMap = JSON.parse(localStorage.getItem('clinic_cbc_results') || '{}'); } catch (e) { }
-
     currentData.forEach((row, idx) => {
         let no = startIndex + idx + 1; // ลำดับที่แบบต่อเนื่อง
         const hnDisplay = row.hn || '-';
@@ -6971,17 +6968,12 @@ window.renderLabTable = function (page = window.labCurrentPage) {
             else if (catName === 'เอ็กซเรย์') { btnIcon = 'bi-file-earmark-medical'; btnClass = 'btn-outline-info'; }
             else if (catName === 'ตรวจเลือด') { btnIcon = 'bi-droplet-fill'; btnClass = 'btn-outline-danger'; }
             else if (catName === 'ตรวจหลอดเลือด') { btnIcon = 'bi-heart-pulse-fill'; btnClass = 'btn-outline-warning'; }
-            else if (catName === 'CBC') { btnIcon = 'bi-file-earmark-pdf'; btnClass = 'btn-outline-danger'; }
             else { btnIcon = 'bi-file-earmark-text'; btnClass = 'btn-outline-secondary'; }
 
             const safeCat = catName.replace(/'/g, "\\'");
-            const isCbcCat = (catName === 'CBC');
-            const btnOnClick = isCbcCat ? `openCbcPage('${row.visit_id}', 'lab')` : `viewRealLabFile('', '${row.visit_id}', '${safeName}', '${safeCat}')`;
-            const btnLabel = isCbcCat ? 'CBC (PDF)' : catName;
-
             allResultButtons.push(`
-                <button class="btn btn-sm ${btnClass} me-1 mb-1 fw-semibold" onclick="${btnOnClick}">
-                    <i class="bi ${btnIcon} me-1"></i> ${btnLabel}
+                <button class="btn btn-sm ${btnClass} me-1 mb-1" onclick="viewRealLabFile('', '${row.visit_id}', '${safeName}', '${safeCat}')">
+                    <i class="bi ${btnIcon} me-1"></i> ${catName}
                 </button>
             `);
         });
@@ -6990,18 +6982,6 @@ window.renderLabTable = function (page = window.labCurrentPage) {
             allResultButtons.push(`
                 <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມລາຍງານ PDF" onclick="openVascularReportPopup('${row.visit_id}')">
                     <i class="bi bi-file-earmark-pdf me-1"></i> ຜົນວິນິດໄສ (PDF)
-                </button>
-            `);
-        }
-
-        // 🌟 ตรวจสอบผลตรวจ CBC ที่บันทึกไว้ เพื่อแสดงปุ่ม "CBC (PDF)" ในคอลัมน์ผลตรวจทั้งหมด
-        const hasCbcInFiles = filesList.some(f => f && (f.category === 'CBC' || (f.fileName && f.fileName.includes('CBC'))));
-        const cachedCbc = cachedCbcMap[row.visit_id];
-        const hasCbcNote = (row.lab_note && row.lab_note.includes('[ผลตรวจ CBC]'));
-        if (!hasCbcInFiles && (cachedCbc || hasCbcNote)) {
-            allResultButtons.push(`
-                <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມຜົນກວດ CBC" onclick="openCbcPage('${row.visit_id}', 'lab')">
-                    <i class="bi bi-file-earmark-pdf me-1"></i> CBC (PDF)
                 </button>
             `);
         }
@@ -7626,11 +7606,11 @@ async function resolvePatientHn(patientName, visitId, phone, autoGenerateIfNotFo
     // Phone match
     if (phone) {
         const cleanPhone = String(phone).replace(/\D/g, '');
-        if (cleanPhone.length >= 7) {
+        if (cleanPhone.length >= 6) {
             for (const p of allPatientsList) {
                 const pPhone = String(p.phone || p.emergency_tel || '').replace(/\D/g, '');
                 const pHn = (p.hn && p.hn !== 'null' && p.hn !== 'undefined' && p.hn !== '-') ? p.hn.trim() : '';
-                if (pHn && pPhone && (pPhone === cleanPhone || (pPhone.length >= 8 && cleanPhone.length >= 8 && (pPhone.endsWith(cleanPhone) || cleanPhone.endsWith(pPhone))))) {
+                if (pHn && pPhone && (pPhone === cleanPhone || pPhone.includes(cleanPhone) || cleanPhone.includes(pPhone))) {
                     return pHn;
                 }
             }
@@ -8626,16 +8606,10 @@ async function viewRealLabFile(fileUrlOrId, visitId, patientName, categoryName) 
             title: `<h5 class="fw-bold mb-0 text-primary"><i class="bi bi-file-earmark-image me-2"></i>${titleText} - ${patientName || visitId}</h5>`,
             html: `
                 <div class="text-center p-2">
-                    <div class="d-flex justify-content-between align-items-center mb-2 px-1">
-                        <span class="small text-muted"><i class="bi bi-person me-1"></i>${patientName || visitId}</span>
-                        <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-sm btn-success rounded-pill px-3 fw-bold shadow-xs text-white" onclick="convertLabResultWithFrame('${visitId}', '${(patientName || '').replace(/'/g, "\\'")}', '${(categoryName || '').replace(/'/g, "\\'")}')">
-                                <i class="bi bi-patch-check me-1"></i> ແປງຜົນກວດໃສ່ Frame + ປະທັບຕາ
-                            </button>
-                            <button type="button" onclick="openLabPdfDirect('${fileUrl}', 'lab_${visitId}.png')" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold">
-                                <i class="bi bi-box-arrow-up-right me-1"></i> เปิดดูรูปขนาดเต็ม / ดาวน์โหลด
-                            </button>
-                        </div>
+                    <div class="d-flex justify-content-end mb-2">
+                        <button type="button" onclick="openLabPdfDirect('${fileUrl}', 'lab_${visitId}.png')" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold">
+                            <i class="bi bi-box-arrow-up-right me-1"></i> เปิดดูรูปขนาดเต็ม / ดาวน์โหลด
+                        </button>
                     </div>
                     <img src="${fileUrl}" class="img-fluid rounded border shadow-sm" style="max-height: 70vh; object-fit: contain;">
                 </div>
@@ -8667,9 +8641,6 @@ async function viewRealLabFile(fileUrlOrId, visitId, patientName, categoryName) 
                     <div class="d-flex justify-content-between align-items-center mb-2 px-1">
                         <span class="small text-muted"><i class="bi bi-person me-1"></i>${patientName || visitId}</span>
                         <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-sm btn-success rounded-pill px-3 fw-bold shadow-xs text-white" onclick="convertLabResultWithFrame('${visitId}', '${(patientName || '').replace(/'/g, "\\'")}', '${(categoryName || '').replace(/'/g, "\\'")}')">
-                                <i class="bi bi-patch-check me-1"></i> ແປງຜົນກວດໃສ່ Frame + ປະທັບຕາ
-                            </button>
                             <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold shadow-xs" onclick="openLabPdfDirect(window._currentLabPdfBlobUrl || window._currentLabPdfRawUrl, 'lab_${visitId}.pdf')">
                                 <i class="bi bi-box-arrow-up-right me-1"></i> เปิดในแท็บใหม่ / ดาวน์โหลด PDF
                             </button>
@@ -8739,390 +8710,6 @@ function base64ToBlob(base64, type = 'application/octet-stream') {
     }
     return new Blob([arr], { type: type });
 }
-
-// 🌟 ฟังก์ชันแปลงผลตรวจใส่ Frame ຄລີນິກ + ປະທັບຕາ (Lab Result with Clinic Frame & Stamp)
-window.convertLabResultWithFrame = async function (visitId, patientName, categoryName) {
-    try {
-        if (typeof Swal !== 'undefined') {
-            Swal.fire({
-                title: 'ກຳລັງໂຫຼດຂໍ້ມູນຜົນກວດ...',
-                html: '<div class="spinner-border text-primary my-2" role="status"></div><div class="small text-muted">ກະລຸນາລໍຖ້າຈັກໜ່ອຍ...</div>',
-                showConfirmButton: false,
-                allowOutsideClick: false,
-                width: '320px'
-            });
-        }
-
-        // 1. ดึงข้อมูล Clinic Settings (Logo, Stamp, Address, Phone, Website, etc.)
-        let cSettings = window.clinicSettings || {};
-        if (typeof _supabase !== 'undefined') {
-            try {
-                const { data: sData } = await _supabase.from('clinic_settings').select('key, value');
-                if (sData && sData.length > 0) {
-                    cSettings = Object.fromEntries(sData.map(r => [r.key, r.value]));
-                    window.clinicSettings = cSettings;
-                }
-            } catch (e) {
-                console.warn('Load clinic settings error:', e);
-            }
-        }
-
-        const clinicLogo = cSettings['clinic_logo_url'] || localStorage.getItem('clinic_logo_url') || '';
-        const clinicStamp = cSettings['clinic_stamp_url'] || '';
-        const clinicNameLa = cSettings['clinic_name_la'] || 'ສູນການແພດ ແລະ ປິ່ນປົວພະຍາດ ເລີຟ ເຮັສທີເຄ';
-        const clinicNameEn = 'Love STK Medical And Treatment Center';
-        const clinicAddress = cSettings['clinic_address'] || 'ITECC Mall ຊັ້ນ 6, ນະຄອນຫຼວງວຽງຈັນ, ສປປ ລາວ';
-        const clinicPhone = cSettings['clinic_phone'] || '020 5555 1234';
-        const clinicWebsite = cSettings['clinic_website'] ? cSettings['clinic_website'].replace(/^https?:\/\//, '') : 'www.lovestk.com';
-
-        // 2. ดึงข้อมูล Visit ແລະ Patient
-        let visitData = null;
-        if (window.allVisits && Array.isArray(window.allVisits)) {
-            visitData = window.allVisits.find(v => v.visit_id === visitId);
-        }
-        if (!visitData && typeof _supabase !== 'undefined' && visitId) {
-            try {
-                const { data: vRow } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
-                if (vRow) visitData = vRow;
-            } catch (e) {
-                console.warn('Fetch visitData error:', e);
-            }
-        }
-
-        let pData = null;
-        const curHN = (visitData && visitData.hn) ? visitData.hn : '';
-        if (window.allPatients && Array.isArray(window.allPatients)) {
-            if (curHN) pData = window.allPatients.find(p => p.hn === curHN);
-            if (!pData && patientName) pData = window.allPatients.find(p => p.patient_name === patientName);
-        }
-        if (!pData && typeof _supabase !== 'undefined' && curHN) {
-            try {
-                const { data: pRow } = await _supabase.from('patients').select('*').eq('hn', curHN).maybeSingle();
-                if (pRow) pData = pRow;
-            } catch (e) {
-                console.warn('Fetch patientData error:', e);
-            }
-        }
-
-        const hnDisplay = curHN || (pData && pData.hn) || 'HN-' + (visitId ? visitId.replace(/\D/g, '').slice(-6) : '141295');
-        const visitNoDisplay = (visitData && visitData.visit_id) ? visitData.visit_id : (visitId || 'VIS-307231');
-        const patNameDisplay = patientName || (visitData && visitData.patient_name) || (pData && pData.patient_name) || '-';
-        const patPhoneDisplay = (pData && (pData.phone || pData.emergency_tel)) || '-';
-        const patAgeDisplay = (pData && pData.age) ? (pData.age + ' ປີ') : (pData && pData.dob ? calculateAge(pData.dob) + ' ປີ' : '-');
-
-        // วันที่
-        const now = new Date();
-        const vDate = (visitData && visitData.created_at) ? new Date(visitData.created_at) : now;
-        const formatDate = (d) => {
-            const day = String(d.getDate()).padStart(2, '0');
-            const month = String(d.getMonth() + 1).padStart(2, '0');
-            const year = d.getFullYear();
-            return `${day}/${month}/${year}`;
-        };
-        const testDateDisplay = formatDate(vDate);
-        const reportDateDisplay = formatDate(now);
-
-        // หมอผู้ตรวจ
-        const doctorNameDisplay = (visitData && visitData.doctor_name) ? visitData.doctor_name : 'ດຣ. ສີສຸກ ແສງປະເສີດ / Dr. Sisouk SENGPASEUTH';
-
-        // 3. รายการตรวจ (Lab Items) - เริ่มต้นด้วยตารางมาตรฐานตามแบบ Biochem หรือจาก lab_tests
-        const defaultBiochemItems = [
-            { test: 'ALBUMIN', sample: 'SER', result: '48', flag: '', unit: 'g/L', ref: '30-50' },
-            { test: 'ALP-AMP', sample: 'SER', result: '94', flag: '', unit: 'U/L', ref: '20- 250' },
-            { test: 'ALT-GPT', sample: 'SER', result: '38', flag: '', unit: 'U/L', ref: '0-40' },
-            { test: 'AMYLASE DIRECT', sample: 'SER', result: '58', flag: '', unit: 'U/L', ref: '5 -122' },
-            { test: 'AST-GOT', sample: 'SER', result: '5', flag: '', unit: 'U/L', ref: '0 - 40' },
-            { test: 'BILIRUBIN TOTAL', sample: 'SER', result: '0.8', flag: '', unit: 'mg/dL', ref: '0.0 -1.5' },
-            { test: 'CALCIUM ARSENAZO', sample: 'SER', result: '9.89', flag: '', unit: 'mg/dL', ref: '8.00-11.00' },
-            { test: 'CHOL HDL DIRECT', sample: 'SER', result: '88.2', flag: '', unit: 'mg/dL', ref: '40.0-110.0' },
-            { test: 'CHOL LDL DIRECT', sample: 'SER', result: '119', flag: '', unit: 'mg/dL', ref: '50-190' },
-            { test: 'CHOLESTEROL', sample: 'SER', result: '201', flag: '', unit: 'mg/dL', ref: '120-220' },
-            { test: 'CREATININE', sample: 'SER', result: '0.62', flag: '', unit: 'mg/dL', ref: '0.50-1.42' },
-            { test: 'GAMMA-GT', sample: 'SER', result: '46', flag: 'H', unit: 'U/L', ref: '0-40' },
-            { test: 'GLUCOSE', sample: 'SER', result: '89', flag: '', unit: 'mg/dL', ref: '70-110' },
-            { test: 'TRIGLYCERIDES', sample: 'SER', result: '60', flag: '', unit: 'mg/dL', ref: '35-160' },
-            { test: 'UREA-BUN-UV', sample: 'SER', result: '21', flag: '', unit: 'mg/dL', ref: '5-38' },
-            { test: 'URIC ACID', sample: 'SER', result: '4.55', flag: '', unit: 'mg/dL', ref: '2.50-7.50' }
-        ];
-
-        let labRows = defaultBiochemItems;
-
-        // ฟังก์ชันสร้าง Table Rows HTML
-        const buildTableRowsHtml = (items) => {
-            return items.map(item => `
-                <tr style="border-bottom: 1px solid #e2e8f0; height: 32px;">
-                    <td style="padding: 4px 12px; font-weight: 700; color: #1e293b; text-align: left;">${item.test}</td>
-                    <td style="padding: 4px 12px; text-align: center; color: #64748b; font-size: 11px;">${item.sample || 'SER'}</td>
-                    <td style="padding: 4px 12px; font-weight: 700; color: #0f172a; text-align: left;">${item.result}</td>
-                    <td style="padding: 4px 12px; text-align: center; font-weight: 800; color: ${item.flag === 'H' ? '#dc2626' : (item.flag === 'L' ? '#2563eb' : '#64748b')};">${item.flag || ''}</td>
-                    <td style="padding: 4px 12px; text-align: left; color: #475569;">${item.unit}</td>
-                    <td style="padding: 4px 12px; text-align: left; color: #475569;">${item.ref}</td>
-                </tr>
-            `).join('');
-        };
-
-        // Header Title
-        const reportTitle = (categoryName && categoryName.trim() !== '') ? `${categoryName} Analysis Report` : 'Bio Chemistry Analysis Report';
-
-        // Recommendation Text
-        const recommendationHtml = `
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; min-height: 100px;">
-                <div style="font-weight: 700; color: #0b3c73; font-size: 13px; margin-bottom: 6px;">
-                    ຄຳແນະນຳຈາກແພດ / Doctor's Recommendation
-                </div>
-                <div style="font-size: 11px; line-height: 1.6; color: #334155;">
-                    ລໍຖ້າຜົນກວດທາງຫ້ອງປະຕິບັດລວມເພື່ອໃຫ້ທ່ານໝໍປະເມີນ ແລະ ໃຫ້ຄຳແນະນຳ / ລໍຜົນກວດຈາກຫ້ອງປະຕິບັດການເພື່ອຮັບການວິນິດໄສ ແລະ ຄຳແນະນຳຈາກແພດຜູ້ກວດ
-                </div>
-            </div>
-        `;
-
-        // Stamp & Doctor Block
-        const stampDoctorHtml = `
-            <div style="text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 220px;">
-                <div style="width: 130px; height: 130px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; position: relative;">
-                    ${clinicStamp ? `
-                        <img src="${clinicStamp}" alt="ຕາປະທັບຄລີນິກ" style="max-width: 100%; max-height: 100%; object-fit: contain;">
-                    ` : `
-                        <!-- Fallback Stamp SVG ຄ້າຍກັບໃນຮູບ -->
-                        <div style="width: 120px; height: 120px; border: 2.5px solid #1d4ed8; border-radius: 50%; padding: 4px; display: flex; align-items: center; justify-content: center; color: #1d4ed8; text-align: center; font-size: 9px; font-weight: 700; line-height: 1.2; box-sizing: border-box;">
-                            <div style="border: 1px dashed #1d4ed8; border-radius: 50%; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2px;">
-                                <div style="font-size: 8px;">★ ບໍລິສັດ ★</div>
-                                <div style="font-size: 10px; font-weight: 800;">ຄລີນິກ ເລີຟເຮັສທີເຄ</div>
-                                <div style="font-size: 8px;">Clinic Love STK</div>
-                                <div style="font-size: 7px; color: #2563eb;">ນະຄອນຫຼວງວຽງຈັນ</div>
-                            </div>
-                        </div>
-                    `}
-                </div>
-                <div style="font-size: 14px; font-weight: 800; color: #1e3a8a; line-height: 1.3;">
-                    ${doctorNameDisplay.includes('/') ? doctorNameDisplay.split('/')[0].trim() : doctorNameDisplay}
-                </div>
-                <div style="font-size: 12px; font-weight: 700; color: #1e3a8a;">
-                    ${doctorNameDisplay.includes('/') ? doctorNameDisplay.split('/')[1].trim() : ''}
-                </div>
-            </div>
-        `;
-
-        // โครงสร้าง A4 Report HTML
-        const reportContentHtml = `
-            <div id="printableLabReport" style="width: 210mm; min-height: 297mm; padding: 16mm 14mm 12mm 14mm; background: #ffffff; color: #0f172a; font-family: 'Sarabun', 'Noto Sans Lao', sans-serif; box-sizing: border-box; margin: 0 auto; position: relative; display: flex; flex-direction: column; justify-content: space-between;">
-                
-                <!-- TOP HEADER -->
-                <div>
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px;">
-                        <!-- Logo & Clinic Title (Left) -->
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            ${clinicLogo ? `
-                                <img src="${clinicLogo}" style="height: 58px; max-width: 90px; object-fit: contain;" alt="Logo">
-                            ` : `
-                                <div style="width: 52px; height: 52px; border-radius: 50%; background: #0b3c73; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 24px;">
-                                    <i class="bi bi-hospital"></i>
-                                </div>
-                            `}
-                            <div>
-                                <div style="font-size: 13px; font-weight: 700; color: #1e293b; line-height: 1.3;">${clinicNameLa}</div>
-                                <div style="font-size: 10px; color: #64748b; font-weight: 600;">${clinicNameEn}</div>
-                            </div>
-                        </div>
-
-                        <!-- Document Title (Right) -->
-                        <div style="text-align: right;">
-                            <div style="font-size: 22px; font-weight: 900; color: #2563eb; letter-spacing: 0.5px; line-height: 1.1;">LABORATORY REPORT</div>
-                            <div style="font-size: 13px; font-weight: 700; color: #1e293b;">ຜົນການກວດທາງຫ້ອງປະຕິບັດການ</div>
-                        </div>
-                    </div>
-
-                    <!-- PATIENT INFORMATION BOX -->
-                    <div style="border-radius: 8px; overflow: hidden; border: 1px solid #bfdbfe; margin-bottom: 14px;">
-                        <!-- Banner Header -->
-                        <div style="background: #0b3c73; color: #ffffff; padding: 5px 12px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px;">
-                            <i class="bi bi-person-circle"></i>
-                            <span>ຂໍ້ມູນຜູ້ປ່ວຍ / Patient Information</span>
-                        </div>
-                        <!-- Info Grid -->
-                        <div style="background: #f8fafc; padding: 10px 14px; font-size: 11px;">
-                            <div style="display: grid; grid-template-columns: 2.2fr 2.2fr 1.6fr; gap: 6px 16px;">
-                                <div>
-                                    <span style="display: inline-block; width: 65px; color: #64748b;">HN</span>
-                                    <span style="color: #64748b; margin-right: 6px;">:</span>
-                                    <strong style="color: #0f172a; font-size: 12px;">${hnDisplay}</strong>
-                                </div>
-                                <div>
-                                    <span style="display: inline-block; width: 75px; color: #64748b;">ເບີໂທລະສັບ</span>
-                                    <span style="color: #64748b; margin-right: 6px;">:</span>
-                                    <strong style="color: #0f172a;">${patPhoneDisplay}</strong>
-                                </div>
-                                <div style="text-align: right;">
-                                    <strong style="color: #0f172a;">${testDateDisplay}</strong>
-                                </div>
-
-                                <div>
-                                    <span style="display: inline-block; width: 65px; color: #64748b;">Visit No.</span>
-                                    <span style="color: #64748b; margin-right: 6px;">:</span>
-                                    <strong style="color: #0f172a;">${visitNoDisplay}</strong>
-                                </div>
-                                <div>
-                                    <span style="display: inline-block; width: 75px; color: #64748b;">ວັນທີກວດ</span>
-                                    <span style="color: #64748b; margin-right: 6px;">:</span>
-                                    <strong style="color: #0f172a;">${testDateDisplay}</strong>
-                                </div>
-                                <div style="text-align: right;">
-                                    <strong style="color: #0f172a;">${reportDateDisplay}</strong>
-                                </div>
-
-                                <div>
-                                    <span style="display: inline-block; width: 65px; color: #64748b;">ຊື່ - ນາມສະກຸນ</span>
-                                    <span style="color: #64748b; margin-right: 6px;">:</span>
-                                    <strong style="color: #0f172a; font-size: 12px;">${patNameDisplay}</strong>
-                                </div>
-                                <div>
-                                    <span style="display: inline-block; width: 75px; color: #64748b;">ວັນທີອອກລາຍງານ</span>
-                                    <span style="color: #64748b; margin-right: 6px;">:</span>
-                                    <strong style="color: #0f172a;">${reportDateDisplay}</strong>
-                                </div>
-                                <div></div>
-
-                                <div></div>
-                                <div>
-                                    <span style="display: inline-block; width: 75px; color: #64748b;">ອາຍຸ / Age</span>
-                                    <span style="color: #64748b; margin-right: 6px;">:</span>
-                                    <strong style="color: #0f172a;">${patAgeDisplay}</strong>
-                                </div>
-                                <div></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- REPORT TITLE -->
-                    <div style="font-size: 14px; font-weight: 800; color: #0b3c73; margin-bottom: 8px;">
-                        ${reportTitle}
-                    </div>
-
-                    <!-- LAB TABLE -->
-                    <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 14px;">
-                        <thead>
-                            <tr style="background: #0b3c73; color: #ffffff; text-align: left; height: 30px;">
-                                <th style="padding: 4px 12px; font-weight: 700; width: 28%;">TEST</th>
-                                <th style="padding: 4px 12px; font-weight: 700; width: 12%; text-align: center;"></th>
-                                <th style="padding: 4px 12px; font-weight: 700; width: 15%;">RESULT</th>
-                                <th style="padding: 4px 12px; font-weight: 700; width: 10%; text-align: center;">FLAGS</th>
-                                <th style="padding: 4px 12px; font-weight: 700; width: 15%;">UNIT</th>
-                                <th style="padding: 4px 12px; font-weight: 700; width: 20%;">REF.RANGES</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${buildTableRowsHtml(labRows)}
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- BOTTOM SECTION: RECOMMENDATION & STAMP + FOOTER -->
-                <div>
-                    <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; margin-bottom: 16px;">
-                        <!-- Recommendation (Left) -->
-                        <div style="flex: 1;">
-                            ${recommendationHtml}
-                        </div>
-                        <!-- Stamp & Signature (Right) -->
-                        <div>
-                            ${stampDoctorHtml}
-                        </div>
-                    </div>
-
-                    <!-- FOOTER BAR -->
-                    <div style="background: #0b3c73; color: #ffffff; padding: 7px 16px; border-radius: 4px; font-size: 10.5px; display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-                        <div style="display: flex; align-items: center; gap: 6px;">
-                            <i class="bi bi-geo-alt-fill text-info"></i>
-                            <span>${clinicAddress}</span>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 6px;">
-                            <i class="bi bi-telephone-fill text-info"></i>
-                            <span>${clinicPhone}</span>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 6px;">
-                            <i class="bi bi-globe text-info"></i>
-                            <span>${clinicWebsite}</span>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-        `;
-
-        // 4. แสดง SweetAlert2 Modal พร้อมปุ่มພິມ / Save PDF
-        if (typeof Swal !== 'undefined') {
-            Swal.fire({
-                title: `<div class="d-flex justify-content-between align-items-center w-100 pe-3">
-                            <span class="fs-6 fw-bold text-primary"><i class="bi bi-file-earmark-medical me-2"></i>ລາຍງານຜົນກວດທາງຫ້ອງປະຕິບັດການ (Laboratory Report)</span>
-                            <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 shadow-xs" onclick="window.printLabReportFrame()">
-                                <i class="bi bi-printer-fill me-1"></i> ພິມ / ບັນທຶກ PDF
-                            </button>
-                        </div>`,
-                html: `
-                    <div class="text-center p-0" style="max-height: 80vh; overflow-y: auto; background: #e2e8f0; border-radius: 8px;">
-                        <div class="d-inline-block shadow-lg my-3" style="background:#fff;">
-                            ${reportContentHtml}
-                        </div>
-                    </div>
-                `,
-                width: '920px',
-                showCloseButton: true,
-                showConfirmButton: false,
-                didOpen: () => {
-                    // กำหนด printLabReportFrame
-                    window.printLabReportFrame = function () {
-                        const printWin = window.open('', '_blank');
-                        if (!printWin) {
-                            alert('ກະລຸນາອະນຸຍາດ Popup ເພື່ອພິມເອກະສານ');
-                            return;
-                        }
-                        printWin.document.open();
-                        printWin.document.write(`
-                            <!DOCTYPE html>
-                            <html>
-                            <head>
-                                <meta charset="utf-8">
-                                <title>Lab Report - ${visitNoDisplay}</title>
-                                <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-                                <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700;800&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
-                                <style>
-                                    @page {
-                                        size: A4 portrait;
-                                        margin: 0;
-                                    }
-                                    body {
-                                        margin: 0;
-                                        padding: 0;
-                                        background: #fff;
-                                        -webkit-print-color-adjust: exact !important;
-                                        print-color-adjust: exact !important;
-                                    }
-                                </style>
-                            </head>
-                            <body>
-                                ${reportContentHtml}
-                                <script>
-                                    window.onload = function() {
-                                        setTimeout(function() {
-                                            window.print();
-                                        }, 400);
-                                    };
-                                <\\/script>
-                            </body>
-                            </html>
-                        `);
-                        printWin.document.close();
-                    };
-                }
-            });
-        }
-    } catch (err) {
-        console.error('convertLabResultWithFrame error:', err);
-        if (typeof Swal !== 'undefined') {
-            Swal.fire('ຂໍ້ຜິດພາດ', 'ເກີດຂໍ້ຜິດພາດໃນການແປງຜົນກວດ: ' + err.message, 'error');
-        }
-    }
-};
 
 // --- อ่านผล & จัดยา ---
 window.currentRxMeds = [];
@@ -9586,7 +9173,7 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
         }
     } catch (e) { }
 
-    // 6. ดึงปุ่มผลตรวจทั้งหมด
+    // 5. ดึงปุ่มผลตรวจทั้งหมด
     const pdfBtn = document.getElementById('rxPdfBtn');
     const pdfContainer = pdfBtn ? (pdfBtn.parentElement || pdfBtn) : null;
 
@@ -9625,22 +9212,16 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
             } else if (catName === 'ตรวจหลอดเลือด') {
                 btnIcon = 'bi-heart-pulse-fill';
                 btnClass = 'btn-outline-warning';
-            } else if (catName === 'CBC') {
-                btnIcon = 'bi-file-earmark-pdf';
-                btnClass = 'btn-outline-danger';
             } else {
                 btnIcon = 'bi-file-earmark-text';
                 btnClass = 'btn-outline-secondary';
             }
 
             const safeCat = catName.replace(/'/g, "\\'");
-            const isCbcCat = (catName === 'CBC');
-            const btnOnClick = isCbcCat ? `openCbcPage('${visitId}', 'print')` : `viewRealLabFile('', '${visitId}', '${safeName}', '${safeCat}')`;
-            const btnLabel = isCbcCat ? 'CBC (PDF)' : catName;
 
             allResultButtons.push(`
-                <button type="button" class="btn btn-sm ${btnClass} me-1 mb-1 fw-semibold" onclick="${btnOnClick}">
-                    <i class="bi ${btnIcon} me-1"></i> ${btnLabel}
+                <button type="button" class="btn btn-sm ${btnClass} me-1 mb-1 fw-semibold" onclick="viewRealLabFile('', '${visitId}', '${safeName}', '${safeCat}')">
+                    <i class="bi ${btnIcon} me-1"></i> ${catName}
                 </button>
             `);
         });
@@ -9653,13 +9234,175 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
             `);
         }
 
-        pdfContainer.innerHTML = allResultButtons.join('');
+        if (allResultButtons.length > 0) {
+            pdfContainer.innerHTML = allResultButtons.join(' ');
+        } else {
+            pdfContainer.innerHTML = `<button type="button" class="btn btn-sm btn-outline-secondary px-3 opacity-75 rounded-pill" disabled><i class="bi bi-file-earmark-x me-1"></i> ยังไม่มีผล Lab</button>`;
+        }
+    }
+
+    // 6. ดึงข้อมูลหมายเหตุ / ข้อเน้นย้ำจากแพทย์ (Lab Note) ที่บันทึกไว้ตอนสั่งตรวจ Lab
+    let doctorLabNote = '';
+    if (visitRow) {
+        if (visitRow.lab_note) doctorLabNote = visitRow.lab_note;
+        else if (visitRow.doctor_note) doctorLabNote = visitRow.doctor_note;
+        else if (visitRow.notes) doctorLabNote = visitRow.notes;
+    }
+
+    // กรองส่วนหัวแท็กไฟล์/ผลตรวจหลอดเลือดออก เพื่อแสดงเฉพาะข้อความเน้นย้ำจากแพทย์
+    let cleanLabNote = (doctorLabNote || '')
+        .replace(/\[เอกสารผลตรวจ[^\]]*\]/gi, '')
+        .replace(/\[เอกสารแนบ[^\]]*\]/gi, '')
+        .replace(/\[ไฟล์แนบ[^\]]*\]/gi, '');
+
+    if (cleanLabNote.includes('[ผลตรวจหลอดเลือด]')) {
+        cleanLabNote = cleanLabNote.split('[ผลตรวจหลอดเลือด]')[0].trim();
+    } else {
+        cleanLabNote = cleanLabNote.trim();
+    }
+
+    const labNoteBox = document.getElementById('rxDoctorLabNoteBox');
+    const labNoteText = document.getElementById('rxDoctorLabNoteText');
+    if (labNoteBox && labNoteText) {
+        if (cleanLabNote && cleanLabNote !== '' && cleanLabNote !== '-') {
+            labNoteText.innerText = cleanLabNote;
+            labNoteBox.style.display = 'flex';
+        } else {
+            labNoteBox.style.display = 'none';
+        }
+    }
+
+    // 7. โหลด/อัปเดตสต็อกใน background หากจำเป็น
+    if (!window.allStockMedicines || window.allStockMedicines.length === 0 || !window.allMlmProducts || window.allMlmProducts.length === 0) {
+        Promise.all([
+            typeof loadStockList === 'function' ? loadStockList() : Promise.resolve(),
+            loadMlmProducts()
+        ]).then(() => {
+            populateRxMedDropdown();
+        });
     }
 }
 
-// ----------------------------------------------------
-// Submit Prescription (Rx)
-// ----------------------------------------------------
+function addMedToRx() {
+    const select = document.getElementById('rxMedSelect');
+    const qtyInput = document.getElementById('rxMedQty');
+    const tierSelect = document.getElementById('rxPriceTierSelect');
+    if (!select || !select.value || !tierSelect) return;
+
+    const rawVal = select.value;
+
+    // 🌟 จุดที่แก้ไข: ตัดเอาเฉพาะ "รหัส" ที่อยู่ด้านหน้าสุดมาใช้ค้นหา
+    const medId = rawVal.split(' - ')[0].trim();
+
+    const qty = parseInt(qtyInput.value) || 1;
+    const selectedTier = tierSelect.value;
+
+    let medDetails = null;
+    let itemSource = 'clinic';
+
+    // ค้นหาในคลัง MLM ก่อน ถ้าไม่เจอค่อยไปหาในคลังคลินิก
+    medDetails = (window.allMlmProducts || []).find(m => m.id === medId || m.product_id === medId);
+    if (medDetails) {
+        itemSource = 'mlm';
+    } else {
+        medDetails = (window.allMedicines || []).find(m => m.id === medId);
+        itemSource = 'clinic';
+    }
+
+    if (!medDetails) return;
+
+    // ดักจับการเพิ่มสินค้าที่หมดสต็อก
+    if (medDetails.stock <= 0) {
+        Swal.fire('แจ้งเตือน', 'รายการนี้สต็อกหมด ไม่สามารถสั่งจ่ายได้', 'warning');
+        return;
+    }
+
+    const medName = medDetails.name;
+    const sourceLabel = itemSource === 'mlm' ? 'STK MLM' : 'คลังยา';
+
+    let medPrice = 0;
+    let tierLabel = '';
+
+    // จัดการประเภทราคา
+    if (selectedTier === 'normal') {
+        medPrice = medDetails.price_normal || medDetails.price || 0;
+    } else if (selectedTier === 'promo') {
+        medPrice = medDetails.price_promo || 0;
+        tierLabel = ' (โปร)';
+    } else if (selectedTier === 'high') {
+        medPrice = medDetails.price_high || 0;
+        tierLabel = ' (ส่ง/สมาชิก)';
+    } else if (selectedTier === 'free') {
+        medPrice = 0;
+        tierLabel = ' (แถมฟรี)';
+    }
+
+    const displayName = medName + tierLabel;
+
+    // ตรวจสอบว่ามีรายการนี้ในบิลแล้วหรือไม่
+    const existing = window.currentRxMeds.find(m => m.id === medId && m.tier === selectedTier && m.source === itemSource);
+    if (existing) {
+        existing.qty += qty;
+    } else {
+        window.currentRxMeds.push({
+            id: medId, name: displayName, price: medPrice,
+            qty: qty, tier: selectedTier, source: itemSource, sourceLabel: sourceLabel
+        });
+    }
+
+    renderRxMedsTable();
+
+    // เคลียร์ช่องค้นหาให้ว่าง เพื่อเตรียมพิมพ์รายการต่อไป
+    select.value = '';
+}
+
+function removeMedFromRx(index) { window.currentRxMeds.splice(index, 1); renderRxMedsTable(); }
+
+function renderRxMedsTable() {
+    const tbody = document.querySelector('#rxMedsTable tbody');
+    tbody.innerHTML = '';
+    if (window.currentRxMeds.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">ยังไม่มีรายการยา/อาหารเสริม</td></tr>';
+        return;
+    }
+
+    window.currentRxMeds.forEach((med, index) => {
+        let tierText = 'ปกติ';
+        if (med.tier === 'promo') tierText = 'โปรโมชั่น';
+        else if (med.tier === 'high') tierText = 'ส่ง/สมาชิก';
+        else if (med.tier === 'free') tierText = 'แถมฟรี';
+
+        const unitPrice = med.price || 0;
+        const qty = med.qty || 0;
+        const total = unitPrice * qty;
+
+        // แยกเอาชื่อสะอาดๆ ที่ไม่มีวงเล็บมาแสดงผล
+        let cleanName = med.name;
+        if (cleanName.endsWith(' (โปร)')) cleanName = cleanName.replace(' (โปร)', '');
+        else if (cleanName.endsWith(' (ส่ง/สมาชิก)')) cleanName = cleanName.replace(' (ส่ง/สมาชิก)', '');
+        else if (cleanName.endsWith(' (แถมฟรี)')) cleanName = cleanName.replace(' (แถมฟรี)', '');
+
+        let sourceBadge = med.source === 'mlm'
+            ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2" style="font-size: 0.7rem;">STK MLM</span>'
+            : '<span class="badge bg-info-subtle text-info border border-info-subtle ms-2" style="font-size: 0.7rem;">คลังยา</span>';
+
+        tbody.innerHTML += `
+            <tr>
+                <td class="ps-3 align-middle text-dark fw-medium">${cleanName} ${sourceBadge}</td>
+                <td class="text-center align-middle"><span class="badge bg-light text-dark border">${tierText}</span></td>
+                <td class="text-end align-middle text-secondary">${unitPrice} ฿</td>
+                <td class="text-center align-middle fw-bold">${qty}</td>
+                <td class="text-end align-middle fw-bold text-primary">${total} ฿</td>
+                <td class="text-center align-middle">
+                    <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="removeMedFromRx(${index})"><i class="bi bi-trash"></i></button>
+                </td>
+            </tr>
+        `;
+    });
+    if (typeof updateRxTotals === 'function') updateRxTotals();
+}
+
+
 async function submitPrescription() {
     const visitId = document.getElementById('rxVisitId')?.value || '';
     const hn = document.getElementById('rxHN')?.value || '';
@@ -9687,7 +9430,6 @@ async function submitPrescription() {
         const v = window.clinicVisits.find(x => x.visit_id === visitId);
         if (v && v.symptom && v.symptom !== 'สั่งจ่ายยา') originalSymptom = v.symptom;
     }
-
     if (!originalSymptom && typeof _supabase !== 'undefined') {
         try {
             const { data: vDb } = await _supabase.from('visits').select('symptom').eq('visit_id', visitId).maybeSingle();
@@ -10854,6 +10596,7 @@ window.viewPharmacyBillDetails = async function (visitId, billType) {
                     </div>
                     <div><strong>รหัส VISIT:</strong> <span class="text-primary fw-bold">${visit.visit_id}</span></div>
                     <div><span class="me-3 text-muted">แพทย์ผู้ตรวจ: <strong class="text-dark">${doctorName}</strong></span></div>
+                    <!-- ส่วนที่เพิ่มใหม่: แสดงผู้แนะนำ & อาการเบื้องต้น -->
                     <div class="w-100 mt-1 pt-2 border-top d-flex flex-wrap align-items-center justify-content-between gap-2">
                         <div><strong>ผู้แนะนำ:</strong> <span class="text-primary fw-bold">${referrerText}</span></div>
                         <div><span class="text-muted">อาการเบื้องต้น: <strong class="text-danger">${patientSymptom}</strong></span></div>
@@ -12233,20 +11976,16 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
         if (s1 === s2) return true;
         const d1 = s1.replace(/\D/g, '');
         const d2 = s2.replace(/\D/g, '');
-        // ✅ ต้องตรงกันทั้งหมดเท่านั้น (ไม่ใช้ endsWith เพราะทำให้ HN/ID คนละคนเข้าใจผิด)
-        if (d1 && d2 && d1 === d2) return true;
+        if (d1 && d2 && (d1 === d2 || d1.endsWith(d2) || d2.endsWith(d1))) return true;
         return false;
     };
 
     // 0. ถ้ามี directOrderData ส่งตรงมาจากหน้าจอ ให้สร้าง row ทันที
     if (directOrderData) {
-        // ✅ targetHn (HN ที่กดดูจากตาราง) ต้องมาก่อนเสมอ เพื่อป้องกันการแสดงผู้ป่วยผิดคน
-        const resolvedHn = (targetHn && targetHn !== '-') ? targetHn : (directOrderData.hn || '-');
-        const resolvedName = (targetName && targetName !== '-') ? targetName : (directOrderData.customer_name || directOrderData.patient_name || '-');
         row = {
             visit_id: directOrderData.visitId || directOrderData.visit_id || cleanVisitId,
-            hn: resolvedHn,
-            patient_name: resolvedName,
+            hn: directOrderData.hn || targetHn || '-',
+            patient_name: directOrderData.customer_name || directOrderData.patient_name || targetName || '-',
             doctor_name: directOrderData.closer_dr || directOrderData.doctor_advice || 'ແພດປະຈຳຄລີນິກ',
             assistant_name: directOrderData.assistant_advice || directOrderData.recorded_by || '-',
             symptom: directOrderData.disease || directOrderData.symptom || 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ',
@@ -12291,25 +12030,16 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
                 }
             }
             if (freshVisit) {
-                // ✅ ต้องแน่ใจว่า freshVisit เป็นของคนไข้คนนี้ ไม่ใช่ของผู้ป่วยคนอื่น
-                const isMatchingPat = !targetHn || targetHn === '-' || !freshVisit.hn || freshVisit.hn === targetHn || isMatchVisitId(freshVisit.hn, targetHn);
-                if (isMatchingPat) {
-                    if (!row) {
-                        row = freshVisit;
-                    } else {
-                        const preservedItems = row.items_json || (row.order_data && (row.order_data.items_json || row.order_data.items));
-                        const preservedOrderData = row.order_data;
-                        const preservedMeds = row.meds;
-                        const preservedHn = row.hn;
-                        const preservedName = row.patient_name;
-                        Object.assign(row, freshVisit);
-                        // ✅ ป้องกันไม่ให้ freshVisit ไป overwrite ชื่อและ HN ของคนที่ staff คลิกดู
-                        if (preservedHn && preservedHn !== '-') row.hn = preservedHn;
-                        if (preservedName && preservedName !== '-') row.patient_name = preservedName;
-                        if (!row.items_json && preservedItems) row.items_json = preservedItems;
-                        if (!row.order_data && preservedOrderData) row.order_data = preservedOrderData;
-                        if (!row.meds && preservedMeds) row.meds = preservedMeds;
-                    }
+                if (!row) {
+                    row = freshVisit;
+                } else {
+                    const preservedItems = row.items_json || (row.order_data && (row.order_data.items_json || row.order_data.items));
+                    const preservedOrderData = row.order_data;
+                    const preservedMeds = row.meds;
+                    Object.assign(row, freshVisit);
+                    if (!row.items_json && preservedItems) row.items_json = preservedItems;
+                    if (!row.order_data && preservedOrderData) row.order_data = preservedOrderData;
+                    if (!row.meds && preservedMeds) row.meds = preservedMeds;
                 }
             }
         } catch (err) {
@@ -12378,49 +12108,6 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
         } catch (e) { }
     }
 
-    // 🌟 1.4 ถ้ายังไม่พบประวัติการตรวจหรือออเดอร์ ให้ดึงจากข้อมูลคนไข้ที่ลงทะเบียนไว้ (Step 01 ລົງທະບຽນ)
-    if (!row && (targetHn || targetName)) {
-        let foundPat = null;
-        const patientPool = (window.allPatients || []).concat(window.allPatientsData || []).concat(window.rawAllPatients || []);
-        if (targetHn && targetHn !== '-') {
-            const cleanHn = String(targetHn).trim();
-            foundPat = patientPool.find(p => p && (p.hn === cleanHn || (p.hn && String(p.hn).replace(/\D/g, '') === cleanHn.replace(/\D/g, ''))));
-        }
-        if (!foundPat && targetName && targetName !== '-') {
-            const cleanName = String(targetName).trim().toLowerCase();
-            foundPat = patientPool.find(p => p && ((p.patient_name && p.patient_name.trim().toLowerCase() === cleanName) || (p.name && p.name.trim().toLowerCase() === cleanName)));
-        }
-        if (!foundPat && targetHn && targetHn !== '-' && typeof _supabase !== 'undefined') {
-            try {
-                const { data: pDb } = await _supabase.from('patients').select('*').eq('hn', String(targetHn).trim()).maybeSingle();
-                if (pDb) foundPat = pDb;
-            } catch (pe) { }
-        }
-        if (foundPat) {
-            row = {
-                visit_id: cleanVisitId || '-',
-                hn: foundPat.hn || targetHn || '-',
-                patient_name: foundPat.patient_name || foundPat.name || targetName || '-',
-                doctor_name: '-',
-                assistant_name: foundPat.referred_by || '-',
-                symptom: foundPat.symptom || foundPat.past_history || foundPat.disease || 'ລົງທະບຽນໃໝ່ (ຍັງບໍ່ມີປະຫວັດການກວດ)',
-                disease: foundPat.disease || foundPat.past_history || null,
-                status: '01 ລົງທະບຽນ',
-                created_at: foundPat.created_at || new Date().toISOString(),
-                phone: foundPat.phone || foundPat.tel || '',
-                age: foundPat.age || null,
-                gender: foundPat.gender || null,
-                province: foundPat.province || null,
-                district: foundPat.district || null,
-                village: foundPat.village || null,
-                order_id: null,
-                order_data: null,
-                items_json: null,
-                is_patient_only: true
-            };
-        }
-    }
-
     if (!row) {
         Swal.fire({
             icon: 'info',
@@ -12477,11 +12164,11 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
             if (!o) return false;
             const oV = o.visit_id || o.visitId;
             const oO = o.order_id || o.orderId;
-            // ✅ Match เฉพาะ visit_id / order_id เท่านั้น (ไม่ match HN เพียงอย่างเดียว เพราะทำให้เปิดผู้ป่วยผิดคน)
             if (row && row.visit_id && oV && isMatchVisitId(oV, row.visit_id)) return true;
             if (row && row.order_id && oO && isMatchVisitId(oO, row.order_id)) return true;
             if (cleanVisitId && oV && isMatchVisitId(oV, cleanVisitId)) return true;
             if (cleanVisitId && oO && isMatchVisitId(oO, cleanVisitId)) return true;
+            if (row && row.hn && o.hn && row.hn !== '-' && (o.hn === row.hn || String(o.hn).replace(/\D/g, '') === String(row.hn).replace(/\D/g, ''))) return true;
             return false;
         });
         if (foundDirect) {
@@ -12946,22 +12633,16 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
         } else if (catName === 'ตรวจหลอดเลือด') {
             btnIcon = 'bi-heart-pulse-fill';
             btnClass = 'btn-outline-warning';
-        } else if (catName === 'CBC') {
-            btnIcon = 'bi-file-earmark-pdf';
-            btnClass = 'btn-outline-danger';
         } else {
             btnIcon = 'bi-file-earmark-text';
             btnClass = 'btn-outline-secondary';
         }
 
         const safeCat = catName.replace(/'/g, "\\'");
-        const isCbcCat = (catName === 'CBC');
-        const btnOnClick = isCbcCat ? `openCbcPage('${row.visit_id}', 'print')` : `viewRealLabFile('', '${row.visit_id}', '${safeName}', '${safeCat}')`;
-        const btnLabel = isCbcCat ? 'CBC (PDF)' : catName;
 
         allResultButtons.push(`
-            <button type="button" class="btn btn-sm ${btnClass} me-1 mb-1 fw-semibold" onclick="${btnOnClick}">
-                <i class="bi ${btnIcon} me-1"></i> ${btnLabel}
+            <button type="button" class="btn btn-sm ${btnClass} me-1 mb-1 fw-semibold" onclick="viewRealLabFile('', '${row.visit_id}', '${safeName}', '${safeCat}')">
+                <i class="bi ${btnIcon} me-1"></i> ${catName}
             </button>
         `);
     });
@@ -12971,22 +12652,6 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
         allResultButtons.push(`
             <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມລາຍງານ PDF" onclick="openVascularReportPopup('${row.visit_id}')">
                 <i class="bi bi-file-earmark-pdf me-1"></i> ຜົນວິນິດໄສ (PDF)
-            </button>
-        `);
-    }
-
-    // 4.5 ถ้ามีผลตรวจ CBC ให้ใส่ปุ่ม "CBC (PDF)"
-    let cachedCbcHist = null;
-    try {
-        const allCbc = JSON.parse(localStorage.getItem('clinic_cbc_results') || '{}');
-        cachedCbcHist = allCbc[row.visit_id];
-    } catch (e) { }
-    const hasCbcInHistFiles = filesList.some(f => f && (f.category === 'CBC' || (f.fileName && f.fileName.includes('CBC'))));
-    const hasCbcHistNote = (row.lab_note && row.lab_note.includes('[ผลตรวจ CBC]'));
-    if (!hasCbcInHistFiles && (cachedCbcHist || hasCbcHistNote)) {
-        allResultButtons.push(`
-            <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມຜົນກວດ CBC" onclick="openCbcPage('${row.visit_id}', 'print')">
-                <i class="bi bi-file-earmark-pdf me-1"></i> CBC (PDF)
             </button>
         `);
     }
@@ -13057,8 +12722,6 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
         setSafeText('histLabTests', row.lab_tests || 'ไม่ได้ระบุชื่อรายการส่งแล็บ');
 
         let noteContentText = (row.lab_note || vascText || '').trim();
-        noteContentText = noteContentText.replace(/\[ผลตรวจ CBC\][\s\S]*?\[\/ผลตรวจ CBC\]/gi, '').trim();
-        noteContentText = noteContentText.replace(/\[ผลตรวจ CBC\]/gi, '').trim();
         noteContentText = noteContentText.replace(/\[เอกสารผลตรวจ[^\]]*\]/gi, '').trim();
         noteContentText = noteContentText.replace(/\[เอกสารแนบ[^\]]*\]/gi, '').trim();
         noteContentText = noteContentText.replace(/\[ไฟล์แนบ[^\]]*\]/gi, '').trim();
@@ -15666,7 +15329,7 @@ async function loadReferralData(isManualClick = false) {
                 .from('commission_logs')
                 .select('*')
                 .order('created_at', { ascending: false })
-                .limit(3000);
+                .limit(200);
             if (resLogs && resLogs.data) {
                 // Auto-clean any stale mock logs from Supabase cloud table
                 const staleMockIds = resLogs.data.filter(isMockCommLog).map(l => l.id).filter(Boolean);
@@ -15688,7 +15351,7 @@ async function loadReferralData(isManualClick = false) {
                         }
                         return true;
                     });
-                window.safeSetLocalStorage('clinic_commission_logs', (window.commissionLogs || []).slice(0, 500));
+                window.safeSetLocalStorage('clinic_commission_logs', (window.commissionLogs || []).slice(0, 50));
             }
         }
     } catch (e) { }
@@ -15956,9 +15619,9 @@ function getFilteredReferrersData() {
 
     let list = [...(window.referrersData || [])];
 
-    // Ensure referrers with commissionLogs exist in list
+    // Ensure referrers with paid commissionLogs exist in list
     (window.commissionLogs || []).forEach(log => {
-        if (log && (log.referrer_id || log.referrer_name)) {
+        if (log.status === 'paid' && (log.referrer_id || log.referrer_name)) {
             const found = list.find(r => r.id === log.referrer_id || r.code === log.referrer_id || r.name === log.referrer_name);
             if (!found) {
                 list.push({
@@ -15995,9 +15658,6 @@ function getFilteredReferrersData() {
         }
     } catch (e) { }
 
-    const sDateStr = startDateEl ? startDateEl.value : '';
-    const eDateStr = endDateEl ? endDateEl.value : '';
-
     list.forEach(r => {
         // Find matching member details from MLM cache or allEmployeesData
         const mlmMatch = mlmMembersCache.find(m =>
@@ -16023,35 +15683,33 @@ function getFilteredReferrersData() {
             ? (mlmMatch.bankAccountNo || mlmMatch.bank_account_no || mlmMatch.bank_account)
             : ((r.bank_account && r.bank_account !== '-') ? r.bank_account : (empMatch && empMatch.bank_account ? empMatch.bank_account : '-'));
 
-        // ดึงรายการปันผลของผู้แนะนำรายนี้
-        let memberLogs = (window.commissionLogs || []).filter(l =>
-            l && (
+        // ONLY include paid logs for Tab 2 Report
+        let paidLogs = (window.commissionLogs || []).filter(l =>
+            l.status === 'paid' && (
                 l.referrer_id === r.id ||
                 l.referrer_id === r.code ||
                 l.referrer_name === r.name
             )
         );
 
-        if (sDateStr || eDateStr) {
-            memberLogs = memberLogs.filter(l => {
-                const logDateStr = l.created_at || l.paid_at || '';
-                if (!logDateStr) return false;
-                const logDate = parseLogDateToYMD(logDateStr);
-                if (!logDate) return false;
-                if (sDateStr && logDate < sDateStr) return false;
-                if (eDateStr && logDate > eDateStr) return false;
+        if (startDate || endDate) {
+            paidLogs = paidLogs.filter(l => {
+                const logDateStr = l.paid_at || l.created_at;
+                if (!logDateStr) return true;
+                const d = new Date(logDateStr);
+                if (startDate && d < startDate) return false;
+                if (endDate && d > endDate) return false;
                 return true;
             });
         }
 
-        // แสดงผู้แนะนำที่มีรายการปันผลเกิดขึ้นในงวดวันที่เลือก
-        if (memberLogs.length > 0) {
+        // Only show referrers that have at least 1 paid dividend log
+        if (paidLogs.length > 0) {
             let baseEarned = 0;
             let itemEarned = 0;
             let totalEarned = 0;
-            let paidEarned = 0;
 
-            memberLogs.forEach(l => {
+            paidLogs.forEach(l => {
                 const bVal = l.base_amount !== undefined ? parseFloat(l.base_amount) : (l.item_amount ? (parseFloat(l.amount) - parseFloat(l.item_amount)) : parseFloat(l.amount));
                 const iVal = parseFloat(l.item_amount || 0);
                 const tVal = bVal + iVal;
@@ -16059,10 +15717,6 @@ function getFilteredReferrersData() {
                 baseEarned += bVal;
                 itemEarned += iVal;
                 totalEarned += tVal;
-
-                if (l.status === 'paid') {
-                    paidEarned += tVal;
-                }
             });
 
             reportData.push({
@@ -16070,11 +15724,11 @@ function getFilteredReferrersData() {
                 phone: phone,
                 bank_name: bankName,
                 bank_account: bankAccount,
-                logsCount: memberLogs.length,
+                logsCount: paidLogs.length,
                 baseEarned,
                 itemEarned,
                 totalEarned,
-                paidEarned
+                paidEarned: totalEarned
             });
         }
     });
@@ -16095,7 +15749,7 @@ function renderReferrersTable(filterText = '') {
     let totalPaidSum = 0;
 
     if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-5"><i class="bi bi-calendar-x fs-3 d-block mb-2 text-primary opacity-50"></i>ไม่พบข้อมูลสมาชิกผู้แนะนำในช่วงวันที่เลือก</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-5"><i class="bi bi-calendar-x fs-3 d-block mb-2 text-primary opacity-50"></i>ไม่พบข้อมูลสมาชิกผู้แนะนำในช่วงวันที่เลือก</td></tr>';
     } else {
         filtered.forEach((r, index) => {
             const baseEarned = r.baseEarned || 0;
@@ -16247,35 +15901,9 @@ async function openPayoutModal(logId) {
 }
 window.openPayoutModal = openPayoutModal;
 
-async function filterReferrersTable() {
-    const sDate = document.getElementById('referrerReportStartDate')?.value;
-    const eDate = document.getElementById('referrerReportEndDate')?.value;
-
-    if ((sDate || eDate) && typeof _supabase !== 'undefined') {
-        try {
-            let q = _supabase.from('commission_logs').select('*');
-            if (sDate) {
-                const startD = new Date(sDate + 'T00:00:00+07:00');
-                q = q.gte('created_at', startD.toISOString());
-            }
-            if (eDate) {
-                const endD = new Date(eDate + 'T23:59:59.999+07:00');
-                q = q.lte('created_at', endD.toISOString());
-            }
-            const { data: dbLogs } = await q.order('created_at', { ascending: false }).limit(2000);
-            if (dbLogs && Array.isArray(dbLogs) && dbLogs.length > 0) {
-                const map = new Map();
-                (window.commissionLogs || []).forEach(l => { if (l && l.id) map.set(l.id, l); });
-                dbLogs.forEach(l => { if (l && l.id) map.set(l.id, l); });
-                window.commissionLogs = Array.from(map.values());
-            }
-        } catch (err) {
-            console.warn('Query commission_logs by date range error in filterReferrersTable:', err);
-        }
-    }
+function filterReferrersTable() {
     renderReferrersTable();
 }
-window.filterReferrersTable = filterReferrersTable;
 
 function exportReferrersExcel() {
     const data = getFilteredReferrersData();
@@ -16445,7 +16073,6 @@ function parseLogDateToYMD(val) {
     }
     if (typeof val === 'string') {
         const s = val.trim();
-        // 1. DD/MM/YYYY หรือ DD-MM-YYYY
         const mSlash = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
         if (mSlash) {
             let day = parseInt(mSlash[1], 10);
@@ -16454,15 +16081,12 @@ function parseLogDateToYMD(val) {
             if (year > 2400) year -= 543;
             return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         }
-        // 2. YYYY-MM-DD แบบธรรมดา (ไม่มี T)
-        const mYMD = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-        if (mYMD && !s.includes('T')) {
-            return `${mYMD[1]}-${mYMD[2]}-${mYMD[3]}`;
-        }
-        // 3. ISO String มี Timezone ให้แปลงเป็นเวลาท้องถิ่น
         const d = new Date(s);
         if (!isNaN(d.getTime())) {
             return formatLocalDateYMD(d);
+        }
+        if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+            return s.substring(0, 10);
         }
     }
     const d = new Date(val);
@@ -16473,7 +16097,7 @@ function parseLogDateToYMD(val) {
 }
 window.parseLogDateToYMD = parseLogDateToYMD;
 
-async function setCommLogPeriodFilter(mode) {
+function setCommLogPeriodFilter(mode) {
     commLogPeriodMode = mode || 'month';
 
     const btnToday = document.getElementById('btnCommLogToday');
@@ -16525,23 +16149,6 @@ async function setCommLogPeriodFilter(mode) {
         }
         startDate = '';
         endDate = '';
-
-        // ถ้าเลือกทั้งหมด ให้ดึงข้อมูลจาก Supabase เพิ่มเติมให้ครบถ้วน
-        if (typeof _supabase !== 'undefined') {
-            try {
-                const { data: allLogs } = await _supabase
-                    .from('commission_logs')
-                    .select('*')
-                    .order('created_at', { ascending: false })
-                    .limit(5000);
-                if (allLogs && Array.isArray(allLogs) && allLogs.length > 0) {
-                    const map = new Map();
-                    (window.commissionLogs || []).forEach(l => { if (l && l.id) map.set(l.id, l); });
-                    allLogs.forEach(l => { if (l && l.id) map.set(l.id, l); });
-                    window.commissionLogs = Array.from(map.values());
-                }
-            } catch (err) { }
-        }
     }
 
     if (sInput) sInput.value = startDate;
@@ -16552,7 +16159,7 @@ async function setCommLogPeriodFilter(mode) {
 }
 window.setCommLogPeriodFilter = setCommLogPeriodFilter;
 
-async function onCommLogDateRangeChange() {
+function onCommLogDateRangeChange() {
     const sInput = document.getElementById('filterLogStartDate');
     const eInput = document.getElementById('filterLogEndDate');
     const sDate = sInput ? sInput.value : '';
@@ -16605,32 +16212,6 @@ async function onCommLogDateRangeChange() {
         commLogPeriodMode = 'custom';
     }
 
-    // 🌟 ดึงข้อมูลจาก Supabase ตามช่วงวันที่ที่ผู้ใช้เลือก เพื่อให้ได้ข้อมูลครบ 100% เสมอ
-    if ((sDate || eDate) && typeof _supabase !== 'undefined') {
-        try {
-            let q = _supabase.from('commission_logs').select('*');
-            if (sDate) {
-                // คำนวณช่วงเวลาเริ่มต้นของวัน (รองรับ Timezone UTC+7)
-                const startD = new Date(sDate + 'T00:00:00+07:00');
-                q = q.gte('created_at', startD.toISOString());
-            }
-            if (eDate) {
-                // คำนวณช่วงเวลาสิ้นสุดของวัน (รองรับ Timezone UTC+7)
-                const endD = new Date(eDate + 'T23:59:59.999+07:00');
-                q = q.lte('created_at', endD.toISOString());
-            }
-            const { data: dbLogs } = await q.order('created_at', { ascending: false }).limit(2000);
-            if (dbLogs && Array.isArray(dbLogs) && dbLogs.length > 0) {
-                const map = new Map();
-                (window.commissionLogs || []).forEach(l => { if (l && l.id) map.set(l.id, l); });
-                dbLogs.forEach(l => { if (l && l.id) map.set(l.id, l); });
-                window.commissionLogs = Array.from(map.values());
-            }
-        } catch (err) {
-            console.warn('Query commission_logs by date range error:', err);
-        }
-    }
-
     window.commLogCurrentPage = 1;
     renderCommissionLogsTable(1);
 }
@@ -16645,12 +16226,11 @@ function printCommissionLogsReport() {
     const allVisitsList = (window.clinicVisits || []).concat(window.allVisitsCache || []);
     const getTrueLogDate = (l) => {
         if (!l) return '';
-        if (l.created_at) return l.created_at;
         if (l.visit_id) {
             const mv = allVisitsList.find(v => (v.visit_id || v.id) === l.visit_id);
             if (mv && (mv.created_at || mv.date)) return mv.created_at || mv.date;
         }
-        return '';
+        return l.created_at || '';
     };
 
     let logs = [...(window.commissionLogs || [])];
@@ -17038,12 +16618,11 @@ function renderCommissionLogsTable(page) {
     const allVisitsList = (window.clinicVisits || []).concat(window.allVisitsCache || []);
     const getTrueLogDate = (l) => {
         if (!l) return '';
-        if (l.created_at) return l.created_at;
         if (l.visit_id) {
             const mv = allVisitsList.find(v => (v.visit_id || v.id) === l.visit_id);
             if (mv && (mv.created_at || mv.date)) return mv.created_at || mv.date;
         }
-        return '';
+        return l.created_at || '';
     };
 
     // 4. Filter by Date Range (Start Date - End Date)
@@ -22896,1647 +22475,6 @@ function previewLabFile(input) {
         previewContainer.style.display = 'none';
     }
 }
-// =====================================
-// ระบบบันทึกผลตรวจ CBC (CBC Modal & Report)
-// =====================================
-const BASE_CBC_ITEMS = [
-    { section: 'White Blood Cell (WBC)' },
-    { name: 'WBC', unit: '10^9/L', min: '4.0', max: '10.0' },
-    { name: 'LYM%', unit: '%', min: '20.0', max: '40.0' },
-    { name: 'MID%', unit: '%', min: '3.0', max: '9.0' },
-    { name: 'GRAN%', unit: '%', min: '50.0', max: '70.0' },
-    { name: 'LYM#', unit: '10^9/L', min: '0.8', max: '4.0' },
-    { name: 'MID#', unit: '10^9/L', min: '0.1', max: '1.2' },
-    { name: 'GRAN#', unit: '10^9/L', min: '2.0', max: '7.0' },
-
-    { section: 'Red Blood Cell (RBC)' },
-    { name: 'RBC', unit: '10^12/L', min: '3.50', max: '5.50' },
-    { name: 'HGB', unit: 'g/dL', min: '11.0', max: '16.0' },
-    { name: 'HCT', unit: '%', min: '36.0', max: '50.0' },
-    { name: 'MCV', unit: 'fL', min: '80.0', max: '100.0' },
-    { name: 'MCH', unit: 'pg', min: '27.0', max: '34.0' },
-    { name: 'MCHC', unit: 'g/dL', min: '32.0', max: '36.0' },
-    { name: 'RDW-CV', unit: '%', min: '11.0', max: '16.0' },
-    { name: 'RDW-SD', unit: 'fL', min: '35.0', max: '56.0' },
-
-    { section: 'Platelet (PLT)' },
-    { name: 'PLT', unit: '10^9/L', min: '100', max: '300' },
-    { name: 'MPV', unit: 'fL', min: '6.5', max: '12.0' },
-    { name: 'PCT', unit: '%', min: '0.108', max: '0.282' },
-    { name: 'P_LCR', unit: '%', min: '13.0', max: '43.0' },
-    { name: 'P_LCC', unit: '10^9/L', min: '30', max: '90' },
-    { name: 'PDW_SD', unit: 'fL', min: '9.0', max: '17.0' },
-    { name: 'PDW_CV', unit: '%', min: '10.0', max: '18.0' }
-];
-
-const DEFAULT_CBC_DATA = BASE_CBC_ITEMS.map(it => ({ ...it, value: '' }));
-
-// ดึงช่วงค่าอ้างอิงมาตรฐาน (Reference Ranges) ที่คลินิกเคยตั้งไว้
-function getClinicCbcRanges() {
-    let customRanges = {};
-    try {
-        customRanges = JSON.parse(localStorage.getItem('clinic_cbc_reference_ranges') || '{}');
-    } catch (e) { }
-    return customRanges;
-}
-
-// โหลดช่วงค่าอ้างอิงมาตรฐานจาก Cloud (Supabase) เพื่อให้ตรงกันทุกเครื่อง
-async function loadClinicCbcRangesFromDb() {
-    const sup = window._supabase || (window.parent && window.parent._supabase);
-    if (!sup) return;
-    try {
-        const { data } = await sup.from('system_settings').select('value').eq('key', 'cbc_reference_ranges').maybeSingle();
-        if (data && data.value) {
-            const parsed = JSON.parse(data.value);
-            if (parsed && typeof parsed === 'object') {
-                localStorage.setItem('clinic_cbc_reference_ranges', JSON.stringify(parsed));
-                return parsed;
-            }
-        }
-    } catch (e) {
-        console.warn('Load CBC reference ranges error:', e);
-    }
-}
-
-// บันทึกจำช่วงค่าอ้างอิงมาตรฐาน (ค่าต่ำสุด - ค่าสูงสุด) เข้าสู่ระบบ
-async function saveClinicCbcRanges(showSuccessToast = false) {
-    const rows = document.querySelectorAll('#cbcModalTbody tr[data-name]');
-    const ranges = getClinicCbcRanges();
-    rows.forEach(tr => {
-        const name = tr.dataset.name;
-        const min = tr.querySelector('input[data-key="min"]')?.value.trim() ?? '';
-        const max = tr.querySelector('input[data-key="max"]')?.value.trim() ?? '';
-        if (name && (min !== '' || max !== '')) {
-            ranges[name] = { min, max };
-        }
-    });
-
-    localStorage.setItem('clinic_cbc_reference_ranges', JSON.stringify(ranges));
-
-    const sup = window._supabase || (window.parent && window.parent._supabase);
-    if (sup) {
-        try {
-            await sup.from('system_settings').upsert([
-                { key: 'cbc_reference_ranges', value: JSON.stringify(ranges), updated_at: new Date().toISOString() }
-            ], { onConflict: 'key' });
-        } catch (e) {
-            console.warn('Sync CBC reference ranges to Supabase notice:', e);
-        }
-    }
-
-    if (showSuccessToast && typeof Swal !== 'undefined') {
-        Swal.fire({
-            icon: 'success',
-            title: 'ບັນທຶກຄ່າອ້າງອີງສຳເລັດ',
-            html: '<div class="text-muted">ລະບົບໄດ້ຈື່ຄ່າຕ່ຳສຸດ - ຄ່າສູງສຸດນີ້ໄວ້ແລ້ວ ໂດຍຈະນຳໄປໃຊ້ກັບຄົນເຈັບທຸກຄົນໂດຍອັດຕະໂນມັດ</div>',
-            timer: 2200,
-            showConfirmButton: false
-        });
-    }
-}
-window.getClinicCbcRanges = getClinicCbcRanges;
-window.saveClinicCbcRanges = saveClinicCbcRanges;
-
-window._currentCbcVisitId = '';
-window._currentCbcHn = '';
-window._currentCbcPatientName = '';
-
-function computeCbcStatus(valStr, minStr, maxStr) {
-    if (valStr === undefined || valStr === null || String(valStr).trim() === '') {
-        return { cls: 'cbc-status-empty', text: '-' };
-    }
-    const val = parseFloat(valStr);
-    const min = parseFloat(minStr);
-    const max = parseFloat(maxStr);
-
-    if (isNaN(val)) {
-        return { cls: 'cbc-status-empty', text: '-' };
-    }
-    if (!isNaN(min) && val < min) {
-        return { cls: 'cbc-status-low', text: 'L (ต่ำ)' };
-    }
-    if (!isNaN(max) && val > max) {
-        return { cls: 'cbc-status-high', text: 'H (สูง)' };
-    }
-    return { cls: 'cbc-status-normal', text: 'Normal' };
-}
-
-function generateCbcSvgPath(points, width, height, padX, padY, fixedMinX, fixedMaxX, fixedMaxY) {
-    if (!points || points.length === 0) return '';
-    const innerW = width - padX * 2;
-    const innerH = height - padY * 2;
-
-    const minX = (fixedMinX !== undefined) ? fixedMinX : Math.min(...points.map(p => p[0]));
-    const maxX = (fixedMaxX !== undefined) ? fixedMaxX : Math.max(...points.map(p => p[0]));
-    const maxY = fixedMaxY || 100;
-
-    const scaleX = x => padX + ((Math.max(minX, Math.min(maxX, x)) - minX) / (maxX - minX || 1)) * innerW;
-    const scaleY = y => {
-        const clampedY = Math.max(0, Math.min(y, maxY * 1.05));
-        return (height - padY) - (clampedY / maxY) * innerH;
-    };
-
-    let d = `M ${scaleX(points[0][0])} ${scaleY(points[0][1])}`;
-    for (let i = 1; i < points.length; i++) {
-        d += ` L ${scaleX(points[i][0])} ${scaleY(points[i][1])}`;
-    }
-    return d;
-}
-
-function renderCbcModalHistograms() {
-    const container = document.getElementById('cbcModalHistograms');
-    if (!container) return;
-
-    const getVal = (name) => {
-        const tr = document.querySelector(`#cbcModalTbody tr[data-name="${name}"]`);
-        const valStr = tr?.querySelector('input[data-key="val"]')?.value?.trim();
-        if (valStr === undefined || valStr === null || valStr === '') return null;
-        const v = parseFloat(valStr);
-        return isNaN(v) ? null : v;
-    };
-
-    const wbcVal = getVal('WBC');
-    const lymPct = getVal('LYM%');
-    const midPct = getVal('MID%');
-    const granPct = getVal('GRAN%');
-    const rbcVal = getVal('RBC');
-    const mcvVal = getVal('MCV');
-    const rdwVal = getVal('RDW-SD');
-    const pltVal = getVal('PLT');
-    const mpvVal = getVal('MPV');
-
-    // 1. WBC Curve (ถ้า wbcVal เป็น null หรือ <= 0 จะเป็นเส้นตรงระนาบศูนย์เรียบติดพื้น)
-    const wbcPoints = [];
-    if (wbcVal !== null && wbcVal > 0) {
-        const lp = (lymPct !== null && lymPct > 0) ? lymPct : 30;
-        const mp = (midPct !== null && midPct > 0) ? midPct : 6;
-        const gp = (granPct !== null && granPct > 0) ? granPct : 60;
-        const wbcScale = Math.max(0.05, wbcVal / 7.0);
-        for (let x = 30; x <= 450; x += 5) {
-            const p1 = (lp / 30) * 55 * Math.exp(-Math.pow((x - 85) / 22, 2));
-            const p2 = (mp / 6) * 18 * Math.exp(-Math.pow((x - 135) / 20, 2));
-            const p3 = (gp / 50) * 75 * Math.exp(-Math.pow((x - 240) / 48, 2));
-            const y = (p1 + p2 + p3) * wbcScale;
-            wbcPoints.push([x, Math.max(0, y)]);
-        }
-    } else {
-        for (let x = 30; x <= 450; x += 30) {
-            wbcPoints.push([x, 0]);
-        }
-    }
-
-    // 2. RBC Curve (ถ้า rbcVal หรือ mcvVal เป็น null หรือ 0 จะเป็นเส้นตรงระนาบศูนย์เรียบติดพื้น)
-    const rbcPoints = [];
-    if ((rbcVal !== null && rbcVal > 0) || (mcvVal !== null && mcvVal > 0)) {
-        const rv = (rbcVal !== null && rbcVal > 0) ? rbcVal : 4.85;
-        const mv = (mcvVal !== null && mcvVal > 0) ? mcvVal : 88.0;
-        const rw = (rdwVal !== null && rdwVal > 0) ? rdwVal : 41.5;
-        const rbcScale = Math.max(0.05, rv / 4.85);
-        const sigma = Math.max(6, rw * 0.35);
-        for (let x = 20; x <= 250; x += 2) {
-            const y = rbcScale * 85 * Math.exp(-Math.pow((x - mv) / sigma, 2));
-            rbcPoints.push([x, Math.max(0, y)]);
-        }
-    } else {
-        for (let x = 20; x <= 250; x += 20) {
-            rbcPoints.push([x, 0]);
-        }
-    }
-
-    // 3. PLT Curve (ถ้า pltVal เป็น null หรือ <= 0 จะเป็นเส้นตรงระนาบศูนย์เรียบติดพื้น)
-    const pltPoints = [];
-    if (pltVal !== null && pltVal > 0) {
-        const mpv = (mpvVal !== null && mpvVal > 0) ? mpvVal : 9.4;
-        const pltScale = Math.max(0.05, pltVal / 240);
-        const mpvPos = Math.max(3, Math.min(18, mpv));
-        for (let x = 0.5; x <= 32; x += 0.5) {
-            const y = pltScale * 85 * Math.exp(-Math.pow((Math.log(x) - Math.log(mpvPos)) / 0.55, 2));
-            pltPoints.push([x, Math.max(0, y)]);
-        }
-    } else {
-        for (let x = 0.5; x <= 32; x += 3) {
-            pltPoints.push([x, 0]);
-        }
-    }
-
-    const w = 310;
-    const h = 75;
-
-    const wbcPathD = generateCbcSvgPath(wbcPoints, w, h, 20, 14, 30, 450, 150);
-    const rbcPathD = generateCbcSvgPath(rbcPoints, w, h, 20, 14, 20, 250, 130);
-    const pltPathD = generateCbcSvgPath(pltPoints, w, h, 20, 14, 0.5, 32, 160);
-
-    const pathWbc = document.getElementById('cbcSvgPathWbc');
-    const pathRbc = document.getElementById('cbcSvgPathRbc');
-    const pathPlt = document.getElementById('cbcSvgPathPlt');
-
-    if (pathWbc && pathRbc && pathPlt) {
-        pathWbc.setAttribute('d', wbcPathD);
-        pathRbc.setAttribute('d', rbcPathD);
-        pathPlt.setAttribute('d', pltPathD);
-    } else {
-        container.innerHTML = `
-            <div class="cbc-hist-card">
-                <div class="cbc-hist-title">WBC Histogram (40 - 450 fL)</div>
-                <svg viewBox="0 0 ${w} ${h}">
-                    <line class="axis-line" x1="20" y1="62" x2="${w - 10}" y2="62" />
-                    <line class="gate" stroke-dasharray="3,3" x1="75" y1="10" x2="75" y2="62" />
-                    <line class="gate" stroke-dasharray="3,3" x1="125" y1="10" x2="125" y2="62" />
-                    <path class="trace" id="cbcSvgPathWbc" d="${wbcPathD}" />
-                    <text x="20" y="73" font-size="9" fill="#64748b">50</text>
-                    <text x="135" y="73" font-size="9" fill="#64748b">200</text>
-                    <text x="${w - 35}" y="73" font-size="9" fill="#64748b">400</text>
-                </svg>
-            </div>
-            <div class="cbc-hist-card">
-                <div class="cbc-hist-title">RBC Histogram (25 - 250 fL)</div>
-                <svg viewBox="0 0 ${w} ${h}">
-                    <line class="axis-line" x1="20" y1="62" x2="${w - 10}" y2="62" />
-                    <line class="gate" stroke-dasharray="3,3" x1="50" y1="10" x2="50" y2="62" />
-                    <line class="gate" stroke-dasharray="3,3" x1="${w - 50}" y1="10" x2="${w - 50}" y2="62" />
-                    <path class="trace" id="cbcSvgPathRbc" d="${rbcPathD}" />
-                    <text x="20" y="73" font-size="9" fill="#64748b">50</text>
-                    <text x="${w / 2 - 10}" y="73" font-size="9" fill="#64748b">100</text>
-                    <text x="${w - 35}" y="73" font-size="9" fill="#64748b">200</text>
-                </svg>
-            </div>
-            <div class="cbc-hist-card">
-                <div class="cbc-hist-title">PLT Histogram (2 - 30 fL)</div>
-                <svg viewBox="0 0 ${w} ${h}">
-                    <line class="axis-line" x1="20" y1="62" x2="${w - 10}" y2="62" />
-                    <line class="gate" stroke-dasharray="3,3" x1="30" y1="10" x2="30" y2="62" />
-                    <line class="gate" stroke-dasharray="3,3" x1="${w - 40}" y1="10" x2="${w - 40}" y2="62" />
-                    <path class="trace" id="cbcSvgPathPlt" d="${pltPathD}" />
-                    <text x="20" y="73" font-size="9" fill="#64748b">2</text>
-                    <text x="${w / 2 - 10}" y="73" font-size="9" fill="#64748b">10</text>
-                    <text x="${w - 35}" y="73" font-size="9" fill="#64748b">20</text>
-                </svg>
-            </div>
-        `;
-    }
-}
-
-function renderCbcModalTable(items, isPrintOnly = false) {
-    const tbody = document.getElementById('cbcModalTbody');
-    if (!tbody) return;
-    tbody.innerHTML = '';
-
-    const list = (items && items.length > 0) ? items : DEFAULT_CBC_DATA;
-
-    list.forEach(item => {
-        if (item.section) {
-            const trSec = document.createElement('tr');
-            trSec.className = 'table-light fw-bold';
-            trSec.style.backgroundColor = '#f1f5f9';
-            trSec.innerHTML = `<td colspan="6" class="text-primary py-1"><i class="bi bi-tag-fill me-1"></i>${item.section}</td>`;
-            tbody.appendChild(trSec);
-            return;
-        }
-
-        const val = item.value !== undefined ? item.value : (item.val !== undefined ? item.val : '');
-        const min = item.min !== undefined ? item.min : '';
-        const max = item.max !== undefined ? item.max : '';
-        const unit = item.unit || '';
-        const status = computeCbcStatus(val, min, max);
-
-        const tr = document.createElement('tr');
-        tr.dataset.name = item.name;
-
-        const readonlyAttr = isPrintOnly ? 'readonly disabled style="background-color: #f8fafc; border-color: #cbd5e1; cursor: default;"' : '';
-        const readonlyRangeAttr = isPrintOnly ? 'readonly disabled style="background-color: #f8fafc; border-color: #e2e8f0; cursor: default;"' : '';
-
-        tr.innerHTML = `
-            <td class="fw-semibold text-dark">${item.name}</td>
-            <td><input type="text" class="cbc-input-val" value="${val}" data-key="val" ${readonlyAttr}></td>
-            <td class="text-muted small">${unit}</td>
-            <td><input type="text" class="cbc-input-range" value="${min}" data-key="min" ${readonlyRangeAttr}></td>
-            <td><input type="text" class="cbc-input-range" value="${max}" data-key="max" ${readonlyRangeAttr}></td>
-            <td><span class="cbc-status-badge ${status.cls}">${status.text}</span></td>
-        `;
-
-        if (!isPrintOnly) {
-            const valInput = tr.querySelector('input[data-key="val"]');
-            const minInput = tr.querySelector('input[data-key="min"]');
-            const maxInput = tr.querySelector('input[data-key="max"]');
-            const statusSpan = tr.querySelector('.cbc-status-badge');
-
-            const onUpdate = () => {
-                const newStatus = computeCbcStatus(valInput.value, minInput.value, maxInput.value);
-                statusSpan.className = `cbc-status-badge ${newStatus.cls}`;
-                statusSpan.innerText = newStatus.text;
-                renderCbcModalHistograms();
-            };
-
-            valInput.addEventListener('input', onUpdate);
-            valInput.addEventListener('change', onUpdate);
-            valInput.addEventListener('keyup', onUpdate);
-            minInput.addEventListener('input', onUpdate);
-            minInput.addEventListener('change', onUpdate);
-            maxInput.addEventListener('input', onUpdate);
-            maxInput.addEventListener('change', onUpdate);
-        }
-
-        tbody.appendChild(tr);
-    });
-
-    renderCbcModalHistograms();
-
-    // 🌟 จัดการปุ่มด้านล่าง:
-    // ในหน้าประวัติผู้ป่วย (isPrintOnly): ห้ามแก้ไข ซ่อนปุ่มบันทึก/ล้างผลตรวจ แสดงเฉพาะปุ่ม Print
-    // ในห้อง Lab (!isPrintOnly): แสดงปุ่มบันทึกและล้างผลตรวจ
-    const clearBtn = document.getElementById('cbcClearBtn');
-    if (clearBtn) {
-        clearBtn.style.display = isPrintOnly ? 'none' : 'inline-block';
-    }
-    const saveBtn = document.getElementById('cbcSaveBtn');
-    if (saveBtn) {
-        saveBtn.style.display = isPrintOnly ? 'none' : 'inline-block';
-    }
-    const printBtn = document.getElementById('cbcPrintBtn') || document.getElementById('cbcSaveAndPrintBtn');
-    if (printBtn) {
-        printBtn.style.display = 'inline-block';
-    }
-}
-
-function getCbcModalTableData() {
-    const rows = document.querySelectorAll('#cbcModalTbody tr');
-    const list = [];
-    rows.forEach(tr => {
-        if (tr.classList.contains('table-light') || !tr.dataset.name) {
-            const secText = tr.innerText.trim();
-            if (secText) list.push({ section: secText });
-            return;
-        }
-        const name = tr.dataset.name;
-        const val = tr.querySelector('input[data-key="val"]')?.value ?? '';
-        const unit = tr.cells[2]?.innerText.trim() ?? '';
-        const min = tr.querySelector('input[data-key="min"]')?.value ?? '';
-        const max = tr.querySelector('input[data-key="max"]')?.value ?? '';
-        const status = tr.querySelector('.cbc-status-badge')?.innerText.trim() ?? '';
-        list.push({ name, val, unit, min, max, status });
-    });
-    return list;
-}
-
-function clearCbcModalValues() {
-    const inputs = document.querySelectorAll('#cbcModalTbody input[data-key="val"]');
-    inputs.forEach(inp => { inp.value = ''; });
-    const badges = document.querySelectorAll('#cbcModalTbody .cbc-status-badge');
-    badges.forEach(b => {
-        b.className = 'cbc-status-badge cbc-status-empty';
-        b.innerText = '-';
-    });
-    renderCbcModalHistograms();
-}
-
-async function openCbcPage(targetVisitId, mode) {
-    let visitId = targetVisitId || document.getElementById('uploadVisitId')?.value || document.getElementById('vascVisitId')?.value || '';
-    let hn = '';
-    let patientName = '';
-
-    // 1. ดึงจาก labRowCache
-    if (visitId && window.labRowCache && window.labRowCache[visitId]) {
-        hn = window.labRowCache[visitId].hn || '';
-        patientName = window.labRowCache[visitId].patientName || '';
-    }
-
-    // 2. ดึงจาก window.labQueueData
-    if ((!hn || !patientName) && visitId && Array.isArray(window.labQueueData)) {
-        const found = window.labQueueData.find(item => item.visit_id === visitId);
-        if (found) {
-            hn = found.hn || hn;
-            patientName = found.patient_name || patientName;
-        }
-    }
-
-    // 3. ค้นจากตาราง #labTableBody
-    if ((!hn || !patientName) && visitId) {
-        try {
-            const rows = document.querySelectorAll('#labTableBody tr');
-            for (const r of rows) {
-                if (r.innerText.includes(visitId)) {
-                    const cells = r.querySelectorAll('td');
-                    if (cells.length >= 4) {
-                        if (!hn) hn = cells[2]?.innerText.trim() || '';
-                        if (!patientName) patientName = cells[3]?.innerText.trim() || '';
-                    }
-                    break;
-                }
-            }
-        } catch (e) { }
-    }
-
-    if (!patientName) {
-        patientName = document.getElementById('vascPatientName')?.innerText || '';
-        if (patientName === '-') patientName = '';
-    }
-    if (!hn) {
-        hn = document.getElementById('vascHN')?.innerText || '';
-        if (hn === '-') hn = '';
-    }
-
-    window._currentCbcVisitId = visitId;
-    window._currentCbcHn = hn;
-    window._currentCbcPatientName = patientName;
-
-    // 🌟 กำหนดโหมด: โหมดห้อง Lab (มีปุ่มล้างผลตรวจ) vs ส่งออกจากแล็บแล้ว (เหลือแค่ปุ่ม Print)
-    let isPrintOnly = false;
-    if (mode === 'print') {
-        isPrintOnly = true;
-    } else if (mode === 'lab') {
-        isPrintOnly = false;
-    } else {
-        const rxModal = document.getElementById('prescribeModal');
-        const isRxOpen = rxModal && (rxModal.classList.contains('show') || rxModal.style.display === 'block');
-        const histModal = document.getElementById('patientHistoryModal');
-        const isHistOpen = histModal && (histModal.classList.contains('show') || histModal.style.display === 'block');
-
-        let isInLabQueue = false;
-        if (visitId && Array.isArray(window.labQueueData)) {
-            isInLabQueue = window.labQueueData.some(item => item.visit_id === visitId);
-        }
-
-        let visitStatus = '';
-        if (visitId && (window.clinicVisits || window.allVisits)) {
-            const v = (window.clinicVisits || window.allVisits || []).find(item => item.visit_id === visitId);
-            if (v && v.status) visitStatus = v.status;
-        }
-
-        const outOfLabStatuses = ['รอจัดคิว', 'รออ่านผล', 'กำลังอ่านผล', 'รอตรวจ', 'สั่งจ่ายยา', 'รอจ่ายยา', 'รอชำระเงิน', 'เสร็จสิ้น', 'สำเร็จ', 'ชำระเงินแล้ว'];
-        const isStatusOutOfLab = visitStatus && outOfLabStatuses.includes(visitStatus);
-
-        if (isRxOpen || isHistOpen || isStatusOutOfLab || (!isInLabQueue && isStatusOutOfLab)) {
-            isPrintOnly = true;
-        }
-    }
-    window._currentCbcIsPrintOnly = isPrintOnly;
-
-    // บันทึก session สำหรับกรณีเปิดแท็บใหม่
-    try {
-        sessionStorage.setItem('currentCbcVisit', JSON.stringify({
-            visit_id: visitId,
-            hn: hn,
-            patient_name: patientName,
-            mode: isPrintOnly ? 'print' : 'lab',
-            openedAt: new Date().toISOString()
-        }));
-    } catch (e) { }
-
-    // อัปเดตหัว Modal
-    const cbcTitleText = document.getElementById('cbcModalTitleText');
-    if (cbcTitleText) {
-        cbcTitleText.innerText = isPrintOnly ? 'ผลตรวจเลือด CBC' : 'ฟอร์มบันทึกผลตรวจเลือด CBC';
-    }
-    const cbcInfoBadge = document.getElementById('cbcModalPatientInfo');
-    if (cbcInfoBadge) {
-        cbcInfoBadge.innerText = visitId ? `Visit: ${visitId}${hn ? ' | HN: ' + hn : ''}${patientName ? ' | ' + patientName : ''}` : '';
-        cbcInfoBadge.style.display = visitId ? 'inline-block' : 'none';
-    }
-
-    // อัปเดตข้อมูลในส่วนหัวกระดาษพิมพ์ PDF
-    const metaDisplay = document.getElementById('cbcDocMetaDisplay');
-    if (metaDisplay) {
-        const dateStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
-        metaDisplay.innerText = `Visit: ${visitId || '-'}  |  HN: ${hn || '-'}  |  ชื่อผู้ป่วย: ${patientName || '-'}  |  วันที่: ${dateStr}`;
-    }
-
-    // ซ่อน Modal อัปโหลดไฟล์แล็บ (ถ้าเปิดอยู่) เพื่อไม่ให้บังกัน
-    const uploadModalEl = document.getElementById('labUploadModal');
-    if (uploadModalEl && typeof bootstrap !== 'undefined') {
-        const uploadModalInstance = bootstrap.Modal.getInstance(uploadModalEl);
-        if (uploadModalInstance) uploadModalInstance.hide();
-    }
-
-    // โหลดช่วงค่าอ้างอิงมาตรฐาน (Reference Ranges) ล่าสุดจาก LocalStorage หรือ Cloud
-    await loadClinicCbcRangesFromDb();
-    const clinicRanges = getClinicCbcRanges();
-
-    // สร้างแม่แบบรายการตรวจ โดยใช้ช่วงค่าอ้างอิงมาตรฐานของคลินิก
-    const defaultTemplate = BASE_CBC_ITEMS.map(def => {
-        if (def.section) return def;
-        const custom = clinicRanges[def.name];
-        return {
-            name: def.name,
-            value: '', // ผู้ป่วยใหม่ ค่าผลตรวจเว้นว่างไว้ ให้กรอกค่าจริง
-            unit: def.unit,
-            min: (custom && custom.min !== undefined && custom.min !== '') ? custom.min : def.min,
-            max: (custom && custom.max !== undefined && custom.max !== '') ? custom.max : def.max
-        };
-    });
-
-    // โหลดข้อมูลเดิมที่เคยบันทึกไว้ จาก LocalStorage หรือ Supabase DB ข้ามเครื่อง
-    let itemsToRender = defaultTemplate;
-    let localSaved = null;
-    if (visitId) {
-        try {
-            const allCbc = JSON.parse(localStorage.getItem('clinic_cbc_results') || '{}');
-            const saved = allCbc[visitId];
-            if (saved && Array.isArray(saved.items) && saved.items.length > 0) {
-                localSaved = saved;
-            }
-        } catch (e) { }
-
-        let dbSavedItems = null;
-        let dbUpdatedAt = null;
-        const sup = window._supabase || (window.parent && window.parent._supabase);
-
-        // 🌟 ดึงข้อมูลจากฐานข้อมูลกลาง Supabase เสมอ เพื่อให้ทุกเครื่องตรงกัน
-        if (sup && !visitId.startsWith('VISIT-')) {
-            try {
-                const { data: vData } = await sup.from('visits').select('lab_note').eq('visit_id', visitId).single();
-                if (vData && vData.lab_note && vData.lab_note.includes('[ผลตรวจ CBC]')) {
-                    const match = vData.lab_note.match(/\[ผลตรวจ CBC\]\s*([\s\S]*?)\s*\[\/ผลตรวจ CBC\]/);
-                    if (match && match[1]) {
-                        try {
-                            const parsed = JSON.parse(match[1]);
-                            if (Array.isArray(parsed) && parsed.length > 0) {
-                                dbSavedItems = parsed;
-                            } else if (parsed && Array.isArray(parsed.items) && parsed.items.length > 0) {
-                                dbSavedItems = parsed.items;
-                                dbUpdatedAt = parsed.updated_at;
-                            }
-                        } catch (pe) { }
-                    }
-                }
-            } catch (dbErr) {
-                console.warn('Sync CBC with Supabase notice:', dbErr);
-            }
-        }
-
-        // 🌟 ให้ความสำคัญกับข้อมูลจาก Cloud DB (Supabase) เป็นอันดับแรก
-        const finalItems = dbSavedItems || (localSaved ? localSaved.items : null);
-        if (finalItems && Array.isArray(finalItems) && finalItems.length > 0) {
-            // อัปเดตแคชใน LocalStorage ของเครื่องนี้ด้วย
-            try {
-                const allCbc = JSON.parse(localStorage.getItem('clinic_cbc_results') || '{}');
-                allCbc[visitId] = {
-                    visit_id: visitId,
-                    hn: hn,
-                    patient_name: patientName,
-                    updated_at: dbUpdatedAt || new Date().toISOString(),
-                    items: finalItems
-                };
-                localStorage.setItem('clinic_cbc_results', JSON.stringify(allCbc));
-            } catch (e) { }
-
-            const savedMap = new Map();
-            finalItems.forEach(it => {
-                if (it && it.name) savedMap.set(it.name, it);
-            });
-            itemsToRender = BASE_CBC_ITEMS.map(def => {
-                if (def.section) return def;
-                const custom = clinicRanges[def.name];
-                if (savedMap.has(def.name)) {
-                    const it = savedMap.get(def.name);
-                    return {
-                        name: it.name,
-                        value: (it.value !== undefined ? it.value : (it.val !== undefined ? it.val : '')),
-                        unit: it.unit || def.unit,
-                        min: (it.min !== undefined && it.min !== '') ? it.min : ((custom && custom.min !== undefined) ? custom.min : def.min),
-                        max: (it.max !== undefined && it.max !== '') ? it.max : ((custom && custom.max !== undefined) ? custom.max : def.max)
-                    };
-                }
-                return {
-                    name: def.name,
-                    value: '',
-                    unit: def.unit,
-                    min: (custom && custom.min !== undefined && custom.min !== '') ? custom.min : def.min,
-                    max: (custom && custom.max !== undefined && custom.max !== '') ? custom.max : def.max
-                };
-            });
-        }
-    }
-
-    renderCbcModalTable(itemsToRender, isPrintOnly);
-
-    // เปิด Modal
-    const cbcModalEl = document.getElementById('cbcLabModal');
-    if (cbcModalEl && typeof bootstrap !== 'undefined') {
-        const modal = bootstrap.Modal.getOrCreateInstance(cbcModalEl);
-        modal.show();
-    }
-}
-
-async function saveCbcData(shouldAlert = true) {
-    const data = getCbcModalTableData();
-    const visitId = window._currentCbcVisitId || document.getElementById('uploadVisitId')?.value || document.getElementById('vascVisitId')?.value || ('VISIT-' + Date.now());
-    const hn = window._currentCbcHn || '';
-    const patientName = window._currentCbcPatientName || '';
-
-    // 🌟 จำช่วงค่าอ้างอิงมาตรฐาน (ค่าต่ำสุด-ค่าสูงสุด) ที่ตั้งไว้ ไว้ใช้กับผู้ป่วยทุกคนโดยอัตโนมัติ
-    try {
-        saveClinicCbcRanges(false);
-    } catch (e) { }
-
-    // 1. บันทึกข้อมูลผลตรวจ CBC ลงใน LocalStorage
-    try {
-        const allCbc = JSON.parse(localStorage.getItem('clinic_cbc_results') || '{}');
-        allCbc[visitId] = {
-            visit_id: visitId,
-            hn: hn,
-            patient_name: patientName,
-            updated_at: new Date().toISOString(),
-            items: data
-        };
-        localStorage.setItem('clinic_cbc_results', JSON.stringify(allCbc));
-
-        // 2. บันทึกลงใน clinic_lab_files_meta เพื่อให้ระบบแล็บมองเห็นเป็นไฟล์ผลแล็บประเภท CBC
-        const metaMap = JSON.parse(localStorage.getItem('clinic_lab_files_meta') || '{}');
-        let visitMetaList = Array.isArray(metaMap[visitId]) ? metaMap[visitId] : [];
-        visitMetaList = visitMetaList.filter(f => f && f.category !== 'CBC');
-        visitMetaList.push({
-            id: `FILE-CBC-${visitId}`,
-            visitId: visitId,
-            fileName: `CBC_Report_${visitId}.pdf`,
-            fileType: 'application/pdf',
-            category: 'CBC',
-            updatedAt: new Date().toISOString()
-        });
-        metaMap[visitId] = visitMetaList;
-        localStorage.setItem('clinic_lab_files_meta', JSON.stringify(metaMap));
-    } catch (e) {
-        console.error('LocalStorage CBC save error:', e);
-    }
-
-    // 3. ซิงค์เข้าระบบฐานข้อมูล Supabase visits.lab_note (เชื่อมข้ามเครื่อง)
-    const sup = window._supabase || (window.parent && window.parent._supabase);
-    if (sup && visitId && !visitId.startsWith('VISIT-')) {
-        try {
-            const { data: exVisit } = await sup.from('visits').select('lab_note').eq('visit_id', visitId).single();
-            const cbcPayload = `[ผลตรวจ CBC]\n${JSON.stringify(data)}\n[/ผลตรวจ CBC]`;
-            let newLabNote = cbcPayload;
-            if (exVisit && exVisit.lab_note) {
-                if (exVisit.lab_note.includes('[ผลตรวจ CBC]')) {
-                    newLabNote = exVisit.lab_note.replace(/\[ผลตรวจ CBC\][\s\S]*?\[\/ผลตรวจ CBC\]/, cbcPayload);
-                    if (!newLabNote.includes('[/ผลตรวจ CBC]')) {
-                        newLabNote = exVisit.lab_note.replace(/\[ผลตรวจ CBC\]/, cbcPayload);
-                    }
-                } else {
-                    newLabNote = `${exVisit.lab_note}\n\n${cbcPayload}`;
-                }
-            }
-            await sup.from('visits').update({ lab_note: newLabNote }).eq('visit_id', visitId);
-        } catch (dbErr) {
-            console.warn('Sync CBC to DB note notice:', dbErr);
-        }
-    }
-
-    // 4. สั่งให้ตารางห้อง Lab รีเฟรชทันที เพื่อแสดงปุ่ม "CBC (PDF)" สีแดงในคอลัมน์ผลตรวจทั้งหมด
-    try {
-        if (typeof renderLabTable === 'function') renderLabTable();
-        if (typeof filterLabTable === 'function') filterLabTable();
-        if (typeof loadLabQueue === 'function') loadLabQueue();
-    } catch (tblErr) {
-        console.warn('Refresh lab table error:', tblErr);
-    }
-
-    // 5. แจ้งเตือนเมื่อกดปุ่ม "บันทึก" จากห้อง Lab (ตัดการสร้างหรือดาวน์โหลด PDF ออก)
-    if (shouldAlert) {
-        if (typeof Swal !== 'undefined') {
-            Swal.fire({
-                icon: 'success',
-                title: 'ບັນທຶກຜົນກວດ ສຳເລັດ!',
-                html: `ບັນທຶກຜົນກວດ CBC ຂອງເຄສ <b>${visitId}</b> ຮຽບຮ້ອຍແລ້ວ<br><span class="text-success small">ປຸ່ມ <b>CBC (PDF)</b> ປາກົດໃນຕາຕະລາງແລ້ວ</span>`,
-                timer: 2000,
-                showConfirmButton: false
-            });
-        }
-        closeCbcModal();
-    }
-    return true;
-}
-
-async function saveAndExportCbcPdf() {
-    // บันทึกข้อมูลก่อน
-    await saveCbcData(false);
-
-    const visitId = window._currentCbcVisitId || document.getElementById('uploadVisitId')?.value || document.getElementById('vascVisitId')?.value || ('VISIT-' + Date.now());
-
-    // ส่งออกไฟล์ PDF ด้วย html2pdf
-    if (typeof Swal !== 'undefined') {
-        Swal.fire({
-            title: 'ກຳລັງສ້າງ ແລະ ບັນທຶກໄຟລ໌ PDF...',
-            text: 'ກະລຸນາລໍຖ້າสักครู่ ລະບົບກຳລັງສ້າງເອກະສານ PDF ຜົນກວດ CBC',
-            allowOutsideClick: false,
-            didOpen: () => { Swal.showLoading(); }
-        });
-    }
-
-    const fileName = `CBC_Result_${visitId || 'Report'}.pdf`;
-
-    try {
-        const printSource = document.getElementById('cbcPrintContainer');
-        if (!printSource) throw new Error('cbcPrintContainer not found');
-
-        // สร้าง clone สำหรับ PDF เพื่อจัด layout สวยงามและแปลง input เป็น text
-        const clone = printSource.cloneNode(true);
-        clone.id = 'cbcPdfExportClone';
-        clone.style.width = '210mm';
-        clone.style.minHeight = '297mm';
-        clone.style.padding = '12mm 15mm';
-        clone.style.background = '#ffffff';
-        clone.style.color = '#0f172a';
-        clone.style.fontFamily = "'Kanit', 'Noto Sans Lao', sans-serif";
-        clone.style.boxShadow = 'none';
-
-        // แทนที่ input ในตารางด้วยค่า text ธรรมดาเพื่อความคมชัดใน PDF
-        const origInputs = printSource.querySelectorAll('input');
-        const cloneInputs = clone.querySelectorAll('input');
-        cloneInputs.forEach((inp, i) => {
-            const span = document.createElement('span');
-            span.innerText = origInputs[i]?.value || inp.value || '-';
-            span.style.fontWeight = inp.classList.contains('cbc-input-val') ? '700' : '500';
-            span.style.fontSize = '12px';
-            inp.parentNode.replaceChild(span, inp);
-        });
-
-        // กล่องชั่วคราวซ่อนนอกจอ
-        const wrapper = document.createElement('div');
-        wrapper.style.position = 'fixed';
-        wrapper.style.left = '-9999px';
-        wrapper.style.top = '0';
-        wrapper.style.zIndex = '-9999';
-        wrapper.appendChild(clone);
-        document.body.appendChild(wrapper);
-
-        if (typeof html2pdf !== 'undefined') {
-            const opt = {
-                margin: [6, 6, 6, 6],
-                filename: fileName,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true, logging: false },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            };
-            await html2pdf().set(opt).from(clone).save();
-        } else {
-            // Fallback ถ้า html2pdf ไม่พร้อมใช้งาน ให้เปิดพิมพ์
-            window.print();
-        }
-
-        // ลบกล่องชั่วคราว
-        if (wrapper.parentNode) {
-            wrapper.parentNode.removeChild(wrapper);
-        }
-
-        if (typeof Swal !== 'undefined') {
-            Swal.fire({
-                icon: 'success',
-                title: 'ສ້າງ PDF ສຳເລັດ!',
-                html: `ດາວໂຫລດໄຟລ໌ <b>${fileName}</b> ຮຽບຮ້ອຍແລ້ວ`,
-                timer: 2000,
-                showConfirmButton: false
-            });
-        }
-    } catch (pdfErr) {
-        console.error('Export CBC PDF Error:', pdfErr);
-        if (typeof Swal !== 'undefined') {
-            Swal.fire({
-                icon: 'error',
-                title: 'ເກີດຂໍ້ຜິດພາດໃນການສ້າງ PDF',
-                text: pdfErr.message || 'ບໍ່ສາມາດສ້າງໄຟລ໌ PDF ໄດ້'
-            });
-        }
-    }
-}
-
-function printCbcSlipLandscape(visitId, hn, patientName, items) {
-    const now = new Date();
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const dd = String(now.getDate()).padStart(2, '0');
-    const yyyy = now.getFullYear();
-    const hh = String(now.getHours()).padStart(2, '0');
-    const min = String(now.getMinutes()).padStart(2, '0');
-    const formattedTime = `${mm}/${dd}/${yyyy} ${hh}:${min}`;
-
-    // สร้าง Map รายการตรวจเพื่อดึงค่า
-    const itemMap = {};
-    if (Array.isArray(items)) {
-        items.forEach(it => {
-            if (it && it.name) {
-                const cleanKey = it.name.trim().replace('-', '_').toUpperCase();
-                itemMap[cleanKey] = it;
-                itemMap[it.name.trim()] = it;
-            }
-        });
-    }
-
-    const col1Config = [
-        { key: 'WBC', name: 'WBC', unit: '10^9/L', defMin: 3.5, defMax: 10.0, defRange: '3.5-10.0' },
-        { key: 'LYM%', name: 'LYM%', unit: '%', defMin: 20.0, defMax: 40.0, defRange: '20.0-40.0' },
-        { key: 'MID%', name: 'MID%', unit: '%', defMin: 1.0, defMax: 15.0, defRange: '1.0-15.0' },
-        { key: 'GRAN%', name: 'GRAN%', unit: '%', defMin: 50.0, defMax: 70.0, defRange: '50.0-70.0' },
-        { key: 'LYM#', name: 'LYM#', unit: '10^9/L', defMin: 0.6, defMax: 4.1, defRange: '0.6-4.1' },
-        { key: 'MID#', name: 'MID#', unit: '10^9/L', defMin: 0.1, defMax: 1.8, defRange: '0.1-1.8' },
-        { key: 'GRAN#', name: 'GRAN#', unit: '10^9/L', defMin: 2.0, defMax: 7.8, defRange: '2.0-7.8' },
-        { key: 'RBC', name: 'RBC', unit: '10^12/L', defMin: 3.50, defMax: 6.00, defRange: '3.50-6.00' },
-        { key: 'HGB', name: 'HGB', unit: 'g/dL', defMin: 11.0, defMax: 17.5, defRange: '11.0-17.5' },
-        { key: 'HCT', name: 'HCT', unit: '%', defMin: 35.0, defMax: 54.0, defRange: '35.0-54.0' }
-    ];
-
-    const col2Config = [
-        { key: 'MCV', name: 'MCV', unit: 'fL', defMin: 80.0, defMax: 100.0, defRange: '80.0-100.0' },
-        { key: 'MCH', name: 'MCH', unit: 'pg', defMin: 26.0, defMax: 34.0, defRange: '26.0-34.0' },
-        { key: 'MCHC', name: 'MCHC', unit: 'g/dL', defMin: 31.5, defMax: 36.0, defRange: '31.5-36.0' },
-        { key: 'RDW_CV', name: 'RDW_CV', unit: '%', defMin: 11.0, defMax: 16.0, defRange: '11.0-16.0' },
-        { key: 'RDW_SD', name: 'RDW_SD', unit: 'fL', defMin: 35.0, defMax: 56.0, defRange: '35.0-56.0' },
-        { key: 'PLT', name: 'PLT', unit: '10^9/L', defMin: 100, defMax: 350, defRange: '100-350' },
-        { key: 'MPV', name: 'MPV', unit: 'fL', defMin: 6.5, defMax: 12.0, defRange: '6.5-12.0' },
-        { key: 'PCT', name: 'PCT', unit: '%', defMin: 0.10, defMax: 0.28, defRange: '0.10-0.28' },
-        { key: 'P_LCR', name: 'P_LCR', unit: '%', defMin: 11.0, defMax: 45.0, defRange: '11.0-45.0' },
-        { key: 'P_LCC', name: 'P_LCC', unit: '10^9/L', defMin: 11, defMax: 135, defRange: '11-135' },
-        { key: 'PDW_SD', name: 'PDW_SD', unit: 'fL', defMin: 9.0, defMax: 17.0, defRange: '9.0-17.0' },
-        { key: 'PDW_CV', name: 'PDW_CV', unit: '%', defMin: 15.0, defMax: 18.0, defRange: '15.0-18.0' }
-    ];
-
-    function renderParamRow(cfg) {
-        const item = itemMap[cfg.key] || itemMap[cfg.name] || {};
-        const valStr = (item.val !== undefined ? item.val : item.value) ?? '';
-        const unit = item.unit || cfg.unit;
-        let minVal = parseFloat(item.min ?? cfg.defMin);
-        let maxVal = parseFloat(item.max ?? cfg.defMax);
-        let rangeStr = (item.min && item.max) ? `${item.min}-${item.max}` : cfg.defRange;
-
-        let flag = '&nbsp;';
-        if (valStr !== '' && !isNaN(parseFloat(valStr))) {
-            const v = parseFloat(valStr);
-            if (!isNaN(minVal) && v < minVal) flag = '<b style="font-weight:bold;">L</b>';
-            else if (!isNaN(maxVal) && v > maxVal) flag = '<b style="font-weight:bold;">H</b>';
-        }
-
-        return `<tr>
-            <td style="padding: 1px 2px; font-weight: bold; white-space: nowrap; width: 14mm;">${cfg.name}</td>
-            <td style="padding: 1px 2px; text-align: right; width: 10mm; font-weight: bold;">${valStr || '-'}</td>
-            <td style="padding: 1px 2px; text-align: left; width: 12mm; font-size: 8.5px; color: #111;">${unit}</td>
-            <td style="padding: 1px 2px; text-align: center; width: 5mm; font-size: 8.5px;">${flag}</td>
-            <td style="padding: 1px 2px; text-align: right; width: 15mm; font-size: 8.5px; white-space: nowrap;">${rangeStr}</td>
-        </tr>`;
-    }
-
-    const col1RowsHtml = col1Config.map(renderParamRow).join('');
-    const col2RowsHtml = col2Config.map(renderParamRow).join('');
-
-    function generateSlipSvgPath(points, width, height, padX, padY, fixedMinX, fixedMaxX, fixedMaxY) {
-        if (!points || points.length === 0) return '';
-        const innerW = width - padX * 2;
-        const innerH = height - padY * 2;
-        const minX = (fixedMinX !== undefined) ? fixedMinX : Math.min(...points.map(p => p[0]));
-        const maxX = (fixedMaxX !== undefined) ? fixedMaxX : Math.max(...points.map(p => p[0]));
-        const maxY = fixedMaxY || 100;
-        const scaleX = x => padX + ((Math.max(minX, Math.min(maxX, x)) - minX) / (maxX - minX || 1)) * innerW;
-        const scaleY = y => {
-            const clampedY = Math.max(0, Math.min(y, maxY * 1.05));
-            return (height - padY) - (clampedY / maxY) * innerH;
-        };
-        let d = `M ${scaleX(points[0][0])} ${scaleY(points[0][1])}`;
-        for (let i = 1; i < points.length; i++) {
-            d += ` L ${scaleX(points[i][0])} ${scaleY(points[i][1])}`;
-        }
-        return d;
-    }
-
-    const getSlipNum = (key) => {
-        const item = itemMap[key] || itemMap[key.replace('-', '_')] || {};
-        const valStr = (item.val !== undefined ? item.val : item.value) ?? '';
-        if (valStr === '' || valStr === undefined || valStr === null) return null;
-        const v = parseFloat(valStr);
-        return isNaN(v) ? null : v;
-    };
-
-    const sWbc = getSlipNum('WBC');
-    const sLym = getSlipNum('LYM%');
-    const sMid = getSlipNum('MID%');
-    const sGran = getSlipNum('GRAN%');
-    const sRbc = getSlipNum('RBC');
-    const sMcv = getSlipNum('MCV');
-    const sRdw = getSlipNum('RDW-SD') || getSlipNum('RDW_SD');
-    const sPlt = getSlipNum('PLT');
-    const sMpv = getSlipNum('MPV');
-
-    // 1. WBC Curve
-    const slipWbcPoints = [];
-    if (sWbc !== null && sWbc > 0) {
-        const lp = (sLym !== null && sLym > 0) ? sLym : 30;
-        const mp = (sMid !== null && sMid > 0) ? sMid : 6;
-        const gp = (sGran !== null && sGran > 0) ? sGran : 60;
-        const wbcScale = Math.max(0.05, sWbc / 7.0);
-        for (let x = 30; x <= 450; x += 5) {
-            const p1 = (lp / 30) * 55 * Math.exp(-Math.pow((x - 85) / 22, 2));
-            const p2 = (mp / 6) * 18 * Math.exp(-Math.pow((x - 135) / 20, 2));
-            const p3 = (gp / 50) * 75 * Math.exp(-Math.pow((x - 240) / 48, 2));
-            const y = (p1 + p2 + p3) * wbcScale;
-            slipWbcPoints.push([x, Math.max(0, y)]);
-        }
-    } else {
-        for (let x = 30; x <= 450; x += 30) { slipWbcPoints.push([x, 0]); }
-    }
-
-    // 2. RBC Curve
-    const slipRbcPoints = [];
-    if ((sRbc !== null && sRbc > 0) || (sMcv !== null && sMcv > 0)) {
-        const rv = (sRbc !== null && sRbc > 0) ? sRbc : 4.85;
-        const mv = (sMcv !== null && sMcv > 0) ? sMcv : 88.0;
-        const rw = (sRdw !== null && sRdw > 0) ? sRdw : 41.5;
-        const rbcScale = Math.max(0.05, rv / 4.85);
-        const sigma = Math.max(6, rw * 0.35);
-        for (let x = 20; x <= 250; x += 2) {
-            const y = rbcScale * 85 * Math.exp(-Math.pow((x - mv) / sigma, 2));
-            slipRbcPoints.push([x, Math.max(0, y)]);
-        }
-    } else {
-        for (let x = 20; x <= 250; x += 20) { slipRbcPoints.push([x, 0]); }
-    }
-
-    // 3. PLT Curve
-    const slipPltPoints = [];
-    if (sPlt !== null && sPlt > 0) {
-        const mpv = (sMpv !== null && sMpv > 0) ? sMpv : 9.4;
-        const pltScale = Math.max(0.05, sPlt / 240);
-        const mpvPos = Math.max(3, Math.min(18, mpv));
-        for (let x = 0.5; x <= 32; x += 0.5) {
-            const y = pltScale * 85 * Math.exp(-Math.pow((Math.log(x) - Math.log(mpvPos)) / 0.55, 2));
-            slipPltPoints.push([x, Math.max(0, y)]);
-        }
-    } else {
-        for (let x = 0.5; x <= 32; x += 3) { slipPltPoints.push([x, 0]); }
-    }
-
-    const slipWbcPathD = generateSlipSvgPath(slipWbcPoints, 320, 85, 15, 15, 30, 450, 150);
-    const slipRbcPathD = generateSlipSvgPath(slipRbcPoints, 320, 85, 15, 15, 20, 250, 130);
-    const slipPltPathD = generateSlipSvgPath(slipPltPoints, 320, 85, 15, 15, 0.5, 32, 160);
-
-    const slipLandscapeHtml = `
-    <div style="width: 194mm; height: 75mm; margin: 0 auto; box-sizing: border-box; font-family: 'Consolas', 'Courier New', monospace; font-size: 9.5px; color: #000; line-height: 1.18; overflow: hidden; background: #fff;">
-        <!-- Header -->
-        <div style="text-align: center; font-weight: bold; font-size: 13.5px; font-family: 'Arial', sans-serif; letter-spacing: 0.5px; margin-bottom: 2px;">
-            Hematology Analysis Report
-        </div>
-
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 2.5mm;">
-            <!-- Column 1: Patient Meta Info -->
-            <div style="width: 38mm; flex-shrink: 0; font-size: 8.5px; line-height: 1.25; font-family: 'Arial', sans-serif; border-right: 1px dashed #bbb; padding-right: 2mm;">
-                <div style="font-weight: bold; font-size: 9px; margin-bottom: 1px; word-break: break-all;">ID: ${hn || visitId || '000000014425'}</div>
-                <div>Gender: -</div>
-                <div>Age: -</div>
-                <div>Blood Type: -</div>
-                <div>Dept.:</div>
-                <div>Case ID: ${visitId || ''}</div>
-                <div>Sender:</div>
-                <div>Operator: administrator</div>
-                <div>Auditor:</div>
-                <div>Time: ${formattedTime}</div>
-                <div style="margin-top: 3px; font-weight: bold;">Whole Blood for Venous Blood</div>
-                <div style="margin-top: 5px; font-size: 7.5px; font-style: italic;">*This result is valid only for current sample*</div>
-            </div>
-
-            <!-- Column 2: Parameters Col 1 -->
-            <div style="width: 49mm; flex-shrink: 0;">
-                <div style="font-size: 9px; font-weight: bold; font-family: 'Arial', sans-serif; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                    Name: ${patientName || '-'}
-                </div>
-                <table style="width: 100%; border-collapse: collapse; font-size: 9px;">
-                    <thead>
-                        <tr style="border-bottom: 1px solid #000; font-size: 8.5px; font-family: 'Arial', sans-serif;">
-                            <th style="text-align: left; padding: 1px 2px;">PARAM.</th>
-                            <th style="text-align: right; padding: 1px 2px;">RESULT</th>
-                            <th style="text-align: left; padding: 1px 2px;">UNIT</th>
-                            <th style="text-align: center; padding: 1px 2px;">Info</th>
-                            <th style="text-align: right; padding: 1px 2px;">Range</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${col1RowsHtml}
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Column 3: Parameters Col 2 -->
-            <div style="width: 50mm; flex-shrink: 0; margin-top: 13px;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 9px;">
-                    <tbody>
-                        ${col2RowsHtml}
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Column 4: 3 Histograms -->
-            <div style="width: 51mm; flex-shrink: 0; display: flex; flex-direction: column; justify-content: flex-start; gap: 1mm;">
-                <!-- WBC Histogram -->
-                <div style="display: flex; align-items: center;">
-                    <div style="width: 9px; text-align: center; font-size: 7.5px; font-weight: bold; line-height: 1.1; margin-right: 1.5px; font-family: 'Arial', sans-serif;">W<br>B<br>C</div>
-                    <div style="flex: 1;">
-                        <svg viewBox="0 0 320 85" style="width: 100%; height: 18.5mm; display: block;">
-                            <line x1="10" y1="70" x2="310" y2="70" stroke="#000" stroke-width="1.2"/>
-                            <line x1="28" y1="8" x2="28" y2="70" stroke="#000" stroke-width="0.8"/>
-                            <line x1="38" y1="8" x2="38" y2="70" stroke="#000" stroke-width="0.8"/>
-                            <line x1="290" y1="8" x2="290" y2="70" stroke="#000" stroke-width="0.8"/>
-                            <path d="${slipWbcPathD}" fill="none" stroke="#000" stroke-width="1.4"/>
-                            <line x1="15" y1="70" x2="15" y2="73" stroke="#000" stroke-width="0.8"/>
-                            <text x="15" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">0</text>
-                            <line x1="60" y1="70" x2="60" y2="73" stroke="#000" stroke-width="0.8"/>
-                            <text x="60" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">50</text>
-                            <line x1="105" y1="70" x2="105" y2="73" stroke="#000" stroke-width="0.8"/>
-                            <text x="105" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">100</text>
-                            <line x1="150" y1="70" x2="150" y2="73" stroke="#000" stroke-width="0.8"/>
-                            <text x="150" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">150</text>
-                            <line x1="195" y1="70" x2="195" y2="73" stroke="#000" stroke-width="0.8"/>
-                            <text x="195" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">200</text>
-                            <line x1="240" y1="70" x2="240" y2="73" stroke="#000" stroke-width="0.8"/>
-                            <text x="240" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">250</text>
-                            <line x1="285" y1="70" x2="285" y2="73" stroke="#000" stroke-width="0.8"/>
-                            <text x="285" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">300</text>
-                            <text x="306" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">fL</text>
-                        </svg>
-                    </div>
-                </div>
-
-                <!-- RBC Histogram -->
-                <div style="display: flex; align-items: center;">
-                    <div style="width: 9px; text-align: center; font-size: 7.5px; font-weight: bold; line-height: 1.1; margin-right: 1.5px; font-family: 'Arial', sans-serif;">R<br>B<br>C</div>
-                    <div style="flex: 1;">
-                        <svg viewBox="0 0 320 85" style="width: 100%; height: 18.5mm; display: block;">
-                            <line x1="10" y1="70" x2="310" y2="70" stroke="#000" stroke-width="1.2"/>
-                            <line x1="26" y1="8" x2="26" y2="70" stroke="#000" stroke-width="0.8"/>
-                            <line x1="265" y1="8" x2="265" y2="70" stroke="#000" stroke-width="0.8"/>
-                            <path d="${slipRbcPathD}" fill="none" stroke="#000" stroke-width="1.4"/>
-                            <line x1="15" y1="70" x2="15" y2="73" stroke="#000" stroke-width="0.8"/>
-                            <text x="15" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">0</text>
-                            <line x1="65" y1="70" x2="65" y2="73" stroke="#000" stroke-width="0.8"/>
-                            <text x="65" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">50</text>
-                            <line x1="115" y1="70" x2="115" y2="73" stroke="#000" stroke-width="0.8"/>
-                            <text x="115" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">100</text>
-                            <line x1="165" y1="70" x2="165" y2="73" stroke="#000" stroke-width="0.8"/>
-                            <text x="165" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">150</text>
-                            <line x1="215" y1="70" x2="215" y2="73" stroke="#000" stroke-width="0.8"/>
-                            <text x="215" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">200</text>
-                            <line x1="265" y1="70" x2="265" y2="73" stroke="#000" stroke-width="0.8"/>
-                            <text x="265" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">250</text>
-                            <text x="290" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">fL</text>
-                        </svg>
-                    </div>
-                </div>
-
-                <!-- PLT Histogram -->
-                <div style="display: flex; align-items: center;">
-                    <div style="width: 9px; text-align: center; font-size: 7.5px; font-weight: bold; line-height: 1.1; margin-right: 1.5px; font-family: 'Arial', sans-serif;">P<br>L<br>T</div>
-                    <div style="flex: 1;">
-                        <svg viewBox="0 0 320 85" style="width: 100%; height: 18.5mm; display: block;">
-                            <line x1="10" y1="70" x2="310" y2="70" stroke="#000" stroke-width="1.2"/>
-                            <line x1="18" y1="8" x2="18" y2="70" stroke="#000" stroke-width="0.8"/>
-                            <line x1="230" y1="8" x2="230" y2="70" stroke="#000" stroke-width="0.8"/>
-                            <path d="${slipPltPathD}" fill="none" stroke="#000" stroke-width="1.4"/>
-                            <line x1="15" y1="70" x2="15" y2="73" stroke="#000" stroke-width="0.8"/>
-                            <text x="15" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">0</text>
-                            <line x1="65" y1="70" x2="65" y2="73" stroke="#000" stroke-width="0.8"/>
-                            <text x="65" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">5</text>
-                            <line x1="115" y1="70" x2="115" y2="73" stroke="#000" stroke-width="0.8"/>
-                            <text x="115" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">10</text>
-                            <line x1="165" y1="70" x2="165" y2="73" stroke="#000" stroke-width="0.8"/>
-                            <text x="165" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">15</text>
-                            <line x1="215" y1="70" x2="215" y2="73" stroke="#000" stroke-width="0.8"/>
-                            <text x="215" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">20</text>
-                            <line x1="265" y1="70" x2="265" y2="73" stroke="#000" stroke-width="0.8"/>
-                            <text x="265" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">25</text>
-                            <text x="286" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">fL</text>
-                        </svg>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    `;
-
-    const printWin = window.open('', '_blank', 'width=950,height=450');
-    if (printWin) {
-        printWin.document.open();
-        printWin.document.write(`<!DOCTYPE html>
-        <html>
-        <head>
-            <title>Hematology_Slip_${visitId || 'Report'}</title>
-            <meta charset="UTF-8">
-            <style>
-                * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                body { margin: 0; padding: 2mm 3mm; background: #fff; font-family: 'Consolas', 'Courier New', monospace; }
-                @page {
-                    size: 200mm 80mm landscape;
-                    margin: 2mm 3mm;
-                }
-                @media print {
-                    body { padding: 0; }
-                }
-            </style>
-        </head>
-        <body>
-            ${slipLandscapeHtml}
-            <script>
-                window.onload = function() {
-                    window.focus();
-                    setTimeout(function() {
-                        window.print();
-                    }, 300);
-                };
-            <\/script>
-        </body>
-        </html>`);
-        printWin.document.close();
-    } else {
-        // Fallback iframe
-        let printFrame = document.getElementById('printCbcLandscapeIframe');
-        if (!printFrame) {
-            printFrame = document.createElement('iframe');
-            printFrame.id = 'printCbcLandscapeIframe';
-            printFrame.style.position = 'fixed';
-            printFrame.style.right = '0';
-            printFrame.style.bottom = '0';
-            printFrame.style.width = '0';
-            printFrame.style.height = '0';
-            printFrame.style.border = 'none';
-            document.body.appendChild(printFrame);
-        }
-        const doc = printFrame.contentWindow.document;
-        doc.open();
-        doc.write(`<!DOCTYPE html><html><head><title>Hematology Slip - ${visitId}</title>
-        <style>
-            * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-            body { margin: 0; padding: 2mm 3mm; background: #fff; font-family: 'Consolas', 'Courier New', monospace; }
-            @page { size: 200mm 80mm landscape; margin: 2mm 3mm; }
-            @media print { body { padding: 0; } }
-        </style></head><body>${slipLandscapeHtml}</body></html>`);
-        doc.close();
-        setTimeout(() => {
-            printFrame.contentWindow.focus();
-            printFrame.contentWindow.print();
-        }, 400);
-    }
-}
-
-// 🌟 ฟังก์ชันพิมพ์สลิปผลตรวจ CBC ในรูปแบบแนวตั้ง (Portrait Slip: 80mm x 200mm หรือ A4 แนวตั้ง)
-function printCbcSlipPortrait(visitId, hn, patientName, items) {
-    const now = new Date();
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const dd = String(now.getDate()).padStart(2, '0');
-    const yyyy = now.getFullYear();
-    const hh = String(now.getHours()).padStart(2, '0');
-    const min = String(now.getMinutes()).padStart(2, '0');
-    const formattedTime = `${mm}/${dd}/${yyyy} ${hh}:${min}`;
-
-    const itemMap = {};
-    if (Array.isArray(items)) {
-        items.forEach(it => {
-            if (it && it.name) {
-                const cleanKey = it.name.trim().replace('-', '_').toUpperCase();
-                itemMap[cleanKey] = it;
-                itemMap[it.name.trim()] = it;
-            }
-        });
-    }
-
-    const allParamsConfig = [
-        { key: 'WBC', name: 'WBC', unit: '10^9/L', defMin: 3.5, defMax: 10.0, defRange: '3.5-10.0' },
-        { key: 'LYM%', name: 'LYM%', unit: '%', defMin: 20.0, defMax: 40.0, defRange: '20.0-40.0' },
-        { key: 'MID%', name: 'MID%', unit: '%', defMin: 1.0, defMax: 15.0, defRange: '1.0-15.0' },
-        { key: 'GRAN%', name: 'GRAN%', unit: '%', defMin: 50.0, defMax: 70.0, defRange: '50.0-70.0' },
-        { key: 'LYM#', name: 'LYM#', unit: '10^9/L', defMin: 0.6, defMax: 4.1, defRange: '0.6-4.1' },
-        { key: 'MID#', name: 'MID#', unit: '10^9/L', defMin: 0.1, defMax: 1.8, defRange: '0.1-1.8' },
-        { key: 'GRAN#', name: 'GRAN#', unit: '10^9/L', defMin: 2.0, defMax: 7.8, defRange: '2.0-7.8' },
-        { key: 'RBC', name: 'RBC', unit: '10^12/L', defMin: 3.50, defMax: 6.00, defRange: '3.50-6.00' },
-        { key: 'HGB', name: 'HGB', unit: 'g/dL', defMin: 11.0, defMax: 17.5, defRange: '11.0-17.5' },
-        { key: 'HCT', name: 'HCT', unit: '%', defMin: 35.0, defMax: 54.0, defRange: '35.0-54.0' },
-        { key: 'MCV', name: 'MCV', unit: 'fL', defMin: 80.0, defMax: 100.0, defRange: '80.0-100.0' },
-        { key: 'MCH', name: 'MCH', unit: 'pg', defMin: 26.0, defMax: 34.0, defRange: '26.0-34.0' },
-        { key: 'MCHC', name: 'MCHC', unit: 'g/dL', defMin: 31.5, defMax: 36.0, defRange: '31.5-36.0' },
-        { key: 'RDW_CV', name: 'RDW_CV', unit: '%', defMin: 11.0, defMax: 16.0, defRange: '11.0-16.0' },
-        { key: 'RDW_SD', name: 'RDW_SD', unit: 'fL', defMin: 35.0, defMax: 56.0, defRange: '35.0-56.0' },
-        { key: 'PLT', name: 'PLT', unit: '10^9/L', defMin: 100, defMax: 350, defRange: '100-350' },
-        { key: 'MPV', name: 'MPV', unit: 'fL', defMin: 6.5, defMax: 12.0, defRange: '6.5-12.0' },
-        { key: 'PCT', name: 'PCT', unit: '%', defMin: 0.10, defMax: 0.28, defRange: '0.10-0.28' },
-        { key: 'P_LCR', name: 'P_LCR', unit: '%', defMin: 11.0, defMax: 45.0, defRange: '11.0-45.0' },
-        { key: 'P_LCC', name: 'P_LCC', unit: '10^9/L', defMin: 11, defMax: 135, defRange: '11-135' },
-        { key: 'PDW_SD', name: 'PDW_SD', unit: 'fL', defMin: 9.0, defMax: 17.0, defRange: '9.0-17.0' },
-        { key: 'PDW_CV', name: 'PDW_CV', unit: '%', defMin: 15.0, defMax: 18.0, defRange: '15.0-18.0' }
-    ];
-
-    function renderPortraitRow(cfg) {
-        const item = itemMap[cfg.key] || itemMap[cfg.name] || {};
-        const valStr = (item.val !== undefined ? item.val : item.value) ?? '';
-        const unit = item.unit || cfg.unit;
-        let minVal = parseFloat(item.min ?? cfg.defMin);
-        let maxVal = parseFloat(item.max ?? cfg.defMax);
-        let rangeStr = (item.min && item.max) ? `${item.min}-${item.max}` : cfg.defRange;
-
-        let flag = '&nbsp;';
-        if (valStr !== '' && !isNaN(parseFloat(valStr))) {
-            const v = parseFloat(valStr);
-            if (!isNaN(minVal) && v < minVal) flag = '<b style="font-weight:bold; color:#b45309;">L</b>';
-            else if (!isNaN(maxVal) && v > maxVal) flag = '<b style="font-weight:bold; color:#b91c1c;">H</b>';
-        }
-
-        return `<tr>
-            <td style="padding: 2px 4px; font-weight: bold; white-space: nowrap;">${cfg.name}</td>
-            <td style="padding: 2px 4px; text-align: right; font-weight: bold;">${valStr || '-'}</td>
-            <td style="padding: 2px 4px; text-align: left; font-size: 8.5px; color: #333;">${unit}</td>
-            <td style="padding: 2px 4px; text-align: center; font-size: 9px;">${flag}</td>
-            <td style="padding: 2px 4px; text-align: right; font-size: 8.5px; white-space: nowrap; color: #555;">${rangeStr}</td>
-        </tr>`;
-    }
-
-    const rowsHtml = allParamsConfig.map(renderPortraitRow).join('');
-
-    function generateSlipSvgPath(points, width, height, padX, padY, fixedMinX, fixedMaxX, fixedMaxY) {
-        if (!points || points.length === 0) return '';
-        const innerW = width - padX * 2;
-        const innerH = height - padY * 2;
-        const minX = (fixedMinX !== undefined) ? fixedMinX : Math.min(...points.map(p => p[0]));
-        const maxX = (fixedMaxX !== undefined) ? fixedMaxX : Math.max(...points.map(p => p[0]));
-        const maxY = fixedMaxY || 100;
-        const scaleX = x => padX + ((Math.max(minX, Math.min(maxX, x)) - minX) / (maxX - minX || 1)) * innerW;
-        const scaleY = y => {
-            const clampedY = Math.max(0, Math.min(y, maxY * 1.05));
-            return (height - padY) - (clampedY / maxY) * innerH;
-        };
-        let d = `M ${scaleX(points[0][0])} ${scaleY(points[0][1])}`;
-        for (let i = 1; i < points.length; i++) {
-            d += ` L ${scaleX(points[i][0])} ${scaleY(points[i][1])}`;
-        }
-        return d;
-    }
-
-    const getSlipNum = (key) => {
-        const item = itemMap[key] || itemMap[key.replace('-', '_')] || {};
-        const valStr = (item.val !== undefined ? item.val : item.value) ?? '';
-        if (valStr === '' || valStr === undefined || valStr === null) return null;
-        const v = parseFloat(valStr);
-        return isNaN(v) ? null : v;
-    };
-
-    const sWbc = getSlipNum('WBC');
-    const sLym = getSlipNum('LYM%');
-    const sMid = getSlipNum('MID%');
-    const sGran = getSlipNum('GRAN%');
-    const sRbc = getSlipNum('RBC');
-    const sMcv = getSlipNum('MCV');
-    const sRdw = getSlipNum('RDW-SD') || getSlipNum('RDW_SD');
-    const sPlt = getSlipNum('PLT');
-    const sMpv = getSlipNum('MPV');
-
-    const slipWbcPoints = [];
-    if (sWbc !== null && sWbc > 0) {
-        const lp = (sLym !== null && sLym > 0) ? sLym : 30;
-        const mp = (sMid !== null && sMid > 0) ? sMid : 6;
-        const gp = (sGran !== null && sGran > 0) ? sGran : 60;
-        const wbcScale = Math.max(0.05, sWbc / 7.0);
-        for (let x = 30; x <= 450; x += 5) {
-            const p1 = (lp / 30) * 55 * Math.exp(-Math.pow((x - 85) / 22, 2));
-            const p2 = (mp / 6) * 18 * Math.exp(-Math.pow((x - 135) / 20, 2));
-            const p3 = (gp / 50) * 75 * Math.exp(-Math.pow((x - 240) / 48, 2));
-            const y = (p1 + p2 + p3) * wbcScale;
-            slipWbcPoints.push([x, Math.max(0, y)]);
-        }
-    } else {
-        for (let x = 30; x <= 450; x += 30) { slipWbcPoints.push([x, 0]); }
-    }
-
-    const slipRbcPoints = [];
-    if ((sRbc !== null && sRbc > 0) || (sMcv !== null && sMcv > 0)) {
-        const rv = (sRbc !== null && sRbc > 0) ? sRbc : 4.85;
-        const mv = (sMcv !== null && sMcv > 0) ? sMcv : 88.0;
-        const rw = (sRdw !== null && sRdw > 0) ? sRdw : 41.5;
-        const rbcScale = Math.max(0.05, rv / 4.85);
-        const sigma = Math.max(6, rw * 0.35);
-        for (let x = 20; x <= 250; x += 2) {
-            const y = rbcScale * 85 * Math.exp(-Math.pow((x - mv) / sigma, 2));
-            slipRbcPoints.push([x, Math.max(0, y)]);
-        }
-    } else {
-        for (let x = 20; x <= 250; x += 20) { slipRbcPoints.push([x, 0]); }
-    }
-
-    const slipPltPoints = [];
-    if (sPlt !== null && sPlt > 0) {
-        const mpv = (sMpv !== null && sMpv > 0) ? sMpv : 9.4;
-        const pltScale = Math.max(0.05, sPlt / 240);
-        const mpvPos = Math.max(3, Math.min(18, mpv));
-        for (let x = 0.5; x <= 32; x += 0.5) {
-            const y = pltScale * 85 * Math.exp(-Math.pow((Math.log(x) - Math.log(mpvPos)) / 0.55, 2));
-            slipPltPoints.push([x, Math.max(0, y)]);
-        }
-    } else {
-        for (let x = 0.5; x <= 32; x += 3) { slipPltPoints.push([x, 0]); }
-    }
-
-    const slipWbcPathD = generateSlipSvgPath(slipWbcPoints, 320, 85, 15, 15, 30, 450, 150);
-    const slipRbcPathD = generateSlipSvgPath(slipRbcPoints, 320, 85, 15, 15, 20, 250, 130);
-    const slipPltPathD = generateSlipSvgPath(slipPltPoints, 320, 85, 15, 15, 0.5, 32, 160);
-
-    const slipPortraitHtml = `
-    <div style="width: 100%; max-width: 190mm; margin: 0 auto; box-sizing: border-box; font-family: 'Consolas', 'Courier New', monospace; font-size: 10px; color: #000; line-height: 1.25; background: #fff; padding: 4mm;">
-        <!-- Header -->
-        <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 6px;">
-            <div style="font-weight: bold; font-size: 15px; font-family: 'Arial', sans-serif; letter-spacing: 0.5px;">
-                Hematology Analysis Report
-            </div>
-            <div style="font-size: 9px; font-family: 'Arial', sans-serif; color: #444; margin-top: 2px;">
-                STK CLINIC — CBC Complete Blood Count
-            </div>
-        </div>
-
-        <!-- Patient Info -->
-        <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px; font-size: 9.5px; font-family: 'Arial', sans-serif; border-bottom: 1px dashed #999; padding-bottom: 5px; margin-bottom: 6px;">
-            <div><strong>ID:</strong> ${hn || visitId || '-'}</div>
-            <div><strong>Name:</strong> ${patientName || '-'}</div>
-            <div><strong>Case ID:</strong> ${visitId || '-'}</div>
-            <div><strong>Time:</strong> ${formattedTime}</div>
-        </div>
-
-        <!-- Table of Results -->
-        <table style="width: 100%; border-collapse: collapse; font-size: 9.5px; margin-bottom: 8px;">
-            <thead>
-                <tr style="border-bottom: 1.5px solid #000; font-size: 9px; font-family: 'Arial', sans-serif;">
-                    <th style="text-align: left; padding: 3px 4px;">PARAM.</th>
-                    <th style="text-align: right; padding: 3px 4px;">RESULT</th>
-                    <th style="text-align: left; padding: 3px 4px;">UNIT</th>
-                    <th style="text-align: center; padding: 3px 4px;">Info</th>
-                    <th style="text-align: right; padding: 3px 4px;">Reference Range</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${rowsHtml}
-            </tbody>
-        </table>
-
-        <!-- Histograms Section -->
-        <div style="border-top: 1px dashed #999; padding-top: 6px; margin-top: 6px;">
-            <div style="font-weight: bold; font-size: 10px; font-family: 'Arial', sans-serif; margin-bottom: 4px;">Histograms</div>
-            <div style="display: flex; justify-content: space-between; gap: 8px;">
-                <!-- WBC -->
-                <div style="flex: 1; border: 1px solid #ccc; border-radius: 4px; padding: 4px;">
-                    <div style="text-align: center; font-weight: bold; font-size: 9px;">WBC</div>
-                    <svg viewBox="0 0 320 85" style="width: 100%; height: auto; max-height: 55px; display: block;">
-                        <line x1="10" y1="70" x2="310" y2="70" stroke="#000" stroke-width="1.2"/>
-                        <line x1="28" y1="8" x2="28" y2="70" stroke="#000" stroke-width="0.8"/>
-                        <line x1="290" y1="8" x2="290" y2="70" stroke="#000" stroke-width="0.8"/>
-                        <path d="${slipWbcPathD}" fill="none" stroke="#000" stroke-width="1.4"/>
-                        <line x1="15" y1="70" x2="15" y2="73" stroke="#000" stroke-width="0.8"/>
-                        <text x="15" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">0</text>
-                        <line x1="150" y1="70" x2="150" y2="73" stroke="#000" stroke-width="0.8"/>
-                        <text x="150" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">150</text>
-                        <line x1="285" y1="70" x2="285" y2="73" stroke="#000" stroke-width="0.8"/>
-                        <text x="285" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">300</text>
-                    </svg>
-                </div>
-                <!-- RBC -->
-                <div style="flex: 1; border: 1px solid #ccc; border-radius: 4px; padding: 4px;">
-                    <div style="text-align: center; font-weight: bold; font-size: 9px;">RBC</div>
-                    <svg viewBox="0 0 320 85" style="width: 100%; height: auto; max-height: 55px; display: block;">
-                        <line x1="10" y1="70" x2="310" y2="70" stroke="#000" stroke-width="1.2"/>
-                        <line x1="26" y1="8" x2="26" y2="70" stroke="#000" stroke-width="0.8"/>
-                        <line x1="265" y1="8" x2="265" y2="70" stroke="#000" stroke-width="0.8"/>
-                        <path d="${slipRbcPathD}" fill="none" stroke="#000" stroke-width="1.4"/>
-                        <line x1="15" y1="70" x2="15" y2="73" stroke="#000" stroke-width="0.8"/>
-                        <text x="15" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">0</text>
-                        <line x1="165" y1="70" x2="165" y2="73" stroke="#000" stroke-width="0.8"/>
-                        <text x="165" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">150</text>
-                        <line x1="265" y1="70" x2="265" y2="73" stroke="#000" stroke-width="0.8"/>
-                        <text x="265" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">250</text>
-                    </svg>
-                </div>
-                <!-- PLT -->
-                <div style="flex: 1; border: 1px solid #ccc; border-radius: 4px; padding: 4px;">
-                    <div style="text-align: center; font-weight: bold; font-size: 9px;">PLT</div>
-                    <svg viewBox="0 0 320 85" style="width: 100%; height: auto; max-height: 55px; display: block;">
-                        <line x1="10" y1="70" x2="310" y2="70" stroke="#000" stroke-width="1.2"/>
-                        <line x1="18" y1="8" x2="18" y2="70" stroke="#000" stroke-width="0.8"/>
-                        <line x1="230" y1="8" x2="230" y2="70" stroke="#000" stroke-width="0.8"/>
-                        <path d="${slipPltPathD}" fill="none" stroke="#000" stroke-width="1.4"/>
-                        <line x1="15" y1="70" x2="15" y2="73" stroke="#000" stroke-width="0.8"/>
-                        <text x="15" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">0</text>
-                        <line x1="165" y1="70" x2="165" y2="73" stroke="#000" stroke-width="0.8"/>
-                        <text x="165" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">15</text>
-                        <line x1="265" y1="70" x2="265" y2="73" stroke="#000" stroke-width="0.8"/>
-                        <text x="265" y="81" font-size="7.5" font-family="Arial,sans-serif" text-anchor="middle">25</text>
-                    </svg>
-                </div>
-            </div>
-        </div>
-
-        <!-- Footer -->
-        <div style="margin-top: 10px; font-size: 8px; color: #555; text-align: center; border-top: 1px solid #eee; padding-top: 4px;">
-            Whole Blood for Venous Blood · *This result is valid only for current sample*
-        </div>
-    </div>
-    `;
-
-    const printWin = window.open('', '_blank', 'width=800,height=900');
-    if (printWin) {
-        printWin.document.open();
-        printWin.document.write(`<!DOCTYPE html>
-        <html>
-        <head>
-            <title>Hematology_Report_Portrait_${visitId || 'Report'}</title>
-            <meta charset="UTF-8">
-            <style>
-                * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                body { margin: 0; padding: 6mm 8mm; background: #fff; font-family: 'Consolas', 'Courier New', monospace; }
-                @page {
-                    size: portrait;
-                    margin: 6mm 8mm;
-                }
-                @media print {
-                    body { padding: 0; }
-                }
-            </style>
-        </head>
-        <body>
-            ${slipPortraitHtml}
-            <script>
-                window.onload = function() {
-                    window.focus();
-                    setTimeout(function() {
-                        window.print();
-                    }, 300);
-                };
-            <\/script>
-        </body>
-        </html>`);
-        printWin.document.close();
-    }
-}
-
-function printCbcA4Report(visitId) {
-    const printSource = document.getElementById('cbcPrintContainer');
-    if (!printSource) return;
-
-    // สร้าง clone สำหรับพิมพ์
-    const clone = printSource.cloneNode(true);
-    clone.id = 'cbcPrintDirectClone';
-
-    // แทนที่ input ในตารางด้วย text ธรรมดาเพื่อความคมชัดในการพิมพ์
-    const origInputs = printSource.querySelectorAll('input');
-    const cloneInputs = clone.querySelectorAll('input');
-    cloneInputs.forEach((inp, i) => {
-        const span = document.createElement('span');
-        span.innerText = origInputs[i]?.value || inp.value || '-';
-        span.style.fontWeight = inp.classList.contains('cbc-input-val') ? '700' : '500';
-        span.style.fontSize = '12px';
-        inp.parentNode.replaceChild(span, inp);
-    });
-
-    const htmlContent = clone.outerHTML;
-
-    const printWin = window.open('', '_blank', 'width=920,height=950');
-    if (printWin) {
-        printWin.document.open();
-        printWin.document.write(`<!DOCTYPE html>
-        <html>
-        <head>
-            <title>CBC_Report_${visitId || 'Print'}</title>
-            <meta charset="UTF-8">
-            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-            <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700&family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-            <style>
-                * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                body { font-family: 'Noto Sans Lao', 'Kanit', sans-serif; color: #1e293b; background: #fff; padding: 15px; }
-                .cbc-status-badge { display: inline-block; padding: 2px 7px; border-radius: 12px; font-size: 11px; font-weight: 700; white-space: nowrap; }
-                .cbc-status-normal { background: #dcfce7 !important; color: #15803d !important; }
-                .cbc-status-low { background: #fef3c7 !important; color: #b45309 !important; }
-                .cbc-status-high { background: #fee2e2 !important; color: #b91c1c !important; }
-                .cbc-status-empty { background: #f1f5f9 !important; color: #64748b !important; }
-                .cbc-hist-card { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; padding: 6px 10px 4px; margin-bottom: 8px; }
-                .cbc-hist-title { font-weight: 700; font-size: 11.5px; color: #1e293b; margin-bottom: 2px; }
-                .cbc-hist-card svg { display: block; width: 100%; height: auto; max-height: 75px; }
-                .cbc-hist-card .axis-line { stroke: #64748b; stroke-width: 1.2; }
-                .cbc-hist-card .gate { stroke: #94a3b8; stroke-width: 1; stroke-dasharray: 3,3; }
-                .cbc-hist-card .trace { fill: none; stroke: #0369a1; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-                @media print {
-                    body { padding: 0; background: #fff; }
-                    @page { size: A4 portrait; margin: 8mm; }
-                }
-            </style>
-        </head>
-        <body>
-            <div style="max-width: 210mm; margin: auto;">
-                ${htmlContent}
-            </div>
-            <script>
-                window.onload = function() {
-                    window.focus();
-                    setTimeout(function() {
-                        window.print();
-                    }, 300);
-                };
-            <\/script>
-        </body>
-        </html>`);
-        printWin.document.close();
-    } else {
-        // Fallback พิมพ์ผ่าน iframe หากเบราว์เซอร์บล็อก popup
-        let printFrame = document.getElementById('printCbcIframe');
-        if (!printFrame) {
-            printFrame = document.createElement('iframe');
-            printFrame.id = 'printCbcIframe';
-            printFrame.style.position = 'fixed';
-            printFrame.style.right = '0';
-            printFrame.style.bottom = '0';
-            printFrame.style.width = '0';
-            printFrame.style.height = '0';
-            printFrame.style.border = 'none';
-            document.body.appendChild(printFrame);
-        }
-        const doc = printFrame.contentWindow.document;
-        doc.open();
-        doc.write(`<!DOCTYPE html><html><head><title>CBC Report - ${visitId}</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700&family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-        <style>
-            * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-            body { font-family: 'Noto Sans Lao', 'Kanit', sans-serif; padding: 15px; }
-            .cbc-status-badge { display: inline-block; padding: 2px 7px; border-radius: 12px; font-size: 11px; font-weight: 700; white-space: nowrap; }
-            .cbc-status-normal { background: #dcfce7 !important; color: #15803d !important; }
-            .cbc-status-low { background: #fef3c7 !important; color: #b45309 !important; }
-            .cbc-status-high { background: #fee2e2 !important; color: #b91c1c !important; }
-            .cbc-status-empty { background: #f1f5f9 !important; color: #64748b !important; }
-            .cbc-hist-card { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; padding: 6px 10px 4px; margin-bottom: 8px; }
-            .cbc-hist-title { font-weight: 700; font-size: 11.5px; color: #1e293b; margin-bottom: 2px; }
-            .cbc-hist-card svg { display: block; width: 100%; height: auto; max-height: 75px; }
-            .cbc-hist-card .axis-line { stroke: #64748b; stroke-width: 1.2; }
-            .cbc-hist-card .gate { stroke: #94a3b8; stroke-width: 1; stroke-dasharray: 3,3; }
-            .cbc-hist-card .trace { fill: none; stroke: #0369a1; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-            @media print { body { padding: 0; } @page { size: A4 portrait; margin: 8mm; } }
-        </style></head><body><div style="max-width: 210mm; margin: auto;">${htmlContent}</div></body></html>`);
-        doc.close();
-        setTimeout(() => {
-            printFrame.contentWindow.focus();
-            printFrame.contentWindow.print();
-        }, 400);
-    }
-}
-
-function printCbcReportOnly() {
-    const visitId = window._currentCbcVisitId || '';
-    const hn = window._currentCbcHn || '';
-    const patientName = window._currentCbcPatientName || '';
-    const paperSize = document.getElementById('cbcPaperSizeSelect')?.value || 'slip_portrait';
-
-    try {
-        saveCbcData(false);
-    } catch (e) { }
-
-    if (paperSize === 'A4') {
-        printCbcA4Report(visitId);
-    } else if (paperSize === 'slip_20x8' || paperSize === 'slip_landscape') {
-        const items = getCbcModalTableData();
-        printCbcSlipLandscape(visitId, hn, patientName, items);
-    } else {
-        // ค่าเริ่มต้นและ 'slip_portrait': พิมพ์สลิปแนวตั้ง (Portrait)
-        const items = getCbcModalTableData();
-        printCbcSlipPortrait(visitId, hn, patientName, items);
-    }
-}
-
-async function handleCbcMainAction() {
-    if (window._currentCbcIsPrintOnly) {
-        // เวลากด ให้ print อย่างเดียว ไม่ต้องบันทึก
-        printCbcReportOnly();
-    } else {
-        // ตรงห้อง lab: ตัดปุ่ม Print ออก เหลือแค่ปุ่ม "บันทึก" เพื่อบันทึกผลตรวจ (ไม่ดาวน์โหลด PDF)
-        await saveCbcData(true);
-    }
-}
-
-function openCbcInNewTab() {
-    const visitId = window._currentCbcVisitId || '';
-    const hn = window._currentCbcHn || '';
-    const name = window._currentCbcPatientName || '';
-    const mode = window._currentCbcIsPrintOnly ? 'print' : 'lab';
-    const params = new URLSearchParams();
-    if (visitId) params.append('visit_id', visitId);
-    if (hn) params.append('hn', hn);
-    if (name) params.append('name', name);
-    if (mode) params.append('mode', mode);
-    const queryString = params.toString() ? '?' + params.toString() : '';
-    window.open('cbc.html' + queryString, '_blank');
-}
-
-function closeCbcModal() {
-    const cbcModalEl = document.getElementById('cbcLabModal');
-    if (cbcModalEl && typeof bootstrap !== 'undefined') {
-        const modal = bootstrap.Modal.getInstance(cbcModalEl);
-        if (modal) modal.hide();
-    }
-}
-
-window.openCbcPage = openCbcPage;
-window.openCbcModal = openCbcPage;
-window.saveCbcData = saveCbcData;
-window.saveAndExportCbcPdf = saveAndExportCbcPdf;
-window.printCbcReportOnly = printCbcReportOnly;
-window.printCbcSlipLandscape = printCbcSlipLandscape;
-window.printCbc8x20Slip = printCbcSlipLandscape;
-window.printCbcA4Report = printCbcA4Report;
-window.handleCbcMainAction = handleCbcMainAction;
-window.clearCbcModalValues = clearCbcModalValues;
-window.openCbcInNewTab = openCbcInNewTab;
-window.closeCbcModal = closeCbcModal;
-
 // =====================================
 // ระบบตรวจหลอดเลือด (Vascular Check)
 // =====================================
