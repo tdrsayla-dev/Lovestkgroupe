@@ -4946,6 +4946,14 @@
             }
         });
     </script>
+    <!-- Fix: Blocked aria-hidden on focused element in Bootstrap Modals -->
+    <script>
+        document.addEventListener('hide.bs.modal', function (e) {
+            if (document.activeElement && e.target && e.target.contains(document.activeElement)) {
+                document.activeElement.blur();
+            }
+        }, true);
+    </script>
 </body>
 
 </html>
