@@ -137,6 +137,16 @@
         return () => window.removeEventListener('stk_theme_change', onThemeChange);
       }, []);
 
+      // 🌐 Language Sync
+      const [, forceLangUpdate] = useReducer(x => x + 1, 0);
+      useEffect(() => {
+        const onLangChange = () => forceLangUpdate();
+        window.addEventListener('stk_lang_change', onLangChange);
+        return () => window.removeEventListener('stk_lang_change', onLangChange);
+      }, []);
+
+      const t = (key, fallback) => (typeof window.t === 'function' ? window.t(key, fallback) : (fallback || key));
+
       const showToast = (message, type = 'info') => {
         setToast({ show: true, message, type });
         setTimeout(() => setToast(prev => ({ ...prev, show: false })), 4000);
@@ -1429,7 +1439,7 @@
                   }`}
                 >
                   <PackageIcon size={15} />
-                  <span>สินค้าเสริมอาหาร (STK)</span>
+                  <span>{t('wh_domain_stk', 'สินค้าเสริมอาหาร (STK)')}</span>
                 </button>
                 <button
                   onClick={() => setActiveDomain('PHARMACY')}
@@ -1440,7 +1450,7 @@
                   }`}
                 >
                   <Pill size={15} />
-                  <span>คลังยาหลวง (Pharmacy)</span>
+                  <span>{t('wh_domain_pharmacy', 'คลังยาหลวง (Pharmacy)')}</span>
                 </button>
                 <button
                   onClick={() => setActiveDomain('MEDICAL_DEVICE')}
@@ -1451,7 +1461,7 @@
                   }`}
                 >
                   <Stethoscope size={15} />
-                  <span>เครื่องมือแพทย์ (Devices)</span>
+                  <span>{t('wh_domain_devices', 'เครื่องมือแพทย์ (Devices)')}</span>
                 </button>
               </div>
 
@@ -1463,7 +1473,7 @@
                 title="รีเฟรชข้อมูลสต๊อกสด"
               >
                 <RefreshCw size={14} className={refreshing ? 'animate-spin text-blue-500' : ''} />
-                <span>{refreshing ? 'กำลังซิงค์...' : 'รีเฟรชสต๊อก'}</span>
+                <span>{refreshing ? t('wh_btn_syncing', 'กำลังซิงค์...') : t('wh_btn_refresh', 'รีเฟรชสต๊อก')}</span>
               </button>
             </div>
 
@@ -1478,7 +1488,7 @@
                 }`}
               >
                 <BarChart3 size={15} className={activeTab === 'overview' ? 'text-white' : 'text-blue-600 dark:text-blue-400'} />
-                <span>1. ภาพรวมสต๊อก & วันหมดอายุ (Overview & FEFO)</span>
+                <span>{t('wh_tab_overview', '1. ภาพรวมสต๊อก & วันหมดอายุ (Overview & FEFO)')}</span>
               </button>
               <button
                 onClick={() => setActiveTab('stockin')}
@@ -1489,7 +1499,7 @@
                 }`}
               >
                 <Plus size={15} className={activeTab === 'stockin' ? 'text-white' : 'text-blue-600 dark:text-blue-400'} />
-                <span>2. รับเข้าสินค้าตามล็อต (Stock In)</span>
+                <span>{t('wh_tab_stockin', '2. รับเข้าสินค้าตามล็อต (Stock In)')}</span>
               </button>
               <button
                 onClick={() => setActiveTab('transfer')}
@@ -1500,7 +1510,7 @@
                 }`}
               >
                 <ArrowRightLeft size={15} className={activeTab === 'transfer' ? 'text-white' : 'text-blue-600 dark:text-blue-400'} />
-                <span>3. เบิกย้ายสินค้า (คลังใหญ่ ➔ หน้าร้าน)</span>
+                <span>{t('wh_tab_transfer', '3. เบิกย้ายสินค้า (คลังใหญ่ ➔ หน้าร้าน)')}</span>
               </button>
               <button
                 onClick={() => setActiveTab('audit')}
@@ -1511,7 +1521,7 @@
                 }`}
               >
                 <CheckCircle size={15} className={activeTab === 'audit' ? 'text-white' : 'text-blue-600 dark:text-blue-400'} />
-                <span>4. ตรวจนับและบาลานซ์สต๊อกประจำวัน (Daily Audit)</span>
+                <span>{t('wh_tab_audit', '4. ตรวจนับและบาลานซ์สต๊อกประจำวัน (Daily Audit)')}</span>
               </button>
               <button
                 onClick={() => setActiveTab('ledger')}
@@ -1522,7 +1532,7 @@
                 }`}
               >
                 <Calendar size={15} className={activeTab === 'ledger' ? 'text-white' : 'text-blue-600 dark:text-blue-400'} />
-                <span>5. สมุดบัญชีสต๊อกย้อนหลัง (Historical Ledger)</span>
+                <span>{t('wh_tab_ledger', '5. สมุดบัญชีสต็อกย้อนหลัง (Historical Ledger)')}</span>
               </button>
             </div>
 

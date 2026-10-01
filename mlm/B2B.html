@@ -765,6 +765,16 @@
         fetchData();
       }, [fetchData]);
 
+      // 🌐 Language listener
+      const [, forceLangRender] = useReducer(n => n + 1, 0);
+      useEffect(() => {
+        const onLangChange = () => forceLangRender();
+        window.addEventListener('stk_lang_change', onLangChange);
+        return () => window.removeEventListener('stk_lang_change', onLangChange);
+      }, []);
+
+      const t = (key, fallback) => (typeof window.t === 'function' ? window.t(key, fallback) : (fallback || key));
+
       // Only products configured with B2B tiers
       const configuredB2BProductIds = useMemo(() => {
         return new Set(tiers.map(t => t.product_id));
@@ -1275,10 +1285,10 @@
                 <div>
                   <div className="flex items-center gap-2">
                     <h1 className="text-base sm:text-lg font-black text-slate-800 dark:text-white leading-tight">
-                      ระบบการขายส่ง B2B
+                      {t('b2b_header_title', 'ระบบการขายส่ง B2B')}
                     </h1>
                     <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 font-extrabold px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800 shrink-0">
-                      Wholesale Portal
+                      {t('b2b_portal_badge', 'Wholesale Portal')}
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
@@ -1293,19 +1303,19 @@
                   onClick={() => setActiveTab('new_order')}
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg whitespace-nowrap transition-all ${activeTab === 'new_order' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'}`}
                 >
-                  <Plus size={15} /> เปิดบิลขายส่ง
+                  <Plus size={15} /> {t('tab_b2b_new_order', 'เปิดบิลขายส่ง')}
                 </button>
                 <button
                   onClick={() => setActiveTab('orders')}
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg whitespace-nowrap transition-all ${activeTab === 'orders' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'}`}
                 >
-                  <FileText size={15} /> ประวัติบิล ({orders.length})
+                  <FileText size={15} /> {t('tab_b2b_orders', 'ประวัติบิล')} ({orders.length})
                 </button>
                 <button
                   onClick={() => setActiveTab('products_tiers')}
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg whitespace-nowrap transition-all ${activeTab === 'products_tiers' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'}`}
                 >
-                  <TagIcon size={15} /> ตั้งค่าสินค้า & เรทราคา ({tiers.length})
+                  <TagIcon size={15} /> {t('tab_b2b_products_tiers', 'ตั้งค่าสินค้า & เรทราคา')} ({tiers.length})
                 </button>
               </div>
             </header>
@@ -1337,14 +1347,14 @@
                             onClick={() => { setBuyerType('MEMBER'); setSelectedBuyer(null); setBuyerSearchTerm(''); setShowBuyerDropdown(false); }}
                             className={`px-3 py-1 rounded-md transition-all ${buyerType === 'MEMBER' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'}`}
                           >
-                            👤 พนักงาน / ตัวแทน
+                            👤 {t('b2b_buyer_member', 'พนักงาน / ตัวแทน')}
                           </button>
                           <button
                             type="button"
                             onClick={() => { setBuyerType('CUSTOMER'); setSelectedBuyer(null); setBuyerSearchTerm(''); setShowBuyerDropdown(false); }}
                             className={`px-3 py-1 rounded-md transition-all ${buyerType === 'CUSTOMER' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'}`}
                           >
-                            🏢 ลูกค้าทั่วไป / ร้านค้า
+                            🏢 {t('b2b_buyer_customer', 'ลูกค้าทั่วไป / ร้านค้า')}
                           </button>
                         </div>
                       </div>
