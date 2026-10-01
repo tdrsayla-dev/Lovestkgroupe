@@ -15913,6 +15913,7 @@ async function loadReferralData(isManualClick = false) {
         const vId = String(l.visit_id || '');
         if (/^COM-5000[1-9]$/.test(id)) return true;
         if (/^VIS-34517[3-9]$/.test(vId) || /^VIS-34518[0-1]$/.test(vId)) return true;
+        if (/^TEST:\s*/i.test(String(l.item_details || '').trim()) || /,\s*TEST:\s*/i.test(String(l.item_details || ''))) return true;
         return false;
     };
 
@@ -16969,6 +16970,7 @@ function printCommissionLogsReport() {
         const vId = String(l.visit_id || '');
         if (/^COM-5000[1-9]$/.test(id)) return true;
         if (/^VIS-34517[3-9]$/.test(vId) || /^VIS-34518[0-1]$/.test(vId)) return true;
+        if (/^TEST:\s*/i.test(String(l.item_details || '').trim()) || /,\s*TEST:\s*/i.test(String(l.item_details || ''))) return true;
         return false;
     };
     logs = logs.filter(l => l && !isMockCommLog(l));
@@ -17310,6 +17312,7 @@ function renderCommissionLogsTable(page) {
         const vId = String(l.visit_id || '');
         if (/^COM-5000[1-9]$/.test(id)) return true;
         if (/^VIS-34517[3-9]$/.test(vId) || /^VIS-34518[0-1]$/.test(vId)) return true;
+        if (/^TEST:\s*/i.test(String(l.item_details || '').trim()) || /,\s*TEST:\s*/i.test(String(l.item_details || ''))) return true;
         return false;
     };
     logs = logs.filter(l => l && !isMockCommLog(l));
@@ -19300,8 +19303,8 @@ async function calculateAndRecordCommission(visitRecordOrId, testsString = '', i
                             const inName = itemName.toLowerCase();
                             return sName === inName ||
                                 sId === cleanItemId.toLowerCase() ||
-                                sName.replace(/[.,\s]/g, '') === normName ||
-                                (inName.length >= 3 && (sName.includes(inName) || inName.includes(sName)));
+                                sName.replace(/[.,\s]/g, '') === normName;
+                                // Exact match only
                         });
 
                         if (foundSvc) {
