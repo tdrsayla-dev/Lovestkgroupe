@@ -3130,7 +3130,7 @@ async function loadPrescriptionList(triggerBtn) {
 
         const { data, error } = await _supabase
             .from('visits')
-            .select('visit_id, hn, patient_name, doctor_name, status, symptom, bp, pulse, temp, weight, height, bmi, spo2, lab_tests, lab_note, meds, created_at')
+            .select('visit_id, hn, patient_name, doctor_name, status, symptom, bp, pulse, temp, weight, height, bmi, spo2, lab_tests, lab_note, meds, pdf_url, created_at')
             .in('status', ['รออ่านผล', 'กำลังคุยกับแพทย์', 'กำลังตรวจ', 'กำลังตรวจอยู่'])
             .order('created_at', { ascending: true })
             .limit(100);
@@ -6994,6 +6994,17 @@ window.renderLabTable = function (page = window.labCurrentPage) {
         let labDetailsHtml = `<button class="btn btn-sm btn-light border" onclick="viewLabDetailsByVisitId('${row.visit_id}')"><i class="ph ph-flask text-primary me-1"></i> ${itemsLabel} (${testCount} รายการ)</button>`;
 
         const filesList = getLabFilesForVisit(row.visit_id, row.pdf_url);
+        filesList.sort((a, b) => {
+            const isCbcA = (a.category === 'CBC');
+            const isCbcB = (b.category === 'CBC');
+            if (isCbcA && !isCbcB) return -1;
+            if (!isCbcA && isCbcB) return 1;
+            const isUrineA = (a.category === 'Urine' || (a.category && a.category.toLowerCase().includes('urine')));
+            const isUrineB = (b.category === 'Urine' || (b.category && b.category.toLowerCase().includes('urine')));
+            if (isUrineA && !isUrineB) return -1;
+            if (!isUrineA && isUrineB) return 1;
+            return 0;
+        });
         const cachedVasc = cachedVascularMap[row.visit_id];
         const hasVascNote = (row.lab_note && row.lab_note.includes('[ผลตรวจหลอดเลือด]'));
         const vascText = hasVascNote ? row.lab_note : (cachedVasc ? cachedVasc.resultText : '');
@@ -7016,8 +7027,13 @@ window.renderLabTable = function (page = window.labCurrentPage) {
             const safeCat = catName.replace(/'/g, "\\'");
             const isCbcCat = (catName === 'CBC');
             const isUrineCat = (catName === 'Urine' || catName.toLowerCase().includes('urine'));
-            const btnOnClick = isCbcCat ? `openCbcPage('${row.visit_id}', 'lab', '${row.hn || ''}', '${safeName}')` : (isUrineCat ? `openUrinePage('${row.visit_id}', 'lab', '${row.hn || ''}', '${safeName}')` : `viewRealLabFile('', '${row.visit_id}', '${safeName}', '${safeCat}')`);
-            const btnLabel = isCbcCat ? 'CBC (PDF)' : (isUrineCat ? 'Urine (PDF)' : catName);
+            let displayName = '';
+            if (fileItem.fileName && fileItem.fileName !== 'ไฟล์ผลแล็บ' && fileItem.fileName !== 'ไฟล์ผลแล็บเดิม' && !fileItem.fileName.startsWith('CBC_Report_') && !fileItem.fileName.startsWith('Urine_Report_')) {
+                displayName = fileItem.fileName.replace(/\.[^/.]+$/, '').trim();
+            }
+            const targetFileUrl = (fileItem.url || fileItem.publicUrl || fileItem.id || '').replace(/'/g, "\\'");
+            const btnOnClick = isCbcCat ? `openCbcPage('${row.visit_id}', 'lab', '${row.hn || ''}', '${safeName}')` : (isUrineCat ? `openUrinePage('${row.visit_id}', 'lab', '${row.hn || ''}', '${safeName}')` : `viewRealLabFile('${targetFileUrl}', '${row.visit_id}', '${safeName}', '${safeCat}')`);
+            const btnLabel = isCbcCat ? 'CBC (PDF)' : (isUrineCat ? 'Urine (PDF)' : (displayName || catName));
 
             allResultButtons.push(`
                 <button class="btn btn-sm ${btnClass} me-1 mb-1 fw-semibold" onclick="${btnOnClick}">
@@ -8017,7 +8033,7 @@ function isValidLabFileUrl(u) {
     if (!u || typeof u !== 'string') return false;
     const s = u.trim();
     if (s === '' || s === '#' || s === 'undefined' || s === 'null' || s.includes('sample.pdf')) return false;
-    return s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:') || s.startsWith('blob:');
+    return s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:') || s.startsWith('blob:') || s.startsWith('cbc:') || s.startsWith('urine:');
 }
 
 function getLabFilesForVisit(visitId, rowPdfUrl) {
@@ -8034,7 +8050,7 @@ function getLabFilesForVisit(visitId, rowPdfUrl) {
                         if (p && (p.id || isValidLabFileUrl(p.url || p.publicUrl))) {
                             const u = p.url || p.publicUrl || '';
                             const cat = p.category || 'ผลแล็บ';
-                            if (!files.some(f => (p.id && f.id === p.id) || (f.fileName === p.fileName && f.category === cat) || (u && (f.url === u || f.publicUrl === u)))) {
+                            if (!files.some(f => (p.id && f.id === p.id) || (u && u !== '' && (f.url === u || f.publicUrl === u)) || (p.fileName && p.fileName !== 'ไฟล์ผลแล็บ' && p.fileName !== 'ไฟล์ผลแล็บเดิม' && f.fileName === p.fileName && f.category === cat))) {
                                 files.push({
                                     id: p.id || 'FILE-DB-' + Date.now(),
                                     url: u,
@@ -8071,7 +8087,8 @@ function getLabFilesForVisit(visitId, rowPdfUrl) {
             metaList.forEach(m => {
                 if (m && (m.id || isValidLabFileUrl(m.url || m.publicUrl))) {
                     const cat = m.category || 'ผลแล็บ';
-                    if (!files.some(f => (m.id && f.id === m.id) || (f.fileName === m.fileName && f.category === cat))) {
+                    const mUrl = m.url || m.publicUrl || '';
+                    if (!files.some(f => (m.id && f.id === m.id) || (mUrl && (f.url === mUrl || f.publicUrl === mUrl)) || (m.fileName && m.fileName !== 'ไฟล์ผลแล็บ' && m.fileName !== 'ไฟล์ผลแล็บเดิม' && f.fileName === m.fileName && f.category === cat))) {
                         files.push(m);
                     }
                 }
@@ -8092,7 +8109,8 @@ function getLabFilesForVisit(visitId, rowPdfUrl) {
         legacyList.forEach(legacyItem => {
             if (legacyItem && (legacyItem.id || isValidLabFileUrl(legacyItem.url || legacyItem.publicUrl))) {
                 const cat = legacyItem.category || 'ผลแล็บ';
-                if (!files.some(f => (legacyItem.id && f.id === legacyItem.id) || (f.fileName === legacyItem.fileName && f.category === cat))) {
+                const legUrl = legacyItem.url || legacyItem.publicUrl || '';
+                if (!files.some(f => (legacyItem.id && f.id === legacyItem.id) || (legUrl && (f.url === legUrl || f.publicUrl === legUrl)) || (legacyItem.fileName && legacyItem.fileName !== 'ไฟล์ผลแล็บ' && legacyItem.fileName !== 'ไฟล์ผลแล็บเดิม' && f.fileName === legacyItem.fileName && f.category === cat))) {
                     files.push(legacyItem);
                 }
             }
@@ -8112,7 +8130,8 @@ async function getLabFilesForVisitAsync(visitId, rowPdfUrl) {
             idbFiles.forEach(idbItem => {
                 if (idbItem && (idbItem.id || isValidLabFileUrl(idbItem.url || idbItem.publicUrl))) {
                     const cat = idbItem.category || 'ผลแล็บ';
-                    if (!files.some(f => (idbItem.id && f.id === idbItem.id) || (f.fileName === idbItem.fileName && f.category === cat))) {
+                    const idbUrl = idbItem.url || idbItem.publicUrl || '';
+                    if (!files.some(f => (idbItem.id && f.id === idbItem.id) || (idbUrl && (f.url === idbUrl || f.publicUrl === idbUrl)) || (idbItem.fileName && idbItem.fileName !== 'ไฟล์ผลแล็บ' && idbItem.fileName !== 'ไฟล์ผลแล็บเดิม' && f.fileName === idbItem.fileName && f.category === cat))) {
                         files.push(idbItem);
                     }
                 }
@@ -8139,7 +8158,7 @@ async function getLabFilesForVisitAsync(visitId, rowPdfUrl) {
                                 if (p && (p.id || isValidLabFileUrl(p.url || p.publicUrl))) {
                                     const u = p.url || p.publicUrl || '';
                                     const cat = p.category || 'ผลแล็บ';
-                                    if (!files.some(f => (p.id && f.id === p.id) || (f.fileName === p.fileName && f.category === cat) || (u && (f.url === u || f.publicUrl === u)))) {
+                                    if (!files.some(f => (p.id && f.id === p.id) || (u && u !== '' && (f.url === u || f.publicUrl === u)) || (p.fileName && p.fileName !== 'ไฟล์ผลแล็บ' && p.fileName !== 'ไฟล์ผลแล็บเดิม' && f.fileName === p.fileName && f.category === cat))) {
                                         files.push({
                                             id: p.id || 'FILE-DB-' + Date.now(),
                                             url: u,
@@ -9502,11 +9521,12 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
     if (!visitRow && window.allQueueData) visitRow = window.allQueueData.find(v => v.visit_id === visitId);
     if (!visitRow && window.clinicVisits) visitRow = window.clinicVisits.find(v => v.visit_id === visitId);
 
-    if ((!visitRow || visitRow.bp === undefined || visitRow.lab_note === undefined) && typeof _supabase !== 'undefined') {
+    if (visitId && typeof _supabase !== 'undefined') {
         try {
             const { data } = await _supabase.from('visits').select('*').eq('visit_id', visitId).maybeSingle();
             if (data) {
                 visitRow = visitRow ? { ...visitRow, ...data } : data;
+                if (data.pdf_url) pdfUrl = data.pdf_url;
             }
         } catch (e) { }
     }
@@ -9646,10 +9666,10 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
     if (assistantEl) assistantEl.innerText = assistantText;
 
     // 5. ดึงไฟล์ผลแล็บจริง
-    let realFileUrl = (pdfUrl && !pdfUrl.includes('sample.pdf')) ? pdfUrl : '';
+    let realFileUrl = (pdfUrl && !pdfUrl.includes('sample.pdf')) ? pdfUrl : (visitRow && visitRow.pdf_url ? visitRow.pdf_url : '');
     try {
         const cachedRealFiles = JSON.parse(localStorage.getItem('clinic_real_lab_files') || '{}');
-        if (cachedRealFiles[visitId] && cachedRealFiles[visitId].url) {
+        if (!realFileUrl && cachedRealFiles[visitId] && cachedRealFiles[visitId].url) {
             realFileUrl = cachedRealFiles[visitId].url;
         }
     } catch (e) { }
@@ -9678,6 +9698,17 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
         let allResultButtons = [];
         const safeName = (patientName || '').replace(/'/g, "\\'");
         const filesList = await getLabFilesForVisitAsync(visitId, realFileUrl);
+        filesList.sort((a, b) => {
+            const isCbcA = (a.category === 'CBC');
+            const isCbcB = (b.category === 'CBC');
+            if (isCbcA && !isCbcB) return -1;
+            if (!isCbcA && isCbcB) return 1;
+            const isUrineA = (a.category === 'Urine' || (a.category && a.category.toLowerCase().includes('urine')));
+            const isUrineB = (b.category === 'Urine' || (b.category && b.category.toLowerCase().includes('urine')));
+            if (isUrineA && !isUrineB) return -1;
+            if (!isUrineA && isUrineB) return 1;
+            return 0;
+        });
 
         let cachedVascularMap = {};
         try {
@@ -9694,44 +9725,46 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
 
         filesList.forEach((fileItem) => {
             const catName = fileItem.category || 'ผลแล็บ';
+            const safeCat = catName.replace(/'/g, "\\'");
+            const isCbcCat = (catName === 'CBC');
+            const isUrineCat = (catName === 'Urine' || catName.toLowerCase().includes('urine'));
+
             let btnIcon = 'bi-file-earmark-pdf';
             let btnClass = 'btn-outline-danger';
 
-            if (catName === 'เอโก') {
+            // 🌟 ดึงชื่อไฟล์จริง (ตัดนามสกุลออก เช่น ตรวจเลือด-01.pdf -> ตรวจเลือด-01)
+            let displayName = '';
+            if (fileItem.fileName && fileItem.fileName !== 'ไฟล์ผลแล็บ' && fileItem.fileName !== 'ไฟล์ผลแล็บเดิม' && !fileItem.fileName.startsWith('CBC_Report_') && !fileItem.fileName.startsWith('Urine_Report_')) {
+                displayName = fileItem.fileName.replace(/\.[^/.]+$/, '').trim();
+            }
+
+            let btnLabel = displayName || catName;
+
+            if (isCbcCat) {
+                btnIcon = 'bi-file-earmark-pdf';
+                btnClass = 'btn-outline-danger';
+                btnLabel = 'CBC (PDF)';
+            } else if (isUrineCat) {
+                btnIcon = 'bi-eyedropper';
+                btnClass = 'btn-outline-warning text-dark';
+                btnLabel = 'Urine (PDF)';
+            } else if (catName === 'เอโก') {
                 btnIcon = 'bi-activity';
                 btnClass = 'btn-outline-primary';
             } else if (catName === 'เอ็กซเรย์') {
                 btnIcon = 'bi-file-earmark-medical';
                 btnClass = 'btn-outline-info';
-            } else if (catName === 'ตรวจเลือด') {
-                btnIcon = 'bi-droplet-fill';
-                btnClass = 'btn-outline-danger';
-            } else if (catName === 'ตรวจหลอดเลือด') {
-                btnIcon = 'bi-heart-pulse-fill';
-                btnClass = 'btn-outline-warning';
-            } else if (catName === 'CBC') {
-                btnIcon = 'bi-file-earmark-pdf';
-                btnClass = 'btn-outline-danger';
-            } else if (catName === 'Urine' || catName.toLowerCase().includes('urine')) {
-                btnIcon = 'bi-eyedropper';
-                btnClass = 'btn-outline-warning text-dark';
             } else {
                 btnIcon = 'bi-file-earmark-text';
                 btnClass = 'btn-outline-secondary';
             }
 
-            const safeCat = catName.replace(/'/g, "\\'");
-            const isCbcCat = (catName === 'CBC');
-            const isUrineCat = (catName === 'Urine' || catName.toLowerCase().includes('urine'));
             const targetFileUrl = (fileItem.url || fileItem.publicUrl || fileItem.id || '').replace(/'/g, "\\'");
             let btnOnClick = `viewRealLabFile('${targetFileUrl}', '${visitId}', '${safeName}', '${safeCat}')`;
-            let btnLabel = catName;
             if (isCbcCat) {
                 btnOnClick = `openCbcPage('${visitId}', 'print', '${(hn || '').replace(/'/g, "\\'")}', '${safeName}')`;
-                btnLabel = 'CBC (PDF)';
             } else if (isUrineCat) {
                 btnOnClick = `openUrinePage('${visitId}', 'print', '${(hn || '').replace(/'/g, "\\'")}', '${safeName}')`;
-                btnLabel = 'Urine (PDF)';
             }
 
             allResultButtons.push(`
@@ -13203,6 +13236,17 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
 
     // 1. ดึงไฟล์แล็บทั้งหมดแบบ Async (IndexedDB + LocalStorage + Supabase DB)
     const filesList = await getLabFilesForVisitAsync(row.visit_id, row.pdf_url);
+    filesList.sort((a, b) => {
+        const isCbcA = (a.category === 'CBC');
+        const isCbcB = (b.category === 'CBC');
+        if (isCbcA && !isCbcB) return -1;
+        if (!isCbcA && isCbcB) return 1;
+        const isUrineA = (a.category === 'Urine' || (a.category && a.category.toLowerCase().includes('urine')));
+        const isUrineB = (b.category === 'Urine' || (b.category && b.category.toLowerCase().includes('urine')));
+        if (isUrineA && !isUrineB) return -1;
+        if (!isUrineA && isUrineB) return 1;
+        return 0;
+    });
 
     // 2. ดึงผลตรวจหลอดเลือด (ถ้ามี)
     let cachedVascularMap = {};
@@ -13246,8 +13290,13 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
         const safeCat = catName.replace(/'/g, "\\'");
         const isCbcCat = (catName === 'CBC');
         const isUrineCat = (catName === 'Urine' || catName.toLowerCase().includes('urine'));
-        let btnOnClick = `viewRealLabFile('', '${row.visit_id}', '${safeName}', '${safeCat}')`;
-        let btnLabel = catName;
+        let displayName = '';
+        if (fileItem.fileName && fileItem.fileName !== 'ไฟล์ผลแล็บ' && fileItem.fileName !== 'ไฟล์ผลแล็บเดิม' && !fileItem.fileName.startsWith('CBC_Report_') && !fileItem.fileName.startsWith('Urine_Report_')) {
+            displayName = fileItem.fileName.replace(/\.[^/.]+$/, '').trim();
+        }
+        const targetFileUrl = (fileItem.url || fileItem.publicUrl || fileItem.id || '').replace(/'/g, "\\'");
+        let btnOnClick = `viewRealLabFile('${targetFileUrl}', '${row.visit_id}', '${safeName}', '${safeCat}')`;
+        let btnLabel = displayName || catName;
         if (isCbcCat) {
             btnOnClick = `openCbcPage('${row.visit_id}', 'print', '${row.hn || ''}', '${safeName}')`;
             btnLabel = 'CBC (PDF)';
