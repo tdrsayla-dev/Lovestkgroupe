@@ -4,6 +4,7 @@
    ================================================================ */
 
 :root {
+  --bs-body-font-family: 'Noto Sans Lao', 'Kanit', sans-serif;
   --primary-dark: #002855;
   --primary-color: #003f88;
   --primary-light: #2563eb;
@@ -34,7 +35,7 @@
 
 body {
   background: var(--bg-main);
-  font-family: 'Noto Sans Lao', 'Kanit', 'Outfit', 'Sarabun', sans-serif;
+  font-family: 'Noto Sans Lao', 'Kanit', 'Outfit', 'Sarabun', sans-serif !important;
   color: var(--text-main);
   margin: 0;
   padding: 24px 32px 60px;
@@ -43,8 +44,8 @@ body {
   overflow-x: hidden;
 }
 
-h1, h2, h3, h4, h5, h6, input, select, textarea, button, table {
-  font-family: 'Noto Sans Lao', 'Kanit', 'Outfit', sans-serif;
+h1, h2, h3, h4, h5, h6, input, select, textarea, button, table, th, td, label, p, span, div {
+  font-family: 'Noto Sans Lao', 'Kanit', 'Outfit', sans-serif !important;
 }
 
 /* ── Clean Top Header ────────────────────────────────────────── */
@@ -708,6 +709,30 @@ h1, h2, h3, h4, h5, h6, input, select, textarea, button, table {
   background: #eff6ff;
   color: #1d4ed8;
   border: 1px solid #bfdbfe;
+  border-radius: 50rem;
+  padding: 3px 10px;
+  font-size: .75rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.badge-service-exam {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  border-radius: 50rem;
+  padding: 3px 10px;
+  font-size: .75rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.badge-service-order {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
   border-radius: 50rem;
   padding: 3px 10px;
   font-size: .75rem;

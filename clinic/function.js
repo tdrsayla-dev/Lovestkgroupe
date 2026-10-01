@@ -532,7 +532,7 @@ function showPage(pageId, element) {
             try {
                 const frame = document.getElementById('doctorReportFrame');
                 if (frame) {
-                    const targetSrc = frame.getAttribute('data-src') || 'report.html?v=3.7';
+                    const targetSrc = frame.getAttribute('data-src') || 'report.html?v=4.9';
                     if (!frame.src || frame.src.endsWith('about:blank') || !frame.getAttribute('data-loaded')) {
                         frame.src = targetSrc;
                         frame.setAttribute('data-loaded', 'true');
@@ -1155,8 +1155,27 @@ document.addEventListener("DOMContentLoaded", function () {
                     if (Array.isArray(localStk)) candidateOrders.push(...localStk);
                 } catch (e) { }
 
-                // 5. Deduplicate ออเดอร์ตามเลข Order / Visit ID
+                // 5. Deduplicate ออเดอร์ตามเลข Order / Visit ID พร้อมกรอง Blacklist
                 const uniqueOrdersMap = new Map();
+                const deletedIdsSet = new Set();
+                try {
+                    const db = JSON.parse(localStorage.getItem('clinic_deleted_bills') || '[]');
+                    const dn = JSON.parse(localStorage.getItem('stk_deleted_nutrient_orders') || '[]');
+                    [...db, ...dn].forEach(id => {
+                        if (id) {
+                            const s = String(id).trim().toUpperCase();
+                            deletedIdsSet.add(s);
+                            const num = s.replace(/\\D/g, '');
+                            if (num) {
+                                deletedIdsSet.add(num);
+                                deletedIdsSet.add('VIS-' + num);
+                                deletedIdsSet.add('ORD-' + num);
+                                deletedIdsSet.add('VIS-ORD-' + num);
+                            }
+                        }
+                    });
+                } catch (e) { }
+
                 candidateOrders.forEach(o => {
                     if (!o) return;
                     const st = String(o.status || '').toLowerCase();
@@ -1166,6 +1185,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
                     const vid = String(o.visit_id || o.visitId || '').trim().toUpperCase();
                     const oid = String(o.order_id || o.orderId || '').trim().toUpperCase();
+                    if (vid && deletedIdsSet.has(vid)) return;
+                    if (oid && deletedIdsSet.has(oid)) return;
                     const symptomStr = String(o.symptom || o.disease || '');
 
                     // 🔧 [FIX] การแยกแยะ "Order สินค้า/อาหารเสริม" ออกจาก "ใบสั่งยาคลินิก (ORD-CLINIC-)"
@@ -1426,6 +1447,23 @@ document.addEventListener("DOMContentLoaded", function () {
             } catch (err) {
                 console.error('Error fetching patients for iframe:', err);
             }
+        }
+        if (event.data && event.data.type === 'DELETE_PATIENT_RECORD') {
+            const vId = event.data.visitId;
+            const oId = event.data.orderId;
+            try {
+                let deletedBills = JSON.parse(localStorage.getItem('clinic_deleted_bills') || '[]');
+                let deletedNutrients = JSON.parse(localStorage.getItem('stk_deleted_nutrient_orders') || '[]');
+                [vId, oId].forEach(id => {
+                    if (id) {
+                        const s = String(id).trim();
+                        if (!deletedBills.includes(s)) deletedBills.push(s);
+                        if (!deletedNutrients.includes(s)) deletedNutrients.push(s);
+                    }
+                });
+                localStorage.setItem('clinic_deleted_bills', JSON.stringify(deletedBills));
+                localStorage.setItem('stk_deleted_nutrient_orders', JSON.stringify(deletedNutrients));
+            } catch (e) {}
         }
     });
 });
@@ -6972,12 +7010,14 @@ window.renderLabTable = function (page = window.labCurrentPage) {
             else if (catName === 'ตรวจเลือด') { btnIcon = 'bi-droplet-fill'; btnClass = 'btn-outline-danger'; }
             else if (catName === 'ตรวจหลอดเลือด') { btnIcon = 'bi-heart-pulse-fill'; btnClass = 'btn-outline-warning'; }
             else if (catName === 'CBC') { btnIcon = 'bi-file-earmark-pdf'; btnClass = 'btn-outline-danger'; }
+            else if (catName === 'Urine' || catName.toLowerCase().includes('urine')) { btnIcon = 'bi-eyedropper'; btnClass = 'btn-outline-warning text-dark'; }
             else { btnIcon = 'bi-file-earmark-text'; btnClass = 'btn-outline-secondary'; }
 
             const safeCat = catName.replace(/'/g, "\\'");
             const isCbcCat = (catName === 'CBC');
-            const btnOnClick = isCbcCat ? `openCbcPage('${row.visit_id}', 'lab', '${row.hn || ''}', '${safeName}')` : `viewRealLabFile('', '${row.visit_id}', '${safeName}', '${safeCat}')`;
-            const btnLabel = isCbcCat ? 'CBC (PDF)' : catName;
+            const isUrineCat = (catName === 'Urine' || catName.toLowerCase().includes('urine'));
+            const btnOnClick = isCbcCat ? `openCbcPage('${row.visit_id}', 'lab', '${row.hn || ''}', '${safeName}')` : (isUrineCat ? `openUrinePage('${row.visit_id}', 'lab', '${row.hn || ''}', '${safeName}')` : `viewRealLabFile('', '${row.visit_id}', '${safeName}', '${safeCat}')`);
+            const btnLabel = isCbcCat ? 'CBC (PDF)' : (isUrineCat ? 'Urine (PDF)' : catName);
 
             allResultButtons.push(`
                 <button class="btn btn-sm ${btnClass} me-1 mb-1 fw-semibold" onclick="${btnOnClick}">
@@ -7002,6 +7042,17 @@ window.renderLabTable = function (page = window.labCurrentPage) {
             allResultButtons.push(`
                 <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມຜົນກວດ CBC" onclick="openCbcPage('${row.visit_id}', 'lab', '${row.hn || ''}', '${safeName}')">
                     <i class="bi bi-file-earmark-pdf me-1"></i> CBC (PDF)
+                </button>
+            `);
+        }
+
+        // 🌟 ตรวจสอบผลตรวจ Urine ที่บันทึกไว้ เพื่อแสดงปุ่ม "Urine (PDF)" ในคอลัมน์ผลตรวจทั้งหมด
+        const hasUrineInFiles = filesList.some(f => f && (f.category === 'Urine' || (f.fileName && f.fileName.includes('Urine'))));
+        const hasUrineNote = (row.lab_note && row.lab_note.includes('[ผลตรวจ Urine]'));
+        if (!hasUrineInFiles && hasUrineNote) {
+            allResultButtons.push(`
+                <button type="button" class="btn btn-sm btn-outline-warning text-dark me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມຜົນກວດ Urine" onclick="openUrinePage('${row.visit_id}', 'lab', '${row.hn || ''}', '${safeName}')">
+                    <i class="bi bi-eyedropper me-1"></i> Urine (PDF)
                 </button>
             `);
         }
@@ -8218,7 +8269,16 @@ async function handleCompleteLabSend(visitId, currentLabNote) {
     Swal.fire({ title: 'ກຳລັງບັນທຶກ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     // 1. ล้างแท็ก [รอผลแล็บเพิ่มเติม] ออกจาก lab_note
-    let updatedNote = (currentLabNote || '')
+    let noteToUpdate = currentLabNote || '';
+    if (typeof _supabase !== 'undefined' && visitId) {
+        try {
+            const { data: vRow } = await _supabase.from('visits').select('lab_note').eq('visit_id', visitId).maybeSingle();
+            if (vRow && vRow.lab_note) {
+                noteToUpdate = vRow.lab_note;
+            }
+        } catch (e) { }
+    }
+    let updatedNote = (noteToUpdate || '')
         .replace(/\[รอผลแล็บเพิ่มเติม(?::\s*[^\]]*)?\]/g, '')
         .trim();
 
@@ -9652,6 +9712,9 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
             } else if (catName === 'CBC') {
                 btnIcon = 'bi-file-earmark-pdf';
                 btnClass = 'btn-outline-danger';
+            } else if (catName === 'Urine' || catName.toLowerCase().includes('urine')) {
+                btnIcon = 'bi-eyedropper';
+                btnClass = 'btn-outline-warning text-dark';
             } else {
                 btnIcon = 'bi-file-earmark-text';
                 btnClass = 'btn-outline-secondary';
@@ -9659,11 +9722,17 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
 
             const safeCat = catName.replace(/'/g, "\\'");
             const isCbcCat = (catName === 'CBC');
+            const isUrineCat = (catName === 'Urine' || catName.toLowerCase().includes('urine'));
             const targetFileUrl = (fileItem.url || fileItem.publicUrl || fileItem.id || '').replace(/'/g, "\\'");
-            const btnOnClick = isCbcCat
-                ? `openCbcPage('${visitId}', 'print', '${(hn || '').replace(/'/g, "\\'")}', '${safeName}')` 
-                : `viewRealLabFile('${targetFileUrl}', '${visitId}', '${safeName}', '${safeCat}')`;
-            const btnLabel = isCbcCat ? 'CBC (PDF)' : catName;
+            let btnOnClick = `viewRealLabFile('${targetFileUrl}', '${visitId}', '${safeName}', '${safeCat}')`;
+            let btnLabel = catName;
+            if (isCbcCat) {
+                btnOnClick = `openCbcPage('${visitId}', 'print', '${(hn || '').replace(/'/g, "\\'")}', '${safeName}')`;
+                btnLabel = 'CBC (PDF)';
+            } else if (isUrineCat) {
+                btnOnClick = `openUrinePage('${visitId}', 'print', '${(hn || '').replace(/'/g, "\\'")}', '${safeName}')`;
+                btnLabel = 'Urine (PDF)';
+            }
 
             allResultButtons.push(`
                 <button type="button" class="btn btn-sm ${btnClass} me-1 mb-1 fw-semibold" onclick="${btnOnClick}">
@@ -9676,6 +9745,50 @@ async function openPrescribeModal(visitId, hn, patientName, pdfUrl, initialMeds 
             allResultButtons.push(`
                 <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມລາຍງານ PDF" onclick="openVascularReportPopup('${visitId}')">
                     <i class="bi bi-file-earmark-pdf me-1"></i> ຜົນວິນິດໄສ (PDF)
+                </button>
+            `);
+        }
+
+        // 🌟 ตรวจสอบผลตรวจ CBC ที่บันทึกไว้ เพื่อแสดงปุ่ม "CBC (PDF)" ในหน้าต่างอ่านผลแล็บและสั่งจ่ายยา
+        let cachedCbcRx = null;
+        try {
+            const allCbc = JSON.parse(localStorage.getItem('clinic_cbc_results') || '{}');
+            cachedCbcRx = allCbc[visitId];
+        } catch (e) { }
+        const hasCbcInRxFiles = filesList.some(f => f && (f.category === 'CBC' || (f.fileName && f.fileName.includes('CBC'))));
+        let hasCbcRxNote = (visitRow && visitRow.lab_note && visitRow.lab_note.includes('[ผลตรวจ CBC]'));
+        if (!hasCbcInRxFiles && !cachedCbcRx && !hasCbcRxNote && typeof _supabase !== 'undefined') {
+            try {
+                const { data: vLab } = await _supabase.from('visits').select('lab_note').eq('visit_id', visitId).maybeSingle();
+                if (vLab && vLab.lab_note && vLab.lab_note.includes('[ผลตรวจ CBC]')) {
+                    hasCbcRxNote = true;
+                }
+            } catch (e) { }
+        }
+
+        if (!hasCbcInRxFiles && (cachedCbcRx || hasCbcRxNote)) {
+            allResultButtons.push(`
+                <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມຜົນກວດ CBC" onclick="openCbcPage('${visitId}', 'print', '${(hn || '').replace(/'/g, "\\'")}', '${safeName}')">
+                    <i class="bi bi-file-earmark-pdf me-1"></i> CBC (PDF)
+                </button>
+            `);
+        }
+
+        // 🌟 ตรวจสอบผลตรวจ Urine ที่บันทึกไว้ เพื่อแสดงปุ่ม "Urine (PDF)" ในหน้าต่างอ่านผลแล็บและสั่งจ่ายยา
+        const hasUrineInRxFiles = filesList.some(f => f && (f.category === 'Urine' || (f.fileName && f.fileName.includes('Urine'))));
+        let hasUrineRxNote = (visitRow && visitRow.lab_note && visitRow.lab_note.includes('[ผลตรวจ Urine]'));
+        if (!hasUrineInRxFiles && !hasUrineRxNote && typeof _supabase !== 'undefined') {
+            try {
+                const { data: vLabU } = await _supabase.from('visits').select('lab_note').eq('visit_id', visitId).maybeSingle();
+                if (vLabU && vLabU.lab_note && vLabU.lab_note.includes('[ผลตรวจ Urine]')) {
+                    hasUrineRxNote = true;
+                }
+            } catch (e) { }
+        }
+        if (!hasUrineInRxFiles && hasUrineRxNote) {
+            allResultButtons.push(`
+                <button type="button" class="btn btn-sm btn-outline-warning text-dark me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມຜົນກວດ Urine" onclick="openUrinePage('${visitId}', 'print', '${(hn || '').replace(/'/g, "\\'")}', '${safeName}')">
+                    <i class="bi bi-eyedropper me-1"></i> Urine (PDF)
                 </button>
             `);
         }
@@ -13122,6 +13235,9 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
         } else if (catName === 'CBC') {
             btnIcon = 'bi-file-earmark-pdf';
             btnClass = 'btn-outline-danger';
+        } else if (catName === 'Urine' || catName.toLowerCase().includes('urine')) {
+            btnIcon = 'bi-eyedropper';
+            btnClass = 'btn-outline-warning text-dark';
         } else {
             btnIcon = 'bi-file-earmark-text';
             btnClass = 'btn-outline-secondary';
@@ -13129,8 +13245,17 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
 
         const safeCat = catName.replace(/'/g, "\\'");
         const isCbcCat = (catName === 'CBC');
-        const btnOnClick = isCbcCat ? `openCbcPage('${row.visit_id}', 'print', '${row.hn || ''}', '${safeName}')` : `viewRealLabFile('', '${row.visit_id}', '${safeName}', '${safeCat}')`;
-        const btnLabel = isCbcCat ? 'CBC (PDF)' : catName;
+        const isUrineCat = (catName === 'Urine' || catName.toLowerCase().includes('urine'));
+        let btnOnClick = `viewRealLabFile('', '${row.visit_id}', '${safeName}', '${safeCat}')`;
+        let btnLabel = catName;
+        if (isCbcCat) {
+            btnOnClick = `openCbcPage('${row.visit_id}', 'print', '${row.hn || ''}', '${safeName}')`;
+            btnLabel = 'CBC (PDF)';
+        } else if (isUrineCat) {
+            btnOnClick = `openUrinePage('${row.visit_id}', 'print', '${row.hn || ''}', '${safeName}')`;
+            btnLabel = 'Urine (PDF)';
+        }
+
 
         allResultButtons.push(`
             <button type="button" class="btn btn-sm ${btnClass} me-1 mb-1 fw-semibold" onclick="${btnOnClick}">
@@ -13160,6 +13285,17 @@ async function showHistoryDetails(visitId, targetHn, targetName, directOrderData
         allResultButtons.push(`
             <button type="button" class="btn btn-sm btn-outline-danger me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມຜົນກວດ CBC" onclick="openCbcPage('${row.visit_id}', 'print', '${row.hn || ''}', '${safeName}')">
                 <i class="bi bi-file-earmark-pdf me-1"></i> CBC (PDF)
+            </button>
+        `);
+    }
+
+    // 4.6 ถ้ามีผลตรวจ Urine ให้ใส่ปุ่ม "Urine (PDF)"
+    const hasUrineInHistFiles = filesList.some(f => f && (f.category === 'Urine' || (f.fileName && f.fileName.includes('Urine'))));
+    const hasUrineHistNote = (row.lab_note && row.lab_note.includes('[ผลตรวจ Urine]'));
+    if (!hasUrineInHistFiles && hasUrineHistNote) {
+        allResultButtons.push(`
+            <button type="button" class="btn btn-sm btn-outline-warning text-dark me-1 mb-1 fw-semibold" title="ເບິ່ງ / ພິມຜົນກວດ Urine" onclick="openUrinePage('${row.visit_id}', 'print', '${row.hn || ''}', '${safeName}')">
+                <i class="bi bi-eyedropper me-1"></i> Urine (PDF)
             </button>
         `);
     }
@@ -23687,9 +23823,9 @@ async function openCbcPage(targetVisitId, mode, targetHn, targetPatientName) {
         const sup = window._supabase || (window.parent && window.parent._supabase);
 
         // 🌟 ดึงข้อมูลจากฐานข้อมูลกลาง Supabase เสมอ เพื่อให้ทุกเครื่องตรงกัน
-        if (sup && !visitId.startsWith('VISIT-')) {
+        if (sup && visitId) {
             try {
-                const { data: vData } = await sup.from('visits').select('hn, patient_name, lab_note').eq('visit_id', visitId).single();
+                const { data: vData } = await sup.from('visits').select('hn, patient_name, lab_note').eq('visit_id', visitId).maybeSingle();
                 if (vData) {
                     if (vData.hn && (!hn || hn === '-')) {
                         hn = vData.hn;
@@ -23823,9 +23959,9 @@ async function saveCbcData(shouldAlert = true) {
 
     // 3. ซิงค์เข้าระบบฐานข้อมูล Supabase visits.lab_note (เชื่อมข้ามเครื่อง)
     const sup = window._supabase || (window.parent && window.parent._supabase);
-    if (sup && visitId && !visitId.startsWith('VISIT-')) {
+    if (sup && visitId) {
         try {
-            const { data: exVisit } = await sup.from('visits').select('lab_note').eq('visit_id', visitId).single();
+            const { data: exVisit } = await sup.from('visits').select('pdf_url, lab_note').eq('visit_id', visitId).maybeSingle();
             const cbcPayload = `[ผลตรวจ CBC]\n${JSON.stringify(data)}\n[/ผลตรวจ CBC]`;
             let newLabNote = cbcPayload;
             if (exVisit && exVisit.lab_note) {
@@ -23838,7 +23974,44 @@ async function saveCbcData(shouldAlert = true) {
                     newLabNote = `${exVisit.lab_note}\n\n${cbcPayload}`;
                 }
             }
-            await sup.from('visits').update({ lab_note: newLabNote }).eq('visit_id', visitId);
+            // บันทึกเข้าคอลัมน์ pdf_url (JSON Array) เพื่อให้ทุกเครื่องเปิดดูผ่าน getLabFilesForVisitAsync ได้ 100%
+            let currentPdfFiles = [];
+            if (exVisit && exVisit.pdf_url) {
+                const rawPdf = String(exVisit.pdf_url).trim();
+                if (rawPdf.startsWith('[')) {
+                    try {
+                        const parsed = JSON.parse(rawPdf);
+                        if (Array.isArray(parsed)) currentPdfFiles = parsed;
+                    } catch (e) { }
+                } else if (isValidLabFileUrl(rawPdf)) {
+                    currentPdfFiles.push({
+                        id: 'FILE-LEGACY-' + Date.now(),
+                        fileName: 'ไฟล์ผลแล็บเดิม',
+                        category: 'ผลแล็บ',
+                        url: rawPdf,
+                        publicUrl: rawPdf,
+                        updatedAt: new Date().toISOString()
+                    });
+                }
+            }
+
+            // ลบรายการ CBC เก่าออก แล้วเพิ่มรายการ CBC ล่าสุดเข้าไป
+            currentPdfFiles = currentPdfFiles.filter(f => f && f.category !== 'CBC' && (!f.fileName || !f.fileName.includes('CBC_Report_')));
+            currentPdfFiles.push({
+                id: `FILE-CBC-${visitId}`,
+                visitId: visitId,
+                fileName: `CBC_Report_${visitId}.pdf`,
+                fileType: 'application/pdf',
+                category: 'CBC',
+                url: `cbc:${visitId}`,
+                publicUrl: `cbc:${visitId}`,
+                updatedAt: new Date().toISOString()
+            });
+
+            await sup.from('visits').update({
+                lab_note: newLabNote,
+                pdf_url: JSON.stringify(currentPdfFiles)
+            }).eq('visit_id', visitId);
         } catch (dbErr) {
             console.warn('Sync CBC to DB note notice:', dbErr);
         }
@@ -24751,6 +24924,155 @@ window.handleCbcMainAction = handleCbcMainAction;
 window.clearCbcModalValues = clearCbcModalValues;
 window.openCbcInNewTab = openCbcInNewTab;
 window.closeCbcModal = closeCbcModal;
+
+// =====================================
+// ระบบตรวจ Urine (Urinalysis)
+// =====================================
+function openUrinePage(targetVisitId, mode, targetHn, targetPatientName) {
+    let visitId = targetVisitId || document.getElementById('uploadVisitId')?.value || document.getElementById('vascVisitId')?.value || '';
+    let hn = targetHn || '';
+    let patientName = targetPatientName || '';
+
+    // ถ้าเปิดจากหน้าสั่งยา (prescribeModal) ให้ดึงข้อมูลคนไข้จากฟอร์มสั่งยาโดยตรง
+    const rxVId = document.getElementById('rxVisitId')?.value;
+    if ((!visitId || visitId === rxVId) && rxVId) {
+        if (!visitId) visitId = rxVId;
+        if (!patientName || patientName === '-' || patientName === 'ผู้ป่วย') {
+            const rxPName = document.getElementById('rxPatientName')?.value || document.getElementById('rxPatientNameDisplay')?.innerText;
+            if (rxPName && rxPName !== '-' && rxPName !== 'ผู้ป่วย') patientName = rxPName.trim();
+        }
+        if (!hn || hn === '-') {
+            const rxHnVal = document.getElementById('rxHN')?.value;
+            if (rxHnVal && rxHnVal !== '-') hn = rxHnVal.trim();
+        }
+    }
+
+    // ค้นจาก visit records ในหน่วยความจำ
+    let visitRow = null;
+    if (visitId) {
+        if (window.clinicVisits) visitRow = window.clinicVisits.find(v => v.visit_id === visitId);
+        if (!visitRow && window.allVisits) visitRow = window.allVisits.find(v => v.visit_id === visitId);
+        if (!visitRow && window.allHistoryVisits) visitRow = window.allHistoryVisits.find(v => v.visit_id === visitId);
+        if (!visitRow && window.allQueueData) visitRow = window.allQueueData.find(v => v.visit_id === visitId);
+    }
+    if (visitRow) {
+        if (!hn || hn === '-') hn = visitRow.hn || hn;
+        if ((!patientName || patientName === '-' || patientName === 'ผู้ป่วย') && visitRow.patient_name && visitRow.patient_name !== '-') {
+            patientName = visitRow.patient_name;
+        }
+    }
+
+    if (hn && hn !== '-' && (!patientName || patientName === '-' || patientName === 'ผู้ป่วย')) {
+        const pat = (window.allPatients || []).find(p => p.hn === hn);
+        if (pat && pat.patient_name) patientName = pat.patient_name;
+    }
+
+    // 🌟 ตรวจสอบโหมด: ดูประวัติการรักษา (patientHistoryModal) หรือหน้าสั่งยาแพทย์ (prescribeModal)
+    let effectiveMode = mode;
+    const histModal = document.getElementById('patientHistoryModal');
+    const isHistOpen = histModal && (histModal.classList.contains('show') || histModal.style.display === 'block');
+    const rxModal = document.getElementById('prescribeModal');
+    const isRxOpen = rxModal && (rxModal.classList.contains('show') || rxModal.style.display === 'block');
+
+    if (effectiveMode === 'print' || isHistOpen || isRxOpen) {
+        effectiveMode = 'print';
+    } else if (!effectiveMode) {
+        effectiveMode = 'lab';
+    }
+
+    window._currentUrineVisitId = visitId;
+    window._currentUrineHn = hn;
+    window._currentUrinePatientName = patientName;
+    window._currentUrineMode = effectiveMode;
+
+    const query = new URLSearchParams({
+        visit_id: visitId || '',
+        hn: hn || '',
+        name: patientName || '',
+        mode: effectiveMode
+    });
+
+    const targetUrl = `urine.html?${query.toString()}`;
+    window._currentUrineUrl = targetUrl;
+
+    // ซ่อน Modal อัปโหลดไฟล์แล็บ (ถ้าเปิดอยู่) เพื่อไม่ให้ค้างอยู่เบื้องหลัง
+    const uploadModalEl = document.getElementById('labUploadModal');
+    if (uploadModalEl && typeof bootstrap !== 'undefined') {
+        const uploadModalInstance = bootstrap.Modal.getInstance(uploadModalEl);
+        if (uploadModalInstance) uploadModalInstance.hide();
+    }
+
+    // 🌟 เปิดเป็น Pop-up Modal ในหน้า Clinic ทันที โดยไม่ต้องเปิดแท็บใหม่
+    const urineModalEl = document.getElementById('urineLabModal');
+    const urineFrameEl = document.getElementById('urineModalFrame');
+    const patientInfoEl = document.getElementById('urineModalPatientInfo');
+
+    if (patientInfoEl) {
+        patientInfoEl.innerText = visitId ? `Visit: ${visitId}${hn ? ' | HN: ' + hn : ''}${patientName ? ' | ' + patientName : ''}` : '';
+        patientInfoEl.style.display = visitId ? 'inline-block' : 'none';
+    }
+
+    if (urineModalEl && urineFrameEl && typeof bootstrap !== 'undefined') {
+        urineFrameEl.src = targetUrl;
+        const modal = bootstrap.Modal.getOrCreateInstance(urineModalEl);
+        modal.show();
+    } else {
+        // Fallback หากอยู่นอกหน้า Clinic.html
+        window.open(targetUrl, '_blank');
+    }
+}
+window.openUrinePage = openUrinePage;
+
+function openUrineInNewTab() {
+    if (window._currentUrineUrl) {
+        window.open(window._currentUrineUrl, '_blank');
+    } else {
+        window.open('urine.html', '_blank');
+    }
+}
+window.openUrineInNewTab = openUrineInNewTab;
+
+function closeUrineModal() {
+    const urineModalEl = document.getElementById('urineLabModal');
+    if (urineModalEl && typeof bootstrap !== 'undefined') {
+        const modal = bootstrap.Modal.getInstance(urineModalEl) || bootstrap.Modal.getOrCreateInstance(urineModalEl);
+        if (modal) modal.hide();
+    }
+    // ซ่อน Modal อัปโหลดไฟล์แล็บด้วย เพื่อให้กลับสู่หน้าตารางหลักของห้องแล็บ
+    const uploadModalEl = document.getElementById('labUploadModal');
+    if (uploadModalEl && typeof bootstrap !== 'undefined') {
+        const uploadModalInstance = bootstrap.Modal.getInstance(uploadModalEl);
+        if (uploadModalInstance) uploadModalInstance.hide();
+    }
+}
+window.closeUrineModal = closeUrineModal;
+
+// Listener เมื่อปิด Modal ตรวจ Urine ให้เคลียร์ iframe และรีเฟรชข้อมูลในคลินิก
+if (typeof document !== 'undefined') {
+    const bindUrineModalClose = () => {
+        const urineModalEl = document.getElementById('urineLabModal');
+        if (urineModalEl && !urineModalEl._hasCloseBound) {
+            urineModalEl._hasCloseBound = true;
+            urineModalEl.addEventListener('hidden.bs.modal', function () {
+                const frame = document.getElementById('urineModalFrame');
+                if (frame) frame.src = 'about:blank';
+                // ซ่อน Modal อัปโหลดไฟล์แล็บด้วยหากยังเปิดอยู่
+                const uploadModalEl = document.getElementById('labUploadModal');
+                if (uploadModalEl && typeof bootstrap !== 'undefined') {
+                    const uploadModalInstance = bootstrap.Modal.getInstance(uploadModalEl);
+                    if (uploadModalInstance) uploadModalInstance.hide();
+                }
+                if (typeof loadLabQueue === 'function') loadLabQueue();
+                if (typeof renderLabTable === 'function') renderLabTable();
+            });
+        }
+    };
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bindUrineModalClose);
+    } else {
+        bindUrineModalClose();
+    }
+}
 
 // =====================================
 // ระบบตรวจหลอดเลือด (Vascular Check)

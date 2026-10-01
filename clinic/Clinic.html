@@ -511,7 +511,7 @@
         <!-- 2.5 Clinic Booking -->
         <div id="booking" class="page-section"
             style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%; overflow: hidden !important;">
-            <iframe id="marketingFrame" src="marketing.html?v=3.9.67" title="Clinic Booking System"></iframe>
+            <iframe id="marketingFrame" src="marketing.html?v=3.9.69" title="Clinic Booking System"></iframe>
         </div>
 
         <!-- 3. ทะเบียนผู้ป่วย (Registration) -->
@@ -3076,7 +3076,7 @@
         <!-- 16. Doctor Reports Page (ລາຍງານທ່ານໝໍ) -->
         <div id="doctor-reports" class="page-section"
             style="padding: 0 !important; margin: 0 !important; width: 100%; height: 100%;">
-            <iframe id="doctorReportFrame" data-src="report.html?v=3.7" src="" loading="lazy"
+            <iframe id="doctorReportFrame" data-src="report.html?v=4.9" src="" loading="lazy"
                 style="width: 100%; height: calc(100vh - 25px); border: none; min-height: 850px; display: block; border-radius: 16px;"
                 title="Doctor Reports"></iframe>
         </div>
@@ -3595,11 +3595,11 @@
     </div>
 
     <div class="modal fade" id="labUploadModal" tabindex="-1" style="z-index: 1060;">
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-lg modal-dialog-centered" style="max-width: 760px;">
             <div class="modal-content"
                 style="border-radius: 16px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
                 <div class="modal-header bg-white border-0 pb-0 pt-4 px-4">
-                    <h5 class="modal-title fw-bold text-dark">อัปโหลดผลตรวจ Lab (PDF / PNG / JPG)</h5>
+                    <h5 class="modal-title fw-bold text-dark">ອັບໂຫຼດຜົນກວດ Lab (PDF / PNG / JPG)</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4 bg-white">
@@ -3608,20 +3608,22 @@
 
                         <div class="mb-3">
                             <input type="text" class="form-control custom-input" id="labCategorySelect" required
-                                list="labCategoryOptions" placeholder="กรุณาเลือก หรือ พิมพ์หมวดหมู่ใหม่..."
+                                list="labCategoryOptions" placeholder="ກະລຸນາເລືອກ ຫຼື ພິມໝວດໝູ່ໃໝ່..."
                                 style="border-radius: 10px; padding: 10px 14px;" autocomplete="off">
                             <datalist id="labCategoryOptions">
+                                <option value="ກວດເລືອດ"></option>
+                                <option value="ເອໂກ"></option>
+                                <option value="ເອັກຊະເລ"></option>
+                                <option value="ກວດເສັ້ນເລືອດ"></option>
+                                <option value="ຜົນກວດອື່ນໆ"></option>
                                 <option value="ตรวจเลือด"></option>
-                                <option value="เอโก"></option>
-                                <option value="เอ็กซเรย์"></option>
                                 <option value="ตรวจหลอดเลือด"></option>
-                                <option value="ผลตรวจอื่นๆ"></option>
                             </datalist>
                         </div>
 
                         <!-- 2. ส่วนอัปโหลดไฟล์ -->
                         <div class="mb-3">
-                            <label class="form-label fw-bold small">เลือกไฟล์ผลตรวจ (.pdf, .png, .jpg, .jpeg) <span
+                            <label class="form-label fw-bold small">ເລືອກໄຟລ໌ຜົນກວດ (.pdf, .png, .jpg, .jpeg) <span
                                     class="text-danger">*</span></label>
                             <input type="file" class="form-control custom-input" id="pdfFile"
                                 accept=".pdf,.png,.jpg,.jpeg,image/png,image/jpeg" onchange="previewLabFile(this)"
@@ -3633,21 +3635,36 @@
                         </div>
 
                         <!-- 3. จัดเรียงปุ่มด้านล่างให้ตรงตามภาพ -->
-                        <div class="d-flex justify-content-start gap-2 mt-4">
-                            <button type="button" class="btn btn-light border px-4 fw-semibold" data-bs-dismiss="modal"
-                                style="border-radius: 8px;">ยกเลิก</button>
-                            <button type="submit" class="btn btn-primary px-4 fw-bold"
-                                style="border-radius: 8px;">บันทืกการอับโหลด</button>
+                        <div class="d-flex justify-content-start align-items-center gap-2 mt-4 pt-3 border-top flex-wrap">
+                            <button type="button" class="btn btn-light border px-3.5 py-2 fw-semibold text-secondary text-nowrap"
+                                data-bs-dismiss="modal" style="border-radius: 8px;">
+                                <i class="bi bi-x-circle me-1"></i>ຍົກເລີກ
+                            </button>
+                            <button type="submit" class="btn btn-primary px-3.5 py-2 fw-bold text-nowrap shadow-sm"
+                                style="border-radius: 8px;">
+                                <i class="bi bi-cloud-arrow-up-fill me-1.5"></i>ບັນທຶກການອັບໂຫຼດ
+                            </button>
 
                             <!-- ปุ่มพิเศษ (เปิดหน้าต่างตรวจหลอดเลือด) -->
-                            <button type="button" class="btn btn-primary px-4 fw-bold" id="extraCategoryBtn"
-                                style="border-radius: 8px; background-color: #0b3c73;"
-                                onclick="openVascularCheckModal()">ตรวจหลอดเลือด</button>
+                            <button type="button" class="btn text-white px-3.5 py-2 fw-bold text-nowrap shadow-sm" id="extraCategoryBtn"
+                                style="border-radius: 8px; background-color: #0b3c73; border-color: #0b3c73;"
+                                onclick="openVascularCheckModal()">
+                                <i class="bi bi-heart-pulse-fill me-1.5 text-warning"></i>ກວດເສັ້ນເລືອດ
+                            </button>
 
                             <!-- ปุ่มพิเศษ (CBC) -->
-                            <button type="button" class="btn btn-primary px-4 fw-bold" id="cbcCategoryBtn"
-                                style="border-radius: 8px; background-color: #0b3c73;"
-                                onclick="if(typeof openCbcPage==='function'){openCbcPage(undefined, 'lab');}else{window.open('cbc.html?mode=lab','_blank');}">CBC</button>
+                            <button type="button" class="btn text-white px-3.5 py-2 fw-bold text-nowrap shadow-sm" id="cbcCategoryBtn"
+                                style="border-radius: 8px; background-color: #0b3c73; border-color: #0b3c73;"
+                                onclick="if(typeof openCbcPage==='function'){openCbcPage(undefined, 'lab');}else{window.open('cbc.html?mode=lab','_blank');}">
+                                <i class="bi bi-droplet-half me-1.5 text-danger"></i>CBC
+                            </button>
+
+                            <!-- ปุ่มพิเศษ (Urine) -->
+                            <button type="button" class="btn text-white px-3.5 py-2 fw-bold text-nowrap shadow-sm" id="urineCategoryBtn"
+                                style="border-radius: 8px; background-color: #0b3c73; border-color: #0b3c73;"
+                                onclick="if(typeof openUrinePage==='function'){openUrinePage(undefined, 'lab');}else{window.open('urine.html','_blank');}">
+                                <i class="bi bi-eyedropper me-1.5 text-warning"></i>Urine
+                            </button>
                         </div>
 
                     </form>
@@ -4785,6 +4802,32 @@
         </div>
     </div>
 
+    <!-- Modal: ฟอร์มผลตรวจ Urine (Urinalysis Popup Modal) -->
+    <div class="modal fade" id="urineLabModal" tabindex="-1" style="z-index: 1065;" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width: 980px;">
+            <div class="modal-content"
+                style="border-radius: 16px; border: none; box-shadow: 0 12px 35px rgba(0,0,0,0.18); overflow: hidden;">
+                <div class="modal-header bg-white border-bottom py-2.5 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                        <h5 class="modal-title fw-bold m-0" style="color: #0b3c73; font-size: 1.15rem;">
+                            <i class="bi bi-eyedropper text-warning me-2"></i><span id="urineModalTitleText">ໃບລາຍງານຜົນກວດຍ່ຽວ (Urine Examination Report)</span>
+                        </h5>
+                        <span id="urineModalPatientInfo" class="badge bg-light text-primary border fw-semibold" style="font-size: 0.85rem;"></span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openUrineInNewTab()" title="เปิดในแท็บใหม่">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>เปิดแท็บใหม่
+                        </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                </div>
+                <div class="modal-body p-0" style="background-color: #f0f5fc; height: 84vh; min-height: 600px;">
+                    <iframe id="urineModalFrame" src="about:blank" style="width: 100%; height: 100%; border: none; display: block;" title="Urine Examination Report"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal: บันทึกรายจ่ายใหม่ -->
     <div class="modal fade" id="expenseModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -4926,7 +4969,7 @@
             document.write('<script src="../config.js"><\/script>');
         }
     </script>
-    <script src="function.js?v=3.9.78"></script>
+    <script src="function.js?v=3.9.86"></script>
     <!-- ✅ Recover Lab — แปลงผลตรวจใส่ Frame คลินิก (โหลดหลัง function.js เพื่อ Override) -->
     <script src="Recover Lab.js?v=6.1"></script>
     <!-- สคริปต์เสริม เพื่อให้คลิกเมนูจากหน้าแรก แล้วแสดงแท็บที่ถูกต้องทันที -->
@@ -4953,6 +4996,30 @@
                 document.activeElement.blur();
             }
         }, true);
+
+        // ฟัง Event จาก iframe ผลตรวจ Urine เพื่อปิด Modal และรีเฟรชตารางข้าม origin ได้อย่างปลอดภัย
+        window.addEventListener('message', function (event) {
+            if (event.data === 'closeUrineModal' || (event.data && event.data.type === 'URINE_SAVED')) {
+                if (typeof renderLabTable === 'function') renderLabTable();
+                if (typeof filterLabTable === 'function') filterLabTable();
+                if (typeof loadLabQueue === 'function') loadLabQueue();
+                if (typeof loadVisits === 'function') loadVisits();
+                if (typeof closeUrineModal === 'function') {
+                    closeUrineModal();
+                } else {
+                    const mEl = document.getElementById('urineLabModal');
+                    if (mEl && typeof bootstrap !== 'undefined') {
+                        const inst = bootstrap.Modal.getInstance(mEl) || bootstrap.Modal.getOrCreateInstance(mEl);
+                        if (inst) inst.hide();
+                    }
+                    const upEl = document.getElementById('labUploadModal');
+                    if (upEl && typeof bootstrap !== 'undefined') {
+                        const instU = bootstrap.Modal.getInstance(upEl);
+                        if (instU) instU.hide();
+                    }
+                }
+            }
+        });
     </script>
 </body>
 

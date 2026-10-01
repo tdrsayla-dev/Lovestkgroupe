@@ -18,6 +18,7 @@ const state = {
   patients: [],
   commissions: [],
   nutrientOrders: [],
+  staffDoctors: [], // 👨‍⚕️ Doctors from staff_users table (role = 'doctor')
   clinicSettings: {},
   charts: {
     trend: null,
@@ -317,7 +318,8 @@ async function loadReportData() {
     // 1. Visits for selected date range (only required columns)
     // 2. Bills for selected date range (only for doctor resolution fallback)
     // 3. Raw Nutrient Orders (filtered by date range at DB level)
-    const [resVisits, resBills, rawNutrientOrders] = await Promise.all([
+    // 4. Staff Users (filter Role = Doctor)
+    const [resVisits, resBills, rawNutrientOrders, resStaffUsers] = await Promise.all([
       sbClient.from('visits')
         .select('visit_id, hn, patient_name, doctor_name, status, symptom, meds, created_at')
         .gte('created_at', queryStartISO)
@@ -329,8 +331,39 @@ async function loadReportData() {
         .gte('created_at', queryStartISO)
         .lte('created_at', queryEndISO),
 
-      fetchRawNutrientOrders(queryStartISO, queryEndISO)
+      fetchRawNutrientOrders(queryStartISO, queryEndISO),
+
+      sbClient.from('staff_users')
+        .select('id, emp_code, full_name, email, role, is_active')
     ]);
+
+    // 👨‍⚕️ Filter ONLY users from staff_users where role is Doctor (doctor, แพทย์, หมอ, ທ່ານໝໍ)
+    let staffList = resStaffUsers?.data || [];
+    if (!Array.isArray(staffList) || staffList.length === 0) {
+      try {
+        staffList = JSON.parse(localStorage.getItem('clinic_staff_doctors_cache') || '[]');
+      } catch (e) {}
+    }
+
+    state.staffDoctors = (staffList || []).filter(u => {
+      if (u.is_active === false) return false;
+      const r = String(u.role || '').trim().toLowerCase();
+      const isDoc = r === 'doctor' || r === 'แพทย์' || r === 'หมอ' || r === 'ທ່ານໝໍ';
+      if (!isDoc) return false;
+      const name = (u.full_name || '').trim().toLowerCase();
+      const code = (u.emp_code || '').trim().toLowerCase();
+      if (name === 'test' && code === 'test') return false;
+      return true;
+    }).map(u => ({
+      ...u,
+      displayName: (u.full_name || u.emp_code || u.email || 'ທ່ານໝໍ').replace(/[\t\r\n]+/g, ' ').trim()
+    }));
+
+    if (state.staffDoctors.length > 0) {
+      try {
+        localStorage.setItem('clinic_staff_doctors_cache', JSON.stringify(state.staffDoctors));
+      } catch (e) {}
+    }
 
     // Filter visits by exact local date (UTC+7)
     const rawVisits = resVisits.data || [];
@@ -489,6 +522,77 @@ function formatPrice(amt) {
   return n.toLocaleString('en-US') + ' ฿';
 }
 
+// 👨‍⚕️ Helper: Match an arbitrary candidate string to an official Doctor in staff_users (role = 'doctor')
+function matchDoctorFromStaff(candidate) {
+  if (!candidate || typeof candidate !== 'string') return null;
+  const raw = candidate.replace(/[\t\r\n]+/g, ' ').trim();
+  if (!raw || raw === '-' || raw === 'null' || raw === 'undefined') return null;
+
+  // Reject member IDs like L02672, M95587, 99749239...
+  if (/^(L\d{3,}|M\d{3,}|\d{6,})/i.test(raw)) {
+    return null;
+  }
+
+  // Reject common non-doctor system phrases
+  if (/^(ປິດເອງ|ປີດເອງ|ປິດຂາຍ|ຊື້ເອງ|ແພດປະຈຳ|ແພດປະຈໍາ|ບໍ່ລະບຸ|staff|admin|none)/i.test(raw)) {
+    return null;
+  }
+
+  const docs = state.staffDoctors || [];
+  if (docs.length === 0) return null;
+
+  const lower = raw.toLowerCase();
+
+  // 1. Direct match on displayName, full_name, or emp_code
+  for (const d of docs) {
+    const dName = (d.displayName || d.full_name || '').toLowerCase().replace(/\s+/g, ' ');
+    const dCode = (d.emp_code || '').toLowerCase();
+    if (lower === dName || (dCode && lower === dCode)) {
+      return d.displayName;
+    }
+  }
+
+  // 2. Contains emp_code (e.g. "DMC004 - Nuna SYTATHEP")
+  for (const d of docs) {
+    const dCode = (d.emp_code || '').toLowerCase();
+    if (dCode && dCode.length >= 3 && lower.includes(dCode)) {
+      return d.displayName;
+    }
+  }
+
+  // 3. Exact full name match when doctor title prefix or full name is inside string
+  for (const d of docs) {
+    const dName = (d.displayName || d.full_name || '').toLowerCase().replace(/\s+/g, ' ');
+    if (lower.includes(dName)) {
+      return d.displayName;
+    }
+  }
+
+  // 4. Known doctor nicknames or Lao names mapping to official staff_users
+  const aliasMap = [
+    { keys: ['ແພງພັນ', 'แพงพัน', 'phengphan'], name: 'Phengphan SOUVANNAPHOUME' },
+    { keys: ['ສຸກສາຄອນ', 'สุกสาคร', 'สุกสาคอน'], name: 'Souksakhone DOUNGVIENGXAY' },
+    { keys: ['ໜູໜາ', 'หนูนา', 'nuna'], name: 'Nuna SYTATHEP' },
+    { keys: ['ຂະນິດຖາ', 'ขนิษฐา', 'khanittha'], name: 'Khanittha PHOUTTHAAMAT' },
+    { keys: ['ລາວາ', 'ลาวา', 'lava'], name: 'Lava CHIATONG' },
+    { keys: ['ດາວເພັດ', 'ดาวเพชร', 'daophet'], name: 'DAOPHET' },
+    { keys: ['ຫັດເກ້ວ', 'หัดแก้ว', 'hatkeo'], name: 'Hatkeo XOUMKHAMBAN' },
+    { keys: ['ມະນີວອນ', 'มณีวรรณ', 'manivone'], name: 'MANIVONE' },
+    { keys: ['saylar', 'ເຊເລີ'], name: 'CEO SAYLAR' }
+  ];
+
+  for (const item of aliasMap) {
+    for (const k of item.keys) {
+      if (lower.includes(k.toLowerCase())) {
+        const found = docs.find(d => (d.displayName || '').toLowerCase().includes(item.name.toLowerCase()));
+        if (found) return found.displayName;
+      }
+    }
+  }
+
+  return null;
+}
+
 // Fetch Raw Nutrient Orders with Parallel Execution & Timeout Guard
 async function fetchRawNutrientOrders(startUtcISO, endUtcISO) {
   const fetchMlm = async () => {
@@ -556,11 +660,36 @@ async function fetchRawNutrientOrders(startUtcISO, endUtcISO) {
 function processNutrientOrders(rawOrders, visitsList) {
   const currentVisits = visitsList || state.visits || [];
 
+  let deletedNutrientsSet = new Set();
+  let deletedBillsSet = new Set();
+  try {
+    const dn = JSON.parse(localStorage.getItem('stk_deleted_nutrient_orders') || '[]');
+    if (Array.isArray(dn)) dn.forEach(id => deletedNutrientsSet.add(String(id).trim()));
+    const db = JSON.parse(localStorage.getItem('clinic_deleted_bills') || '[]');
+    if (Array.isArray(db)) db.forEach(id => deletedBillsSet.add(String(id).trim()));
+  } catch (e) {}
+
   // Filter raw nutrient orders by active date range & status
   const filteredNutrients = (rawOrders || []).filter(o => {
     const st = (o.status || '').toLowerCase();
-    if (st.includes('cancel') || st.includes('ຍົກເລີກ') || st.includes('ยกเลิก')) {
+    if (st.includes('cancel') || st.includes('ຍົກເລີກ') || st.includes('ยกเลิก') || st.includes('deleted') || st.includes('ลบ')) {
       return false;
+    }
+
+    const oid = String(o.order_id || o.id || '').trim();
+    const vid = String(o.visit_id || '').trim();
+    if (oid && (deletedNutrientsSet.has(oid) || deletedBillsSet.has(oid))) return false;
+    if (vid && (deletedNutrientsSet.has(vid) || deletedBillsSet.has(vid))) return false;
+
+    // If order is linked to a visit, verify the visit itself wasn't canceled
+    if (vid && currentVisits) {
+      const v = currentVisits.find(x => x.visit_id === vid);
+      if (v && v.status) {
+        const vSt = String(v.status).toLowerCase();
+        if (vSt.includes('cancel') || vSt.includes('ຍົກເລີກ') || vSt.includes('ยกเลิก') || vSt.includes('deleted')) {
+          return false;
+        }
+      }
     }
 
     let dStr = toLocalDateStr(o.created_at);
@@ -604,26 +733,33 @@ function processNutrientOrders(rawOrders, visitsList) {
     const totalQty = cleanItems.reduce((sum, it) => sum + it.qty, 0);
     const totalAmount = cleanItems.reduce((sum, it) => sum + it.total_price, 0);
 
-    // Resolve Doctor / Prescriber
-    let doctor = o.closer_dr;
-    if (!doctor || doctor === '-' || doctor.trim() === '') {
+    // Resolve Doctor / Prescriber: Match strictly against staff_users (role = 'doctor')
+    let resolvedDoc = matchDoctorFromStaff(o.closer_dr);
+    if (!resolvedDoc) {
       let vId = o.visit_id;
       if (!vId && o.order_id && o.order_id.includes('VIS-')) {
         vId = 'VIS-' + o.order_id.split('VIS-')[1];
       }
       if (vId && currentVisits) {
         const v = currentVisits.find(x => x.visit_id === vId);
-        if (v && (v.doctor || v.doctor_name)) {
-          doctor = v.doctor || v.doctor_name;
+        if (v) {
+          resolvedDoc = matchDoctorFromStaff(v.doctor || v.doctor_name || v.closer_dr);
         }
       }
     }
-    if (!doctor || doctor === '-' || doctor.trim() === '') {
-      doctor = o.recorded_by || 'ບໍ່ລະບຸທ່ານໝໍ';
+    if (!resolvedDoc && o.recorded_by) {
+      resolvedDoc = matchDoctorFromStaff(o.recorded_by);
+    }
+    const doctor = resolvedDoc || null;
+    let vId = o.visit_id;
+    if (!vId && o.order_id && o.order_id.includes('VIS-')) {
+      vId = 'VIS-' + o.order_id.split('VIS-')[1];
     }
 
     unified.push({
       id: o.order_id || '-',
+      order_id: o.order_id || '-',
+      visit_id: vId || o.visit_id || '-',
       date: o.date || o.created_at,
       doctor: doctor,
       patient_name: o.customer_name || 'ບໍ່ລະບຸຊື່',
@@ -640,6 +776,14 @@ function processNutrientOrders(rawOrders, visitsList) {
   // Also include visits in the date range that have prescribed meds
   currentVisits.forEach(v => {
     if (handledVisitIds.has(v.visit_id)) return;
+    if (v.status) {
+      const vSt = String(v.status).toLowerCase();
+      if (vSt.includes('cancel') || vSt.includes('ຍົກເລີກ') || vSt.includes('ยกเลิก') || vSt.includes('deleted')) {
+        return;
+      }
+    }
+    const vid = String(v.visit_id || '').trim();
+    if (vid && (deletedBillsSet.has(vid) || deletedNutrientsSet.has(vid))) return;
     if (!v.meds) return;
 
     let items = [];
@@ -680,7 +824,8 @@ function processNutrientOrders(rawOrders, visitsList) {
     if (items.length > 0) {
       const totalQty = items.reduce((sum, it) => sum + it.qty, 0);
       const totalAmount = items.reduce((sum, it) => sum + it.total_price, 0);
-      const doctor = v.doctor_name || v.doctor || 'ບໍ່ລະບຸທ່ານໝໍ';
+      const resolvedDoc = matchDoctorFromStaff(v.doctor_name || v.doctor || v.closer_dr);
+      const doctor = resolvedDoc || null;
       unified.push({
         id: v.visit_id || '-',
         date: v.created_at,
@@ -1020,24 +1165,29 @@ function renderNutrientsTab() {
   
   let totalItemsCount = 0;
   let pendingCount = 0;
-  const doctorSet = new Set();
   const doctorStats = {};
   const medStats = {};
 
-  orders.forEach(o => {
-    const dr = o.doctor || 'ບໍ່ລະບຸທ່ານໝໍ';
-    doctorSet.add(dr);
+  // 👨‍⚕️ 1. Initialize stats strictly for Doctors from staff_users (role = 'doctor')
+  const staffDocs = state.staffDoctors || [];
+  staffDocs.forEach(d => {
+    const dr = d.displayName;
+    doctorStats[dr] = {
+      doctor: dr,
+      empCode: d.emp_code,
+      orderCount: 0,
+      totalUnits: 0,
+      totalAmount: 0,
+      patients: new Set(),
+      medMap: {}
+    };
+  });
 
-    if (!doctorStats[dr]) {
-      doctorStats[dr] = {
-        doctor: dr,
-        orderCount: 0,
-        totalUnits: 0,
-        totalAmount: 0,
-        patients: new Set(),
-        medMap: {}
-      };
-    }
+  orders.forEach(o => {
+    const dr = o.doctor;
+    // Only accumulate for verified doctors from staff_users!
+    if (!dr || !doctorStats[dr]) return;
+
     doctorStats[dr].orderCount++;
     if (o.hn) doctorStats[dr].patients.add(o.hn);
 
@@ -1107,11 +1257,11 @@ function renderNutrientsTab() {
 
   // 1. Save state for reactive filtering
   state.doctorStatsMap = doctorStats;
-  state.doctorSet = doctorSet;
   state.allOrders = orders;
 
-  // 2. Populate Doctor Filter Select (ຫມາຍເລກ 1)
-  populateDoctorFilter(Array.from(doctorSet));
+  // 2. Populate Doctor Filter Select with ONLY Doctors from staff_users
+  const doctorList = staffDocs.map(d => d.displayName);
+  populateDoctorFilter(doctorList);
 
   // 3. Trigger Reactive Doctor Selection Change (renders ຫມາຍເລກ 2 and updates KPIs)
   onDoctorSelectChange();
@@ -1164,9 +1314,9 @@ function populateDoctorFilter(doctors) {
     return bCount - aCount;
   });
 
-  // 🌟 Default to the FIRST doctor so it displays only ONE doctor at a time
+  // 🌟 Default to the FIRST doctor who has orders or top doctor so it displays only ONE doctor at a time
   let targetVal = select.value;
-  if (!targetVal || targetVal === 'all' || !doctors.includes(targetVal)) {
+  if (!targetVal || (targetVal !== 'all' && !doctors.includes(targetVal))) {
     targetVal = currentSortedDoctors.length > 0 ? currentSortedDoctors[0] : 'all';
   }
 
@@ -1205,6 +1355,10 @@ function onDoctorSelectChange() {
   let filtered = allDoctorStats;
   if (selectedDoctor !== 'all') {
     filtered = allDoctorStats.filter(d => d.doctor === selectedDoctor);
+  } else {
+    // When viewing all, show doctors with orders (or all if none have orders)
+    const withOrders = allDoctorStats.filter(d => d.orderCount > 0);
+    filtered = withOrders.length > 0 ? withOrders : allDoctorStats;
   }
 
   // Filter 2: Medicine / Keyword Search
@@ -1262,9 +1416,9 @@ function onDoctorSelectChange() {
   const elDoctors = document.getElementById('kpiNutrientDoctorsCount');
   const elPending = document.getElementById('kpiNutrientPending');
 
-  let relevantOrders = allOrders;
+  let relevantOrders = allOrders.filter(o => o.doctor && state.doctorStatsMap[o.doctor]);
   if (selectedDoctor !== 'all') {
-    relevantOrders = allOrders.filter(o => o.doctor === selectedDoctor);
+    relevantOrders = relevantOrders.filter(o => o.doctor === selectedDoctor);
   }
 
   let totalItemsCount = 0;
@@ -1286,7 +1440,8 @@ function onDoctorSelectChange() {
     if (selectedDoctor !== 'all') {
       elDoctors.textContent = `1 ທ່ານ (ເລືອກຢູ່)`;
     } else {
-      elDoctors.textContent = `${(state.doctorSet?.size) || filtered.length} ທ່ານ`;
+      const activeDocCount = Object.values(state.doctorStatsMap || {}).filter(d => d.orderCount > 0).length;
+      elDoctors.textContent = `${activeDocCount} ທ່ານ (ມີໃບສັ່ງ)`;
     }
   }
   if (elPending) elPending.textContent = formatNumber(pendingCount);
@@ -1448,38 +1603,43 @@ function renderDoctorStatsCards(doctorList) {
 
 // ── Tab 3: Patients & Visits Renderers (by Doctor) ────────────
 
-// Resolve Doctor for clinical visits (checks v.doctor, v.doctor_name, v.closer_dr, linked nutrient orders, bills, and fallback)
+// Resolve Doctor for clinical visits (checks strictly against staff_users with role = 'doctor')
 function resolveVisitDoctor(v, visitNutrientMap) {
-  let doc = v.doctor || v.doctor_name || v.closer_dr;
-  if (doc && doc !== '-' && doc !== 'null' && doc.trim() !== '') return doc.trim();
+  let doc = matchDoctorFromStaff(v.doctor || v.doctor_name || v.closer_dr);
+  if (doc) return doc;
 
   // Check from nutrient orders linked to this visit_id
   if (v.visit_id && visitNutrientMap && visitNutrientMap[v.visit_id]) {
-    const nDoc = visitNutrientMap[v.visit_id].doctor;
-    if (nDoc && nDoc !== '-' && nDoc !== 'ບໍ່ລະບຸທ່ານໝໍ') return nDoc;
+    const nDoc = matchDoctorFromStaff(visitNutrientMap[v.visit_id].doctor);
+    if (nDoc) return nDoc;
   }
 
   // Check from bills by visit_id
   if (v.visit_id && state.bills) {
     const b = state.bills.find(x => x.visit_id === v.visit_id);
-    if (b && (b.doctor || b.doctor_name)) return (b.doctor || b.doctor_name);
+    if (b) {
+      doc = matchDoctorFromStaff(b.doctor || b.doctor_name);
+      if (doc) return doc;
+    }
   }
 
   // Match by patient HN and same day
   const vDate = toLocalDateStr(v.created_at);
   if (v.hn && state.nutrientOrders) {
     const nOrder = state.nutrientOrders.find(o => o.hn === v.hn && toLocalDateStr(o.date || o.created_at) === vDate);
-    if (nOrder && nOrder.doctor && nOrder.doctor !== '-' && nOrder.doctor !== 'ບໍ່ລະບຸທ່ານໝໍ') {
-      return nOrder.doctor;
+    if (nOrder && nOrder.doctor) {
+      doc = matchDoctorFromStaff(nOrder.doctor);
+      if (doc) return doc;
     }
   }
 
-  // Fallback: check recorded_by
-  if (v.recorded_by && v.recorded_by !== '-' && !v.recorded_by.toLowerCase().includes('admin')) {
-    return v.recorded_by;
+  // Fallback: check recorded_by if it's a doctor
+  if (v.recorded_by) {
+    doc = matchDoctorFromStaff(v.recorded_by);
+    if (doc) return doc;
   }
 
-  return 'ທ່ານໝໍປະຈຳຄລີນິກ';
+  return null;
 }
 
 // Check if patient is New (ຜູ້ປ່ວຍໃໝ່) or Old/Returning (ຜູ້ປ່ວຍເກົ່າ)
@@ -1495,9 +1655,47 @@ function isNewPatient(v, patMap) {
   return regDate >= state.startDate && regDate <= state.endDate;
 }
 
+// 🌟 ตรวจสอบว่า Visit นี้ถึงขั้นตอนตรวจ/อ่านผล หรือตรวจเสร็จสิ้นแล้วหรือไม่
+// คัดกรองเคสที่ยังค้างอยู่ขั้นตอนก่อนพบแพทย์ออก (เช่น รอคัดกรอง, รอตรวจ, รอชำระเงิน, รอผลแล็บ, รอจัดคิว)
+function isConsultedVisit(v) {
+  if (!v || !v.status) return false;
+  const st = String(v.status).trim().toLowerCase();
+
+  // 1. ตัดเคสที่ยกเลิก หรือ ลบ ออก
+  if (st.includes('cancel') || st.includes('ຍົກເລີກ') || st.includes('ยกเลิก') || st.includes('deleted')) {
+    return false;
+  }
+
+  // 2. ตัดสถานะที่ยังไม่ได้จัดคิวตรวจ หรือ ผลแล็บยังไม่ออก
+  const pendingStatuses = [
+    'รอคัดกรอง', 'ລໍຖ້າຄັດກອງ', 'ລໍຄັດກອງ',
+    'รอตรวจ', 'ລໍຖ້າກວດ', 'ລໍກວດ',
+    'รอชำระเงิน', 'ລໍຖ້າຊຳລະ', 'ລໍຊຳລະ',
+    'รอผลแล็บ', 'รอผลตรวจ lab', 'รอผลตรวจแล็บ', 'รอผลแล็บเพิ่มเติม', 'ผลออกบางส่วน',
+    'ລໍຖ້າຜົນແລັບ', 'ລໍຜົນແລັບ', 'ລໍຖ້າຜົນກວດ',
+    'รอจัดคิว', 'ລໍຖ້າຈັດຄິວ', 'ລໍຈັດຄິວ'
+  ];
+
+  if (pendingStatuses.some(p => st === p || st.includes(p))) {
+    return false;
+  }
+
+  return true;
+}
+
+// 🌟 ກວດສອບວ່າ Visit ນີ້ເປັນການສັ່ງຊື້ຢາ/ອາຫານເສີມ (Order) ຫຼື ເຂົ້າມາກວດກັບທ່ານໝໍ (ມາກວດ)
+function isOrderVisit(v) {
+  if (!v) return false;
+  const vId = String(v.visit_id || '');
+  if (vId.startsWith('ORD-') || vId.startsWith('ord_') || vId.startsWith('ORD')) return true;
+  const s = String(v.symptoms || v.symptom || v.initial_symptom || v.diagnosis || '').toLowerCase();
+  return s.includes('ສັ່ງຊື້') || s.includes('สั่งซื้อ') || s.includes('order');
+}
+
 function renderPatientsTab() {
   const allPatients = state.patients || [];
-  const visits = [...(state.visits || [])];
+  // 🌟 กรองเฉพาะเคสที่เข้าสู่ขั้นตอนอ่านผล/ตรวจ หรือตรวจเสร็จแล้วเท่านั้น (ตัดเคสรอผลแล็บ/รอจัดคิวออก)
+  const visits = (state.visits || []).filter(v => isConsultedVisit(v));
 
   const patMap = {};
   allPatients.forEach(p => { if (p.hn) patMap[p.hn] = p; });
@@ -1505,50 +1703,86 @@ function renderPatientsTab() {
   const visitNutrientMap = {};
   (state.nutrientOrders || []).forEach(o => {
     if (o.id && o.id !== '-') visitNutrientMap[o.id] = o;
+    if (o.order_id && o.order_id !== '-') visitNutrientMap[o.order_id] = o;
+    if (o.visit_id && o.visit_id !== '-') visitNutrientMap[o.visit_id] = o;
   });
 
-  // Also incorporate patient prescriptions from nutrientOrders if not already in visits
-  const handledVisitIds = new Set(visits.map(v => v.visit_id).filter(Boolean));
+  // Set of all handled visit IDs and order IDs from visits
+  const handledVisitIds = new Set();
+  visits.forEach(v => {
+    if (v.visit_id) handledVisitIds.add(String(v.visit_id));
+    if (v.order_id) handledVisitIds.add(String(v.order_id));
+  });
+
+  // Also collect existing order visits by HN + Date to prevent duplicate standalone orders
+  const existingOrderHnDateSet = new Set();
+  visits.forEach(v => {
+    if (v.hn && v.hn !== '-' && isOrderVisit(v)) {
+      const d = toLocalDateStr(v.created_at);
+      if (d) existingOrderHnDateSet.add(`${v.hn}_${d}`);
+    }
+  });
+
+  // Also incorporate patient prescriptions from nutrientOrders ONLY if not already in visits
   (state.nutrientOrders || []).forEach(o => {
-    const vId = o.id || '';
-    if (vId && handledVisitIds.has(vId)) return;
-    if (vId) handledVisitIds.add(vId);
+    const oVid = (o.visit_id && o.visit_id !== '-') ? String(o.visit_id) : '';
+    const oId = (o.id && o.id !== '-') ? String(o.id) : (o.order_id || '');
+    const oDate = toLocalDateStr(o.date || o.created_at);
+    const oHn = (o.hn && o.hn !== '-') ? String(o.hn) : '';
+
+    // 1. Check if visit_id or order_id matches an existing visit in visits table
+    if (oVid && handledVisitIds.has(oVid)) return;
+    if (oId && handledVisitIds.has(oId)) return;
+
+    // 2. Check if this HN already has an Order visit on the same date
+    if (oHn && oDate && existingOrderHnDateSet.has(`${oHn}_${oDate}`)) return;
+
+    // If not matched, register and push standalone order
+    if (oVid) handledVisitIds.add(oVid);
+    if (oId) handledVisitIds.add(oId);
+    if (oHn && oDate) existingOrderHnDateSet.add(`${oHn}_${oDate}`);
 
     visits.push({
-      visit_id: vId || `ORD-${Math.random()}`,
-      hn: (o.hn && o.hn !== '-') ? o.hn : '',
+      visit_id: oVid || oId || `ORD-${Math.random()}`,
+      order_id: oId,
+      hn: oHn,
       patient_name: o.patient_name || 'ຄົນເຈັບ',
       doctor: o.doctor,
       doctor_name: o.doctor,
       symptoms: 'ສັ່ງຊື້ຢາ/ອາຫານເສີມ (Order)',
       status: o.status,
       created_at: o.date || o.created_at,
-      meds: JSON.stringify(o.items || [])
+      meds: JSON.stringify(o.items || []),
+      recorded_by: o.recorded_by || '',
+      referred_by: o.referred_by || o.recorded_by || ''
     });
   });
 
   const patientDoctorStats = {};
-  const doctorSet = new Set();
+  const staffDocs = state.staffDoctors || [];
+
+  // Initialize for all doctors from staff_users
+  staffDocs.forEach(d => {
+    const dr = d.displayName;
+    patientDoctorStats[dr] = {
+      doctor: dr,
+      empCode: d.emp_code,
+      totalVisits: 0,
+      patientSet: new Set(),
+      newPatientSet: new Set(),
+      oldPatientSet: new Set(),
+      diseaseMap: {},
+      visitsList: []
+    };
+  });
 
   visits.forEach(v => {
     const dr = resolveVisitDoctor(v, visitNutrientMap);
+    if (!dr || !patientDoctorStats[dr]) return; // Only count visits attended by doctors from staff_users!
     v._resolvedDoctor = dr;
-    doctorSet.add(dr);
 
     const isNew = isNewPatient(v, patMap);
     v._isNew = isNew;
-
-    if (!patientDoctorStats[dr]) {
-      patientDoctorStats[dr] = {
-        doctor: dr,
-        totalVisits: 0,
-        patientSet: new Set(),
-        newPatientSet: new Set(),
-        oldPatientSet: new Set(),
-        diseaseMap: {},
-        visitsList: []
-      };
-    }
 
     const ds = patientDoctorStats[dr];
     ds.totalVisits++;
@@ -1578,10 +1812,11 @@ function renderPatientsTab() {
   });
 
   state.patientDoctorStats = patientDoctorStats;
-  state.allPatientDoctors = Array.from(doctorSet);
+  const doctorList = staffDocs.map(d => d.displayName);
+  state.allPatientDoctors = doctorList;
 
   // Populate Doctor Selector for Patients tab
-  populatePatientDoctorFilter(Array.from(doctorSet));
+  populatePatientDoctorFilter(doctorList);
 
   // Trigger reactive doctor selection change
   onPatientDoctorSelectChange();
@@ -1636,7 +1871,7 @@ function populatePatientDoctorFilter(doctors) {
 
   // 🌟 Default to the FIRST doctor so it displays only ONE doctor at a time
   let targetVal = select.value;
-  if (!targetVal || targetVal === 'all' || !doctors.includes(targetVal)) {
+  if (!targetVal || (targetVal !== 'all' && !doctors.includes(targetVal))) {
     targetVal = currentSortedPatientDoctors.length > 0 ? currentSortedPatientDoctors[0] : 'all';
   }
 
@@ -1672,10 +1907,18 @@ function onPatientDoctorSelectChange() {
   const patMap = {};
   (state.patients || []).forEach(p => { if (p.hn) patMap[p.hn] = p; });
 
+  const visitNutrientMap = {};
+  (state.nutrientOrders || []).forEach(o => {
+    if (o.id && o.id !== '-') visitNutrientMap[o.id] = o;
+  });
+
   // Filter by Doctor
   let filtered = allStats;
   if (selectedDoctor !== 'all') {
     filtered = allStats.filter(d => d.doctor === selectedDoctor);
+  } else {
+    const withVisits = allStats.filter(d => d.totalVisits > 0);
+    filtered = withVisits.length > 0 ? withVisits : allStats;
   }
 
   // Filter by Search query if present
@@ -1684,11 +1927,16 @@ function onPatientDoctorSelectChange() {
       const drMatch = d.doctor.toLowerCase().includes(query);
       const matchingVisits = d.visitsList.filter(v => {
         const p = patMap[v.hn] || {};
+        const isOrder = isOrderVisit(v);
+        const refName = isOrder
+          ? (v.recorded_by || (v.visit_id && visitNutrientMap[v.visit_id] ? visitNutrientMap[v.visit_id].recorded_by : '') || (p && p.referred_by) || '')
+          : ((p && p.referred_by) || v.referred_by || '');
         const text = [
           v.hn,
           p.name,
           v.patient_name,
           p.phone,
+          refName,
           v.symptoms,
           v.symptom,
           v.diagnosis,
@@ -1696,126 +1944,36 @@ function onPatientDoctorSelectChange() {
         ].join(' ').toLowerCase();
         return drMatch || text.includes(query);
       });
-
-      if (matchingVisits.length > 0) {
-        const patSet = new Set();
-        const newSet = new Set();
-        const oldSet = new Set();
-        const dMap = {};
-
-        matchingVisits.forEach(v => {
-          const patKey = v.hn || v.patient_name || `VIS-${v.visit_id}`;
-          patSet.add(patKey);
-          if (v._isNew) newSet.add(patKey);
-          else oldSet.add(patKey);
-
-          const sym = (v.symptoms || v.symptom || v.initial_symptom || v.diagnosis || 'ກວດສຸຂະພາບທົ່ວໄປ').trim();
-          if (sym && sym !== '-') {
-            const parts = sym.split(/[,;\n+]/).map(s => s.trim()).filter(s => s.length > 1);
-            if (parts.length > 0) {
-              parts.forEach(p => { dMap[p] = (dMap[p] || 0) + 1; });
-            } else {
-              dMap[sym] = (dMap[sym] || 0) + 1;
-            }
-          }
-        });
-
-        return {
-          doctor: d.doctor,
-          totalVisits: matchingVisits.length,
-          patientSet: patSet,
-          newPatientSet: newSet,
-          oldPatientSet: oldSet,
-          diseaseMap: dMap,
-          visitsList: matchingVisits
-        };
-      }
-      return null;
-    }).filter(Boolean);
+      return { ...d, visitsList: matchingVisits };
+    }).filter(d => d.visitsList.length > 0);
   }
 
-  // Update Status Badge
-  const statusBadge = document.getElementById('doctorPatientFilterStatusBadge');
-  if (statusBadge) {
-    if (selectedDoctor !== 'all') {
-      statusBadge.textContent = `ສະແດງສະເພາະ: 👨‍⚕️ ${selectedDoctor}`;
-      statusBadge.className = 'badge bg-primary text-white border px-3 py-1';
-    } else {
-      statusBadge.textContent = `ສະແດງທຸກທ່ານໝໍ (${filtered.length} ທ່ານ)`;
-      statusBadge.className = 'badge bg-light text-primary border px-3 py-1';
-    }
-  }
-
-  // Update 4 KPI Cards
-  let totalUniquePatients = 0;
-  let totalVisitsCount = 0;
-  let totalNewPatients = 0;
-  let totalOldPatients = 0;
-
-  const countedPatKeys = new Set();
-  filtered.forEach(d => {
-    totalVisitsCount += d.totalVisits;
-    d.newPatientSet.forEach(k => {
-      if (!countedPatKeys.has(k)) {
-        totalNewPatients++;
-        countedPatKeys.add(k);
-      }
-    });
-    d.oldPatientSet.forEach(k => {
-      if (!countedPatKeys.has(k)) {
-        totalOldPatients++;
-        countedPatKeys.add(k);
-      }
-    });
-  });
-  totalUniquePatients = countedPatKeys.size;
-
-  const newPct = totalUniquePatients > 0 ? ((totalNewPatients / totalUniquePatients) * 100).toFixed(0) : 0;
-  const oldPct = totalUniquePatients > 0 ? ((totalOldPatients / totalUniquePatients) * 100).toFixed(0) : 0;
-
-  const elTotPat = document.getElementById('kpiTotalPatients');
-  const elVisSub = document.getElementById('kpiPeriodVisitsSub');
-  const elNew = document.getElementById('kpiNewPatients');
-  const elNewPct = document.getElementById('kpiNewPatientsPct');
-  const elOld = document.getElementById('kpiOldPatients');
-  const elOldPct = document.getElementById('kpiOldPatientsPct');
-  const elDoc = document.getElementById('kpiTreatingDoctors');
-
-  if (elTotPat) elTotPat.textContent = `${formatNumber(totalUniquePatients)} ຄົນ`;
-  if (elVisSub) elVisSub.textContent = `${formatNumber(totalVisitsCount)} ເທື່ອກວດ (Visits)`;
-  if (elNew) elNew.textContent = `${formatNumber(totalNewPatients)} ຄົນ`;
-  if (elNewPct) elNewPct.textContent = `${newPct}% ຂອງຄົນເຈັບ`;
-  if (elOld) elOld.textContent = `${formatNumber(totalOldPatients)} ຄົນ`;
-  if (elOldPct) elOldPct.textContent = `${oldPct}% ຂອງຄົນເຈັບ`;
-  if (elDoc) {
-    if (selectedDoctor !== 'all') {
-      elDoc.textContent = `1 ທ່ານ (ເລືອກຢູ່)`;
-    } else {
-      elDoc.textContent = `${(state.allPatientDoctors?.length) || filtered.length} ທ່ານ`;
-    }
-  }
-
-  // Render Doctor Breakdown Cards
-  renderDoctorPatientCards(filtered, patMap);
+  renderDoctorPatientCards(filtered);
 }
 
-function renderDoctorPatientCards(doctorList, patMap) {
-  const container = document.getElementById('doctorPatientsRow');
+function renderDoctorPatientCards(doctorList) {
+  const container = document.getElementById('doctorPatientsContainer');
   if (!container) return;
 
   if (!doctorList || doctorList.length === 0) {
     container.innerHTML = `
-      <div class="col-12 text-center py-5 text-muted">
-        <i class="ph-fill ph-users-three fs-1 text-muted mb-2 d-block"></i>
-        <div class="fw-semibold fs-6">ບໍ່ພົບຂໍ້ມູນການກວດຄົນເຈັບຂອງທ່ານໝໍທີ່ເລືອກໃນຊ່ວງເວລານີ້</div>
-        <small class="text-muted">ກະລຸນາເລືອກທ່ານໝໍທ່ານອື່ນ ຫຼື ປ່ຽນຊ່ວງວັນທີ</small>
+      <div class="col-12">
+        <div class="empty-state text-center py-5">
+          <i class="ph-duotone ph-user-circle text-muted fs-1 mb-2"></i>
+          <h6 class="text-muted">ບໍ່ພົບຂໍ້ມູນຜູ້ປ່ວຍຕາມເງື່ອນໄຂທີ່ເລືອກ</h6>
+        </div>
       </div>
     `;
     return;
   }
 
-  // Sort doctors by total patient count
-  doctorList.sort((a, b) => b.patientSet.size - a.patientSet.size);
+  const patMap = {};
+  (state.patients || []).forEach(p => { if (p.hn) patMap[p.hn] = p; });
+
+  const visitNutrientMap = {};
+  (state.nutrientOrders || []).forEach(o => {
+    if (o.id && o.id !== '-') visitNutrientMap[o.id] = o;
+  });
 
   container.innerHTML = doctorList.map((ds) => {
     // Sort diseases by frequency
@@ -1838,26 +1996,98 @@ function renderDoctorPatientCards(doctorList, patMap) {
       const genderAge = [p.gender, p.age ? `${p.age} ປີ` : ''].filter(Boolean).join(' / ') || '-';
       const phone = p.phone || '-';
       const symptoms = v.symptoms || v.symptom || v.initial_symptom || v.diagnosis || '-';
-      const isNew = v._isNew;
-      const typeBadge = isNew
-        ? `<span class="badge-patient-new"><i class="ph-fill ph-user-plus"></i> ໃໝ່</span>`
-        : `<span class="badge-patient-old"><i class="ph-fill ph-arrows-counter-clockwise"></i> ເກົ່າ</span>`;
+      const isOrder = isOrderVisit(v);
+      const typeBadge = isOrder
+        ? `<span class="badge-service-order"><i class="ph-fill ph-package"></i> Order</span>`
+        : `<span class="badge-service-exam"><i class="ph-fill ph-stethoscope"></i> ມາກວດ</span>`;
+
+      // 🌟 ຜູ້ແນະນຳ / ຜູ້ Order
+      let referrerOrOrderer = '-';
+      if (isOrder) {
+        referrerOrOrderer = v.recorded_by || (v.visit_id && visitNutrientMap[v.visit_id] ? visitNutrientMap[v.visit_id].recorded_by : '') || (p && p.referred_by) || v.referred_by || '-';
+      } else {
+        referrerOrOrderer = (p && p.referred_by) || v.referred_by || '-';
+      }
+      if (!referrerOrOrderer || referrerOrOrderer === 'null' || referrerOrOrderer === 'undefined') {
+        referrerOrOrderer = '-';
+      }
+      v._referrerOrOrderer = referrerOrOrderer;
+
+      const refBadge = (referrerOrOrderer && referrerOrOrderer !== '-')
+        ? `<span class="badge bg-light text-dark border small fw-medium text-truncate d-inline-block" style="max-width: 145px;" title="${referrerOrOrderer}">
+            <i class="ph-fill ${isOrder ? 'ph-user-circle' : 'ph-handshake'} text-muted me-1"></i>${referrerOrOrderer}
+           </span>`
+        : `<span class="text-muted small">-</span>`;
+
+      // 🌟 ຄິດໄລ່ລາຍການຢາ / ອາຫານເສີມ ແລະ ຈຳນວນກ່ອງ (รูปแบบที่ 3: Badges ຍ່ອຍເຫັນຄົບ)
+      let totalMedsQty = 0;
+      let medsList = [];
+      let parsedItems = [];
+
+      let rawMeds = v.meds;
+      if ((!rawMeds || rawMeds === '[]' || rawMeds === '') && v.visit_id && visitNutrientMap[v.visit_id]) {
+        rawMeds = visitNutrientMap[v.visit_id].items;
+      }
+
+      if (rawMeds) {
+        let parsed = [];
+        if (typeof rawMeds === 'string') {
+          try { parsed = JSON.parse(rawMeds); } catch (e) { }
+        } else if (Array.isArray(rawMeds)) {
+          parsed = rawMeds;
+        }
+
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          parsed.forEach(m => {
+            const q = Number(m.qty || m.quantity || 1);
+            totalMedsQty += q;
+            const mName = m.name || m.clean_name || m.medicine_name || m.item_name || 'ຢາ/ອາຫານເສີມ';
+            medsList.push(`${mName} (x${q})`);
+            parsedItems.push({ name: mName, qty: q });
+          });
+        }
+      }
+
+      v._totalMedsQty = totalMedsQty;
+      v._medsSummary = medsList.join(', ');
+
+      const medsCellHtml = totalMedsQty > 0
+        ? `
+          <div class="d-flex flex-column align-items-center gap-1 py-1" style="min-width: 175px;">
+            <span class="badge bg-primary text-white fw-bold px-2.5 py-1 shadow-xs" style="font-size: 0.78rem;">
+              <i class="ph-fill ph-pill me-1"></i>${formatNumber(totalMedsQty)} ກ່ອງ
+            </span>
+            <div class="d-flex flex-wrap justify-content-center gap-1 mt-1">
+              ${parsedItems.map(it => `
+                <span class="badge bg-white text-dark border text-wrap fw-normal py-1 px-2" style="font-size: 0.73rem; max-width: 220px; line-height: 1.35; text-align: left;">
+                  <span class="fw-semibold text-dark">${it.name}</span>
+                  <span class="badge bg-light text-primary border ms-1 fw-bold">x${it.qty}</span>
+                </span>
+              `).join('')}
+            </div>
+          </div>
+        `
+        : `<span class="text-muted small">-</span>`;
 
       return `
         <tr>
           <td class="text-muted small text-center">${idx + 1}</td>
           <td class="fw-bold text-primary font-monospace">${v.hn || '-'}</td>
           <td class="fw-semibold text-dark">${name}</td>
-          <td class="text-center">${typeBadge}</td>
-          <td><span class="badge bg-light text-dark border">${genderAge}</span></td>
-          <td class="small font-monospace">${phone}</td>
-          <td class="small" style="max-width: 260px;">
+          <td class="align-middle">${refBadge}</td>
+          <td class="text-center align-middle">${typeBadge}</td>
+          <td class="align-middle"><span class="badge bg-light text-dark border">${genderAge}</span></td>
+          <td class="small font-monospace align-middle">${phone}</td>
+          <td class="small align-middle" style="max-width: 240px;">
             <div class="fw-medium text-dark">${symptoms}</div>
           </td>
-          <td class="small text-muted font-monospace">${formatDateLao(v.created_at)}</td>
+          <td class="text-center align-middle">${medsCellHtml}</td>
+          <td class="small text-muted font-monospace align-middle">${formatDateLao(v.created_at)}</td>
         </tr>
       `;
     }).join('');
+
+    const sumDoctorMeds = ds.visitsList.reduce((sum, v) => sum + (v._totalMedsQty || 0), 0);
 
     return `
       <div class="col-12 mb-4">
@@ -1895,14 +2125,16 @@ function renderDoctorPatientCards(doctorList, patMap) {
             <table class="doctor-breakdown-table table-hover">
               <thead>
                 <tr>
-                  <th style="width: 50px;" class="text-center">#</th>
-                  <th style="width: 120px;">HN</th>
+                  <th style="width: 45px;" class="text-center">#</th>
+                  <th style="width: 105px;">HN</th>
                   <th>ຊື່ ແລະ ນາມສະກຸນ</th>
-                  <th class="text-center" style="width: 100px;">ປະເພດ</th>
-                  <th style="width: 130px;">ເພດ / ອາຍຸ</th>
-                  <th style="width: 130px;">ເບີໂທລະສັບ</th>
+                  <th style="width: 145px;">ຜູ້ແນະນຳ / ຜູ້ Order</th>
+                  <th class="text-center" style="width: 90px;">ປະເພດ</th>
+                  <th style="width: 110px;">ເພດ / ອາຍຸ</th>
+                  <th style="width: 115px;">ເບີໂທລະສັບ</th>
                   <th>ອາການເບື້ອງຕົ້ນ / ພະຍາດທີ່ເປັນ</th>
-                  <th style="width: 140px;">ວັນທີມາກວດ</th>
+                  <th class="text-center" style="width: 210px; min-width: 180px;">ຈຳນວນຢາ / ອາຫານເສີມ</th>
+                  <th style="width: 130px;">ວັນທີມາກວດ</th>
                 </tr>
               </thead>
               <tbody>
@@ -1910,13 +2142,14 @@ function renderDoctorPatientCards(doctorList, patMap) {
               </tbody>
               <tfoot>
                 <tr>
-                  <td colspan="3" class="text-end text-dark">
+                  <td colspan="4" class="text-end text-dark">
                     ລວມຄົນເຈັບຂອງທ່ານໝໍ <b>${ds.doctor}</b>:
                   </td>
-                  <td colspan="5" class="text-dark">
+                  <td colspan="6" class="text-dark">
                     <span class="text-success fw-bold me-3">ຜູ້ປ່ວຍໃໝ່: ${ds.newPatientSet.size} ຄົນ</span>
                     <span class="text-primary fw-bold me-3">ຜູ້ປ່ວຍເກົ່າ: ${ds.oldPatientSet.size} ຄົນ</span>
-                    <span class="text-dark fw-bold">| ລວມທັງໝົດ: ${ds.patientSet.size} ຄົນ (${ds.totalVisits} ເທື່ອກວດ)</span>
+                    <span class="text-dark fw-bold me-3">| ລວມທັງໝົດ: ${ds.patientSet.size} ຄົນ (${ds.totalVisits} ເທື່ອກວດ)</span>
+                    <span class="text-primary-emphasis fw-bold">| ສັ່ງຢາລວມ: ${formatNumber(sumDoctorMeds)} ກ່ອງ</span>
                   </td>
                 </tr>
               </tfoot>
@@ -1965,29 +2198,77 @@ function exportCSV() {
     fileName = `Doctor_Prescriptions_${state.startDate}_to_${state.endDate}.csv`;
 
   } else if (state.activeTab === 'patients') {
-    if (state.visits.length === 0) {
+    const consultedVisits = (state.visits || []).filter(v => isConsultedVisit(v));
+    if (consultedVisits.length === 0) {
       showEmptyExportAlert();
       return;
     }
     const patMap = {};
     (state.patients || []).forEach(p => { if (p.hn) patMap[p.hn] = p; });
 
-    csvContent += 'ລ/ດ,ທ່ານໝໍຜູ້ກວດ,HN,ຊື່ ແລະ ນາມສະກຸນ,ປະເພດຄົນເຈັບ,ເພດ,ອາຍຸ,ເບີໂທ,ອາການ ແລະ ພະຍາດ,ວັນທີກວດ\n';
-    state.visits.forEach((v, idx) => {
+    const visitNutrientMap = {};
+    (state.nutrientOrders || []).forEach(o => {
+      if (o.id && o.id !== '-') visitNutrientMap[o.id] = o;
+    });
+
+    csvContent += 'ລ/ດ,ທ່ານໝໍຜູ້ກວດ,HN,ຊື່ ແລະ ນາມສະກຸນ,ຜູ້ແນະນຳ / ຜູ້ Order,ປະເພດ,ເພດ,ອາຍຸ,ເບີໂທ,ອາການ ແລະ ພະຍາດ,ຈຳນວນຢາ (ກ່ອງ),ລາຍການຢາ,ວັນທີກວດ\n';
+    consultedVisits.forEach((v, idx) => {
       const p = patMap[v.hn] || {};
-      const isNew = v._isNew !== undefined ? v._isNew : isNewPatient(v, patMap);
-      const patType = isNew ? 'ຜູ້ປ່ວຍໃໝ່' : 'ຜູ້ປ່ວຍເກົ່າ';
+      const isOrder = isOrderVisit(v);
+      const patType = isOrder ? 'Order' : 'ມາກວດ';
       const dr = v._resolvedDoctor || v.doctor || '-';
+
+      let referrerOrOrderer = v._referrerOrOrderer;
+      if (!referrerOrOrderer || referrerOrOrderer === '-') {
+        if (isOrder) {
+          referrerOrOrderer = v.recorded_by || (v.visit_id && visitNutrientMap[v.visit_id] ? visitNutrientMap[v.visit_id].recorded_by : '') || (p && p.referred_by) || v.referred_by || '-';
+        } else {
+          referrerOrOrderer = (p && p.referred_by) || v.referred_by || '-';
+        }
+        if (!referrerOrOrderer || referrerOrOrderer === 'null' || referrerOrOrderer === 'undefined') referrerOrOrderer = '-';
+      }
+
+      let totalMedsQty = v._totalMedsQty;
+      let medsSummary = v._medsSummary;
+      if (totalMedsQty === undefined) {
+        let rawMeds = v.meds;
+        if ((!rawMeds || rawMeds === '[]' || rawMeds === '') && v.visit_id && visitNutrientMap[v.visit_id]) {
+          rawMeds = visitNutrientMap[v.visit_id].items;
+        }
+        totalMedsQty = 0;
+        const medsList = [];
+        if (rawMeds) {
+          let parsed = [];
+          if (typeof rawMeds === 'string') {
+            try { parsed = JSON.parse(rawMeds); } catch (e) { }
+          } else if (Array.isArray(rawMeds)) {
+            parsed = rawMeds;
+          }
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            parsed.forEach(m => {
+              const q = Number(m.qty || m.quantity || 1);
+              totalMedsQty += q;
+              const mName = m.name || m.clean_name || m.medicine_name || m.item_name || 'ຢາ/ອາຫານເສີມ';
+              medsList.push(`${mName} (x${q})`);
+            });
+          }
+        }
+        medsSummary = medsList.join('; ');
+      }
+
       const row = [
         idx + 1,
         `"${dr.replace(/"/g, '""')}"`,
         `"${v.hn || ''}"`,
         `"${(p.name || v.patient_name || '').replace(/"/g, '""')}"`,
+        `"${referrerOrOrderer.replace(/"/g, '""')}"`,
         `"${patType}"`,
         `"${p.gender || ''}"`,
         `"${p.age || ''}"`,
         `"${p.phone || ''}"`,
         `"${(v.symptoms || v.symptom || '').replace(/"/g, '""')}"`,
+        totalMedsQty || 0,
+        `"${(medsSummary || '').replace(/"/g, '""')}"`,
         `"${formatDateLao(v.created_at)}"`
       ];
       csvContent += row.join(',') + '\n';

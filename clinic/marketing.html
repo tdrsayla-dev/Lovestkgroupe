@@ -4215,28 +4215,70 @@
 
             try {
                 const clinicClient = getClinicSupabaseClient();
-                if (clinicClient) {
-                    if (visitId && visitId !== '-') {
-                        await clinicClient.from('visits').delete().eq('visit_id', visitId);
-                    }
-                    if (isOrderRecord) {
-                        if (visitId && visitId !== '-') {
-                            try {
-                                await clinicClient.from('stk_nutrient_orders').delete().eq('order_id', visitId);
-                            } catch (e) { }
-                        }
-                    }
-                }
+                const mlmClient = getMlmSupabaseClient();
+                const cleanOrderId = (visitId && String(visitId).startsWith('VIS-')) ? String(visitId).replace(/^VIS-/, '') : (visitId || '');
 
-                if (isOrderRecord) {
-                    rawAllOrders = rawAllOrders.filter(o => o.latest_visit_id !== visitId && o.visit_id !== visitId && o.order_id !== visitId);
-                    rawMyOrders = rawMyOrders.filter(o => o.latest_visit_id !== visitId && o.visit_id !== visitId && o.order_id !== visitId);
-                    allOrdersData = allOrdersData.filter(o => o.latest_visit_id !== visitId && o.visit_id !== visitId && o.order_id !== visitId);
-                } else {
-                    rawAllPatients = rawAllPatients.filter(p => p.hn !== hn && p.latest_visit_id !== visitId);
-                    rawMyPatients = rawMyPatients.filter(p => p.hn !== hn && p.latest_visit_id !== visitId);
-                    allPatientsData = allPatientsData.filter(p => p.hn !== hn && p.latest_visit_id !== visitId);
+                const deletePromises = [];
+                if (clinicClient && visitId && visitId !== '-') {
+                    deletePromises.push(clinicClient.from('visits').delete().eq('visit_id', visitId));
+                    if (isOrderRecord) {
+                        if (cleanOrderId) {
+                            deletePromises.push(clinicClient.from('stk_nutrient_orders').delete().eq('order_id', cleanOrderId));
+                        }
+                        deletePromises.push(clinicClient.from('stk_nutrient_orders').delete().eq('order_id', visitId));
+                        deletePromises.push(clinicClient.from('stk_nutrient_orders').delete().eq('visit_id', visitId));
+                    }
                 }
+                if (mlmClient && isOrderRecord && visitId && visitId !== '-') {
+                    if (cleanOrderId) {
+                        deletePromises.push(mlmClient.from('stk_nutrient_orders').delete().eq('order_id', cleanOrderId));
+                    }
+                    deletePromises.push(mlmClient.from('stk_nutrient_orders').delete().eq('order_id', visitId));
+                    deletePromises.push(mlmClient.from('stk_nutrient_orders').delete().eq('visit_id', visitId));
+                }
+                await Promise.allSettled(deletePromises);
+
+                // บันทึก Blacklist ลง LocalStorage เพื่อให้ตัดออกจากรายงานและหน้าประวัติทันที
+                try {
+                    let deletedNutrients = JSON.parse(localStorage.getItem('stk_deleted_nutrient_orders') || '[]');
+                    if (visitId && !deletedNutrients.includes(visitId)) deletedNutrients.push(visitId);
+                    if (cleanOrderId && !deletedNutrients.includes(cleanOrderId)) deletedNutrients.push(cleanOrderId);
+                    localStorage.setItem('stk_deleted_nutrient_orders', JSON.stringify(deletedNutrients));
+                } catch (e) { }
+
+                try {
+                    let deletedBills = JSON.parse(localStorage.getItem('clinic_deleted_bills') || '[]');
+                    if (visitId && !deletedBills.includes(visitId)) deletedBills.push(visitId);
+                    if (cleanOrderId && !deletedBills.includes(cleanOrderId)) deletedBills.push(cleanOrderId);
+                    localStorage.setItem('clinic_deleted_bills', JSON.stringify(deletedBills));
+                } catch (e) { }
+
+                const filterOutItem = (item) => {
+                    if (!item) return false;
+                    const vId = String(item.latest_visit_id || item.visit_id || item.id || '').trim();
+                    const oId = String(item.order_id || (item.order_data && item.order_data.order_id) || '').trim();
+                    const itemHn = String(item.hn || '').trim();
+
+                    if (visitId && (vId === visitId || vId === cleanOrderId)) return false;
+                    if (cleanOrderId && (oId === cleanOrderId || oId === visitId)) return false;
+                    if (isOrderRecord) {
+                        if (cleanOrderId && (vId.includes(cleanOrderId) || oId.includes(cleanOrderId))) return false;
+                        if (visitId && (vId.includes(visitId) || oId.includes(visitId))) return false;
+                    }
+                    if (hn && hn !== '-' && itemHn === hn) {
+                        if (!item.latest_visit_id || item.latest_visit_id === '-' || item.latest_visit_id === visitId) return false;
+                    }
+                    return true;
+                };
+
+                rawAllOrders = (rawAllOrders || []).filter(filterOutItem);
+                rawMyOrders = (rawMyOrders || []).filter(filterOutItem);
+                allOrdersData = (allOrdersData || []).filter(filterOutItem);
+
+                rawAllPatients = (rawAllPatients || []).filter(filterOutItem);
+                rawMyPatients = (rawMyPatients || []).filter(filterOutItem);
+                allPatientsData = (allPatientsData || []).filter(filterOutItem);
+                filteredPatientsData = (filteredPatientsData || []).filter(filterOutItem);
 
                 try {
                     let cachedVisits = JSON.parse(localStorage.getItem('clinic_visits_queue') || '[]');
@@ -4246,7 +4288,7 @@
 
                 try {
                     let cachedOrders = JSON.parse(localStorage.getItem('stk_nutrient_orders') || '[]');
-                    cachedOrders = cachedOrders.filter(o => (visitId && o.visit_id !== visitId && o.order_id !== visitId));
+                    cachedOrders = cachedOrders.filter(o => (visitId && o.visit_id !== visitId && o.order_id !== visitId && o.order_id !== cleanOrderId));
                     localStorage.setItem('stk_nutrient_orders', JSON.stringify(cachedOrders));
                 } catch (e) { }
 
@@ -4254,14 +4296,16 @@
                     window.parent.postMessage({
                         type: 'DELETE_PATIENT_RECORD',
                         hn: hn,
-                        visitId: visitId
+                        visitId: visitId,
+                        orderId: cleanOrderId
                     }, '*');
                 } catch (e) { }
 
+                // อัปเดตการแสดงผลตารางทันที
                 if (typeof applyFilters === 'function') {
                     applyFilters();
                 } else if (typeof renderHistoryTable === 'function') {
-                    renderHistoryTable(filteredPatientsData, '', 1);
+                    renderHistoryTable(filteredPatientsData, currentHistorySearchQuery || '', historyCurrentPage || 1);
                 }
 
                 Swal.fire({
@@ -4722,10 +4766,40 @@
 
             if (event.data && event.data.type === 'PATIENTS_DATA') {
                 const wasManualRefresh = isRefreshing;
-                rawAllPatients = event.data.allPatients || event.data.patients || [];
-                rawMyPatients = event.data.myPatients || [];
-                rawAllOrders = event.data.allOrders || event.data.orders || [];
-                rawMyOrders = event.data.myOrders || [];
+
+                // กรองรายการที่อยู่ใน Blacklist (ที่ถูกลบไปแล้ว) ออกจากทุกชุดข้อมูลเสมอ
+                let deletedIdsSet = new Set();
+                try {
+                    const db = JSON.parse(localStorage.getItem('clinic_deleted_bills') || '[]');
+                    const dn = JSON.parse(localStorage.getItem('stk_deleted_nutrient_orders') || '[]');
+                    [...db, ...dn].forEach(id => {
+                        if (id) {
+                            const s = String(id).trim().toUpperCase();
+                            deletedIdsSet.add(s);
+                            const num = s.replace(/\D/g, '');
+                            if (num) {
+                                deletedIdsSet.add(num);
+                                deletedIdsSet.add('VIS-' + num);
+                                deletedIdsSet.add('ORD-' + num);
+                                deletedIdsSet.add('VIS-ORD-' + num);
+                            }
+                        }
+                    });
+                } catch (e) {}
+
+                const notDeletedFilter = (item) => {
+                    if (!item) return false;
+                    const vId = String(item.latest_visit_id || item.visit_id || item.id || '').trim().toUpperCase();
+                    const oId = String(item.order_id || (item.order_data && item.order_data.order_id) || '').trim().toUpperCase();
+                    if (vId && deletedIdsSet.has(vId)) return false;
+                    if (oId && deletedIdsSet.has(oId)) return false;
+                    return true;
+                };
+
+                rawAllPatients = (event.data.allPatients || event.data.patients || []).filter(notDeletedFilter);
+                rawMyPatients = (event.data.myPatients || []).filter(notDeletedFilter);
+                rawAllOrders = (event.data.allOrders || event.data.orders || []).filter(notDeletedFilter);
+                rawMyOrders = (event.data.myOrders || []).filter(notDeletedFilter);
                 // ตรวจสอบสิทธิ์ Admin จากทั้ง event และ helper function
                 isCurrentUserAdmin = (typeof event.data.isAdmin !== 'undefined') ? !!event.data.isAdmin : checkIsAdmin();
 
