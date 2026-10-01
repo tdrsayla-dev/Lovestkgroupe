@@ -24,6 +24,23 @@
     'Prefer': 'return=representation'
   };
 
+  // 1.1 Clinic Database Config (Supabase คลินิกภายนอก)
+  const CLINIC_CONFIG = {
+    SUPABASE_URL: 'https://fpmstumpobbjozflkola.supabase.co',
+    SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwbXN0dW1wb2Jiam96Zmxrb2xhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5MDE0NDcsImV4cCI6MjA5OTQ3NzQ0N30.qTn4UHISBY9A5fX83ANk0mu3JSgK42ByLZ9xPh2TEvM'
+  };
+
+  window.CLINIC_CONFIG = CLINIC_CONFIG;
+  window.CLINIC_SUPABASE_URL = CLINIC_CONFIG.SUPABASE_URL;
+  window.CLINIC_SUPABASE_ANON_KEY = CLINIC_CONFIG.SUPABASE_ANON_KEY;
+  window.CLINIC_SUPABASE_REST_URL = CLINIC_CONFIG.SUPABASE_URL + '/rest/v1';
+  window.CLINIC_SUPABASE_HEADERS = {
+    'Content-Type': 'application/json',
+    'apikey': CLINIC_CONFIG.SUPABASE_ANON_KEY,
+    'Authorization': 'Bearer ' + CLINIC_CONFIG.SUPABASE_ANON_KEY,
+    'Prefer': 'return=representation'
+  };
+
   // 2. Initialise Supabase Client SDK (ถ้ามี Library supabase โหลดเข้ามา)
   if (typeof supabase !== 'undefined' && (!window.supabaseClient || typeof window.supabaseClient.from !== 'function')) {
     try {
@@ -45,9 +62,11 @@
     'stk_system_settings': 5 * 60 * 1000,  // ตั้งค่าระบบ 5 นาที
     'stk_members': 3 * 60 * 1000,          // รายชื่อสมาชิก 3 นาที
     'stk_sales': 45 * 1000,                // ยอดขาย 45 วินาที
+    'stk_nutrient_orders': 30 * 1000,      // ออเดอร์สั่งจ่ายยา 30 วินาที
     'stk_customers': 60 * 1000,            // ข้อมูลลูกค้า 1 นาที
     'stk_payout_logs': 45 * 1000,          // ล็อกการจ่ายคอมมิชชั่น 45 วินาที
     'stk_campaigns': 2 * 60 * 1000,        // แคมเปญแข่งขัน 2 นาที
+    'stk_campaign_results': 60 * 1000,     // ผลแคมเปญ 1 นาที
     'stk_b2b_price_tiers': 3 * 60 * 1000,  // เรทราคาส่ง B2B 3 นาที
     'stk_b2b_orders': 45 * 1000            // ออเดอร์ขายส่ง B2B 45 วินาที
   };
@@ -56,7 +75,7 @@
   // stk_customers: ตัด extra_details_json ออก เพราะเป็น JSON ขนาดใหญ่ที่ไม่ได้ใช้แสดงผลในตาราง ลด Egress ได้มาก
   const DEFAULT_TABLE_SELECT = {
     'stk_members': 'user_id,username,name,business_team,permission_role,status,id_card_url,sponsor_id,phone_number,email,address,line_id,line_uid,bank_name,bank_account_no,bank_account_name,bank_account_status,accumulated_pv,created_at',
-    'stk_products': 'product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,barcode,is_bundle,base_product,bundle_qty',
+    'stk_products': 'product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,barcode,is_bundle,base_product,bundle_qty,image_url',
     'stk_customers': 'customer_id,name,phone,line_id,customer_type,symptom_disease,closer_id,owner_member_id,created_at'
   };
 
@@ -107,6 +126,38 @@
       }
       const data = await res.json();
 
+      if (ttl > 0) {
+        queryCache.set(cacheKey, { timestamp: Date.now(), data: data });
+      }
+      return data;
+    };
+  }
+
+  // 4.1 Clinic Supabase SELECT Helper (with Smart Caching)
+  if (typeof window.clinicSupabaseSelect !== 'function') {
+    window.clinicSupabaseSelect = async function (table, query) {
+      const isNoCache = query && (query.includes('nocache=true') || query.includes('nocache=1'));
+      let cleanQuery = query ? query.replace(/[?&]?nocache=[^&]+&?/g, '&').replace(/[?&]?_t=[^&]+&?/g, '&').replace(/^[?&]+/, '').replace(/&$/, '') : '';
+      const cacheKey = 'clinic_' + table + (cleanQuery ? '?' + cleanQuery : '');
+      const ttl = 60 * 1000; // 1 นาที
+
+      if (!isNoCache && ttl > 0 && queryCache.has(cacheKey)) {
+        const cached = queryCache.get(cacheKey);
+        if (Date.now() - cached.timestamp < ttl) {
+          return JSON.parse(JSON.stringify(cached.data));
+        }
+      }
+
+      const url = window.CLINIC_SUPABASE_REST_URL + '/' + table + (cleanQuery ? '?' + cleanQuery : '');
+      const fetchHeaders = isNoCache
+        ? Object.assign({}, window.CLINIC_SUPABASE_HEADERS, { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' })
+        : window.CLINIC_SUPABASE_HEADERS;
+      const res = await fetch(url, { method: 'GET', headers: fetchHeaders, cache: isNoCache ? 'no-store' : 'default' });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error('CLINIC SELECT ' + table + ': ' + res.status + ' ' + t);
+      }
+      const data = await res.json();
       if (ttl > 0) {
         queryCache.set(cacheKey, { timestamp: Date.now(), data: data });
       }
@@ -180,18 +231,56 @@
   }
 
   // ================================================================
-  // 4. ระบบ Session Inactivity Timeout (ระบบล็อกเอาต์อัตโนมัติเมื่อไม่มีการใช้งาน 60 นาที)
-  // ป้องกันการเปิดแท็บทิ้งไว้กิน Data Egress และรักษาความปลอดภัยของระบบ
+  // 4. ระบบ Session Inactivity & Cross-Day Auto-Logout
+  // ล็อกเอาต์อัตโนมัติเมื่อ: 
+  //   1) ไม่มีการใช้งานเกิน 60 นาที
+  //   2) ข้ามวัน (Midnight / เข้าสู่วันใหม่)
+  // เพื่อป้องกันการเปิดแท็บทิ้งไว้กิน Data Egress และรักษาความปลอดภัยของระบบ
   // ================================================================
   (function initSessionInactivityManager() {
     const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000; // 60 นาที (3,600,000 มิลลิวินาที)
     const WARNING_BEFORE_TIMEOUT_MS = 2 * 60 * 1000; // แจ้งเตือนล่วงหน้า 2 นาที (120,000 มิลลิวินาที)
     const ACTIVITY_STORAGE_KEY = 'stk_last_activity';
+    const ACTIVITY_DATE_KEY = 'stk_last_activity_date';
     const LOGOUT_REASON_KEY = 'stk_logout_reason';
     const BROADCAST_KEY = 'stk_broadcast_session_event';
 
     let lastRecordedTime = 0;
     let warningBannerEl = null;
+
+    function getLocalDateStr() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    // 0) ตรวจสอบทันที ณ วินาทีแรกที่โหลดไฟล์สคริปต์ (Synchronous Boot Check)
+    // หากพบว่าข้ามวัน หรือหมดเวลา 60 นาที ให้ล้างข้อมูลผู้ใช้ทันทีก่อนที่ React จะเริ่มทำงาน
+    try {
+      const existingUser = localStorage.getItem('stk_current_user');
+      if (existingUser) {
+        const now = Date.now();
+        const todayStr = getLocalDateStr();
+        const lastDate = localStorage.getItem(ACTIVITY_DATE_KEY);
+        const lastActivity = Number(localStorage.getItem(ACTIVITY_STORAGE_KEY) || 0);
+
+        const isCrossDay = lastDate && lastDate !== todayStr;
+        const isTimedOut = lastActivity > 0 && (now - lastActivity >= INACTIVITY_TIMEOUT_MS);
+
+        if (isCrossDay || isTimedOut) {
+          localStorage.removeItem('stk_current_user');
+          localStorage.removeItem(ACTIVITY_STORAGE_KEY);
+          localStorage.removeItem(ACTIVITY_DATE_KEY);
+          sessionStorage.setItem(LOGOUT_REASON_KEY, isCrossDay ? 'cross_day' : 'inactivity_60m');
+          if (typeof window.clearDbCache === 'function') window.clearDbCache();
+        } else {
+          // เซสชันยังใช้งานได้ปกติ ให้บันทึกเวลาและวันปัจจุบัน
+          localStorage.setItem(ACTIVITY_STORAGE_KEY, String(now));
+          localStorage.setItem(ACTIVITY_DATE_KEY, todayStr);
+        }
+      }
+    } catch (e) {
+      console.warn('Session boot check error:', e);
+    }
 
     // 1) ดักจับความเคลื่อนไหวของผู้ใช้ (User Activity) แบบ Throttled
     function recordActivity() {
@@ -200,7 +289,17 @@
         lastRecordedTime = now;
         try {
           if (localStorage.getItem('stk_current_user')) {
+            const todayStr = getLocalDateStr();
+            const lastDate = localStorage.getItem(ACTIVITY_DATE_KEY);
+
+            // ถ้าพบว่าใช้งานต่อเนื่องจนข้ามเที่ยงคืนเข้าสู่วันใหม่
+            if (lastDate && lastDate !== todayStr) {
+              performAutoLogout('cross_day');
+              return;
+            }
+
             localStorage.setItem(ACTIVITY_STORAGE_KEY, String(now));
+            localStorage.setItem(ACTIVITY_DATE_KEY, todayStr);
           }
         } catch (e) {}
       }
@@ -261,17 +360,33 @@
       }
     }
 
-    // 3) ตัวสั่งการ Logout เมื่อหมดเวลา 60 นาที
-    function performAutoLogout() {
+    // 3) ตัวสั่งการ Logout เมื่อหมดเวลา 60 นาที หรือข้ามวัน
+    function performAutoLogout(reason = 'inactivity_60m') {
       hideInactivityWarning();
       try {
         localStorage.removeItem('stk_current_user');
-        sessionStorage.setItem(LOGOUT_REASON_KEY, 'inactivity_60m');
-        localStorage.setItem(BROADCAST_KEY, JSON.stringify({ action: 'logout', reason: 'inactivity_60m', time: Date.now() }));
+        localStorage.removeItem(ACTIVITY_STORAGE_KEY);
+        localStorage.removeItem(ACTIVITY_DATE_KEY);
+        sessionStorage.setItem(LOGOUT_REASON_KEY, reason);
+        localStorage.setItem(BROADCAST_KEY, JSON.stringify({ action: 'logout', reason: reason, time: Date.now() }));
       } catch (e) {}
 
-      // สร้าง Custom Popup แทน alert() พื้นฐาน
+      if (typeof window.clearDbCache === 'function') {
+        window.clearDbCache();
+      }
+
+      // ถ้ามีหน้าต่างเดิมอยู่แล้ว ไม่ต้องสร้างซ้ำ
+      if (document.getElementById('stk-timeout-overlay')) return;
+
+      const isCrossDay = reason === 'cross_day';
+      const icon = isCrossDay ? '🌅' : '⏳';
+      const title = isCrossDay ? 'ขึ้นวันใหม่ (ระบบรีเซ็ตเซสชัน)' : 'หมดเวลาการใช้งาน';
+      const msg = isCrossDay
+        ? 'เข้าสู่วันใหม่เรียบร้อยแล้ว<br>ระบบได้ออกจากระบบอัตโนมัติ<br>กรุณาเข้าสู่ระบบใหม่เพื่อความถูกต้องของข้อมูล'
+        : 'ท่านไม่มีการใช้งานระบบเกิน 60 นาที<br>ระบบได้ออกจากระบบอัตโนมัติ<br>เพื่อความปลอดภัยของข้อมูล';
+
       const overlay = document.createElement('div');
+      overlay.id = 'stk-timeout-overlay';
       overlay.style.cssText = 'position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(6px); z-index: 9999999; display: flex; align-items: center; justify-content: center; padding: 20px; animation: stkFadeIn 0.3s ease-out;';
       
       const popup = document.createElement('div');
@@ -279,30 +394,31 @@
       
       popup.innerHTML = `
         <style>@keyframes popIn { to { transform: scale(1); } }</style>
-        <div style="width: 72px; height: 72px; background: #fff1f2; color: #f43f5e; border-radius: 24px; display: flex; align-items: center; justify-content: center; font-size: 36px; margin: 0 auto 20px auto; box-shadow: inset 0 0 0 2px #ffe4e6;">⏳</div>
-        <h3 style="font-size: 22px; font-weight: 900; color: #0f172a; margin: 0 0 12px 0; font-family: sans-serif; letter-spacing: -0.5px;">หมดเวลาการใช้งาน</h3>
-        <p style="font-size: 14px; color: #64748b; margin: 0 0 28px 0; line-height: 1.6; font-weight: 500; font-family: sans-serif;">ท่านไม่มีการใช้งานระบบเกิน 60 นาที<br>ระบบได้ออกจากระบบอัตโนมัติ<br>เพื่อความปลอดภัยของข้อมูล</p>
+        <div style="width: 72px; height: 72px; background: #fff1f2; color: #f43f5e; border-radius: 24px; display: flex; align-items: center; justify-content: center; font-size: 36px; margin: 0 auto 20px auto; box-shadow: inset 0 0 0 2px #ffe4e6;">${icon}</div>
+        <h3 style="font-size: 22px; font-weight: 900; color: #0f172a; margin: 0 0 12px 0; font-family: sans-serif; letter-spacing: -0.5px;">${title}</h3>
+        <p style="font-size: 14px; color: #64748b; margin: 0 0 28px 0; line-height: 1.6; font-weight: 500; font-family: sans-serif;">${msg}</p>
         <button id="stk-timeout-btn" style="width: 100%; padding: 14px; background: #2563eb; color: white; border: none; border-radius: 14px; font-size: 15px; font-weight: 800; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);">เข้าสู่ระบบใหม่</button>
       `;
 
       overlay.appendChild(popup);
       document.body.appendChild(overlay);
 
-      // เมื่อกดปุ่มค่อยทำการรีเฟรชหน้าเว็บ
-      document.getElementById('stk-timeout-btn').addEventListener('click', () => {
-         try {
+      const doReload = () => {
+        try {
           if (window.top && window.top.location && window.top !== window) {
             window.top.location.reload();
             return;
           }
         } catch (e) {}
         window.location.reload();
-      });
+      };
 
-      // ดักจับการนำเมาส์ไปชี้ปุ่มให้มีเอฟเฟกต์
       const btn = document.getElementById('stk-timeout-btn');
-      btn.onmouseover = () => btn.style.backgroundColor = '#1d4ed8';
-      btn.onmouseout = () => btn.style.backgroundColor = '#2563eb';
+      if (btn) {
+        btn.addEventListener('click', doReload);
+        btn.onmouseover = () => btn.style.backgroundColor = '#1d4ed8';
+        btn.onmouseout = () => btn.style.backgroundColor = '#2563eb';
+      }
     }
 
     // 4) Watchdog Timer ตรวจสอบสถานะทุก 10 วินาที
@@ -315,17 +431,27 @@
         }
 
         const now = Date.now();
-        let lastActivity = Number(localStorage.getItem(ACTIVITY_STORAGE_KEY) || 0);
+        const todayStr = getLocalDateStr();
+        const lastDate = localStorage.getItem(ACTIVITY_DATE_KEY);
+        const lastActivity = Number(localStorage.getItem(ACTIVITY_STORAGE_KEY) || 0);
+
+        // เช็คเงื่อนไขข้ามวัน
+        if (lastDate && lastDate !== todayStr) {
+          performAutoLogout('cross_day');
+          return;
+        }
+
         if (!lastActivity || isNaN(lastActivity)) {
-          lastActivity = now;
           localStorage.setItem(ACTIVITY_STORAGE_KEY, String(now));
+          localStorage.setItem(ACTIVITY_DATE_KEY, todayStr);
+          return;
         }
 
         const inactiveDuration = now - lastActivity;
 
         // ถ้าไม่มีการใช้งานเกิน 60 นาที -> Logout อัตโนมัติทันที
         if (inactiveDuration >= INACTIVITY_TIMEOUT_MS) {
-          performAutoLogout();
+          performAutoLogout('inactivity_60m');
           return;
         }
 
@@ -339,11 +465,30 @@
       } catch (e) {}
     }, 10000);
 
-    // 5) ซิงค์ข้ามแท็บ (Cross-Tab Sync): เมื่อแท็บใดแท็บหนึ่งออกจากระบบ ทุกแท็บจะออกจากระบบทันที
+    // 5) ตรวจสอบทันทีเมื่อกลับมาที่แท็บ (เช่น เครื่องตื่นจาก Sleep หรือคลิกกลับมาดูแท็บ)
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        try {
+          const userStr = localStorage.getItem('stk_current_user');
+          if (!userStr) return;
+
+          const now = Date.now();
+          const todayStr = getLocalDateStr();
+          const lastDate = localStorage.getItem(ACTIVITY_DATE_KEY);
+          const lastActivity = Number(localStorage.getItem(ACTIVITY_STORAGE_KEY) || 0);
+
+          if ((lastDate && lastDate !== todayStr) || (lastActivity > 0 && now - lastActivity >= INACTIVITY_TIMEOUT_MS)) {
+            performAutoLogout(lastDate && lastDate !== todayStr ? 'cross_day' : 'inactivity_60m');
+          }
+        } catch (e) {}
+      }
+    });
+
+    // 6) ซิงค์ข้ามแท็บ (Cross-Tab Sync): เมื่อแท็บใดแท็บหนึ่งออกจากระบบ ทุกแท็บจะออกจากระบบทันที
     window.addEventListener('storage', (e) => {
       if (e.key === BROADCAST_KEY || (e.key === 'stk_current_user' && !e.newValue)) {
-        if (sessionStorage.getItem(LOGOUT_REASON_KEY) !== 'inactivity_60m') {
-          sessionStorage.setItem(LOGOUT_REASON_KEY, 'inactivity_60m');
+        if (!sessionStorage.getItem(LOGOUT_REASON_KEY)) {
+          sessionStorage.setItem(LOGOUT_REASON_KEY, 'synced_logout');
         }
         try {
           if (window.top && window.top.location && window.top !== window) {
@@ -355,11 +500,13 @@
       }
     });
 
-    // 6) ฟังก์ชันรีเซ็ตเวลาสำหรับเรียกใช้ภายนอก (เช่น เมื่อเพิ่งกดเข้าสู่ระบบสำเร็จ)
+    // 7) ฟังก์ชันรีเซ็ตเวลาสำหรับเรียกใช้ภายนอก (เช่น เมื่อเพิ่งกดเข้าสู่ระบบสำเร็จ)
     window.resetSessionInactivityTimer = function () {
       try {
         const now = Date.now();
+        const todayStr = getLocalDateStr();
         localStorage.setItem(ACTIVITY_STORAGE_KEY, String(now));
+        localStorage.setItem(ACTIVITY_DATE_KEY, todayStr);
         hideInactivityWarning();
       } catch (e) {}
     };

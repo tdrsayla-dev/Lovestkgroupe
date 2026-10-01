@@ -652,6 +652,7 @@
 
         const query = String(debouncedSearchQuery || '').trim().toUpperCase();
 
+        const campaignResultsMap = (typeof window !== 'undefined' && window.__stkCampaignResultsMap) || {};
         return Object.values(memberMap)
             .filter(m => {
                 if (m.selfBoxes > 0 || m.teamBoxes > 0 || m.selfEarn > 0 || m.totalPaid > 0) return true;
@@ -659,11 +660,21 @@
                 return false;
             })
             .map(m => {
+                const mId = safeUpper(m.id);
+                const campInfo = campaignResultsMap[mId] || null;
+                const promoDeductBoxes = (campInfo && !campInfo.isNoDeduct) ? Number(campInfo.quotaBoxes || 0) : 0;
+                const promoDeductReferral = (campInfo && !campInfo.isNoDeduct) ? Number(campInfo.referralDeducted || (promoDeductBoxes * 150000)) : 0;
+
+                m.promoDeductBoxes = promoDeductBoxes;
+                m.promoDeductReferral = promoDeductReferral;
+                m.netSelfBoxes = Math.max(0, (m.selfBoxes || 0) - promoDeductBoxes);
+
                 let sumAll = m.selfEarn;
                 for (let l = 1; l <= 10; l++) sumAll += (m[`level${l}Earn`] || 0);
                 m.grandTotal = sumAll;
+                m.netGrandTotal = Math.max(0, sumAll - promoDeductReferral);
                 m.totalPaid = m.totalPaid || 0;
-                m.remainingToPay = Math.max(0, m.grandTotal - m.totalPaid);
+                m.remainingToPay = Math.max(0, m.netGrandTotal - m.totalPaid);
                 m.payoutStatus = m.grandTotal === 0 ? '-' : (m.remainingToPay <= 0 ? 'จ่ายปันผลแล้ว' : (m.totalPaid > 0 ? 'บางส่วน' : 'รอปันผล'));
                 return m;
             })
@@ -854,45 +865,113 @@
 
         const query = String(debouncedSearchQuery || '').trim().toUpperCase();
 
-        return Object.values(dailyMap)
-            .map(item => {
-                const mId = safeUpper(item.memberId);
-                let matchedPaidAmount = 0;
-                let lastPaidAt = null;
-                let lastPaidBy = null;
+        // ⚡ เรียงลำดับรายการรายวันตามวันที่ (จากอดีตไปปัจจุบัน) เพื่อใช้ Roll-forward Deduction
+        // ─── กฎธุรกิจ Roll-forward Deduction ───────────────────────────────────────────────
+        // ถ้าวันที่ 1-3 จ่ายปันผลรายวันออกไปแล้ว (iBank โอนเงินสำเร็จ) ก่อนที่สมาชิกจะผ่านเกณฑ์ตรวจคลินิก
+        // → เงินที่โอนออกไปแล้วถือว่า "จบ" ไม่สามารถหักย้อนหลังได้อัตโนมัติ
+        // → กล่องของวัน PAID จะไม่นับเข้าตัวนับโควต้า (ไม่ consume quota)
+        // → โควต้า 5 กล่อง จะหักเฉพาะวัน PENDING เท่านั้น ตั้งแต่วันที่ผ่านเกณฑ์เป็นต้นไป
+        // → ถ้ายอดรายวัน PENDING ไม่พอหักโควต้าครบ → แสดง pendingDeductCarryOver ให้แอดมินทราบ
+        // ────────────────────────────────────────────────────────────────────────────────────
+        const dailyItems = Object.values(dailyMap).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
-                payouts.forEach(p => {
-                    if (p.memberId === mId) {
-                        let matches = false;
-                        if (p.id === item.key) {
-                            matches = true;
-                        } else {
-                            // ตรวจสอบว่าช่วงวันที่ของรายการจ่ายปันผล p ครอบคลุมวันที่ของ item.date รายวันนี้จริงหรือไม่
-                            const pStart = normalizeDateStr(p.startDate || p.start_date || p.date, false);
-                            const pEnd = normalizeDateStr(p.endDate || p.end_date || p.date, true);
-                            if (pStart && pEnd && item.date) {
-                                if (item.date >= pStart && item.date <= pEnd) {
-                                    matches = true;
-                                }
-                            }
-                        }
-                        if (matches) {
-                            matchedPaidAmount += p.amount;
-                            if (p.paidAt && (!lastPaidAt || p.paidAt > lastPaidAt)) {
-                                lastPaidAt = p.paidAt;
-                                lastPaidBy = p.paidBy;
+        // Pass 1: คำนวณ matchedPaidAmount ก่อน (ต้องรู้ว่าวันไหนโอนเงินออกไปแล้ว ก่อนคำนวณ quota)
+        const prePaidMap = {};
+        dailyItems.forEach(item => {
+            const mId = safeUpper(item.memberId);
+            let matchedPaidAmount = 0;
+            let lastPaidAt = null;
+            let lastPaidBy = null;
+            payouts.forEach(p => {
+                if (p.memberId === mId) {
+                    let matches = false;
+                    if (p.id === item.key) {
+                        matches = true;
+                    } else {
+                        const pStart = normalizeDateStr(p.startDate || p.start_date || p.date, false);
+                        const pEnd = normalizeDateStr(p.endDate || p.end_date || p.date, true);
+                        if (pStart && pEnd && item.date) {
+                            if (item.date >= pStart && item.date <= pEnd) {
+                                matches = true;
                             }
                         }
                     }
-                });
+                    if (matches) {
+                        matchedPaidAmount += p.amount;
+                        if (p.paidAt && (!lastPaidAt || p.paidAt > lastPaidAt)) {
+                            lastPaidAt = p.paidAt;
+                            lastPaidBy = p.paidBy;
+                        }
+                    }
+                }
+            });
+            prePaidMap[item.key] = { matchedPaidAmount, lastPaidAt, lastPaidBy };
+        });
 
-                const isPaid = (matchedPaidAmount >= item.totalEarn && item.totalEarn > 0) || matchedPaidAmount > 0;
+        // Pass 2: Roll-forward quota deduction — เฉพาะ PENDING เท่านั้น
+        const memberDeductedBoxesTracker = {};
+        const memberDeductedAmountTracker = {};
+
+        return dailyItems
+            .map(item => {
+                const mId = safeUpper(item.memberId);
+                const { matchedPaidAmount, lastPaidAt, lastPaidBy } = prePaidMap[item.key] || {};
+
+                const campInfo = ((typeof window !== 'undefined' && window.__stkCampaignResultsMap) || {})[mId] || null;
+                const isQualified = !!(campInfo && campInfo.isQualified && !campInfo.isNoDeduct);
+                const maxQuotaBoxes = isQualified ? Number(campInfo.quotaBoxes || 0) : 0;
+                const maxDeductAmount = isQualified ? Number(campInfo.referralDeducted || (maxQuotaBoxes * 150000)) : 0;
+
+                const alreadyDeductedBoxes = memberDeductedBoxesTracker[mId] || 0;
+                const alreadyDeductedAmount = memberDeductedAmountTracker[mId] || 0;
+
+                // ── Roll-forward Core Logic ──────────────────────────────────────────────────
+                // ตรวจสอบว่าวันนี้ได้โอนเงินออกไปแล้วหรือไม่ (เงินโอน = matchedPaidAmount ≥ gross totalEarn ของวันนั้น)
+                // ถ้าโอนแล้ว → ไม่ consume quota (กล่องวันนี้ไม่นับเข้าโควต้า)
+                // ถ้ายังไม่โอน (PENDING) → consume quota ตามจำนวนกล่องที่ขาย
+                const grossEarn = item.totalEarn || 0;
+                const isDayAlreadyPaid = (matchedPaidAmount || 0) >= grossEarn && grossEarn > 0;
+
+                let promoDeductBoxes = 0;
+                let promoDeductAmount = 0;
+
+                if (isQualified && !isDayAlreadyPaid) {
+                    // วัน PENDING: หักโควต้าตามปกติ
+                    const remainingQuotaToDeduct = Math.max(0, maxQuotaBoxes - alreadyDeductedBoxes);
+                    promoDeductBoxes = Math.min(item.boxes || 0, remainingQuotaToDeduct);
+
+                    const remainingAmountToDeduct = Math.max(0, maxDeductAmount - alreadyDeductedAmount);
+                    if (promoDeductBoxes > 0 && maxQuotaBoxes > 0) {
+                        const feePerBox = Math.round(maxDeductAmount / maxQuotaBoxes);
+                        promoDeductAmount = Math.min(grossEarn, Math.min(remainingAmountToDeduct, promoDeductBoxes * feePerBox));
+                    }
+
+                    // อัปเดต tracker เฉพาะวัน PENDING เท่านั้น
+                    memberDeductedBoxesTracker[mId] = alreadyDeductedBoxes + promoDeductBoxes;
+                    memberDeductedAmountTracker[mId] = alreadyDeductedAmount + promoDeductAmount;
+                }
+                // วัน PAID: ไม่ต้องหัก ไม่อัปเดต tracker (Roll-forward ข้ามไป)
+                // ─────────────────────────────────────────────────────────────────────────────
+
+                const netBoxes = Math.max(0, (item.boxes || 0) - promoDeductBoxes);
+                const netEarn = Math.max(0, grossEarn - promoDeductAmount);
+
+                // คำนวณโควต้าที่ยังค้างหักอยู่ (กรณีวันนี้กล่องไม่พอหัก หรือผ่านเกณฑ์แต่ทุกวันก่อนหน้า PAID หมดแล้ว)
+                const totalDeductedAfterThisDay = (memberDeductedBoxesTracker[mId] || 0);
+                const pendingDeductCarryOver = isQualified ? Math.max(0, maxQuotaBoxes - totalDeductedAfterThisDay) : 0;
+
+                const isPaid = isDayAlreadyPaid || (matchedPaidAmount > 0 && matchedPaidAmount >= netEarn && netEarn > 0);
                 return {
                     ...item,
+                    promoDeductBoxes,
+                    promoDeductAmount,
+                    netBoxes,
+                    netEarn,
+                    pendingDeductCarryOver,  // จำนวนกล่องโปรที่ยังค้างหักอยู่ (แสดงเตือนแอดมิน)
                     status: isPaid ? 'PAID' : 'PENDING',
                     paidAt: lastPaidAt || null,
                     paidBy: lastPaidBy || null,
-                    paidAmount: matchedPaidAmount
+                    paidAmount: matchedPaidAmount || 0
                 };
             })
             .filter(item => {
@@ -1085,12 +1164,19 @@
                 }
             });
 
+            const campInfo = ((typeof window !== 'undefined' && window.__stkCampaignResultsMap) || {})[mId] || null;
+            const isQualified = !!(campInfo && campInfo.isQualified && !campInfo.isNoDeduct);
+            const promoDeductBoxes = isQualified ? Math.min(Number(r.selfBoxes || 0), Number(campInfo.quotaBoxes || 0)) : 0;
+            const netSelfBoxes = Math.max(0, (r.selfBoxes || 0) - promoDeductBoxes);
+            const promoDeductAmount = isQualified ? Number(campInfo.commissionDeducted || (promoDeductBoxes * 100000)) : 0;
+
             const selfEarn = Number(r.selfEarn || 0);
-            const remainingSelf = Math.max(0, selfEarn - paidSelf);
-            const isPaid = (selfEarn > 0 && remainingSelf <= 0) || (selfEarn === 0 && paidSelf > 0);
+            const netSelfEarn = Math.max(0, selfEarn - promoDeductAmount);
+            const remainingSelf = Math.max(0, netSelfEarn - paidSelf);
+            const isPaid = (netSelfEarn > 0 && remainingSelf <= 0) || (netSelfEarn === 0 && paidSelf > 0);
             const isPartial = paidSelf > 0 && remainingSelf > 0;
-            const status = selfEarn === 0 ? '-' : (isPaid ? 'PAID' : (isPartial ? 'PARTIAL' : 'PENDING'));
-            const statusLabel = selfEarn === 0 ? '-' : (isPaid ? 'จ่ายปันผลแล้ว' : (isPartial ? 'บางส่วน' : 'รอปันผล'));
+            const status = netSelfEarn === 0 ? '-' : (isPaid ? 'PAID' : (isPartial ? 'PARTIAL' : 'PENDING'));
+            const statusLabel = netSelfEarn === 0 ? '-' : (isPaid ? 'จ่ายปันผลแล้ว' : (isPartial ? 'บางส่วน' : 'รอปันผล'));
 
             const lastPaid = paidLogs.length > 0 ? paidLogs[paidLogs.length - 1] : null;
 
@@ -1100,7 +1186,11 @@
                 memberName: r.name,
                 team: r.team,
                 selfBoxes: r.selfBoxes || 0,
+                promoDeductBoxes: promoDeductBoxes,
+                netSelfBoxes: netSelfBoxes,
                 selfEarn: selfEarn,
+                promoDeductAmount: promoDeductAmount,
+                netSelfEarn: netSelfEarn,
                 paidSelf: paidSelf,
                 remainingSelf: remainingSelf,
                 status: status,
@@ -1114,12 +1204,64 @@
 
     /**
      * 9. คำนวณสรุปปันผลสายงานรอบเดือน (Monthly Team/Downline Commission)
+     *
+     * ─── กฎธุรกิจ: Multi-Downline Qualification Deduction ────────────────────────────
+     * การตัดโปรโมชั่นในปันผลสายงานต้องสะท้อนยอดรวมจากลูกทีมทุกคนที่ผ่านเกณฑ์
+     * - แม่ทีมมีลูกทีม 10 คน → ผ่านเกณฑ์ 9 คน → หัก 9 × 5 = 45 กล่อง
+     * - แม่ทีมมีลูกทีม 10 คน → ผ่านเกณฑ์ทั้งหมด → หัก 10 × 5 = 50 กล่อง
+     * ไม่ใช่ดูแค่แม่ทีมตัวเองผ่านเกณฑ์หรือไม่ (นั่นคือเงื่อนไขของปันผลขายเอง)
+     * ────────────────────────────────────────────────────────────────────────────────
      */
     function calculateReferralMonthlyTeamData(args) {
         const reportData = calculateReferralReportData(args);
         const payouts = extractNormalizedPayouts(args.payoutLogs, args.paidRecords);
         const startDate = args.startDate;
         const endDate = args.endDate;
+        const members = args.members || [];
+        const systemSettings = args.systemSettings || {};
+
+        const campaignResultsMap = (typeof window !== 'undefined' && window.__stkCampaignResultsMap) || {};
+        const maxCommLevels = Math.max(2, Number(systemSettings?.commission_levels ?? 6));
+        const maxDownlines = Math.max(1, maxCommLevels - 1);
+
+        // ⚡ Build upline lookup: memberId → uplineId (จากข้อมูล referrer/sponsor ใน members)
+        const memberUplineLookup = new Map();
+        (members || []).forEach(m => {
+            if (!m || !m.id) return;
+            const uplineId = m.referrer || m.sponsor_id || m.sponsorId || m.Sponsor_ID || m.upline || m.uplineId || null;
+            memberUplineLookup.set(safeUpper(m.id), uplineId ? safeUpper(uplineId) : null);
+        });
+
+        // ⚡ Build downline lookup: uplineId → Set<downlineId> (inverse index สำหรับ O(1) lookup)
+        const downlinesByUpline = new Map();
+        memberUplineLookup.forEach((uplineId, memberId) => {
+            if (!uplineId) return;
+            if (!downlinesByUpline.has(uplineId)) downlinesByUpline.set(uplineId, new Set());
+            downlinesByUpline.get(uplineId).add(memberId);
+        });
+
+        /**
+         * หาลูกทีมทั้งหมดของ earner ในระยะ maxDownlines ชั้น (BFS)
+         * คืนค่า: { memberId, level } ของลูกทีมที่อยู่ในระยะได้รับคอมมิชชัน
+         */
+        function getDownlineTree(earnerId, maxDepth) {
+            const result = [];
+            const queue = [{ id: earnerId, depth: 0 }];
+            const visited = new Set([earnerId]);
+            while (queue.length > 0) {
+                const { id, depth } = queue.shift();
+                if (depth >= maxDepth) continue;
+                const directDownlines = downlinesByUpline.get(id) || new Set();
+                directDownlines.forEach(dlId => {
+                    if (!visited.has(dlId)) {
+                        visited.add(dlId);
+                        result.push({ memberId: dlId, level: depth + 1 });
+                        queue.push({ id: dlId, depth: depth + 1 });
+                    }
+                });
+            }
+            return result;
+        }
 
         return (reportData || []).map(r => {
             const mId = safeUpper(r.id);
@@ -1137,11 +1279,38 @@
                 }
             });
 
-            const remainingTeam = Math.max(0, teamEarn - paidTeam);
-            const isPaid = (teamEarn > 0 && remainingTeam <= 0) || (teamEarn === 0 && paidTeam > 0);
+            // ── Multi-Downline Qualification Deduction ──────────────────────────────────
+            // วนลูปหาลูกทีมทุกคนในระยะได้รับคอมมิชชัน แล้วรวมโควต้าจากทุกคนที่ผ่านเกณฑ์
+            const downlineTree = getDownlineTree(mId, maxDownlines);
+            let totalPromoDeductBoxes = 0;
+            let totalPromoDeductAmount = 0;
+            let qualifiedDownlineCount = 0;
+            const qualifiedDownlineList = []; // สำหรับ tooltip แสดงรายชื่อ
+
+            downlineTree.forEach(({ memberId: dlId }) => {
+                const dlCampInfo = campaignResultsMap[dlId] || null;
+                if (dlCampInfo && dlCampInfo.isQualified && !dlCampInfo.isNoDeduct) {
+                    qualifiedDownlineCount++;
+                    const dlQuotaBoxes = Number(dlCampInfo.quotaBoxes || 0);
+                    const dlCommDeduct = Number(dlCampInfo.commissionDeducted || (dlQuotaBoxes * 50000));
+                    totalPromoDeductBoxes += dlQuotaBoxes;
+                    totalPromoDeductAmount += dlCommDeduct;
+                    qualifiedDownlineList.push({ memberId: dlId, quotaBoxes: dlQuotaBoxes, deductAmount: dlCommDeduct, campaignTitle: dlCampInfo.campaignTitle || '' });
+                }
+            });
+
+            // จำกัดยอดหักไม่เกินจำนวนกล่องรวมในสายงาน (กรณีสายงานขายน้อยกว่าโควต้า)
+            const promoDeductBoxes = Math.min(totalPromoDeductBoxes, r.teamBoxes || 0);
+            const promoDeductAmount = Math.min(totalPromoDeductAmount, teamEarn);
+            // ────────────────────────────────────────────────────────────────────────────
+
+            const netTeamBoxes = Math.max(0, (r.teamBoxes || 0) - promoDeductBoxes);
+            const netTeamEarn = Math.max(0, teamEarn - promoDeductAmount);
+            const remainingTeam = Math.max(0, netTeamEarn - paidTeam);
+            const isPaid = (netTeamEarn > 0 && remainingTeam <= 0) || (netTeamEarn === 0 && paidTeam > 0);
             const isPartial = paidTeam > 0 && remainingTeam > 0;
-            const status = teamEarn === 0 ? '-' : (isPaid ? 'PAID' : (isPartial ? 'PARTIAL' : 'PENDING'));
-            const statusLabel = teamEarn === 0 ? '-' : (isPaid ? 'จ่ายปันผลแล้ว' : (isPartial ? 'บางส่วน' : 'รอปันผล'));
+            const status = netTeamEarn === 0 ? '-' : (isPaid ? 'PAID' : (isPartial ? 'PARTIAL' : 'PENDING'));
+            const statusLabel = netTeamEarn === 0 ? '-' : (isPaid ? 'จ่ายปันผลแล้ว' : (isPartial ? 'บางส่วน' : 'รอปันผล'));
 
             const lastPaid = paidLogs.length > 0 ? paidLogs[paidLogs.length - 1] : null;
 
@@ -1151,13 +1320,21 @@
                 memberName: r.name,
                 team: r.team,
                 teamBoxes: r.teamBoxes || 0,
+                promoDeductBoxes: promoDeductBoxes,
+                netTeamBoxes: netTeamBoxes,
                 teamEarn: teamEarn,
+                promoDeductAmount: promoDeductAmount,
+                netTeamEarn: netTeamEarn,
                 paidTeam: paidTeam,
                 remainingTeam: remainingTeam,
                 status: status,
                 statusLabel: statusLabel,
                 paidAt: lastPaid ? lastPaid.paidAt : null,
                 paidBy: lastPaid ? lastPaid.paidBy : null,
+                // ข้อมูลเพิ่มเติม: จำนวนลูกทีมที่ผ่านเกณฑ์ และรายละเอียด (สำหรับ tooltip/modal)
+                qualifiedDownlineCount: qualifiedDownlineCount,
+                qualifiedDownlineList: qualifiedDownlineList,
+                totalDownlineCount: downlineTree.length,
                 ...r
             };
         }).filter(item => item.teamBoxes > 0 || item.teamEarn > 0 || item.paidTeam > 0);

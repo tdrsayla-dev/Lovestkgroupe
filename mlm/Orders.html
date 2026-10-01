@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -949,7 +949,12 @@
         const executeDeleteSale = async () => {
             if (!confirmDelete.id) return;
             try {
-                const saleToCancel = dbSalesHistory.find(s => s.id === confirmDelete.id) || sales.find(s => s.id === confirmDelete.id);
+                let saleToCancel = (dbSalesHistory || []).find(s => s && (s.id === confirmDelete.id || s.order_id === confirmDelete.id)) || 
+                                   (sales || []).find(s => s && (s.id === confirmDelete.id || s.order_id === confirmDelete.id));
+                if (!saleToCancel && typeof supabaseSelect === 'function') {
+                    const fetched = await supabaseSelect('stk_sales', `order_id=eq.${encodeURIComponent(confirmDelete.id)}`).catch(() => supabaseSelect('stk_sales', `id=eq.${encodeURIComponent(confirmDelete.id)}`).catch(() => []));
+                    if (Array.isArray(fetched) && fetched.length > 0) saleToCancel = fetched[0];
+                }
                 let itemsList = [];
                 if (saleToCancel) {
                     
@@ -1931,6 +1936,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
         let lastSalesRefreshTime = 0;
         const doSalesRefresh = async (force = false) => {
             if (!localStorage.getItem('stk_current_user')) return; // 🛡️ GUARD: หยุดดึงเมื่อออกจากระบบ
+            if (typeof document !== 'undefined' && document.hidden) return; // 🛡️ GUARD: แท็บซ่อนอยู่ ไม่ดึงข้อมูลให้เปลือง Egress
             const now = Date.now();
             if (!force && now - lastSalesRefreshTime < 25000) {
                 return; // Throttled: ไม่รีเฟรชซ้ำถ้าเพิ่งดึงไปไม่ถึง 25 วินาที
@@ -1997,8 +2003,16 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
 
         // 🟢 ฝังตัวรับสัญญาณแบบ Real-time ให้หน้าจอดึงข้อมูลใหม่ทันที
         const onTabFocus = () => doSalesRefresh(false);
+        const onVisibilityChange = () => {
+            if (typeof document !== 'undefined' && !document.hidden) {
+                if (Date.now() - lastSalesRefreshTime > 25000) {
+                    doSalesRefresh(true);
+                }
+            }
+        };
         window.addEventListener('focus', onTabFocus);
         window.addEventListener('pageshow', onTabFocus);
+        document.addEventListener('visibilitychange', onVisibilityChange);
 
         const handleMessageEvent = (e) => {
             if (e.data === 'refresh_data' || (e.data && e.data.type === 'new_sale_toast')) {
@@ -2095,13 +2109,14 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
 
         const refreshInterval = setInterval(() => {
             doSalesRefresh(true);
-        }, 90000);
+        }, 120000);
 
         return () => {
             clearInterval(refreshInterval);
             clearInterval(fastPollInterval);
             window.removeEventListener('focus', onTabFocus);
             window.removeEventListener('pageshow', onTabFocus);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
             window.removeEventListener('message', handleMessageEvent);
             if (bc) bc.close();
         };

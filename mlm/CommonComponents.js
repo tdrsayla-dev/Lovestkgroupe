@@ -641,6 +641,8 @@
                 targetFile = 'ReportStock.html';
               } else if (matchGroup[1] === 'referral') {
                 targetFile = 'ReportReferral.html';
+              } else if (matchGroup[1] === 'campaign') {
+                targetFile = 'ReportCampaign.html';
               } else {
                 targetFile = `Reports.html?group=${matchGroup[1]}`;
               }
@@ -692,6 +694,9 @@
             }
             if (matchGroup[1] === 'referral') {
               return hasHtmlExt ? 'ReportReferral.html' : 'ReportReferral';
+            }
+            if (matchGroup[1] === 'campaign') {
+              return hasHtmlExt ? 'ReportCampaign.html' : 'ReportCampaign';
             }
             return `${file}?group=${matchGroup[1]}`;
           }
@@ -745,11 +750,12 @@
     const perm = getUserPagePermission(currentUser, 'reports');
     if (perm === 'none') return null;
 
-    const isPageInReports = activeTab === 'reports' || activeTab === 'report_finance' || activeTab === 'report_stock' || activeTab === 'report_referral' ||
+    const isPageInReports = activeTab === 'reports' || activeTab === 'report_finance' || activeTab === 'report_stock' || activeTab === 'report_referral' || activeTab === 'report_campaign' || activeTab === 'campaign' ||
                             (typeof window !== 'undefined' && (
                               window.location.pathname.toLowerCase().includes('reportstock') || 
                               window.location.pathname.toLowerCase().includes('reportfinance') ||
-                              window.location.pathname.toLowerCase().includes('reportreferral')
+                              window.location.pathname.toLowerCase().includes('reportreferral') ||
+                              window.location.pathname.toLowerCase().includes('reportcampaign')
                             ));
     const [isOpen, setIsOpen] = React.useState(isPageInReports);
 
@@ -767,11 +773,13 @@
       if (activeTab === 'report_finance' || activeTab === 'finance') return 'finance';
       if (activeTab === 'report_stock' || activeTab === 'stock') return 'stock';
       if (activeTab === 'report_referral' || activeTab === 'referral') return 'referral';
+      if (activeTab === 'report_campaign' || activeTab === 'campaign') return 'campaign';
       try {
         const path = (window.location.pathname || '').toLowerCase();
         if (path.includes('reportfinance')) return 'finance';
         if (path.includes('reportstock')) return 'stock';
         if (path.includes('reportreferral')) return 'referral';
+        if (path.includes('reportcampaign')) return 'campaign';
         const params = new URLSearchParams(window.location.search);
         return params.get('group') || 'sales';
       } catch(e) { return 'sales'; }
@@ -799,7 +807,8 @@
         React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=sales'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=sales'); }, className: getLinkClass('sales') }, React.createElement(BarChart3, { size: 16, className: "mr-2 shrink-0" }), t('menu_reports_sales', 'ยอดขาย & พนักงาน')),
         React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=finance'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=finance'); }, className: getLinkClass('finance') }, React.createElement(Coins, { size: 16, className: "mr-2 shrink-0" }), t('menu_reports_finance', 'การเงิน & รายรับ')),
         React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=stock'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=stock'); }, className: getLinkClass('stock') }, React.createElement(PackageIcon, { size: 16, className: "mr-2 shrink-0" }), t('menu_reports_stock', 'สต๊อก & สินค้าตัดศูนย์')),
-        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'); }, className: getLinkClass('referral') }, React.createElement(Gift, { size: 16, className: "mr-2 shrink-0" }), t('menu_reports_referral', 'ค่าแนะนำ & ปันผล'))
+        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'); }, className: getLinkClass('referral') }, React.createElement(Gift, { size: 16, className: "mr-2 shrink-0" }), t('menu_reports_referral', 'ค่าแนะนำ & ปันผล')),
+        React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=campaign'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=campaign'); }, className: getLinkClass('campaign') }, React.createElement(Trophy, { size: 16, className: "mr-2 shrink-0" }), t('menu_reports_campaign', 'แคมเปญ & โปรโมชั่น'))
       ) : null
     );
   };
@@ -927,6 +936,7 @@
       let isChecking = false;
       const checkPendingOrders = async () => {
         if (!localStorage.getItem('stk_current_user')) return; // 🛡️ GUARD: หยุดดึงเมื่อออกจากระบบ
+        if (typeof document !== 'undefined' && document.hidden) return; // 🛡️ GUARD: พักการตรวจเมื่อแท็บถูกซ่อน/ย่อหน้าจอ
         if (isChecking) return;
         isChecking = true;
         try {
@@ -967,12 +977,24 @@
         } catch(e) {}
       }
 
+      const handleVisibility = () => {
+        if (typeof document !== 'undefined' && !document.hidden) {
+          checkPendingOrders();
+        }
+      };
+      if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', handleVisibility);
+      }
+
       // ปรับ Polling สำรองจากเดิมทุก 5 วินาที เป็นทุก 60 วินาที เพื่อประหยัด Egress
       const intervalId = setInterval(checkPendingOrders, 60000);
 
       return () => {
         clearInterval(intervalId);
         window.removeEventListener('storage', handleStorageUpdate);
+        if (typeof document !== 'undefined') {
+          document.removeEventListener('visibilitychange', handleVisibility);
+        }
         if (bc) bc.close();
       };
     }, []);
@@ -1237,7 +1259,8 @@
               React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=sales'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=sales'); }, className: "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 transition-all text-left" }, React.createElement(BarChart3, { size: 16, className: "shrink-0" }), t('menu_reports_sales', 'ยอดขาย & พนักงาน')),
               React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=finance'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=finance'); }, className: "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 transition-all text-left" }, React.createElement(Coins, { size: 16, className: "shrink-0" }), t('menu_reports_finance', 'การเงิน & รายรับ')),
               React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=stock'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=stock'); }, className: "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 transition-all text-left" }, React.createElement(PackageIcon, { size: 16, className: "shrink-0" }), t('menu_reports_stock', 'สต๊อก & สินค้าตัดศูนย์')),
-              React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'); }, className: "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 transition-all text-left" }, React.createElement(Gift, { size: 16, className: "shrink-0" }), t('menu_reports_referral', 'ค่าแนะนำ & ปันผล'))
+              React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=referral'); }, className: "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 transition-all text-left" }, React.createElement(Gift, { size: 16, className: "shrink-0" }), t('menu_reports_referral', 'ค่าแนะนำ & ปันผล')),
+              React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=reports&group=campaign'), onClick: (e) => { e.preventDefault(); window.location.href = resolvePageUrl(SCRIPT_URL + '?page=reports&group=campaign'); }, className: "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 transition-all text-left" }, React.createElement(Trophy, { size: 16, className: "shrink-0" }), t('menu_reports_campaign', 'แคมเปญ & โปรโมชั่น'))
             ) : null
           ) : null,
           (isLoggedIn && canSales) ? React.createElement('a', { href: resolvePageUrl(SCRIPT_URL + '?page=sales'), onClick: handleTabClick, title: t('menu_sales', 'การขาย'), className: `flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all ${activePage === 'sales' ? 'text-blue-400' : 'text-slate-500 hover:text-white'}` }, React.createElement(ShoppingCart, { size: 22 }), React.createElement('span', { className: 'text-[9px] font-bold' }, t('menu_sell_short', 'ขาย'))) : null,
@@ -1839,7 +1862,7 @@
         const cacheKey = table + (cleanQuery ? '?' + cleanQuery : '');
         const currentCache = loadCache();
         const now = Date.now();
-        const CACHE_TTL = 15000; // 15s TTL for real-time freshness
+        const CACHE_TTL = 45000; // 45s TTL for real-time freshness & cross-page navigation
 
         if (!bypassCache && currentCache[cacheKey] && currentCache[cacheKey]._cachedAt && (now - currentCache[cacheKey]._cachedAt < CACHE_TTL)) {
           console.log(`%c⚡ [Cache Hit] Serving ${cacheKey} from sessionStorage`, "color:green;font-weight:bold");

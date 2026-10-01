@@ -685,7 +685,9 @@
             const [isSubmitting, setIsSubmitting] = useState(false);
             const isSubmittingRef = useRef(false);
             const [editingSaleId, setEditingSaleId] = useState(null);
+            const [editingRawSale, setEditingRawSale] = useState(null);
             const hasLoadedEditIdRef = React.useRef(false);
+            const hasLoadedPendingRef = React.useRef(false);
 
             const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null, customerId: null, title: '' });
             const [successModal, setSuccessModal] = useState({ show: false, saleRecord: null });
@@ -944,201 +946,197 @@
                         foundExistingCust = (customers || []).find(c => c && isValidPhone(c.phone) && cleanDigits(c.phone) === cleanDigits(pendingPhone));
                     }
 
-                    // 3. ถ้ายังไม่พบ และมีชื่อ (ต้องไม่ใช่ '-' และยาวกว่า 2 ตัวอักษร)
-                    if (!foundExistingCust && pendingName && pendingName !== '-' && pendingName !== '--' && pendingName.length >= 2) {
-                        foundExistingCust = (customers || []).find(c => c && c.name && String(c.name).trim().toLowerCase() === pendingName.toLowerCase());
+                    // 3. ถ้ายังไม่พบ และมีชื่อ (ต้องไม่ใช่ - หรือ --)
+                    if (!foundExistingCust && pendingName && pendingName !== '-' && pendingName !== '--') {
+                        foundExistingCust = (customers || []).find(c => c && String(c.name || '').trim().toLowerCase() === pendingName.toLowerCase());
                     }
                 }
 
-                let pastSymptom = pending.disease || '';
-                if (!pastSymptom && foundExistingCust) {
-                    pastSymptom = foundExistingCust.symptom || '';
-                    if (!pastSymptom && Array.isArray(sales)) {
-                        const pastSale = sales.find(s => s && safeUpper(s.customerId) === safeUpper(foundExistingCust.id) && (s.symptom || s.symptom_disease));
-                        if (pastSale) pastSymptom = pastSale.symptom || pastSale.symptom_disease || '';
-                    }
-                }
-
-                let resolvedCloser = '';
-                let resolvedCloserTeam = '';
-                if (pending.closer_dr) {
-                    const drStr = String(pending.closer_dr).trim();
-                    const matchedCloser = (allClosersPool || []).find(c =>
-                        safeUpper(c.id) === safeUpper(drStr) ||
-                        String(c.name || '').trim().toLowerCase() === drStr.toLowerCase() ||
-                        String(c.name || '').includes(drStr) ||
-                        drStr.includes(String(c.name || ''))
-                    );
-                    if (matchedCloser) {
-                        resolvedCloser = `${matchedCloser.id} - ${matchedCloser.name}`;
-                        resolvedCloserTeam = matchedCloser.team || 'Center';
-                    } else {
-                        resolvedCloser = drStr;
-                        resolvedCloserTeam = 'Center';
-                    }
-                }
                 if (foundExistingCust) {
-                    setCustMode(foundExistingCust.type || 'ลูกค้าเก่า');
                     setCustData({
-                        id: foundExistingCust.id || foundExistingCust.customer_id || '',
-                        name: pendingName || foundExistingCust.name || '',
-                        phone: (isValidPhone(foundExistingCust.phone) ? foundExistingCust.phone : (isValidPhone(pendingPhone) ? pendingPhone : '')) || '',
-                        lineId: foundExistingCust.lineId || '',
-                        symptom: pastSymptom || '',
-                        closer: resolvedCloser || foundExistingCust.closer || '',
-                        closerTeam: resolvedCloserTeam || (foundExistingCust.closerTeam === 'Team A' ? 'Marketing' : foundExistingCust.closerTeam === 'Team B' ? 'Center' : foundExistingCust.closerTeam) || ''
-                    });
-                } else {
-                    setCustMode('ลูกค้าใหม่มาตรวจ');
-                    setCustData({
-                        id: (pendingHn && pendingHn !== '-') ? pendingHn : '',
-                        name: (pendingName && pendingName !== '-') ? pendingName : '',
-                        phone: isValidPhone(pendingPhone) ? pendingPhone : (pendingPhone || ''),
-                        lineId: '',
-                        symptom: pastSymptom || '',
-                        closer: resolvedCloser || '',
-                        closerTeam: resolvedCloserTeam || ''
+                        id: foundExistingCust.id || foundExistingCust.customer_id || pendingHn,
+                        name: foundExistingCust.name || pendingName,
+                        phone: foundExistingCust.phone || pendingPhone,
+                        lineId: foundExistingCust.lineId || foundExistingCust.line_id || '',
+                        symptom: foundExistingCust.symptom || foundExistingCust.symptom_disease || pending.disease || '',
+                        closer: foundExistingCust.closer || foundExistingCust.closer_id || '',
+                        closerTeam: foundExistingCust.closerTeam || foundExistingCust.closer_team || '',
+                        type: foundExistingCust.type || foundExistingCust.customer_type || 'ลูกค้าเก่าตรวจซ้ำ'
                     });
                 }
             };
 
+            // อัปเดตรูปภาพสินค้าในตะกร้าทันทีเมื่อโหลด products สำเร็จ
             useEffect(() => {
-                if (Array.isArray(products) && products.length > 0 && Array.isArray(cart) && cart.length > 0) {
-                    let updated = false;
-                    const newCart = cart.map(item => {
-                        const match = findMatchingProduct(item.productName, products);
-                        if (match && match.name && match.name !== item.productName) {
-                            updated = true;
-                            return { ...item, productName: match.name };
+                if (!products || products.length === 0 || !cart || cart.length === 0) return;
+                let changed = false;
+                const updatedCart = cart.map(item => {
+                    if (!item.imageUrl) {
+                        const prodObj = (typeof findMatchingProduct === 'function' ? findMatchingProduct(item.productName, products) : null)
+                            || products.find(p => p && (p.name === item.productName || p.product_name === item.productName));
+                        const img = prodObj ? (prodObj.imageUrl || prodObj.image_url) : null;
+                        if (img) {
+                            changed = true;
+                            return { ...item, imageUrl: img };
                         }
-                        return item;
-                    });
-                    if (updated) setCart(newCart);
-                }
-            }, [products, cart, findMatchingProduct]);
-
+                    }
+                    return item;
+                });
+                if (changed) setCart(updatedCart);
+            }, [products]);
 
             useEffect(() => {
-                // หยุดทันทีถ้าโหลดข้อมูลเพื่อแก้ไขแล้ว ไม่ต้องดึงซ้ำอีก (prevent double fetch)
-                if (hasLoadedEditIdRef.current) return;
+                // หยุดทันทีถ้าโหลดข้อมูลเพื่อแก้ไขแล้ว หรือโหลด pending ไปแล้ว
+                if (hasLoadedEditIdRef.current || hasLoadedPendingRef.current) return;
+
+                const pendingSaleStr = localStorage.getItem('stk_pending_sale');
+                if (!pendingSaleStr) return;
+
+                // 🛡️ หากรายการ products ยังไม่พร้อม (กำลังโหลด) ให้รอจนกว่า products จะมีข้อมูล
+                // เพื่อให้การค้นหาชื่อสินค้า ราคา (เต็ม/สมาชิก/โปร) และรูปภาพ แมปได้ถูกต้อง 100%
+                if (!products || products.length === 0) return;
+
+                hasLoadedPendingRef.current = true;
+                localStorage.removeItem('stk_pending_sale');
+
                 try {
-                    const pendingSaleStr = localStorage.getItem('stk_pending_sale');
-                    if (pendingSaleStr) {
-                        const pending = JSON.parse(pendingSaleStr);
-                        localStorage.removeItem('stk_pending_sale');
+                    const pending = JSON.parse(pendingSaleStr);
 
-                        if (pending && pending.recorded_by) {
-                            setMemberIdInput(pending.recorded_by);
-                        }
+                    if (pending && pending.recorded_by) {
+                        setMemberIdInput(pending.recorded_by);
+                    }
 
-                        if (pending && pending.visit_id) {
-                            setPaymentNote(`VISIT: ${pending.visit_id}`);
-                        }
+                    if (pending && pending.visit_id) {
+                        setPaymentNote(`VISIT: ${pending.visit_id}`);
+                    }
 
-                        if (pending && (pending.hn || pending.customer_name || pending.phone)) {
-                            const cleanP = String(pending.phone || '').trim();
-                            const validPhoneStr = (cleanP && cleanP !== '-' && cleanP !== '--') ? cleanP : '';
-                            const validHnStr = (pending.hn && pending.hn !== '-' && pending.hn !== '--') ? pending.hn : '';
-                            setCustData({
-                                id: validHnStr,
-                                name: pending.customer_name || '',
-                                phone: validPhoneStr,
-                                lineId: '',
-                                symptom: pending.disease || '',
-                                closer: '',
-                                closerTeam: ''
-                            });
-                            loadCustomerFromPending(pending);
-                        }
+                    if (pending && (pending.hn || pending.customer_name || pending.phone)) {
+                        const cleanP = String(pending.phone || '').trim();
+                        const validPhoneStr = (cleanP && cleanP !== '-' && cleanP !== '--') ? cleanP : '';
+                        const validHnStr = (pending.hn && pending.hn !== '-' && pending.hn !== '--') ? pending.hn : '';
+                        setCustData({
+                            id: validHnStr,
+                            name: pending.customer_name || '',
+                            phone: validPhoneStr,
+                            lineId: '',
+                            symptom: pending.disease || '',
+                            closer: '',
+                            closerTeam: ''
+                        });
+                        loadCustomerFromPending(pending);
+                    }
 
-                        if (pending && Array.isArray(pending.items) && pending.items.length > 0) {
-                            const newCart = pending.items.map(it => {
-                                const rawName = String(it.name || it.product_name || it.prod || '').trim();
-                                const cleanName = rawName.replace(/\s*\([^)]*\)\s*/g, '').trim();
-                                const itemId = String(it.id || it.product_id || '').trim();
+                    if (pending && Array.isArray(pending.items) && pending.items.length > 0) {
+                        const newCart = pending.items.map(it => {
+                            const rawName = String(it.name || it.product_name || it.prod || '').trim();
+                            const cleanName = rawName.replace(/\s*\([^)]*\)\s*/g, '').trim();
+                            const itemId = String(it.id || it.product_id || '').trim();
 
-                                const prodObj = (itemId ? (products || []).find(p => p && (p.id === itemId || p.product_id === itemId)) : null)
-                                    || (typeof findMatchingProduct === 'function' ? (findMatchingProduct(rawName, products) || (cleanName !== rawName ? findMatchingProduct(cleanName, products) : null)) : null)
-                                    || (products || []).find(p => p && (p.name === rawName || (p.product_name && p.product_name === rawName)))
-                                    || (cleanName !== rawName ? (products || []).find(p => p && (p.name === cleanName || (p.product_name && p.product_name === cleanName))) : null)
-                                    || { name: rawName || cleanName, priceFull: it.price, pricePromo: it.price, priceMember: it.price };
+                            const prodObj = (itemId ? (products || []).find(p => p && (p.id === itemId || p.product_id === itemId)) : null)
+                                || (typeof findMatchingProduct === 'function' ? (findMatchingProduct(rawName, products) || (cleanName !== rawName ? findMatchingProduct(cleanName, products) : null)) : null)
+                                || (products || []).find(p => p && (p.name === rawName || (p.product_name && p.product_name === rawName)))
+                                || (cleanName !== rawName ? (products || []).find(p => p && (p.name === cleanName || (p.product_name && p.product_name === cleanName))) : null)
+                                || {};
 
-                                const pFull = parseFloat(prodObj.priceFull || 0);
-                                const pPromo = parseFloat(prodObj.pricePromo || 0);
-                                const pMember = parseFloat(prodObj.priceMember || 0);
+                            const pFull = parseFloat(prodObj.priceFull || prodObj.price_full || 0);
+                            const pMember = parseFloat(prodObj.priceMember || prodObj.price_member || 0);
+                            const pPromo = parseFloat(prodObj.pricePromo || prodObj.price_promo || 0);
+                            const pImg = prodObj.imageUrl || prodObj.image_url || it.imageUrl || it.image_url || '';
 
-                                const typeStr = String(it.type || it.priceType || it.tier || '').trim().toLowerCase();
-                                const nameLower = rawName.toLowerCase();
-                                const hasExplicitPrice = (it.price !== undefined && it.price !== null && String(it.price).trim() !== '' && !isNaN(Number(it.price)));
-                                const rawPrice = hasExplicitPrice ? Number(it.price) : null;
+                            const typeStr = String(it.type || it.priceType || it.tier || '').trim().toLowerCase();
+                            const nameLower = rawName.toLowerCase();
+                            const hasExplicitPrice = (it.price !== undefined && it.price !== null && String(it.price).trim() !== '' && !isNaN(Number(it.price)));
+                            const rawPrice = hasExplicitPrice ? Number(it.price) : null;
 
-                                let mappedPriceType = '';
-                                let unitPrice = 0;
+                            let mappedPriceType = '';
+                            let unitPrice = 0;
 
-                                // 1. ตรวจสอบ "ราคาศูนย์" (ตัดศูนย์ / แถม / ฟรี / 0 บาท / ຟຣີ)
-                                const isZeroType = (rawPrice !== null && rawPrice === 0)
-                                    || typeStr.includes('ศูนย์') || typeStr.includes('ตัดศูนย์') || typeStr.includes('แถม') || typeStr.includes('ฟรี') || typeStr.includes('free') || typeStr.includes('zero') || typeStr === '0' || typeStr.includes('ຟຣີ')
-                                    || nameLower.includes('แถม') || nameLower.includes('ฟรี') || nameLower.includes('ตัดศูนย์') || nameLower.includes('ราคาศูนย์') || nameLower.includes('ຟຣີ');
+                            // 1. ตรวจสอบ "ราคาศูนย์" (ตัดศูนย์ / แถม / ฟรี / 0 บาท / ຟຣີ)
+                            const isZeroType = (rawPrice !== null && rawPrice === 0)
+                                || typeStr.includes('ศูนย์') || typeStr.includes('ตัดศูนย์') || typeStr.includes('แถม') || typeStr.includes('ฟรี') || typeStr.includes('free') || typeStr.includes('zero') || typeStr === '0' || typeStr.includes('ຟຣີ')
+                                || nameLower.includes('แถม') || nameLower.includes('ฟรี') || nameLower.includes('ตัดศูนย์') || nameLower.includes('ราคาศูนย์') || nameLower.includes('ຟຣີ');
 
-                                // 2. ตรวจสอบ "ราคาสมาชิก" (ส่ง/สมาชิก / ราคาส่ง/สมาชิก / สมาชิก / vip / high / ສະມາຊິກ / ສົ່ງ)
-                                const isMemberType = typeStr.includes('สมาชิก') || typeStr.includes('ส่ง') || typeStr.includes('member') || typeStr.includes('vip') || typeStr.includes('high') || typeStr.includes('ສະມາຊິກ') || typeStr.includes('ສົ່ງ')
-                                    || nameLower.includes('สมาชิก') || nameLower.includes('ส่ง') || nameLower.includes('ສະມາຊິກ') || nameLower.includes('ສົ່ງ');
+                            // 2. ตรวจสอบ "ราคาสมาชิก" (ส่ง/สมาชิก / ราคาส่ง/สมาชิก / สมาชิก / vip / high / ສະມາຊິກ / ສົ່ງ)
+                            const isMemberType = typeStr.includes('สมาชิก') || typeStr.includes('ส่ง') || typeStr.includes('member') || typeStr.includes('vip') || typeStr.includes('high') || typeStr.includes('ສະມາຊິກ') || typeStr.includes('ສົ່ງ')
+                                || nameLower.includes('สมาชิก') || nameLower.includes('ส่ง') || nameLower.includes('ສະມາຊິກ') || nameLower.includes('ส่ง');
 
-                                // 3. ตรวจสอบ "ราคาโปร" (ราคาพิเศษ / โปร / promo / promotion / ໂປຣ)
-                                const isPromoType = typeStr.includes('โปร') || typeStr.includes('promo') || typeStr.includes('พิเศษ') || typeStr.includes('ໂປຣ')
-                                    || nameLower.includes('โปร') || nameLower.includes('promo') || nameLower.includes('พิเศษ') || nameLower.includes('ໂປຣ');
+                            // 3. ตรวจสอบ "ราคาโปร" (ราคาพิเศษ / โปร / promo / promotion / ໂປຣ)
+                            const isPromoType = typeStr.includes('โปร') || typeStr.includes('promo') || typeStr.includes('พิเศษ') || typeStr.includes('ໂປຣ')
+                                || nameLower.includes('โปร') || nameLower.includes('promo') || nameLower.includes('พิเศษ') || nameLower.includes('ໂປຣ');
 
-                                // 4. ตรวจสอบ "ราคาเต็ม" (ราคาปกติ / ปกติ / ราคาขาย / เต็ม / normal / full / one / ປົກກະຕິ)
-                                const isFullType = typeStr.includes('เต็ม') || typeStr.includes('ปกติ') || typeStr.includes('ราคาขาย') || (typeStr.includes('ขาย') && !typeStr.includes('โปร')) || typeStr.includes('normal') || typeStr.includes('full') || typeStr.includes('standard') || typeStr === 'one' || typeStr.includes('ປົກກະຕິ')
-                                    || nameLower.includes('ราคาเต็ม') || nameLower.includes('ราคาปกติ') || nameLower.includes('ราคาขาย') || nameLower.includes('ປົກກະຕິ');
+                            // 4. ตรวจสอบ "ราคาเต็ม" (ราคาปกติ / ปกติ / ราคาขาย / เต็ม / normal / full / one / ປົກກະຕິ)
+                            const isFullType = typeStr.includes('เต็ม') || typeStr.includes('ปกติ') || typeStr.includes('ราคาขาย') || (typeStr.includes('ขาย') && !typeStr.includes('โปร')) || typeStr.includes('normal') || typeStr.includes('full') || typeStr.includes('standard') || typeStr === 'one' || typeStr.includes('ປົກກະຕິ')
+                                || nameLower.includes('ราคาเต็ม') || nameLower.includes('ราคาปกติ') || nameLower.includes('ราคาขาย') || nameLower.includes('ປົກກະຕິ');
 
-                                // ⚡ ดักจับตามราคาจริง (Price-First Detection):
-                                // ตรวจสอบตามลำดับความเฉพาะเจาะจง: ราคาศูนย์ -> ราคาโปร (800, 1000, หรือ pPromo) -> ราคาสมาชิก (1500 หรือ pMember) -> ราคาเต็ม (1800 หรือ pFull)
-                                if (isZeroType || (rawPrice !== null && rawPrice === 0)) {
-                                    mappedPriceType = 'ราคาศูนย์';
-                                    unitPrice = 0;
-                                } else if (rawPrice === 800 || (rawPrice !== null && rawPrice > 0 && pPromo > 0 && Math.abs(rawPrice - pPromo) < 0.01) || rawPrice === 1000 || isPromoType) {
+                            // ⚡ PRIORITY 1: ตรวจจับจากประเภทราคาที่ส่งมาชัดเจน (Explicit Type Priority)
+                            if (isZeroType || (rawPrice !== null && rawPrice === 0)) {
+                                mappedPriceType = 'ราคาศูนย์';
+                                unitPrice = 0;
+                            } else if (isMemberType) {
+                                mappedPriceType = 'ราคาสมาชิก';
+                                unitPrice = pMember > 0 ? pMember : (rawPrice !== null && rawPrice > 0 ? rawPrice : 1500);
+                            } else if (isPromoType) {
+                                mappedPriceType = 'ราคาโปร';
+                                unitPrice = pPromo > 0 ? pPromo : (rawPrice !== null && rawPrice > 0 ? rawPrice : 800);
+                            } else if (isFullType) {
+                                mappedPriceType = 'ราคาเต็ม';
+                                unitPrice = pFull > 0 ? pFull : (rawPrice !== null && rawPrice > 0 ? rawPrice : 1800);
+                            }
+                            // ⚡ PRIORITY 2: ดักจับจากราคาตัวเลขจริง (Price-First Detection เมื่อไม่มีประเภทระบุชัดเจน)
+                            else if (rawPrice !== null && rawPrice > 0) {
+                                if (pPromo > 0 && Math.abs(rawPrice - pPromo) < 0.01) {
                                     mappedPriceType = 'ราคาโปร';
-                                    unitPrice = (rawPrice !== null && rawPrice > 0) ? rawPrice : (pPromo > 0 ? pPromo : 800);
-                                } else if (rawPrice === 1500 || (rawPrice !== null && rawPrice > 0 && pMember > 0 && Math.abs(rawPrice - pMember) < 0.01) || isMemberType) {
+                                    unitPrice = pPromo;
+                                } else if (pMember > 0 && Math.abs(rawPrice - pMember) < 0.01) {
                                     mappedPriceType = 'ราคาสมาชิก';
-                                    unitPrice = (rawPrice !== null && rawPrice > 0) ? rawPrice : (pMember > 0 ? pMember : 1500);
-                                } else if (rawPrice === 1800 || (rawPrice !== null && rawPrice > 0 && pFull > 0 && Math.abs(rawPrice - pFull) < 0.01) || isFullType) {
+                                    unitPrice = pMember;
+                                } else if (pFull > 0 && Math.abs(rawPrice - pFull) < 0.01) {
                                     mappedPriceType = 'ราคาเต็ม';
-                                    unitPrice = (rawPrice !== null && rawPrice > 0) ? rawPrice : (pFull > 0 ? pFull : 1800);
-                                } else if (rawPrice !== null && rawPrice > 0) {
-                                    if (rawPrice <= 800) {
-                                        mappedPriceType = 'ราคาโปร';
-                                    } else if (rawPrice <= 1500) {
-                                        mappedPriceType = 'ราคาสมาชิก';
-                                    } else {
-                                        mappedPriceType = 'ราคาเต็ม';
-                                    }
+                                    unitPrice = pFull;
+                                } else if (rawPrice === 1800) {
+                                    mappedPriceType = 'ราคาเต็ม';
+                                    unitPrice = pFull > 0 ? pFull : 1800;
+                                } else if (rawPrice === 1500) {
+                                    mappedPriceType = 'ราคาสมาชิก';
+                                    unitPrice = pMember > 0 ? pMember : 1500;
+                                } else if (rawPrice === 800 || rawPrice === 1000) {
+                                    mappedPriceType = 'ราคาโปร';
+                                    unitPrice = pPromo > 0 ? pPromo : rawPrice;
+                                } else if (rawPrice <= 800) {
+                                    mappedPriceType = 'ราคาโปร';
+                                    unitPrice = rawPrice;
+                                } else if (rawPrice <= 1500) {
+                                    mappedPriceType = 'ราคาสมาชิก';
                                     unitPrice = rawPrice;
                                 } else {
                                     mappedPriceType = 'ราคาเต็ม';
-                                    unitPrice = pFull > 0 ? pFull : 0;
+                                    unitPrice = rawPrice;
                                 }
+                            } else {
+                                mappedPriceType = 'ราคาเต็ม';
+                                unitPrice = pFull > 0 ? pFull : 0;
+                            }
 
-                                return {
-                                    productName: prodObj.name || rawName || cleanName,
-                                    priceType: mappedPriceType,
-                                    price: unitPrice,
-                                    qty: Number(it.qty || 1)
-                                };
-                            });
-                            setCart(newCart);
-                        }
+                            return {
+                                productName: prodObj.name || rawName || cleanName,
+                                priceType: mappedPriceType,
+                                price: unitPrice,
+                                qty: Number(it.qty || 1),
+                                imageUrl: pImg
+                            };
+                        });
+                        setCart(newCart);
+                    }
 
-                        if (showToast) {
-                            showToast(`โหลดข้อมูลสั่งจ่ายยา VISIT: ${pending.visit_id || ''} เข้าสู่หน้าขายเรียบร้อย!`, 'success');
-                        }
+                    if (showToast) {
+                        showToast(`โหลดข้อมูลสั่งจ่ายยา VISIT: ${pending.visit_id || ''} เข้าสู่หน้าขายเรียบร้อย!`, 'success');
                     }
                 } catch (e) {
                     console.warn('Error loading pending sale:', e);
                 }
-                // 🔒 ROBUST DIRECT FETCH FOR EDIT MODE:
-                // ดึงข้อมูลบิล + products + member + customer พร้อมกันเพื่อให้ราคาและข้อมูลครบถ้วน
+            }, [products, customers]);
+
+            useEffect(() => {
                 const loadEditRecordDirectly = async (editId) => {
                     try {
                         const [prodRes, saleRes] = await Promise.all([
@@ -1241,6 +1239,7 @@
                         }).filter(it => it.productName && it.qty > 0);
 
                         // ตั้งค่าแก้ไขบิล
+                        setEditingRawSale(rawSale);
                         setEditingSaleId(saleOrderId);
                         setFormData({ date: rawSale.date ? String(rawSale.date).split('T')[0] : getLocalISODate() });
 
@@ -1377,7 +1376,7 @@
             };
 
             const handleAddToCart = (productName, priceType = 'ราคาโปร', forceQty = null) => {
-                const prodObj = (products || []).find(p => p.name === productName) || {};
+                const prodObj = (typeof findMatchingProduct === 'function' ? findMatchingProduct(productName, products) : null) || (products || []).find(p => p && (p.name === productName || p.product_name === productName)) || {};
                 const currentQtyInCart = cart.filter(item => item.productName === productName).reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
                 const addAmount = forceQty !== null ? forceQty : 1;
 
@@ -1387,10 +1386,12 @@
                 }
 
                 let unitPrice = 0;
-                if (priceType === 'ราคาเต็ม') unitPrice = parseFloat(prodObj.priceFull || 0);
-                else if (priceType === 'ราคาโปร') unitPrice = parseFloat(prodObj.pricePromo || 0);
-                else if (priceType === 'ราคาสมาชิก') unitPrice = parseFloat(prodObj.priceMember || 0);
+                if (priceType === 'ราคาเต็ม') unitPrice = parseFloat(prodObj.priceFull || prodObj.price_full || 0);
+                else if (priceType === 'ราคาโปร') unitPrice = parseFloat(prodObj.pricePromo || prodObj.price_promo || 0);
+                else if (priceType === 'ราคาสมาชิก') unitPrice = parseFloat(prodObj.priceMember || prodObj.price_member || 0);
                 else if (priceType === 'ราคาศูนย์') unitPrice = 0;
+
+                const pImg = prodObj.imageUrl || prodObj.image_url || '';
 
                 setCart(prev => {
                     const existingIdx = prev.findIndex(item => item.productName === productName && item.priceType === priceType);
@@ -1398,9 +1399,10 @@
                         const nextCart = [...prev];
                         if (forceQty !== null) nextCart[existingIdx].qty = forceQty;
                         else nextCart[existingIdx].qty = (parseInt(nextCart[existingIdx].qty) || 0) + 1;
+                        if (!nextCart[existingIdx].imageUrl && pImg) nextCart[existingIdx].imageUrl = pImg;
                         return nextCart;
                     } else {
-                        return [...prev, { productName, priceType, price: unitPrice, qty: forceQty !== null ? forceQty : 1 }];
+                        return [...prev, { productName: prodObj.name || productName, priceType, price: unitPrice, qty: forceQty !== null ? forceQty : 1, imageUrl: pImg }];
                     }
                 });
             };
@@ -1453,11 +1455,11 @@
             };
 
             const handleUpdateCartPriceType = (productName, oldPriceType, newPriceType) => {
-                const prodObj = (products || []).find(p => p.name === productName) || {};
+                const prodObj = (typeof findMatchingProduct === 'function' ? findMatchingProduct(productName, products) : null) || (products || []).find(p => p && (p.name === productName || p.product_name === productName)) || {};
                 let newPrice = 0;
-                if (newPriceType === 'ราคาเต็ม') newPrice = parseFloat(prodObj.priceFull || 0);
-                else if (newPriceType === 'ราคาโปร') newPrice = parseFloat(prodObj.pricePromo || 0);
-                else if (newPriceType === 'ราคาสมาชิก') newPrice = parseFloat(prodObj.priceMember || 0);
+                if (newPriceType === 'ราคาเต็ม') newPrice = parseFloat(prodObj.priceFull || prodObj.price_full || 0);
+                else if (newPriceType === 'ราคาโปร') newPrice = parseFloat(prodObj.pricePromo || prodObj.price_promo || 0);
+                else if (newPriceType === 'ราคาสมาชิก') newPrice = parseFloat(prodObj.priceMember || prodObj.price_member || 0);
                 else if (newPriceType === 'ราคาศูนย์') newPrice = 0;
 
                 setCart(prev => {
@@ -1563,6 +1565,7 @@
 
             const handleCancelEdit = () => {
                 setEditingSaleId(null);
+                setEditingRawSale(null);
                 setCart([]);
                 setCustMode('');
                 setCustData({ id: '', name: '', phone: '', lineId: '', symptom: '', closer: '', closerTeam: '' });
@@ -1582,7 +1585,8 @@
             };
 
             const handleEditSale = (record) => {
-                setEditingSaleId(record.id);
+                setEditingRawSale(record);
+                setEditingSaleId(record.id || record.order_id);
                 setFormData({ date: record.date || getLocalISODate() });
                 const mObj = (members || []).find(m => m && String(m.id || '').toUpperCase() === String(record.memberId || '').toUpperCase());
                 const mName = mObj ? mObj.name : '';
@@ -2221,7 +2225,7 @@
                 ])];
 
                 if (editingSaleId) {
-                    const oldRecord = (sales || []).find(s => s.id === editingSaleId);
+                    const oldRecord = editingRawSale || (sales || []).find(s => s.id === editingSaleId || s.order_id === editingSaleId);
                     if (oldRecord) {
                         Object.keys(oldRecord).forEach(k => {
                             if (k.endsWith('_ราคาเต็ม') || k.endsWith('_ราคาโปร') || k.endsWith('_ราคาสมาชิก') || k.endsWith('_ราคาศูนย์')) {
@@ -2260,7 +2264,7 @@
                     let newPv = calculateBillPV(cart, products);
 
                     if (editingSaleId) {
-                        const oldRecord = (sales || []).find(s => s.id === editingSaleId);
+                        const oldRecord = editingRawSale || (sales || []).find(s => s.id === editingSaleId || s.order_id === editingSaleId);
                         if (oldRecord) {
                             const oldCart = [];
                             Object.keys(oldRecord).forEach(k => {
@@ -2396,7 +2400,7 @@
                             }
                         }
                         if (!isHistoryBypass && window.StockLogic) {
-                            const oldRecord = (sales || []).find(s => s.id === editingSaleId);
+                            const oldRecord = editingRawSale || (sales || []).find(s => s.id === editingSaleId || s.order_id === editingSaleId);
                             const stockChangeRes = await window.StockLogic.applyBillStockChange({
                                 oldBill: oldRecord,
                                 newBill: newRecord,
@@ -2413,7 +2417,7 @@
                             }
                         }
                         const oldQtyMap = {};
-                        const oldRecord = (sales || []).find(s => s.id === editingSaleId);
+                        const oldRecord = editingRawSale || (sales || []).find(s => s.id === editingSaleId || s.order_id === editingSaleId);
                         if (oldRecord) {
                             Object.keys(oldRecord).forEach(k => {
                                 if ((k.endsWith('_ราคาเต็ม') || k.endsWith('_ราคาโปร') || k.endsWith('_ราคาสมาชิก') || k.endsWith('_ราคาศูนย์')) && !k.startsWith('รวมชิ้น')) {
@@ -3316,7 +3320,7 @@
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3 bg-slate-50/50">
                                 {cart.map((item, idx) => {
                                     const prodObj = findMatchingProduct(item.productName, products) || (products || []).find(p => p.name === item.productName) || {};
-                                    const img = prodObj.imageUrl && prodObj.imageUrl.trim() !== '' ? prodObj.imageUrl : null;
+                                    const img = item.imageUrl || (prodObj.imageUrl && prodObj.imageUrl.trim() !== '' ? prodObj.imageUrl : (prodObj.image_url && prodObj.image_url.trim() !== '' ? prodObj.image_url : null));
                                     return (
                                         <div key={`${item.productName}-${item.priceType}`} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 bg-white rounded-xl border border-slate-200 hover:border-blue-300 transition-all shadow-sm">
 
@@ -3580,7 +3584,17 @@
                 catch (e) { return null; }
             })();
 
-            const [products, setProducts] = useState(() => initialCache && Array.isArray(initialCache.products) ? initialCache.products.map(p => ({ ...p, id: p.id || p.product_id, name: p.name || p.product_name })) : []);
+            const [products, setProducts] = useState(() => initialCache && Array.isArray(initialCache.products) ? initialCache.products.map(p => ({
+                ...p,
+                id: p.id || p.product_id,
+                name: p.name || p.product_name || '',
+                product_name: p.product_name || p.name || '',
+                imageUrl: p.image_url || p.imageUrl || '',
+                priceFull: Number(p.price_full ?? p.priceFull ?? 0) || 0,
+                priceMember: Number(p.price_member ?? p.priceMember ?? 0) || 0,
+                pricePromo: Number(p.price_promo ?? p.pricePromo ?? 0) || 0,
+                stock: parseInt(p.current_stock ?? p.stock ?? 0) || 0
+            })) : []);
             const [customerTypes, setCustomerTypes] = useState(() => initialCache && Array.isArray(initialCache.customerTypes) ? initialCache.customerTypes.map(c => ({ ...c, id: c.id || c.type_id, name: c.name || c.type_name })) : fallbackCustomerTypes);
             const [closers, setClosers] = useState(() => initialCache && Array.isArray(initialCache.closers) ? initialCache.closers.map(c => ({ ...c, id: c.id || c.closer_id, name: c.name || c.closer_name })) : []);
             const [businessTeams, setBusinessTeams] = useState(() => initialCache && Array.isArray(initialCache.businessTeams) ? initialCache.businessTeams.map(t => ({ ...t, id: t.id || t.team_id, name: t.name || t.team_name })) : []);

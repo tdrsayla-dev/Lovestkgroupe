@@ -10,6 +10,7 @@ window.stkDict = {
     "menu_reports_finance": { th: "การเงิน & รายรับ", lo: "ການເງິນ & ລາຍຮັບ", en: "Finance & Revenue" },
     "menu_reports_stock": { th: "สต๊อก & สินค้าตัดศูนย์", lo: "ສະຕ໋ອກ & ສິນຄ້າຕັດສູນ", en: "Stock & Zero-price Items" },
     "menu_reports_referral": { th: "ค่าแนะนำ & ปันผล", lo: "ຄ່າແນະນຳ & ປັນຜົນ", en: "Referral & Dividends" },
+    "menu_reports_campaign": { th: "แคมเปญ & โปรโมชั่น", lo: "ແຄມເປນ & ໂປຣໂມຊັ່ນ", en: "Campaigns & Promotions" },
     "menu_org_chart": { th: "ผังองค์กรสายงาน", lo: "ຜັງອົງກອນສາຍງານ", en: "Organization Chart" },
     "menu_daily_transactions": { th: "ธุรกรรมประจำวัน", lo: "ທຸລະກຳປະຈຳວັນ", en: "Daily Transactions" },
     "menu_sales": { th: "ป้อนข้อมูลขาย", lo: "ປ້ອນຂໍ້ມູນຂາຍ", en: "Sales Entry" },

@@ -95,24 +95,24 @@
         return 'ราคาโปร';
       }
 
-      // 4. ดักจับจากราคาจริง (Numeric Price Mapping)
+      // 4. ตรวจสอบ "ราคาปกติ / ราคาเต็ม" จากข้อความระบุชัดเจน (รวมภาษาลาว: ປົກກະຕິ)
+      if (typeVal === 'normal' || typeVal === 'full' || typeVal === 'one' || typeVal.includes('ปกติ') || typeVal.includes('เต็ม') || typeVal.includes('ปรกติ') || typeVal.includes('ປົກກະຕິ') || nameVal.includes('(ปกติ)') || nameVal.includes('(เต็ม)') || nameVal.includes('(ປົກກະຕິ)')) {
+        return 'ราคาปกติ';
+      }
+
+      // 5. ดักจับจากราคาจริง (Numeric Price Mapping) เมื่อไม่มีประเภทยืนยัน
       if (rawPrice !== null && rawPrice > 0) {
-        // หากราคาเท่ากับ 1,500 (เช่น Cordesta, Pine Needle Oil ราคาสมาชิก) หรือต่ำกว่าราคาปกติของสินค้ากลุ่มอาหารเสริม
+        if (rawPrice === 1800 || rawPrice === 890 || rawPrice === 590 || rawPrice === 790 || rawPrice === 2500) {
+          return 'ราคาปกติ';
+        }
         if (rawPrice === 1500) {
           return 'ราคาส่ง/สมาชิก';
         }
-        if (rawPrice === 1800) {
-          return 'ราคาปกติ';
-        }
-        if (rawPrice === 1000) {
+        if (rawPrice === 1000 || rawPrice === 800 || rawPrice === 600 || rawPrice === 400 || rawPrice === 300) {
           return 'ราคาโปร';
         }
         if (rawPrice === 200) {
-          // กาแฟ หรือสินค้า 200
           if (typeVal.includes('โปร') || typeVal.includes('promo') || typeVal.includes('ໂປຣ')) return 'ราคาโปร';
-          return 'ราคาส่ง/สมาชิก';
-        }
-        if (rawPrice === 890) {
           return 'ราคาส่ง/สมาชิก';
         }
       }
@@ -206,8 +206,8 @@
       };
 
       // โหลดข้อมูลจาก Supabase เป็นหลัก + sync LocalStorage → Supabase อัตโนมัติ
-      const fetchOrders = async (showLoading = true) => {
-        if (showLoading) setLoading(true);
+      const fetchOrders = async (showLoading = true, forceRefresh = false) => {
+        if (showLoading && typeof showLoading !== 'object') setLoading(true);
         let dbList = [];
         let localList = [];
 
@@ -224,7 +224,9 @@
         // ─── 1. ดึงจาก Supabase (ข้อมูลถาวร) ────────────────────────────────
         try {
           if (typeof window.supabaseSelect === 'function') {
-            const data = await window.supabaseSelect('stk_nutrient_orders', 'order=created_at.desc&limit=150&nocache=true');
+            const isForce = forceRefresh === true || (showLoading && typeof showLoading === 'object');
+            const cacheParam = isForce ? '&nocache=true' : '';
+            const data = await window.supabaseSelect('stk_nutrient_orders', 'order=created_at.desc&limit=150' + cacheParam);
             if (Array.isArray(data)) {
           dbList = data.map(item => {
             // หากบิลถูกยกเลิก หรืออยู่ในประวัติการลบ ให้ปรับสถานะเป็นบิลถูกยกเลิกเพื่อนำไปโชว์ในแท็บแทน
@@ -356,10 +358,10 @@
       };
 
       useEffect(() => {
-        fetchOrders(true);
+        fetchOrders(true, true);
         const handleStorageChange = (e) => {
           if (!e || !e.key || e.key === 'stk_nutrient_orders' || e.key === 'clinic_mlm_orders' || e.key === 'stk_refresh_trigger') {
-            fetchOrders(false);
+            fetchOrders(false, true);
           }
         };
         window.addEventListener('storage', handleStorageChange);
@@ -369,18 +371,29 @@
           try {
             bc = new BroadcastChannel('stk_mlm_channel');
             bc.onmessage = (msg) => {
-              if (msg && msg.data) fetchOrders(false);
+              if (msg && msg.data) fetchOrders(false, true);
             };
           } catch(ex) {}
         }
 
-        // ปรับการดึงซ้ำสำรองจาก 5 วินาที เป็น 45 วินาที เพื่อลด Egress (ยังอัปเดตทันทีผ่าน Storage/BroadcastChannel ด้านบน)
+        // ปรับการดึงซ้ำสำรองเป็น 60 วินาที และหยุดดึงเมื่อแท็บถูกซ่อน (document.hidden) หรือออกจากระบบ เพื่อประหยัด Egress
         const intervalId = setInterval(() => {
-          fetchOrders(false);
-        }, 45000);
+          if (!localStorage.getItem('stk_current_user')) return; // 🛡️ GUARD: หยุดดึงเมื่อออกจากระบบ
+          if (typeof document !== 'undefined' && document.hidden) return; // 🛡️ GUARD: แท็บซ่อนอยู่ ไม่ดึงข้อมูลให้เปลือง Egress
+          fetchOrders(false, false);
+        }, 60000);
+
+        const handleVisibilityChange = () => {
+          if (!localStorage.getItem('stk_current_user')) return;
+          if (typeof document !== 'undefined' && !document.hidden) {
+            fetchOrders(false, true);
+          }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
           window.removeEventListener('storage', handleStorageChange);
+          document.removeEventListener('visibilitychange', handleVisibilityChange);
           if (bc) bc.close();
           clearInterval(intervalId);
         };

@@ -697,6 +697,207 @@
         };
     }
 
+    /**
+     * 7. 🌟 คำนวณใบสรุปยอดเงินและปิดกะรายวัน (Daily Cash Closing & Reconciliation Engine)
+     * สอดคล้องตามแบบฟอร์มบัญชีปิดยอดประจำวันของ LOVE STK GROUPE
+     */
+    function calculateDailyCashClosing(sales, targetDate, exchangeRate = 700, options = {}) {
+        const exRate = Number(exchangeRate) || 700;
+        const permittedMemberSet = options.permittedMemberSet || null;
+        const query = String(options.searchQuery || '').trim().toUpperCase();
+
+        const dailyBills = (sales || []).filter(s => {
+            if (!s || !s.date) return false;
+            const sDate = String(s.date).split('T')[0].split(' ')[0];
+            if (sDate !== targetDate) return false;
+            if (permittedMemberSet !== null && !permittedMemberSet.has(safeUpper(s.memberId || s.seller_id))) return false;
+            if (query !== '') {
+                const mName = (s.sellerName || s.seller_name || '').toUpperCase();
+                const mId = (s.memberId || s.seller_id || '').toUpperCase();
+                const cName = (s.customerName || s.customer_name || '').toUpperCase();
+                const bId = (s.id || s.order_id || '').toUpperCase();
+                if (!mName.includes(query) && !mId.includes(query) && !cName.includes(query) && !bId.includes(query)) return false;
+            }
+            return true;
+        });
+
+        // เรียงบิลตามเลขที่บิลหรือเวลา order_id จากน้อยไปมาก
+        dailyBills.sort((a, b) => String(a.id || a.order_id || '').localeCompare(String(b.id || b.order_id || '')));
+
+        let grandTotalTHB = 0;
+        let transferLaosTHB = 0;
+        let transferThaiTHB = 0;
+        let transferLaosLAK = 0;
+        let cashTHB = 0;
+        let cashLAK = 0;
+        let promoExpenseTHB = 0;
+        let codTHB = 0;
+
+        // รายละเอียดแยกตามธนาคาร
+        const bankBreakdown = {
+            laosTHB: {}, // { 'BCEL': amount, 'JDB': amount }
+            laosLAK: {}, // { 'BCEL': amount, 'JDB': amount }
+            thaiTHB: {}  // { 'กสิกรไทย': amount }
+        };
+
+        dailyBills.forEach(s => {
+            const rawAmt = Number(s['ยอดขายรวม'] || s.total_amount || s.totalAmount || 0);
+            grandTotalTHB += rawAmt;
+
+            const pModeStr = String(s.payMode || s.pay_mode || s.saleType || s.sale_type || s.payment_method || '').trim();
+            const custType = String(s.customerType || s.customer_type || s.custMode || '').trim().toUpperCase();
+
+            // ตรวจสอบว่าเป็น COD หรือลูกค้า VIP ค้างชำระหรือไม่
+            const isCodOrVip = custType.includes('COD') || pModeStr.includes('COD') || 
+                               (custType.includes('VIP') && (pModeStr.includes('ค้าง') || pModeStr.includes('รอ')));
+            if (isCodOrVip) {
+                codTHB += rawAmt;
+            }
+
+            // คำนวณส่วนลดโปรโมชั่น (ถ้ามีบันทึก)
+            const discountAmt = Number(s.discount || s.discount_amount || 0);
+            if (discountAmt > 0) {
+                promoExpenseTHB += discountAmt;
+            }
+
+            // สแกนแยกตามช่องทางชำระเงิน
+            if (pModeStr.includes(':') || pModeStr.includes('|')) {
+                const parts = pModeStr.split('|');
+                parts.forEach(part => {
+                    const trimmed = part.trim();
+                    if (!trimmed.includes(':')) return;
+                    const colonIdx = trimmed.indexOf(':');
+                    const key = trimmed.substring(0, colonIdx).trim().toLowerCase();
+                    const val = parseFloat(trimmed.substring(colonIdx + 1).replace(/[^\d.]/g, '')) || 0;
+
+                    if (key === 'เรท' || key === 'rate') return;
+
+                    // 1. เงินโอนไทย
+                    if (key.includes('โอนไทย') || key.includes('ไทย') || key.includes('kbank') || key.includes('scb') || key.includes('bbl')) {
+                        transferThaiTHB += val;
+                        // สกัดชื่อธนาคารจากในวงเล็บ
+                        const bankMatch = key.match(/\((.*?)\)/);
+                        const bName = bankMatch ? bankMatch[1].trim() : 'ไทย';
+                        bankBreakdown.thaiTHB[bName] = (bankBreakdown.thaiTHB[bName] || 0) + val;
+                    }
+                    // 2. เงินโอนลาวบาท
+                    else if (key.includes('โอนลาวบาท') || (key.includes('โอนลาว') && key.includes('บาท')) || (key.includes('ลาว') && key.includes('บาท') && key.includes('โอน'))) {
+                        transferLaosTHB += val;
+                        const bankMatch = key.match(/\((.*?)\)/);
+                        const bName = bankMatch ? bankMatch[1].trim() : 'BCEL';
+                        bankBreakdown.laosTHB[bName] = (bankBreakdown.laosTHB[bName] || 0) + val;
+                    }
+                    // 3. เงินโอนลาวกีบ
+                    else if (key.includes('โอนลาวกีบ') || (key.includes('โอน') && (key.includes('กีบ') || key.includes('lak') || key.includes('kip'))) || (key.includes('ลาว') && key.includes('กีบ'))) {
+                        transferLaosLAK += val;
+                        const bankMatch = key.match(/\((.*?)\)/);
+                        const bName = bankMatch ? bankMatch[1].trim() : 'BCEL';
+                        bankBreakdown.laosLAK[bName] = (bankBreakdown.laosLAK[bName] || 0) + val;
+                    }
+                    // 4. เงินสดบาท
+                    else if (key.includes('สดบาท') || key === 'สด' || (key.includes('สด') && key.includes('บาท'))) {
+                        cashTHB += val;
+                    }
+                    // 5. เงินสดกีบ
+                    else if (key.includes('สดกีบ') || (key.includes('สด') && (key.includes('กีบ') || key.includes('lak') || key.includes('kip')))) {
+                        cashLAK += val;
+                    }
+                    // ตรวจจับกรณีระบุยอดมากกว่า 70,000 เข้าสกุลกีบ
+                    else if (val >= 70000) {
+                        transferLaosLAK += val;
+                        bankBreakdown.laosLAK['BCEL'] = (bankBreakdown.laosLAK['BCEL'] || 0) + val;
+                    } else {
+                        transferLaosTHB += val;
+                        bankBreakdown.laosTHB['BCEL'] = (bankBreakdown.laosTHB['BCEL'] || 0) + val;
+                    }
+                });
+            } else {
+                // บิลที่ระบุแบบเดี่ยว เช่น "เงินโอน", "สด"
+                const lower = pModeStr.toLowerCase();
+                if (lower.includes('สด')) {
+                    if (lower.includes('กีบ') || rawAmt >= 70000) {
+                        cashLAK += rawAmt;
+                    } else {
+                        cashTHB += rawAmt;
+                    }
+                } else if (lower.includes('ไทย')) {
+                    transferThaiTHB += rawAmt;
+                    bankBreakdown.thaiTHB['กสิกรไทย'] = (bankBreakdown.thaiTHB['กสิกรไทย'] || 0) + rawAmt;
+                } else if (lower.includes('กีบ') || rawAmt >= 70000) {
+                    transferLaosLAK += rawAmt;
+                    bankBreakdown.laosLAK['BCEL'] = (bankBreakdown.laosLAK['BCEL'] || 0) + rawAmt;
+                } else {
+                    transferLaosTHB += rawAmt;
+                    bankBreakdown.laosTHB['BCEL'] = (bankBreakdown.laosTHB['BCEL'] || 0) + rawAmt;
+                }
+            }
+        });
+
+        const grandTotalLAK = Math.round(grandTotalTHB * exRate);
+        const transferLaosTHB_asLAK = Math.round(transferLaosTHB * exRate);
+        const transferThaiTHB_asLAK = Math.round(transferThaiTHB * exRate);
+        const cashTHB_asLAK = Math.round(cashTHB * exRate);
+        const promoExpenseTHB_asLAK = Math.round(promoExpenseTHB * exRate);
+        const codLAK = Math.round(codTHB * exRate);
+
+        // คำนวณยอดเงินที่เหลือ (Remaining Balance)
+        // คือยอดรวม THB ลบยอดที่ชำระเป็นบาท (โอนลาวบาท + โอนไทย + สดบาท + ค่าใช้จ่ายโปรโมชั่น)
+        // ส่วนต่างที่เหลือคือส่วนที่จ่ายเป็นเงินกีบ (ซึ่งแปลงกลับเป็นบาท)
+        const remainingTHB = Math.max(0, Math.round((grandTotalTHB - (transferLaosTHB + transferThaiTHB + cashTHB + promoExpenseTHB)) * 100) / 100);
+        const remainingLAK = Math.round(remainingTHB * exRate);
+
+        // ตารางที่ 3: สรุปยอดเงินคงเหลือสกุลกีบ (LAK Balance)
+        const totalTransferLAKSum = transferLaosLAK;
+        const totalLAKAccounted = cashLAK + totalTransferLAKSum;
+        const endingBalanceLAK = Math.round(remainingLAK - totalLAKAccounted);
+
+        // ตารางที่ 4: เงินสดที่ต้องส่งมอบเข้าธนาคารจริง
+        const actualCashToBankTHB = cashTHB;
+        const actualCashToBankLAK = cashLAK;
+
+        // สรุปยอดโอนบนหัวเอกสาร (Top summary chips)
+        const topTransferKip = totalTransferLAKSum;
+        const topTransferTHB = transferLaosTHB + transferThaiTHB;
+
+        return {
+            date: targetDate,
+            exchangeRate: exRate,
+            billsCount: dailyBills.length,
+            dailyBills,
+            // Top Cards
+            topTransferKip,
+            topTransferTHB,
+            // Table 1: ยอดขายทั้งหมด
+            grandTotalTHB,
+            grandTotalLAK,
+            transferLaosTHB,
+            transferLaosTHB_asLAK,
+            transferThaiTHB,
+            transferThaiTHB_asLAK,
+            cashTHB,
+            cashTHB_asLAK,
+            promoExpenseTHB,
+            promoExpenseTHB_asLAK,
+            remainingTHB,
+            remainingLAK,
+            // Table 2: COD VIP
+            codTHB,
+            codLAK,
+            // Table 3: ยอดเงินที่เหลือ (LAK Breakdown)
+            cashLAK,
+            totalTransferLAKSum,
+            endingBalanceLAK,
+            // Table 4: มอบเงินสดเข้าธนาคาร
+            actualCashToBankTHB,
+            actualCashToBankLAK,
+            // Table 5: สรุปรวม
+            finalGrandTotalTHB: grandTotalTHB,
+            finalGrandTotalLAK: grandTotalLAK,
+            // Breakdown แยกบัญชี
+            bankBreakdown
+        };
+    }
+
     // Export Engine to Global Scope
     window.ReportFinanceEngine = {
         parseSaleCurrencyAmounts,
@@ -704,7 +905,8 @@
         filterFinanceBills,
         calculateFinanceKpi,
         calculateYearlyFinanceData,
-        groupSalesForProductReport
+        groupSalesForProductReport,
+        calculateDailyCashClosing
     };
 
 })(window);
