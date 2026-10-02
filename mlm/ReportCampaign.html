@@ -20,7 +20,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>รายงานแคมเปญ & การหักคอมมิชชั่น - LOVE STK GROUPE</title>
-  <link rel="stylesheet" href="mainstyle.css?v=6">
+  <link rel="stylesheet" href="mainstyle.css?v=2026.10.02.01">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -34,11 +34,11 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="companySettings.js"></script>
-  <script src="config.js"></script>
-  <script src="dictionary.js"></script>
-  <script src="CommonComponents.js?v=3"></script>
-  <script src="campaignLogic.js?v=6"></script>
+  <script src="companySettings.js?v=2026.10.02.02"></script>
+  <script src="config.js?v=2026.10.02.02"></script>
+  <script src="dictionary.js?v=2026.10.02.02"></script>
+  <script src="CommonComponents.js?v=2026.10.02.02"></script>
+  <script src="campaignLogic.js?v=2026.10.02.02"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100">
 
@@ -59,6 +59,11 @@
       let cleanUrl = String(url || '').trim();
       if (!cleanUrl || cleanUrl === 'undefined' || cleanUrl === 'null' || cleanUrl === '-') {
         return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Staff')}&background=1e293b&color=cbd5e1&rounded=true&bold=true`;
+      }
+      if (cleanUrl.startsWith('/9j/')) {
+        cleanUrl = 'data:image/jpeg;base64,' + cleanUrl;
+      } else if (cleanUrl.startsWith('iVBORw0KGgo')) {
+        cleanUrl = 'data:image/png;base64,' + cleanUrl;
       }
       if (cleanUrl.includes('drive.google.com')) {
         const match = cleanUrl.match(/[-\w]{25,}/);
@@ -177,43 +182,62 @@
         // ─── TIER 1: โหลดผลที่เคยซิงค์ไว้ใน stk_campaign_results ทันที (< 100ms) ───
         if (!forceLive && typeof window.CampaignEngine.fetchSavedCampaignResults === 'function') {
           try {
+            // สร้าง Member Avatar Map จาก Cache เพื่อให้รูปโปรไฟล์แสดงทันทีตั้งแต่ Tier 1
+            const memAvatarMap = {};
+            try {
+              const cachedApp = localStorage.getItem('stk_app_cache_data');
+              if (cachedApp) {
+                const parsed = JSON.parse(cachedApp);
+                (parsed.members || []).forEach(m => {
+                  const k = safeUp(m.user_id || m.id);
+                  if (k) memAvatarMap[k] = m.id_card_url || m.profileUrl || null;
+                });
+              }
+            } catch(e) {}
+
             const savedData = await window.CampaignEngine.fetchSavedCampaignResults(cId);
             if (Array.isArray(savedData) && savedData.length > 0) {
               const mapped = savedData.map(row => {
                 const dj = row.details_json || {};
+                const mKey = safeUp(row.member_id);
+                const qBoxes = Number(row.boxes_qualifying_quota || (row.is_qualified ? 5 : 0));
+                const isQual = !!row.is_qualified;
+                const isNoDed = row.deduct_policy === 'no_deduct';
+                const cDeducted = (isQual && !isNoDed) ? (qBoxes * 250000) : 0;
+                const rDeducted = (isQual && !isNoDed) ? (qBoxes * 200000) : 0;
                 return {
                   memberId: row.member_id,
                   memberName: row.member_name,
-                  profileUrl: row.profile_url || null,
-                  team: row.team_name,
-                  teamName: row.team_name,
-                  clinicPatientCount: Number(row.clinic_patients_count || 0),
-                  clinicAbiPoints: Number(row.clinic_abi_points || 0),
-                  clinicCompPoints: Number(row.clinic_comprehensive_points || 0),
-                  clinicTotalPoints: Number(row.clinic_total_points || 0),
-                  clinicTargetPoints: Number(row.clinic_target_points || 5),
-                  clinicPassed: !!row.clinic_passed,
-                  patientVisits: dj.patientVisits || [],
-                  boxesTotalCount: Number(row.boxes_total_count || 0),
-                  boxesQualifyingQuota: Number(row.boxes_qualifying_quota || 0),
-                  boxesSurplusCount: Number(row.boxes_surplus_count || 0),
-                  boxesTarget: Number(row.boxes_target || 5),
-                  boxesMinPrice: Number(row.boxes_min_price || 1500),
-                  boxesPassed: !!row.boxes_passed,
-                  qualifyingSalesDetails: dj.qualifyingSalesDetails || [],
-                  isNoDeduct: row.deduct_policy === 'no_deduct',
-                  policyLabel: row.deduct_policy === 'no_deduct' ? 'ไม่ตัดกล่อง (เก็บสถิติ/จ่ายเงินเต็ม 100%)' : 'ตัดกล่องโปรโมชั่น',
-                  referralDeducted: Number(row.referral_deducted || 0),
-                  commissionDeducted: Number(row.commission_deducted || 0),
-                  totalDeducted: Number(row.total_deducted || 0),
-                  deductionBreakdown: dj.deduction_breakdown || {
-                    isNoDeduct: row.deduct_policy === 'no_deduct',
-                    quotaBoxes: Number(row.boxes_qualifying_quota || 0),
-                    surplusBoxes: Number(row.boxes_surplus_count || 0),
-                    referralDeducted: Number(row.referral_deducted || 0),
-                    commissionDeducted: Number(row.commission_deducted || 0),
-                    totalDeducted: Number(row.total_deducted || 0)
-                  },
+                    profileUrl: memAvatarMap[mKey] || row.profile_url || null,
+                    team: row.team_name,
+                    teamName: row.team_name,
+                    clinicPatientCount: Number(row.clinic_patients_count || 0),
+                    clinicAbiPoints: Number(row.clinic_abi_points || 0),
+                    clinicCompPoints: Number(row.clinic_comprehensive_points || 0),
+                    clinicTotalPoints: Number(row.clinic_total_points || 0),
+                    clinicTargetPoints: Number(row.clinic_target_points || 5),
+                    clinicPassed: !!row.clinic_passed,
+                    patientVisits: dj.patientVisits || [],
+                    boxesTotalCount: Number(row.boxes_total_count || 0),
+                    boxesQualifyingQuota: qBoxes,
+                    boxesSurplusCount: Number(row.boxes_surplus_count || 0),
+                    boxesTarget: Number(row.boxes_target || 5),
+                    boxesMinPrice: Number(row.boxes_min_price || 1500),
+                    boxesPassed: !!row.boxes_passed,
+                    qualifyingSalesDetails: dj.qualifyingSalesDetails || [],
+                    isNoDeduct: isNoDed,
+                    policyLabel: isNoDed ? 'ไม่ตัดกล่อง (เก็บสถิติ/จ่ายเงินเต็ม 100%)' : 'ตัดกล่องโปรโมชั่น',
+                    referralDeducted: rDeducted,
+                    commissionDeducted: cDeducted,
+                    totalDeducted: cDeducted,
+                    deductionBreakdown: dj.deduction_breakdown || {
+                      isNoDeduct: isNoDed,
+                      quotaBoxes: qBoxes,
+                      surplusBoxes: Number(row.boxes_surplus_count || 0),
+                      referralDeducted: rDeducted,
+                      commissionDeducted: cDeducted,
+                      totalDeducted: cDeducted
+                    },
                   isQualified: !!row.is_qualified,
                   currency: row.currency || 'LAK',
                   status: row.status || (row.is_qualified ? 'QUALIFIED' : 'IN_PROGRESS')
@@ -337,7 +361,7 @@
         const totalClinicPoints = evaluationResults.reduce((acc, r) => acc + (r.clinicTotalPoints || 0), 0);
         const totalQuotaBoxes = evaluationResults.filter(r => r.isQualified).reduce((acc, r) => acc + (r.boxesQualifyingQuota || 0), 0);
         const totalSurplusBoxes = evaluationResults.reduce((acc, r) => acc + (r.boxesSurplusCount || 0), 0);
-        const totalDeducted = evaluationResults.reduce((acc, r) => acc + (r.commissionDeducted || 0), 0);
+        const totalDeducted = evaluationResults.reduce((acc, r) => acc + (r.commissionDeducted || r.totalDeducted || 0), 0);
 
         return {
           totalMarketing,
@@ -909,12 +933,11 @@
                                         ตัด {row.boxesQualifyingQuota || 5} กล่อง
                                       </span>
                                       <span className="text-sm font-black text-rose-600 dark:text-rose-400">
-                                        -{fmtCurrency(row.totalDeducted || (row.referralDeducted || 0) + (row.commissionDeducted || 0), row.currency)}
+                                        -{fmtCurrency(row.commissionDeducted || row.totalDeducted || ((row.boxesQualifyingQuota || 5) * 250000), row.currency)}
                                       </span>
                                     </div>
                                     <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 text-right space-y-0.5">
-                                      <div>งดค่าแนะนำ: <span className="font-bold text-rose-500">-{fmtCurrency(row.referralDeducted || ((row.boxesQualifyingQuota || 5) * 150000), row.currency)}</span></div>
-                                      <div>งดคอมฯ/ปันผล: <span className="font-bold text-amber-500">-{fmtCurrency(row.commissionDeducted || ((row.boxesQualifyingQuota || 5) * 100000), row.currency)}</span></div>
+                                      <div>งดคอมฯ ขายเอง: <span className="font-bold text-rose-500">-{fmtCurrency(row.commissionDeducted || row.totalDeducted || ((row.boxesQualifyingQuota || 5) * 250000), row.currency)}</span></div>
                                     </div>
                                     {row.boxesSurplusCount > 0 && (
                                       <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
@@ -1100,6 +1123,24 @@
                           </span>
                         </div>
                       </div>
+
+                      {drilldownMember.isQualified && !drilldownMember.isNoDeduct && (
+                        <div className="p-3 rounded-2xl bg-rose-50/70 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/40 text-xs mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div>
+                            <span className="font-black text-rose-700 dark:text-rose-300 block">
+                              ✂️ การงดจ่ายสำหรับกล่องโควต้าแคมเปญ ({drilldownMember.boxesQualifyingQuota || 5} กล่องแรก):
+                            </span>
+                            <span className="text-[11px] text-rose-600 dark:text-rose-400">
+                              • งดคอมมิชชั่นขายเองของผู้ขาย: -{fmtCurrency(drilldownMember.commissionDeducted || ((drilldownMember.boxesQualifyingQuota || 5) * 250000), drilldownMember.currency)} (กล่องละ 250,000)
+                            </span>
+                          </div>
+                          <div className="text-left sm:text-right">
+                            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block">
+                              • งดค่าแนะนำให้ผู้แนะนำ (Upline): -{fmtCurrency(drilldownMember.referralDeducted || ((drilldownMember.boxesQualifyingQuota || 5) * 200000), drilldownMember.currency)} (กล่องละ 200,000)
+                            </span>
+                          </div>
+                        </div>
+                      )}
 
                       {drilldownMember.qualifyingSalesDetails && drilldownMember.qualifyingSalesDetails.length > 0 ? (
                         <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">

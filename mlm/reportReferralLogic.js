@@ -271,12 +271,23 @@
                 const memId = safeUpper(log.member_id || log.memberId || log.seller_id || '');
                 const id = log.payout_id || log.id || `${memId}_${log.payout_date || log.date || ''}`;
                 const amt = Number(log.amount ?? log.payout_amount ?? log.payAmt ?? log.paid_amount ?? log.total_amount ?? 0) || 0;
+                let promoDeductBoxes = Number(log.promo_deduct_boxes || log.promoDeductBoxes || 0);
+                let promoDeductAmount = Number(log.promo_deduct_amount || log.promoDeductAmount || 0);
+                if (log.reference_note && typeof log.reference_note === 'string' && log.reference_note.startsWith('{')) {
+                    try {
+                        const parsed = JSON.parse(log.reference_note);
+                        if (parsed.promoDeductBoxes) promoDeductBoxes = Number(parsed.promoDeductBoxes);
+                        if (parsed.promoDeductAmount) promoDeductAmount = Number(parsed.promoDeductAmount);
+                    } catch(e) {}
+                }
                 list.push({
                     id: String(id),
                     memberId: memId,
                     memberName: log.member_name || log.memberName || '',
                     team: log.team_name || log.team || '',
                     amount: amt,
+                    promoDeductBoxes,
+                    promoDeductAmount,
                     date: String(log.payout_date || log.date || '').trim(),
                     startDate: String(log.start_date || log.startDate || log.payout_date || log.date || '').trim(),
                     endDate: String(log.end_date || log.endDate || log.payout_date || log.date || '').trim(),
@@ -294,12 +305,16 @@
                 const memId = safeUpper(rec.memberId || rec.member_id || rec.seller_id || k.split('_')[0]);
                 const id = String(rec.key || rec.payout_id || rec.id || k);
                 const amt = Number(rec.amount ?? rec.payout_amount ?? rec.payAmt ?? rec.paid_amount ?? rec.totalEarn ?? rec.selfEarn ?? 0) || 0;
+                let promoDeductBoxes = Number(rec.promoDeductBoxes || rec.promo_deduct_boxes || 0);
+                let promoDeductAmount = Number(rec.promoDeductAmount || rec.promo_deduct_amount || 0);
                 list.push({
                     id: id,
                     memberId: memId,
                     memberName: rec.memberName || rec.name || '',
                     team: rec.team || '',
                     amount: amt,
+                    promoDeductBoxes,
+                    promoDeductAmount,
                     date: String(rec.date || rec.payout_date || '').trim(),
                     startDate: String(rec.startDate || rec.start_date || rec.date || rec.payout_date || '').trim(),
                     endDate: String(rec.endDate || rec.end_date || rec.date || rec.payout_date || '').trim(),
@@ -322,6 +337,8 @@
                 if (p.startDate && !deduped[p.id].startDate) deduped[p.id].startDate = p.startDate;
                 if (p.endDate && !deduped[p.id].endDate) deduped[p.id].endDate = p.endDate;
                 if (p.type && !deduped[p.id].type) deduped[p.id].type = p.type;
+                if (p.promoDeductBoxes) deduped[p.id].promoDeductBoxes = Math.max(deduped[p.id].promoDeductBoxes || 0, p.promoDeductBoxes);
+                if (p.promoDeductAmount) deduped[p.id].promoDeductAmount = Math.max(deduped[p.id].promoDeductAmount || 0, p.promoDeductAmount);
             }
         });
         return Object.values(deduped);
@@ -663,7 +680,7 @@
                 const mId = safeUpper(m.id);
                 const campInfo = campaignResultsMap[mId] || null;
                 const promoDeductBoxes = (campInfo && !campInfo.isNoDeduct) ? Number(campInfo.quotaBoxes || 0) : 0;
-                const promoDeductReferral = (campInfo && !campInfo.isNoDeduct) ? Number(campInfo.referralDeducted || (promoDeductBoxes * 150000)) : 0;
+                const promoDeductReferral = (campInfo && !campInfo.isNoDeduct) ? Number(campInfo.referralDeducted || (promoDeductBoxes * 200000)) : 0;
 
                 m.promoDeductBoxes = promoDeductBoxes;
                 m.promoDeductReferral = promoDeductReferral;
@@ -880,8 +897,11 @@
         dailyItems.forEach(item => {
             const mId = safeUpper(item.memberId);
             let matchedPaidAmount = 0;
+            let matchedPaidDeductBoxes = 0;
+            let matchedPaidDeductAmount = 0;
             let lastPaidAt = null;
             let lastPaidBy = null;
+            let hasPaidRecord = false;
             payouts.forEach(p => {
                 if (p.memberId === mId) {
                     let matches = false;
@@ -897,7 +917,10 @@
                         }
                     }
                     if (matches) {
+                        hasPaidRecord = true;
                         matchedPaidAmount += p.amount;
+                        if (p.promoDeductBoxes) matchedPaidDeductBoxes = Math.max(matchedPaidDeductBoxes, p.promoDeductBoxes);
+                        if (p.promoDeductAmount) matchedPaidDeductAmount = Math.max(matchedPaidDeductAmount, p.promoDeductAmount);
                         if (p.paidAt && (!lastPaidAt || p.paidAt > lastPaidAt)) {
                             lastPaidAt = p.paidAt;
                             lastPaidBy = p.paidBy;
@@ -905,38 +928,57 @@
                     }
                 }
             });
-            prePaidMap[item.key] = { matchedPaidAmount, lastPaidAt, lastPaidBy };
+            prePaidMap[item.key] = { matchedPaidAmount, lastPaidAt, lastPaidBy, matchedPaidDeductBoxes, matchedPaidDeductAmount, hasPaidRecord };
         });
 
-        // Pass 2: Roll-forward quota deduction — เฉพาะ PENDING เท่านั้น
+        // Pass 2: Roll-forward quota deduction — คำนวณโควต้าสะสมที่หักไปแล้ว
         const memberDeductedBoxesTracker = {};
         const memberDeductedAmountTracker = {};
+
+        // ค้นหาประวัติการจ่ายเงินที่สำเร็จแล้ว (PAID) ที่เกิดขึ้นก่อนหน้าช่วงวันที่ที่กำลังแสดง
+        // เพื่อนำจำนวนกล่อง/ยอดเงินที่เคยถูกหักไปแล้ว มาเป็นฐานเริ่มต้น (ไม่หักซ้ำในวันถัดไป)
+        const earliestDisplayDate = dailyItems[0]?.date || '';
+        payouts.forEach(p => {
+            const pId = safeUpper(p.memberId);
+            const pDate = p.date || p.startDate || p.start_date || '';
+            if (earliestDisplayDate && pDate && pDate < earliestDisplayDate) {
+                if (p.promoDeductBoxes) {
+                    memberDeductedBoxesTracker[pId] = (memberDeductedBoxesTracker[pId] || 0) + Number(p.promoDeductBoxes);
+                }
+                if (p.promoDeductAmount) {
+                    memberDeductedAmountTracker[pId] = (memberDeductedAmountTracker[pId] || 0) + Number(p.promoDeductAmount);
+                }
+            }
+        });
 
         return dailyItems
             .map(item => {
                 const mId = safeUpper(item.memberId);
-                const { matchedPaidAmount, lastPaidAt, lastPaidBy } = prePaidMap[item.key] || {};
+                const { matchedPaidAmount, lastPaidAt, lastPaidBy, matchedPaidDeductBoxes, matchedPaidDeductAmount, hasPaidRecord } = prePaidMap[item.key] || {};
 
                 const campInfo = ((typeof window !== 'undefined' && window.__stkCampaignResultsMap) || {})[mId] || null;
                 const isQualified = !!(campInfo && campInfo.isQualified && !campInfo.isNoDeduct);
                 const maxQuotaBoxes = isQualified ? Number(campInfo.quotaBoxes || 0) : 0;
-                const maxDeductAmount = isQualified ? Number(campInfo.referralDeducted || (maxQuotaBoxes * 150000)) : 0;
+                const maxDeductAmount = isQualified ? Number(campInfo.commissionDeducted || (maxQuotaBoxes * 250000)) : 0;
 
                 const alreadyDeductedBoxes = memberDeductedBoxesTracker[mId] || 0;
                 const alreadyDeductedAmount = memberDeductedAmountTracker[mId] || 0;
 
                 // ── Roll-forward Core Logic ──────────────────────────────────────────────────
-                // ตรวจสอบว่าวันนี้ได้โอนเงินออกไปแล้วหรือไม่ (เงินโอน = matchedPaidAmount ≥ gross totalEarn ของวันนั้น)
-                // ถ้าโอนแล้ว → ไม่ consume quota (กล่องวันนี้ไม่นับเข้าโควต้า)
-                // ถ้ายังไม่โอน (PENDING) → consume quota ตามจำนวนกล่องที่ขาย
                 const grossEarn = item.totalEarn || 0;
-                const isDayAlreadyPaid = (matchedPaidAmount || 0) >= grossEarn && grossEarn > 0;
+                const isDayAlreadyPaid = hasPaidRecord && (matchedPaidAmount > 0);
 
                 let promoDeductBoxes = 0;
                 let promoDeductAmount = 0;
 
-                if (isQualified && !isDayAlreadyPaid) {
-                    // วัน PENDING: หักโควต้าตามปกติ
+                if (isDayAlreadyPaid) {
+                    // วัน PAID: หากตอนจ่ายเคยมีการหักโปรฯ ให้ดึงค่าที่เคยหักจริงมาแสดง และอัปเดตเข้า tracker
+                    promoDeductBoxes = matchedPaidDeductBoxes || 0;
+                    promoDeductAmount = matchedPaidDeductAmount || 0;
+                    memberDeductedBoxesTracker[mId] = alreadyDeductedBoxes + promoDeductBoxes;
+                    memberDeductedAmountTracker[mId] = alreadyDeductedAmount + promoDeductAmount;
+                } else if (isQualified) {
+                    // วัน PENDING: หักโควต้าตามส่วนที่เหลือที่ยังไม่ได้หัก
                     const remainingQuotaToDeduct = Math.max(0, maxQuotaBoxes - alreadyDeductedBoxes);
                     promoDeductBoxes = Math.min(item.boxes || 0, remainingQuotaToDeduct);
 
@@ -946,11 +988,10 @@
                         promoDeductAmount = Math.min(grossEarn, Math.min(remainingAmountToDeduct, promoDeductBoxes * feePerBox));
                     }
 
-                    // อัปเดต tracker เฉพาะวัน PENDING เท่านั้น
+                    // อัปเดต tracker
                     memberDeductedBoxesTracker[mId] = alreadyDeductedBoxes + promoDeductBoxes;
                     memberDeductedAmountTracker[mId] = alreadyDeductedAmount + promoDeductAmount;
                 }
-                // วัน PAID: ไม่ต้องหัก ไม่อัปเดต tracker (Roll-forward ข้ามไป)
                 // ─────────────────────────────────────────────────────────────────────────────
 
                 const netBoxes = Math.max(0, (item.boxes || 0) - promoDeductBoxes);
@@ -1168,7 +1209,7 @@
             const isQualified = !!(campInfo && campInfo.isQualified && !campInfo.isNoDeduct);
             const promoDeductBoxes = isQualified ? Math.min(Number(r.selfBoxes || 0), Number(campInfo.quotaBoxes || 0)) : 0;
             const netSelfBoxes = Math.max(0, (r.selfBoxes || 0) - promoDeductBoxes);
-            const promoDeductAmount = isQualified ? Number(campInfo.commissionDeducted || (promoDeductBoxes * 100000)) : 0;
+            const promoDeductAmount = isQualified ? Number(campInfo.commissionDeducted || (promoDeductBoxes * 250000)) : 0;
 
             const selfEarn = Number(r.selfEarn || 0);
             const netSelfEarn = Math.max(0, selfEarn - promoDeductAmount);
@@ -1292,10 +1333,10 @@
                 if (dlCampInfo && dlCampInfo.isQualified && !dlCampInfo.isNoDeduct) {
                     qualifiedDownlineCount++;
                     const dlQuotaBoxes = Number(dlCampInfo.quotaBoxes || 0);
-                    const dlCommDeduct = Number(dlCampInfo.commissionDeducted || (dlQuotaBoxes * 50000));
+                    const dlRefDeduct = Number(dlCampInfo.referralDeducted || (dlQuotaBoxes * 200000));
                     totalPromoDeductBoxes += dlQuotaBoxes;
-                    totalPromoDeductAmount += dlCommDeduct;
-                    qualifiedDownlineList.push({ memberId: dlId, quotaBoxes: dlQuotaBoxes, deductAmount: dlCommDeduct, campaignTitle: dlCampInfo.campaignTitle || '' });
+                    totalPromoDeductAmount += dlRefDeduct;
+                    qualifiedDownlineList.push({ memberId: dlId, quotaBoxes: dlQuotaBoxes, deductAmount: dlRefDeduct, campaignTitle: dlCampInfo.campaignTitle || '' });
                 }
             });
 

@@ -19,7 +19,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ตั้งค่าแคมเปญ & โปรโมชั่นแข่งขัน - LOVE STK GROUPE</title>
-  <link rel="stylesheet" href="mainstyle.css?v=6">
+  <link rel="stylesheet" href="mainstyle.css?v=2026.10.02.01">
   <script>(function(){var w=console.warn;console.warn=function(){var m=arguments[0]?String(arguments[0]):'';if(m.includes('cdn.tailwindcss.com')||m.includes('in-browser Babel transformer'))return;w.apply(console,arguments);};})();</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -31,10 +31,10 @@
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js"></script>
-  <script src="dictionary.js"></script>
-  <script src="CommonComponents.js?v=3"></script>
-  <script src="campaignLogic.js?v=6"></script>
+  <script src="config.js?v=2026.10.02.01"></script>
+  <script src="dictionary.js?v=2026.10.02.01"></script>
+  <script src="CommonComponents.js?v=2026.10.02.01"></script>
+  <script src="campaignLogic.js?v=2026.10.02.01"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
@@ -59,6 +59,11 @@
       let cleanUrl = String(url || '').trim();
       if (!cleanUrl || cleanUrl === 'undefined' || cleanUrl === 'null' || cleanUrl === '-') {
         return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Staff')}&background=1e293b&color=cbd5e1&rounded=true&bold=true`;
+      }
+      if (cleanUrl.startsWith('/9j/')) {
+        cleanUrl = 'data:image/jpeg;base64,' + cleanUrl;
+      } else if (cleanUrl.startsWith('iVBORw0KGgo')) {
+        cleanUrl = 'data:image/png;base64,' + cleanUrl;
       }
       if (cleanUrl.includes('drive.google.com')) {
         const match = cleanUrl.match(/[-\w]{25,}/);

@@ -34,11 +34,11 @@
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="companySettings.js"></script>
-  <script src="config.js"></script>
-  <script src="dictionary.js"></script>
-  <script src="CommonComponents.js?v=3"></script>
-  <script src="reportReferralLogic.js"></script>
+  <script src="companySettings.js?v=2026.10.02.04"></script>
+  <script src="config.js?v=2026.10.02.04"></script>
+  <script src="dictionary.js?v=2026.10.02.04"></script>
+  <script src="CommonComponents.js?v=2026.10.02.04"></script>
+  <script src="reportReferralLogic.js?v=2026.10.02.04"></script>
 </head>
 <body class="antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white">
 
@@ -316,15 +316,15 @@
                 if (cr.is_qualified && !isNoDeduct) {
                     // โควต้ากล่องตามแคมเปญที่เปิดใช้งานจริง (เช่น 5 กล่อง)
                     const quota = Number(parentCamp.cond2_target || cr.boxes_qualifying_quota || brk.quota_boxes || 5);
-                    const refDeduct = Number(cr.referral_deducted || brk.referral_deducted || (quota * 150000));
-                    const commDeduct = Number(cr.commission_deducted || brk.commission_deducted || (quota * 100000));
+                    const refDeduct = Number(cr.referral_deducted || brk.referral_deducted || (quota * 200000));
+                    const commDeduct = Number(cr.commission_deducted || brk.commission_deducted || (quota * 250000));
                     map[mId] = {
                         campaignId: campId,
                         campaignTitle: parentCamp.name || cr.campaign_title || 'แคมเปญ',
                         quotaBoxes: quota,
                         referralDeducted: refDeduct,
                         commissionDeducted: commDeduct,
-                        totalDeducted: refDeduct + commDeduct,
+                        totalDeducted: commDeduct,
                         isQualified: true,
                         isNoDeduct: false
                     };
@@ -528,7 +528,7 @@
 
                 // ── TIER 3: Heavy Sales + Customers (defer off main thread) ─────────────
                 // โหลด sales แบบ non-blocking: fetch ก่อน แล้วค่อย parse items_json ทีหลังใน idle time
-                window.supabaseSelect('stk_sales', 'select=order_id,sale_date,seller_id,member_id,customer_id,total_amount,items_json,sale_type,status&order=order_id.desc&limit=3000')
+                window.supabaseSelect('stk_sales', 'select=order_id,date,seller_id,customer_id,total_amount,items_json,sale_type,status&order=order_id.desc&limit=3000')
                     .then(saleRes => {
                         if (!Array.isArray(saleRes) || saleRes.length === 0) return;
                         // ⚡ แบ่ง batch parse items_json เพื่อไม่ให้ freeze main thread
@@ -912,7 +912,9 @@
                     startDate: startDate,
                     endDate: endDate,
                     payoutType: payoutType,
-                    type: payoutType
+                    type: payoutType,
+                    promoDeductBoxes: payoutItem?.promoDeductBoxes || 0,
+                    promoDeductAmount: payoutItem?.promoDeductAmount || 0
                 };
             });
 
@@ -933,10 +935,20 @@
                         const [mId] = k.split('_');
                         const memberId = payoutItem?.memberId || mId;
                         const payoutType = subTab === 'monthly_self' ? 'monthly_self' : (subTab === 'monthly_team' ? 'monthly_team' : 'daily');
-                        const payAmt = subTab === 'monthly_self' ? (payoutItem?.remainingSelf || payoutItem?.selfEarn || 0) : (subTab === 'monthly_team' ? (payoutItem?.remainingTeam || payoutItem?.teamEarn || 0) : (payoutItem?.totalEarn || 0));
+                        const payAmt = subTab === 'monthly_self' ? (payoutItem?.remainingSelf || payoutItem?.selfEarn || 0) : (subTab === 'monthly_team' ? (payoutItem?.remainingTeam || payoutItem?.teamEarn || 0) : (payoutItem?.netEarn !== undefined ? payoutItem.netEarn : (payoutItem?.totalEarn || 0)));
 
                         const pStart = startDate || todayNow.substring(0, 10);
                         const pEnd = endDate || startDate || todayNow.substring(0, 10);
+                        let refNoteStr = payoutNote || '';
+                        if (payoutItem?.promoDeductBoxes) {
+                            try {
+                                refNoteStr = JSON.stringify({
+                                    note: payoutNote || '',
+                                    promoDeductBoxes: payoutItem.promoDeductBoxes || 0,
+                                    promoDeductAmount: payoutItem.promoDeductAmount || 0
+                                });
+                            } catch(e) {}
+                        }
                         const logData = {
                             payout_id: k,
                             member_id: memberId,
@@ -952,7 +964,7 @@
                             status: 'PAID',
                             payout_type: payoutType,
                             payment_method: payoutMethod || 'เงินโอน',
-                            reference_note: payoutNote || '',
+                            reference_note: refNoteStr,
                             paid_by: payer,
                             paid_at: todayNow
                         };
@@ -1028,13 +1040,13 @@
             referralDailyPayoutData.forEach((item, idx) => {
                 const selfVal = Math.round(convertVal(item.selfEarn || 0));
                 const promoDeductVal = Math.round(convertVal(item.promoDeductAmount || 0));
-                const totVal = Math.round(convertVal(item.totalEarn || 0));
+                const netVal = Math.round(convertVal(item.netEarn !== undefined ? item.netEarn : (item.totalEarn || 0)));
                 const promoDeductB = item.promoDeductBoxes || 0;
                 const netBoxesVal = item.netBoxes !== undefined ? item.netBoxes : (item.boxes || 0);
 
                 sumSelf += selfVal;
                 sumPromoDeduct += promoDeductVal;
-                sumTotal += totVal;
+                sumTotal += netVal;
                 sumBox150k += (item.box150k || 0);
                 sumBox250k += (item.box250k || 0);
                 sumBoxes += (item.boxes || 0);
@@ -1054,7 +1066,7 @@
                     netBoxesVal,
                     selfVal,
                     promoDeductVal > 0 ? -promoDeductVal : 0,
-                    totVal,
+                    netVal,
                     item.status === 'PAID' ? 'จ่ายแล้ว' : 'รอปันผล',
                     item.paidBy || '-',
                     item.paidAt ? new Date(item.paidAt).toLocaleString('th-TH') : '-'
@@ -1285,7 +1297,7 @@
             }
             if (unpaidList.length === 0) {
                 unpaidList = (data || []).filter(item => {
-                    const rem = isDaily ? (item.totalEarn || 0) : (isSelf ? (item.remainingSelf || 0) : (item.remainingTeam || 0));
+                    const rem = isDaily ? (item.netEarn !== undefined ? item.netEarn : (item.totalEarn || 0)) : (isSelf ? (item.remainingSelf || 0) : (item.remainingTeam || 0));
                     return rem > 0 && item.status !== 'PAID';
                 });
             }
@@ -1309,7 +1321,7 @@
                 const mem = (members || []).find(m => String(m.id).toUpperCase() === String(item.memberId || item.id).toUpperCase()) || {};
                 const bAcc = String(mem.bankAccountNo || mem.bank_account_no || '').trim();
                 const bHolder = String(mem.bankAccountName || mem.bank_account_name || mem.name || item.memberName || item.name || '').trim();
-                const remVal = Math.round(convertVal(isDaily ? (item.totalEarn || 0) : (isSelf ? (item.remainingSelf || 0) : (item.remainingTeam || 0))));
+                const remVal = Math.round(convertVal(isDaily ? (item.netEarn !== undefined ? item.netEarn : (item.totalEarn || 0)) : (isSelf ? (item.remainingSelf || 0) : (item.remainingTeam || 0))));
 
                 // หากรายการรายวันมีวันที่เฉพาะตัว ให้ใช้ Description ตามวันนั้น
                 const rowDate = item.date || startDate;
@@ -1452,13 +1464,13 @@
                 tableRowsHtml = referralDailyPayoutData.map((item, idx) => {
                     const selfVal = convertVal(item.selfEarn || 0);
                     const promoDeductVal = convertVal(item.promoDeductAmount || 0);
-                    const totVal = convertVal(item.totalEarn || 0);
+                    const netVal = convertVal(item.netEarn !== undefined ? item.netEarn : (item.totalEarn || 0));
                     const promoDeductB = item.promoDeductBoxes || 0;
                     const netBoxesVal = item.netBoxes !== undefined ? item.netBoxes : (item.boxes || 0);
 
                     sumSelf += selfVal;
                     sumPromoDeduct += promoDeductVal;
-                    sumTotal += totVal;
+                    sumTotal += netVal;
                     sumBox150k += (item.box150k || 0);
                     sumBox250k += (item.box250k || 0);
                     sumBoxes += (item.boxes || 0);
@@ -1478,7 +1490,7 @@
                             <td style="text-align: center; font-weight: 800; color: #059669; background: #f0fdf4;">${netBoxesVal.toLocaleString()}</td>
                             <td class="num-cell" style="color: #64748b;">${formatValDisplay(item.selfEarn)}</td>
                             <td class="num-cell" style="color: #dc2626; background: #fff1f2;">${promoDeductVal > 0 ? `-${formatValDisplay(item.promoDeductAmount)}` : '-'}</td>
-                            <td class="num-cell" style="font-weight: 800; color: #0f172a; background: #f8fafc;">${formatValDisplay(item.totalEarn)}</td>
+                            <td class="num-cell" style="font-weight: 800; color: #0f172a; background: #f8fafc;">${formatValDisplay(item.netEarn !== undefined ? item.netEarn : item.totalEarn)}</td>
                         </tr>
                     `;
                 }).join('');
@@ -2494,6 +2506,8 @@
                                                     <th className={thBase}>รหัส</th>
                                                     <th className={thBase}>พนักงาน</th>
                                                     <th className={thBase}>สังกัดทีม</th>
+                                                    <th className={`${thBase} text-center text-amber-600 dark:text-amber-400 bg-amber-50/40 dark:bg-amber-950/20 whitespace-nowrap`}>กล่อง 150K</th>
+                                                    <th className={`${thBase} text-center text-emerald-600 dark:text-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/20 whitespace-nowrap`}>กล่อง 250K</th>
                                                     <th className={`${thBase} text-center text-slate-700 dark:text-slate-300 bg-slate-100/60 dark:bg-slate-800/60 whitespace-nowrap`}>กล่องขายรวม</th>
                                                     <th className={`${thBase} text-center text-rose-700 dark:text-rose-400 bg-rose-50/40 dark:bg-rose-950/20 whitespace-nowrap`}>ตัดโปรฯ (กล่อง)</th>
                                                     <th className={`${thBase} text-center text-blue-700 dark:text-blue-400 bg-blue-50/40 dark:bg-blue-950/20 whitespace-nowrap`}>กล่องสุทธิคิดเงิน</th>
@@ -2519,6 +2533,12 @@
                                                             <td className="p-4 text-sm font-bold text-blue-600 dark:text-blue-400 font-mono whitespace-nowrap">{item.memberId}</td>
                                                             <td className="p-4 text-sm font-black text-slate-800 dark:text-white">{item.memberName}</td>
                                                             <td className="p-4 text-sm font-bold"><span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-xs border border-slate-200 dark:border-slate-700 whitespace-nowrap">{item.team}</span></td>
+                                                            <td className="p-4 text-center font-bold text-amber-600 dark:text-amber-400 bg-amber-50/30 dark:bg-amber-950/20">
+                                                                {item.box150k ? item.box150k.toLocaleString() : '-'}
+                                                            </td>
+                                                            <td className="p-4 text-center font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50/30 dark:bg-emerald-950/20">
+                                                                {item.box250k ? item.box250k.toLocaleString() : '-'}
+                                                            </td>
                                                             <td className="p-4 text-center font-bold text-slate-800 dark:text-slate-200 bg-slate-50/50 dark:bg-slate-800/30">
                                                                 {(item.boxes || 0).toLocaleString()}
                                                             </td>
@@ -2555,13 +2575,19 @@
                                                         </tr>
                                                     );
                                                 })}
-                                                {referralDailyPayoutData.length === 0 && <tr><td colSpan="12" className="p-12 text-center text-slate-400 dark:text-slate-500 font-bold">ไม่พบรายการปันผลรายวันตามเงื่อนไขที่ระบุ</td></tr>}
+                                                {referralDailyPayoutData.length === 0 && <tr><td colSpan="14" className="p-12 text-center text-slate-400 dark:text-slate-500 font-bold">ไม่พบรายการปันผลรายวันตามเงื่อนไขที่ระบุ</td></tr>}
                                             </tbody>
                                             {referralDailyPayoutData.length > 0 && (
                                                 <tfoot className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/80 font-bold">
                                                     <tr>
                                                         <td colSpan="5" className="p-4 text-right text-slate-800 dark:text-slate-200 font-extrabold text-xs">
                                                             ยอดรวมทั้งหมด ({referralDailyPayoutData.length} รายการ):
+                                                        </td>
+                                                        <td className="p-4 text-center font-black text-amber-600 dark:text-amber-400 bg-amber-50/40 dark:bg-amber-950/20 text-sm">
+                                                            {referralDailyPayoutData.reduce((acc, i) => acc + (i.box150k || 0), 0).toLocaleString()}
+                                                        </td>
+                                                        <td className="p-4 text-center font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/20 text-sm">
+                                                            {referralDailyPayoutData.reduce((acc, i) => acc + (i.box250k || 0), 0).toLocaleString()}
                                                         </td>
                                                         <td className="p-4 text-center font-black text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-700/50 text-sm">
                                                             {referralDailyPayoutData.reduce((acc, i) => acc + (i.boxes || 0), 0).toLocaleString()}

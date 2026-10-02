@@ -682,6 +682,29 @@
         return isMarketingMember(m, teamsMap);
       });
 
+      // ดึงและทำ Mapping อัตราค่าคอมขายเอง (self_fee) และค่าแนะนำ (level_1_fee) จากตารางสินค้าจริง
+      var productsMap = {};
+      var rawProducts = products;
+      if ((!rawProducts || rawProducts.length === 0) && typeof localStorage !== 'undefined') {
+        try {
+          var cData = localStorage.getItem('stk_app_cache_data');
+          if (cData) {
+            var pData = JSON.parse(cData);
+            if (Array.isArray(pData.products) && pData.products.length > 0) rawProducts = pData.products;
+          }
+        } catch(e) {}
+      }
+      (rawProducts || []).forEach(function (p) {
+        if (!p) return;
+        var pId = safeUp(p.product_id || p.id);
+        var pName = safeUp(p.name);
+        var selfF = p.self_fee !== undefined ? Number(p.self_fee) : (p.selfFee !== undefined ? Number(p.selfFee) : 250000);
+        var refF = p.level_1_fee !== undefined ? Number(p.level_1_fee) : (p.level1Fee !== undefined ? Number(p.level1Fee) : 200000);
+        var pObj = { selfFee: selfF, refFee: refF };
+        if (pId) productsMap[pId] = pObj;
+        if (pName) productsMap[pName] = pObj;
+      });
+
       var targetClinicPoints = Number(campaign.cond1_target || 5);
       var targetBoxes = Number(campaign.cond2_target || 5);
       var minBoxPrice = Number(campaign.cond2_min_price || 1500);
@@ -781,12 +804,20 @@
           }
 
           var boxesInThisSale = 0;
+          var saleSelfRate = 250000;
+          var saleRefRate = 200000;
+
           if (Array.isArray(itemsList) && itemsList.length > 0) {
             itemsList.forEach(function (it) {
               var q = parseInt(it.qty || it.quantity || 1) || 0;
               var p = parseFloat(it.unitPrice !== undefined ? it.unitPrice : (it.price !== undefined ? it.price : 0)) || 0;
               if (q > 0 && (minBoxPrice === 0 || p >= minBoxPrice)) {
                 boxesInThisSale += q;
+                var itKey = safeUp(it.product_id || it.productId || it.id || it.name || it.product_name);
+                if (productsMap[itKey]) {
+                  saleSelfRate = productsMap[itKey].selfFee;
+                  saleRefRate = productsMap[itKey].refFee;
+                }
               }
             });
           }
@@ -800,6 +831,11 @@
             }
             if (boxes > 0 && (minBoxPrice === 0 || unitPrice >= minBoxPrice)) {
               boxesInThisSale = boxes;
+              var pKey = safeUp(s.product_name || s.productName || s.product_id || s.productId);
+              if (productsMap[pKey]) {
+                saleSelfRate = productsMap[pKey].selfFee;
+                saleRefRate = productsMap[pKey].refFee;
+              }
             }
           }
 
@@ -809,7 +845,9 @@
               saleId: sId,
               date: sDate,
               boxes: boxesInThisSale,
-              customerName: s.customerName || s.customer_name || ''
+              customerName: s.customerName || s.customer_name || '',
+              selfRate: saleSelfRate,
+              refRate: saleRefRate
             });
           }
         });
@@ -833,16 +871,16 @@
           quotaBoxes = Math.min(totalQualifyingBoxes, targetBoxes); // ล็อคไม่เกินโควต้าเป้าหมาย (เช่น 5 กล่อง)
           surplusBoxes = Math.max(0, totalQualifyingBoxes - targetBoxes);
 
-          // สำหรับกล่องโควต้า: งดจ่ายทั้งค่าแนะนำ และ ค่าคอมมิชชั่น
+          // สำหรับกล่องโควต้า: คำนวณค่าคอมขายเองของผู้ขาย (250,000) และค่าแนะนำของ Upline (200,000)
           var remainingQuota = quotaBoxes;
           for (var qIdx = 0; qIdx < qualifyingSalesDetails.length && remainingQuota > 0; qIdx++) {
             var sItem = qualifyingSalesDetails[qIdx];
             var qInSale = Math.min(sItem.boxes, remainingQuota);
-            var refRate = sItem.refRate || 150000;
-            var commRate = sItem.commRate || 100000;
+            var selfRate = sItem.selfRate !== undefined ? sItem.selfRate : 250000; // ค่าคอมขายเองของผู้ขาย
+            var refRate = sItem.refRate !== undefined ? sItem.refRate : 200000;   // ค่าแนะนำ Upline
 
+            commissionDeducted += (selfRate * qInSale);
             referralDeducted += (refRate * qInSale);
-            commissionDeducted += (commRate * qInSale);
             remainingQuota -= qInSale;
           }
 
@@ -852,7 +890,9 @@
             commissionDeducted = deductAmountSetting;
           }
 
-          totalDeducted = referralDeducted + commissionDeducted;
+          // 🛡️ ยอดเงินที่ผู้ขายเองถูกตัดจริง (เฉพาะค่าคอมขายเอง = 5 x 250,000 = 1,250,000)
+          // ค่าแนะนำ (referralDeducted = 1,000,000) ส่งไปแสดงแยกในแท็บ Upline/Drilldown
+          totalDeducted = commissionDeducted;
         }
 
         return {

@@ -6,6 +6,23 @@
 (function () {
   'use strict';
 
+  // 0. Global App Version for Cache-Busting & Egress Optimization
+  const APP_VERSION = '2026.10.02.04';
+  window.APP_VERSION = APP_VERSION;
+
+  // 🛡️ Auto-Purge Cache On New Version Deploy (User doesn't have to clear cache manually)
+  try {
+    const savedVer = localStorage.getItem('stk_app_version');
+    if (savedVer && savedVer !== APP_VERSION) {
+      console.log(`%c🔄 New App Version detected (${savedVer} -> ${APP_VERSION}). Refreshing cache...`, 'color:#3b82f6;font-weight:bold;');
+      localStorage.removeItem('stk_app_cache_data');
+      localStorage.removeItem('stk_reports_cache_data');
+      localStorage.removeItem('stk_app_cache_time');
+      sessionStorage.removeItem('stk_admin_products_full');
+    }
+    localStorage.setItem('stk_app_version', APP_VERSION);
+  } catch (e) {}
+
   // 1. ตั้งค่า Environments & API Keys
   const CONFIG = {
     SUPABASE_URL: 'https://mfpkeyrykqnrywyksyqp.supabase.co',

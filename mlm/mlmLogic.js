@@ -17,6 +17,11 @@
     if (!cleanUrl || cleanUrl === 'undefined' || cleanUrl === 'null' || cleanUrl === '-') {
       return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=1e293b&color=cbd5e1&rounded=true&bold=true`;
     }
+    if (cleanUrl.startsWith('/9j/')) {
+      cleanUrl = 'data:image/jpeg;base64,' + cleanUrl;
+    } else if (cleanUrl.startsWith('iVBORw0KGgo')) {
+      cleanUrl = 'data:image/png;base64,' + cleanUrl;
+    }
     if (cleanUrl.includes('drive.google.com')) {
       const match = cleanUrl.match(/[-\w]{25,}/);
       const fileId = match ? match[0] : '';
