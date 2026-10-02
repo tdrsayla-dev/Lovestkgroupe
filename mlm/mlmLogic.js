@@ -297,26 +297,22 @@
   };
 
   const filterActiveBusinessTeams = (businessTeams) => {
-    let teams = [];
-    if (Array.isArray(businessTeams) && businessTeams.length > 0) {
-      teams = businessTeams.filter(t => t && t.status !== 'ปิดเข้าใช้งาน' && t.status !== 'ปิดใช้งาน' && t.status !== 'Disabled');
-    }
-    // ตรวจสอบให้มี Marketing (T01) และ Center (T02) สำหรับ Dashboard เสมอ
-    const hasMarketing = teams.some(t => safeUpper(t.name).includes('MARKETING') || safeUpper(t.id) === 'T01' || safeUpper(t.id) === 'T001');
-    const hasCenter = teams.some(t => safeUpper(t.name).includes('CENTER') || safeUpper(t.id) === 'T02' || safeUpper(t.id) === 'T002');
-
-    if (!hasMarketing) teams.unshift({ id: 'T01', name: 'Marketing', status: 'ใช้งาน' });
-    if (!hasCenter) {
-      const mIdx = teams.findIndex(t => safeUpper(t.name).includes('MARKETING') || safeUpper(t.id) === 'T01' || safeUpper(t.id) === 'T001');
-      teams.splice(mIdx + 1, 0, { id: 'T02', name: 'Center', status: 'ใช้งาน' });
-    }
-    return teams;
+    if (!Array.isArray(businessTeams) || businessTeams.length === 0) return [];
+    return businessTeams.filter(t => {
+      if (!t) return false;
+      const st = String(t.status || '').trim();
+      return st !== 'ปิดเข้าใช้งาน' && st !== 'ปิดใช้งาน' && st !== 'Disabled' && !st.includes('ปิด') && st !== 'ระงับ';
+    });
   };
 
   const filterActiveTeamMembers = (members, businessTeams) => {
     const disabledTeamKeys = new Set(
       (businessTeams || [])
-        .filter(t => t && (t.status === 'ปิดเข้าใช้งาน' || t.status === 'ปิดใช้งาน' || t.status === 'Disabled'))
+        .filter(t => {
+          if (!t) return false;
+          const st = String(t.status || '').trim();
+          return st === 'ปิดเข้าใช้งาน' || st === 'ปิดใช้งาน' || st === 'Disabled' || st.includes('ปิด') || st === 'ระงับ';
+        })
         .map(t => [t.id, t.name, String(t.id || '').toUpperCase(), String(t.name || '').toUpperCase()])
         .flat()
     );
@@ -401,17 +397,8 @@
   };
 
   const calcTeamTopStats = ({ sales, members, activeBusinessTeams, customers, dashStartDate, dashEndDate }) => {
-    // กำหนดให้มีคู่เปรียบเทียบ Marketing และ Center เสมอ
-    let mktTeam = (activeBusinessTeams || []).find(t => safeUpper(t.name).includes('MARKETING') || safeUpper(t.id) === 'T01' || safeUpper(t.id) === 'T001');
-    let cntTeam = (activeBusinessTeams || []).find(t => safeUpper(t.name).includes('CENTER') || safeUpper(t.id) === 'T02' || safeUpper(t.id) === 'T002');
-
-    if (!mktTeam) mktTeam = { id: 'T01', name: 'Marketing', status: 'ใช้งาน' };
-    if (!cntTeam) cntTeam = { id: 'T02', name: 'Center', status: 'ใช้งาน' };
-
-    const compareTeams = [mktTeam, cntTeam];
-
     const map = {};
-    compareTeams.forEach(t => {
+    (activeBusinessTeams || []).forEach(t => {
       map[t.id] = { 
         id: t.id, 
         name: t.name, 
@@ -429,9 +416,25 @@
     filteredSales.forEach(s => {
       const sellerKey = safeUpper(parseSaleMemberId(s));
       const mem = (members || []).find(m => m && safeUpper(m.id || m.user_id) === sellerKey);
-      const memTeam = mem ? String(mem.team || mem.business_team || mem.businessTeam || '').trim().toUpperCase() : '';
+      if (!mem) return;
       
-      const targetTeamId = isCenterTeamOrMember(mem, memTeam) ? cntTeam.id : mktTeam.id;
+      const memTeam = String(mem.team || mem.business_team || mem.businessTeam || '').trim().toUpperCase();
+      let targetTeamId = null;
+      
+      (activeBusinessTeams || []).forEach(bt => {
+        const btId = String(bt.id || '').toUpperCase();
+        const btName = String(bt.name || '').toUpperCase();
+        if (
+          (btId && memTeam === btId) || 
+          (btName && memTeam === btName) ||
+          (btId === 'T01' && (memTeam === 'MARKETING' || memTeam === 'TEAM A')) ||
+          (btId === 'T02' && (memTeam === 'CENTER' || memTeam === 'TEAM B')) ||
+          (btName.includes('MARKETING') && (memTeam === 'T01' || memTeam === 'TEAM A')) ||
+          (btName.includes('CENTER') && (memTeam === 'T02' || memTeam === 'TEAM B'))
+        ) {
+          targetTeamId = bt.id;
+        }
+      });
 
       if (targetTeamId && map[targetTeamId]) {
         let fQty = s?.['รวมชิ้นราคาเต็ม'] !== undefined ? Number(s['รวมชิ้นราคาเต็ม']) : Number(s?.fullQty || s?.full_qty || s?.full_boxes || 0);
@@ -472,12 +475,16 @@
 
     const palette = [
       { text: "text-blue-400", checkupText: "text-blue-300", strokeLeft: "#3b82f6", strokeRight: "#93c5fd", bg: "bg-blue-600/20", border: "border-blue-500/40", hoverBg: "group-hover:bg-blue-600" },
-      { text: "text-rose-500", checkupText: "text-rose-300", strokeLeft: "#f43f5e", strokeRight: "#fda4af", bg: "bg-rose-600/20", border: "border-rose-500/40", hoverBg: "group-hover:bg-rose-600" }
+      { text: "text-rose-500", checkupText: "text-rose-300", strokeLeft: "#f43f5e", strokeRight: "#fda4af", bg: "bg-rose-600/20", border: "border-rose-500/40", hoverBg: "group-hover:bg-rose-600" },
+      { text: "text-amber-400", checkupText: "text-amber-300", strokeLeft: "#f59e0b", strokeRight: "#fcd34d", bg: "bg-amber-600/20", border: "border-amber-500/40", hoverBg: "group-hover:bg-amber-600" },
+      { text: "text-emerald-400", checkupText: "text-emerald-300", strokeLeft: "#10b981", strokeRight: "#6ee7b7", bg: "bg-emerald-600/20", border: "border-emerald-500/40", hoverBg: "group-hover:bg-emerald-600" },
+      { text: "text-purple-400", checkupText: "text-purple-300", strokeLeft: "#8b5cf6", strokeRight: "#c4b5fd", bg: "bg-purple-600/20", border: "border-purple-500/40", hoverBg: "group-hover:bg-purple-600" },
+      { text: "text-cyan-400", checkupText: "text-cyan-300", strokeLeft: "#06b6d4", strokeRight: "#67e8f9", bg: "bg-cyan-600/20", border: "border-cyan-500/40", hoverBg: "group-hover:bg-cyan-600" }
     ];
     
-    return compareTeams.map((t, idx) => ({
-      ...map[t.id], 
-      totalCheckups: map[t.id].newCustSet.size,
+    return Object.values(map).map((t, idx) => ({
+      ...t, 
+      totalCheckups: t.newCustSet.size,
       style: palette[idx % palette.length]
     }));
   };

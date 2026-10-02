@@ -564,7 +564,7 @@
                         <div className="flex justify-center items-end gap-1 sm:gap-2 w-full pt-1 pb-1 px-1 relative z-10 min-h-[14rem]">
                             {podiumData.map((m) => {
                                 const currentMember = (members || []).find(mem => mem.id === m.id);
-                                const avatarUrl = cleanAvatarUrl(currentMember?.profileUrl, m.name);
+                                const avatarUrl = cleanAvatarUrl(currentMember?.profileUrl || m.profileUrl, m.name);
                                 const isRank1 = m.rank === 1; const isRank2 = m.rank === 2;
                                 const theme = isRank1 
                                     ? { outer: 'bg-gradient-to-br from-yellow-300 via-yellow-500 to-amber-700', inner: 'bg-gradient-to-b from-yellow-100 via-yellow-300 to-amber-500', text: 'text-yellow-950', avatar: 'w-14 h-14 sm:w-20 sm:h-20', card: 'w-28 sm:w-36 h-[13.5rem] sm:h-[16.5rem] z-30', rank: 'text-yellow-900', shadow: 'shadow-[0_10px_30px_rgba(217,119,6,0.6)]' }
@@ -589,7 +589,11 @@
                                                     <span className={`text-[6px] sm:text-[8px] font-black tracking-widest ${theme.rank} uppercase mt-1 bg-white/60 px-1.5 py-0.5 rounded-full border border-white/60 shadow-sm backdrop-blur-sm leading-none`}>RANK</span>
                                                 </div>
                                                 <div className="mt-11 sm:mt-14 mb-1 relative z-10">
-                                                    <img src={avatarUrl} className={`rounded-full object-cover border-[3px] shadow-xl border-white/90 ${theme.avatar}`} />
+                                                    <img 
+                                                        src={avatarUrl} 
+                                                        onError={(e) => { e.target.onerror = null; e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(m.name || 'User')}&background=1e293b&color=cbd5e1&rounded=true&bold=true`; }}
+                                                        className={`rounded-full object-cover border-[3px] shadow-xl border-white/90 ${theme.avatar}`} 
+                                                    />
                                                 </div>
                                                 <div className="flex-1 w-full flex flex-col justify-end items-center text-center pb-2 z-10 px-1 sm:px-2">
                                                     <div className={`font-black text-[10px] sm:text-[11px] uppercase tracking-wide w-full drop-shadow-sm break-words leading-tight ${theme.text}`}>{m.name}</div>
@@ -613,7 +617,7 @@
                         <div className="flex justify-center items-end gap-1 w-full pt-1 pb-1 relative z-10 min-h-[14rem]">
                             {checkupPodiumData.map((m) => {
                                 const currentMember = (members || []).find(mem => mem.id === m.id);
-                                const avatarUrl = cleanAvatarUrl(currentMember?.profileUrl, m.name);
+                                const avatarUrl = cleanAvatarUrl(currentMember?.profileUrl || m.profileUrl, m.name);
                                 const isRank1 = m.rank === 1; const isRank2 = m.rank === 2;
                                 const theme = isRank1 
                                     ? { outer: 'bg-gradient-to-br from-emerald-300 via-emerald-500 to-teal-700', inner: 'bg-gradient-to-b from-emerald-100 via-emerald-300 to-teal-500', text: 'text-teal-950', avatar: 'w-14 h-14 sm:w-20 sm:h-20', card: 'w-28 sm:w-36 h-[13.5rem] sm:h-[16.5rem] z-30', rank: 'text-emerald-900', shadow: 'shadow-[0_10px_30px_rgba(16,185,129,0.5)]' }
@@ -638,7 +642,11 @@
                                                     <span className={`text-[6px] sm:text-[8px] font-black tracking-widest ${theme.rank} uppercase mt-1 bg-white/60 px-1.5 py-0.5 rounded-full border border-white/60 shadow-sm backdrop-blur-sm leading-none`}>RANK</span>
                                                 </div>
                                                 <div className="mt-11 sm:mt-14 mb-1 relative z-10">
-                                                    <img src={avatarUrl} className={`rounded-full object-cover border-[3px] shadow-xl border-white/90 ${theme.avatar}`} />
+                                                    <img 
+                                                        src={avatarUrl} 
+                                                        onError={(e) => { e.target.onerror = null; e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(m.name || 'User')}&background=1e293b&color=cbd5e1&rounded=true&bold=true`; }}
+                                                        className={`rounded-full object-cover border-[3px] shadow-xl border-white/90 ${theme.avatar}`} 
+                                                    />
                                                 </div>
                                                 <div className="flex-1 w-full flex flex-col justify-end items-center text-center pb-2 z-10 px-1 sm:px-2">
                                                     <div className={`font-black text-[10px] sm:text-[11px] uppercase tracking-wide w-full drop-shadow-sm break-words leading-tight ${theme.text}`}>{m.name}</div>
@@ -1845,7 +1853,7 @@
           supabaseSelect('stk_products', 'select=product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,self_fee,level_1_fee,level_2_fee,level_3_fee,level_4_fee,level_5_fee').catch(() => []),
           supabaseSelect('stk_customer_types').catch(() => []),
           supabaseSelect('stk_closers').catch(() => []),
-          supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,status,sponsor_id,accumulated_pv,phone_number,email,line_id,line_uid,bank_name,bank_account_no,bank_account_name').catch(() => []),
+          supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,status,sponsor_id,accumulated_pv,phone_number,email,line_id,line_uid,bank_name,bank_account_no,bank_account_name,id_card_url').catch(() => []),
           supabaseSelect('stk_customers', 'select=customer_id,name,customer_type,owner_member_id&order=created_at.desc&limit=3000').catch(() => supabaseSelect('stk_customers', 'limit=3000').catch(() => [])),
           (async () => {
               const now = new Date();
@@ -1943,9 +1951,12 @@
             const cachedData = localStorage.getItem('stk_app_cache_data');
             if (cachedData) {
                 const parsedData = JSON.parse(cachedData);
-                applyDataToStates(parsedData);
-                setIsAppLoading(false);
-                hasCache = true;
+                const hasAvatarsInCache = Array.isArray(parsedData.members) && parsedData.members.some(m => m.id_card_url || m.profileUrl || m.profile_url);
+                if (hasAvatarsInCache || !parsedData.members || parsedData.members.length === 0) {
+                    applyDataToStates(parsedData);
+                    setIsAppLoading(false);
+                    hasCache = true;
+                }
             }
         } catch (e) { console.warn("Cache error", e); }
 
