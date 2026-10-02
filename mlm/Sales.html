@@ -953,16 +953,20 @@
                 }
 
                 if (foundExistingCust) {
-                    setCustData({
-                        id: foundExistingCust.id || foundExistingCust.customer_id || pendingHn,
-                        name: foundExistingCust.name || pendingName,
-                        phone: foundExistingCust.phone || pendingPhone,
-                        lineId: foundExistingCust.lineId || foundExistingCust.line_id || '',
-                        symptom: foundExistingCust.symptom || foundExistingCust.symptom_disease || pending.disease || '',
-                        closer: foundExistingCust.closer || foundExistingCust.closer_id || '',
-                        closerTeam: foundExistingCust.closerTeam || foundExistingCust.closer_team || '',
+                    setCustData(prev => ({
+                        ...prev,
+                        id: foundExistingCust.id || foundExistingCust.customer_id || prev.id || pendingHn,
+                        name: foundExistingCust.name || prev.name || pendingName,
+                        phone: foundExistingCust.phone || prev.phone || pendingPhone,
+                        lineId: foundExistingCust.lineId || foundExistingCust.line_id || prev.lineId || '',
+                        symptom: foundExistingCust.symptom || foundExistingCust.symptom_disease || prev.symptom || pending.disease || '',
+                        closer: foundExistingCust.closer || foundExistingCust.closer_id || prev.closer || '',
+                        closerTeam: foundExistingCust.closerTeam || foundExistingCust.closer_team || prev.closerTeam || '',
                         type: foundExistingCust.type || foundExistingCust.customer_type || 'ลูกค้าเก่าตรวจซ้ำ'
-                    });
+                    }));
+                    if (foundExistingCust.type || foundExistingCust.customer_type) {
+                        setCustMode(foundExistingCust.type || foundExistingCust.customer_type);
+                    }
                 }
             };
 
@@ -1014,15 +1018,31 @@
                         const cleanP = String(pending.phone || '').trim();
                         const validPhoneStr = (cleanP && cleanP !== '-' && cleanP !== '--') ? cleanP : '';
                         const validHnStr = (pending.hn && pending.hn !== '-' && pending.hn !== '--') ? pending.hn : '';
-                        setCustData({
-                            id: validHnStr,
-                            name: pending.customer_name || '',
-                            phone: validPhoneStr,
-                            lineId: '',
-                            symptom: pending.disease || '',
-                            closer: '',
-                            closerTeam: ''
-                        });
+                        const pendingCloser = pending.closer_dr || pending.closer || '';
+                        let pendingCloserTeam = pending.closer_team || pending.closerTeam || '';
+
+                        if (pendingCloser && !pendingCloserTeam) {
+                            const foundCloserObj = (closers || []).find(c => c && (c.name === pendingCloser || c.closer_name === pendingCloser));
+                            if (foundCloserObj) {
+                                pendingCloserTeam = foundCloserObj.team || foundCloserObj.team_name || '';
+                                if (pendingCloserTeam === 'Team A') pendingCloserTeam = 'Marketing';
+                                if (pendingCloserTeam === 'Team B') pendingCloserTeam = 'Center';
+                            }
+                        }
+
+                        setCustData(prev => ({
+                            ...prev,
+                            id: validHnStr || prev.id,
+                            name: pending.customer_name || prev.name || '',
+                            phone: validPhoneStr || prev.phone || '',
+                            lineId: prev.lineId || '',
+                            symptom: pending.disease || prev.symptom || '',
+                            closer: pendingCloser || prev.closer || '',
+                            closerTeam: pendingCloserTeam || prev.closerTeam || ''
+                        }));
+                        if (pending.customer_type || pending.type) {
+                            setCustMode(pending.customer_type || pending.type);
+                        }
                         loadCustomerFromPending(pending);
                     }
 
@@ -1543,23 +1563,24 @@
             };
 
             const handleOldCustomerChange = (searchId) => {
-                const foundCust = (customers || []).find(c => c && safeUpper(c.id) === safeUpper(searchId));
+                const foundCust = (customers || []).find(c => c && (safeUpper(c.id) === safeUpper(searchId) || safeUpper(c.customer_id) === safeUpper(searchId) || (c.phone && c.phone === searchId)));
                 if (foundCust) {
-                    const cObj = (closers || []).find(c => c.name === foundCust.closer);
-                    let cTeam = cObj ? cObj.team : '';
+                    const cObj = (closers || []).find(c => c.name === foundCust.closer || c.closer_name === foundCust.closer);
+                    let cTeam = cObj ? (cObj.team || cObj.team_name || '') : '';
                     if (cTeam === 'Team A') cTeam = 'Marketing';
                     if (cTeam === 'Team B') cTeam = 'Center';
-                    setCustData({
-                        id: foundCust.id,
-                        name: foundCust.name || '',
-                        phone: foundCust.phone || '',
-                        lineId: foundCust.lineId || '',
-                        symptom: foundCust.symptom || '',
-                        closer: foundCust.closer || '',
-                        closerTeam: cTeam
-                    });
+                    setCustData(prev => ({
+                        ...prev,
+                        id: foundCust.id || foundCust.customer_id || searchId,
+                        name: foundCust.name || prev.name || '',
+                        phone: foundCust.phone || prev.phone || '',
+                        lineId: foundCust.lineId || prev.lineId || '',
+                        symptom: foundCust.symptom || prev.symptom || '',
+                        closer: foundCust.closer || prev.closer || '',
+                        closerTeam: cTeam || prev.closerTeam || ''
+                    }));
                 } else {
-                    setCustData({ id: searchId, name: '', phone: '', lineId: '', symptom: '', closer: '', closerTeam: '' });
+                    setCustData(prev => ({ ...prev, id: searchId }));
                 }
             };
 
@@ -2962,12 +2983,12 @@
                                                 const newMode = e.target.value;
                                                 setCustMode(newMode);
                                                 const isOld = newMode.includes('เก่า');
-                                                if (isOld) {
-                                                    setCustData(prev => ({ ...prev, id: '', name: '', phone: '', lineId: '', symptom: '', closer: '', closerTeam: '' }));
-                                                } else {
-                                                    // สั่งดึงรหัสลูกค้าที่ว่างอยู่แบบ Real-time ทันทีที่เลือกเป็นลูกค้าใหม่
-                                                    fetchNextAvailableCustId();
-                                                    setCustData(prev => ({ ...prev, name: '', phone: '', lineId: '', symptom: '', closer: '', closerTeam: '' }));
+                                                // 🛡️ ห้ามล้างข้อมูล (id, name, phone, lineId, symptom, closer, closerTeam) ที่มีอยู่แล้วทิ้งเด็ดขาด
+                                                if (!isOld) {
+                                                    // หากเป็นลูกค้าใหม่ และยังไม่มีรหัสลูกค้าเลย ถึงจะไปคำนวณรหัสถัดไป
+                                                    if (!custData.id || custData.id === 'เลือกระบุประเภทลูกค้า...' || custData.id === 'กำลังคำนวณรหัส...') {
+                                                        fetchNextAvailableCustId();
+                                                    }
                                                 }
                                             }}>
                                                 <option value="" disabled>ระบุประเภท</option>
@@ -2994,7 +3015,7 @@
                                     <div className="flex gap-2">
                                         <div className="flex-1 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
                                             <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">ทีมผู้ปิด</label>
-                                            <select required className="w-full bg-white border border-slate-200 rounded-md text-[11px] py-1.5 px-2 outline-none focus:border-blue-500 shadow-sm" value={custData.closerTeam} onChange={(e) => setCustData({ ...custData, closerTeam: e.target.value, closer: '' })}>
+                                            <select required className="w-full bg-white border border-slate-200 rounded-md text-[11px] py-1.5 px-2 outline-none focus:border-blue-500 shadow-sm" value={custData.closerTeam} onChange={(e) => setCustData(prev => ({ ...prev, closerTeam: e.target.value }))}>
                                                 <option value="">- เลือกทีมผู้ปิด -</option>
                                                 <option value="Center">Center (ทีมผู้เชี่ยวชาญปิดการขาย)</option>
                                                 <option value="Marketing">Marketing (ฝ่ายการตลาด - รวมทุกสังกัดย่อย)</option>
@@ -3007,7 +3028,7 @@
                                         </div>
                                         <div className="flex-[2] bg-slate-50 p-1.5 rounded-lg border border-slate-100">
                                             <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">ผู้ปิดการขาย *</label>
-                                            <AutoSuggestInput value={custData.closer} onChange={(val) => setCustData({ ...custData, closer: val })} onSelect={(val) => setCustData({ ...custData, closer: val })} data={closersSuggestList} placeholder="พิมพ์ค้นหารหัส หรือชื่อผู้ปิด..." required={true} />
+                                            <AutoSuggestInput value={custData.closer} onChange={(val) => setCustData(prev => ({ ...prev, closer: val }))} onSelect={(val) => setCustData(prev => ({ ...prev, closer: val }))} data={closersSuggestList} placeholder="พิมพ์ค้นหารหัส หรือชื่อผู้ปิด..." required={true} />
                                         </div>
                                     </div>
 

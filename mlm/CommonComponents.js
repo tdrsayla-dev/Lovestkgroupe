@@ -1358,7 +1358,7 @@
 
     if (!isOpen) return null;
 
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
       e.preventDefault();
       setError('');
       setIsLoading(true);
@@ -1384,51 +1384,114 @@
         onLoginSuccess(user);
       };
 
-      if (typeof window.supabaseSelect === 'function') {
-        const safeUser = encodeURIComponent(inputUser.trim());
-        const loginQuery = `or=(username.ilike.${safeUser},user_id.ilike.${safeUser})&select=user_id,username,name,permission_role,status,password_hash,id_card_url`;
-        window.supabaseSelect('stk_members', loginQuery)
-          .then(async matchedMembers => {
-            let members = matchedMembers;
-            if (!Array.isArray(members) || members.length === 0) {
-              members = await window.supabaseSelect('stk_members', 'select=user_id,username,name,permission_role,status,password_hash,id_card_url&limit=500').catch(() => []);
-            }
-            setIsLoading(false);
-            const foundUser = (members || []).find(u => 
-              (String(u.username || u.user_id || u.id || '').trim().toLowerCase() === inputUser.toLowerCase()) && 
-              (String(u.password_hash || u.password || u.Password || '').trim() === inputPass)
-            );
+      try {
+        let members = [];
+        let fetchErrorDetail = '';
+        const safeUser = encodeURIComponent(inputUser);
 
-            if (foundUser) {
-              processSuccess({
-                id: foundUser.user_id || foundUser.id || 'U001',
-                username: foundUser.username || inputUser,
-                name: foundUser.full_name || foundUser.name || inputUser,
-                role: foundUser.role || foundUser.permission_role || 'พนักงานทั่วไป',
-                status: foundUser.status || 'ใช้งาน',
-                profileUrl: foundUser.profile_url || foundUser.id_card_url || foundUser.ID_Card_URL || ''
-              });
-            } else if (inputUser.toLowerCase() === 'admin' && (inputPass === '1234' || inputPass === 'password' || inputPass === 'admin')) {
-              processSuccess({ id: 'U001', username: 'admin', name: 'ผู้ดูแลระบบ (Admin)', role: 'ผู้ดูแลระบบ', status: 'ใช้งาน' });
-            } else {
-              setError('Username หรือ Password ไม่ถูกต้อง');
+        // 1. ลองดึงผ่าน window.supabaseSelect (REST API)
+        if (typeof window.supabaseSelect === 'function') {
+          try {
+            const loginQuery = `or=(username.ilike.${safeUser},user_id.ilike.${safeUser})&select=user_id,username,name,permission_role,status,password_hash,id_card_url&nocache=true`;
+            const matched = await window.supabaseSelect('stk_members', loginQuery);
+            if (Array.isArray(matched) && matched.length > 0) {
+              members = matched;
             }
-          })
-          .catch(err => {
-            setIsLoading(false);
-            console.error("Supabase login error:", err);
-            if (inputUser.toLowerCase() === 'admin' && (inputPass === '1234' || inputPass === 'password' || inputPass === 'admin')) {
-              processSuccess({ id: 'U001', username: 'admin', name: 'ผู้ดูแลระบบ (Admin)', role: 'ผู้ดูแลระบบ', status: 'ใช้งาน' });
-            } else {
-              setError('ไม่สามารถเชื่อมต่อฐานข้อมูลได้');
+          } catch (fetchErr) {
+            console.warn("REST query with id_card_url failed, trying lightweight query:", fetchErr);
+            fetchErrorDetail = fetchErr.message || String(fetchErr);
+            // Retry แบบ Lightweight (ตัด id_card_url 35KB+ ออก เพื่อความเร็วและความเสถียรบนเครือข่าย Tablet/Mobile)
+            try {
+              const lightQuery = `or=(username.ilike.${safeUser},user_id.ilike.${safeUser})&select=user_id,username,name,permission_role,status,password_hash&nocache=true`;
+              const matchedLight = await window.supabaseSelect('stk_members', lightQuery);
+              if (Array.isArray(matchedLight) && matchedLight.length > 0) {
+                members = matchedLight;
+                fetchErrorDetail = '';
+              }
+            } catch (lightErr) {
+              console.warn("REST lightweight query failed:", lightErr);
+              fetchErrorDetail = lightErr.message || String(lightErr);
             }
-          });
-      } else {
+          }
+        }
+
+        // 2. ถ้า REST API ไม่ผ่าน ให้ลองดึงผ่าน Supabase JS Client SDK
+        if ((!members || members.length === 0) && window.supabaseClient && typeof window.supabaseClient.from === 'function') {
+          try {
+            const { data, error } = await window.supabaseClient
+              .from('stk_members')
+              .select('user_id,username,name,permission_role,status,password_hash,id_card_url')
+              .or(`username.ilike.${safeUser},user_id.ilike.${safeUser}`);
+            if (!error && Array.isArray(data) && data.length > 0) {
+              members = data;
+              fetchErrorDetail = '';
+            }
+          } catch (sdkErr) {
+            console.warn("Supabase SDK query fallback failed:", sdkErr);
+          }
+        }
+
+        // 3. Fallback: ถ้ายังไม่ได้ ให้ลองดึงรายชื่อเบื้องต้น 500 คนแบบ lightweight
+        if (!members || members.length === 0) {
+          if (typeof window.supabaseSelect === 'function') {
+            try {
+              const batch = await window.supabaseSelect('stk_members', 'select=user_id,username,name,permission_role,status,password_hash&limit=500');
+              if (Array.isArray(batch) && batch.length > 0) {
+                members = batch;
+                fetchErrorDetail = '';
+              }
+            } catch(e) {}
+          }
+        }
+
+        // 4. Fallback โหมดออฟไลน์ (Local/Session Cache): กรณีแท็บเล็ตสัญญาณเน็ตหลุด ให้ตรวจใน Local Cache
+        if (!members || members.length === 0) {
+          try {
+            const cachedApp = localStorage.getItem('stk_app_cache_data');
+            if (cachedApp) {
+              const parsed = JSON.parse(cachedApp);
+              if (Array.isArray(parsed?.members) && parsed.members.length > 0) {
+                members = parsed.members;
+              }
+            }
+          } catch(e) {}
+          if ((!members || members.length === 0) && Array.isArray(systemUsers) && systemUsers.length > 0) {
+            members = systemUsers;
+          }
+        }
+
         setIsLoading(false);
+
+        const foundUser = (members || []).find(u => 
+          (String(u.username || u.user_id || u.id || '').trim().toLowerCase() === inputUser.toLowerCase()) && 
+          (String(u.password_hash || u.password || u.Password || '').trim() === inputPass)
+        );
+
+        if (foundUser) {
+          processSuccess({
+            id: foundUser.user_id || foundUser.id || 'U001',
+            username: foundUser.username || inputUser,
+            name: foundUser.full_name || foundUser.name || inputUser,
+            role: foundUser.role || foundUser.permission_role || 'พนักงานทั่วไป',
+            status: foundUser.status || 'ใช้งาน',
+            profileUrl: foundUser.profile_url || foundUser.id_card_url || foundUser.ID_Card_URL || ''
+          });
+        } else if (inputUser.toLowerCase() === 'admin' && (inputPass === '1234' || inputPass === 'password' || inputPass === 'admin')) {
+          processSuccess({ id: 'U001', username: 'admin', name: 'ผู้ดูแลระบบ (Admin)', role: 'ผู้ดูแลระบบ', status: 'ใช้งาน' });
+        } else {
+          if (members && members.length > 0) {
+            setError('Username หรือ Password ไม่ถูกต้อง');
+          } else {
+            setError(fetchErrorDetail ? `ไม่สามารถเชื่อมต่อฐานข้อมูลได้ (${fetchErrorDetail})` : 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณาตรวจสอบสัญญาณอินเทอร์เน็ต');
+          }
+        }
+      } catch (err) {
+        setIsLoading(false);
+        console.error("Supabase login error:", err);
         if (inputUser.toLowerCase() === 'admin' && (inputPass === '1234' || inputPass === 'password' || inputPass === 'admin')) {
           processSuccess({ id: 'U001', username: 'admin', name: 'ผู้ดูแลระบบ (Admin)', role: 'ผู้ดูแลระบบ', status: 'ใช้งาน' });
         } else {
-          setError('ไม่พบการเชื่อมต่อฐานข้อมูล Supabase');
+          setError('ไม่สามารถเชื่อมต่อฐานข้อมูลได้ (' + (err.message || 'เน็ตเวิร์กขัดข้อง') + ')');
         }
       }
     };
@@ -1811,6 +1874,31 @@
   // ⚡ HIGH-SPEED MEMORY CACHE ENGINE: แคชการดึงข้อมูลจาก Supabase ลงหน่วยความจำแบบ Real-time 
   // ทำให้อ่านข้อมูลซ้ำข้ามหน้าได้ทันที 0ms ไม่ต้องรอโหลดผ่านเน็ตเวิร์กใหม่ทุกครั้ง
   if (typeof window !== 'undefined') {
+    const getSafeTop = () => {
+      try {
+        if (typeof window !== 'undefined' && window.top && window.top.location && window.top.location.href) {
+          return window.top;
+        }
+      } catch (e) {}
+      return window;
+    };
+
+    const getSafeTopDbCache = () => {
+      try {
+        const topWin = getSafeTop();
+        return (topWin && topWin.stkDbCache) ? topWin.stkDbCache : null;
+      } catch (e) {
+        return null;
+      }
+    };
+
+    const setSafeTopDbCache = (data) => {
+      try {
+        const topWin = getSafeTop();
+        if (topWin) topWin.stkDbCache = data;
+      } catch (e) {}
+    };
+
     const loadCache = () => {
       try {
         const cached = sessionStorage.getItem('stkDbCache');
@@ -1826,13 +1914,14 @@
       } catch (e) {}
     };
 
-    if (!window.top.stkDbCache || Object.keys(window.top.stkDbCache).length === 0) {
-      window.top.stkDbCache = loadCache();
+    const initialTopCache = getSafeTopDbCache();
+    if (!initialTopCache || Object.keys(initialTopCache).length === 0) {
+      setSafeTopDbCache(loadCache());
     }
     
     // Clear cache helper
     window.clearDbCache = () => {
-      window.top.stkDbCache = {};
+      setSafeTopDbCache({});
       try { sessionStorage.removeItem('stkDbCache'); } catch (e) {}
       console.log("%c⚡ Database Cache Cleared!", "color:orange;font-weight:bold");
     };
@@ -1866,7 +1955,7 @@
 
         if (!bypassCache && currentCache[cacheKey] && currentCache[cacheKey]._cachedAt && (now - currentCache[cacheKey]._cachedAt < CACHE_TTL)) {
           console.log(`%c⚡ [Cache Hit] Serving ${cacheKey} from sessionStorage`, "color:green;font-weight:bold");
-          window.top.stkDbCache = currentCache;
+          setSafeTopDbCache(currentCache);
           return JSON.parse(JSON.stringify(currentCache[cacheKey].data));
         }
 
@@ -1874,7 +1963,7 @@
         if (!bypassCache) {
           currentCache[cacheKey] = { data: result, _cachedAt: now };
           saveCache(currentCache);
-          window.top.stkDbCache = currentCache;
+          setSafeTopDbCache(currentCache);
         }
         return result;
       };
@@ -1891,7 +1980,7 @@
       });
       if (invalidated) {
         saveCache(currentCache);
-        window.top.stkDbCache = currentCache;
+        setSafeTopDbCache(currentCache);
         console.log(`%c⚡ [Cache Invalidate] Cleared cache for table: ${table}`, "color:#059669;font-weight:bold");
       }
     };
@@ -1927,7 +2016,7 @@
       });
       if (mutated) {
         saveCache(currentCache);
-        window.top.stkDbCache = currentCache;
+        setSafeTopDbCache(currentCache);
         console.log(`%c⚡ [Smart Cache] อัปเดตข้อมูลในแคชสำเร็จ: ${table} (${action})`, "color:#3b82f6;font-weight:bold");
       } else {
         // ถ้าไม่เจอข้อมูลในแคช ให้เคลียร์แคชทิ้งตามปกติเพื่อบังคับโหลดใหม่ครั้งถัดไป

@@ -119,7 +119,23 @@
       const fetchHeaders = isNoCache
         ? Object.assign({}, window.SUPABASE_HEADERS, { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' })
         : window.SUPABASE_HEADERS;
-      const res = await fetch(url, { method: 'GET', headers: fetchHeaders, cache: isNoCache ? 'no-store' : 'default' });
+      let res;
+      try {
+        res = await fetch(url, { method: 'GET', headers: fetchHeaders, cache: isNoCache ? 'no-store' : 'default' });
+      } catch (fetchErr) {
+        if (window.supabaseClient && typeof window.supabaseClient.from === 'function') {
+          console.warn(`[config.js] fetch failed for ${table}, attempting fallback via supabaseClient:`, fetchErr);
+          try {
+            const selectCols = cleanQuery.includes('select=') ? cleanQuery.replace(/.*select=([^&]+).*/, '$1') : '*';
+            const { data, error } = await window.supabaseClient.from(table).select(selectCols);
+            if (!error && Array.isArray(data)) {
+              if (ttl > 0) queryCache.set(cacheKey, { timestamp: Date.now(), data });
+              return data;
+            }
+          } catch (sdkErr) {}
+        }
+        throw fetchErr;
+      }
       if (!res.ok) {
         const t = await res.text();
         throw new Error('SELECT ' + table + ': ' + res.status + ' ' + t);

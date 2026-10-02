@@ -1842,10 +1842,10 @@
         if (!isBackground) setIsAppLoading(true);
         if (isBackground) setIsSyncing(true);
         Promise.all([
-          supabaseSelect('stk_products', 'select=product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,image_url,self_fee,level_1_fee,level_2_fee,level_3_fee,level_4_fee,level_5_fee').catch(() => []),
+          supabaseSelect('stk_products', 'select=product_id,name,category,price_full,price_member,price_promo,give_pv,current_stock,status,self_fee,level_1_fee,level_2_fee,level_3_fee,level_4_fee,level_5_fee').catch(() => []),
           supabaseSelect('stk_customer_types').catch(() => []),
           supabaseSelect('stk_closers').catch(() => []),
-          supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,status,sponsor_id,accumulated_pv,phone_number,email,line_id,line_uid,bank_name,bank_account_no,bank_account_name,id_card_url').catch(() => []),
+          supabaseSelect('stk_members', 'select=user_id,name,business_team,permission_role,status,sponsor_id,accumulated_pv,phone_number,email,line_id,line_uid,bank_name,bank_account_no,bank_account_name').catch(() => []),
           supabaseSelect('stk_customers', 'select=customer_id,name,customer_type,owner_member_id&order=created_at.desc&limit=3000').catch(() => supabaseSelect('stk_customers', 'limit=3000').catch(() => [])),
           (async () => {
               const now = new Date();
@@ -1981,12 +1981,27 @@
         setIsLoggedIn(true);
         setShowLoginModal(false);
         showToast('เข้าสู่ระบบสำเร็จ!', 'success');
+
+        // แสดงผลจาก Cache ทันทีเพื่อให้แดชบอร์ดโหลดขึ้นทันใจใน 0 วินาที
+        let hasCache = false;
+        try {
+            const cachedData = localStorage.getItem('stk_app_cache_data');
+            if (cachedData) {
+                const parsedData = JSON.parse(cachedData);
+                applyDataToStates(parsedData);
+                setIsAppLoading(false);
+                hasCache = true;
+            }
+        } catch(e) {}
+
+        // โหลดข้อมูลล่าสุดทันทีหลังล็อกอิน
+        fetchFreshData(hasCache);
       };
 
       const handleLogout = () => {
         try {
           localStorage.removeItem('stk_current_user');
-          localStorage.removeItem('stk_app_cache_data');
+          // คง stk_app_cache_data ไว้เพื่อให้เวลาล็อกอินกลับมา ข้อมูลโครงสร้างจะแสดงผลได้ทันที
           localStorage.removeItem('stk_last_activity');
           sessionStorage.clear();
           localStorage.setItem('stk_broadcast_session_event', JSON.stringify({ action: 'logout', reason: 'manual_logout', time: Date.now() }));

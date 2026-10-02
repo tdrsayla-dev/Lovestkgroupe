@@ -542,7 +542,9 @@ const canceledOrders = useMemo(() => {
                 phone: (order.phone && order.phone !== '-' && order.phone !== '--') ? order.phone : '',
                 disease: (order.disease && order.disease !== '-') ? order.disease : '',
                 recorded_by: order.recorded_by,
-                closer_dr: order.closer_dr || '',
+                closer_dr: order.closer_dr || order.closer || '',
+                closer_team: order.closer_team || order.closerTeam || '',
+                customer_type: order.customer_type || order.customerType || order.type || '',
                 items: (order.items || []).map(i => {
                   const typeLabel = typeof getItemTypeLabel === 'function' ? getItemTypeLabel(i) : (i.type || i.priceType || '');
                   return {

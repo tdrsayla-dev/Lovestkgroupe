@@ -264,7 +264,65 @@
         const todayStr = typeof getLocalISODate === 'function' ? getLocalISODate() : new Date().toISOString().split('T')[0];
         const [historyStartDate, setHistoryStartDate] = useState(todayStr);
         const [historyEndDate, setHistoryEndDate] = useState(todayStr);
-                const [filterRecordedBy, setFilterRecordedBy] = useState('ALL');
+        const [filterRecordedBy, setFilterRecordedBy] = useState('ALL');
+
+        // ⚡ DYNAMIC DATE RANGE FETCHING: ดึงข้อมูลบิลย้อนหลังจาก Supabase ตามช่วงวันที่เลือกจริง
+        const fetchedDateRangesRef = useRef(new Set());
+        const dateFetchDebounceRef = useRef(null);
+
+        useEffect(() => {
+            if (!historyStartDate || !historyEndDate || !setSales) return;
+            const rangeKey = `${historyStartDate}_${historyEndDate}`;
+            
+            // ป้องกันการดึงช่วงเดิมซ้ำ
+            if (fetchedDateRangesRef.current.has(rangeKey)) return;
+
+            if (dateFetchDebounceRef.current) clearTimeout(dateFetchDebounceRef.current);
+            
+            dateFetchDebounceRef.current = setTimeout(async () => {
+                try {
+                    setIsFetchingHistory(true);
+                    let q = `date=gte.${historyStartDate}&date=lte.${historyEndDate}&order=order_id.desc`;
+                    if (isMarketing && currentUser) {
+                        q += `&seller_id=eq.${String(currentUser.id || '').toUpperCase()}`;
+                    }
+                    const res = await (typeof window.supabaseSelect === 'function' ? window.supabaseSelect('stk_sales', q) : Promise.resolve([]));
+                    fetchedDateRangesRef.current.add(rangeKey);
+                    
+                    if (Array.isArray(res) && res.length > 0) {
+                        const cleanNewSales = res.filter(s => s && s.status !== 'รอดำเนินการ' && s.status !== 'ร่างใบสั่งซื้อ (จากคลินิก)').map(s => ({
+                            ...s,
+                            id: s.id || s.sale_id || s.receipt_id || s.order_id,
+                            customerId: s.customerId || s.customer_id,
+                            memberId: s.memberId || s.sellerId || s.seller_id,
+                            totalAmount: s.totalAmount || s.total_amount,
+                            saleType: s.saleType || s.sale_type,
+                            date: s.date || s.created_at, 
+                            createdAt: s.created_at || s.createdAt || s.date, 
+                            time: s.time || s.created_time || s.created_at,
+                            recordedBy: s.recordedBy || s.recorded_by,
+                            paymentNote: s.paymentNote || s.payment_note
+                        }));
+
+                        setSales(prev => {
+                            const map = new Map((prev || []).map(x => [String(x.id || x.order_id), x]));
+                            cleanNewSales.forEach(x => {
+                                map.set(String(x.id || x.order_id), x);
+                            });
+                            return Array.from(map.values()).sort((a, b) => String(b.id || b.order_id || '').localeCompare(String(a.id || a.order_id || '')));
+                        });
+                    }
+                } catch (err) {
+                    console.error('Error fetching historical sales by date range:', err);
+                } finally {
+                    setIsFetchingHistory(false);
+                }
+            }, 300);
+
+            return () => {
+                if (dateFetchDebounceRef.current) clearTimeout(dateFetchDebounceRef.current);
+            };
+        }, [historyStartDate, historyEndDate, isMarketing, currentUser, setSales]);
         const [deletedOrdersLog, setDeletedOrdersLog] = useState(() => {
             try {
                 const saved = localStorage.getItem('stk_deleted_orders_log');
@@ -1958,7 +2016,7 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                 
                 if (Array.isArray(saleRes)) {
                     let combinedSales = saleRes.filter(s => s && s.status !== 'รอดำเนินการ' && s.status !== 'ร่างใบสั่งซื้อ (จากคลินิก)');
-                    setSales(combinedSales.map(s => ({
+                    const formattedSales = combinedSales.map(s => ({
                         ...s,
                         id: s.id || s.sale_id || s.receipt_id || s.order_id,
                         customerId: s.customerId || s.customer_id,
@@ -1968,7 +2026,19 @@ const exchangeRate = Number(systemSettings?.exchange_rate || 700);
                         date: s.date || s.created_at, createdAt: s.created_at || s.createdAt || s.date, time: s.time || s.created_time || s.created_at,
                         recordedBy: s.recordedBy || s.recorded_by,
                         paymentNote: s.paymentNote || s.payment_note
-                    })));
+                    }));
+
+                    setSales(prev => {
+                        const map = new Map(formattedSales.map(x => [String(x.id || x.order_id), x]));
+                        // รักษาข้อมูลบิลย้อนหลังที่เคยโหลดไว้ไม่ให้หายไป
+                        (prev || []).forEach(oldSale => {
+                            const idKey = String(oldSale.id || oldSale.order_id);
+                            if (!map.has(idKey)) {
+                                map.set(idKey, oldSale);
+                            }
+                        });
+                        return Array.from(map.values()).sort((a, b) => String(b.id || b.order_id || '').localeCompare(String(a.id || a.order_id || '')));
+                    });
                 }
 
                 // ⚡ FIX: นำข้อมูลลูกค้าใหม่มาผนวก (Merge) กับข้อมูลเดิม เพื่อไม่ให้ข้อมูลเก่าหาย
