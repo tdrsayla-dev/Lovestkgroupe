@@ -90,6 +90,36 @@
         return result;
     };
 
+    // 🏦 รายชื่อธนาคารรองรับทั้งลาว (iBanking) และไทย
+    const BANK_OPTIONS = [
+        // 🇱🇦 ฝั่งลาว (สำหรับโอน iBanking ของบริษัท)
+        { group: '🇱🇦 ธนาคารในลาว (iBanking)', id: 'BCEL', name: 'BCEL (ธนาคารการค้าต่างประเทศลาว)', short: 'BCEL', color: '#e11d48', bg: '#ffe4e6', isLao: true },
+        { group: '🇱🇦 ธนาคารในลาว (iBanking)', id: 'JDB', name: 'JDB (ธนาคารร่วมพัฒนา)', short: 'JDB', color: '#2563eb', bg: '#dbeafe', isLao: true },
+        { group: '🇱🇦 ธนาคารในลาว (iBanking)', id: 'LDB', name: 'LDB (ธนาคารพัฒนาลาว)', short: 'LDB', color: '#ea580c', bg: '#ffedd5', isLao: true },
+        { group: '🇱🇦 ธนาคารในลาว (iBanking)', id: 'APB', name: 'APB (ธนาคารส่งเสริมกสิกรรม)', short: 'APB', color: '#16a34a', bg: '#dcfce7', isLao: true },
+        { group: '🇱🇦 ธนาคารในลาว (iBanking)', id: 'LVB', name: 'LVB (ธนาคารร่วมธุรกิจลาว-เวียด)', short: 'LVB', color: '#dc2626', bg: '#fee2e2', isLao: true },
+        { group: '🇱🇦 ธนาคารในลาว (iBanking)', id: 'STB', name: 'STB (ธนาคารเอสที)', short: 'STB', color: '#4f46e5', bg: '#e0e7ff', isLao: true },
+        { group: '🇱🇦 ธนาคารในลาว (iBanking)', id: 'BIC', name: 'BIC (ธนาคารบีไอซี)', short: 'BIC', color: '#0891b2', bg: '#cffafe', isLao: true },
+        { group: '🇱🇦 ธนาคารในลาว (iBanking)', id: 'OTHER_LAO', name: 'ธนาคารอื่นๆ ในลาว (ระบุเอง)', short: 'LAO', color: '#64748b', bg: '#f1f5f9', isLao: true },
+        // 🇹🇭 ฝั่งไทย
+        { group: '🇹🇭 ธนาคารในไทย', id: 'KBANK', name: 'กสิกรไทย (KBANK)', short: 'KBANK', color: '#16a34a', bg: '#dcfce7', isLao: false },
+        { group: '🇹🇭 ธนาคารในไทย', id: 'SCB', name: 'ไทยพาณิชย์ (SCB)', short: 'SCB', color: '#7c3aed', bg: '#f3e8ff', isLao: false },
+        { group: '🇹🇭 ธนาคารในไทย', id: 'BBL', name: 'กรุงเทพ (BBL)', short: 'BBL', color: '#1e40af', bg: '#dbeafe', isLao: false },
+        { group: '🇹🇭 ธนาคารในไทย', id: 'KTB', name: 'กรุงไทย (KTB)', short: 'KTB', color: '#0284c7', bg: '#e0f2fe', isLao: false },
+        { group: '🇹🇭 ธนาคารในไทย', id: 'BAY', name: 'กรุงศรีอยุธยา (BAY)', short: 'BAY', color: '#ca8a04', bg: '#fef9c3', isLao: false },
+        { group: '🇹🇭 ธนาคารในไทย', id: 'TTB', name: 'ทหารไทยธนชาต (TTB)', short: 'TTB', color: '#0369a1', bg: '#e0f2fe', isLao: false },
+        { group: '🇹🇭 ธนาคารในไทย', id: 'GSB', name: 'ออมสิน (GSB)', short: 'GSB', color: '#db2777', bg: '#fce7f3', isLao: false },
+        { group: '🇹🇭 ธนาคารในไทย', id: 'OTHER_THAI', name: 'ธนาคารอื่นๆ ในไทย (ระบุเอง)', short: 'THAI', color: '#64748b', bg: '#f1f5f9', isLao: false },
+    ];
+
+    const resolveBankCode = (bName) => {
+        if (!bName) return 'BCEL';
+        const clean = String(bName).trim().toUpperCase();
+        const found = BANK_OPTIONS.find(b => b.id.toUpperCase() === clean || b.name.toUpperCase().includes(clean) || clean.includes(b.id.toUpperCase()));
+        if (found) return found.id;
+        return 'OTHER_LAO';
+    };
+
     const TeamManagementView = ({ members, setMembers, businessTeams, isAdmin, showToast, sales, products, currentUser, loading, refreshData }) => {
         const defaultRolePermissions = {
             'à¸œà¸¹à¹‰à¸”à¸¹à¹à¸¥à¸£à¸°à¸šà¸š': {
@@ -129,6 +159,10 @@
         const [idDocPreviewImage, setIdDocPreviewImage] = useState(null);
         const [idDocFileBase64, setIdDocFileBase64] = useState(null);
 
+        // 🏦 ธนาคารและการซิงค์ชื่อบัญชี
+        const [selectedBankCode, setSelectedBankCode] = useState('BCEL');
+        const [syncBankName, setSyncBankName] = useState(true);
+
         const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null, title: '' });
         const [selectedMember, setSelectedMember] = useState(null);
 
@@ -167,7 +201,7 @@
           id: '', username: '', password: '1234', name: '', team: 'T01', role: 'Staff',
           startDate: getLocalISODate(), status: 'ทำงานอยู่', profileUrl: '', referrer: '',
           phone: '', email: '', address: '', lineId: '',lineUid: '',
-          bankName: '', bankAccountNo: '', bankAccountName: '', bankAccountStatus: 'รอตรวจสอบ',
+          bankName: 'BCEL', bankAccountNo: '', bankAccountName: '', bankAccountStatus: 'รอตรวจสอบ',
           idCardNumber: '', idCardDocUrl: '' 
         };
         const [formData, setFormData] = useState(initialFormState);
@@ -204,8 +238,11 @@
                 }
             }
 
+            setSelectedBankCode('BCEL');
+            setSyncBankName(true);
             setFormData({ 
                 ...initialFormState, 
+                bankName: 'BCEL',
                 referrer: defaultReferrer,
                 team: defaultTeam,
                 role: defaultRole
@@ -219,6 +256,11 @@
 
         const handleOpenEdit = (member) => {
            setIsEditing(true);
+           const bCode = resolveBankCode(member.bankName);
+           setSelectedBankCode(bCode);
+           const isSameName = !member.bankAccountName || (member.name && String(member.bankAccountName).trim() === String(member.name).trim());
+           setSyncBankName(isSameName);
+
            setFormData({
               id: member.id,
               username: member.username || member.id.toLowerCase(),
@@ -235,9 +277,9 @@
               address: member.address || '',
               lineId: member.lineId || '',
               lineUid: member.lineUid || member.line_uid || '',
-              bankName: member.bankName || '',
+              bankName: member.bankName || 'BCEL',
               bankAccountNo: member.bankAccountNo || '',
-              bankAccountName: member.bankAccountName || '',
+              bankAccountName: member.bankAccountName || member.name || '',
               bankAccountStatus: member.bankAccountStatus || member.bank_account_status || 'รอตรวจสอบ',
               idCardNumber: member.idCardNumber || '',
               idCardDocUrl: member.idCardDocUrl || ''
@@ -259,14 +301,15 @@
                 const img = new Image();
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 300; const MAX_HEIGHT = 300;
+                    const MAX_WIDTH = 250; const MAX_HEIGHT = 250;
                     let width = img.width; let height = img.height;
-                    if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } }
-                    else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
+                    if (width > height) { if (width > MAX_WIDTH) { height = Math.round(height * (MAX_WIDTH / width)); width = MAX_WIDTH; } }
+                    else { if (height > MAX_HEIGHT) { width = Math.round(width * (MAX_HEIGHT / height)); height = MAX_HEIGHT; } }
                     canvas.width = width; canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
-                    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                    // 🗜️ บีบอัดรูปโปรไฟล์เหลือ ~15-25 KB
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.70);
                     setPreviewImage(dataUrl); setImageFileBase64(dataUrl);
                 };
                 img.src = event.target.result;
@@ -282,15 +325,16 @@
                 const img = new Image();
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 800;
-                    const MAX_HEIGHT = 800;
+                    const MAX_WIDTH = 640;
+                    const MAX_HEIGHT = 640;
                     let width = img.width; let height = img.height;
-                    if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } }
-                    else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
+                    if (width > height) { if (width > MAX_WIDTH) { height = Math.round(height * (MAX_WIDTH / width)); width = MAX_WIDTH; } }
+                    else { if (height > MAX_HEIGHT) { width = Math.round(width * (MAX_HEIGHT / height)); height = MAX_HEIGHT; } }
                     canvas.width = width; canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
-                    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                    // 🗜️ บีบอัดรูปภาพเอกสารเหลือ ~25-45 KB คมชัดพอดี และไม่หนัก DB
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.65);
                     setIdDocPreviewImage(dataUrl); 
                     setIdDocFileBase64(dataUrl);
                 };
@@ -481,7 +525,21 @@
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className={labelClassHud}>ชื่อ-นามสกุล *</label>
-                        <input type="text" required placeholder="ชื่อเต็มภาษาไทย" className={inputClassHud} value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                        <input 
+                          type="text" 
+                          required 
+                          placeholder="ชื่อเต็มภาษาไทย / ภาษาอังกฤษ" 
+                          className={inputClassHud} 
+                          value={formData.name} 
+                          onChange={e => {
+                            const val = e.target.value;
+                            setFormData(prev => ({
+                              ...prev,
+                              name: val,
+                              ...(syncBankName ? { bankAccountName: val } : {})
+                            }));
+                          }} 
+                        />
                       </div>
                       <div>
                         <label className={labelClassHud}>สังกัดทีม {!canEditSensitive && <span className="text-amber-500 text-[10px]">🔒 (ฟิกซ์ตามทีมผู้เพิ่ม)</span>}</label>
@@ -596,16 +654,101 @@
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
-                        <label className={labelClassHud}>ชื่อธนาคาร</label>
-                        <input type="text" placeholder="เช่น กสิกรไทย, ไทยพาณิชย์" className={inputClassHud + (!isAdmin && isEditing ? " bg-slate-100 cursor-not-allowed opacity-70" : "")} value={formData.bankName || ''} onChange={e => setFormData({...formData, bankName: e.target.value})} disabled={!isAdmin && isEditing} />
+                        <label className={labelClassHud}>ชื่อธนาคาร *</label>
+                        <select 
+                          className={inputClassHud + (!isAdmin && isEditing ? " bg-slate-100 cursor-not-allowed opacity-70" : "")} 
+                          value={selectedBankCode} 
+                          onChange={e => {
+                            const val = e.target.value;
+                            setSelectedBankCode(val);
+                            if (val === 'OTHER_LAO' || val === 'OTHER_THAI') {
+                              setFormData({...formData, bankName: ''});
+                            } else {
+                              const bObj = BANK_OPTIONS.find(b => b.id === val);
+                              setFormData({...formData, bankName: bObj ? bObj.id : val});
+                            }
+                          }}
+                          disabled={!isAdmin && isEditing}
+                        >
+                          <optgroup label="🇱🇦 ธนาคารในลาว (iBanking)">
+                            {BANK_OPTIONS.filter(b => b.isLao).map(b => (
+                              <option key={b.id} value={b.id}>{b.name}</option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="🇹🇭 ธนาคารในไทย">
+                            {BANK_OPTIONS.filter(b => !b.isLao).map(b => (
+                              <option key={b.id} value={b.id}>{b.name}</option>
+                            ))}
+                          </optgroup>
+                        </select>
+                        {(selectedBankCode === 'OTHER_LAO' || selectedBankCode === 'OTHER_THAI') && (
+                          <input 
+                            type="text" 
+                            placeholder="ระบุชื่อธนาคาร..." 
+                            className={inputClassHud + " mt-2"} 
+                            value={formData.bankName || ''} 
+                            onChange={e => setFormData({...formData, bankName: e.target.value})}
+                            disabled={!isAdmin && isEditing}
+                          />
+                        )}
+                        {(() => {
+                          const currentBankObj = BANK_OPTIONS.find(b => b.id === selectedBankCode);
+                          if (!currentBankObj) return null;
+                          return (
+                            <div className="mt-2 flex items-center gap-2">
+                              <span 
+                                className="px-2.5 py-0.5 rounded-full text-xs font-black shadow-sm flex items-center gap-1.5"
+                                style={{ backgroundColor: currentBankObj.bg, color: currentBankObj.color, border: `1px solid ${currentBankObj.color}40` }}
+                              >
+                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: currentBankObj.color }}></span>
+                                {currentBankObj.short}
+                              </span>
+                              <span className="text-[11px] text-slate-500 font-bold">
+                                {currentBankObj.isLao ? '🇱🇦 รองรับ iBanking โอนตรง' : '🇹🇭 ธนาคารไทย'}
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </div>
                       <div>
                         <label className={labelClassHud}>เลขบัญชีธนาคาร</label>
-                        <input type="text" placeholder="เลขที่บัญชี" className={inputClassHud + (!isAdmin && isEditing ? " bg-slate-100 cursor-not-allowed opacity-70" : "")} value={formData.bankAccountNo || ''} onChange={e => setFormData({...formData, bankAccountNo: e.target.value})} disabled={!isAdmin && isEditing} />
+                        <input type="text" placeholder="เลขที่บัญชี (เช่น 010120...)" className={inputClassHud + (!isAdmin && isEditing ? " bg-slate-100 cursor-not-allowed opacity-70" : "")} value={formData.bankAccountNo || ''} onChange={e => setFormData({...formData, bankAccountNo: e.target.value})} disabled={!isAdmin && isEditing} />
                       </div>
                       <div>
-                        <label className={labelClassHud}>ชื่อบัญชีธนาคาร</label>
-                        <input type="text" placeholder="ชื่อเจ้าของบัญชีภาษาไทย/อังกฤษ" className={inputClassHud + (!isAdmin && isEditing ? " bg-slate-100 cursor-not-allowed opacity-70" : "")} value={formData.bankAccountName || ''} onChange={e => setFormData({...formData, bankAccountName: e.target.value})} disabled={!isAdmin && isEditing} />
+                        <div className="flex items-center justify-between mb-1">
+                          <label className={labelClassHud + " mb-0"}>ชื่อบัญชีธนาคาร</label>
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              const nextSync = !syncBankName;
+                              setSyncBankName(nextSync);
+                              if (nextSync && formData.name) {
+                                setFormData(prev => ({ ...prev, bankAccountName: prev.name }));
+                              }
+                            }}
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 transition-colors ${syncBankName ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}
+                            title="คลิกเพื่อเปิด/ปิดการซิงค์ชื่ออัตโนมัติ"
+                          >
+                            {syncBankName ? '🔒 ซิงค์ตามชื่อพนักงาน' : '🔓 ปลดล็อกระบุเอง'}
+                          </button>
+                        </div>
+                        <input 
+                          type="text" 
+                          placeholder="ชื่อเจ้าของบัญชีภาษาไทย/อังกฤษ" 
+                          className={inputClassHud + (!isAdmin && isEditing ? " bg-slate-100 cursor-not-allowed opacity-70" : "")} 
+                          value={formData.bankAccountName || ''} 
+                          onChange={e => {
+                            setSyncBankName(false);
+                            setFormData({...formData, bankAccountName: e.target.value});
+                          }} 
+                          disabled={!isAdmin && isEditing} 
+                        />
+                        {syncBankName && (
+                          <div className="text-[10px] text-emerald-600 font-bold mt-1 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            ซิงค์ตรงกับชื่อพนักงาน (ป้องกันพิมพ์ชื่อไม่ตรงกับ iBanking)
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -619,21 +762,29 @@
                        <div className="space-y-4">
                            <div>
                                <label className={labelClassHud}>เลขประจำตัวเอกสาร (ID Number)</label>
-                               <input type="text" placeholder="ระบุเลขบัตร..." className={inputClassHud} value={formData.idCardNumber || ''} onChange={e => setFormData({...formData, idCardNumber: e.target.value})} />
-                           </div>
-                           <div>
-                               <label className={labelClassHud}>ลิงก์เอกสาร (URL รูปภาพ)</label>
-                               <input type="text" placeholder="วางลิงก์รูปภาพเอกสาร (ถ้ามี)" className={inputClassHud} value={formData.idCardDocUrl || ''} onChange={e => setFormData({...formData, idCardDocUrl: e.target.value})} />
+                               <input type="text" placeholder="ระบุเลขบัตร / พาสปอร์ต..." className={inputClassHud} value={formData.idCardNumber || ''} onChange={e => setFormData({...formData, idCardNumber: e.target.value})} />
                            </div>
                            <div>
                                <label className={labelClassHud}>อัปโหลดไฟล์รูปภาพเอกสาร (แนบไฟล์จากเครื่อง)</label>
                                <input type="file" accept="image/*" onChange={handleIdDocImageChange} className="w-full text-sm text-slate-600 file:mr-4 file:py-2.5 file:px-6 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 file:transition-colors file:shadow-md cursor-pointer file:cursor-pointer bg-white border border-slate-200 rounded-xl" />
+                               <p className="text-[11px] text-slate-400 font-bold mt-1.5">ระบบจะบีบอัดรูปภาพเอกสารอัตโนมัติก่อนบันทึก ช่วยให้เปิดเร็วและไม่หนักฐานข้อมูล</p>
                            </div>
                        </div>
-                       <div className="flex items-center justify-center h-full min-h-[160px]">
+                       <div className="flex flex-col items-center justify-center h-full min-h-[160px] gap-2">
                           {idDocPreviewImage ? (
-                              <div className="relative group rounded-xl overflow-hidden border-2 border-indigo-200 shadow-md flex items-center justify-center bg-white p-2">
-                                  <img src={idDocPreviewImage} className="max-h-48 object-contain" alt="ID Document Preview" />
+                              <div className="relative group rounded-xl overflow-hidden border-2 border-indigo-200 shadow-md flex flex-col items-center justify-center bg-white p-2 w-full">
+                                  <img src={idDocPreviewImage} className="max-h-48 object-contain rounded" alt="ID Document Preview" />
+                                  <button 
+                                      type="button" 
+                                      onClick={() => {
+                                          setIdDocPreviewImage(null);
+                                          setIdDocFileBase64(null);
+                                          setFormData({ ...formData, idCardDocUrl: '' });
+                                      }}
+                                      className="mt-2 text-xs font-bold text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1 rounded-lg transition-colors"
+                                  >
+                                      ลบรูปเอกสารออก
+                                  </button>
                               </div>
                           ) : (
                               <div className="w-full h-40 border-2 border-dashed border-slate-300 rounded-xl bg-slate-50 flex flex-col items-center justify-center text-slate-400 gap-2">
@@ -766,7 +917,24 @@
                       <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-sm grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm w-full">
                          <div className="space-y-1">
                             <span className="text-slate-400 font-bold text-xs text-slate-500">ธนาคาร</span>
-                            <div className="text-slate-800 font-extrabold">{selectedMember.bankName || '-'}</div>
+                            <div className="text-slate-800 font-extrabold flex items-center gap-1.5 flex-wrap">
+                               {(() => {
+                                 const bCode = resolveBankCode(selectedMember.bankName);
+                                 const bObj = BANK_OPTIONS.find(b => b.id === bCode);
+                                 if (bObj && bCode !== 'OTHER_LAO' && bCode !== 'OTHER_THAI') {
+                                   return (
+                                     <span 
+                                       className="px-2 py-0.5 rounded text-[11px] font-black"
+                                       style={{ backgroundColor: bObj.bg, color: bObj.color }}
+                                     >
+                                       {bObj.short}
+                                     </span>
+                                   );
+                                 }
+                                 return null;
+                               })()}
+                               <span>{selectedMember.bankName || '-'}</span>
+                            </div>
                          </div>
                          <div className="space-y-1">
                             <span className="text-slate-400 font-bold text-xs text-slate-500">เลขบัญชี</span>

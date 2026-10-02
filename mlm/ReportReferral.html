@@ -966,7 +966,10 @@
                             payment_method: payoutMethod || 'เงินโอน',
                             reference_note: refNoteStr,
                             paid_by: payer,
-                            paid_at: todayNow
+                            paid_at: todayNow,
+                            // ✅ column ใหม่: บันทึกข้อมูลหักโปรฯ ตรงๆ เพื่อป้องกันหักซ้ำในรอบถัดไป
+                            promo_deduct_boxes: payoutItem?.promoDeductBoxes || 0,
+                            promo_deduct_amount: payoutItem?.promoDeductAmount || 0
                         };
                         await window.supabaseInsert('stk_payout_logs', logData).catch(async () => {
                             if (typeof window.supabaseUpdate === 'function') {
@@ -996,7 +999,50 @@
             }
         };
 
+        // ─────────────────────────────────────────────────────────────────────
+        // 🔄 AUTO-SYNC: ซิงค์ promo_deduct_boxes/amount เข้า Supabase & paidRecords
+        //    อัตโนมัติในเบื้องหลัง สำหรับ record เก่า โดยที่แอดมินไม่ต้องกดปุ่มใดๆ ทั้งสิ้น
+        // ─────────────────────────────────────────────────────────────────────
+        const hasSyncedKeysRef = React.useRef(new Set());
+        React.useEffect(() => {
+            if (!referralDailyPayoutData || referralDailyPayoutData.length === 0) return;
+            const toSync = referralDailyPayoutData.filter(item =>
+                item.status === 'PAID' &&
+                (item.promoDeductBoxes || 0) > 0 &&
+                !hasSyncedKeysRef.current.has(item.key) &&
+                (!paidRecords[item.key] || !paidRecords[item.key].promoDeductBoxes)
+            );
+            if (toSync.length === 0) return;
+
+            let hasUpdates = false;
+            const updatedPaid = { ...paidRecords };
+            toSync.forEach(item => {
+                hasSyncedKeysRef.current.add(item.key);
+                hasUpdates = true;
+                if (!updatedPaid[item.key]) {
+                    updatedPaid[item.key] = { key: item.key, status: 'PAID' };
+                }
+                updatedPaid[item.key].promoDeductBoxes = item.promoDeductBoxes || 0;
+                updatedPaid[item.key].promoDeductAmount = item.promoDeductAmount || 0;
+
+                if (typeof window.supabaseUpdate === 'function') {
+                    window.supabaseUpdate('stk_payout_logs', item.key, {
+                        promo_deduct_boxes: item.promoDeductBoxes || 0,
+                        promo_deduct_amount: item.promoDeductAmount || 0
+                    }, 'payout_id').catch(err => {
+                        console.warn('Auto-sync promo deduct background error:', item.key, err);
+                    });
+                }
+            });
+
+            if (hasUpdates) {
+                setPaidRecords(updatedPaid);
+                try { localStorage.setItem('stk_payout_history', JSON.stringify(updatedPaid)); } catch(e) {}
+            }
+        }, [referralDailyPayoutData, paidRecords]);
+
         // ═════════════════════════════════════════════════════════════════════
+
         // 📊 EXCEL EXPORT ENGINE (On-Demand SheetJS .xlsx & Safe CSV)
         // ═════════════════════════════════════════════════════════════════════
         const ensureXlsxLoaded = () => {
@@ -2494,6 +2540,7 @@
                                         <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg> 
                                         พิมพ์ (Print)
                                     </button>
+
                                 </div>
 
                                 <div className={`${boxWrapper} p-0 overflow-hidden`}>

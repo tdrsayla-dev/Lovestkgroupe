@@ -273,7 +273,8 @@
                 const amt = Number(log.amount ?? log.payout_amount ?? log.payAmt ?? log.paid_amount ?? log.total_amount ?? 0) || 0;
                 let promoDeductBoxes = Number(log.promo_deduct_boxes || log.promoDeductBoxes || 0);
                 let promoDeductAmount = Number(log.promo_deduct_amount || log.promoDeductAmount || 0);
-                if (log.reference_note && typeof log.reference_note === 'string' && log.reference_note.startsWith('{')) {
+                // fallback: ดึงจาก reference_note (เฉพาะ record เก่าที่ยังไม่มี column ใหม่)
+                if (!promoDeductBoxes && log.reference_note && typeof log.reference_note === 'string' && log.reference_note.startsWith('{')) {
                     try {
                         const parsed = JSON.parse(log.reference_note);
                         if (parsed.promoDeductBoxes) promoDeductBoxes = Number(parsed.promoDeductBoxes);
@@ -938,16 +939,45 @@
         // ค้นหาประวัติการจ่ายเงินที่สำเร็จแล้ว (PAID) ที่เกิดขึ้นก่อนหน้าช่วงวันที่ที่กำลังแสดง
         // เพื่อนำจำนวนกล่อง/ยอดเงินที่เคยถูกหักไปแล้ว มาเป็นฐานเริ่มต้น (ไม่หักซ้ำในวันถัดไป)
         const earliestDisplayDate = dailyItems[0]?.date || '';
-        payouts.forEach(p => {
-            const pId = safeUpper(p.memberId);
+        const currentMonth = earliestDisplayDate.substring(0, 7); // เช่น "2026-10"
+
+        // กรอง payouts ที่เกิดขึ้นก่อนหน้าวันที่เริ่มต้นแสดงผลในรอบเดือนเดียวกัน และเรียงตามวันที่จากอดีตมาปัจจุบัน
+        const priorPayouts = payouts.filter(p => {
             const pDate = p.date || p.startDate || p.start_date || '';
-            if (earliestDisplayDate && pDate && pDate < earliestDisplayDate) {
-                if (p.promoDeductBoxes) {
-                    memberDeductedBoxesTracker[pId] = (memberDeductedBoxesTracker[pId] || 0) + Number(p.promoDeductBoxes);
-                }
-                if (p.promoDeductAmount) {
-                    memberDeductedAmountTracker[pId] = (memberDeductedAmountTracker[pId] || 0) + Number(p.promoDeductAmount);
-                }
+            return pDate && earliestDisplayDate && pDate < earliestDisplayDate && (!currentMonth || pDate.startsWith(currentMonth));
+        }).sort((a, b) => {
+            const da = a.date || a.startDate || a.start_date || '';
+            const db = b.date || b.startDate || b.start_date || '';
+            return da.localeCompare(db);
+        });
+
+        priorPayouts.forEach(p => {
+            const pId = safeUpper(p.memberId);
+            const campInfo = ((typeof window !== 'undefined' && window.__stkCampaignResultsMap) || {})[pId] || null;
+            const isQualified = !!(campInfo && campInfo.isQualified && !campInfo.isNoDeduct);
+            const maxQuotaBoxes = isQualified ? Number(campInfo.quotaBoxes || 0) : 0;
+            const maxDeductAmount = isQualified ? Number(campInfo.commissionDeducted || (maxQuotaBoxes * 250000)) : 0;
+
+            let pBoxes = Number(p.promoDeductBoxes || 0);
+            let pAmt = Number(p.promoDeductAmount || 0);
+
+            // Fallback กรณี record เก่าในฐานข้อมูลเคยจ่ายไปแล้วก่อนที่จะมีคอลัมน์ promo_deduct_boxes (หรือมีค่า 0)
+            // แต่สมาชิกคนนี้ผ่านเกณฑ์ตัดโปรในรอบเดือนนี้ (isQualified)
+            // ให้ถือว่ายอดที่จ่ายสำเร็จไปแล้วในวันก่อนหน้า ได้หักโควต้าไปแล้วตามจำนวนโควต้าที่เหลือ
+            // เพื่อป้องกันไม่ให้วันถัดไปถูกนำมาหักซ้ำเด็ดขาด
+            if (pBoxes <= 0 && isQualified && maxQuotaBoxes > 0) {
+                const currentTracked = memberDeductedBoxesTracker[pId] || 0;
+                const remainingQuota = Math.max(0, maxQuotaBoxes - currentTracked);
+                pBoxes = remainingQuota; // หักตามโควต้าที่มีผล เช่น 5 กล่อง
+                const feePerBox = maxQuotaBoxes > 0 ? Math.round(maxDeductAmount / maxQuotaBoxes) : 250000;
+                pAmt = pBoxes * feePerBox;
+            }
+
+            if (pBoxes > 0) {
+                memberDeductedBoxesTracker[pId] = (memberDeductedBoxesTracker[pId] || 0) + pBoxes;
+            }
+            if (pAmt > 0) {
+                memberDeductedAmountTracker[pId] = (memberDeductedAmountTracker[pId] || 0) + pAmt;
             }
         });
 
@@ -966,15 +996,31 @@
 
                 // ── Roll-forward Core Logic ──────────────────────────────────────────────────
                 const grossEarn = item.totalEarn || 0;
-                const isDayAlreadyPaid = hasPaidRecord && (matchedPaidAmount > 0);
+                const isDayAlreadyPaid = hasPaidRecord;
 
                 let promoDeductBoxes = 0;
                 let promoDeductAmount = 0;
 
                 if (isDayAlreadyPaid) {
-                    // วัน PAID: หากตอนจ่ายเคยมีการหักโปรฯ ให้ดึงค่าที่เคยหักจริงมาแสดง และอัปเดตเข้า tracker
-                    promoDeductBoxes = matchedPaidDeductBoxes || 0;
-                    promoDeductAmount = matchedPaidDeductAmount || 0;
+                    if (matchedPaidDeductBoxes > 0) {
+                        // วัน PAID (มีข้อมูลหักโปรฯ บันทึกไว้): ดึงค่าจริงที่หักไปแล้วมาแสดง
+                        promoDeductBoxes = matchedPaidDeductBoxes;
+                        promoDeductAmount = matchedPaidDeductAmount;
+                    } else if (isQualified) {
+                        // วัน PAID แต่ไม่มีข้อมูลหักโปรฯ บันทึกไว้
+                        // (เกิดจากการจ่ายก่อนที่ระบบจะรองรับการบันทึกโปร หรือ promoDeductBoxes=0 ถูกบันทึกผิด)
+                        // → คำนวณย้อนหลังด้วยสูตรเดิม เพื่อ:
+                        //   1. แสดงตัวเลขถูกต้องให้แอดมินเห็น
+                        //   2. อัปเดต tracker ป้องกันหักซ้ำในวัน PENDING ถัดไป
+                        const remainingQuotaToDeduct = Math.max(0, maxQuotaBoxes - alreadyDeductedBoxes);
+                        promoDeductBoxes = Math.min(item.boxes || 0, remainingQuotaToDeduct);
+                        if (promoDeductBoxes > 0 && maxQuotaBoxes > 0) {
+                            const remainingAmountToDeduct = Math.max(0, maxDeductAmount - alreadyDeductedAmount);
+                            const feePerBox = Math.round(maxDeductAmount / maxQuotaBoxes);
+                            promoDeductAmount = Math.min(grossEarn, Math.min(remainingAmountToDeduct, promoDeductBoxes * feePerBox));
+                        }
+                    }
+                    // อัปเดต tracker เสมอ (ไม่ว่าจะดึงจาก saved หรือคำนวณย้อนหลัง)
                     memberDeductedBoxesTracker[mId] = alreadyDeductedBoxes + promoDeductBoxes;
                     memberDeductedAmountTracker[mId] = alreadyDeductedAmount + promoDeductAmount;
                 } else if (isQualified) {
